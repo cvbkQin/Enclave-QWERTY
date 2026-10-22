@@ -103,6 +103,11 @@ extension EnclaveSettings {
         maxTokens = try c.decodeIfPresent(Int.self, forKey: .maxTokens) ?? maxTokens
         styles = try c.decodeIfPresent([StylePreset].self, forKey: .styles) ?? styles
         selectedStyleID = try c.decodeIfPresent(UUID.self, forKey: .selectedStyleID)
+        if styles.map({ $0.name }) == StylePreset.legacyDefaults.map({ $0.name }),
+           styles.map({ $0.prompt }) == StylePreset.legacyDefaults.map({ $0.prompt }) {
+            styles = StylePreset.defaults
+            selectedStyleID = nil
+        }
         asrProvider = (try? c.decodeIfPresent(ASRProvider.self, forKey: .asrProvider)) ?? asrProvider
         allowAppleServerASR = try c.decodeIfPresent(Bool.self, forKey: .allowAppleServerASR) ?? allowAppleServerASR
         asrBaseURL = try c.decodeIfPresent(String.self, forKey: .asrBaseURL) ?? asrBaseURL
@@ -117,10 +122,20 @@ extension EnclaveSettings {
 }
 
 extension StylePreset {
+    /// 键盘上的风格标签。「自动」没有额外要求，由润色 prompt 按内容决定排版。
     static let defaults: [StylePreset] = [
-        StylePreset(name: "聊天", prompt: "场景是微信等即时聊天。语气自然口语化，句子简短，不要用书面套话。"),
-        StylePreset(name: "邮件", prompt: "场景是工作邮件。语气礼貌、清晰、专业，结构分明。"),
-        StylePreset(name: "汇报", prompt: "场景是向上级汇报工作。先说结论，再说要点，简洁具体。"),
+        StylePreset(name: "自动", prompt: ""),
+        StylePreset(name: "消息", prompt: "场景是微信等即时聊天消息。语气自然，句子简短，像本人在说话；不加标题、不分点编号，不用书面套话。"),
+        StylePreset(name: "邮件", prompt: "场景是工作邮件。开头一句称呼问候，正文分段、礼貌清晰；结尾署名只在用户提到自己名字时才加，否则不加署名。"),
+        StylePreset(name: "周报", prompt: "场景是工作周报。第一行写标题，然后按「本周进展：」「问题：」「下周计划：」分组，组内用「1.」「2.」编号；原文没有提到的组省略，不要编造内容。"),
+        StylePreset(name: "纪要", prompt: "场景是会议纪要。第一行写会议主题作标题，然后分「结论：」和「待办：」两组编号列出；待办里原文提到负责人或时间的写在后面，没提到的不要编。"),
+    ]
+
+    /// 旧版的三个默认风格，用户没改过时升级成新的默认列表。
+    static let legacyDefaults: [(name: String, prompt: String)] = [
+        ("聊天", "场景是微信等即时聊天。语气自然口语化，句子简短，不要用书面套话。"),
+        ("邮件", "场景是工作邮件。语气礼貌、清晰、专业，结构分明。"),
+        ("汇报", "场景是向上级汇报工作。先说结论，再说要点，简洁具体。"),
     ]
 }
 

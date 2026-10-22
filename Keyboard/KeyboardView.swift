@@ -191,51 +191,36 @@ struct KeyboardView: View {
                 .disabled(!model.canUndo)
             PanelButton(title: "新会话", systemImage: nil) { model.newSession() }
                 .disabled(model.session == nil && !model.isRunning)
-            styleMenu
+            layoutMenu
+                .frame(width: 40)
         }
     }
 
-    private var styleMenu: some View {
+    /// 键盘布局切换（风格改成了要求行里的标签）。
+    private var layoutMenu: some View {
         Menu {
-            Section("键盘布局") {
-                ForEach(KeyboardLayout.allCases) { layout in
-                    Button {
-                        model.setLayout(layout)
-                    } label: {
-                        if layout == model.settings.keyboardLayout {
-                            Label(layout.title, systemImage: "checkmark")
-                        } else {
-                            Text(layout.title)
-                        }
-                    }
-                }
-            }
-            Section("润色风格") {
-                ForEach(model.settings.styles) { style in
-                    Button {
-                        model.selectStyle(style)
-                    } label: {
-                        if style.id == model.settings.selectedStyle?.id {
-                            Label(style.name, systemImage: "checkmark")
-                        } else {
-                            Text(style.name)
-                        }
+            ForEach(KeyboardLayout.allCases) { layout in
+                Button {
+                    model.setLayout(layout)
+                } label: {
+                    if layout == model.settings.keyboardLayout {
+                        Label(layout.title, systemImage: "checkmark")
+                    } else {
+                        Text(layout.title)
                     }
                 }
             }
         } label: {
-            HStack(spacing: 3) {
-                Image(systemName: "paintbrush")
-                Text(model.settings.selectedStyle?.name ?? "风格").lineLimit(1)
-            }
-            .font(.footnote)
-            .foregroundStyle(Color.primary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
+            Image(systemName: "keyboard")
+                .font(.footnote)
+                .foregroundStyle(Color.primary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
         }
     }
 
-    /// 要求行：左边收起，中间是可左右滑动的要求标签，右边执行（长按用语音说要求）。
+    /// 要求行：左边收起，中间可左右滑动——先是风格标签（单选），一条细线隔开，再是写要求和常用要求；右边执行（长按用语音说要求）。
+    /// 已有结果时，点风格或常用要求会立刻生成新的一版，可以上下滑回之前的版本。
     private var requirementRow: some View {
         HStack(spacing: 6) {
             Button { model.setAIExpanded(false) } label: {
@@ -249,11 +234,20 @@ struct KeyboardView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
+                    ForEach(model.settings.styles) { style in
+                        StyleTag(title: style.name, selected: style.id == model.settings.selectedStyle?.id) {
+                            model.styleTagTapped(style)
+                        }
+                    }
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.4))
+                        .frame(width: 1, height: 18)
+                        .padding(.horizontal, 2)
                     customRequirementChip
                     ForEach(KeyboardModel.presets, id: \.title) { preset in
                         ToolChip(title: preset.title, systemImage: nil,
-                                 prominent: model.instruction == preset.instruction) {
-                            model.selectPreset(preset.instruction)
+                                 prominent: !model.hasResult && model.instruction == preset.instruction) {
+                            model.presetTapped(preset.instruction)
                         }
                     }
                 }
@@ -297,6 +291,26 @@ struct KeyboardView: View {
         .overlay(Capsule().stroke(Color.accentColor, lineWidth: editing ? 1.5 : 0))
         .contentShape(Capsule())
         .onTapGesture { model.toggleInstructionEditing() }
+    }
+}
+
+/// 风格标签：选中时是描边加粗的胶囊，和下面的常用要求（实心）区分开。
+struct StyleTag: View {
+    var title: String
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.footnote.weight(selected ? .semibold : .regular))
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .foregroundStyle(selected ? Color.accentColor : Color.primary)
+                .background(Capsule().fill(selected ? Color.accentColor.opacity(0.15) : KeyStyle.charKey))
+                .overlay(Capsule().stroke(Color.accentColor, lineWidth: selected ? 1.2 : 0))
+        }
+        .buttonStyle(.plain)
     }
 }
 

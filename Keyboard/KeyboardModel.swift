@@ -78,16 +78,8 @@ final class KeyboardModel: ObservableObject {
     func execute() {
         guard !isRunning else { return }
         reload()
-        errorMessage = nil
-        notice = nil
-        guard hasFullAccess else {
-            errorMessage = "需要在 设置 › 通用 › 键盘 › 键盘 › Enclave 里打开「允许完全访问」才能联网。"
-            return
-        }
-        guard settings.isConfigured else {
-            errorMessage = LLMError.notConfigured.errorDescription
-            return
-        }
+
+        guard checkCanCallModel() else { return }
 
         let parsed = CommandParser.parse(readField().text)
         let command = CommandParser.Command(
@@ -128,6 +120,53 @@ final class KeyboardModel: ObservableObject {
                                           instruction: command.instruction, style: style)
             run(messages, pending: pending)
         }
+    }
+
+    private func checkCanCallModel() -> Bool {
+        errorMessage = nil
+        notice = nil
+        guard hasFullAccess else {
+            errorMessage = "需要在 设置 › 通用 › 键盘 › 键盘 › Enclave 里打开「允许完全访问」才能联网。"
+            return false
+        }
+        guard settings.isConfigured else {
+            errorMessage = LLMError.notConfigured.errorDescription
+            return false
+        }
+        return true
+    }
+
+    /// 预览区已经有一个结果（不在生成中）。
+    var hasResult: Bool { !isRunning && session?.current != nil }
+
+    /// 点风格标签：选中它；已有结果时立刻用这个风格重写原话，结果作为新的一版。
+    func styleTagTapped(_ style: StylePreset) {
+        selectStyle(style)
+        guard hasResult, var pending = session, let current = pending.current, checkCanCallModel() else { return }
+        switch pending.mode {
+        case .polish:
+            run(Prompts.polish(pending.original, style: style), pending: pending)
+        case .write:
+            let request = "按「\(style.name)」的写法重写一遍。"
+            pending.conversation.append(.user(request))
+            run(Prompts.revise(original: pending.original, current: current, instruction: request, style: style),
+                pending: pending)
+        }
+    }
+
+    /// 点常用要求：已有结果时立刻按要求改当前这一版，结果作为新的一版；还没有结果时只是选中，等「执行」。
+    func presetTapped(_ instruction: String) {
+        guard hasResult, var pending = session, let current = pending.current else {
+            selectPreset(instruction)
+            return
+        }
+        guard checkCanCallModel() else { return }
+        if pending.mode == .write {
+            pending.conversation.append(.user(instruction))
+        }
+        run(Prompts.revise(original: pending.original, current: current, instruction: instruction,
+                           style: settings.selectedStyle),
+            pending: pending)
     }
 
     private func run(_ messages: [ChatMessage], pending: EditSession) {
