@@ -10,6 +10,7 @@ struct KeysView: View {
             ZStack(alignment: .topLeading) {
                 if model.candidatesExpanded {
                     CandidateGrid(model: model)
+                        .frame(width: geo.size.width, height: geo.size.height)
                 } else {
                     ForEach(layout.keys) { key in
                         KeyCapView(model: model, key: key)
@@ -228,7 +229,7 @@ struct CandidateGrid: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 58), spacing: 0)], spacing: 0) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 0)], spacing: 0) {
                     ForEach(Array(model.candidates.enumerated()), id: \.offset) { index, word in
                         Button { model.selectCandidate(index) } label: {
                             Text(word)
@@ -243,6 +244,7 @@ struct CandidateGrid: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity)
             .hidingScrollEdgeEffect()
             VStack(spacing: 0) {
                 FunctionKey(systemImage: "chevron.up") { model.candidatesExpanded = false }
