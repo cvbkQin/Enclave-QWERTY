@@ -26,3 +26,18 @@ enum SharedStorage {
     /// 钥匙串访问组：App Group 生效时用它让两个 target 共享 API key。
     static var keychainAccessGroup: String? { isShared ? appGroupID : nil }
 }
+
+/// 调试用：主 App 用启动参数写入，键盘出现时读取，直接进入某个界面状态，方便在模拟器里截图。
+enum KeyboardDebug {
+    static let key = "debug.keyboardState"
+
+    /// 例如 ["expanded", "nine", "compose:nihao"]。
+    static var options: [String] {
+        #if DEBUG
+        return (SharedStorage.defaults.string(forKey: key) ?? "")
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        #else
+        return []
+        #endif
+    }
+}

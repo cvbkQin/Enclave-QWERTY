@@ -298,3 +298,35 @@ extension KeyboardModel {
 
     var returnHighlighted: Bool { target == .instruction && !isComposing }
 }
+
+// MARK: - 模拟器截图用的调试状态
+
+extension KeyboardModel {
+    /// 读取主 App 写入的调试选项：expanded（展开面板）、nine / qwerty（布局）、
+    /// numbers / symbols（数字、符号层）、english（英文模式）、compose:拼音（模拟正在打拼音）、
+    /// instruction（输入要求）、candidates（展开候选）。
+    func applyDebugState() {
+        let options = KeyboardDebug.options
+        guard !options.isEmpty else { return }
+        for option in options {
+            switch option {
+            case "expanded": aiExpanded = true
+            case "nine": if settings.keyboardLayout != .nineKey { setLayout(.nineKey) }
+            case "qwerty": if settings.keyboardLayout != .qwerty { setLayout(.qwerty) }
+            case "numbers": layer = .numbers
+            case "symbols": layer = .symbols
+            case "english": if chineseMode { toggleChinese() }
+            case "instruction": aiExpanded = true; target = .instruction
+            default: break
+            }
+        }
+        for option in options where option.hasPrefix("compose:") {
+            engine.reset()
+            for character in option.dropFirst("compose:".count) {
+                if let output = engine.input(String(character)) { commit(output) }
+            }
+            syncEngine()
+        }
+        if options.contains("candidates") && !candidates.isEmpty { candidatesExpanded = true }
+    }
+}

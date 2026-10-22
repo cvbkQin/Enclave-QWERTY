@@ -5,6 +5,18 @@ struct EnclaveApp: App {
     @StateObject private var voice = VoiceService.shared
     @StateObject private var router = AppRouter.shared
 
+    init() {
+        #if DEBUG
+        // 模拟器截图用：-keyboardDebug "expanded,nine,compose:nihao" 让键盘直接显示某个状态。
+        let args = ProcessInfo.processInfo.arguments
+        if let index = args.firstIndex(of: "-keyboardDebug"), args.indices.contains(index + 1) {
+            SharedStorage.defaults.set(args[index + 1], forKey: KeyboardDebug.key)
+        } else {
+            SharedStorage.defaults.removeObject(forKey: KeyboardDebug.key)
+        }
+        #endif
+    }
+
     var body: some Scene {
         WindowGroup {
             SettingsView()
