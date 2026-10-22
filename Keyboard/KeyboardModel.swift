@@ -33,6 +33,16 @@ final class KeyboardModel: ObservableObject {
     /// 拼音词库是否可用（主 App 部署过，并且打开了完全访问）。
     @Published var pinyinReady = false
     var lastShiftTap = Date.distantPast
+    /// 正被按住的键，用来画按下状态和气泡。
+    @Published var pressedKeys: Set<String> = []
+    /// 长按空格进入的光标移动模式，按键上的字会隐藏。
+    @Published var trackpadActive = false
+    /// 候选词展开成整页。
+    @Published var candidatesExpanded = false
+    /// 输入框里是否有带下划线的拼音（marked text）。
+    var hasMarkedText = false
+    var lastSpaceTime = Date.distantPast
+    lazy var haptic = UIImpactFeedbackGenerator(style: .light)
 
     weak var controller: UIInputViewController?
     private var task: Task<Void, Never>?

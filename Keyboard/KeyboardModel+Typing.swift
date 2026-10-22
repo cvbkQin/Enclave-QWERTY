@@ -1,3 +1,4 @@
+import AudioToolbox
 import UIKit
 
 /// 打字：按键、组字、上屏，以及把文字送到聊天输入框还是要求框。
@@ -36,6 +37,7 @@ extension KeyboardModel {
         switch target {
         case .host:
             proxy?.deleteBackward()
+            updateAutoShift()
         case .instruction:
             guard !instruction.isEmpty else { return }
             setInstruction(String(instruction.dropLast()))
@@ -45,9 +47,21 @@ extension KeyboardModel {
     func spaceKey() {
         if isComposing {
             selectCandidate(0)
+            return
+        }
+        // 连按两下空格：把第一个空格换成句号，和系统的「句号快捷键」一样。
+        let now = Date()
+        if target == .host, now.timeIntervalSince(lastSpaceTime) < 0.45,
+           let before = proxy?.documentContextBeforeInput, before.hasSuffix(" "),
+           let previous = before.dropLast().last, !previous.isWhitespace, !previous.isPunctuation {
+            proxy?.deleteBackward()
+            commit(chineseMode ? "。" : ". ")
+            lastSpaceTime = .distantPast
         } else {
             commit(" ")
+            lastSpaceTime = now
         }
+        if layer != .letters { layer = .letters }
     }
 
     /// 组字时回车把字母原样上屏；在要求框里回车就是「执行」。
@@ -70,6 +84,64 @@ extension KeyboardModel {
         syncEngine()
     }
 
+    // MARK: - 按键触摸（由 KeyTouchView 调用）
+
+    var layoutState: KeyLayout.State {
+        KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey)
+    }
+
+    func perform(_ kind: KeyKind) {
+        switch kind {
+        case .letter(let letter): typeLetter(letter)
+        case .symbol(let symbol): typeSymbol(symbol)
+        case .nine(let key): typeNineKey(key)
+        case .shift: shiftKey()
+        case .delete: deleteKey()
+        case .space: spaceKey()
+        case .returnKey: returnKey()
+        case .toggleChinese: toggleChinese()
+        case .layer(let layer): switchLayer(layer)
+        case .clearComposition: clearComposition()
+        case .globe: break
+        }
+    }
+
+    func keyPressed(_ key: KeySpec, feedback: Bool = true) {
+        pressedKeys.insert(key.id)
+        if feedback { keyFeedback(for: key.kind) }
+    }
+
+    func keyReleased(_ id: String) {
+        pressedKeys.remove(id)
+    }
+
+    /// 按下时的震动和声音，声音和系统键盘一样分字符、删除、功能键三种。
+    func keyFeedback(for kind: KeyKind) {
+        if settings.keyHaptics && hasFullAccess {
+            haptic.impactOccurred()
+            haptic.prepare()
+        }
+        if settings.keySound {
+            let sound: SystemSoundID
+            switch kind {
+            case .letter, .symbol, .nine, .space: sound = 1104
+            case .delete: sound = 1155
+            default: sound = 1156
+            }
+            AudioServicesPlaySystemSound(sound)
+        }
+    }
+
+    func setTrackpad(_ active: Bool) {
+        trackpadActive = active
+        if active { keyFeedback(for: .space) }
+    }
+
+    func moveCursor(by offset: Int) {
+        guard target == .host else { return }
+        proxy?.adjustTextPosition(byCharacterOffset: offset)
+    }
+
     func shiftKey() {
         let now = Date()
         switch shift {
@@ -85,6 +157,7 @@ extension KeyboardModel {
         engine.reset()
         chineseMode.toggle()
         selectEngine()
+        if chineseMode { shift = .off } else { updateAutoShift() }
     }
 
     /// 九宫格只用于中文拼音；英文模式和拼音不可用时用全键盘。
@@ -168,13 +241,60 @@ extension KeyboardModel {
 
     func commit(_ text: String) {
         switch target {
-        case .host: proxy?.insertText(text)
-        case .instruction: setInstruction(instruction + text)
+        case .host:
+            clearMarkedText()
+            proxy?.insertText(text)
+            updateAutoShift()
+        case .instruction:
+            setInstruction(instruction + text)
         }
     }
 
     func syncEngine() {
         composition = engine.composition
         candidates = engine.candidates
+        if candidates.isEmpty { candidatesExpanded = false }
+        // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
+        if target == .host && isComposing {
+            proxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
+            hasMarkedText = true
+        } else {
+            clearMarkedText()
+        }
     }
+
+    func clearMarkedText() {
+        guard hasMarkedText else { return }
+        proxy?.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+        proxy?.unmarkText()
+        hasMarkedText = false
+    }
+
+    /// 英文模式在句首自动大写，和系统一样。
+    func updateAutoShift() {
+        guard !chineseMode, target == .host, layer == .letters, shift != .locked else { return }
+        let before = proxy?.documentContextBeforeInput ?? ""
+        let trimmed = before.trimmingCharacters(in: .whitespaces)
+        let sentenceStart = trimmed.isEmpty || before.hasSuffix("\n")
+            || (before.hasSuffix(" ") && [".", "?", "!"].contains(trimmed.last.map(String.init) ?? ""))
+        shift = sentenceStart ? .on : .off
+    }
+}
+
+// MARK: - 按键上的字
+
+extension KeyboardModel {
+    var spaceTitle: String {
+        if isComposing { return "选定" }
+        if !chineseMode { return "space" }
+        // 词库没部署或没开完全访问时，中文模式也只能直接打字母。
+        return pinyinReady ? "空格" : "空格（拼音未就绪）"
+    }
+
+    var returnTitle: String {
+        if isComposing { return "确认" }
+        return target == .instruction ? "执行" : (chineseMode ? "换行" : "return")
+    }
+
+    var returnHighlighted: Bool { target == .instruction && !isComposing }
 }

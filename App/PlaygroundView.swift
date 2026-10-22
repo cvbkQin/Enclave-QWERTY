@@ -22,8 +22,15 @@ struct PlaygroundView: View {
                text: "我们这次的活动非常成功，参加的人数比预计的多了一倍。大家的反溃都很好，特别是互动环节，很多人表示下次还要来。不过也有一些问题，比如签到太慢，饮料不够，下次需要提前准被。"),
     ]
 
+    /// 从链接打开时自动聚焦第一个输入框，让键盘直接弹出来。
+    var autoFocusToken: UUID?
+
     @State private var texts: [String] = Self.samples.map(\.text)
     @FocusState private var focused: Int?
+
+    init(autoFocusToken: UUID? = nil) {
+        self.autoFocusToken = autoFocusToken
+    }
 
     var body: some View {
         Form {
@@ -52,6 +59,11 @@ struct PlaygroundView: View {
             }
         }
         .navigationTitle("试一试")
+        .task(id: autoFocusToken) {
+            guard autoFocusToken != nil else { return }
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            focused = 0
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("全部重置") { texts = Self.samples.map(\.text) }

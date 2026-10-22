@@ -10,7 +10,7 @@ final class RimeEngine: InputEngine {
     private var loadedVersion: String?
     private var schema = RimeStore.schemaID
 
-    private static let candidateLimit = 60
+    private static let candidateLimit = 150
     private static let backspaceKey: Int32 = 0xff08
 
     /// 准备好引擎并切到指定方案；词库没部署或读不到共享目录时返回 false。

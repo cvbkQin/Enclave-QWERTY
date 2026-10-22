@@ -51,6 +51,8 @@ final class KeyboardViewController: UIInputViewController {
         model.isVisible = false
         model.engine.reset()
         model.syncEngine()
+        model.pressedKeys = []
+        model.trackpadActive = false
     }
 
     override func viewWillLayoutSubviews() {

@@ -10,15 +10,17 @@ enum KeyboardMetrics {
     static let keysHeight: CGFloat = slotHeight * 4
 
     static let topRow: CGFloat = 38
-    static let previewHeight: CGFloat = 58
-    static let actionRow: CGFloat = 30
+    static let previewHeight: CGFloat = 62
+    static let actionRow: CGFloat = 34
     static let instructionRow: CGFloat = 32
     static let panelSpacing: CGFloat = 5
+    static let panelTop: CGFloat = 6
     static let sidePadding: CGFloat = 3
 
     static var collapsedHeight: CGFloat { topRow + keysHeight + 2 }
+    /// 展开后没有顶栏：预览行、操作行、要求行，下面是按键。
     static var expandedHeight: CGFloat {
-        collapsedHeight + previewHeight + actionRow + instructionRow + panelSpacing * 3 + 4
+        panelTop + previewHeight + actionRow + instructionRow + panelSpacing * 3 + keysHeight + 2
     }
 }
 
@@ -33,6 +35,8 @@ enum KeyStyle {
     static let cornerRadius: CGFloat = 8.5
 
     static let letterFont = Font.system(size: 23)
+    static let symbolFont = Font.system(size: 21)
+    static let nineKeyFont = Font.system(size: 18, weight: .medium)
     static let functionFont = Font.system(size: 16)
     static let iconFont = Font.system(size: 18, weight: .regular)
 }

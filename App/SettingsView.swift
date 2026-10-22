@@ -6,6 +6,7 @@ struct SettingsView: View {
     @State private var apiKey = SettingsStore.apiKey ?? ""
     @State private var testState: TestState = .idle
     @State private var copied = false
+    @EnvironmentObject private var router: AppRouter
 
     enum TestState: Equatable {
         case idle, running, success(String), failure(String)
@@ -27,8 +28,10 @@ struct SettingsView: View {
                     Picker("键盘布局", selection: $settings.keyboardLayout) {
                         ForEach(KeyboardLayout.allCases) { Text($0.title).tag($0) }
                     }
+                    Toggle("按键震动", isOn: $settings.keyHaptics)
+                    Toggle("按键声音", isOn: $settings.keySound)
                 } footer: {
-                    Text("九宫格只用于中文；切到英文时自动用全键盘。键盘上点风格菜单也能切换。")
+                    Text("九宫格只用于中文；切到英文时自动用全键盘。键盘上点风格菜单也能切换布局。按键声音在手机静音时不响。")
                 }
                 apiSection
                 testSection
@@ -38,6 +41,9 @@ struct SettingsView: View {
                 SetupGuideSection()
             }
             .navigationTitle("Enclave")
+            .navigationDestination(isPresented: $router.showPlayground) {
+                PlaygroundView(autoFocusToken: router.playgroundFocusToken)
+            }
             .onChange(of: settings) { SettingsStore.save($0) }
             .onChange(of: apiKey) { SettingsStore.apiKey = $0 }
         }

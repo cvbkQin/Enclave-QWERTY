@@ -53,11 +53,15 @@ struct EnclaveSettings: Codable, Equatable {
 
     // 键盘
     var keyboardLayout: KeyboardLayout = .qwerty
+    /// 按键震动（需要打开完全访问）。
+    var keyHaptics: Bool = true
+    /// 按键声音（手机静音时不响）。
+    var keySound: Bool = true
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
         case asrProvider, allowAppleServerASR, asrBaseURL, asrModel, voiceSessionMinutes, autoPolishAfterVoice
-        case keyboardLayout
+        case keyboardLayout, keyHaptics, keySound
     }
 
     var isConfigured: Bool {
@@ -88,6 +92,8 @@ extension EnclaveSettings {
         voiceSessionMinutes = try c.decodeIfPresent(Int.self, forKey: .voiceSessionMinutes) ?? voiceSessionMinutes
         autoPolishAfterVoice = try c.decodeIfPresent(Bool.self, forKey: .autoPolishAfterVoice) ?? autoPolishAfterVoice
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
+        keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
+        keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
     }
 }
 
