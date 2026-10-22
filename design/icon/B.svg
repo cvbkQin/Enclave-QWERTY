@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="bg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1024"><stop offset="0" stop-color="#1F2937"/><stop offset="1" stop-color="#0B0F17"/></linearGradient>
+<linearGradient id="cu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5EEAD4"/><stop offset="1" stop-color="#14B8A6"/></linearGradient>
+</defs>
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<rect x="222" y="222" width="580" height="580" rx="170" fill="none" stroke="#FFFFFF" stroke-width="56"/>
+<rect x="482" y="352" width="60" height="320" rx="30" fill="url(#cu)"/>
+<rect x="412" y="340" width="200" height="44" rx="22" fill="url(#cu)"/>
+<rect x="412" y="640" width="200" height="44" rx="22" fill="url(#cu)"/>
+<circle cx="752" cy="272" r="112" fill="url(#bg)"/>
+<path fill="#5EEAD4" d="M752,188 C770.48,253.52 770.48,253.52 836,272 C770.48,290.48 770.48,290.48 752,356 C733.52,290.48 733.52,290.48 668,272 C733.52,253.52 733.52,253.52 752,188 Z"/>
+</svg>

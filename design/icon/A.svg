@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4F46E5"/><stop offset="1" stop-color="#7C3AED"/></linearGradient>
+<linearGradient id="sp" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366F1"/><stop offset="1" stop-color="#A855F7"/></linearGradient>
+</defs>
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<rect x="232" y="262" width="560" height="540" rx="120" fill="#000" opacity="0.18"/>
+<rect x="232" y="232" width="560" height="540" rx="120" fill="#C7C9F5"/>
+<rect x="232" y="222" width="560" height="510" rx="120" fill="#FFFFFF"/>
+<path fill="url(#sp)" d="M512.0,300.0 C549.4,432.6 549.4,432.6 682.0,470.0 C549.4,507.4 549.4,507.4 512.0,640.0 C474.6,507.4 474.6,507.4 342.0,470.0 C474.6,432.6 474.6,432.6 512.0,300.0 Z"/>
+<path fill="url(#sp)" d="M650.0,278.0 C661.44,318.56 661.44,318.56 702.0,330.0 C661.44,341.44 661.44,341.44 650.0,382.0 C638.56,341.44 638.56,341.44 598.0,330.0 C638.56,318.56 638.56,318.56 650.0,278.0 Z"/>
+</svg>
