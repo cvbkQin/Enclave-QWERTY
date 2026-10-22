@@ -21,6 +21,17 @@ final class KeyboardModel: ObservableObject {
     /// 要求栏：和正文分开存放的修改要求，执行时和输入框里的「// 要求」合并。
     @Published private(set) var instruction = ""
 
+    // 打字状态，逻辑在 KeyboardModel+Typing.swift
+    @Published var target: InputTarget = .host
+    @Published var layer: KeyLayer = .letters
+    @Published var shift: ShiftState = .off
+    @Published var chineseMode = true
+    @Published var aiExpanded = false
+    @Published var composition = ""
+    @Published var candidates: [String] = []
+    var engine: InputEngine = DirectEngine()
+    var lastShiftTap = Date.distantPast
+
     weak var controller: UIInputViewController?
     private var task: Task<Void, Never>?
     private var undoSnapshot: (inserted: String, original: String)?
@@ -32,7 +43,7 @@ final class KeyboardModel: ObservableObject {
         voiceObserver = DarwinObserver(VoiceBridge.updatedNote) { [weak self] in self?.refreshVoice() }
     }
 
-    private var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
+    var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
 
     /// 预览区显示的文字。
     var displayText: String {
@@ -259,9 +270,6 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    func deleteBackward() { proxy?.deleteBackward() }
-    func insertNewline() { proxy?.insertText("\n") }
-    func insertSpace() { proxy?.insertText(" ") }
 
     // MARK: - 语音
 

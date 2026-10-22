@@ -1,9 +1,15 @@
+import Combine
 import SwiftUI
 import UIKit
 
 final class KeyboardViewController: UIInputViewController {
     private lazy var model = KeyboardModel(controller: self)
     private var heightConstraint: NSLayoutConstraint?
+    private var cancellables = Set<AnyCancellable>()
+
+    /// 收起时只有核心功能行加按键，展开 AI 面板时加高。
+    private static let collapsedHeight: CGFloat = 258
+    private static let expandedHeight: CGFloat = 450
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,10 +30,17 @@ final class KeyboardViewController: UIInputViewController {
         ])
         host.didMove(toParent: self)
 
-        let height = view.heightAnchor.constraint(equalToConstant: 340)
+        let height = view.heightAnchor.constraint(equalToConstant: Self.collapsedHeight)
         height.priority = UILayoutPriority(999)
         height.isActive = true
         heightConstraint = height
+
+        model.$aiExpanded
+            .removeDuplicates()
+            .sink { [weak self] expanded in
+                self?.heightConstraint?.constant = expanded ? Self.expandedHeight : Self.collapsedHeight
+            }
+            .store(in: &cancellables)
     }
 
     override func viewWillAppear(_ animated: Bool) {
