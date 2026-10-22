@@ -1,0 +1,127 @@
+#include "EnclaveRime.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <rime_api.h>
+
+static bool did_setup = false;
+static bool did_initialize = false;
+
+static void fill_traits(RimeTraits *traits, const char *shared_dir, const char *user_dir, const char *log_dir) {
+  RIME_STRUCT_INIT(RimeTraits, *traits);
+  traits->shared_data_dir = shared_dir;
+  traits->user_data_dir = user_dir;
+  traits->log_dir = log_dir;
+  traits->distribution_name = "Enclave";
+  traits->distribution_code_name = "enclave";
+  traits->distribution_version = "1.0";
+  traits->app_name = "rime.enclave";
+  traits->min_log_level = 2;
+}
+
+static char *copy_string(const char *text) {
+  if (text == NULL || text[0] == '\0') return NULL;
+  return strdup(text);
+}
+
+bool enclave_rime_start(const char *shared_dir, const char *user_dir, const char *log_dir) {
+  RimeApi *api = rime_get_api();
+  if (did_initialize) return true;
+  RIME_STRUCT(RimeTraits, traits);
+  fill_traits(&traits, shared_dir, user_dir, log_dir);
+  if (!did_setup) {
+    api->setup(&traits);
+    did_setup = true;
+  }
+  api->initialize(&traits);
+  did_initialize = true;
+  return true;
+}
+
+void enclave_rime_finalize(void) {
+  if (!did_initialize) return;
+  rime_get_api()->finalize();
+  did_initialize = false;
+}
+
+bool enclave_rime_deploy(const char *shared_dir, const char *user_dir, const char *log_dir) {
+  RimeApi *api = rime_get_api();
+  enclave_rime_finalize();
+  enclave_rime_start(shared_dir, user_dir, log_dir);
+  // full_check 为真：不看时间戳，全部重新编译。
+  if (api->start_maintenance(1)) {
+    api->join_maintenance_thread();
+  }
+  bool ok = !api->is_maintenance_mode();
+  enclave_rime_finalize();
+  return ok;
+}
+
+uint64_t enclave_rime_create_session(const char *schema_id) {
+  RimeApi *api = rime_get_api();
+  RimeSessionId session = api->create_session();
+  if (session && schema_id) api->select_schema(session, schema_id);
+  return session;
+}
+
+void enclave_rime_destroy_session(uint64_t session) {
+  if (session) rime_get_api()->destroy_session(session);
+}
+
+bool enclave_rime_session_alive(uint64_t session) {
+  return session && rime_get_api()->find_session(session);
+}
+
+bool enclave_rime_process_key(uint64_t session, int keycode, int mask) {
+  return rime_get_api()->process_key(session, keycode, mask);
+}
+
+void enclave_rime_clear(uint64_t session) {
+  rime_get_api()->clear_composition(session);
+}
+
+void enclave_rime_set_option(uint64_t session, const char *option, bool value) {
+  rime_get_api()->set_option(session, option, value);
+}
+
+char *enclave_rime_get_commit(uint64_t session) {
+  RimeApi *api = rime_get_api();
+  RIME_STRUCT(RimeCommit, commit);
+  char *result = NULL;
+  if (api->get_commit(session, &commit)) {
+    result = copy_string(commit.text);
+    api->free_commit(&commit);
+  }
+  return result;
+}
+
+char *enclave_rime_get_preedit(uint64_t session) {
+  RimeApi *api = rime_get_api();
+  RIME_STRUCT(RimeContext, context);
+  char *result = NULL;
+  if (api->get_context(session, &context)) {
+    result = copy_string(context.composition.preedit);
+    api->free_context(&context);
+  }
+  return result;
+}
+
+char *enclave_rime_get_input(uint64_t session) {
+  return copy_string(rime_get_api()->get_input(session));
+}
+
+size_t enclave_rime_get_candidates(uint64_t session, char **out, size_t limit) {
+  RimeApi *api = rime_get_api();
+  RimeCandidateListIterator iterator = {0};
+  size_t count = 0;
+  if (!api->candidate_list_begin(session, &iterator)) return 0;
+  while (count < limit && api->candidate_list_next(&iterator)) {
+    out[count++] = strdup(iterator.candidate.text ? iterator.candidate.text : "");
+  }
+  api->candidate_list_end(&iterator);
+  return count;
+}
+
+bool enclave_rime_select_candidate(uint64_t session, size_t index) {
+  return rime_get_api()->select_candidate(session, index);
+}

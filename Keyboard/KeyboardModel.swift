@@ -30,6 +30,8 @@ final class KeyboardModel: ObservableObject {
     @Published var composition = ""
     @Published var candidates: [String] = []
     var engine: InputEngine = DirectEngine()
+    /// 拼音词库是否可用（主 App 部署过，并且打开了完全访问）。
+    @Published var pinyinReady = false
     var lastShiftTap = Date.distantPast
 
     weak var controller: UIInputViewController?
@@ -60,6 +62,7 @@ final class KeyboardModel: ObservableObject {
         session = SessionStore.load()
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         hasFullAccess = controller?.hasFullAccess ?? false
+        selectEngine()
         refreshVoice()
     }
 

@@ -22,6 +22,7 @@ struct SettingsView: View {
                     }
                 }
                 VoiceSessionSection()
+                PinyinSection()
                 apiSection
                 testSection
                 styleSection

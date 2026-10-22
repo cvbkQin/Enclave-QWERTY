@@ -82,6 +82,14 @@ extension KeyboardModel {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         chineseMode.toggle()
+        selectEngine()
+    }
+
+    /// 中文模式用拼音引擎，英文模式或词库不可用时字母直接上屏。
+    func selectEngine() {
+        engine.reset()
+        pinyinReady = hasFullAccess && RimeEngine.shared.prepare()
+        engine = chineseMode && pinyinReady ? RimeEngine.shared : DirectEngine()
         syncEngine()
     }
 

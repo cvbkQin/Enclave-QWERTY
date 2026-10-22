@@ -17,6 +17,13 @@ jobs:
           xcodebuild -version
       - name: Install XcodeGen
         run: brew install xcodegen
+      - name: Cache Rime engine and dictionary
+        uses: actions/cache@v4
+        with:
+          path: Vendor
+          key: vendor-${{ hashFiles('scripts/fetch-rime.sh') }}
+      - name: Fetch Rime engine and dictionary
+        run: bash scripts/fetch-rime.sh
       - name: Generate project
         run: xcodegen generate
       - name: Build for simulator

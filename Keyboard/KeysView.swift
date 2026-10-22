@@ -104,12 +104,19 @@ struct KeysView: View {
             }
             VoiceKey(model: model)
                 .frame(width: unit * 1.1)
-            CharKey(title: model.isComposing ? "选定" : (model.chineseMode ? "空格" : "space")) { model.spaceKey() }
+            CharKey(title: spaceTitle) { model.spaceKey() }
             FunctionKey(title: model.chineseMode ? "中" : "英") { model.toggleChinese() }
                 .frame(width: unit * 1.1)
             FunctionKey(title: returnTitle, highlighted: model.target == .instruction && !model.isComposing) { model.returnKey() }
                 .frame(width: unit * 1.9)
         }
+    }
+
+    private var spaceTitle: String {
+        if model.isComposing { return "选定" }
+        if !model.chineseMode { return "space" }
+        // 词库没部署或没开完全访问时，中文模式也只能直接打字母。
+        return model.pinyinReady ? "空格" : "空格（拼音未就绪）"
     }
 
     private var returnTitle: String {

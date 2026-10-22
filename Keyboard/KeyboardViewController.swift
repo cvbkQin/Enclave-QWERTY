@@ -52,6 +52,8 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         model.isVisible = false
+        model.engine.reset()
+        model.syncEngine()
     }
 
     override func viewWillLayoutSubviews() {

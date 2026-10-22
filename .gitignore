@@ -17,3 +17,6 @@ Configs/Local.xcconfig
 # XcodeGen 生成的 Info.plist
 App/Info.plist
 Keyboard/Info.plist
+
+# 拼音引擎和词库，运行 scripts/fetch-rime.sh 下载
+Vendor/
