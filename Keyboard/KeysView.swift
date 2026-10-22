@@ -155,7 +155,7 @@ struct KeyCapView: View {
 
 /// 九宫格第一格的「，。?!」：四个标点各占等宽的一格，全角标点的字形偏在左下角，往右挪到格子中间。
 struct PunctuationLabel: View {
-    private static let marks: [(String, CGFloat)] = [("，", 4.5), ("。", 4.5), ("?", 0), ("!", 0)]
+    private static let marks: [(String, CGFloat)] = [("，", 1), ("。", -0.2), ("?", 0), ("!", 0)]
 
     var body: some View {
         HStack(spacing: 0) {
@@ -167,6 +167,7 @@ struct PunctuationLabel: View {
                     .frame(width: 11)
             }
         }
+        .offset(y: -1.5)
     }
 }
 
