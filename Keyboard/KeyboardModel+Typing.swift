@@ -59,7 +59,9 @@ extension KeyboardModel {
         }
         switch target {
         case .host: proxy?.insertText("\n")
-        case .instruction: execute()
+        case .instruction:
+            target = .host
+            execute()
         }
     }
 
@@ -130,12 +132,23 @@ extension KeyboardModel {
     }
 
     func setAIExpanded(_ expanded: Bool) {
+        finishComposition()
+        aiExpanded = expanded
+        // 展开后打字仍然进原输入框；收起时也退出要求框。
+        if !expanded { target = .host }
+    }
+
+    /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
+    func toggleInstructionEditing() {
+        finishComposition()
+        target = target == .instruction ? .host : .instruction
+    }
+
+    /// 把正在拼的字母原样上屏，然后清空引擎。
+    private func finishComposition() {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         syncEngine()
-        aiExpanded = expanded
-        // 展开时打字进要求框，收起后回到聊天输入框。
-        target = expanded ? .instruction : .host
     }
 
     // MARK: - 内部

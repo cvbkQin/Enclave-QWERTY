@@ -1,34 +1,30 @@
 import SwiftUI
 
-/// 26 键键盘区：字母、数字、符号三层，加底栏。
+/// 按键区：26 键（字母、数字、符号三层）或九宫格，布局参照 iOS 自带键盘。
+/// 每个按键占一个「格子」，格子之间没有空隙，按键的间隙也算在格子里。
 struct KeysView: View {
     @ObservedObject var model: KeyboardModel
-
-    private let spacing: CGFloat = 6
-    private let rowHeight: CGFloat = 44
 
     private static let letterRows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map { $0.map(String.init) }
     private static let digits = "1234567890".map(String.init)
 
     var body: some View {
         GeometryReader { geo in
-            let unit = (geo.size.width - spacing * 9) / 10
-            VStack(spacing: 8) {
-                switch model.layer {
-                case .letters:
-                    if model.showsNineKey {
-                        NineKeyView(model: model, spacing: spacing, rowHeight: rowHeight)
-                            .frame(height: rowHeight * 3 + 16)
-                    } else {
-                        letterRows(unit: unit)
+            let unit = geo.size.width / 10
+            if model.layer == .letters && model.showsNineKey {
+                NineKeyView(model: model, width: geo.size.width)
+            } else {
+                VStack(spacing: 0) {
+                    switch model.layer {
+                    case .letters: letterRows(unit: unit)
+                    case .numbers: symbolRows(numberSymbols, switchTitle: "#+=", switchTo: .symbols, unit: unit)
+                    case .symbols: symbolRows(moreSymbols, switchTitle: "123", switchTo: .numbers, unit: unit)
                     }
-                case .numbers: symbolRows(numberSymbols, switchTitle: "#+=", switchTo: .symbols, unit: unit)
-                case .symbols: symbolRows(moreSymbols, switchTitle: "123", switchTo: .numbers, unit: unit)
+                    bottomRow(unit: unit)
                 }
-                bottomRow(unit: unit)
             }
         }
-        .frame(height: rowHeight * 4 + 8 * 3)
+        .frame(height: KeyboardMetrics.keysHeight)
     }
 
     // MARK: - 字母
@@ -36,17 +32,14 @@ struct KeysView: View {
     @ViewBuilder
     private func letterRows(unit: CGFloat) -> some View {
         let rows = Self.letterRows
-        row { ForEach(rows[0], id: \.self) { letterKey($0) } }
-        row { ForEach(rows[1], id: \.self) { letterKey($0) } }
-            .padding(.horizontal, (unit + spacing) / 2)
+        row { ForEach(rows[0], id: \.self) { letterKey($0).frame(width: unit) } }
+        row { ForEach(rows[1], id: \.self) { letterKey($0).frame(width: unit) } }
         row {
-            FunctionKey(systemImage: shiftIcon, highlighted: model.shift != .off) { model.shiftKey() }
-                .frame(width: unit * 1.35)
-            Spacer(minLength: 0)
+            FunctionKey(systemImage: shiftIcon, highlighted: false) { model.shiftKey() }
+                .frame(width: unit * 1.5)
             ForEach(rows[2], id: \.self) { letterKey($0).frame(width: unit) }
-            Spacer(minLength: 0)
             RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                .frame(width: unit * 1.35)
+                .frame(width: unit * 1.5)
         }
     }
 
@@ -78,134 +71,72 @@ struct KeysView: View {
 
     @ViewBuilder
     private func symbolRows(_ rows: [[String]], switchTitle: String, switchTo: KeyboardModel.KeyLayer, unit: CGFloat) -> some View {
-        row { ForEach(rows[0], id: \.self) { symbolKey($0) } }
-        row { ForEach(rows[1], id: \.self) { symbolKey($0) } }
+        row { ForEach(rows[0], id: \.self) { symbolKey($0).frame(width: unit) } }
+        row { ForEach(rows[1], id: \.self) { symbolKey($0).frame(width: unit) } }
         row {
             FunctionKey(title: switchTitle) { model.switchLayer(switchTo) }
-                .frame(width: unit * 1.35)
-            Spacer(minLength: 0)
-            ForEach(rows[2], id: \.self) { symbolKey($0).frame(width: unit * 1.3) }
-            Spacer(minLength: 0)
+                .frame(width: unit * 1.5)
+            ForEach(rows[2], id: \.self) { symbolKey($0).frame(width: unit * 7 / CGFloat(rows[2].count)) }
             RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                .frame(width: unit * 1.35)
+                .frame(width: unit * 1.5)
         }
     }
 
     private func symbolKey(_ symbol: String) -> some View {
-        CharKey(title: symbol) { model.typeSymbol(symbol) }
+        CharKey(title: symbol, font: .system(size: 21)) { model.typeSymbol(symbol) }
     }
 
     // MARK: - 底栏
 
     private func bottomRow(unit: CGFloat) -> some View {
         row {
-            FunctionKey(title: model.layer == .letters ? "123" : "ABC") {
-                model.switchLayer(model.layer == .letters ? .numbers : .letters)
-            }
-            .frame(width: unit * 1.35)
-            if model.needsGlobeKey {
-                NextKeyboardButton(controller: model.controller)
-                    .frame(width: unit * 1.1)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(.systemGray3)))
-            }
-            VoiceKey(model: model)
-                .frame(width: unit * 1.1)
-            CharKey(title: spaceTitle) { model.spaceKey() }
-            FunctionKey(title: model.chineseMode ? "中" : "英") { model.toggleChinese() }
-                .frame(width: unit * 1.1)
-            FunctionKey(title: returnTitle, highlighted: model.target == .instruction && !model.isComposing) { model.returnKey() }
-                .frame(width: unit * 1.9)
+            KeyboardBottomKeys(model: model, unit: unit)
         }
-    }
-
-    private var spaceTitle: String {
-        if model.isComposing { return "选定" }
-        if !model.chineseMode { return "space" }
-        // 词库没部署或没开完全访问时，中文模式也只能直接打字母。
-        return model.pinyinReady ? "空格" : "空格（拼音未就绪）"
-    }
-
-    private var returnTitle: String {
-        if model.isComposing { return "确认" }
-        return model.target == .instruction ? "执行" : (model.chineseMode ? "换行" : "return")
     }
 
     private func row<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        HStack(spacing: spacing) { content() }
-            .frame(height: rowHeight)
+        HStack(spacing: 0) { content() }
+            .frame(height: KeyboardMetrics.slotHeight)
     }
 }
 
-/// 🎤 键：短按说内容，长按说要求；录音中再按一下结束。
-struct VoiceKey: View {
+/// 底栏：123、（地球）、中/英、空格、换行。九宫格用自己的底栏。
+struct KeyboardBottomKeys: View {
     @ObservedObject var model: KeyboardModel
+    var unit: CGFloat
 
     var body: some View {
-        let recording = model.voiceState == .recording
-        let busy = model.voiceState == .transcribing
-        Image(systemName: recording ? "stop.fill" : (busy ? "ellipsis" : "mic"))
-            .font(.body)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .foregroundStyle(recording ? Color.white : Color.primary)
-            .background(RoundedRectangle(cornerRadius: 6).fill(recording ? Color.red : Color(.systemGray3)))
-            .contentShape(Rectangle())
-            .onTapGesture {
-                if recording {
-                    model.voiceTapped(model.voiceMode)
-                } else if !busy {
-                    model.voiceTapped(.content)
-                }
-            }
-            .onLongPressGesture(minimumDuration: 0.4) {
-                guard !recording, !busy else { return }
-                model.voiceTapped(.instruction)
-            }
-    }
-}
-
-/// 字符键：白底。
-struct CharKey: View {
-    var title: String
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.title3)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .foregroundStyle(Color.primary)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color(.systemBackground)))
-                .shadow(color: .black.opacity(0.15), radius: 0, x: 0, y: 1)
+        let side = unit * 1.25
+        FunctionKey(title: model.layer == .letters ? "123" : (model.chineseMode ? "拼音" : "ABC")) {
+            model.switchLayer(model.layer == .letters ? .numbers : .letters)
         }
-        .buttonStyle(KeyPressStyle())
-    }
-}
-
-/// 功能键：灰底，可高亮。
-struct FunctionKey: View {
-    var title: String?
-    var systemImage: String?
-    var highlighted = false
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Group {
-                if let systemImage { Image(systemName: systemImage) } else { Text(title ?? "") }
+        .frame(width: side)
+        if model.needsGlobeKey {
+            KeyCap(fill: KeyStyle.functionKey) {
+                NextKeyboardButton(controller: model.controller)
             }
-            .font(.callout)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .foregroundStyle(highlighted ? Color.white : Color.primary)
-            .background(RoundedRectangle(cornerRadius: 6).fill(highlighted ? Color.accentColor : Color(.systemGray3)))
-            .shadow(color: .black.opacity(0.15), radius: 0, x: 0, y: 1)
+            .frame(width: side)
         }
-        .buttonStyle(KeyPressStyle())
+        FunctionKey(title: model.chineseMode ? "中" : "英") { model.toggleChinese() }
+            .frame(width: side)
+        CharKey(title: model.spaceTitle, font: KeyStyle.functionFont) { model.spaceKey() }
+        FunctionKey(title: model.returnTitle, highlighted: model.returnHighlighted) { model.returnKey() }
+            .frame(width: unit * 2.5)
     }
 }
 
-/// 按下时稍微变暗。
-struct KeyPressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
+extension KeyboardModel {
+    var spaceTitle: String {
+        if isComposing { return "选定" }
+        if !chineseMode { return "space" }
+        // 词库没部署或没开完全访问时，中文模式也只能直接打字母。
+        return pinyinReady ? "空格" : "空格（拼音未就绪）"
     }
+
+    var returnTitle: String {
+        if isComposing { return "确认" }
+        return target == .instruction ? "执行" : (chineseMode ? "换行" : "return")
+    }
+
+    var returnHighlighted: Bool { target == .instruction && !isComposing }
 }

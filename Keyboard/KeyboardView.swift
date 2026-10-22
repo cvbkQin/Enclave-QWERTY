@@ -5,16 +5,17 @@ struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 0) {
             topRow
             if model.aiExpanded {
                 aiPanel
+                    .padding(.horizontal, KeyboardMetrics.sidePadding + KeyboardMetrics.keyInsetX)
+                    .padding(.bottom, 4)
             }
             KeysView(model: model)
+                .padding(.horizontal, KeyboardMetrics.sidePadding)
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 4)
-        .padding(.bottom, 4)
+        .padding(.bottom, 2)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
@@ -31,32 +32,32 @@ struct KeyboardView: View {
                 toolBar
             }
         }
-        .frame(height: 36)
+        .frame(height: KeyboardMetrics.topRow)
     }
 
-    /// 平时：✨润色、要求、语音状态、风格。
+    /// 平时：✨润色、要求、🎤，右边是风格和布局菜单。
     private var toolBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ToolChip(title: model.isRunning ? "停止" : "润色", systemImage: model.isRunning ? "stop.fill" : "sparkles",
                      prominent: true) {
                 model.isRunning ? model.stop() : model.sparkleTapped()
             }
             ToolChip(title: "要求", systemImage: "text.bubble") { model.setAIExpanded(true) }
+            VoiceChip(model: model)
             if model.voiceState == .recording {
-                ToolChip(title: "完成", systemImage: "stop.fill", tint: .red) { model.voiceTapped(model.voiceMode) }
                 ToolChip(title: nil, systemImage: "xmark") { model.cancelVoice() }
             }
             Spacer(minLength: 0)
-            voiceStatus
             styleMenu
             if model.session != nil {
                 Button { model.setAIExpanded(true) } label: {
                     Image(systemName: "chevron.up").font(.footnote.weight(.semibold))
+                        .frame(width: 28, height: 28)
                 }
                 .tint(.primary)
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 8)
     }
 
     /// 展开后：收起、预设要求、版本切换。
@@ -116,13 +117,6 @@ struct KeyboardView: View {
         }
     }
 
-    // 麦克风会话是否在线：在线时点 🎤 直接录音，不在线会先跳到 App。
-    private var voiceStatus: some View {
-        Image(systemName: model.voiceState == .idle ? "mic.slash" : "mic.fill")
-            .font(.footnote)
-            .foregroundStyle(model.voiceState == .idle ? Color.secondary : Color.orange)
-    }
-
     private var styleMenu: some View {
         Menu {
             Section("键盘布局") {
@@ -161,34 +155,17 @@ struct KeyboardView: View {
     // MARK: - AI 面板
 
     private var aiPanel: some View {
-        VStack(spacing: 6) {
-            banner
+        VStack(spacing: KeyboardMetrics.panelSpacing) {
             preview
             actionRow
             instructionField
         }
     }
 
-    @ViewBuilder
-    private var banner: some View {
-        if !model.hasFullAccess {
-            Text("请到 设置 › 通用 › 键盘 › 键盘 › Enclave，打开「允许完全访问」。")
-                .font(.caption)
-                .foregroundStyle(.orange)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else if !model.settings.isConfigured {
-            HStack {
-                Text("还没有配置 API").font(.caption).foregroundStyle(.orange)
-                Spacer()
-                Button("从剪贴板导入配置") { model.importConfigFromPasteboard() }
-                    .font(.caption)
-            }
-        }
-    }
-
     private var preview: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
+                setupHint
                 if let error = model.errorMessage {
                     Text(error).foregroundStyle(.red)
                 } else if let notice = model.notice, model.displayText.isEmpty {
@@ -202,13 +179,29 @@ struct KeyboardView: View {
                         .foregroundStyle(.primary)
                 }
             }
-            .font(.callout)
+            .font(.subheadline)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
         }
-        .frame(height: 84)
+        .frame(height: KeyboardMetrics.previewHeight)
         .hidingScrollEdgeEffect()
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color(.systemBackground).opacity(0.9)))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemBackground).opacity(0.9)))
+    }
+
+    /// 没开完全访问或没配置 API 时的提示，放在预览区里，不额外占高度。
+    @ViewBuilder
+    private var setupHint: some View {
+        if !model.hasFullAccess {
+            Text("请到 设置 › 通用 › 键盘 › 键盘 › Enclave，打开「允许完全访问」。")
+                .foregroundStyle(.orange)
+        } else if !model.settings.isConfigured {
+            HStack {
+                Text("还没有配置 API").foregroundStyle(.orange)
+                Spacer()
+                Button("从剪贴板导入配置") { model.importConfigFromPasteboard() }
+            }
+        }
     }
 
     private var placeholder: String {
@@ -218,7 +211,7 @@ struct KeyboardView: View {
             if !model.voicePartial.isEmpty { return "正在听：\(model.voicePartial)" }
             return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
         case .transcribing: return "识别中…"
-        default: return "现在打字会进下面的要求框。输入框有内容时按要求改，输入框为空时帮你写；要求为空直接点「执行」就是润色。"
+        default: return "点「执行」润色输入框里的内容。点下面的要求框可以写修改要求；输入框为空时按要求帮你写。"
         }
     }
 
@@ -226,30 +219,33 @@ struct KeyboardView: View {
 
     private var actionRow: some View {
         HStack(spacing: 6) {
-            KeyButton(title: "替换", systemImage: "arrow.left.arrow.right") { model.replace() }
+            PanelButton(title: "替换", systemImage: "arrow.left.arrow.right") { model.replace() }
                 .disabled(!hasResult)
-            KeyButton(title: "插入", systemImage: "text.insert") { model.insert() }
+            PanelButton(title: "插入", systemImage: "text.insert") { model.insert() }
                 .disabled(!hasResult)
-            KeyButton(title: "复制", systemImage: "doc.on.doc") { model.copy() }
+            PanelButton(title: "复制", systemImage: "doc.on.doc") { model.copy() }
                 .disabled(!hasResult)
-            KeyButton(title: "撤销", systemImage: "arrow.uturn.backward") { model.undo() }
+            PanelButton(title: "撤销", systemImage: "arrow.uturn.backward") { model.undo() }
                 .disabled(!model.canUndo)
-            KeyButton(title: "新会话", systemImage: nil) { model.newSession() }
+            PanelButton(title: "新会话", systemImage: nil) { model.newSession() }
                 .disabled(model.session == nil && !model.isRunning)
         }
-        .frame(height: 36)
+        .frame(height: KeyboardMetrics.actionRow)
     }
 
-    /// 要求框：展开时键盘打的字都进这里。
+    /// 要求框：点一下才把键盘的输入切到这里，再点一下切回原输入框。
     private var instructionField: some View {
-        HStack(spacing: 6) {
+        let editing = model.target == .instruction
+        return HStack(spacing: 6) {
             HStack(spacing: 4) {
                 Image(systemName: "text.bubble").foregroundStyle(.secondary)
                 Group {
-                    if model.instruction.isEmpty && !model.isComposing {
-                        Text("输入修改要求…").foregroundStyle(.secondary)
+                    if model.instruction.isEmpty && !(editing && model.isComposing) {
+                        Text(editing ? "正在输入修改要求…" : "点这里写修改要求").foregroundStyle(.secondary)
                     } else {
-                        (Text(model.instruction) + Text(model.composition).foregroundColor(.secondary).underline())
+                        (Text(model.instruction)
+                            + Text(editing ? model.composition : "").foregroundColor(.secondary).underline()
+                            + Text(editing ? "|" : "").foregroundColor(.accentColor))
                             .foregroundStyle(.primary)
                     }
                 }
@@ -263,25 +259,29 @@ struct KeyboardView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .font(.callout)
-            .padding(.horizontal, 10)
+            .font(.subheadline)
+            .padding(.horizontal, 8)
             .frame(maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color(.systemBackground)))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor, lineWidth: model.target == .instruction ? 1.5 : 0))
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemBackground)))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.accentColor, lineWidth: editing ? 1.5 : 0))
+            .contentShape(Rectangle())
+            .onTapGesture { model.toggleInstructionEditing() }
 
             Button {
                 model.isRunning ? model.stop() : model.execute()
             } label: {
                 Text(model.isRunning ? "停止" : "执行")
-                    .font(.callout.weight(.semibold))
-                    .frame(width: 64)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 58)
                     .frame(maxHeight: .infinity)
                     .foregroundStyle(.white)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(model.isRunning ? Color.red : Color.accentColor))
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(model.isRunning ? Color.red : Color.accentColor))
             }
             .buttonStyle(.plain)
         }
-        .frame(height: 38)
+        .frame(height: KeyboardMetrics.instructionRow)
     }
 }
 
@@ -295,17 +295,84 @@ struct ToolChip: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                if let systemImage { Image(systemName: systemImage) }
-                if let title { Text(title) }
-            }
-            .font(.footnote.weight(prominent ? .semibold : .regular))
-            .padding(.horizontal, 10)
-            .frame(height: 28)
-            .foregroundStyle(prominent || tint != .accentColor ? Color.white : Color.primary)
-            .background(Capsule().fill(prominent ? tint : (tint != .accentColor ? tint : Color(.systemBackground))))
+            ChipLabel(title: title, systemImage: systemImage, prominent: prominent, tint: tint)
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct ChipLabel: View {
+    var title: String?
+    var systemImage: String?
+    var prominent = false
+    var tint: Color = .accentColor
+    var foreground: Color?
+
+    var body: some View {
+        let filled = prominent || tint != .accentColor
+        HStack(spacing: 4) {
+            if let systemImage { Image(systemName: systemImage) }
+            if let title { Text(title) }
+        }
+        .font(.footnote.weight(prominent ? .semibold : .regular))
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .foregroundStyle(foreground ?? (filled ? Color.white : Color.primary))
+        .background(Capsule().fill(filled ? tint : KeyStyle.charKey))
+    }
+}
+
+/// 🎤：短按说内容，长按说要求；录音中再按一下结束。语音会话在线时图标是橙色。
+struct VoiceChip: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        let recording = model.voiceState == .recording
+        let busy = model.voiceState == .transcribing
+        Group {
+            if recording {
+                ChipLabel(title: "完成", systemImage: "stop.fill", tint: .red)
+            } else if busy {
+                ChipLabel(title: "识别中", systemImage: nil)
+            } else {
+                ChipLabel(title: nil, systemImage: "mic.fill",
+                          foreground: model.voiceState == .idle ? nil : .orange)
+            }
+        }
+        .contentShape(Capsule())
+        .onTapGesture {
+            if recording {
+                model.voiceTapped(model.voiceMode)
+            } else if !busy {
+                model.voiceTapped(.content)
+            }
+        }
+        .onLongPressGesture(minimumDuration: 0.4) {
+            guard !recording, !busy else { return }
+            model.voiceTapped(.instruction)
+        }
+    }
+}
+
+/// AI 面板里的小按钮。
+struct PanelButton: View {
+    var title: String
+    var systemImage: String?
+    var action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                if let systemImage { Image(systemName: systemImage) }
+                Text(title)
+            }
+            .font(.footnote)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .foregroundStyle(isEnabled ? Color.primary : Color.secondary)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
+        }
+        .buttonStyle(KeyPressStyle())
     }
 }
 
@@ -322,63 +389,5 @@ extension View {
         #else
         self
         #endif
-    }
-}
-
-/// 普通按键样式。
-struct KeyButton: View {
-    var title: String?
-    var systemImage: String?
-    var action: () -> Void
-    @Environment(\.isEnabled) private var isEnabled
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                if let systemImage { Image(systemName: systemImage) }
-                if let title { Text(title) }
-            }
-            .font(.callout)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .foregroundStyle(isEnabled ? Color.primary : Color.secondary)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color(.systemBackground)))
-            .shadow(color: .black.opacity(0.15), radius: 0, x: 0, y: 1)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// 按住会连续触发的按键（删除键）。
-struct RepeatingKey: View {
-    var systemImage: String
-    var action: () -> Void
-    @State private var timer: Timer?
-
-    var body: some View {
-        Image(systemName: systemImage)
-            .font(.callout)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color(.systemGray3)))
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        guard timer == nil else { return }
-                        action()
-                        timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { _ in
-                            Task { @MainActor in
-                                // 手指已经抬起就不再开始连发。
-                                guard timer != nil else { return }
-                                timer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { _ in
-                                    Task { @MainActor in action() }
-                                }
-                            }
-                        }
-                    }
-                    .onEnded { _ in
-                        timer?.invalidate()
-                        timer = nil
-                    }
-            )
     }
 }
