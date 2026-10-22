@@ -33,8 +33,9 @@ def tapered(c,w0,w1,taper_from,col):
         left.append((p[0]+nx*w/2,p[1]+ny*w/2)); right.append((p[0]-nx*w/2,p[1]-ny*w/2))
     poly=left+right[::-1]
     d='M'+' L'.join(f'{x:.1f},{y:.1f}' for x,y in poly)+'Z'
-    s=c[0]
-    return f'<path d="{d}" fill="{col}"/><circle cx="{s[0]:.1f}" cy="{s[1]:.1f}" r="{w0/2}" fill="{col}"/>'
+    s=c[0]; e=c[-1]
+    return (f'<path d="{d}" fill="{col}"/><circle cx="{s[0]:.1f}" cy="{s[1]:.1f}" r="{w0/2}" fill="{col}"/>'
+            f'<circle cx="{e[0]:.1f}" cy="{e[1]:.1f}" r="{w1/2}" fill="{col}"/>')
 def svg(b): return f'<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">{b}</svg>'
 Y="#FDE68A"; G="rgba(255,255,255,0.42)"; CY=760
 bar=f'<rect x="212" y="{CY-30}" width="320" height="60" rx="30" fill="{G}"/>'
@@ -44,10 +45,11 @@ pen=curve(590,810,CY,30,1.25,70)
 pen2=curve(590,815,CY,34,1.5,90)
 stars_a=[(700,250,62),(305,265,34),(268,470,22),(752,520,26),(390,155,18),(640,150,14)]
 stars_b=[(700,250,62),(318,250,40),(282,452,20),(740,500,30),(408,148,16),(622,140,12),(805,375,14)]
-def icon(stars,pen,bg1="#4F46E5",bg2="#7C3AED",sc=Y,pc=Y):
+def icon(stars,pen,bg1="#4F46E5",bg2="#7C3AED",sc=Y,pc=Y,w0=40,w1=3):
     b=bg(bg1,bg2)+spark(512,410,200,sc)
     for x,y,r in stars: b+=spark(x,y,r,sc)
-    return svg(b+bar+tapered(pen,40,3,0.45,pc))
-V={'C1':icon(stars_a,pen),'C2':icon(stars_b,pen2),'C3':icon(stars_a,pen,pc="#FFFFFF")}
+    return svg(b+bar+tapered(pen,w0,w1,0.45,pc))
+V={'D1':icon(stars_a,pen,w0=32,w1=12),'D2':icon(stars_a,pen,w0=30,w1=16),'D3':icon(stars_a,pen,w0=34,w1=9),
+ 'C1':icon(stars_a,pen),'C2':icon(stars_b,pen2),'C3':icon(stars_a,pen,pc="#FFFFFF")}
 for k,v in V.items():
     open(f'{out}/{k}.svg','w').write(v); cairosvg.svg2png(bytestring=v.encode(),write_to=f'{out}/{k}.png')
