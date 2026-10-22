@@ -1,0 +1,15 @@
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# 本地签名配置（每个人的 Team ID 和 Bundle ID 不同）
+Configs/Local.xcconfig
+
+# macOS
+.DS_Store
