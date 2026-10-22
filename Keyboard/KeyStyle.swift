@@ -14,12 +14,14 @@ enum KeyboardMetrics {
     static let nineKeyInsetX: CGFloat = 3.15
     static let nineKeyInsetY: CGFloat = 5
 
-    static let topRow: CGFloat = 38
+    static let topRow: CGFloat = 42
     static let previewHeight: CGFloat = 62
     /// 键盘被系统压矮时，预览行最多缩到这么高，保证按键和操作行完整显示。
     static let minPreviewHeight: CGFloat = 30
     static let actionRow: CGFloat = 32
     static let instructionRow: CGFloat = 32
+    /// 顶栏和要求行里圆形/胶囊按钮的高度（展开键、润色、话筒）。
+    static let chipHeight: CGFloat = 32
     static let panelSpacing: CGFloat = 5
     static let panelTop: CGFloat = 6
     static let sidePadding: CGFloat = 3.7

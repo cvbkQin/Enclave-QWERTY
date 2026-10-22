@@ -48,8 +48,7 @@ struct KeyboardView: View {
             }
             VoiceChip(model: model)
         }
-        .padding(.leading, KeyboardMetrics.sidePadding + KeyboardMetrics.keyInsetX)
-        .padding(.trailing, 8)
+        .padding(.horizontal, KeyboardMetrics.sidePadding + KeyboardMetrics.keyInsetX)
         .padding(.bottom, KeyboardMetrics.panelSpacing)
         .frame(maxHeight: .infinity, alignment: .bottom)
     }
@@ -288,7 +287,7 @@ struct KeyboardView: View {
         }
         .font(.footnote)
         .padding(.horizontal, 10)
-        .frame(height: 28)
+        .frame(height: KeyboardMetrics.chipHeight)
         .foregroundStyle(Color.primary)
         .background(Capsule().fill(KeyStyle.charKey))
         .overlay(Capsule().stroke(Color.accentColor, lineWidth: editing ? 1.5 : 0))
@@ -305,10 +304,10 @@ struct PanelToggleButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: expanded ? "chevron.down" : "chevron.up")
-                .font(.system(size: 17, weight: .semibold))
-                .frame(width: 40, height: KeyboardMetrics.instructionRow)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: KeyboardMetrics.chipHeight, height: KeyboardMetrics.chipHeight)
                 .foregroundStyle(Color.primary)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(KeyStyle.functionKey))
+                .background(Circle().fill(KeyStyle.charKey))
         }
         .buttonStyle(KeyPressStyle())
     }
@@ -325,7 +324,7 @@ struct StyleTag: View {
             Text(title)
                 .font(.footnote.weight(selected ? .semibold : .regular))
                 .padding(.horizontal, 10)
-                .frame(height: 28)
+                .frame(height: KeyboardMetrics.chipHeight)
                 .foregroundStyle(selected ? Color.accentColor : Color.primary)
                 .background(Capsule().fill(selected ? Color.accentColor.opacity(0.15) : KeyStyle.charKey))
                 .overlay(Capsule().stroke(Color.accentColor, lineWidth: selected ? 1.2 : 0))
@@ -364,10 +363,10 @@ struct ChipLabel: View {
             if let title { Text(title) }
         }
         .font(.footnote.weight(prominent ? .semibold : .regular))
-        // 只有图标的按钮是正圆，带字的是胶囊。
-        .padding(.horizontal, title == nil ? 0 : 10)
-        .frame(minWidth: 30)
-        .frame(height: 30)
+        // 只有图标的按钮是正圆，带字的是胶囊；和展开键一样高。
+        .padding(.horizontal, title == nil ? 0 : 12)
+        .frame(minWidth: KeyboardMetrics.chipHeight)
+        .frame(height: KeyboardMetrics.chipHeight)
         .foregroundStyle(foreground ?? (filled ? Color.white : Color.primary))
         .background(Capsule().fill(filled ? tint : KeyStyle.charKey))
     }
