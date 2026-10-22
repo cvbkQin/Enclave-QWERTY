@@ -49,7 +49,11 @@ def icon(stars,pen,bg1="#4F46E5",bg2="#7C3AED",sc=Y,pc=Y,w0=40,w1=3):
     b=bg(bg1,bg2)+spark(512,410,200,sc)
     for x,y,r in stars: b+=spark(x,y,r,sc)
     return svg(b+bar+tapered(pen,w0,w1,0.45,pc))
-V={'E1':icon(stars_a,pen,w0=25,w1=16),'E2':icon(stars_a,pen,w0=22,w1=15),
+sF1=[(730,230,58),(838,360,20),(640,150,16),(250,300,26),(770,560,14),(330,180,10)]
+sF2=[(300,230,48),(760,300,24),(690,150,14),(220,470,14),(790,520,30),(410,130,10),(860,410,10)]
+sF3=[(745,215,64),(255,345,18),(345,190,30),(800,470,12),(690,600,20),(880,280,10)]
+V={'F1':icon(sF1,pen,w0=22,w1=15),'F2':icon(sF2,pen,w0=22,w1=15),'F3':icon(sF3,pen,w0=22,w1=15),
+ 'E1':icon(stars_a,pen,w0=25,w1=16),'E2':icon(stars_a,pen,w0=22,w1=15),
  'D1':icon(stars_a,pen,w0=32,w1=12),'D2':icon(stars_a,pen,w0=30,w1=16),'D3':icon(stars_a,pen,w0=34,w1=9),
  'C1':icon(stars_a,pen),'C2':icon(stars_b,pen2),'C3':icon(stars_a,pen,pc="#FFFFFF")}
 for k,v in V.items():
