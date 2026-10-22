@@ -49,7 +49,8 @@ def icon(stars,pen,bg1="#4F46E5",bg2="#7C3AED",sc=Y,pc=Y,w0=40,w1=3):
     b=bg(bg1,bg2)+spark(512,410,200,sc)
     for x,y,r in stars: b+=spark(x,y,r,sc)
     return svg(b+bar+tapered(pen,w0,w1,0.45,pc))
-V={'D1':icon(stars_a,pen,w0=32,w1=12),'D2':icon(stars_a,pen,w0=30,w1=16),'D3':icon(stars_a,pen,w0=34,w1=9),
+V={'E1':icon(stars_a,pen,w0=25,w1=16),'E2':icon(stars_a,pen,w0=22,w1=15),
+ 'D1':icon(stars_a,pen,w0=32,w1=12),'D2':icon(stars_a,pen,w0=30,w1=16),'D3':icon(stars_a,pen,w0=34,w1=9),
  'C1':icon(stars_a,pen),'C2':icon(stars_b,pen2),'C3':icon(stars_a,pen,pc="#FFFFFF")}
 for k,v in V.items():
     open(f'{out}/{k}.svg','w').write(v); cairosvg.svg2png(bytestring=v.encode(),write_to=f'{out}/{k}.png')
