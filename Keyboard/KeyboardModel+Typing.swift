@@ -87,7 +87,8 @@ extension KeyboardModel {
     // MARK: - 按键触摸（由 KeyTouchView 调用）
 
     var layoutState: KeyLayout.State {
-        KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey)
+        KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
+                        composing: isComposing)
     }
 
     func perform(_ kind: KeyKind) {
@@ -101,7 +102,9 @@ extension KeyboardModel {
         case .returnKey: returnKey()
         case .toggleChinese: toggleChinese()
         case .layer(let layer): switchLayer(layer)
-        case .clearComposition: clearComposition()
+        case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
+        case .emoji: openPanel(.emoji)
+        case .pickPinyin: if isComposing && !pinyinOptions.isEmpty { openPanel(.pinyin) }
         case .globe: break
         }
     }
@@ -199,6 +202,78 @@ extension KeyboardModel {
         lastPunctuationTap = now
     }
 
+    // MARK: - 面板
+
+    func openPanel(_ panel: KeysPanel) {
+        candidatesExpanded = false
+        keysPanel = panel
+    }
+
+    func closePanel() {
+        keysPanel = nil
+    }
+
+    /// 表情、颜文字面板里点了一个：直接上屏，记进最近使用。
+    func pickFromPanel(_ text: String) {
+        typeSymbol(text)
+        if keysPanel == .emoji { RecentEmoji.add(text) }
+    }
+
+    // MARK: - 选拼音
+
+    /// 九宫格原始输入里还没定下来的那段数字，以及前面已经选定的拼音。
+    private var pinyinSplit: (fixed: String, digits: String) {
+        let raw = engine.rawInput
+        guard let lastFixed = raw.lastIndex(where: { !$0.isNumber }) else { return ("", raw) }
+        let digits = raw[raw.index(after: lastFixed)...].filter(\.isNumber)
+        return (String(raw[...lastFixed]), String(digits))
+    }
+
+    /// 当前这段数字可以拼成的音节，长的在前；最后是第一个数字键上的单个字母。
+    var pinyinOptions: [String] {
+        guard showsNineKey, isComposing else { return [] }
+        return PinyinSyllables.options(forDigits: pinyinSplit.digits)
+    }
+
+    /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼。
+    func choosePinyin(_ syllable: String) {
+        let (fixed, digits) = pinyinSplit
+        var raw = fixed
+        if !raw.isEmpty && !raw.hasSuffix("'") { raw += "'" }
+        raw += syllable
+        let rest = digits.dropFirst(syllable.count)
+        if !rest.isEmpty { raw += "'" + rest }
+        engine.replaceInput(raw)
+        syncEngine()
+        if keysPanel == .pinyin { keysPanel = nil }
+    }
+
+    // MARK: - 长按备选
+
+    func showAlternates(for key: KeySpec, containerWidth: CGFloat) -> Bool {
+        guard let options = KeyLayout.alternates(for: key.kind, chinese: chineseMode) else { return false }
+        let shown = shift == .off ? options : options.map { $0.uppercased() }
+        alternates = AlternatesPopup(key: key, options: shown, containerWidth: containerWidth)
+        keyFeedback(for: .space)
+        return true
+    }
+
+    func moveAlternates(toX x: CGFloat) {
+        guard var popup = alternates else { return }
+        let index = popup.index(atX: x)
+        if index != popup.selected {
+            popup.selected = index
+            alternates = popup
+        }
+    }
+
+    func commitAlternate() {
+        guard let popup = alternates else { return }
+        alternates = nil
+        typeSymbol(popup.options[popup.selected])
+        if shift == .on { shift = .off }
+    }
+
     /// 九宫格「重输」：清掉正在拼的内容。
     func clearComposition() {
         engine.reset()
@@ -266,6 +341,7 @@ extension KeyboardModel {
         composition = engine.composition
         candidates = engine.candidates
         if candidates.isEmpty { candidatesExpanded = false }
+        if keysPanel == .pinyin && !isComposing { keysPanel = nil }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
         if target == .host && isComposing {
             proxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
@@ -333,6 +409,8 @@ extension KeyboardModel {
             case "instruction": aiExpanded = true; target = .instruction
             #if DEBUG
             case "versions": aiExpanded = true; loadDebugVersions()
+            case "emoji": keysPanel = .emoji
+            case "kaomoji": keysPanel = .kaomoji
             case "undo": loadDebugUndo()
             #endif
             default: break

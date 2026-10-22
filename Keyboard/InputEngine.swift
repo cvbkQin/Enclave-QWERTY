@@ -17,10 +17,16 @@ protocol InputEngine: AnyObject {
     /// 放弃候选，把拼写的字母原样上屏（回车键）。
     func commitComposition() -> String?
     func reset()
+    /// 引擎收到的原始按键（九宫格是数字，选过拼音的部分是字母）。
+    var rawInput: String { get }
+    /// 整段换掉原始输入，用于九宫格选拼音。
+    func replaceInput(_ raw: String)
 }
 
 extension InputEngine {
     var isComposing: Bool { !composition.isEmpty }
+    var rawInput: String { "" }
+    func replaceInput(_ raw: String) {}
 }
 
 /// 字母原样上屏，用于英文模式，也是接入拼音之前的默认引擎。

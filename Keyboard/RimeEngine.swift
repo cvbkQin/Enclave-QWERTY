@@ -82,6 +82,20 @@ final class RimeEngine: InputEngine {
         return raw
     }
 
+    var rawInput: String {
+        guard session != 0 else { return "" }
+        return takeString(enclave_rime_get_input(session)) ?? ""
+    }
+
+    func replaceInput(_ raw: String) {
+        guard session != 0 else { return }
+        enclave_rime_clear(session)
+        for scalar in raw.unicodeScalars {
+            enclave_rime_process_key(session, Int32(scalar.value), 0)
+        }
+        _ = refresh()
+    }
+
     func reset() {
         if session != 0 { enclave_rime_clear(session) }
         composition = ""

@@ -6,7 +6,12 @@ enum KeyKind: Equatable {
     case symbol(String)
     /// 九宫格的数字键（"'" 是分词）。
     case nine(String)
-    case shift, delete, space, returnKey, toggleChinese, globe, clearComposition
+    case shift, delete, space, returnKey, toggleChinese, globe
+    /// 九宫格的「^^」：平时打开颜文字，打拼音时是「重输」。
+    case emoticon
+    case emoji
+    /// 九宫格的「选拼音」。
+    case pickPinyin
     case layer(KeyboardModel.KeyLayer)
 
     /// 会打出字符的键：按下时显示放大气泡，另一根手指按下时先上屏。
@@ -43,6 +48,8 @@ struct KeySpec: Identifiable, Equatable {
 
 struct KeyLayoutResult: Equatable {
     var keys: [KeySpec] = []
+    /// 九宫格打拼音时左列让给拼音选择栏，这块区域不归触摸层管。
+    var pinyinColumn: CGRect?
 }
 
 /// 按当前状态算出所有按键的位置，参照 iOS 自带键盘的比例。
@@ -52,6 +59,7 @@ enum KeyLayout {
         var nineKey: Bool
         var chineseMode: Bool
         var needsGlobeKey: Bool
+        var composing = false
     }
 
     static let letterRows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map { $0.map(String.init) }
@@ -105,7 +113,7 @@ enum KeyLayout {
                 visualX: size.width - wideKey, visualWidth: wideKey)
         }
 
-        // 底栏：123、（地球）、中/英、空格、换行。
+        // 底栏：123、（地球）、表情、中/英、空格、换行。
         let side = unit * 1.25
         var x: CGFloat = 0
         add("layer", .layer(state.layer == .letters ? .numbers : .letters), x: x, row: 3, width: side)
@@ -114,6 +122,8 @@ enum KeyLayout {
             add("globe", .globe, x: x, row: 3, width: side)
             x += side
         }
+        add("emoji", .emoji, x: x, row: 3, width: side)
+        x += side
         add("chinese", .toggleChinese, x: x, row: 3, width: side)
         x += side
         let returnWidth = unit * 2.5
@@ -123,10 +133,11 @@ enum KeyLayout {
     }
 
     /// 九宫格，照 iOS 26 的五列排法：
-    /// 123   ，。?!  ABC   DEF   删除
-    /// #@¥   GHI   JKL   MNO   重输
-    /// 英文   PQRS  TUV   WXYZ  换行
-    /// 地球/，  。    空格（两格）   （换行占两行）
+    /// 123   ,。?!  ABC   DEF   删除
+    /// #@¥   GHI   JKL   MNO   ^^（打拼音时是重输）
+    /// ABC   PQRS  TUV   WXYZ  换行
+    /// 😀/地球 选拼音 空格（两格）   （换行占两行）
+    /// 打拼音时左列上三格换成拼音选择栏。
     private static func nineKey(_ state: State, size: CGSize) -> KeyLayoutResult {
         let slot = KeyboardMetrics.slotHeight
         let column = size.width / 5
@@ -146,20 +157,21 @@ enum KeyLayout {
                 add("n\(digit)", .nine(digit == "1" ? "'" : digit), col: col + 1, row: row)
             }
         }
-        add("layer", .layer(.numbers), col: 0, row: 0)
-        add("symbols", .layer(.symbols), col: 0, row: 1)
-        add("chinese", .toggleChinese, col: 0, row: 2)
-        if state.needsGlobeKey {
-            add("globe", .globe, col: 0, row: 3)
+        var pinyinColumn: CGRect?
+        if state.composing {
+            pinyinColumn = CGRect(x: 0, y: 0, width: column, height: slot * 3)
         } else {
-            add("comma", .symbol("，"), col: 0, row: 3)
+            add("layer", .layer(.numbers), col: 0, row: 0)
+            add("symbols", .layer(.symbols), col: 0, row: 1)
+            add("chinese", .toggleChinese, col: 0, row: 2)
         }
-        add("period", .symbol("。"), col: 1, row: 3)
+        add(state.needsGlobeKey ? "globe" : "emoji", state.needsGlobeKey ? .globe : .emoji, col: 0, row: 3)
+        add("pinyin", .pickPinyin, col: 1, row: 3)
         add("space", .space, col: 2, row: 3, cols: 2)
         add("delete", .delete, col: 4, row: 0)
-        add("clear", .clearComposition, col: 4, row: 1)
+        add("emoticon", .emoticon, col: 4, row: 1)
         add("return", .returnKey, col: 4, row: 2, rows: 2)
-        return KeyLayoutResult(keys: keys)
+        return KeyLayoutResult(keys: keys, pinyinColumn: pinyinColumn)
     }
 
     static func numberSymbols(chinese: Bool) -> [[String]] {
@@ -172,6 +184,31 @@ enum KeyLayout {
         ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="],
         ["_", "\\", "|", "~", "<", ">", "€", "£", "•", "…"],
         ["·", "《", "》", "‘", "’"],
+    ]
+
+    /// 长按按键弹出的备选：九宫格是数字和字母，全键盘第一行是数字，元音带声调和变音。
+    static func alternates(for kind: KeyKind, chinese: Bool) -> [String]? {
+        switch kind {
+        case .nine("'"):
+            return chinese ? ["，", "。", "？", "！", "、", "：", "；", "…", "～", "“", "”"]
+                : [",", ".", "?", "!", "'", ":", ";", "-", "~", "\""]
+        case .nine(let digit):
+            guard let letters = nineKeyLetters[digit] else { return nil }
+            return [digit] + letters.lowercased().map(String.init)
+        case .letter(let letter):
+            var options: [String] = []
+            if let index = letterRows[0].firstIndex(of: letter) { options.append(digits[index]) }
+            options += accents[letter] ?? []
+            return options.isEmpty ? nil : [letter] + options
+        default:
+            return nil
+        }
+    }
+
+    private static let accents: [String: [String]] = [
+        "a": ["ā", "á", "ǎ", "à"], "e": ["ē", "é", "ě", "è", "ê"], "i": ["ī", "í", "ǐ", "ì"],
+        "o": ["ō", "ó", "ǒ", "ò"], "u": ["ū", "ú", "ǔ", "ù", "ü"], "v": ["ü", "ǖ", "ǘ", "ǚ", "ǜ"],
+        "n": ["ñ"], "c": ["ç"], "s": ["ß"],
     ]
 
     static let nineKeyLetters: [String: String] = [
