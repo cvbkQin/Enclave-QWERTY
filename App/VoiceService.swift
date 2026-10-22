@@ -19,9 +19,10 @@ private final class AudioSink: @unchecked Sendable {
 
 /// 主 App 里的麦克风会话。
 ///
-/// iOS 不允许键盘扩展录音，也不允许 App 在后台重新打开麦克风，所以做法是：
-/// 用户从键盘跳到 App 时开启会话，音频引擎一直运行（后台音频模式让 App 保持活着），
-/// 平时丢弃数据，键盘发来「开始」时才把数据交给识别器。
+/// iOS 不允许键盘扩展录音，所以用户从键盘跳到 App 时开启会话，让 App 在后台待命，
+/// 键盘发来「开始」时才把声音交给识别器。待命有两种方式（设置里选）：
+/// - 悬浮窗：画中画小窗让 App 保持运行，麦克风只在说话时打开，平时状态栏没有橙点；
+/// - 常驻麦克风：音频引擎一直运行（后台音频模式让 App 保持活着），平时丢弃数据。
 @MainActor
 final class VoiceService: ObservableObject {
     static let shared = VoiceService()
@@ -40,6 +41,9 @@ final class VoiceService: ObservableObject {
     private var recordingStartedAt: Date?
     private var recordingMode: VoiceMode = .content
     private var lastPartialPost = Date.distantPast
+    private let pip = VoicePiP()
+    /// 这次会话是不是悬浮窗模式（开启时定下，中途改设置不影响）。
+    private var usesPiP = false
 
     /// 单次录音最长 10 分钟。
     private let maxRecordingSeconds: TimeInterval = 600
@@ -56,6 +60,7 @@ final class VoiceService: ObservableObject {
                   AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
             Task { @MainActor in self?.endSession() }
         }
+        pip.onClosed = { [weak self] in self?.endSession() }
         // 上次 App 被系统结束时可能留下旧状态。
         VoiceBridge.state = .idle
     }
@@ -73,14 +78,18 @@ final class VoiceService: ObservableObject {
             try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetooth, .defaultToSpeaker])
             try session.setActive(true)
 
-            let input = engine.inputNode
-            let format = input.outputFormat(forBus: 0)
-            input.removeTap(onBus: 0)
-            input.installTap(onBus: 0, bufferSize: 1024, format: format) { [sink] buffer, _ in
-                sink.append(buffer)
+            usesPiP = settings.voiceSessionStyle == .pip
+            if usesPiP && !VoicePiP.isSupported {
+                // 不支持画中画（例如模拟器）时退回常驻麦克风，并告诉用户。
+                usesPiP = false
+                fail(VoiceError.pipUnsupported)
             }
-            engine.prepare()
-            try engine.start()
+            if usesPiP {
+                // 悬浮窗模式待命时不碰麦克风，只开小窗。
+                try pip.start()
+            } else {
+                try startInput()
+            }
 
             lastActivity = Date()
             setState(.ready)
@@ -99,8 +108,8 @@ final class VoiceService: ObservableObject {
         cancelRecording()
         heartbeat?.invalidate()
         heartbeat = nil
-        if engine.isRunning { engine.stop() }
-        engine.inputNode.removeTap(onBus: 0)
+        stopInput()
+        pip.stop()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         setState(.idle)
     }
@@ -116,6 +125,26 @@ final class VoiceService: ObservableObject {
         }
     }
 
+    // MARK: - 麦克风
+
+    private func startInput() throws {
+        guard !engine.isRunning else { return }
+        let input = engine.inputNode
+        let format = input.outputFormat(forBus: 0)
+        input.removeTap(onBus: 0)
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [sink] buffer, _ in
+            sink.append(buffer)
+        }
+        engine.prepare()
+        try engine.start()
+    }
+
+    /// 停掉音频引擎并拆掉监听，状态栏的橙点随之消失；音频会话保持激活，下次能马上再开。
+    private func stopInput() {
+        if engine.isRunning { engine.stop() }
+        engine.inputNode.removeTap(onBus: 0)
+    }
+
     // MARK: - 录音
 
     func startRecording(mode: VoiceMode) {
@@ -124,6 +153,8 @@ final class VoiceService: ObservableObject {
         VoiceBridge.errorMessage = nil
         let settings = self.settings
         do {
+            // 悬浮窗模式到这时才打开麦克风（App 在后台，靠画中画保持运行）。
+            if usesPiP { try startInput() }
             let next: Transcriber
             switch settings.asrProvider {
             case .apple:
@@ -144,6 +175,7 @@ final class VoiceService: ObservableObject {
             lastActivity = Date()
             setState(.recording)
         } catch {
+            if usesPiP { stopInput() }
             fail(error)
         }
     }
@@ -153,6 +185,7 @@ final class VoiceService: ObservableObject {
         sink.set(nil)
         transcriber = nil
         recordingStartedAt = nil
+        if usesPiP { stopInput() }
         setState(.transcribing)
         let mode = recordingMode
         Task {
@@ -173,6 +206,7 @@ final class VoiceService: ObservableObject {
         sink.set(nil)
         transcriber = nil
         recordingStartedAt = nil
+        if usesPiP { stopInput() }
         current.cancel()
         if state == .recording || state == .transcribing { setState(.ready) }
     }
@@ -209,6 +243,7 @@ final class VoiceService: ObservableObject {
 
     private func setState(_ newState: VoiceState) {
         state = newState
+        pip.update(newState)
         VoiceBridge.state = newState
         VoiceBridge.beat()
         VoiceBridge.post(VoiceBridge.updatedNote)

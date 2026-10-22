@@ -15,6 +15,23 @@ enum ASRProvider: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// 语音会话怎么让 App 在后台待命。
+enum VoiceSessionStyle: String, Codable, CaseIterable, Identifiable {
+    /// 画中画小窗让 App 保持运行，只在说话时打开麦克风，平时状态栏没有橙点。
+    case pip
+    /// 麦克风一直开着（音频后台模式），会话期间一直有橙点。
+    case alwaysOnMic
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .pip: return "悬浮窗模式"
+        case .alwaysOnMic: return "常驻麦克风"
+        }
+    }
+}
+
 enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     /// 全键盘，26 个字母键。
     case qwerty
@@ -48,6 +65,7 @@ struct EnclaveSettings: Codable, Equatable {
     var asrModel: String = "whisper-1"
     /// 麦克风会话闲置多久后自动结束，0 表示不自动结束。
     var voiceSessionMinutes: Int = 15
+    var voiceSessionStyle: VoiceSessionStyle = .pip
     /// 说完后自动润色到预览区。
     var autoPolishAfterVoice: Bool = true
 
@@ -60,7 +78,7 @@ struct EnclaveSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
-        case asrProvider, allowAppleServerASR, asrBaseURL, asrModel, voiceSessionMinutes, autoPolishAfterVoice
+        case asrProvider, allowAppleServerASR, asrBaseURL, asrModel, voiceSessionMinutes, voiceSessionStyle, autoPolishAfterVoice
         case keyboardLayout, keyHaptics, keySound
     }
 
@@ -90,6 +108,7 @@ extension EnclaveSettings {
         asrBaseURL = try c.decodeIfPresent(String.self, forKey: .asrBaseURL) ?? asrBaseURL
         asrModel = try c.decodeIfPresent(String.self, forKey: .asrModel) ?? asrModel
         voiceSessionMinutes = try c.decodeIfPresent(Int.self, forKey: .voiceSessionMinutes) ?? voiceSessionMinutes
+        voiceSessionStyle = (try? c.decodeIfPresent(VoiceSessionStyle.self, forKey: .voiceSessionStyle)) ?? voiceSessionStyle
         autoPolishAfterVoice = try c.decodeIfPresent(Bool.self, forKey: .autoPolishAfterVoice) ?? autoPolishAfterVoice
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics

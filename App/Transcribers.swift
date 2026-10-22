@@ -12,9 +12,13 @@ enum VoiceError: LocalizedError {
     case http(Int, String)
     case empty
     case recognition(String)
+    case pipUnsupported
+    case pipFailed(String)
 
     var errorDescription: String? {
         switch self {
+        case .pipUnsupported: return "这台设备不能显示画中画小窗，这次改用常驻麦克风。"
+        case .pipFailed(let reason): return "悬浮窗没能打开：\(reason)"
         case .microphoneDenied: return "没有麦克风权限，请到 设置 › Enclave 里打开麦克风。"
         case .speechDenied: return "没有语音识别权限，请到 设置 › Enclave 里打开语音识别。"
         case .recognizerUnavailable: return "苹果语音识别暂时不可用。请检查 设置 › 通用 › 键盘 里的「启用听写」是否打开。"

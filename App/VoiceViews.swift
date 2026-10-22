@@ -99,6 +99,9 @@ struct VoiceSettingsSection: View {
                         .autocorrectionDisabled()
                 }
             }
+            Picker("待命方式", selection: $settings.voiceSessionStyle) {
+                ForEach(VoiceSessionStyle.allCases) { Text($0.title).tag($0) }
+            }
             Picker("会话保持", selection: $settings.voiceSessionMinutes) {
                 Text("5 分钟").tag(5)
                 Text("15 分钟").tag(15)
@@ -109,7 +112,7 @@ struct VoiceSettingsSection: View {
         } header: {
             Text("语音输入")
         } footer: {
-            Text("苹果本机识别默认只在手机上离线处理，不上传。自定义接口支持 OpenAI 兼容的 /audio/transcriptions，例如自建 Whisper 或 SenseVoice。会话开启期间状态栏会显示麦克风图标，但只有点「说话」后的声音才会被识别；闲置超过设定时间自动结束。")
+            Text("苹果本机识别默认只在手机上离线处理，不上传。自定义接口支持 OpenAI 兼容的 /audio/transcriptions，例如自建 Whisper 或 SenseVoice。悬浮窗模式：会话期间屏幕上有一个可以推到边上藏起来的小窗，只在说话时打开麦克风；关掉小窗就结束会话。常驻麦克风：会话期间麦克风一直开着、状态栏有橙点，但只有点「说话」后的声音才会被识别。闲置超过设定时间自动结束。")
         }
         .onChange(of: asrKey) { SettingsStore.asrApiKey = $0 }
     }
