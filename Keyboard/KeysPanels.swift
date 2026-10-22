@@ -70,17 +70,15 @@ struct SymbolPanel: View {
     private var bottomBar: some View {
         HStack(spacing: 0) {
             FunctionKey(title: model.chineseMode ? "返回" : "ABC") { model.closePanel() }
-                .frame(width: 64)
+                .frame(width: 52)
             if isEmoji {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        ForEach(["最近"] + EmojiCatalog.categories.map(\.id), id: \.self) { id in
-                            Button { category = id } label: {
-                                Image(systemName: EmojiCatalog.categories.first { $0.id == id }?.symbol ?? "clock")
-                                    .font(.system(size: 15))
-                                    .foregroundStyle(category == id ? Color.primary : Color.secondary)
-                                    .frame(width: 30, height: 40)
-                            }
+                HStack(spacing: 0) {
+                    ForEach(["最近"] + EmojiCatalog.categories.map(\.id), id: \.self) { id in
+                        Button { category = id } label: {
+                            Image(systemName: EmojiCatalog.categories.first { $0.id == id }?.symbol ?? "clock")
+                                .font(.system(size: 14))
+                                .foregroundStyle(category == id ? Color.primary : Color.secondary)
+                                .frame(maxWidth: .infinity, minHeight: 40)
                         }
                     }
                 }
@@ -89,10 +87,10 @@ struct SymbolPanel: View {
             }
             Button { model.keysPanel = isEmoji ? .kaomoji : .emoji } label: {
                 Text(isEmoji ? "^^" : "😀").font(.system(size: 17)).foregroundStyle(Color.primary)
-                    .frame(width: 44, height: 40)
+                    .frame(width: 40, height: 40)
             }
             RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                .frame(width: 64)
+                .frame(width: 52)
         }
         .frame(height: 46)
     }
@@ -115,6 +113,7 @@ struct PinyinPanel: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity)
             .hidingScrollEdgeEffect()
             VStack(spacing: 0) {
                 FunctionKey(title: "返回") { model.closePanel() }.frame(height: KeyboardMetrics.slotHeight)
