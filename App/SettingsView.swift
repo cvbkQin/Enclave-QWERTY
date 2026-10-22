@@ -14,6 +14,13 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    NavigationLink {
+                        PlaygroundView()
+                    } label: {
+                        Label("试一试键盘", systemImage: "keyboard")
+                    }
+                }
                 VoiceSessionSection()
                 apiSection
                 testSection
