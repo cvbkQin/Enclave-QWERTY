@@ -8,6 +8,7 @@ struct KeyboardView: View {
             topBar
             banner
             preview
+            instructionBar
             actionRow
             bottomRow
         }
@@ -106,8 +107,42 @@ struct KeyboardView: View {
         switch model.voiceState {
         case .recording: return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
         case .transcribing: return "识别中…"
-        default: return "在输入框里写原话或点「说话」，再点「执行」润色。\n加上「// 要求」或点「说要求」按要求改，只写「// 要求」让它帮你写。"
+        default: return "在输入框里写原话或点「说话」，点「执行」润色。\n在下面要求栏选一个要求或点「说要求」，按要求改；输入框为空时让它帮你写。"
         }
+    }
+
+    // MARK: - 要求栏
+
+    private var instructionBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                if !model.instruction.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "text.bubble")
+                        Text("要求：\(model.instruction)").lineLimit(1)
+                        Button { model.setInstruction("") } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .font(.footnote)
+                    .padding(.horizontal, 10)
+                    .frame(maxHeight: .infinity)
+                    .foregroundStyle(.white)
+                    .background(Capsule().fill(Color.accentColor))
+                }
+                ForEach(KeyboardModel.presets, id: \.title) { preset in
+                    Button(preset.title) { model.setInstruction(preset.instruction) }
+                        .font(.footnote)
+                        .padding(.horizontal, 10)
+                        .frame(maxHeight: .infinity)
+                        .foregroundStyle(.primary)
+                        .background(Capsule().fill(Color(.systemBackground)))
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(height: 30)
     }
 
     // MARK: - 结果操作

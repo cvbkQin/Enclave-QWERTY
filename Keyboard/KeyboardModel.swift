@@ -15,6 +15,8 @@ final class KeyboardModel: ObservableObject {
     @Published var needsGlobeKey = true
     @Published private(set) var voiceState: VoiceState = .idle
     @Published private(set) var voiceMode: VoiceMode = .content
+    /// 要求栏：和正文分开存放的修改要求，执行时和输入框里的「// 要求」合并。
+    @Published private(set) var instruction = ""
 
     weak var controller: UIInputViewController?
     private var task: Task<Void, Never>?
@@ -42,6 +44,7 @@ final class KeyboardModel: ObservableObject {
     func reload() {
         settings = SettingsStore.load()
         session = SessionStore.load()
+        instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         hasFullAccess = controller?.hasFullAccess ?? false
         refreshVoice()
     }
@@ -63,12 +66,18 @@ final class KeyboardModel: ObservableObject {
             return
         }
 
-        let command = CommandParser.parse(readField().text)
+        let parsed = CommandParser.parse(readField().text)
+        let command = CommandParser.Command(
+            content: parsed.content,
+            instruction: [instruction.trimmingCharacters(in: .whitespacesAndNewlines), parsed.instruction]
+                .filter { !$0.isEmpty }
+                .joined(separator: "；")
+        )
         let style = settings.selectedStyle
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
-            notice = "先在输入框里写点什么。用「内容 // 要求」按要求改，只写「// 要求」让它帮你写。"
+            notice = "先在输入框里写点什么，或者在要求栏填一个要求让它帮你写。"
 
         case (false, true):
             // 润色：开启一个新会话。
@@ -152,6 +161,7 @@ final class KeyboardModel: ObservableObject {
         stop()
         session = nil
         SessionStore.save(nil)
+        setInstruction("")
         errorMessage = nil
         notice = "已开始新会话。"
     }
@@ -159,6 +169,23 @@ final class KeyboardModel: ObservableObject {
     func selectStyle(_ style: StylePreset) {
         settings.selectedStyleID = style.id
         SettingsStore.save(settings)
+    }
+
+    // MARK: - 要求栏
+
+    private static let instructionKey = "instruction.v1"
+
+    static let presets: [(title: String, instruction: String)] = [
+        ("更正式", "语气更正式"),
+        ("更简短", "更简短，只保留要点"),
+        ("更口语", "更口语化、自然"),
+        ("翻成英文", "翻译成英文"),
+        ("扩写", "扩写得更详细具体"),
+    ]
+
+    func setInstruction(_ text: String) {
+        instruction = text
+        SharedStorage.defaults.set(text, forKey: Self.instructionKey)
     }
 
     // MARK: - 写入输入框
@@ -297,7 +324,8 @@ final class KeyboardModel: ObservableObject {
             proxy.insertText(result.text)
             if settings.autoPolishAfterVoice { execute() }
         case .instruction:
-            proxy.insertText(" // " + result.text)
+            // 说的要求只进要求栏，不动输入框，然后直接执行。
+            setInstruction(result.text)
             execute()
         }
     }

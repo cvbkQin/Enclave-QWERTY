@@ -24,7 +24,7 @@ final class KeyboardViewController: UIInputViewController {
         ])
         host.didMove(toParent: self)
 
-        let height = view.heightAnchor.constraint(equalToConstant: 310)
+        let height = view.heightAnchor.constraint(equalToConstant: 340)
         height.priority = UILayoutPriority(999)
         height.isActive = true
         heightConstraint = height
