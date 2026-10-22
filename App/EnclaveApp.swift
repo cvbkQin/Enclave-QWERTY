@@ -9,15 +9,10 @@ struct EnclaveApp: App {
             SettingsView()
                 .environmentObject(voice)
                 .onOpenURL { url in
-                    // 键盘点「说话」时用 enclave://voice?mode=content 打开 App：开启会话并直接开始录音。
+                    // 键盘点「说话」时用 enclave://voice 打开 App：这里只开启会话，
+                    // 用户返回键盘后由键盘自动开始录音。
                     guard url.scheme == "enclave", url.host == "voice" else { return }
-                    let modeValue = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                        .queryItems?.first { $0.name == "mode" }?.value
-                    let mode = modeValue.flatMap(VoiceMode.init(rawValue:)) ?? .content
-                    Task {
-                        await voice.startSession()
-                        voice.startRecording(mode: mode)
-                    }
+                    Task { await voice.startSession() }
                 }
         }
     }

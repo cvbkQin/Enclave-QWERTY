@@ -15,6 +15,9 @@ final class KeyboardModel: ObservableObject {
     @Published var needsGlobeKey = true
     @Published private(set) var voiceState: VoiceState = .idle
     @Published private(set) var voiceMode: VoiceMode = .content
+    @Published private(set) var voicePartial = ""
+    /// 键盘是否正显示在屏幕上；只有显示时才自动开始录音。
+    var isVisible = false
     /// 要求栏：和正文分开存放的修改要求，执行时和输入框里的「// 要求」合并。
     @Published private(set) var instruction = ""
 
@@ -280,9 +283,20 @@ final class KeyboardModel: ObservableObject {
             VoiceBridge.errorMessage = nil
             voiceMode = mode
             VoiceBridge.post(VoiceBridge.startNote)
+            // App 在后台被系统暂停时收不到通知：1.5 秒内没开始录音，就重新跳过去开启会话。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self, self.isVisible, VoiceBridge.state == .ready else { return }
+                VoiceBridge.state = .idle
+                VoiceBridge.requestAutoStart()
+                self.refreshVoice()
+                if !self.openContainingApp(URL(string: "enclave://voice?mode=\(mode.rawValue)")!) {
+                    self.errorMessage = "Enclave App 没有响应。请手动打开 App，点「开启语音会话」后再回来。"
+                }
+            }
         case .idle:
             VoiceBridge.mode = mode
             voiceMode = mode
+            VoiceBridge.requestAutoStart()
             if !openContainingApp(URL(string: "enclave://voice?mode=\(mode.rawValue)")!) {
                 errorMessage = "无法自动打开 Enclave。请手动打开 App，点「开启语音会话」后再回来。"
             }
@@ -297,6 +311,12 @@ final class KeyboardModel: ObservableObject {
         let state = VoiceBridge.effectiveState
         voiceState = state
         voiceMode = VoiceBridge.mode
+        voicePartial = state == .recording ? VoiceBridge.partialText : ""
+        // 刚从 App 开完会话回来：自动开始录音，不用再点一次。
+        if isVisible, state == .ready, VoiceBridge.takeAutoStart() {
+            VoiceBridge.errorMessage = nil
+            VoiceBridge.post(VoiceBridge.startNote)
+        }
         if let message = VoiceBridge.errorMessage, state != .recording {
             errorMessage = message
             VoiceBridge.errorMessage = nil

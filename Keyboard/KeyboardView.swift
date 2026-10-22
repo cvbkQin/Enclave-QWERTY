@@ -40,6 +40,11 @@ struct KeyboardView: View {
 
             Spacer()
 
+            // 麦克风会话是否在线：在线时点「说话」直接录音，不在线会先跳到 App。
+            Image(systemName: model.voiceState == .idle ? "mic.slash" : "mic.fill")
+                .font(.footnote)
+                .foregroundStyle(model.voiceState == .idle ? Color.secondary : Color.orange)
+
             if let label = model.versionLabel {
                 Button { model.showVersion(offset: -1) } label: { Image(systemName: "chevron.left") }
                     .disabled(model.isRunning || model.session?.currentIndex == 0)
@@ -105,7 +110,9 @@ struct KeyboardView: View {
     private var placeholder: String {
         if model.isRunning { return "生成中…" }
         switch model.voiceState {
-        case .recording: return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
+        case .recording:
+            if !model.voicePartial.isEmpty { return "正在听：\(model.voicePartial)" }
+            return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
         case .transcribing: return "识别中…"
         default: return "在输入框里写原话或点「说话」，点「执行」润色。\n在下面要求栏选一个要求或点「说要求」，按要求改；输入框为空时让它帮你写。"
         }

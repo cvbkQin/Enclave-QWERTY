@@ -40,6 +40,8 @@ enum VoiceBridge {
     private static let resultKey = "voice.result"
     private static let consumedKey = "voice.consumedResultID"
     private static let errorKey = "voice.error"
+    private static let partialKey = "voice.partial"
+    private static let autoStartKey = "voice.autoStartAt"
 
     private static var defaults: UserDefaults { SharedStorage.defaults }
 
@@ -59,6 +61,24 @@ enum VoiceBridge {
     static var errorMessage: String? {
         get { defaults.string(forKey: errorKey) }
         set { defaults.set(newValue, forKey: errorKey) }
+    }
+
+    /// 录音中实时识别出的文字，键盘用来显示「正在听：…」。
+    static var partialText: String {
+        get { defaults.string(forKey: partialKey) ?? "" }
+        set { defaults.set(newValue, forKey: partialKey) }
+    }
+
+    /// 键盘跳去 App 开会话时记下时间；用户 60 秒内回到键盘就自动开始录音。
+    static func requestAutoStart() {
+        defaults.set(Date().timeIntervalSince1970, forKey: autoStartKey)
+    }
+
+    static func takeAutoStart() -> Bool {
+        let at = defaults.double(forKey: autoStartKey)
+        guard at > 0 else { return false }
+        defaults.removeObject(forKey: autoStartKey)
+        return Date().timeIntervalSince1970 - at < 60
     }
 
     static func beat() {
