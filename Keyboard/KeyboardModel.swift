@@ -1,0 +1,242 @@
+import SwiftUI
+import UIKit
+
+@MainActor
+final class KeyboardModel: ObservableObject {
+    @Published private(set) var settings = EnclaveSettings()
+    @Published private(set) var session: EditSession?
+    @Published private(set) var streamingText = ""
+    @Published private(set) var isRunning = false
+    @Published private(set) var canUndo = false
+    @Published var errorMessage: String?
+    @Published var notice: String?
+    @Published var hasFullAccess = true
+    @Published var needsGlobeKey = true
+
+    weak var controller: UIInputViewController?
+    private var task: Task<Void, Never>?
+    private var undoSnapshot: (inserted: String, original: String)?
+
+    init(controller: UIInputViewController) {
+        self.controller = controller
+    }
+
+    private var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
+
+    /// 预览区显示的文字。
+    var displayText: String {
+        isRunning ? streamingText : (session?.current ?? "")
+    }
+
+    var versionLabel: String? {
+        guard let session, !session.versions.isEmpty else { return nil }
+        return "\(session.currentIndex + 1)/\(session.versions.count)"
+    }
+
+    func reload() {
+        settings = SettingsStore.load()
+        session = SessionStore.load()
+        hasFullAccess = controller?.hasFullAccess ?? false
+    }
+
+    // MARK: - 执行
+
+    /// 读取输入框，按「内容 // 要求」决定润色、按要求改或帮我写。
+    func execute() {
+        guard !isRunning else { return }
+        reload()
+        errorMessage = nil
+        notice = nil
+        guard hasFullAccess else {
+            errorMessage = "需要在 设置 › 通用 › 键盘 › 键盘 › Enclave 里打开「允许完全访问」才能联网。"
+            return
+        }
+        guard settings.isConfigured else {
+            errorMessage = LLMError.notConfigured.errorDescription
+            return
+        }
+
+        let command = CommandParser.parse(readField().text)
+        let style = settings.selectedStyle
+
+        switch (command.content.isEmpty, command.instruction.isEmpty) {
+        case (true, true):
+            notice = "先在输入框里写点什么。用「内容 // 要求」按要求改，只写「// 要求」让它帮你写。"
+
+        case (false, true):
+            // 润色：开启一个新会话。
+            let pending = EditSession(mode: .polish, original: command.content)
+            run(Prompts.polish(command.content, style: style), pending: pending)
+
+        case (true, false):
+            // 帮我写：有进行中的帮我写会话就接着追问，否则新开一个。
+            var pending: EditSession
+            if let session, session.mode == .write, session.current != nil {
+                pending = session
+            } else {
+                pending = EditSession(mode: .write, original: command.instruction)
+            }
+            pending.conversation.append(.user(command.instruction))
+            run([Prompts.writeSystem(style: style)] + pending.conversation, pending: pending)
+
+        case (false, false):
+            // 按要求改：输入框里的内容（可能被手改过）就是当前版本。
+            var pending = session ?? EditSession(mode: .polish, original: command.content)
+            if pending.mode == .write {
+                pending.conversation.append(.user("我把正文改成了：\n\(command.content)\n\n修改要求：\(command.instruction)"))
+            }
+            let messages = Prompts.revise(original: pending.original, current: command.content,
+                                          instruction: command.instruction, style: style)
+            run(messages, pending: pending)
+        }
+    }
+
+    private func run(_ messages: [ChatMessage], pending: EditSession) {
+        let client = LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
+        isRunning = true
+        streamingText = ""
+        task = Task { [weak self] in
+            var raw = ""
+            do {
+                for try await piece in client.stream(messages) {
+                    raw += piece
+                    self?.streamingText = ModelOutput.clean(raw)
+                }
+                let result = ModelOutput.clean(raw)
+                guard let self else { return }
+                if result.isEmpty {
+                    self.errorMessage = "模型没有返回内容。"
+                } else {
+                    var updated = pending
+                    updated.append(result)
+                    if updated.mode == .write {
+                        updated.conversation.append(.assistant(result))
+                    }
+                    self.session = updated
+                    SessionStore.save(updated)
+                }
+            } catch {
+                if !Task.isCancelled {
+                    self?.errorMessage = error.localizedDescription
+                }
+            }
+            self?.isRunning = false
+        }
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
+        isRunning = false
+    }
+
+    // MARK: - 版本
+
+    func showVersion(offset: Int) {
+        guard var session else { return }
+        let index = session.currentIndex + offset
+        guard session.versions.indices.contains(index) else { return }
+        session.currentIndex = index
+        self.session = session
+        SessionStore.save(session)
+    }
+
+    func newSession() {
+        stop()
+        session = nil
+        SessionStore.save(nil)
+        errorMessage = nil
+        notice = "已开始新会话。"
+    }
+
+    func selectStyle(_ style: StylePreset) {
+        settings.selectedStyleID = style.id
+        SettingsStore.save(settings)
+    }
+
+    // MARK: - 写入输入框
+
+    private func readField() -> (text: String, isSelection: Bool) {
+        guard let proxy else { return ("", false) }
+        if let selected = proxy.selectedText, !selected.isEmpty {
+            return (selected, true)
+        }
+        return ((proxy.documentContextBeforeInput ?? "") + (proxy.documentContextAfterInput ?? ""), false)
+    }
+
+    /// 用当前版本替换输入框内容（有选中时只替换选中部分）。
+    func replace() {
+        guard let text = session?.current, let proxy else { return }
+        let field = readField()
+        if field.isSelection {
+            proxy.insertText(text)
+        } else {
+            clearField(proxy)
+            proxy.insertText(text)
+        }
+        setUndo(inserted: text, original: field.text)
+    }
+
+    /// 在光标处插入当前版本。
+    func insert() {
+        guard let text = session?.current, let proxy else { return }
+        proxy.insertText(text)
+        setUndo(inserted: text, original: "")
+    }
+
+    func undo() {
+        guard let snapshot = undoSnapshot, let proxy else { return }
+        for _ in 0..<snapshot.inserted.count { proxy.deleteBackward() }
+        if !snapshot.original.isEmpty { proxy.insertText(snapshot.original) }
+        setUndo(nil)
+    }
+
+    func copy() {
+        guard let text = session?.current else { return }
+        UIPasteboard.general.string = text
+        notice = "已复制。"
+    }
+
+    private func setUndo(inserted: String, original: String) {
+        setUndo((inserted, original))
+    }
+
+    private func setUndo(_ snapshot: (inserted: String, original: String)?) {
+        undoSnapshot = snapshot
+        canUndo = snapshot != nil
+    }
+
+    /// iOS 没有「全选删除」接口：把光标移到末尾，再逐字删除。
+    private func clearField(_ proxy: UITextDocumentProxy) {
+        let after = proxy.documentContextAfterInput ?? ""
+        let before = proxy.documentContextBeforeInput ?? ""
+        if !after.isEmpty {
+            proxy.adjustTextPosition(byCharacterOffset: after.count)
+        }
+        for _ in 0..<(before.count + after.count) { proxy.deleteBackward() }
+        // 长文本时系统只给出光标附近的一段，继续删到读不到内容为止。
+        var guardCount = 0
+        while let rest = proxy.documentContextBeforeInput, !rest.isEmpty, guardCount < 5000 {
+            for _ in 0..<rest.count { proxy.deleteBackward() }
+            guardCount += rest.count
+        }
+    }
+
+    func deleteBackward() { proxy?.deleteBackward() }
+    func insertNewline() { proxy?.insertText("\n") }
+    func insertSpace() { proxy?.insertText(" ") }
+
+    // MARK: - 配置导入
+
+    func importConfigFromPasteboard() {
+        guard let string = UIPasteboard.general.string, SettingsStore.importString(string) else {
+            errorMessage = "剪贴板里没有 Enclave 配置。先在 App 里点「复制配置」。"
+            return
+        }
+        // 配置里有 API key，导入后马上清掉剪贴板。
+        UIPasteboard.general.string = ""
+        reload()
+        errorMessage = nil
+        notice = "配置已导入。"
+    }
+}

@@ -1,0 +1,5 @@
+// 复制为 Configs/Local.xcconfig（已在 .gitignore 中），填写后重新运行 xcodegen。
+// BUNDLE_ID_PREFIX 要全球唯一，比如 com.你的名字拼音。
+BUNDLE_ID_PREFIX = com.yourname
+// Xcode › Settings › Accounts 里能看到 Team ID（免费 Apple ID 是 Personal Team）
+DEVELOPMENT_TEAM = XXXXXXXXXX

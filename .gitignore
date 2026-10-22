@@ -13,3 +13,7 @@ Configs/Local.xcconfig
 
 # macOS
 .DS_Store
+
+# XcodeGen 生成的 Info.plist
+App/Info.plist
+Keyboard/Info.plist

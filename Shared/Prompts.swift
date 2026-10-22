@@ -1,0 +1,59 @@
+import Foundation
+
+/// 三种操作的 prompt。润色和按要求改是单轮请求，帮我写保留多轮对话。
+enum Prompts {
+    static func system(style: StylePreset?) -> String {
+        var text = """
+        你是嵌在用户输入法里的写作助手。用户会把你的输出直接发给别人。
+        规则：
+        - 只输出最终正文，不要任何解释、前言、引号或 Markdown 格式。
+        - 使用用户原文的语言；中文一律用简体。
+        - 不要编造用户没有提供的事实（时间、人名、数字等）。
+        """
+        if let style, !style.prompt.isEmpty {
+            text += "\n\(style.prompt)"
+        }
+        return text
+    }
+
+    static func polish(_ content: String, style: StylePreset?) -> [ChatMessage] {
+        [
+            .system(system(style: style)),
+            .user("""
+            润色下面这段话：去掉口头禅和重复，修正错别字和标点，处理说话中途的改口，让表达通顺自然。不改变原意，不添加原文没有的信息。
+
+            <原文>
+            \(content)
+            </原文>
+            """),
+        ]
+    }
+
+    static func revise(original: String, current: String, instruction: String, style: StylePreset?) -> [ChatMessage] {
+        var prompt = ""
+        if original != current {
+            prompt += """
+            <最初草稿>（用户最初的意图，仅供参考）
+            \(original)
+            </最初草稿>
+
+            """
+        }
+        prompt += """
+        <当前版本>（可能包含用户的手动修改，这些修改必须保留）
+        \(current)
+        </当前版本>
+
+        <修改要求>
+        \(instruction)
+        </修改要求>
+
+        按修改要求改写当前版本。尽量少改动，要求没有涉及的地方保持原样。只输出修改后的完整正文。
+        """
+        return [.system(system(style: style)), .user(prompt)]
+    }
+
+    static func writeSystem(style: StylePreset?) -> ChatMessage {
+        .system(system(style: style) + "\n用户会描述想写的内容，你直接写出可以发送的正文。用户后续追加的要求，是对你上一版的修改意见。")
+    }
+}
