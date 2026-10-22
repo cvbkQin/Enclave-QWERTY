@@ -28,6 +28,7 @@ final class VoiceService: ObservableObject {
 
     @Published private(set) var state: VoiceState = .idle
     @Published private(set) var lastText = ""
+    @Published private(set) var partialText = ""
     @Published private(set) var errorMessage: String?
 
     private let engine = AVAudioEngine()
@@ -38,6 +39,7 @@ final class VoiceService: ObservableObject {
     private var lastActivity = Date()
     private var recordingStartedAt: Date?
     private var recordingMode: VoiceMode = .content
+    private var lastPartialPost = Date.distantPast
 
     /// 单次录音最长 10 分钟。
     private let maxRecordingSeconds: TimeInterval = 600
@@ -125,12 +127,17 @@ final class VoiceService: ObservableObject {
             let next: Transcriber
             switch settings.asrProvider {
             case .apple:
-                next = try AppleTranscriber(allowServer: settings.allowAppleServerASR)
+                let apple = try AppleTranscriber(allowServer: settings.allowAppleServerASR)
+                apple.onPartial = { [weak self] text in
+                    Task { @MainActor in self?.updatePartial(text) }
+                }
+                next = apple
             case .custom:
                 next = try RemoteTranscriber(settings: settings, apiKey: SettingsStore.asrApiKey,
                                              inputFormat: engine.inputNode.outputFormat(forBus: 0))
             }
             transcriber = next
+            updatePartial("", force: true)
             sink.set(next)
             recordingMode = mode
             recordingStartedAt = Date()
@@ -171,6 +178,15 @@ final class VoiceService: ObservableObject {
     }
 
     // MARK: - 辅助
+
+    /// 实时文字最多每 0.3 秒同步给键盘一次。
+    private func updatePartial(_ text: String, force: Bool = false) {
+        partialText = text
+        guard force || Date().timeIntervalSince(lastPartialPost) > 0.3 else { return }
+        lastPartialPost = Date()
+        VoiceBridge.partialText = text
+        VoiceBridge.post(VoiceBridge.updatedNote)
+    }
 
     private func requestPermissions() async throws {
         let micGranted: Bool

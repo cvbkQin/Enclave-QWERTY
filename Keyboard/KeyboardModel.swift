@@ -15,6 +15,9 @@ final class KeyboardModel: ObservableObject {
     @Published var needsGlobeKey = true
     @Published private(set) var voiceState: VoiceState = .idle
     @Published private(set) var voiceMode: VoiceMode = .content
+    @Published private(set) var voicePartial = ""
+    /// 键盘是否正显示在屏幕上；只有显示时才自动开始录音。
+    var isVisible = false
     /// 要求栏：和正文分开存放的修改要求，执行时和输入框里的「// 要求」合并。
     @Published private(set) var instruction = ""
 
@@ -283,6 +286,7 @@ final class KeyboardModel: ObservableObject {
         case .idle:
             VoiceBridge.mode = mode
             voiceMode = mode
+            VoiceBridge.requestAutoStart()
             if !openContainingApp(URL(string: "enclave://voice?mode=\(mode.rawValue)")!) {
                 errorMessage = "无法自动打开 Enclave。请手动打开 App，点「开启语音会话」后再回来。"
             }
@@ -297,6 +301,12 @@ final class KeyboardModel: ObservableObject {
         let state = VoiceBridge.effectiveState
         voiceState = state
         voiceMode = VoiceBridge.mode
+        voicePartial = state == .recording ? VoiceBridge.partialText : ""
+        // 刚从 App 开完会话回来：自动开始录音，不用再点一次。
+        if isVisible, state == .ready, VoiceBridge.takeAutoStart() {
+            VoiceBridge.errorMessage = nil
+            VoiceBridge.post(VoiceBridge.startNote)
+        }
         if let message = VoiceBridge.errorMessage, state != .recording {
             errorMessage = message
             VoiceBridge.errorMessage = nil

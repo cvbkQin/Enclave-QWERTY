@@ -32,7 +32,13 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        model.isVisible = true
         model.reload()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        model.isVisible = false
     }
 
     override func viewWillLayoutSubviews() {

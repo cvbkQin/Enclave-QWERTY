@@ -18,6 +18,16 @@ struct VoiceSessionSection: View {
             }
             .padding(.vertical, 4)
 
+            if voice.state == .ready {
+                Label("现在点屏幕最左上角（时间旁边）的「◀」返回刚才的 App，回去后会自动开始录音。", systemImage: "arrow.uturn.backward.circle.fill")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.vertical, 4)
+            }
+            if voice.state == .recording {
+                Text(voice.partialText.isEmpty ? "正在听…" : voice.partialText)
+                    .font(.body)
+            }
             if let error = voice.errorMessage {
                 Text(error).font(.footnote).foregroundStyle(.red)
             }

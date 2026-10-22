@@ -105,7 +105,9 @@ struct KeyboardView: View {
     private var placeholder: String {
         if model.isRunning { return "生成中…" }
         switch model.voiceState {
-        case .recording: return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
+        case .recording:
+            if !model.voicePartial.isEmpty { return "正在听：\(model.voicePartial)" }
+            return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
         case .transcribing: return "识别中…"
         default: return "在输入框里写原话或点「说话」，点「执行」润色。\n在下面要求栏选一个要求或点「说要求」，按要求改；输入框为空时让它帮你写。"
         }

@@ -11,17 +11,19 @@ enum VoiceError: LocalizedError {
     case badURL(String)
     case http(Int, String)
     case empty
+    case recognition(String)
 
     var errorDescription: String? {
         switch self {
         case .microphoneDenied: return "没有麦克风权限，请到 设置 › Enclave 里打开麦克风。"
         case .speechDenied: return "没有语音识别权限，请到 设置 › Enclave 里打开语音识别。"
-        case .recognizerUnavailable: return "苹果语音识别暂时不可用。"
+        case .recognizerUnavailable: return "苹果语音识别暂时不可用。请检查 设置 › 通用 › 键盘 里的「启用听写」是否打开。"
         case .onDeviceUnavailable: return "这台设备不支持中文离线识别。可以在设置里允许使用苹果服务器，或改用自定义接口。"
         case .notConfigured: return "还没有填写语音识别接口地址。"
         case .badURL(let url): return "语音识别接口地址不正确：\(url)"
         case .http(let code, let body): return "语音识别失败（HTTP \(code)）：\(body)"
-        case .empty: return "没有识别到内容。"
+        case .empty: return "没有识别到内容。如果一直这样，请检查 设置 › 通用 › 键盘 里的「启用听写」是否打开。"
+        case .recognition(let detail): return "识别失败：\(detail)。请检查 设置 › 通用 › 键盘 里的「启用听写」是否打开。"
         }
     }
 }
@@ -42,6 +44,9 @@ final class AppleTranscriber: Transcriber {
 
     private let lock = NSLock()
     private var latest = ""
+    private var lastError: Error?
+    /// 中间结果回调，在识别器的线程调用。
+    var onPartial: ((String) -> Void)?
     private var outcome: Result<String, Error>?
     private var continuation: CheckedContinuation<String, Error>?
 
@@ -90,11 +95,16 @@ final class AppleTranscriber: Transcriber {
 
     private func handle(result: SFSpeechRecognitionResult?, error: Error?) {
         if let result {
+            let text = result.bestTranscription.formattedString
             lock.lock()
-            latest = result.bestTranscription.formattedString
+            latest = text
             lock.unlock()
+            onPartial?(text)
             if result.isFinal { complete(with: nil) }
-        } else if error != nil {
+        } else if let error {
+            lock.lock()
+            lastError = error
+            lock.unlock()
             complete(with: nil)
         }
     }
@@ -104,7 +114,8 @@ final class AppleTranscriber: Transcriber {
         lock.lock()
         guard outcome == nil else { lock.unlock(); return }
         let text = latest.trimmingCharacters(in: .whitespacesAndNewlines)
-        let final = forced ?? (text.isEmpty ? .failure(VoiceError.empty) : .success(text))
+        let emptyError: Error = lastError.map { VoiceError.recognition($0.localizedDescription) } ?? VoiceError.empty
+        let final = forced ?? (text.isEmpty ? .failure(emptyError) : .success(text))
         outcome = final
         let waiting = continuation
         continuation = nil
