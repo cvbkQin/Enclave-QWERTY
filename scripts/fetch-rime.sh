@@ -39,7 +39,7 @@ DATA="$VENDOR/RimeData"
 rm -rf "$DATA"
 mkdir -p "$DATA/cn_dicts"
 SRC="$TMP/rime-ice"
-cp "$SRC"/default.yaml "$SRC"/rime_ice.schema.yaml "$SRC"/rime_ice.dict.yaml \
+cp "$SRC"/default.yaml "$SRC"/rime_ice.schema.yaml "$SRC"/rime_ice.dict.yaml "$SRC"/t9.schema.yaml \
    "$SRC"/melt_eng.schema.yaml "$SRC"/melt_eng.dict.yaml \
    "$SRC"/radical_pinyin.schema.yaml "$SRC"/radical_pinyin.dict.yaml \
    "$SRC"/symbols_v.yaml "$SRC"/symbols_caps_v.yaml "$SRC"/custom_phrase.txt "$DATA/"
@@ -57,7 +57,15 @@ cat > "$DATA/default.custom.yaml" <<'YAML'
 patch:
   schema_list:
     - schema: rime_ice
+    - schema: t9
 YAML
+
+# 九宫格：拼写栏显示拼音而不是数字。
+cat > "$DATA/t9.custom.yaml" <<'YAML'
+patch:
+  engine/filters/@before 0: lua_filter@*t9_preedit
+YAML
+touch "$DATA/custom_phrase_t9.txt"
 
 # App 用它判断词库要不要重新部署。
 echo "$RIME_ICE_COMMIT-$(shasum -a 256 "$0" | cut -c1-8)" > "$DATA/data_version.txt"

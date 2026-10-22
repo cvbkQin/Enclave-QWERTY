@@ -15,6 +15,7 @@ bool enclave_rime_deploy(const char *shared_dir, const char *user_dir, const cha
 
 uint64_t enclave_rime_create_session(const char *schema_id);
 void enclave_rime_destroy_session(uint64_t session);
+bool enclave_rime_select_schema(uint64_t session, const char *schema_id);
 bool enclave_rime_session_alive(uint64_t session);
 bool enclave_rime_process_key(uint64_t session, int keycode, int mask);
 void enclave_rime_clear(uint64_t session);

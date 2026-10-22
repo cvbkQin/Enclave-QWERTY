@@ -23,6 +23,13 @@ struct SettingsView: View {
                 }
                 VoiceSessionSection()
                 PinyinSection()
+                Section {
+                    Picker("键盘布局", selection: $settings.keyboardLayout) {
+                        ForEach(KeyboardLayout.allCases) { Text($0.title).tag($0) }
+                    }
+                } footer: {
+                    Text("九宫格只用于中文；切到英文时自动用全键盘。键盘上点风格菜单也能切换。")
+                }
                 apiSection
                 testSection
                 styleSection

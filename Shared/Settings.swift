@@ -15,6 +15,22 @@ enum ASRProvider: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
+    /// 全键盘，26 个字母键。
+    case qwerty
+    /// 九宫格拼音。
+    case nineKey
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .qwerty: return "全键盘（26 键）"
+        case .nineKey: return "九宫格"
+        }
+    }
+}
+
 struct EnclaveSettings: Codable, Equatable {
     /// OpenAI 兼容接口的 base URL，例如 https://api.deepseek.com/v1 或 http://100.x.x.x:11434/v1
     var baseURL: String = ""
@@ -35,9 +51,13 @@ struct EnclaveSettings: Codable, Equatable {
     /// 说完后自动润色到预览区。
     var autoPolishAfterVoice: Bool = true
 
+    // 键盘
+    var keyboardLayout: KeyboardLayout = .qwerty
+
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
         case asrProvider, allowAppleServerASR, asrBaseURL, asrModel, voiceSessionMinutes, autoPolishAfterVoice
+        case keyboardLayout
     }
 
     var isConfigured: Bool {
@@ -67,6 +87,7 @@ extension EnclaveSettings {
         asrModel = try c.decodeIfPresent(String.self, forKey: .asrModel) ?? asrModel
         voiceSessionMinutes = try c.decodeIfPresent(Int.self, forKey: .voiceSessionMinutes) ?? voiceSessionMinutes
         autoPolishAfterVoice = try c.decodeIfPresent(Bool.self, forKey: .autoPolishAfterVoice) ?? autoPolishAfterVoice
+        keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
     }
 }
 

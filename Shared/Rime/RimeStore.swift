@@ -3,6 +3,11 @@ import Foundation
 /// 拼音词库放在 App Group 共享目录里：主 App 负责部署（编译词库），键盘只读取编译好的结果。
 enum RimeStore {
     static let schemaID = "rime_ice"
+    static let nineKeySchemaID = "t9"
+
+    static func schema(for layout: KeyboardLayout) -> String {
+        layout == .nineKey ? nineKeySchemaID : schemaID
+    }
 
     struct Paths {
         let shared: URL

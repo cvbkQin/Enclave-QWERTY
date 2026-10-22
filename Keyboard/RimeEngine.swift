@@ -8,12 +8,24 @@ final class RimeEngine: InputEngine {
     private(set) var candidates: [String] = []
     private var session: UInt64 = 0
     private var loadedVersion: String?
+    private var schema = RimeStore.schemaID
 
     private static let candidateLimit = 60
     private static let backspaceKey: Int32 = 0xff08
 
-    /// 准备好引擎；词库没部署或读不到共享目录时返回 false。
-    func prepare() -> Bool {
+    /// 准备好引擎并切到指定方案；词库没部署或读不到共享目录时返回 false。
+    func prepare(schema wanted: String) -> Bool {
+        guard prepare() else { return false }
+        if wanted != schema {
+            reset()
+            guard enclave_rime_select_schema(session, wanted) else { return false }
+            enclave_rime_set_option(session, "ascii_mode", false)
+            schema = wanted
+        }
+        return true
+    }
+
+    private func prepare() -> Bool {
         guard RimeStore.isDeployed, let version = RimeStore.deployedVersion, let paths = RimeStore.paths else {
             return false
         }
@@ -27,7 +39,7 @@ final class RimeEngine: InputEngine {
             loadedVersion = version
         }
         if !enclave_rime_session_alive(session) {
-            session = enclave_rime_create_session(RimeStore.schemaID)
+            session = enclave_rime_create_session(schema)
             guard session != 0 else { return false }
             enclave_rime_set_option(session, "ascii_mode", false)
         }
@@ -61,7 +73,10 @@ final class RimeEngine: InputEngine {
 
     func commitComposition() -> String? {
         guard session != 0 else { return nil }
-        let raw = takeString(enclave_rime_get_input(session))
+        // 九宫格的原始输入是数字，回车时上屏拼写栏里的拼音。
+        let raw = schema == RimeStore.nineKeySchemaID
+            ? composition.filter { $0 != " " && $0 != "'" }
+            : takeString(enclave_rime_get_input(session))
         enclave_rime_clear(session)
         _ = refresh()
         return raw

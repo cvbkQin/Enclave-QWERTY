@@ -15,7 +15,13 @@ struct KeysView: View {
             let unit = (geo.size.width - spacing * 9) / 10
             VStack(spacing: 8) {
                 switch model.layer {
-                case .letters: letterRows(unit: unit)
+                case .letters:
+                    if model.showsNineKey {
+                        NineKeyView(model: model, spacing: spacing, rowHeight: rowHeight)
+                            .frame(height: rowHeight * 3 + 16)
+                    } else {
+                        letterRows(unit: unit)
+                    }
                 case .numbers: symbolRows(numberSymbols, switchTitle: "#+=", switchTo: .symbols, unit: unit)
                 case .symbols: symbolRows(moreSymbols, switchTitle: "123", switchTo: .numbers, unit: unit)
                 }

@@ -85,10 +85,34 @@ extension KeyboardModel {
         selectEngine()
     }
 
+    /// 九宫格只用于中文拼音；英文模式和拼音不可用时用全键盘。
+    var activeLayout: KeyboardLayout {
+        chineseMode ? settings.keyboardLayout : .qwerty
+    }
+
+    var showsNineKey: Bool { activeLayout == .nineKey && pinyinReady }
+
+    func setLayout(_ layout: KeyboardLayout) {
+        updateSettings { $0.keyboardLayout = layout }
+        selectEngine()
+    }
+
+    /// 九宫格的数字键和分词键，直接交给拼音引擎。
+    func typeNineKey(_ key: String) {
+        if let output = engine.input(key) { commit(output) }
+        syncEngine()
+    }
+
+    /// 九宫格「重输」：清掉正在拼的内容。
+    func clearComposition() {
+        engine.reset()
+        syncEngine()
+    }
+
     /// 中文模式用拼音引擎，英文模式或词库不可用时字母直接上屏。
     func selectEngine() {
         engine.reset()
-        pinyinReady = hasFullAccess && RimeEngine.shared.prepare()
+        pinyinReady = hasFullAccess && RimeEngine.shared.prepare(schema: RimeStore.schema(for: activeLayout))
         engine = chineseMode && pinyinReady ? RimeEngine.shared : DirectEngine()
         syncEngine()
     }

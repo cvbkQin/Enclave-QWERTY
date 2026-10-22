@@ -184,7 +184,11 @@ final class KeyboardModel: ObservableObject {
     }
 
     func selectStyle(_ style: StylePreset) {
-        settings.selectedStyleID = style.id
+        updateSettings { $0.selectedStyleID = style.id }
+    }
+
+    func updateSettings(_ change: (inout EnclaveSettings) -> Void) {
+        change(&settings)
         SettingsStore.save(settings)
     }
 

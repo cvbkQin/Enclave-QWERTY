@@ -68,6 +68,10 @@ void enclave_rime_destroy_session(uint64_t session) {
   if (session) rime_get_api()->destroy_session(session);
 }
 
+bool enclave_rime_select_schema(uint64_t session, const char *schema_id) {
+  return rime_get_api()->select_schema(session, schema_id);
+}
+
 bool enclave_rime_session_alive(uint64_t session) {
   return session && rime_get_api()->find_session(session);
 }

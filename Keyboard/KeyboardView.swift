@@ -125,14 +125,29 @@ struct KeyboardView: View {
 
     private var styleMenu: some View {
         Menu {
-            ForEach(model.settings.styles) { style in
-                Button {
-                    model.selectStyle(style)
-                } label: {
-                    if style.id == model.settings.selectedStyle?.id {
-                        Label(style.name, systemImage: "checkmark")
-                    } else {
-                        Text(style.name)
+            Section("键盘布局") {
+                ForEach(KeyboardLayout.allCases) { layout in
+                    Button {
+                        model.setLayout(layout)
+                    } label: {
+                        if layout == model.settings.keyboardLayout {
+                            Label(layout.title, systemImage: "checkmark")
+                        } else {
+                            Text(layout.title)
+                        }
+                    }
+                }
+            }
+            Section("润色风格") {
+                ForEach(model.settings.styles) { style in
+                    Button {
+                        model.selectStyle(style)
+                    } label: {
+                        if style.id == model.settings.selectedStyle?.id {
+                            Label(style.name, systemImage: "checkmark")
+                        } else {
+                            Text(style.name)
+                        }
                     }
                 }
             }
