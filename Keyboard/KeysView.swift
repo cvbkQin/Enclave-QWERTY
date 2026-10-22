@@ -17,11 +17,6 @@ struct KeysView: View {
                             .frame(width: key.visual.width, height: key.visual.height)
                             .offset(x: key.visual.minX, y: key.visual.minY)
                     }
-                    if let column = layout.punctuationColumn {
-                        PunctuationColumn(model: model)
-                            .frame(width: column.width, height: column.height)
-                            .offset(x: column.minX, y: column.minY)
-                    }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)
                     // 字符键按下时的放大气泡（九宫格和系统一样不显示）。
@@ -45,17 +40,10 @@ struct KeyCapView: View {
 
     var body: some View {
         let pressed = model.pressedKeys.contains(key.id)
-        KeyCap(fill: fill(pressed: pressed)) {
+        KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY) {
             label
                 .foregroundStyle(foreground)
                 .opacity(model.trackpadActive ? 0 : 1)
-        }
-    }
-
-    private var isCharacterStyle: Bool {
-        switch key.kind {
-        case .letter, .symbol, .nine, .space: return true
-        default: return false
         }
     }
 
@@ -64,21 +52,11 @@ struct KeyCapView: View {
         return false
     }
 
-    private var shiftActive: Bool {
-        if case .shift = key.kind { return model.shift != .off }
-        return false
-    }
-
-    /// 系统键盘：字符键按下变深色，功能键按下变浅色；Shift 打开时是浅色。
+    /// iOS 26 键盘：所有键同色，按下变灰；带气泡的键按下时键帽不变色，气泡代替反馈。
     private func fill(pressed: Bool) -> Color {
         if highlighted { return Color.accentColor.opacity(pressed ? 0.75 : 1) }
-        if shiftActive { return KeyStyle.charKey }
-        if isCharacterStyle {
-            // 带气泡的键按下时键帽本身不变色，气泡代替反馈。
-            let showsPopup = key.kind.typesCharacter && !(model.showsNineKey && model.layer == .letters)
-            return pressed && !showsPopup ? KeyStyle.functionKey : KeyStyle.charKey
-        }
-        return pressed ? KeyStyle.charKey : KeyStyle.functionKey
+        let showsPopup = key.kind.typesCharacter && !(model.showsNineKey && model.layer == .letters)
+        return pressed && !showsPopup ? KeyStyle.pressedKey : KeyStyle.charKey
     }
 
     private var foreground: Color {
@@ -95,25 +73,52 @@ struct KeyCapView: View {
         case .symbol(let symbol):
             Text(symbol).font(KeyStyle.symbolFont)
         case .nine(let digit):
-            Text(KeyLayout.nineKeyLetters[digit] ?? digit)
-                .font(digit == "'" ? KeyStyle.functionFont : KeyStyle.nineKeyFont)
+            if digit == "'" {
+                // 打拼音时是分词键，平时连按切换标点。
+                Text(model.isComposing ? "分词" : ",。?!").font(KeyStyle.functionFont).tracking(model.isComposing ? 0 : 1)
+            } else {
+                Text(KeyLayout.nineKeyLetters[digit] ?? digit)
+                    .font(KeyStyle.nineKeyFont)
+                    .tracking(3.5)
+            }
         case .shift:
             Image(systemName: model.shift == .locked ? "capslock.fill" : (model.shift == .on ? "shift.fill" : "shift"))
                 .font(KeyStyle.iconFont)
         case .delete:
             Image(systemName: "delete.left").font(KeyStyle.iconFont)
         case .space:
-            Text(model.spaceTitle).font(KeyStyle.functionFont)
+            spaceLabel
         case .returnKey:
-            Text(model.returnTitle).font(KeyStyle.functionFont)
+            if let title = model.returnTitle {
+                Text(title).font(KeyStyle.functionFont)
+            } else {
+                Image(systemName: "return.left").font(KeyStyle.iconFont)
+            }
         case .toggleChinese:
-            Text(model.chineseMode ? "中" : "英").font(KeyStyle.functionFont)
+            Text(model.showsNineKey ? "ABC" : (model.chineseMode ? "中" : "英")).font(KeyStyle.functionFont)
         case .globe:
             Image(systemName: "globe").font(KeyStyle.iconFont)
         case .clearComposition:
             Text("重输").font(KeyStyle.functionFont)
         case .layer(let target):
-            Text(layerTitle(target)).font(KeyStyle.functionFont)
+            Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.functionFont)
+        }
+    }
+
+    /// 和系统一样，空格键平时不写字，只在右下角用小字标出当前语言。
+    @ViewBuilder
+    private var spaceLabel: some View {
+        if let title = model.spaceTitle {
+            // 九宫格的「空格」两字之间系统留了较宽的字距。
+            Text(title).font(KeyStyle.functionFont).tracking(model.showsNineKey && title == "空格" ? 6 : 0)
+        } else {
+            Color.clear.overlay(alignment: .bottomTrailing) {
+                Text(model.chineseMode ? "拼" : "EN")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.secondary)
+                    .padding(.trailing, 9)
+                    .padding(.bottom, 5)
+            }
         }
     }
 
@@ -133,7 +138,7 @@ struct KeyPopup: View {
     let containerWidth: CGFloat
 
     var body: some View {
-        let cap = key.visual.insetBy(dx: KeyboardMetrics.keyInsetX, dy: KeyboardMetrics.keyInsetY)
+        let cap = key.cap
         let bubbleWidth = cap.width + 22
         var bubbleX = cap.midX - bubbleWidth / 2
         bubbleX = min(max(bubbleX, 0), containerWidth - bubbleWidth)
@@ -188,37 +193,6 @@ struct PopupShape: Shape {
         p.addQuadCurve(to: CGPoint(x: cap.maxX - capR, y: cap.maxY), control: CGPoint(x: cap.maxX, y: cap.maxY))
         p.closeSubpath()
         return p
-    }
-}
-
-/// 九宫格左侧的标点列，可以上下滚动。
-struct PunctuationColumn: View {
-    @ObservedObject var model: KeyboardModel
-
-    private static let marks = ["，", "。", "？", "！", "、", "：", "…", "～", "；", "“", "”"]
-
-    var body: some View {
-        KeyCap(fill: KeyStyle.functionKey) {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    ForEach(Self.marks, id: \.self) { mark in
-                        Button {
-                            model.keyFeedback(for: .symbol(mark))
-                            model.typeSymbol(mark)
-                        } label: {
-                            Text(mark)
-                                .font(.system(size: 20))
-                                .foregroundStyle(Color.primary)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 38)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(KeyPressStyle())
-                    }
-                }
-            }
-            .hidingScrollEdgeEffect()
-        }
     }
 }
 

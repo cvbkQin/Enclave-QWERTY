@@ -173,9 +173,30 @@ extension KeyboardModel {
     }
 
     /// 九宫格的数字键和分词键，直接交给拼音引擎。
+    /// 没在打拼音时，分词键是标点键：连按在「，。？！」之间切换，和老式九宫格一样。
     func typeNineKey(_ key: String) {
+        if key == "'" && !isComposing {
+            cyclePunctuation()
+            return
+        }
         if let output = engine.input(key) { commit(output) }
         syncEngine()
+    }
+
+    private static let cycledMarks = ["，", "。", "？", "！"]
+
+    private func cyclePunctuation() {
+        let now = Date()
+        let marks = Self.cycledMarks
+        if target == .host, now.timeIntervalSince(lastPunctuationTap) < 0.8,
+           let last = proxy?.documentContextBeforeInput?.last.map(String.init),
+           let index = marks.firstIndex(of: last) {
+            proxy?.deleteBackward()
+            commit(marks[(index + 1) % marks.count])
+        } else {
+            commit(marks[0])
+        }
+        lastPunctuationTap = now
     }
 
     /// 九宫格「重输」：清掉正在拼的内容。
@@ -284,16 +305,18 @@ extension KeyboardModel {
 // MARK: - 按键上的字
 
 extension KeyboardModel {
-    var spaceTitle: String {
+    /// nil 表示空格键不写字（和 iOS 26 一样只在角落标语言）。九宫格的空格键照系统写「空格」。
+    var spaceTitle: String? {
         if isComposing { return "选定" }
-        if !chineseMode { return "space" }
         // 词库没部署或没开完全访问时，中文模式也只能直接打字母。
-        return pinyinReady ? "空格" : "空格（拼音未就绪）"
+        if chineseMode && !pinyinReady { return "空格（拼音未就绪）" }
+        return showsNineKey ? "空格" : nil
     }
 
-    var returnTitle: String {
+    /// nil 表示画系统的换行图标。
+    var returnTitle: String? {
         if isComposing { return "确认" }
-        return target == .instruction ? "执行" : (chineseMode ? "换行" : "return")
+        return target == .instruction ? "执行" : nil
     }
 
     var returnHighlighted: Bool { target == .instruction && !isComposing }

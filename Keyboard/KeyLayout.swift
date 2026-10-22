@@ -26,6 +26,9 @@ struct KeySpec: Identifiable, Equatable {
     let frame: CGRect
     /// 画出来的格子（第二行两端的键触摸范围比画出来的大）。
     let visual: CGRect
+    /// 格子里按键四周留的间隙。
+    var insetX = KeyboardMetrics.keyInsetX
+    var insetY = KeyboardMetrics.keyInsetY
 
     init(id: String, kind: KeyKind, frame: CGRect, visual: CGRect? = nil) {
         self.id = id
@@ -33,12 +36,13 @@ struct KeySpec: Identifiable, Equatable {
         self.frame = frame
         self.visual = visual ?? frame
     }
+
+    /// 键帽本身的位置。
+    var cap: CGRect { visual.insetBy(dx: insetX, dy: insetY) }
 }
 
 struct KeyLayoutResult: Equatable {
     var keys: [KeySpec] = []
-    /// 九宫格左侧的标点列，自己处理滚动和点击。
-    var punctuationColumn: CGRect?
 }
 
 /// 按当前状态算出所有按键的位置，参照 iOS 自带键盘的比例。
@@ -59,6 +63,8 @@ enum KeyLayout {
         }
         let unit = size.width / 10
         let slot = KeyboardMetrics.slotHeight
+        // 系统键盘的 Shift 和删除键比 1.5 格窄，和字母之间空出一段。
+        let wideKey = KeyboardMetrics.shiftKeyWidth + KeyboardMetrics.keyInsetX * 2
         var keys: [KeySpec] = []
 
         func add(_ id: String, _ kind: KeyKind, x: CGFloat, row: Int, width: CGFloat, visualX: CGFloat? = nil, visualWidth: CGFloat? = nil) {
@@ -78,9 +84,10 @@ enum KeyLayout {
                 let width = unit + (first || last ? unit / 2 : 0)
                 add(l, .letter(l), x: x, row: 1, width: width, visualX: unit / 2 + CGFloat(i) * unit, visualWidth: unit)
             }
-            add("shift", .shift, x: 0, row: 2, width: unit * 1.5)
+            add("shift", .shift, x: 0, row: 2, width: unit * 1.5, visualWidth: wideKey)
             for (i, l) in letterRows[2].enumerated() { add(l, .letter(l), x: unit * 1.5 + CGFloat(i) * unit, row: 2, width: unit) }
-            add("delete", .delete, x: unit * 8.5, row: 2, width: unit * 1.5)
+            add("delete", .delete, x: unit * 8.5, row: 2, width: unit * 1.5,
+                visualX: size.width - wideKey, visualWidth: wideKey)
         case .numbers, .symbols:
             let rows = state.layer == .numbers ? numberSymbols(chinese: state.chineseMode) : moreSymbols
             for row in 0..<2 {
@@ -88,12 +95,14 @@ enum KeyLayout {
                     add("s\(row)-\(i)", .symbol(s), x: CGFloat(i) * unit, row: row, width: unit)
                 }
             }
-            add("layer2", .layer(state.layer == .numbers ? .symbols : .numbers), x: 0, row: 2, width: unit * 1.5)
+            add("layer2", .layer(state.layer == .numbers ? .symbols : .numbers), x: 0, row: 2, width: unit * 1.5,
+                visualWidth: wideKey)
             let width = unit * 7 / CGFloat(rows[2].count)
             for (i, s) in rows[2].enumerated() {
                 add("s2-\(i)", .symbol(s), x: unit * 1.5 + CGFloat(i) * width, row: 2, width: width)
             }
-            add("delete", .delete, x: unit * 8.5, row: 2, width: unit * 1.5)
+            add("delete", .delete, x: unit * 8.5, row: 2, width: unit * 1.5,
+                visualX: size.width - wideKey, visualWidth: wideKey)
         }
 
         // 底栏：123、（地球）、中/英、空格、换行。
@@ -113,38 +122,44 @@ enum KeyLayout {
         return KeyLayoutResult(keys: keys)
     }
 
-    /// 九宫格：左边标点列和 123，中间 3×3 加中/英、空格，右边删除、重输和占两行的换行。
+    /// 九宫格，照 iOS 26 的五列排法：
+    /// 123   ，。?!  ABC   DEF   删除
+    /// #@¥   GHI   JKL   MNO   重输
+    /// 英文   PQRS  TUV   WXYZ  换行
+    /// 地球/，  。    空格（两格）   （换行占两行）
     private static func nineKey(_ state: State, size: CGSize) -> KeyLayoutResult {
         let slot = KeyboardMetrics.slotHeight
-        let side = (size.width * 0.18).rounded()
-        let middle = (size.width - side * 2) / 3
+        let column = size.width / 5
         var keys: [KeySpec] = []
-        func add(_ id: String, _ kind: KeyKind, _ rect: CGRect) {
-            keys.append(KeySpec(id: id, kind: kind, frame: rect))
+        func add(_ id: String, _ kind: KeyKind, col: Int, row: Int, cols: Int = 1, rows: Int = 1) {
+            var key = KeySpec(id: id, kind: kind,
+                              frame: CGRect(x: CGFloat(col) * column, y: CGFloat(row) * slot,
+                                            width: column * CGFloat(cols), height: slot * CGFloat(rows)))
+            key.insetX = KeyboardMetrics.nineKeyInsetX
+            key.insetY = KeyboardMetrics.nineKeyInsetY
+            keys.append(key)
         }
         let digits = [["1", "2", "3"], ["4", "5", "6"], ["7", "8", "9"]]
         for row in 0..<3 {
             for col in 0..<3 {
                 let digit = digits[row][col]
-                add("n\(digit)", .nine(digit == "1" ? "'" : digit),
-                    CGRect(x: side + CGFloat(col) * middle, y: CGFloat(row) * slot, width: middle, height: slot))
+                add("n\(digit)", .nine(digit == "1" ? "'" : digit), col: col + 1, row: row)
             }
         }
-        add("layer", .layer(.numbers), CGRect(x: 0, y: slot * 3, width: side, height: slot))
-        var x = side
+        add("layer", .layer(.numbers), col: 0, row: 0)
+        add("symbols", .layer(.symbols), col: 0, row: 1)
+        add("chinese", .toggleChinese, col: 0, row: 2)
         if state.needsGlobeKey {
-            add("globe", .globe, CGRect(x: x, y: slot * 3, width: middle / 2, height: slot))
-            add("chinese", .toggleChinese, CGRect(x: x + middle / 2, y: slot * 3, width: middle / 2, height: slot))
+            add("globe", .globe, col: 0, row: 3)
         } else {
-            add("chinese", .toggleChinese, CGRect(x: x, y: slot * 3, width: middle, height: slot))
+            add("comma", .symbol("，"), col: 0, row: 3)
         }
-        x += middle
-        add("space", .space, CGRect(x: x, y: slot * 3, width: middle * 2, height: slot))
-        let right = size.width - side
-        add("delete", .delete, CGRect(x: right, y: 0, width: side, height: slot))
-        add("clear", .clearComposition, CGRect(x: right, y: slot, width: side, height: slot))
-        add("return", .returnKey, CGRect(x: right, y: slot * 2, width: side, height: slot * 2))
-        return KeyLayoutResult(keys: keys, punctuationColumn: CGRect(x: 0, y: 0, width: side, height: slot * 3))
+        add("period", .symbol("。"), col: 1, row: 3)
+        add("space", .space, col: 2, row: 3, cols: 2)
+        add("delete", .delete, col: 4, row: 0)
+        add("clear", .clearComposition, col: 4, row: 1)
+        add("return", .returnKey, col: 4, row: 2, rows: 2)
+        return KeyLayoutResult(keys: keys)
     }
 
     static func numberSymbols(chinese: Bool) -> [[String]] {

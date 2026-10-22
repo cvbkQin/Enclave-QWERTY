@@ -25,9 +25,11 @@ struct KeyboardView: View {
             }
             KeysView(model: model)
                 .padding(.horizontal, KeyboardMetrics.sidePadding)
+                .layoutPriority(1)
         }
-        .padding(.bottom, 2)
+        // 系统给的高度不够时先压缩预览行，再从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .clipped()
     }
 
     // MARK: - 收起时的顶栏
@@ -109,7 +111,7 @@ struct KeyboardView: View {
             preview
             VoiceSideButton(model: model)
         }
-        .frame(height: KeyboardMetrics.previewHeight)
+        .frame(minHeight: KeyboardMetrics.minPreviewHeight, maxHeight: KeyboardMetrics.previewHeight)
     }
 
     private var preview: some View {
@@ -349,8 +351,10 @@ struct ChipLabel: View {
             if let title { Text(title) }
         }
         .font(.footnote.weight(prominent ? .semibold : .regular))
-        .padding(.horizontal, 10)
-        .frame(height: 28)
+        // 只有图标的按钮是正圆，带字的是胶囊。
+        .padding(.horizontal, title == nil ? 0 : 10)
+        .frame(minWidth: 30)
+        .frame(height: 30)
         .foregroundStyle(foreground ?? (filled ? Color.white : Color.primary))
         .background(Capsule().fill(filled ? tint : KeyStyle.charKey))
     }

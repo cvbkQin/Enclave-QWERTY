@@ -1,53 +1,64 @@
 import SwiftUI
 import UIKit
 
-/// 键盘尺寸，参照 iOS 自带键盘。键盘高度也从这里算。
+/// 键盘尺寸，按 iOS 26 自带简体拼音键盘在 402pt 宽的 iPhone 上量出来的。键盘高度也从这里算。
 enum KeyboardMetrics {
-    /// 一个按键格子的高度（含上下间隙），按键本身是 42。
-    static let slotHeight: CGFloat = 52
-    static let keyInsetX: CGFloat = 3
-    static let keyInsetY: CGFloat = 5
+    /// 一个按键格子的高度（含上下间隙）：行距 54，按键本身 43。
+    static let slotHeight: CGFloat = 54
+    static let keyInsetX: CGFloat = 2.8
+    static let keyInsetY: CGFloat = 5.5
     static let keysHeight: CGFloat = slotHeight * 4
+    /// 全键盘 Shift、删除键画出来的宽度（触摸范围仍是 1.5 格）。
+    static let shiftKeyWidth: CGFloat = 45
+    /// 九宫格的键比全键盘高一点（46），左右间隙也宽一点。
+    static let nineKeyInsetX: CGFloat = 4.2
+    static let nineKeyInsetY: CGFloat = 3.5
 
     static let topRow: CGFloat = 38
     static let previewHeight: CGFloat = 62
-    static let actionRow: CGFloat = 34
+    /// 键盘被系统压矮时，预览行最多缩到这么高，保证按键和操作行完整显示。
+    static let minPreviewHeight: CGFloat = 30
+    static let actionRow: CGFloat = 32
     static let instructionRow: CGFloat = 32
     static let panelSpacing: CGFloat = 5
     static let panelTop: CGFloat = 6
-    static let sidePadding: CGFloat = 3
+    static let sidePadding: CGFloat = 3.9
 
-    static var collapsedHeight: CGFloat { topRow + keysHeight + 2 }
+    static var collapsedHeight: CGFloat { topRow + keysHeight }
     /// 展开后没有顶栏：预览行、操作行、要求行，下面是按键。
     static var expandedHeight: CGFloat {
-        panelTop + previewHeight + actionRow + instructionRow + panelSpacing * 3 + keysHeight + 2
+        panelTop + previewHeight + actionRow + instructionRow + panelSpacing * 3 + keysHeight
     }
 }
 
-/// 按键颜色，深浅色模式分别取 iOS 键盘的配色。
+/// 按键颜色，取自 iOS 26 键盘：字符键和功能键同色，没有阴影；按下的功能键变灰。
 enum KeyStyle {
     static let charKey = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(white: 0.42, alpha: 1) : .white })
-    static let functionKey = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(white: 0.27, alpha: 1) : UIColor(red: 0.68, green: 0.70, blue: 0.74, alpha: 1) })
-    static let shadow = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(white: 0, alpha: 0.6) : UIColor(red: 0.53, green: 0.54, blue: 0.56, alpha: 1) })
+        ? UIColor(white: 0.27, alpha: 1) : .white })
+    static let functionKey = charKey
+    static let pressedKey = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.43, alpha: 1) : UIColor(red: 0.70, green: 0.72, blue: 0.76, alpha: 1) })
     static let cornerRadius: CGFloat = 8.5
 
-    static let letterFont = Font.system(size: 23)
-    static let symbolFont = Font.system(size: 21)
-    static let nineKeyFont = Font.system(size: 18, weight: .medium)
-    static let functionFont = Font.system(size: 16)
-    static let iconFont = Font.system(size: 18, weight: .regular)
+    static let letterFont = Font.system(size: 24)
+    static let symbolFont = Font.system(size: 22)
+    static let nineKeyFont = Font.system(size: 16)
+    static let functionFont = Font.system(size: 17)
+    static let iconFont = Font.system(size: 19, weight: .regular)
 }
 
 /// 按键外观：圆角、底色、底部细阴影。外面留出间隙，间隙也能点到这个键，和系统键盘一样没有死区。
 struct KeyCap<Content: View>: View {
     var fill: Color
+    var insetX = KeyboardMetrics.keyInsetX
+    var insetY = KeyboardMetrics.keyInsetY
     var content: Content
 
-    init(fill: Color, @ViewBuilder content: () -> Content) {
+    init(fill: Color, insetX: CGFloat = KeyboardMetrics.keyInsetX, insetY: CGFloat = KeyboardMetrics.keyInsetY,
+         @ViewBuilder content: () -> Content) {
         self.fill = fill
+        self.insetX = insetX
+        self.insetY = insetY
         self.content = content()
     }
 
@@ -57,10 +68,9 @@ struct KeyCap<Content: View>: View {
             .background(
                 RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous)
                     .fill(fill)
-                    .shadow(color: KeyStyle.shadow, radius: 0, x: 0, y: 1)
             )
-            .padding(.horizontal, KeyboardMetrics.keyInsetX)
-            .padding(.vertical, KeyboardMetrics.keyInsetY)
+            .padding(.horizontal, insetX)
+            .padding(.vertical, insetY)
             .contentShape(Rectangle())
     }
 }
@@ -113,7 +123,7 @@ struct RepeatingKey: View {
     @State private var pressed = false
 
     var body: some View {
-        KeyCap(fill: pressed ? KeyStyle.charKey : KeyStyle.functionKey) {
+        KeyCap(fill: pressed ? KeyStyle.pressedKey : KeyStyle.functionKey) {
             Image(systemName: systemImage).font(KeyStyle.iconFont).foregroundStyle(Color.primary)
         }
         .gesture(

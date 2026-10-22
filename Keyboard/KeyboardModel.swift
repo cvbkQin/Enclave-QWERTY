@@ -42,6 +42,7 @@ final class KeyboardModel: ObservableObject {
     /// 输入框里是否有带下划线的拼音（marked text）。
     var hasMarkedText = false
     var lastSpaceTime = Date.distantPast
+    var lastPunctuationTap = Date.distantPast
     lazy var haptic = UIImpactFeedbackGenerator(style: .light)
 
     weak var controller: UIInputViewController?

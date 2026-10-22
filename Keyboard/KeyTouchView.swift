@@ -31,13 +31,6 @@ final class KeyTouchView: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    /// 标点列交给下面的 SwiftUI 处理（它要能上下滚动）。
-    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        guard bounds.contains(point) else { return false }
-        if let column = layout.punctuationColumn, column.contains(point) { return false }
-        return true
-    }
-
     private func key(at point: CGPoint) -> KeySpec? {
         if let hit = layout.keys.first(where: { $0.frame.contains(point) }) { return hit }
         // 落在缝隙或边缘外：取最近的键。
