@@ -85,7 +85,7 @@ struct KeyboardView: View {
                     Text(notice).foregroundStyle(.secondary)
                 }
                 if model.displayText.isEmpty && model.errorMessage == nil && model.notice == nil {
-                    Text(model.isRunning ? "生成中…" : "在输入框里写原话，点「执行」润色。\n加上「// 要求」按要求改，只写「// 要求」让它帮你写。")
+                    Text(placeholder)
                         .foregroundStyle(.secondary)
                 } else {
                     Text(model.displayText)
@@ -99,6 +99,15 @@ struct KeyboardView: View {
         .frame(maxHeight: .infinity)
         .hidingScrollEdgeEffect()
         .background(RoundedRectangle(cornerRadius: 8).fill(Color(.systemBackground).opacity(0.9)))
+    }
+
+    private var placeholder: String {
+        if model.isRunning { return "生成中…" }
+        switch model.voiceState {
+        case .recording: return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
+        case .transcribing: return "识别中…"
+        default: return "在输入框里写原话或点「说话」，再点「执行」润色。\n加上「// 要求」或点「说要求」按要求改，只写「// 要求」让它帮你写。"
+        }
     }
 
     // MARK: - 结果操作
@@ -119,7 +128,7 @@ struct KeyboardView: View {
         .frame(height: 40)
     }
 
-    // MARK: - 底栏：切换键盘、执行、删除、换行
+    // MARK: - 底栏：切换键盘、语音、执行、删除、换行
 
     private var bottomRow: some View {
         HStack(spacing: 6) {
@@ -128,8 +137,10 @@ struct KeyboardView: View {
                     .frame(width: 44)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color(.systemGray3)))
             }
-            KeyButton(title: "空格", systemImage: nil) { model.insertSpace() }
-                .frame(width: 64)
+            voiceButton(.content, title: "说话", systemImage: "mic")
+                .frame(width: 70)
+            voiceButton(.instruction, title: "说要求", systemImage: "text.bubble")
+                .frame(width: 84)
             Button {
                 model.isRunning ? model.stop() : model.execute()
             } label: {
@@ -145,6 +156,30 @@ struct KeyboardView: View {
                 .frame(width: 48)
         }
         .frame(height: 44)
+    }
+
+    /// 录音时按下的那个键变成「完成」，另一个变成「取消」。
+    @ViewBuilder
+    private func voiceButton(_ mode: VoiceMode, title: String, systemImage: String) -> some View {
+        let isActive = model.voiceMode == mode
+        switch model.voiceState {
+        case .recording where isActive:
+            Button { model.voiceTapped(mode) } label: {
+                Label("完成", systemImage: "stop.fill")
+                    .font(.callout.weight(.semibold))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .foregroundStyle(.white)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.red))
+            }
+        case .recording:
+            KeyButton(title: "取消", systemImage: "xmark") { model.cancelVoice() }
+        case .transcribing where isActive:
+            KeyButton(title: "识别中", systemImage: nil) {}
+                .disabled(true)
+        default:
+            KeyButton(title: title, systemImage: systemImage) { model.voiceTapped(mode) }
+                .disabled(model.voiceState == .transcribing || model.isRunning)
+        }
     }
 }
 

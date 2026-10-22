@@ -14,9 +14,11 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                VoiceSessionSection()
                 apiSection
                 testSection
                 styleSection
+                VoiceSettingsSection(settings: $settings)
                 syncSection
                 SetupGuideSection()
             }

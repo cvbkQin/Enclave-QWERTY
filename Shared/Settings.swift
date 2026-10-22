@@ -6,6 +6,15 @@ struct StylePreset: Codable, Identifiable, Hashable {
     var prompt: String
 }
 
+enum ASRProvider: String, Codable, CaseIterable, Identifiable {
+    /// 苹果语音识别，默认只用本机离线识别。
+    case apple
+    /// OpenAI 兼容的 /audio/transcriptions 接口，例如自建的 Whisper / SenseVoice。
+    case custom
+
+    var id: String { rawValue }
+}
+
 struct EnclaveSettings: Codable, Equatable {
     /// OpenAI 兼容接口的 base URL，例如 https://api.deepseek.com/v1 或 http://100.x.x.x:11434/v1
     var baseURL: String = ""
@@ -15,6 +24,22 @@ struct EnclaveSettings: Codable, Equatable {
     var styles: [StylePreset] = StylePreset.defaults
     var selectedStyleID: UUID?
 
+    // 语音输入
+    var asrProvider: ASRProvider = .apple
+    /// 设备不支持中文离线识别时，是否允许改用苹果服务器识别。
+    var allowAppleServerASR: Bool = false
+    var asrBaseURL: String = ""
+    var asrModel: String = "whisper-1"
+    /// 麦克风会话闲置多久后自动结束，0 表示不自动结束。
+    var voiceSessionMinutes: Int = 15
+    /// 说完后自动润色到预览区。
+    var autoPolishAfterVoice: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case baseURL, model, temperature, maxTokens, styles, selectedStyleID
+        case asrProvider, allowAppleServerASR, asrBaseURL, asrModel, voiceSessionMinutes, autoPolishAfterVoice
+    }
+
     var isConfigured: Bool {
         !baseURL.trimmingCharacters(in: .whitespaces).isEmpty
             && !model.trimmingCharacters(in: .whitespaces).isEmpty
@@ -22,6 +47,26 @@ struct EnclaveSettings: Codable, Equatable {
 
     var selectedStyle: StylePreset? {
         styles.first { $0.id == selectedStyleID } ?? styles.first
+    }
+}
+
+extension EnclaveSettings {
+    /// 逐项解码，缺失的字段用默认值，这样旧版本存的设置升级后不会丢。
+    init(from decoder: Decoder) throws {
+        self.init()
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        baseURL = try c.decodeIfPresent(String.self, forKey: .baseURL) ?? baseURL
+        model = try c.decodeIfPresent(String.self, forKey: .model) ?? model
+        temperature = try c.decodeIfPresent(Double.self, forKey: .temperature) ?? temperature
+        maxTokens = try c.decodeIfPresent(Int.self, forKey: .maxTokens) ?? maxTokens
+        styles = try c.decodeIfPresent([StylePreset].self, forKey: .styles) ?? styles
+        selectedStyleID = try c.decodeIfPresent(UUID.self, forKey: .selectedStyleID)
+        asrProvider = (try? c.decodeIfPresent(ASRProvider.self, forKey: .asrProvider)) ?? asrProvider
+        allowAppleServerASR = try c.decodeIfPresent(Bool.self, forKey: .allowAppleServerASR) ?? allowAppleServerASR
+        asrBaseURL = try c.decodeIfPresent(String.self, forKey: .asrBaseURL) ?? asrBaseURL
+        asrModel = try c.decodeIfPresent(String.self, forKey: .asrModel) ?? asrModel
+        voiceSessionMinutes = try c.decodeIfPresent(Int.self, forKey: .voiceSessionMinutes) ?? voiceSessionMinutes
+        autoPolishAfterVoice = try c.decodeIfPresent(Bool.self, forKey: .autoPolishAfterVoice) ?? autoPolishAfterVoice
     }
 }
 
@@ -37,6 +82,7 @@ extension StylePreset {
 enum SettingsStore {
     private static let settingsKey = "settings.v1"
     private static let apiKeyAccount = "apiKey"
+    private static let asrApiKeyAccount = "asrApiKey"
 
     static func load() -> EnclaveSettings {
         guard let data = SharedStorage.defaults.data(forKey: settingsKey),
@@ -54,6 +100,11 @@ enum SettingsStore {
     static var apiKey: String? {
         get { Keychain.get(apiKeyAccount) }
         set { Keychain.set(newValue, for: apiKeyAccount) }
+    }
+
+    static var asrApiKey: String? {
+        get { Keychain.get(asrApiKeyAccount) }
+        set { Keychain.set(newValue, for: asrApiKeyAccount) }
     }
 
     // MARK: - 通过剪贴板同步（App Group 不可用时的兜底）

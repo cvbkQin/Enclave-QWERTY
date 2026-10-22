@@ -1,3 +1,4 @@
+import ObjectiveC
 import SwiftUI
 import UIKit
 
@@ -12,13 +13,18 @@ final class KeyboardModel: ObservableObject {
     @Published var notice: String?
     @Published var hasFullAccess = true
     @Published var needsGlobeKey = true
+    @Published private(set) var voiceState: VoiceState = .idle
+    @Published private(set) var voiceMode: VoiceMode = .content
 
     weak var controller: UIInputViewController?
     private var task: Task<Void, Never>?
     private var undoSnapshot: (inserted: String, original: String)?
+    private var voiceObserver: DarwinObserver?
+    private var voicePoll: Timer?
 
     init(controller: UIInputViewController) {
         self.controller = controller
+        voiceObserver = DarwinObserver(VoiceBridge.updatedNote) { [weak self] in self?.refreshVoice() }
     }
 
     private var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
@@ -37,6 +43,7 @@ final class KeyboardModel: ObservableObject {
         settings = SettingsStore.load()
         session = SessionStore.load()
         hasFullAccess = controller?.hasFullAccess ?? false
+        refreshVoice()
     }
 
     // MARK: - 执行
@@ -225,6 +232,91 @@ final class KeyboardModel: ObservableObject {
     func deleteBackward() { proxy?.deleteBackward() }
     func insertNewline() { proxy?.insertText("\n") }
     func insertSpace() { proxy?.insertText(" ") }
+
+    // MARK: - 语音
+
+    /// 点「说话」/「说要求」：没有会话就跳到 App 开启，有会话就直接开始或结束录音。
+    func voiceTapped(_ mode: VoiceMode) {
+        errorMessage = nil
+        notice = nil
+        guard hasFullAccess else {
+            errorMessage = "语音需要在 设置 › 通用 › 键盘 › 键盘 › Enclave 里打开「允许完全访问」。"
+            return
+        }
+        switch VoiceBridge.effectiveState {
+        case .recording:
+            VoiceBridge.post(VoiceBridge.stopNote)
+        case .transcribing:
+            return
+        case .ready:
+            VoiceBridge.mode = mode
+            VoiceBridge.errorMessage = nil
+            voiceMode = mode
+            VoiceBridge.post(VoiceBridge.startNote)
+        case .idle:
+            VoiceBridge.mode = mode
+            voiceMode = mode
+            if !openContainingApp(URL(string: "enclave://voice?mode=\(mode.rawValue)")!) {
+                errorMessage = "无法自动打开 Enclave。请手动打开 App，点「开启语音会话」后再回来。"
+            }
+        }
+    }
+
+    func cancelVoice() {
+        VoiceBridge.post(VoiceBridge.cancelNote)
+    }
+
+    func refreshVoice() {
+        let state = VoiceBridge.effectiveState
+        voiceState = state
+        voiceMode = VoiceBridge.mode
+        if let message = VoiceBridge.errorMessage, state != .recording {
+            errorMessage = message
+            VoiceBridge.errorMessage = nil
+        }
+        if let result = VoiceBridge.takePendingResult() {
+            consume(result)
+        }
+        // 录音和识别期间 App 那边随时可能被系统结束，定时检查心跳，避免按钮卡在「识别中」。
+        if state == .recording || state == .transcribing {
+            if voicePoll == nil {
+                voicePoll = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+                    Task { @MainActor in self?.refreshVoice() }
+                }
+            }
+        } else {
+            voicePoll?.invalidate()
+            voicePoll = nil
+        }
+    }
+
+    private func consume(_ result: VoiceResult) {
+        guard let proxy, !result.text.isEmpty else { return }
+        switch result.mode {
+        case .content:
+            proxy.insertText(result.text)
+            if settings.autoPolishAfterVoice { execute() }
+        case .instruction:
+            proxy.insertText(" // " + result.text)
+            execute()
+        }
+    }
+
+    /// 键盘扩展没有公开的「打开主 App」接口，沿响应链找到 UIApplication 调用 openURL。
+    private func openContainingApp(_ url: URL) -> Bool {
+        let selector = NSSelectorFromString("openURL:options:completionHandler:")
+        var responder: UIResponder? = controller
+        while let current = responder {
+            if current is UIApplication, let method = class_getInstanceMethod(type(of: current), selector) {
+                typealias OpenURL = @convention(c) (AnyObject, Selector, NSURL, NSDictionary, AnyObject?) -> Void
+                let open = unsafeBitCast(method_getImplementation(method), to: OpenURL.self)
+                open(current, selector, url as NSURL, NSDictionary(), nil)
+                return true
+            }
+            responder = current.next
+        }
+        return false
+    }
 
     // MARK: - 配置导入
 

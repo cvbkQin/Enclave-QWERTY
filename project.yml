@@ -31,6 +31,12 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         EnclaveAppGroup: $(APP_GROUP_ID)
+        UIBackgroundModes: [audio]
+        NSMicrophoneUsageDescription: 语音输入需要用麦克风录下你说的话。只在你点「说话」后录音。
+        NSSpeechRecognitionUsageDescription: 用苹果的语音识别把你说的话转成文字，默认只在本机离线识别。
+        CFBundleURLTypes:
+          - CFBundleURLName: enclave
+            CFBundleURLSchemes: [enclave]
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
