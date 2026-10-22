@@ -121,9 +121,11 @@ enum KeyLayout {
         if state.needsGlobeKey {
             add("globe", .globe, x: x, row: 3, width: side)
             x += side
+        } else {
+            // 有地球键时空格已经不宽了，表情从地球键旁的系统按钮或九宫格的 ^^ 进。
+            add("emoji", .emoji, x: x, row: 3, width: side)
+            x += side
         }
-        add("emoji", .emoji, x: x, row: 3, width: side)
-        x += side
         add("chinese", .toggleChinese, x: x, row: 3, width: side)
         x += side
         let returnWidth = unit * 2.5

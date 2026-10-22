@@ -8,7 +8,12 @@ struct KeysView: View {
         GeometryReader { geo in
             let layout = KeyLayout.build(model.layoutState, size: geo.size)
             ZStack(alignment: .topLeading) {
-                if model.candidatesExpanded {
+                if let panel = model.keysPanel {
+                    Group {
+                        if panel == .pinyin { PinyinPanel(model: model) } else { SymbolPanel(model: model) }
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                } else if model.candidatesExpanded {
                     CandidateGrid(model: model)
                         .frame(width: geo.size.width, height: geo.size.height)
                 } else {
@@ -19,12 +24,20 @@ struct KeysView: View {
                     }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)
-                    // 字符键按下时的放大气泡（九宫格和系统一样不显示）。
+                    if let column = layout.pinyinColumn {
+                        PinyinColumn(model: model, frame: column)
+                    }
+                    // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选时也不显示）。
                     if !(model.layer == .letters && model.showsNineKey) {
-                        ForEach(layout.keys.filter { model.pressedKeys.contains($0.id) && $0.kind.typesCharacter }) { key in
+                        ForEach(layout.keys.filter {
+                            model.pressedKeys.contains($0.id) && $0.kind.typesCharacter && model.alternates?.key.id != $0.id
+                        }) { key in
                             KeyPopup(model: model, key: key, containerWidth: geo.size.width)
                         }
                         .allowsHitTesting(false)
+                    }
+                    if let popup = model.alternates {
+                        AlternatesView(popup: popup)
                     }
                 }
             }
@@ -75,7 +88,11 @@ struct KeyCapView: View {
         case .nine(let digit):
             if digit == "'" {
                 // 打拼音时是分词键，平时连按切换标点。
-                Text(model.isComposing ? "分词" : ",。?!").font(KeyStyle.functionFont).tracking(model.isComposing ? 0 : 1)
+                if model.isComposing {
+                    Text("分词").font(KeyStyle.functionFont)
+                } else {
+                    PunctuationLabel()
+                }
             } else {
                 Text(KeyLayout.nineKeyLetters[digit] ?? digit)
                     .font(KeyStyle.nineKeyFont)
@@ -98,8 +115,13 @@ struct KeyCapView: View {
             Text(model.showsNineKey ? "ABC" : (model.chineseMode ? "中" : "英")).font(KeyStyle.functionFont)
         case .globe:
             Image(systemName: "globe").font(KeyStyle.iconFont)
-        case .clearComposition:
-            Text("重输").font(KeyStyle.functionFont)
+        case .emoticon:
+            Text(model.isComposing ? "重输" : "^^").font(KeyStyle.functionFont)
+        case .emoji:
+            Image(systemName: "face.smiling").font(KeyStyle.iconFont)
+        case .pickPinyin:
+            Text("选拼音").font(KeyStyle.functionFont)
+                .opacity(model.isComposing ? 1 : 0.35)
         case .layer(let target):
             Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.functionFont)
         }
@@ -127,6 +149,23 @@ struct KeyCapView: View {
         case .numbers: return "123"
         case .symbols: return "#+="
         case .letters: return model.chineseMode ? "拼音" : "ABC"
+        }
+    }
+}
+
+/// 九宫格第一格的「，。?!」：四个标点各占等宽的一格，全角标点的字形偏在左下角，往右挪到格子中间。
+struct PunctuationLabel: View {
+    private static let marks: [(String, CGFloat)] = [("，", 4.5), ("。", 4.5), ("?", 0), ("!", 0)]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Self.marks, id: \.0) { mark, shift in
+                Text(mark)
+                    .font(KeyStyle.functionFont)
+                    .fixedSize()
+                    .offset(x: shift)
+                    .frame(width: 11)
+            }
         }
     }
 }

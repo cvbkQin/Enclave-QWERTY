@@ -221,28 +221,26 @@ extension KeyboardModel {
 
     // MARK: - 选拼音
 
-    /// 九宫格原始输入里还没定下来的那段数字，以及前面已经选定的拼音。
-    private var pinyinSplit: (fixed: String, digits: String) {
+    /// 九宫格原始输入拆成两段：最后一个字母为止是已经选定的拼音，后面是还没定的数字（可能带分词符）。
+    private var pinyinSplit: (fixed: String, rest: Substring) {
         let raw = engine.rawInput
-        guard let lastFixed = raw.lastIndex(where: { !$0.isNumber }) else { return ("", raw) }
-        let digits = raw[raw.index(after: lastFixed)...].filter(\.isNumber)
-        return (String(raw[...lastFixed]), String(digits))
+        guard let lastLetter = raw.lastIndex(where: \.isLetter) else { return ("", Substring(raw)) }
+        let rest = raw[raw.index(after: lastLetter)...].drop { $0 == "'" }
+        return (String(raw[...lastLetter]), rest)
     }
 
-    /// 当前这段数字可以拼成的音节，长的在前；最后是第一个数字键上的单个字母。
+    /// 第一段没定的数字可以拼成的音节，长的在前；最后是这个数字键上的单个字母。
     var pinyinOptions: [String] {
         guard showsNineKey, isComposing else { return [] }
-        return PinyinSyllables.options(forDigits: pinyinSplit.digits)
+        return PinyinSyllables.options(forDigits: String(pinyinSplit.rest.prefix(while: \.isNumber)))
     }
 
     /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼。
     func choosePinyin(_ syllable: String) {
-        let (fixed, digits) = pinyinSplit
-        var raw = fixed
-        if !raw.isEmpty && !raw.hasSuffix("'") { raw += "'" }
-        raw += syllable
-        let rest = digits.dropFirst(syllable.count)
-        if !rest.isEmpty { raw += "'" + rest }
+        let (fixed, rest) = pinyinSplit
+        var raw = fixed.isEmpty ? syllable : fixed + "'" + syllable
+        let remaining = rest.dropFirst(syllable.count)
+        if !remaining.isEmpty { raw += (remaining.hasPrefix("'") ? "" : "'") + remaining }
         engine.replaceInput(raw)
         syncEngine()
         if keysPanel == .pinyin { keysPanel = nil }
@@ -270,7 +268,14 @@ extension KeyboardModel {
     func commitAlternate() {
         guard let popup = alternates else { return }
         alternates = nil
-        typeSymbol(popup.options[popup.selected])
+        let text = popup.options[popup.selected]
+        // 九宫格打拼音时长按选的字母接着拼，相当于把这一位定成这个字母。
+        if showsNineKey && layer == .letters && isComposing && text.allSatisfy(\.isLetter) {
+            if let output = engine.input(text.lowercased()) { commit(output) }
+            syncEngine()
+        } else {
+            typeSymbol(text)
+        }
         if shift == .on { shift = .off }
     }
 
@@ -424,5 +429,6 @@ extension KeyboardModel {
             syncEngine()
         }
         if options.contains("candidates") && !candidates.isEmpty { candidatesExpanded = true }
+        if options.contains("pinyin") && isComposing { keysPanel = .pinyin }
     }
 }

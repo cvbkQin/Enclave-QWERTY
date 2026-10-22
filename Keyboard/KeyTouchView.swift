@@ -17,6 +17,8 @@ final class KeyTouchView: UIView {
         var trackpadX: CGFloat?
         /// 从 123 键按下后滑到了符号上。
         var slidFromLayer = false
+        /// 长按弹出了备选条，松手时打出选中的那个。
+        var alternates = false
 
         init(key: KeySpec) { self.key = key }
     }
@@ -30,6 +32,12 @@ final class KeyTouchView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// 九宫格的拼音选择栏盖在这一层上面，那块区域的触摸交给它。
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        if let column = layout.pinyinColumn, column.contains(point) { return false }
+        return super.point(inside: point, with: event)
+    }
 
     private func key(at point: CGPoint) -> KeySpec? {
         if let hit = layout.keys.first(where: { $0.frame.contains(point) }) { return hit }
@@ -81,7 +89,7 @@ final class KeyTouchView: UIView {
                     }
                 }
             default:
-                break
+                if key.kind.typesCharacter { scheduleAlternates(state) }
             }
         }
     }
@@ -91,6 +99,10 @@ final class KeyTouchView: UIView {
         for touch in touches {
             guard let state = tracking[touch] else { continue }
             let point = touch.location(in: self)
+            if state.alternates {
+                model.moveAlternates(toX: point.x)
+                continue
+            }
             if state.key.kind == .globe {
                 model.controller?.handleInputModeList(from: self, with: event ?? UIEvent())
                 continue
@@ -118,6 +130,8 @@ final class KeyTouchView: UIView {
                 state.fired = false
             }
             state.key = next
+            state.timer?.invalidate()
+            scheduleAlternates(state)
         }
     }
 
@@ -128,6 +142,8 @@ final class KeyTouchView: UIView {
             state.timer?.invalidate()
             if state.key.kind == .globe {
                 model.controller?.handleInputModeList(from: self, with: event ?? UIEvent())
+            } else if state.alternates {
+                model.commitAlternate()
             } else if state.trackpadX != nil {
                 model.setTrackpad(false)
             } else if !state.fired {
@@ -145,7 +161,21 @@ final class KeyTouchView: UIView {
             guard let state = tracking.removeValue(forKey: touch) else { continue }
             state.timer?.invalidate()
             if state.trackpadX != nil { model.setTrackpad(false) }
+            if state.alternates { model.alternates = nil }
             model.keyReleased(state.key.id)
+        }
+    }
+
+    /// 字符键按住 0.4 秒弹出备选（九宫格的字母和数字、标点，全键盘的数字和带调字母）。
+    private func scheduleAlternates(_ state: Tracking) {
+        state.timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self, weak state] _ in
+            Task { @MainActor in
+                guard let self, let state, !state.fired,
+                      self.tracking.values.contains(where: { $0 === state }),
+                      self.model?.showAlternates(for: state.key, containerWidth: self.bounds.width) == true else { return }
+                state.alternates = true
+                state.fired = true
+            }
         }
     }
 
