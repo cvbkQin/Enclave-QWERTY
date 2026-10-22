@@ -26,8 +26,6 @@ struct KeyboardView: View {
         Group {
             if model.isComposing {
                 candidateBar
-            } else if model.aiExpanded {
-                expandedBar
             } else {
                 toolBar
             }
@@ -42,14 +40,21 @@ struct KeyboardView: View {
                      prominent: true) {
                 model.isRunning ? model.stop() : model.sparkleTapped()
             }
-            ToolChip(title: "要求", systemImage: "text.bubble") { model.setAIExpanded(true) }
+            ToolChip(title: "要求", systemImage: "text.bubble",
+                     prominent: model.target == .instruction) {
+                // 已展开时直接进入要求输入；没展开时先展开面板。
+                model.aiExpanded ? model.toggleInstructionEditing() : model.setAIExpanded(true)
+            }
             VoiceChip(model: model)
             if model.voiceState == .recording {
                 ToolChip(title: nil, systemImage: "xmark") { model.cancelVoice() }
             }
             Spacer(minLength: 0)
+            if model.aiExpanded {
+                versionControls
+            }
             styleMenu
-            if model.session != nil {
+            if model.session != nil && !model.aiExpanded {
                 Button { model.setAIExpanded(true) } label: {
                     Image(systemName: "chevron.up").font(.footnote.weight(.semibold))
                         .frame(width: 28, height: 28)
@@ -60,35 +65,20 @@ struct KeyboardView: View {
         .padding(.horizontal, 8)
     }
 
-    /// 展开后：收起、预设要求、版本切换。
-    private var expandedBar: some View {
-        HStack(spacing: 6) {
-            Button { model.setAIExpanded(false) } label: {
-                Image(systemName: "chevron.down").font(.footnote.weight(.semibold))
-                    .frame(width: 28, height: 28)
-            }
-            .tint(.primary)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(KeyboardModel.presets, id: \.title) { preset in
-                        ToolChip(title: preset.title, systemImage: nil,
-                                 prominent: model.instruction == preset.instruction) {
-                            model.setInstruction(preset.instruction)
-                        }
-                    }
-                }
-            }
-            .hidingScrollEdgeEffect()
-            if let label = model.versionLabel {
+    /// 展开后在顶栏右边切换版本。
+    @ViewBuilder
+    private var versionControls: some View {
+        if let label = model.versionLabel {
+            HStack(spacing: 4) {
                 Button { model.showVersion(offset: -1) } label: { Image(systemName: "chevron.left") }
                     .disabled(model.isRunning || model.session?.currentIndex == 0)
                 Text(label).font(.footnote.monospacedDigit()).foregroundStyle(.secondary)
                 Button { model.showVersion(offset: 1) } label: { Image(systemName: "chevron.right") }
                     .disabled(model.isRunning || model.session.map { $0.currentIndex >= $0.versions.count - 1 } ?? true)
             }
+            .font(.footnote.weight(.semibold))
+            .tint(.primary)
         }
-        .tint(.primary)
-        .padding(.horizontal, 4)
     }
 
     /// 组字时：拼音和候选词。
@@ -158,7 +148,7 @@ struct KeyboardView: View {
         VStack(spacing: KeyboardMetrics.panelSpacing) {
             preview
             actionRow
-            instructionField
+            requirementRow
         }
     }
 
@@ -211,7 +201,7 @@ struct KeyboardView: View {
             if !model.voicePartial.isEmpty { return "正在听：\(model.voicePartial)" }
             return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
         case .transcribing: return "识别中…"
-        default: return "点「执行」润色输入框里的内容。点下面的要求框可以写修改要求；输入框为空时按要求帮你写。"
+        default: return "点「执行」润色输入框里的内容。点下面的「写要求」自己写，或选一个常用要求；输入框为空时按要求帮你写。"
         }
     }
 
@@ -233,55 +223,79 @@ struct KeyboardView: View {
         .frame(height: KeyboardMetrics.actionRow)
     }
 
-    /// 要求框：点一下才把键盘的输入切到这里，再点一下切回原输入框。
-    private var instructionField: some View {
-        let editing = model.target == .instruction
-        return HStack(spacing: 6) {
-            HStack(spacing: 4) {
-                Image(systemName: "text.bubble").foregroundStyle(.secondary)
-                Group {
-                    if model.instruction.isEmpty && !(editing && model.isComposing) {
-                        Text(editing ? "正在输入修改要求…" : "点这里写修改要求").foregroundStyle(.secondary)
-                    } else {
-                        (Text(model.instruction)
-                            + Text(editing ? model.composition : "").foregroundColor(.secondary).underline()
-                            + Text(editing ? "|" : "").foregroundColor(.accentColor))
-                            .foregroundStyle(.primary)
+    /// 要求行：左边收起，中间是可左右滑动的要求标签，右边执行。
+    /// 第一个标签是自己写的要求，点一下键盘就打进这里；后面是常用要求，点一下直接选用。
+    private var requirementRow: some View {
+        HStack(spacing: 6) {
+            Button { model.setAIExpanded(false) } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 40, height: KeyboardMetrics.instructionRow)
+                    .foregroundStyle(Color.primary)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(KeyStyle.functionKey))
+            }
+            .buttonStyle(KeyPressStyle())
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    customRequirementChip
+                    ForEach(KeyboardModel.presets, id: \.title) { preset in
+                        ToolChip(title: preset.title, systemImage: nil,
+                                 prominent: model.instruction == preset.instruction) {
+                            model.selectPreset(preset.instruction)
+                        }
                     }
-                }
-                .lineLimit(1)
-                .truncationMode(.head)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if !model.instruction.isEmpty {
-                    Button { model.setInstruction("") } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
                 }
             }
-            .font(.subheadline)
-            .padding(.horizontal, 8)
-            .frame(maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemBackground)))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.accentColor, lineWidth: editing ? 1.5 : 0))
-            .contentShape(Rectangle())
-            .onTapGesture { model.toggleInstructionEditing() }
+            .hidingScrollEdgeEffect()
 
             Button {
                 model.isRunning ? model.stop() : model.execute()
             } label: {
                 Text(model.isRunning ? "停止" : "执行")
                     .font(.subheadline.weight(.semibold))
-                    .frame(width: 58)
-                    .frame(maxHeight: .infinity)
+                    .frame(width: 54, height: KeyboardMetrics.instructionRow)
                     .foregroundStyle(.white)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(model.isRunning ? Color.red : Color.accentColor))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(KeyPressStyle())
         }
         .frame(height: KeyboardMetrics.instructionRow)
+    }
+
+    /// 自己写的要求。选中常用要求时这里不重复显示。
+    private var customRequirementChip: some View {
+        let editing = model.target == .instruction
+        let custom = KeyboardModel.presets.contains { $0.instruction == model.instruction } ? "" : model.instruction
+        let showsText = !custom.isEmpty || (editing && model.isComposing)
+        return HStack(spacing: 4) {
+            Image(systemName: "pencil")
+            if showsText {
+                (Text(custom)
+                    + Text(editing ? model.composition : "").foregroundColor(.secondary).underline()
+                    + Text(editing ? "|" : "").foregroundColor(.accentColor))
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(maxWidth: 180, alignment: .leading)
+                    .fixedSize(horizontal: custom.count < 12, vertical: false)
+            } else {
+                Text(editing ? "输入要求…" : "写要求").foregroundStyle(editing ? Color.secondary : Color.primary)
+            }
+            if !custom.isEmpty {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .onTapGesture { model.setInstruction("") }
+            }
+        }
+        .font(.footnote)
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .foregroundStyle(Color.primary)
+        .background(Capsule().fill(KeyStyle.charKey))
+        .overlay(Capsule().stroke(Color.accentColor, lineWidth: editing ? 1.5 : 0))
+        .contentShape(Capsule())
+        .onTapGesture { model.toggleInstructionEditing() }
     }
 }
 

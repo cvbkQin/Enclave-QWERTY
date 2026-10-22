@@ -141,7 +141,20 @@ extension KeyboardModel {
     /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
     func toggleInstructionEditing() {
         finishComposition()
-        target = target == .instruction ? .host : .instruction
+        if target == .instruction {
+            target = .host
+        } else {
+            // 从常用要求切到自己写：清掉选中的常用要求，从空白开始。
+            if Self.presets.contains(where: { $0.instruction == instruction }) { setInstruction("") }
+            target = .instruction
+        }
+    }
+
+    /// 选一个常用要求；再点一次取消。选用后退出自己写要求的输入。
+    func selectPreset(_ text: String) {
+        finishComposition()
+        setInstruction(instruction == text ? "" : text)
+        target = .host
     }
 
     /// 把正在拼的字母原样上屏，然后清空引擎。
