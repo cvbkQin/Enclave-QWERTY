@@ -97,6 +97,7 @@ struct KeyboardView: View {
             .padding(8)
         }
         .frame(maxHeight: .infinity)
+        .hidingScrollEdgeEffect()
         .background(RoundedRectangle(cornerRadius: 8).fill(Color(.systemBackground).opacity(0.9)))
     }
 
@@ -144,6 +145,22 @@ struct KeyboardView: View {
                 .frame(width: 48)
         }
         .frame(height: 44)
+    }
+}
+
+private extension View {
+    /// iOS 26 会在滚动区顶部加一层渐变模糊，盖住预览区的第一行，这里关掉它。
+    @ViewBuilder
+    func hidingScrollEdgeEffect() -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            scrollEdgeEffectHidden(true, for: .all)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
 

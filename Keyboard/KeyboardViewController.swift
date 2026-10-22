@@ -9,6 +9,10 @@ final class KeyboardViewController: UIInputViewController {
         super.viewDidLoad()
         let host = UIHostingController(rootView: KeyboardView(model: model))
         host.view.backgroundColor = .clear
+        // 键盘区域不需要安全区留白，否则预览区内容会被额外内边距推开。
+        if #available(iOS 16.4, *) {
+            host.safeAreaRegions = []
+        }
         host.view.translatesAutoresizingMaskIntoConstraints = false
         addChild(host)
         view.addSubview(host.view)
