@@ -63,11 +63,6 @@ final class KeyboardModel: ObservableObject {
         isRunning ? streamingText : (session?.current ?? "")
     }
 
-    var versionLabel: String? {
-        guard let session, !session.versions.isEmpty else { return nil }
-        return "\(session.currentIndex + 1)/\(session.versions.count)"
-    }
-
     func reload() {
         settings = SettingsStore.load()
         session = SessionStore.load()
@@ -175,6 +170,18 @@ final class KeyboardModel: ObservableObject {
     }
 
     // MARK: - 版本
+
+    #if DEBUG
+    /// 模拟器截图用：放三个假版本，看翻页卡片。
+    func loadDebugVersions() {
+        var debug = EditSession(mode: .polish, original: "那个明天的会我可能去不了")
+        debug.append("不好意思，明天的会我可能参加不了，家里临时有点事。麻烦你帮我跟老板说一声，谢谢！")
+        debug.append("明天的会议我恐怕无法出席，家中临时有事，烦请代我向领导说明，非常抱歉。")
+        debug.append("明天开会我去不了啦，家里有点事～帮我跟老板说下哈，不好意思！")
+        debug.currentIndex = 1
+        session = debug
+    }
+    #endif
 
     func showVersion(offset: Int) {
         guard var session else { return }

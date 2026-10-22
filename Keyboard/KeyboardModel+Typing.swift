@@ -340,6 +340,9 @@ extension KeyboardModel {
             case "symbols": layer = .symbols
             case "english": if chineseMode { toggleChinese() }
             case "instruction": aiExpanded = true; target = .instruction
+            #if DEBUG
+            case "versions": aiExpanded = true; loadDebugVersions()
+            #endif
             default: break
             }
         }

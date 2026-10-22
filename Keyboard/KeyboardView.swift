@@ -115,7 +115,7 @@ struct KeyboardView: View {
     }
 
     private var preview: some View {
-        ScrollView {
+        VersionPager(model: model) {
             VStack(alignment: .leading, spacing: 4) {
                 setupHint
                 if let error = model.errorMessage {
@@ -135,39 +135,18 @@ struct KeyboardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .padding(.trailing, model.versionLabel == nil ? 0 : 52)
         }
-        .hidingScrollEdgeEffect()
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemBackground).opacity(0.9)))
-        .overlay(alignment: .topTrailing) { previewBadges }
-    }
-
-    /// 预览框右上角：版本切换；录音时是取消。
-    @ViewBuilder
-    private var previewBadges: some View {
-        if model.voiceState == .recording {
-            Button { model.cancelVoice() } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.secondary)
-                    .padding(6)
-            }
-            .buttonStyle(.plain)
-        } else if let label = model.versionLabel {
-            HStack(spacing: 2) {
-                Button { model.showVersion(offset: -1) } label: {
-                    Image(systemName: "chevron.left").frame(width: 18, height: 22)
+        .overlay(alignment: .topTrailing) {
+            // 录音时右上角是取消。
+            if model.voiceState == .recording {
+                Button { model.cancelVoice() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(.secondary)
+                        .padding(6)
                 }
-                .disabled(model.isRunning || model.session?.currentIndex == 0)
-                Text(label).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                Button { model.showVersion(offset: 1) } label: {
-                    Image(systemName: "chevron.right").frame(width: 18, height: 22)
-                }
-                .disabled(model.isRunning || model.session.map { $0.currentIndex >= $0.versions.count - 1 } ?? true)
+                .buttonStyle(.plain)
             }
-            .font(.caption.weight(.semibold))
-            .tint(.primary)
-            .padding(.trailing, 2)
         }
     }
 
@@ -530,4 +509,133 @@ extension View {
         self
         #endif
     }
+}
+
+/// 预览框：多个版本像一叠卡片，上下滑动翻页（上滑看下一版，下滑看上一版），右边竖排页码。
+/// 文字超出一屏时卡片内部先滚动，这时用右边的页码条滑动或点箭头翻页。
+struct VersionPager<Content: View>: View {
+    @ObservedObject var model: KeyboardModel
+    var content: Content
+
+    init(model: KeyboardModel, @ViewBuilder content: () -> Content) {
+        self.model = model
+        self.content = content()
+    }
+
+    @State private var drag: CGFloat = 0
+    /// 1 表示翻到下一版（新卡片从下面上来），-1 表示上一版。
+    @State private var direction = 1
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
+
+    private var count: Int { model.session?.versions.count ?? 0 }
+    private var index: Int { model.session?.currentIndex ?? 0 }
+    private var paging: Bool { count > 1 && !model.isRunning && model.voiceState != .recording }
+    private var fits: Bool { contentHeight <= viewportHeight + 1 }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            card
+            if paging { indicator }
+        }
+        .background(alignment: .bottom) { stackEdge }
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemBackground).opacity(0.9)))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    /// 当前版本的文字，翻页时整张卡片滑走、下一张滑进来。
+    private var card: some View {
+        GeometryReader { outer in
+            ScrollView {
+                content
+                    .background(GeometryReader { inner in
+                        Color.clear.preference(key: ContentHeightKey.self, value: inner.size.height)
+                    })
+            }
+            .hidingScrollEdgeEffect()
+            .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+            .onAppear { viewportHeight = outer.size.height }
+            .onChange(of: outer.size.height) { viewportHeight = $0 }
+        }
+        .id(index)
+        .transition(.asymmetric(
+            insertion: .move(edge: direction > 0 ? .bottom : .top).combined(with: .opacity),
+            removal: .move(edge: direction > 0 ? .top : .bottom).combined(with: .opacity)))
+        .offset(y: drag)
+        .contentShape(Rectangle())
+        // 文字一屏放得下时，整张卡片都能上下滑翻页。
+        .simultaneousGesture(swipe, including: fits && paging ? .all : .subviews)
+    }
+
+    /// 右边竖排的「↑ 2/3 ↓」，本身也能上下滑。
+    private var indicator: some View {
+        VStack(spacing: 0) {
+            Button { turn(-1) } label: {
+                Image(systemName: "chevron.up").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .disabled(index == 0)
+            VStack(spacing: 0) {
+                Text("\(index + 1)")
+                Rectangle().frame(width: 10, height: 1).opacity(0.4)
+                Text("\(count)").foregroundStyle(.secondary)
+            }
+            .font(.caption2.monospacedDigit().weight(.semibold))
+            Button { turn(1) } label: {
+                Image(systemName: "chevron.down").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .disabled(index >= count - 1)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .tint(.primary)
+        .frame(width: 26)
+        .padding(.vertical, 2)
+        .background(Color.primary.opacity(0.05))
+        .contentShape(Rectangle())
+        .gesture(swipe)
+    }
+
+    /// 后面还有版本时，卡片底下露出一条边，像一叠卡片。
+    @ViewBuilder
+    private var stackEdge: some View {
+        if paging && index < count - 1 {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.08))
+                .frame(height: 6)
+                .padding(.horizontal, 6)
+        }
+    }
+
+    private var swipe: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { value in
+                guard abs(value.translation.height) > abs(value.translation.width) else { return }
+                let dy = value.translation.height
+                // 到头了就只拉动一点，像系统的回弹。
+                let atEdge = (dy < 0 && index >= count - 1) || (dy > 0 && index == 0)
+                drag = atEdge ? dy / 4 : dy / 2
+            }
+            .onEnded { value in
+                let dy = value.predictedEndTranslation.height
+                if dy < -40 && index < count - 1 {
+                    turn(1)
+                } else if dy > 40 && index > 0 {
+                    turn(-1)
+                }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { drag = 0 }
+            }
+    }
+
+    private func turn(_ offset: Int) {
+        direction = offset
+        model.keyFeedback(for: .space)
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+            drag = 0
+            model.showVersion(offset: offset)
+        }
+    }
+}
+
+private struct ContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
