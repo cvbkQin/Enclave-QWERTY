@@ -40,6 +40,11 @@ struct KeyboardView: View {
 
             Spacer()
 
+            // 麦克风会话是否在线：在线时点「说话」直接录音，不在线会先跳到 App。
+            Image(systemName: model.voiceState == .idle ? "mic.slash" : "mic.fill")
+                .font(.footnote)
+                .foregroundStyle(model.voiceState == .idle ? Color.secondary : Color.orange)
+
             if let label = model.versionLabel {
                 Button { model.showVersion(offset: -1) } label: { Image(systemName: "chevron.left") }
                     .disabled(model.isRunning || model.session?.currentIndex == 0)

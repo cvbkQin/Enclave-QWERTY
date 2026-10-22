@@ -283,6 +283,16 @@ final class KeyboardModel: ObservableObject {
             VoiceBridge.errorMessage = nil
             voiceMode = mode
             VoiceBridge.post(VoiceBridge.startNote)
+            // App 在后台被系统暂停时收不到通知：1.5 秒内没开始录音，就重新跳过去开启会话。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self, self.isVisible, VoiceBridge.state == .ready else { return }
+                VoiceBridge.state = .idle
+                VoiceBridge.requestAutoStart()
+                self.refreshVoice()
+                if !self.openContainingApp(URL(string: "enclave://voice?mode=\(mode.rawValue)")!) {
+                    self.errorMessage = "Enclave App 没有响应。请手动打开 App，点「开启语音会话」后再回来。"
+                }
+            }
         case .idle:
             VoiceBridge.mode = mode
             voiceMode = mode
