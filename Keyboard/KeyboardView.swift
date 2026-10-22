@@ -34,20 +34,24 @@ struct KeyboardView: View {
 
     // MARK: - 收起时的顶栏
 
+    /// 展开键在最左边，和展开后要求行里的收起键位置、大小完全一样。
     private var toolBar: some View {
         HStack(spacing: 6) {
+            PanelToggleButton(expanded: false) { model.setAIExpanded(true) }
             ToolChip(title: model.isRunning ? "停止" : "润色", systemImage: model.isRunning ? "stop.fill" : "sparkles",
                      prominent: true) {
                 model.isRunning ? model.stop() : model.sparkleTapped()
             }
-            ToolChip(title: nil, systemImage: "chevron.up") { model.setAIExpanded(true) }
             Spacer(minLength: 0)
             if model.voiceState == .recording {
                 ToolChip(title: nil, systemImage: "xmark") { model.cancelVoice() }
             }
             VoiceChip(model: model)
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, KeyboardMetrics.sidePadding + KeyboardMetrics.keyInsetX)
+        .padding(.trailing, 8)
+        .padding(.bottom, KeyboardMetrics.panelSpacing)
+        .frame(maxHeight: .infinity, alignment: .bottom)
     }
 
     /// 打拼音时的候选栏，右边的箭头展开整页候选。
@@ -136,6 +140,20 @@ struct KeyboardView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
         }
+        // 长按结果复制，不单独放复制按钮。
+        .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.copy() })
+        .overlay {
+            if model.copiedFlash {
+                Label("已复制", systemImage: "checkmark")
+                    .font(.footnote.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .foregroundStyle(.white)
+                    .background(Capsule().fill(Color.black.opacity(0.75)))
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
         .overlay(alignment: .topTrailing) {
             // 录音时右上角是取消。
             if model.voiceState == .recording {
@@ -172,23 +190,21 @@ struct KeyboardView: View {
             if !model.voicePartial.isEmpty { return "正在听：\(model.voicePartial)" }
             return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
         case .transcribing: return "识别中…"
-        default: return "点左边「润色」整理输入框里的内容。下面可以写要求或选一个常用要求；长按「执行」用语音说要求。"
+        default: return "点左边「润色」整理输入框里的内容。下面选风格或写要求；长按「执行」用语音说要求。结果出来后长按可复制。"
         }
     }
 
     private var hasResult: Bool { !model.isRunning && model.session?.current != nil }
 
-    /// 操作行：替换、插入、复制、撤销、新会话，最右边是风格和布局菜单。
+    /// 操作行：替换（最常用，实心主色）、插入（描边）、撤销/重做（一组）、新会话，最右边是布局菜单。
+    /// 复制改成长按预览。
     private var actionRow: some View {
         HStack(spacing: 5) {
-            PanelButton(title: "替换", systemImage: "arrow.left.arrow.right") { model.replace() }
+            PanelButton(title: "替换", systemImage: "arrow.left.arrow.right", kind: .primary) { model.replace() }
                 .disabled(!hasResult)
-            PanelButton(title: "插入", systemImage: "text.insert") { model.insert() }
+            PanelButton(title: "插入", systemImage: "text.insert", kind: .outlined) { model.insert() }
                 .disabled(!hasResult)
-            PanelButton(title: "复制", systemImage: "doc.on.doc") { model.copy() }
-                .disabled(!hasResult)
-            PanelButton(title: "撤销", systemImage: "arrow.uturn.backward") { model.undo() }
-                .disabled(!model.canUndo)
+            UndoRedoPair(model: model)
             PanelButton(title: "新会话", systemImage: nil) { model.newSession() }
                 .disabled(model.session == nil && !model.isRunning)
             layoutMenu
@@ -219,18 +235,11 @@ struct KeyboardView: View {
         }
     }
 
-    /// 要求行：左边收起，中间可左右滑动——先是风格标签（单选），一条细线隔开，再是写要求和常用要求；右边执行（长按用语音说要求）。
-    /// 已有结果时，点风格或常用要求会立刻生成新的一版，可以上下滑回之前的版本。
+    /// 要求行：左边收起，中间可左右滑动——先是风格标签（单选），一条细线隔开，再是写要求；右边执行（长按用语音说要求）。
+    /// 已有结果时，点风格会立刻生成新的一版，可以上下滑回之前的版本。
     private var requirementRow: some View {
         HStack(spacing: 6) {
-            Button { model.setAIExpanded(false) } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 17, weight: .semibold))
-                    .frame(width: 40, height: KeyboardMetrics.instructionRow)
-                    .foregroundStyle(Color.primary)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(KeyStyle.functionKey))
-            }
-            .buttonStyle(KeyPressStyle())
+            PanelToggleButton(expanded: true) { model.setAIExpanded(false) }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
@@ -244,12 +253,6 @@ struct KeyboardView: View {
                         .frame(width: 1, height: 18)
                         .padding(.horizontal, 2)
                     customRequirementChip
-                    ForEach(KeyboardModel.presets, id: \.title) { preset in
-                        ToolChip(title: preset.title, systemImage: nil,
-                                 prominent: !model.hasResult && model.instruction == preset.instruction) {
-                            model.presetTapped(preset.instruction)
-                        }
-                    }
                 }
             }
             .hidingScrollEdgeEffect()
@@ -259,10 +262,10 @@ struct KeyboardView: View {
         .frame(height: KeyboardMetrics.instructionRow)
     }
 
-    /// 自己写的要求。选中常用要求时这里不重复显示。
+    /// 自己写的要求。
     private var customRequirementChip: some View {
         let editing = model.target == .instruction
-        let custom = KeyboardModel.presets.contains { $0.instruction == model.instruction } ? "" : model.instruction
+        let custom = model.instruction
         let showsText = !custom.isEmpty || (editing && model.isComposing)
         return HStack(spacing: 4) {
             Image(systemName: "pencil")
@@ -291,6 +294,23 @@ struct KeyboardView: View {
         .overlay(Capsule().stroke(Color.accentColor, lineWidth: editing ? 1.5 : 0))
         .contentShape(Capsule())
         .onTapGesture { model.toggleInstructionEditing() }
+    }
+}
+
+/// 展开/收起 AI 面板的键。收起时在顶栏最左边，展开时在要求行最左边，两处的位置和大小一样。
+struct PanelToggleButton: View {
+    var expanded: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: expanded ? "chevron.down" : "chevron.up")
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 40, height: KeyboardMetrics.instructionRow)
+                .foregroundStyle(Color.primary)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(KeyStyle.functionKey))
+        }
+        .buttonStyle(KeyPressStyle())
     }
 }
 
@@ -385,25 +405,66 @@ struct VoiceChip: View {
     }
 }
 
-/// AI 面板里的小按钮。
+/// AI 面板里的小按钮。primary 是实心主色（替换），outlined 是主色描边（插入），plain 是普通按键色。
 struct PanelButton: View {
+    enum Kind { case plain, primary, outlined }
+
     var title: String
     var systemImage: String?
+    var kind: Kind = .plain
     var action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
         Button(action: action) {
             HStack(spacing: 3) {
                 if let systemImage { Image(systemName: systemImage) }
                 Text(title)
             }
-            .font(.footnote)
+            .font(kind == .plain ? .footnote : .footnote.weight(.semibold))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .foregroundStyle(isEnabled ? Color.primary : Color.secondary)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
+            .foregroundStyle(foreground)
+            .background(shape.fill(kind == .primary ? Color.accentColor.opacity(isEnabled ? 1 : 0.35) : KeyStyle.charKey))
+            .overlay(shape.strokeBorder(Color.accentColor.opacity(isEnabled ? 0.9 : 0.3),
+                                        lineWidth: kind == .outlined ? 1.2 : 0))
         }
         .buttonStyle(KeyPressStyle())
+    }
+
+    private var foreground: Color {
+        switch kind {
+        case .primary: return isEnabled ? .white : .white.opacity(0.8)
+        case .outlined: return isEnabled ? .accentColor : .secondary
+        case .plain: return isEnabled ? .primary : .secondary
+        }
+    }
+}
+
+/// 撤销和重做拼成一个按钮，中间一条细线。
+struct UndoRedoPair: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        HStack(spacing: 0) {
+            half("arrow.uturn.backward", enabled: model.canUndo) { model.undo() }
+            Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1).padding(.vertical, 7)
+            half("arrow.uturn.forward", enabled: model.canRedo) { model.redo() }
+        }
+        .frame(width: 76)
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
+    }
+
+    private func half(_ systemImage: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.footnote.weight(.medium))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.6))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+        .disabled(!enabled)
     }
 }
 

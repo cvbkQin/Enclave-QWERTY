@@ -79,7 +79,7 @@ struct KeyCapView: View {
             } else {
                 Text(KeyLayout.nineKeyLetters[digit] ?? digit)
                     .font(KeyStyle.nineKeyFont)
-                    .tracking(3.5)
+                    .tracking(2.2)
             }
         case .shift:
             Image(systemName: model.shift == .locked ? "capslock.fill" : (model.shift == .on ? "shift.fill" : "shift"))
@@ -110,7 +110,7 @@ struct KeyCapView: View {
     private var spaceLabel: some View {
         if let title = model.spaceTitle {
             // 九宫格的「空格」两字之间系统留了较宽的字距。
-            Text(title).font(KeyStyle.functionFont).tracking(model.showsNineKey && title == "空格" ? 6 : 0)
+            Text(title).font(KeyStyle.functionFont).tracking(model.showsNineKey && title == "空格" ? 3 : 0)
         } else {
             Color.clear.overlay(alignment: .bottomTrailing) {
                 Text(model.chineseMode ? "拼" : "EN")

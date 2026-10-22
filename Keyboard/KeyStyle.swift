@@ -5,14 +5,14 @@ import UIKit
 enum KeyboardMetrics {
     /// 一个按键格子的高度（含上下间隙）：行距 54，按键本身 43。
     static let slotHeight: CGFloat = 54
-    static let keyInsetX: CGFloat = 2.8
+    static let keyInsetX: CGFloat = 3.1
     static let keyInsetY: CGFloat = 5.5
     static let keysHeight: CGFloat = slotHeight * 4
     /// 全键盘 Shift、删除键画出来的宽度（触摸范围仍是 1.5 格）。
     static let shiftKeyWidth: CGFloat = 45
-    /// 九宫格的键比全键盘高一点（46），左右间隙也宽一点。
-    static let nineKeyInsetX: CGFloat = 4.2
-    static let nineKeyInsetY: CGFloat = 3.5
+    /// 九宫格的键 72.6×44（iOS 26 实测），五列等宽。
+    static let nineKeyInsetX: CGFloat = 3.15
+    static let nineKeyInsetY: CGFloat = 5
 
     static let topRow: CGFloat = 38
     static let previewHeight: CGFloat = 62
@@ -22,7 +22,7 @@ enum KeyboardMetrics {
     static let instructionRow: CGFloat = 32
     static let panelSpacing: CGFloat = 5
     static let panelTop: CGFloat = 6
-    static let sidePadding: CGFloat = 3.9
+    static let sidePadding: CGFloat = 3.7
 
     static var collapsedHeight: CGFloat { topRow + keysHeight }
     /// 展开后没有顶栏：预览行、操作行、要求行，下面是按键。
@@ -34,7 +34,7 @@ enum KeyboardMetrics {
 /// 按键颜色，取自 iOS 26 键盘：字符键和功能键同色，没有阴影；按下的功能键变灰。
 enum KeyStyle {
     static let charKey = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(white: 0.27, alpha: 1) : .white })
+        ? UIColor(red: 71 / 255, green: 71 / 255, blue: 73 / 255, alpha: 1) : .white })
     static let functionKey = charKey
     static let pressedKey = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.43, alpha: 1) : UIColor(red: 0.70, green: 0.72, blue: 0.76, alpha: 1) })
@@ -42,7 +42,7 @@ enum KeyStyle {
 
     static let letterFont = Font.system(size: 24)
     static let symbolFont = Font.system(size: 22)
-    static let nineKeyFont = Font.system(size: 16)
+    static let nineKeyFont = Font.system(size: 15.5)
     static let functionFont = Font.system(size: 17)
     static let iconFont = Font.system(size: 19, weight: .regular)
 }

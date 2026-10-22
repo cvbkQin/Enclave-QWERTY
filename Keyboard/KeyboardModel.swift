@@ -9,6 +9,9 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var streamingText = ""
     @Published private(set) var isRunning = false
     @Published private(set) var canUndo = false
+    @Published private(set) var canRedo = false
+    /// 长按预览复制后短暂显示「已复制」。
+    @Published private(set) var copiedFlash = false
     @Published var errorMessage: String?
     @Published var notice: String?
     @Published var hasFullAccess = true
@@ -47,7 +50,9 @@ final class KeyboardModel: ObservableObject {
 
     weak var controller: UIInputViewController?
     private var task: Task<Void, Never>?
-    private var undoSnapshot: (inserted: String, original: String)?
+    /// 每次替换或插入记一笔：写进去的文字和被它换掉的原文。撤销和重做在两个栈之间来回挪。
+    private var undoStack: [FieldEdit] = []
+    private var redoStack: [FieldEdit] = []
     private var voiceObserver: DarwinObserver?
     private var voicePoll: Timer?
 
@@ -154,21 +159,6 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    /// 点常用要求：已有结果时立刻按要求改当前这一版，结果作为新的一版；还没有结果时只是选中，等「执行」。
-    func presetTapped(_ instruction: String) {
-        guard hasResult, var pending = session, let current = pending.current else {
-            selectPreset(instruction)
-            return
-        }
-        guard checkCanCallModel() else { return }
-        if pending.mode == .write {
-            pending.conversation.append(.user(instruction))
-        }
-        run(Prompts.revise(original: pending.original, current: current, instruction: instruction,
-                           style: settings.selectedStyle),
-            pending: pending)
-    }
-
     private func run(_ messages: [ChatMessage], pending: EditSession) {
         let client = LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
         isRunning = true
@@ -253,14 +243,6 @@ final class KeyboardModel: ObservableObject {
 
     private static let instructionKey = "instruction.v1"
 
-    static let presets: [(title: String, instruction: String)] = [
-        ("更正式", "语气更正式"),
-        ("更简短", "更简短，只保留要点"),
-        ("更口语", "更口语化、自然"),
-        ("翻成英文", "翻译成英文"),
-        ("扩写", "扩写得更详细具体"),
-    ]
-
     func setInstruction(_ text: String) {
         instruction = text
         SharedStorage.defaults.set(text, forKey: Self.instructionKey)
@@ -286,37 +268,66 @@ final class KeyboardModel: ObservableObject {
             clearField(proxy)
             proxy.insertText(text)
         }
-        setUndo(inserted: text, original: field.text)
+        recordEdit(inserted: text, original: field.text)
     }
 
     /// 在光标处插入当前版本。
     func insert() {
         guard let text = session?.current, let proxy else { return }
         proxy.insertText(text)
-        setUndo(inserted: text, original: "")
+        recordEdit(inserted: text, original: "")
     }
 
     func undo() {
-        guard let snapshot = undoSnapshot, let proxy else { return }
-        for _ in 0..<snapshot.inserted.count { proxy.deleteBackward() }
-        if !snapshot.original.isEmpty { proxy.insertText(snapshot.original) }
-        setUndo(nil)
+        guard let edit = undoStack.popLast(), let proxy else { return }
+        swap(edit.inserted, for: edit.original, in: proxy)
+        redoStack.append(edit)
+        updateUndoState()
     }
 
+    func redo() {
+        guard let edit = redoStack.popLast(), let proxy else { return }
+        swap(edit.original, for: edit.inserted, in: proxy)
+        undoStack.append(edit)
+        updateUndoState()
+    }
+
+    /// 删掉光标前的 old，再写入 new。
+    private func swap(_ old: String, for new: String, in proxy: UITextDocumentProxy) {
+        for _ in 0..<old.count { proxy.deleteBackward() }
+        if !new.isEmpty { proxy.insertText(new) }
+    }
+
+    /// 长按预览：复制当前版本。
     func copy() {
-        guard let text = session?.current else { return }
+        guard hasResult, let text = session?.current else { return }
         UIPasteboard.general.string = text
-        notice = "已复制。"
+        keyFeedback(for: .space)
+        withAnimation(.easeOut(duration: 0.15)) { copiedFlash = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            withAnimation(.easeIn(duration: 0.2)) { self?.copiedFlash = false }
+        }
     }
 
-    private func setUndo(inserted: String, original: String) {
-        setUndo((inserted, original))
+    private func recordEdit(inserted: String, original: String) {
+        undoStack.append(FieldEdit(inserted: inserted, original: original))
+        redoStack.removeAll()
+        updateUndoState()
     }
 
-    private func setUndo(_ snapshot: (inserted: String, original: String)?) {
-        undoSnapshot = snapshot
-        canUndo = snapshot != nil
+    private func updateUndoState() {
+        canUndo = !undoStack.isEmpty
+        canRedo = !redoStack.isEmpty
     }
+
+    #if DEBUG
+    /// 模拟器截图用：让撤销、重做都可点。
+    func loadDebugUndo() {
+        undoStack = [FieldEdit(inserted: "", original: "")]
+        redoStack = [FieldEdit(inserted: "", original: "")]
+        updateUndoState()
+    }
+    #endif
 
     /// iOS 没有「全选删除」接口：把光标移到末尾，再逐字删除。
     private func clearField(_ proxy: UITextDocumentProxy) {
@@ -451,4 +462,9 @@ final class KeyboardModel: ObservableObject {
         errorMessage = nil
         notice = "配置已导入。"
     }
+}
+
+private struct FieldEdit {
+    var inserted: String
+    var original: String
 }
