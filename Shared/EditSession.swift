@@ -21,6 +21,17 @@ struct EditSession: Codable, Equatable {
         versions.append(version)
         currentIndex = versions.count - 1
     }
+
+    /// 输入框里的文字是否还是这次会话的内容：包含原话或任一版本。
+    /// 发出消息后重新打字、换了聊天或输入框，文字对不上，这次会话就不该再参与。
+    func belongs(to fieldText: String) -> Bool {
+        let text = fieldText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return true }
+        return ([original] + versions).contains { piece in
+            let piece = piece.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !piece.isEmpty && text.contains(piece)
+        }
+    }
 }
 
 enum SessionStore {

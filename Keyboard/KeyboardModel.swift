@@ -91,6 +91,7 @@ final class KeyboardModel: ObservableObject {
         guard checkCanCallModel() else { return }
 
         let parsed = CommandParser.parse(readField().text)
+        dropSession(unlessItBelongsTo: parsed.content)
         let command = CommandParser.Command(
             content: parsed.content,
             instruction: [instruction.trimmingCharacters(in: .whitespacesAndNewlines), parsed.instruction]
@@ -151,6 +152,14 @@ final class KeyboardModel: ObservableObject {
     /// 点风格标签：选中它；已有结果时立刻用这个风格重写原话，结果作为新的一版。
     func styleTagTapped(_ style: StylePreset) {
         selectStyle(style)
+        guard !isRunning else { return }
+        // 输入框里已经换成别的文字：按这个风格润色它，不再重写上一次的原话。
+        let content = CommandParser.parse(readField().text).content
+        if dropSession(unlessItBelongsTo: content) {
+            guard checkCanCallModel() else { return }
+            run(Prompts.polish(content, style: style), pending: EditSession(mode: .polish, original: content))
+            return
+        }
         guard hasResult, var pending = session, let current = pending.current, checkCanCallModel() else { return }
         switch pending.mode {
         case .polish:
@@ -232,6 +241,24 @@ final class KeyboardModel: ObservableObject {
         setInstruction("")
         errorMessage = nil
         notice = "已开始新会话。"
+    }
+
+    /// 输入框里的文字和当前会话对不上时丢掉会话，返回是否丢掉了。
+    /// 会话存在共享存储里，不清掉的话润色、风格和按要求改都会把上一次的内容带进来。
+    @discardableResult
+    func dropSession(unlessItBelongsTo fieldText: String) -> Bool {
+        guard let session, !session.belongs(to: fieldText) else { return false }
+        self.session = nil
+        SessionStore.save(nil)
+        return true
+    }
+
+    /// 键盘出现时：输入框里已经是别的文字，就清掉上一次的结果和要求。
+    func dropStaleSessionOnAppear() {
+        session = SessionStore.load()
+        if dropSession(unlessItBelongsTo: CommandParser.parse(readField().text).content) {
+            setInstruction("")
+        }
     }
 
     func selectStyle(_ style: StylePreset) {

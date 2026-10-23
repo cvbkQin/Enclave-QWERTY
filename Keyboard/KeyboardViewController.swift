@@ -53,6 +53,8 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         model.isVisible = true
+        // 先于 reload：reload 里会取回语音结果并直接执行，那时要求栏不能再被清掉。
+        model.dropStaleSessionOnAppear()
         model.reload()
         model.applyDebugState()
     }
