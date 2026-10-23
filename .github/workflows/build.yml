@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          latest=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -n 1)
+          sudo xcode-select -s "$latest"
+          xcodebuild -version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Cache Rime engine and dictionary
+        uses: actions/cache@v4
+        with:
+          path: Vendor
+          key: vendor-${{ hashFiles('scripts/fetch-rime.sh') }}
+      - name: Fetch Rime engine and dictionary
+        run: bash scripts/fetch-rime.sh
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build for simulator
+        run: |
+          xcodebuild build \
+            -project Enclave.xcodeproj \
+            -target Enclave \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -n 200
+          exit ${PIPESTATUS[0]}

@@ -1,0 +1,7 @@
+// 默认值。真机签名请复制 Local.xcconfig.template 为 Local.xcconfig 并填写自己的值。
+BUNDLE_ID_PREFIX = com.example
+DEVELOPMENT_TEAM =
+APP_GROUP_ID = group.$(BUNDLE_ID_PREFIX).enclave
+CODE_SIGN_STYLE = Automatic
+
+#include? "Local.xcconfig"
