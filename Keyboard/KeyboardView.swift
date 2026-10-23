@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// 键盘主体。
-/// 收起时：顶部一行（润色、展开、话筒；打拼音时换成候选词），下面是按键。
-/// 展开时：预览行（左润色、右话筒）、操作行（打拼音时换成候选词）、要求行，下面是按键。
+/// 收起时：顶部一行（展开、润色；打拼音时换成候选词），下面是按键。
+/// 展开时：预览行（左润色、右结果）、操作行（打拼音时换成候选词）、要求行，下面是按键。
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
@@ -43,10 +43,6 @@ struct KeyboardView: View {
                 model.isRunning ? model.stop() : model.sparkleTapped()
             }
             Spacer(minLength: 0)
-            if model.voiceState == .recording {
-                ToolChip(title: nil, systemImage: "xmark") { model.cancelVoice() }
-            }
-            VoiceChip(model: model)
         }
         .padding(.horizontal, KeyboardMetrics.sidePadding + KeyboardMetrics.keyInsetX)
         .padding(.bottom, KeyboardMetrics.panelSpacing)
@@ -103,7 +99,7 @@ struct KeyboardView: View {
         }
     }
 
-    /// 预览行：左边润色，中间结果，右边话筒。
+    /// 预览行：左边润色，右边结果。
     private var previewRow: some View {
         HStack(spacing: 6) {
             SideButton(title: model.isRunning ? "停止" : "润色",
@@ -112,7 +108,6 @@ struct KeyboardView: View {
                 model.isRunning ? model.stop() : model.execute()
             }
             preview
-            VoiceSideButton(model: model)
         }
         .frame(minHeight: KeyboardMetrics.minPreviewHeight, maxHeight: KeyboardMetrics.previewHeight)
     }
@@ -153,18 +148,6 @@ struct KeyboardView: View {
                     .allowsHitTesting(false)
             }
         }
-        .overlay(alignment: .topTrailing) {
-            // 录音时右上角是取消。
-            if model.voiceState == .recording {
-                Button { model.cancelVoice() } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.secondary)
-                        .padding(6)
-                }
-                .buttonStyle(.plain)
-            }
-        }
     }
 
     /// 没开完全访问或没配置 API 时的提示，放在预览区里，不额外占高度。
@@ -184,13 +167,7 @@ struct KeyboardView: View {
 
     private var placeholder: String {
         if model.isRunning { return "生成中…" }
-        switch model.voiceState {
-        case .recording:
-            if !model.voicePartial.isEmpty { return "正在听：\(model.voicePartial)" }
-            return model.voiceMode == .content ? "正在听，说完点「完成」…" : "正在听你的修改要求，说完点「完成」…"
-        case .transcribing: return "识别中…"
-        default: return "点左边「润色」整理输入框里的内容。下面选风格或写要求；长按「执行」用语音说要求。结果出来后长按可复制。"
-        }
+        return "点左边「润色」整理输入框里的内容。下面选风格或写要求。结果出来后长按可复制。"
     }
 
     private var hasResult: Bool { !model.isRunning && model.session?.current != nil }
@@ -234,7 +211,7 @@ struct KeyboardView: View {
         }
     }
 
-    /// 要求行：左边收起，中间可左右滑动——先是风格标签（单选），一条细线隔开，再是写要求；右边执行（长按用语音说要求）。
+    /// 要求行：左边收起，中间可左右滑动——先是风格标签（单选），一条细线隔开，再是写要求；右边执行。
     /// 已有结果时，点风格会立刻生成新的一版，可以上下滑回之前的版本。
     private var requirementRow: some View {
         HStack(spacing: 6) {
@@ -372,38 +349,6 @@ struct ChipLabel: View {
     }
 }
 
-/// 🎤：短按说内容，长按说要求；录音中再按一下结束。语音会话在线时图标是橙色。
-struct VoiceChip: View {
-    @ObservedObject var model: KeyboardModel
-
-    var body: some View {
-        let recording = model.voiceState == .recording
-        let busy = model.voiceState == .transcribing
-        Group {
-            if recording {
-                ChipLabel(title: "完成", systemImage: "stop.fill", tint: .red)
-            } else if busy {
-                ChipLabel(title: "识别中", systemImage: nil)
-            } else {
-                ChipLabel(title: nil, systemImage: "mic.fill",
-                          foreground: model.voiceState == .idle ? nil : .orange)
-            }
-        }
-        .contentShape(Capsule())
-        .onTapGesture {
-            if recording {
-                model.voiceTapped(model.voiceMode)
-            } else if !busy {
-                model.voiceTapped(.content)
-            }
-        }
-        .onLongPressGesture(minimumDuration: 0.4) {
-            guard !recording, !busy else { return }
-            model.voiceTapped(.instruction)
-        }
-    }
-}
-
 /// AI 面板里的小按钮。primary 是实心主色（替换），outlined 是主色描边（插入），plain 是普通按键色。
 struct PanelButton: View {
     enum Kind { case plain, primary, outlined }
@@ -501,71 +446,21 @@ struct SideButtonLabel: View {
     }
 }
 
-/// 预览框右边的话筒：单击说内容，录音中再点一下结束。会话在线时图标是橙色。
-struct VoiceSideButton: View {
-    @ObservedObject var model: KeyboardModel
-
-    var body: some View {
-        let recordingContent = model.voiceState == .recording && model.voiceMode == .content
-        Group {
-            if recordingContent {
-                SideButtonLabel(title: "完成", systemImage: "stop.fill", fill: .red, foreground: .white)
-            } else if model.voiceState == .transcribing && model.voiceMode == .content {
-                SideButtonLabel(title: "识别中", systemImage: "ellipsis", fill: KeyStyle.charKey)
-            } else {
-                SideButtonLabel(title: "说话", systemImage: "mic.fill", fill: KeyStyle.charKey,
-                                foreground: model.voiceState == .idle ? .primary : .orange)
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            switch model.voiceState {
-            case .recording: model.voiceTapped(model.voiceMode)
-            case .transcribing: break
-            default: model.voiceTapped(.content)
-            }
-        }
-    }
-}
-
-/// 执行键：单击执行，长按用语音说要求；说要求时变成红色「完成」，再点一下结束。
+/// 执行键：单击执行，生成中再点一下停止。
 struct ExecuteButton: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
-        let recordingInstruction = model.voiceState == .recording && model.voiceMode == .instruction
-        let busy = model.voiceState == .transcribing && model.voiceMode == .instruction
-        HStack(spacing: 3) {
-            if recordingInstruction {
-                Image(systemName: "stop.fill").font(.caption)
-                Text("完成")
-            } else if busy {
-                Text("识别中")
-            } else {
-                Text(model.isRunning ? "停止" : "执行")
-                Image(systemName: "mic.fill").font(.system(size: 9)).opacity(0.8)
+        Text(model.isRunning ? "停止" : "执行")
+            .font(.subheadline.weight(.semibold))
+            .frame(width: 62, height: KeyboardMetrics.instructionRow)
+            .foregroundStyle(.white)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(model.isRunning ? Color.red : Color.accentColor))
+            .contentShape(Rectangle())
+            .onTapGesture {
+                model.isRunning ? model.stop() : model.execute()
             }
-        }
-        .font(.subheadline.weight(.semibold))
-        .frame(width: 62, height: KeyboardMetrics.instructionRow)
-        .foregroundStyle(.white)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(recordingInstruction || model.isRunning ? Color.red : Color.accentColor))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if recordingInstruction {
-                model.voiceTapped(.instruction)
-            } else if model.isRunning {
-                model.stop()
-            } else if !busy {
-                model.execute()
-            }
-        }
-        .onLongPressGesture(minimumDuration: 0.4) {
-            guard model.voiceState != .recording, !busy, !model.isRunning else { return }
-            model.keyFeedback(for: .space)
-            model.voiceTapped(.instruction)
-        }
     }
 }
 
@@ -604,7 +499,7 @@ struct VersionPager<Content: View>: View {
 
     private var count: Int { model.session?.versions.count ?? 0 }
     private var index: Int { model.session?.currentIndex ?? 0 }
-    private var paging: Bool { count > 1 && !model.isRunning && model.voiceState != .recording }
+    private var paging: Bool { count > 1 && !model.isRunning }
     private var fits: Bool { contentHeight <= viewportHeight + 1 }
 
     var body: some View {

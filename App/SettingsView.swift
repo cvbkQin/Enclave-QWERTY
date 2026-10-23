@@ -22,7 +22,6 @@ struct SettingsView: View {
                         Label("试一试键盘", systemImage: "keyboard")
                     }
                 }
-                VoiceSessionSection()
                 PinyinSection()
                 Section {
                     Picker("键盘布局", selection: $settings.keyboardLayout) {
@@ -36,7 +35,6 @@ struct SettingsView: View {
                 apiSection
                 testSection
                 styleSection
-                VoiceSettingsSection(settings: $settings)
                 syncSection
                 SetupGuideSection()
             }

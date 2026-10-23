@@ -20,7 +20,7 @@ enum KeyboardMetrics {
     static let minPreviewHeight: CGFloat = 30
     static let actionRow: CGFloat = 32
     static let instructionRow: CGFloat = 32
-    /// 顶栏和要求行里圆形/胶囊按钮的高度（展开键、润色、话筒）。
+    /// 顶栏和要求行里圆形/胶囊按钮的高度（展开键、润色）。
     static let chipHeight: CGFloat = 32
     static let panelSpacing: CGFloat = 5
     static let panelTop: CGFloat = 6

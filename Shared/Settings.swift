@@ -6,32 +6,6 @@ struct StylePreset: Codable, Identifiable, Hashable {
     var prompt: String
 }
 
-enum ASRProvider: String, Codable, CaseIterable, Identifiable {
-    /// 苹果语音识别，默认只用本机离线识别。
-    case apple
-    /// OpenAI 兼容的 /audio/transcriptions 接口，例如自建的 Whisper / SenseVoice。
-    case custom
-
-    var id: String { rawValue }
-}
-
-/// 语音会话怎么让 App 在后台待命。
-enum VoiceSessionStyle: String, Codable, CaseIterable, Identifiable {
-    /// 画中画小窗让 App 保持运行，只在说话时打开麦克风，平时状态栏没有橙点。
-    case pip
-    /// 麦克风一直开着（音频后台模式），会话期间一直有橙点。
-    case alwaysOnMic
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .pip: return "悬浮窗模式"
-        case .alwaysOnMic: return "常驻麦克风"
-        }
-    }
-}
-
 enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     /// 全键盘，26 个字母键。
     case qwerty
@@ -57,18 +31,6 @@ struct EnclaveSettings: Codable, Equatable {
     var styles: [StylePreset] = StylePreset.defaults
     var selectedStyleID: UUID?
 
-    // 语音输入
-    var asrProvider: ASRProvider = .apple
-    /// 设备不支持中文离线识别时，是否允许改用苹果服务器识别。
-    var allowAppleServerASR: Bool = false
-    var asrBaseURL: String = ""
-    var asrModel: String = "whisper-1"
-    /// 麦克风会话闲置多久后自动结束，0 表示不自动结束。
-    var voiceSessionMinutes: Int = 15
-    var voiceSessionStyle: VoiceSessionStyle = .pip
-    /// 说完后自动润色到预览区。
-    var autoPolishAfterVoice: Bool = true
-
     // 键盘
     var keyboardLayout: KeyboardLayout = .qwerty
     /// 按键震动（需要打开完全访问）。
@@ -78,7 +40,6 @@ struct EnclaveSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
-        case asrProvider, allowAppleServerASR, asrBaseURL, asrModel, voiceSessionMinutes, voiceSessionStyle, autoPolishAfterVoice
         case keyboardLayout, keyHaptics, keySound
     }
 
@@ -109,13 +70,6 @@ extension EnclaveSettings {
             styles = StylePreset.defaults
             selectedStyleID = nil
         }
-        asrProvider = (try? c.decodeIfPresent(ASRProvider.self, forKey: .asrProvider)) ?? asrProvider
-        allowAppleServerASR = try c.decodeIfPresent(Bool.self, forKey: .allowAppleServerASR) ?? allowAppleServerASR
-        asrBaseURL = try c.decodeIfPresent(String.self, forKey: .asrBaseURL) ?? asrBaseURL
-        asrModel = try c.decodeIfPresent(String.self, forKey: .asrModel) ?? asrModel
-        voiceSessionMinutes = try c.decodeIfPresent(Int.self, forKey: .voiceSessionMinutes) ?? voiceSessionMinutes
-        voiceSessionStyle = (try? c.decodeIfPresent(VoiceSessionStyle.self, forKey: .voiceSessionStyle)) ?? voiceSessionStyle
-        autoPolishAfterVoice = try c.decodeIfPresent(Bool.self, forKey: .autoPolishAfterVoice) ?? autoPolishAfterVoice
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
@@ -154,7 +108,6 @@ extension StylePreset {
 enum SettingsStore {
     private static let settingsKey = "settings.v1"
     private static let apiKeyAccount = "apiKey"
-    private static let asrApiKeyAccount = "asrApiKey"
 
     static func load() -> EnclaveSettings {
         guard let data = SharedStorage.defaults.data(forKey: settingsKey),
@@ -172,11 +125,6 @@ enum SettingsStore {
     static var apiKey: String? {
         get { Keychain.get(apiKeyAccount) }
         set { Keychain.set(newValue, for: apiKeyAccount) }
-    }
-
-    static var asrApiKey: String? {
-        get { Keychain.get(asrApiKeyAccount) }
-        set { Keychain.set(newValue, for: asrApiKeyAccount) }
     }
 
     // MARK: - 通过剪贴板同步（App Group 不可用时的兜底）
