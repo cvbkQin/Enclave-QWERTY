@@ -39,7 +39,7 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var cardCaret = 0
 
     // 打字状态，逻辑在 KeyboardModel+Typing.swift
-    @Published var target: InputTarget = .host
+    @Published var target: InputTarget = .host { didSet { if (target == .card) != (oldValue == .card) { heightMayChange?() } } }
     @Published var layer: KeyLayer = .letters
     /// 九宫格数字键盘点了「更多」，左列是运算符。
     @Published var digitsMore = false
@@ -113,7 +113,8 @@ final class KeyboardModel: ObservableObject {
     var debugUnblocked = false
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
-    var cardTall: Bool { cardExpanded || aiBlocked }
+    /// 在卡片里改结果时也用五行高度，改长了也看得全。
+    var cardTall: Bool { cardExpanded || aiBlocked || target == .card }
 
     /// 控制器在这里同步改高度，和 SwiftUI 的新布局落在同一帧。
     var heightMayChange: (() -> Void)?
@@ -130,6 +131,28 @@ final class KeyboardModel: ObservableObject {
         if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
         refreshHostState()
         selectEngine()
+        refreshCommonWords()
+    }
+
+    /// 常用词交给拼音引擎：App 里加的和导入的，加上系统「文本替换」和通讯录人名（开了完全访问才读得到）。
+    func refreshCommonWords() {
+        let words = CommonWordStore.load().map { (text: $0.text, code: $0.code) }
+        guard hasFullAccess, CommonWordStore.usesLexicon, let controller else {
+            RimeEngine.shared.updatePhrases(words)
+            return
+        }
+        controller.requestSupplementaryLexicon { lexicon in
+            var entries = words
+            for entry in lexicon.entries {
+                // 文本替换：输入码是缩写（yx → 邮箱）；人名：输入码就是名字本身，中文名按拼音打。
+                let hasHanzi = entry.userInput.unicodeScalars.contains { (0x3400...0x9FFF).contains($0.value) }
+                let code = hasHanzi ? CommonWordStore.pinyin(of: entry.userInput)
+                    : CommonWordStore.normalizeCode(entry.userInput)
+                guard !code.isEmpty, hasHanzi || entry.userInput != entry.documentText else { continue }
+                entries.append((text: entry.documentText, code: code))
+            }
+            DispatchQueue.main.async { RimeEngine.shared.updatePhrases(entries) }
+        }
     }
 
     // MARK: - 执行

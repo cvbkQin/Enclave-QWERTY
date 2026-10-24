@@ -27,6 +27,23 @@ final class RimeEngine: InputEngine {
         return true
     }
 
+    /// 把常用词写成两份短语表（全拼、九宫格数字）放进现在用的用户目录。内容变了就重建会话，让引擎重新读。
+    func updatePhrases(_ entries: [(text: String, code: String)]) {
+        guard let (paths, _) = location() else { return }
+        var changed = false
+        for (name, nineKey) in [("enclave_phrase", false), ("enclave_phrase_t9", true)] {
+            let url = paths.user.appendingPathComponent(name + ".txt")
+            let table = CommonWordStore.phraseTable(entries, nineKey: nineKey)
+            guard (try? String(contentsOf: url, encoding: .utf8)) != table else { continue }
+            try? table.write(to: url, atomically: true, encoding: .utf8)
+            changed = true
+        }
+        if changed && session != 0 {
+            enclave_rime_destroy_session(session)
+            session = 0
+        }
+    }
+
     private var useShared = true
     /// 现在加载的是哪一份词库，调试时记下来。
     private(set) var source: String?

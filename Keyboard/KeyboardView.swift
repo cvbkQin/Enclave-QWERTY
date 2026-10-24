@@ -697,6 +697,7 @@ enum CardTextHit {
         let container = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
         container.lineFragmentPadding = 0
         layout.addTextContainer(container)
+        layout.ensureLayout(for: container)
         if point.y > layout.usedRect(for: container).maxY { return text.count }
         var fraction: CGFloat = 0
         let glyph = layout.glyphIndex(for: point, in: container, fractionOfDistanceThroughGlyph: &fraction)
@@ -955,6 +956,10 @@ struct ResultCard: View {
             .padding(.vertical, 8)
             iconColumn(faded: false)
                 .padding(.vertical, 5)
+            // 和显示时一样留出翻页那一列，换行位置不变，点哪儿光标就落在哪儿。
+            if let session = model.session, session.versions.count > 1 {
+                Color.clear.frame(width: 28)
+            }
         }
         .padding(.trailing, 4)
     }

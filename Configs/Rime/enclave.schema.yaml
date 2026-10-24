@@ -23,6 +23,7 @@ engine:
     - fallback_segmentor
   translators:
     - script_translator
+    - table_translator@custom_phrase
     - table_translator@english
   filters:
     - uniquifier
@@ -55,3 +56,12 @@ english:
   enable_sentence: false
   enable_user_dict: false
   initial_quality: 0
+
+# 常用词：App 里加的、导入的词和系统「文本替换」，键盘每次出现时写成 enclave_phrase.txt 放在用户目录，排在最前。
+custom_phrase:
+  dictionary: ""
+  user_dict: enclave_phrase
+  db_class: stabledb
+  enable_completion: false
+  enable_sentence: false
+  initial_quality: 99
