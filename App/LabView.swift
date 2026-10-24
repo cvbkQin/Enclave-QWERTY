@@ -171,6 +171,7 @@ private struct SceneCard: View {
 
 /// 一个场景一页：进来自动聚焦弹出键盘，右上「重置」恢复预填文字，底部上一个 / 下一个。
 struct SceneView: View {
+    @EnvironmentObject private var store: AppStore
     @State private var index: Int
     @State private var text: String
     @FocusState private var focused: Bool
@@ -216,7 +217,10 @@ struct SceneView: View {
                                 .foregroundStyle(AppColor.purple)
                                 .frame(width: 20, height: 20)
                                 .background(Circle().fill(AppColor.softFill))
-                            Text(step).font(.subheadline)
+                            // 风格按钮上显示的是当前风格名，提示里跟着写。
+                            Text(step.replacingOccurrences(of: "「正式 ▾」",
+                                                           with: "「\(store.settings.selectedStyle?.name ?? "正式") ▾」"))
+                                .font(.subheadline)
                         }
                     }
                 }

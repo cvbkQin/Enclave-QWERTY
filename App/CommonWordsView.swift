@@ -116,6 +116,7 @@ struct CommonWordsView: View {
                     .swipeActions {
                         if !word.isReadOnly {
                             Button(role: .destructive) { model.delete(word) } label: { Label("删除", systemImage: "trash") }
+                                .tint(.red)
                         }
                     }
                 }

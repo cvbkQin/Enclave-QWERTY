@@ -157,7 +157,7 @@ enum CommonWordStore {
             guard seen.insert(word + "\t" + code).inserted else { continue }
             words.append(CommonWord(text: word, pinyin: spelled, source: .imported))
         }
-        let format = formats.max { $0.value < $1.value }?.key ?? "没认出格式"
+        let format = formats.count > 1 ? "多种格式（每行分别识别）" : formats.first?.key ?? "没认出格式"
         return ImportResult(format: format, words: words, lines: lines, unreadable: unreadable)
     }
 
