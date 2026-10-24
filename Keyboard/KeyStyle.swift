@@ -51,15 +51,15 @@ enum KeyboardMetrics {
         }
     }
 
-    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单或提示卡时再加一块（提示卡盖过风格菜单）。
+    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加一块。
+    /// 提示卡出现时只留它一块，不和结果卡片、风格菜单叠在一起。
     static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool, gate: KeyboardModel.AIGate? = nil) -> CGFloat {
         var height = topRow + keysHeight
+        if let gate { return height + panelTop + gateHeight(gate) }
         if expanded {
             height += panelTop + (cardExpanded ? expandedCardHeight : cardHeight) + panelSpacing + actionRow
         }
-        if let gate {
-            height += gateHeight(gate) + panelSpacing + (expanded ? 0 : panelTop)
-        } else if menuOpen {
+        if menuOpen {
             height += menuHeight + panelSpacing + (expanded ? 0 : panelTop)
         }
         return height

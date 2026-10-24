@@ -10,7 +10,13 @@ struct KeyboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.aiExpanded {
+            if let gate = model.gate {
+                // 提示卡单独占上方，结果卡片和风格菜单先让开。
+                GateCard(model: model, gate: gate)
+                    .frame(height: KeyboardMetrics.gateHeight(gate))
+                    .padding(.horizontal, inset)
+                    .padding(.top, KeyboardMetrics.panelTop)
+            } else if model.aiExpanded {
                 VStack(spacing: KeyboardMetrics.panelSpacing) {
                     ResultCard(model: model)
                         .frame(height: model.cardTall ? KeyboardMetrics.expandedCardHeight : KeyboardMetrics.cardHeight)
@@ -20,12 +26,7 @@ struct KeyboardView: View {
                 .padding(.horizontal, inset)
                 .padding(.top, KeyboardMetrics.panelTop)
             }
-            if let gate = model.gate {
-                GateCard(model: model, gate: gate)
-                    .frame(height: KeyboardMetrics.gateHeight(gate))
-                    .padding(.horizontal, inset)
-                    .padding(.top, model.aiExpanded ? KeyboardMetrics.panelSpacing : KeyboardMetrics.panelTop)
-            } else if model.styleMenuOpen {
+            if model.gate == nil, model.styleMenuOpen {
                 StyleMenu(model: model)
                     .frame(height: KeyboardMetrics.menuHeight)
                     .padding(.horizontal, inset)
