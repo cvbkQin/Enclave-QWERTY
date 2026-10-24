@@ -14,7 +14,9 @@ final class RimeEngine: InputEngine {
     private static let backspaceKey: Int32 = 0xff08
 
     /// 准备好引擎并切到指定方案；词库没部署或读不到共享目录时返回 false。
-    func prepare(schema wanted: String) -> Bool {
+    /// useShared：开了完全访问时用 App 部署到共享目录的词库（带模糊拼音）；否则用键盘自带的那份。
+    func prepare(schema wanted: String, useShared: Bool) -> Bool {
+        self.useShared = useShared
         guard prepare() else { return false }
         if wanted != schema {
             reset()
@@ -25,10 +27,19 @@ final class RimeEngine: InputEngine {
         return true
     }
 
-    private func prepare() -> Bool {
-        guard RimeStore.isDeployed, let version = RimeStore.deployedVersion, let paths = RimeStore.paths else {
-            return false
+    private var useShared = true
+    /// 现在加载的是哪一份词库，调试时记下来。
+    private(set) var source: String?
+
+    private func location() -> (paths: RimeStore.Paths, version: String)? {
+        if useShared, RimeStore.isDeployed, let version = RimeStore.deployedVersion, let paths = RimeStore.paths {
+            return (paths, "shared:" + version)
         }
+        return RimeStore.bundled.map { ($0.paths, "bundled:" + $0.version) }
+    }
+
+    private func prepare() -> Bool {
+        guard let (paths, version) = location() else { return false }
         if loadedVersion != version {
             // App 重新部署过：重新加载新词库。
             if loadedVersion != nil {
@@ -37,6 +48,7 @@ final class RimeEngine: InputEngine {
             }
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
+            source = version
         }
         if !enclave_rime_session_alive(session) {
             session = enclave_rime_create_session(schema)

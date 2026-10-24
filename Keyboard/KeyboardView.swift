@@ -10,7 +10,13 @@ struct KeyboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if model.aiExpanded {
+            if let gate = model.gate {
+                // 提示卡单独占上方，结果卡片和风格菜单先让开。
+                GateCard(model: model, gate: gate)
+                    .frame(height: KeyboardMetrics.gateHeight(gate))
+                    .padding(.horizontal, inset)
+                    .padding(.top, KeyboardMetrics.panelTop)
+            } else if model.aiExpanded {
                 VStack(spacing: KeyboardMetrics.panelSpacing) {
                     ResultCard(model: model)
                         .frame(height: model.cardTall ? KeyboardMetrics.expandedCardHeight : KeyboardMetrics.cardHeight)
@@ -20,7 +26,7 @@ struct KeyboardView: View {
                 .padding(.horizontal, inset)
                 .padding(.top, KeyboardMetrics.panelTop)
             }
-            if model.styleMenuOpen {
+            if model.gate == nil, model.styleMenuOpen {
                 StyleMenu(model: model)
                     .frame(height: KeyboardMetrics.menuHeight)
                     .padding(.horizontal, inset)
@@ -131,15 +137,14 @@ struct PanelToggleButton: View {
     }
 }
 
-/// 「✨ 润色」：收起和展开都是这一个按钮，尺寸不变。展开时生成中原位变「停止」；
-/// 收起时（快速模式）文字不变，动画只在按钮里：流光描边、白色扫光、星星闪、小闪光，完成时星星闪一下金色。
+/// 「✨ 润色」：收起和展开都是这一个按钮，尺寸、文字和颜色一直不变；生成中再点一下就取消。
+/// 收起时（快速模式）动画只在按钮里：流光描边、白色扫光、星星闪、小闪光，完成时星星闪一下金色。
 struct PolishButton: View {
     @ObservedObject var model: KeyboardModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var doneAt: Date?
 
     private var quickRunning: Bool { model.isRunning && model.quickStatus == .running && !model.aiExpanded }
-    private var showsStop: Bool { model.isRunning && !quickRunning }
     /// 关了发光动画或开了减弱动态效果：只留星星轻微闪动。
     private var fullMotion: Bool { model.settings.polishAnimation && !reduceMotion }
 
@@ -149,13 +154,8 @@ struct PolishButton: View {
             model.isRunning ? model.stop() : model.sparkleTapped()
         } label: {
             HStack(spacing: 5) {
-                if showsStop {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 9, height: 9)
-                    Text("停止")
-                } else {
-                    PolishStars(size: 15, running: quickRunning, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
-                    Text("润色")
-                }
+                PolishStars(size: 15, running: quickRunning, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
+                Text("润色")
             }
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(.white)
@@ -166,15 +166,27 @@ struct PolishButton: View {
                     PolishButtonGlow().clipShape(shape)
                 }
             }
+            .overlay(alignment: .topLeading) {
+                // 没开完全访问：右上角一个小锁（P01）。
+                if !model.hasFullAccess {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(Brand.lockFill))
+                        .overlay(Circle().strokeBorder(Brand.lockRing, lineWidth: 2))
+                        .offset(x: 72, y: -4)
+                }
+            }
         }
         .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(model.isRunning ? "正在润色，轻点取消" : "润色")
         .onChange(of: model.quickStatus) { status in
             doneAt = status == .done ? Date() : nil
         }
     }
 
     private var fill: Color {
-        if showsStop { return Color(white: 0.16) }
         return model.aiBlocked && !model.isRunning ? Brand.purple.opacity(0.35) : Brand.purple
     }
 }
@@ -296,8 +308,9 @@ struct StyleChip: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
-        let highlighted = model.styleMenuOpen || !model.instruction.isEmpty
-        Button { model.toggleStyleMenu() } label: {
+        let locked = !model.hasFullAccess
+        let highlighted = !locked && (model.styleMenuOpen || !model.instruction.isEmpty)
+        Button { locked ? model.showFullAccessTip() : model.toggleStyleMenu() } label: {
             HStack(spacing: 3) {
                 Text(title).lineLimit(1)
                 Image(systemName: model.styleMenuOpen ? "chevron.up" : "chevron.down")
@@ -309,6 +322,7 @@ struct StyleChip: View {
             .foregroundStyle(highlighted ? Brand.purple : Color.primary)
             .background(Capsule().fill(highlighted ? Brand.menuFill : KeyStyle.charKey))
             .overlay(Capsule().strokeBorder(Brand.purple, lineWidth: highlighted ? 1.2 : 0))
+            .opacity(locked ? 0.45 : 1)
         }
         .buttonStyle(KeyPressStyle())
     }
@@ -357,7 +371,7 @@ struct PanelButton: View {
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
         Button(action: action) {
             HStack(spacing: 4) {
                 if let systemImage { Image(systemName: systemImage) }
@@ -367,25 +381,24 @@ struct PanelButton: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .foregroundStyle(foreground)
             .background(shape.fill(fill))
-            .overlay(shape.strokeBorder(Brand.purple.opacity(isEnabled ? 0.9 : 0.3), lineWidth: kind == .outlined ? 1.2 : 0))
         }
         .buttonStyle(KeyPressStyle())
     }
 
-    private var fill: Color {
+    /// 替换用润色的蓝紫渐变，插入用青到靛蓝，都是白字；不能点时一律灰底灰字，不做半透明。
+    private var fill: AnyShapeStyle {
+        guard kind == .done || isEnabled else { return AnyShapeStyle(Brand.disabledFill) }
         switch kind {
-        case .primary: return Brand.purple.opacity(isEnabled ? 1 : 0.35)
-        case .outlined: return KeyStyle.charKey
-        case .done: return Brand.softFill
+        case .primary: return AnyShapeStyle(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
+                                                          startPoint: .topLeading, endPoint: .bottomTrailing))
+        case .outlined: return AnyShapeStyle(Brand.insertGradient)
+        case .done: return AnyShapeStyle(Brand.returnSoftFill)
         }
     }
 
     private var foreground: Color {
-        switch kind {
-        case .primary: return isEnabled ? .white : .white.opacity(0.85)
-        case .outlined: return isEnabled ? Brand.purple : Brand.purple.opacity(0.4)
-        case .done: return Brand.purple
-        }
+        if kind == .done { return Brand.deepPurple }
+        return isEnabled ? .white : Brand.disabledText
     }
 }
 
@@ -440,7 +453,7 @@ struct StyleMenu: View {
     }
 }
 
-/// 浮层里的「再润」：和「润色」同款实心胶囊，换成紫到粉的渐变区分开；按选好的风格和要求开始改，生成中原位变深灰「停止」。
+/// 浮层里的「再润」：和「润色」同款实心胶囊，换成紫到粉的渐变区分开；按选好的风格和要求开始改，生成中样子不变，再点一下取消。
 /// 面板收起时直接替换输入框，展开时进结果卡片。
 struct MenuPolishButton: View {
     @ObservedObject var model: KeyboardModel
@@ -450,25 +463,146 @@ struct MenuPolishButton: View {
             model.isRunning ? model.stop() : model.menuPolishTapped()
         } label: {
             HStack(spacing: 4) {
-                if model.isRunning {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 8, height: 8)
-                    Text("停止")
-                } else {
-                    SparkleMark(size: 13, color: .white)
-                    Text("再润")
-                }
+                SparkleMark(size: 13, color: .white)
+                Text("再润")
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color.white)
             .frame(width: 72, height: 30)
-            .background {
-                if model.isRunning {
-                    Capsule().fill(Brand.stopFill)
-                } else {
-                    Capsule().fill(Brand.rerunGradient)
-                }
-            }
+            .background(Capsule().fill(Brand.rerunGradient))
             .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(model.isRunning ? "正在润色，轻点取消" : "再润")
+    }
+}
+
+/// 点「润色」时 AI 栏上方的提示卡。
+/// 没开完全访问（P02）：说明打字不受影响，「去开启」打开 App 再跳到系统设置。
+/// 首次发送前确认（P03/P04）：写明发到哪个地址、发什么，「同意并润色」记下地址并开始。
+struct GateCard: View {
+    @ObservedObject var model: KeyboardModel
+    let gate: KeyboardModel.AIGate
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch gate {
+            case .fullAccess: fullAccess
+            case .consent(let endpoint, let previous): consent(endpoint, previous: previous)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Brand.panelFill)
+            .shadow(color: .black.opacity(0.06), radius: 0.5)
+            .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.10), radius: 10, y: 6))
+    }
+
+    @ViewBuilder
+    private var fullAccess: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Brand.deepPurple)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Brand.returnSoftFill))
+            Text("AI 润色需要开启「允许完全访问」").font(.system(size: 14, weight: .semibold))
+        }
+        Text("打字不受影响。开启后才能用 AI 润色，App 里的键盘设置也会同步过来。")
+            .font(.system(size: 13))
+            .foregroundStyle(Brand.cardBody)
+            .fixedSize(horizontal: false, vertical: true)
+        // 没开完全访问时 iOS 不让键盘打开任何 App，只能把路径写出来。
+        VStack(alignment: .leading, spacing: 3) {
+            Text("在系统设置里开启").font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            settingsPath.font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
+        Spacer(minLength: 0)
+        HStack(spacing: 8) {
+            Text("也可以打开 Enclave App 按指引开启")
+                .font(.system(size: 12))
+                .foregroundStyle(Brand.disabledText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            GateButton(title: "知道了", primary: true) { model.dismissGate() }
+        }
+    }
+
+    /// 设置 › 通用 › 键盘 › 键盘 › Enclave › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
+    private var settingsPath: Text {
+        let steps = ["设置", "通用", "键盘", "键盘", "Enclave"]
+        var text = Text("")
+        for step in steps {
+            text = text + Text(step).foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
+        }
+        return text + Text("允许完全访问").fontWeight(.semibold).foregroundColor(Brand.deepPurple)
+    }
+
+    @ViewBuilder
+    private func consent(_ endpoint: String, previous: String?) -> some View {
+        HStack(spacing: 6) {
+            SparkleMark(size: 14, color: Brand.tagSelectedText)
+            Text(previous == nil ? "润色前确认一下" : "接口地址变了，再确认一次").font(.system(size: 14, weight: .semibold))
+        }
+        HStack(spacing: 6) {
+            Text("文字会发送到").font(.system(size: 13)).foregroundStyle(Brand.cardBody)
+            HStack(spacing: 4) {
+                Image(systemName: "globe").font(.system(size: 11, weight: .semibold))
+                Text(endpoint).font(.system(size: 12.5, weight: .semibold, design: .monospaced)).lineLimit(1)
+            }
+            .foregroundStyle(Brand.deepPurple)
+            .padding(.horizontal, 9)
+            .frame(height: 26)
+            .background(Capsule().fill(Brand.returnSoftFill))
+        }
+        if let previous {
+            (Text("原来是 ") + Text(previous).strikethrough())
+                .font(.system(size: 12))
+                .foregroundStyle(Brand.panelLabel.opacity(0.7))
+        }
+        Text("只在你点「润色」或「再润」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；Enclave 没有自己的服务器，也不保存你的文字。")
+            .font(.system(size: 12))
+            .foregroundStyle(Brand.cardNote)
+            .fixedSize(horizontal: false, vertical: true)
+        Spacer(minLength: 0)
+        HStack(spacing: 8) {
+            Button { model.openContainingApp("enclave://privacy-policy") } label: {
+                Text("隐私政策").font(.system(size: 12)).foregroundStyle(Brand.tagSelectedText)
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            GateButton(title: "取消", primary: false) { model.dismissGate() }
+            GateButton(title: "同意并润色", primary: true) { model.acceptConsent() }
+        }
+    }
+}
+
+/// 提示卡右下的按钮：高 30、圆角 15，主按钮用润色的蓝紫渐变。
+struct GateButton: View {
+    let title: String
+    let primary: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(primary ? Color.white : Brand.cardBody)
+                .padding(.horizontal, 14)
+                .frame(height: 30)
+                .background {
+                    if primary {
+                        Capsule().fill(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
+                                                      startPoint: .leading, endPoint: .trailing))
+                    } else {
+                        Capsule().fill(Brand.tagFill)
+                    }
+                }
         }
         .buttonStyle(KeyPressStyle())
     }
@@ -797,9 +931,8 @@ struct ResultCard: View {
                 Text("还差几步就能用 AI，打字不受影响").font(.system(size: 13, weight: .semibold))
             }
             checkRow(1, "打开「允许完全访问」", done: model.hasFullAccess)
-            checkRow(2, model.pinyinReady ? "拼音词库已就绪" : "拼音词库：打开一次 Enclave App 部署", done: model.pinyinReady)
             HStack {
-                checkRow(3, "配置模型 API", done: model.settings.isConfigured)
+                checkRow(2, "配置模型 API", done: model.settings.isConfigured)
                 Spacer(minLength: 0)
                 if !model.settings.isConfigured {
                     Button { model.importConfigFromPasteboard() } label: {

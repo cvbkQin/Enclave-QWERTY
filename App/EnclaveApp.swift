@@ -25,8 +25,19 @@ struct EnclaveApp: App {
                 .task { RimeDeployer.shared.deployIfNeeded() }
                 .onOpenURL { url in
                     // enclave://playground 直接打开「试一试」并弹出键盘，方便在模拟器里截图测试。
-                    if url.scheme == "enclave", url.host == "playground" {
-                        router.openPlayground()
+                    guard url.scheme == "enclave" else { return }
+                    switch url.host {
+                    case "playground": router.openPlayground()
+                    // 键盘「去开启」：先回到 App，再直接跳到系统设置里的 Enclave。
+                    case "fullaccess":
+                        // 冷启动时界面还没起来，稍等一下再跳，不然系统会忽略这次打开。
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            if let settings = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(settings)
+                            }
+                        }
+                    case "privacy-policy": router.openSettings(.privacy)
+                    default: break
                     }
                 }
         }

@@ -36,16 +36,26 @@ enum KeyboardMetrics {
     /// 结果卡片：默认两行，展开到五行，再多就在卡片里滚动。
     static let cardHeight: CGFloat = 60
     static let expandedCardHeight: CGFloat = 120
-    static let actionRow: CGFloat = 32
+    static let actionRow: CGFloat = 34
     /// 「正式▾」浮层：风格行 + 要求行，底下一个小尖角指向按钮。
     static let menuHeight: CGFloat = 94
     static let panelSpacing: CGFloat = 5
     static let panelTop: CGFloat = 6
     static let sidePadding: CGFloat = 3.7
 
-    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加浮层。
-    static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool) -> CGFloat {
+    /// 点「润色」时 AI 栏上方的提示卡：没开完全访问（P02）、首次发送前确认（P03），换了地址时多一行旧地址（P04）。
+    static func gateHeight(_ gate: KeyboardModel.AIGate) -> CGFloat {
+        switch gate {
+        case .fullAccess: return 188
+        case .consent(_, let previous): return previous == nil ? 178 : 196
+        }
+    }
+
+    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加一块。
+    /// 提示卡出现时只留它一块，不和结果卡片、风格菜单叠在一起。
+    static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool, gate: KeyboardModel.AIGate? = nil) -> CGFloat {
         var height = topRow + keysHeight
+        if let gate { return height + panelTop + gateHeight(gate) }
         if expanded {
             height += panelTop + (cardExpanded ? expandedCardHeight : cardHeight) + panelSpacing + actionRow
         }
@@ -107,8 +117,6 @@ enum Brand {
     static let deepPurple = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
         : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
-    /// 生成中「停止」的底色 #3A3A3C。
-    static let stopFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
     /// 「正式▾」按钮打开时的底色 #F4F2FF。
     static let menuFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.17, green: 0.16, blue: 0.27, alpha: 1)
@@ -119,6 +127,30 @@ enum Brand {
     /// 浮层里「风格」「要求」两个字 #3A3A3C。
     static let panelLabel = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.78, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
+    /// 结果卡片「插入」：135° #0891B2 → #6366F1。
+    static let insertGradient = LinearGradient(
+        colors: [Color(red: 0x08 / 255, green: 0x91 / 255, blue: 0xB2 / 255),
+                 Color(red: 0x63 / 255, green: 0x66 / 255, blue: 0xF1 / 255)],
+        startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// 不能点的「替换」「插入」：#E5E5EA 底、#8E8E93 字。
+    static let disabledFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.24, alpha: 1) : UIColor(red: 0xE5 / 255, green: 0xE5 / 255, blue: 0xEA / 255, alpha: 1) })
+    static let disabledText = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
+    /// 设置路径里的「>」#AEAEB2。
+    static let pathSeparator = Color(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255)
+    /// 提示卡正文 #3A3A3C、说明 #6B6B73。
+    static let cardBody = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.85, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
+    static let cardNote = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.62, alpha: 1) : UIColor(red: 0x6B / 255, green: 0x6B / 255, blue: 0x73 / 255, alpha: 1) })
+    /// 润色按钮上的小锁：#8E8E93 圆，外圈 #DCDEE4。
+    static let lockFill = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
+    static let lockRing = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.25, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1) })
+    /// 确认卡标题里的星星、隐私政策链接 #5B4BE8。
+    static let tagSelectedText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
+        : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
     /// 没选中的风格标签 #F4F5F7 黑字。
     static let tagFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)

@@ -115,6 +115,8 @@ extension KeyboardModel {
     }
 
     func keyPressed(_ key: KeySpec, feedback: Bool = true) {
+        // 开始打字就把提示卡收起来。
+        if gate != nil { dismissGate() }
         pressedKeys.insert(key.id)
         if feedback { keyFeedback(for: key.kind) }
     }
@@ -332,7 +334,10 @@ extension KeyboardModel {
     /// 中文模式用拼音引擎，英文模式或词库不可用时字母直接上屏。
     func selectEngine() {
         engine.reset()
-        pinyinReady = hasFullAccess && RimeEngine.shared.prepare(schema: RimeStore.schema(for: activeLayout))
+        pinyinReady = RimeEngine.shared.prepare(schema: RimeStore.schema(for: activeLayout), useShared: hasFullAccess)
+        #if DEBUG
+        KeyboardProbe.run(fullAccess: hasFullAccess, pinyinReady: pinyinReady, source: RimeEngine.shared.source)
+        #endif
         engine = chineseMode && pinyinReady ? RimeEngine.shared : DirectEngine()
         syncEngine()
     }
@@ -346,6 +351,7 @@ extension KeyboardModel {
 
     /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
+        guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
         guard !aiExpanded else {
             execute()
             return
@@ -378,6 +384,7 @@ extension KeyboardModel {
     /// 浮层里的「润色」：按选好的风格和要求开始改。浮层不收起，只有再点「正式▾」才收。
     /// 面板收起时是快速模式，润完直接替换输入框（AI 栏上流光）；展开时进结果卡片，等替换或插入。
     func menuPolishTapped() {
+        guard passGate(then: { [weak self] in self?.menuPolishTapped() }) else { return }
         finishComposition()
         guard !aiExpanded else {
             regenerate()
