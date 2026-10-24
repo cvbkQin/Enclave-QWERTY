@@ -771,6 +771,12 @@ struct RequestField: View {
     @ObservedObject var model: KeyboardModel
     /// 最后一次打字的时间：打字时光标常亮，停下 0.5 秒后才开始闪。
     @State private var lastTyped = Date()
+    /// 文字区在框里的位置，点按和长按拖动时换算成第几个字。
+    @State private var textFrame = CGRect.zero
+    /// 长按拖动时上一次移动光标的位置。
+    @State private var dragX: CGFloat?
+
+    private static let font = UIFont.systemFont(ofSize: 14)
 
     static let caret: UIImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 17)).image { _ in
         UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 2, height: 17), cornerRadius: 1).fill()
@@ -793,6 +799,7 @@ struct RequestField: View {
                     TimelineView(.animation(minimumInterval: 1 / 30)) { context in
                         let opacity = caretOpacity(at: context.date)
                         content(text: text, caretOpacity: opacity)
+                            .truncationMode(.tail)
                             .overlay(alignment: .leading) {
                                 if text.isEmpty && model.composition.isEmpty {
                                     Image(uiImage: Self.caret).foregroundStyle(Brand.fieldActiveLine.opacity(opacity))
@@ -802,11 +809,16 @@ struct RequestField: View {
                     }
                 } else {
                     content(text: text, caretOpacity: nil)
+                        .truncationMode(.head)
                 }
             }
             .lineLimit(1)
-            .truncationMode(.head)
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(GeometryReader { geometry in
+                Color.clear
+                    .onAppear { textFrame = geometry.frame(in: .named("requestField")) }
+                    .onChange(of: geometry.frame(in: .named("requestField"))) { textFrame = $0 }
+            })
             if !text.isEmpty {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
@@ -829,25 +841,94 @@ struct RequestField: View {
         }
         .animation(.easeOut(duration: 0.15), value: editing)
         .contentShape(Rectangle())
-        .onTapGesture { model.toggleInstructionEditing() }
+        .coordinateSpace(name: "requestField")
+        .gesture(caretDrag.exclusively(before: SpatialTapGesture(coordinateSpace: .named("requestField")).onEnded { tap in
+            // 激活且有字时点一下把光标放到点的位置；其他时候点一下切换激活。
+            if model.target == .instruction, !model.instruction.isEmpty, !model.isComposing {
+                placeCaret(atX: tap.location.x)
+            } else {
+                model.toggleInstructionEditing()
+            }
+        }))
         .onChange(of: model.instruction) { _ in lastTyped = Date() }
         .onChange(of: model.composition) { _ in lastTyped = Date() }
         .onChange(of: editing) { _ in lastTyped = Date() }
     }
 
+    /// 长按后左右拖动：每 9pt 移一个字，和按住空格移动光标一样。没激活时长按会先激活。
+    private var caretDrag: some Gesture {
+        LongPressGesture(minimumDuration: 0.3)
+            .sequenced(before: DragGesture(minimumDistance: 0))
+            .onChanged { value in
+                guard case .second(true, let drag?) = value else { return }
+                if model.target != .instruction { model.toggleInstructionEditing() }
+                let x = drag.location.x
+                guard let last = dragX else {
+                    dragX = x
+                    return
+                }
+                let steps = Int((x - last) / 9)
+                if steps != 0 {
+                    model.moveInstructionCaret(by: steps)
+                    dragX = last + CGFloat(steps) * 9
+                    lastTyped = Date()
+                }
+            }
+            .onEnded { _ in dragX = nil }
+    }
+
     /// 文字、拼音、光标排成一行；光标透明度为 nil 时不画。没写字时光标在占位字前面。
     private func content(text: String, caretOpacity: Double?) -> Text {
         let composing = model.target == .instruction ? model.composition : ""
-        let caret = caretOpacity.map {
-            Text(Image(uiImage: Self.caret)).foregroundColor(Brand.fieldActiveLine.opacity($0)).baselineOffset(-3)
-        } ?? Text("")
         if text.isEmpty && composing.isEmpty {
             // 光标叠在占位字左边，不占宽度，激活前后占位字不挪位置。
             return Text(placeholder).foregroundColor(Brand.fieldPlaceholder)
         }
-        return Text(text).foregroundColor(Brand.fieldText)
+        guard let caretOpacity else { return Text(text).foregroundColor(Brand.fieldText) }
+        let caret = Text(Image(uiImage: Self.caret)).foregroundColor(Brand.fieldActiveLine.opacity(caretOpacity))
+            .baselineOffset(-3)
+        let window = visibleWindow(text: text, composing: composing)
+        return Text(window.before).foregroundColor(Brand.fieldText)
             + Text(composing).foregroundColor(Brand.fieldText).underline(color: Brand.fieldActiveLine)
             + caret
+            + Text(window.after).foregroundColor(Brand.fieldText)
+    }
+
+    /// 光标前面的字太长放不下时，从前面去掉一些、补一个「…」，让光标一直看得见；后面的字放不下时由 Text 在尾部截断。
+    private func visibleWindow(text: String, composing: String) -> (before: String, after: String, dropped: Int) {
+        let caret = min(model.instructionCaret, text.count)
+        let split = text.index(text.startIndex, offsetBy: caret)
+        var before = Substring(text[..<split])
+        let after = String(text[split...])
+        let room = textFrame.width - 4 - Self.width(composing)
+        guard room > 0, Self.width(String(before)) > room else { return (String(before), after, 0) }
+        var dropped = 0
+        while !before.isEmpty, Self.width("…" + before) > room {
+            before = before.dropFirst()
+            dropped += 1
+        }
+        return ("…" + before, after, dropped)
+    }
+
+    /// 点到的位置换算成第几个字：落在哪个字的左半边光标就放在它前面，右半边放在后面。
+    private func placeCaret(atX x: CGFloat) {
+        let text = model.instruction
+        let window = visibleWindow(text: text, composing: "")
+        let local = x - textFrame.minX
+        var offset: CGFloat = window.dropped > 0 ? Self.width("…") : 0
+        var position = window.dropped
+        for character in text.dropFirst(window.dropped) {
+            let width = Self.width(String(character))
+            if local < offset + width / 2 { break }
+            offset += width
+            position += 1
+        }
+        model.moveInstructionCaret(by: position - model.instructionCaret)
+        lastTyped = Date()
+    }
+
+    private static func width(_ string: String) -> CGFloat {
+        (string as NSString).size(withAttributes: [.font: font]).width
     }
 
     /// 打字或拼音时常亮；停下 0.5 秒后亮 0.5 秒、灭 0.5 秒，亮灭之间约 80ms 渐变。

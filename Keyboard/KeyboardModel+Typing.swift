@@ -43,8 +43,7 @@ extension KeyboardModel {
             proxy?.deleteBackward()
             updateAutoShift()
         case .instruction:
-            guard !instruction.isEmpty else { return }
-            setInstruction(String(instruction.dropLast()))
+            deleteInInstruction()
         case .card:
             deleteInCard()
         }
@@ -169,7 +168,7 @@ extension KeyboardModel {
         switch target {
         case .host: proxy?.adjustTextPosition(byCharacterOffset: offset)
         case .card: moveCardCaret(by: offset)
-        case .instruction: break
+        case .instruction: moveInstructionCaret(by: offset)
         }
     }
 
@@ -436,7 +435,7 @@ extension KeyboardModel {
             proxy?.insertText(text)
             updateAutoShift()
         case .instruction:
-            setInstruction(instruction + text)
+            insertInInstruction(text)
         case .card:
             insertInCard(text)
         }

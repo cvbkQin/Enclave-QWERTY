@@ -34,6 +34,8 @@ final class KeyboardModel: ObservableObject {
     @Published var needsGlobeKey = true
     /// 要求栏：和正文分开存放的修改要求，执行时和输入框里的「// 要求」合并。
     @Published private(set) var instruction = ""
+    /// 要求框里的光标在第几个字后面。
+    @Published private(set) var instructionCaret = 0
     /// 在结果卡片里直接改（target == .card）：改到一半的文字和光标位置（按字符数）。
     @Published private(set) var cardDraft = ""
     @Published private(set) var cardCaret = 0
@@ -129,6 +131,7 @@ final class KeyboardModel: ObservableObject {
         settings = SettingsStore.load()
         session = SessionStore.load()
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
+        instructionCaret = instruction.count
         hasFullAccess = controller?.hasFullAccess ?? false
         if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
         refreshHostState()
@@ -599,8 +602,30 @@ final class KeyboardModel: ObservableObject {
 
     private static let instructionKey = "instruction.v1"
 
+    /// 整段换掉（清空、填入建议），光标放到最后。
     func setInstruction(_ text: String) {
+        storeInstruction(text, caret: text.count)
+    }
+
+    func insertInInstruction(_ text: String) {
+        let split = instruction.index(instruction.startIndex, offsetBy: instructionCaret)
+        storeInstruction(instruction[..<split] + text + instruction[split...], caret: instructionCaret + text.count)
+    }
+
+    func deleteInInstruction() {
+        guard instructionCaret > 0 else { return }
+        let end = instruction.index(instruction.startIndex, offsetBy: instructionCaret)
+        let start = instruction.index(before: end)
+        storeInstruction(String(instruction[..<start] + instruction[end...]), caret: instructionCaret - 1)
+    }
+
+    func moveInstructionCaret(by offset: Int) {
+        instructionCaret = min(max(instructionCaret + offset, 0), instruction.count)
+    }
+
+    private func storeInstruction(_ text: String, caret: Int) {
         instruction = text
+        instructionCaret = min(max(caret, 0), text.count)
         SharedStorage.defaults.set(text, forKey: Self.instructionKey)
     }
 
