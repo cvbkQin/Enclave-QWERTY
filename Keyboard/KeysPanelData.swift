@@ -30,6 +30,51 @@ struct AlternatesPopup: Equatable {
     }
 }
 
+/// 九宫格长按弹出的十字，和原生一样：中间是按下的键，四周最多四个选项，手指滑到哪格选哪格，滑回中间松手取消。
+struct CrossPopup: Equatable {
+    enum Direction: CaseIterable { case left, up, right, down }
+
+    let key: KeySpec
+    let options: [Direction: String]
+    let containerWidth: CGFloat
+    var selected: Direction?
+
+    /// 每格 = 一个键加一条缝。
+    var cellSize: CGSize {
+        CGSize(width: key.cap.width + KeyboardMetrics.nineColumnGap, height: KeyboardMetrics.nineRowPitch)
+    }
+
+    /// 中间那格：以按下的键为中心；贴边时整个十字往里收，离屏幕边至少 4pt。
+    var center: CGRect {
+        let size = cellSize
+        var x = key.cap.midX - size.width / 2
+        // 按键区离屏幕边 sidePadding，换算成离屏幕边 4pt。
+        let margin = 4 - KeyboardMetrics.sidePadding
+        x = min(max(x, margin + size.width), containerWidth - margin - size.width * 2)
+        return CGRect(x: x, y: key.cap.midY - size.height / 2, width: size.width, height: size.height)
+    }
+
+    func frame(for direction: Direction) -> CGRect {
+        let c = center
+        switch direction {
+        case .left: return c.offsetBy(dx: -c.width, dy: 0)
+        case .right: return c.offsetBy(dx: c.width, dy: 0)
+        case .up: return c.offsetBy(dx: 0, dy: -c.height)
+        case .down: return c.offsetBy(dx: 0, dy: c.height)
+        }
+    }
+
+    /// 手指在哪个方向：在中间格里是 nil；出了中间格按偏得更多的那个方向算，那个方向没有选项也是 nil。
+    func direction(at point: CGPoint) -> Direction? {
+        let c = center
+        let dx = (point.x - c.midX) / c.width
+        let dy = (point.y - c.midY) / c.height
+        guard abs(dx) > 0.5 || abs(dy) > 0.5 else { return nil }
+        let direction: Direction = abs(dx) >= abs(dy) ? (dx < 0 ? .left : .right) : (dy < 0 ? .up : .down)
+        return options[direction] == nil ? nil : direction
+    }
+}
+
 /// 表情按 Unicode 区段分组，只取默认就显示成彩色表情的字符，不用自己维护一大张表。
 enum EmojiCatalog {
     struct Category: Identifiable {

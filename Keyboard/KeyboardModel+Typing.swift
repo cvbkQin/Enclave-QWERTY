@@ -248,6 +248,11 @@ extension KeyboardModel {
     // MARK: - 长按备选
 
     func showAlternates(for key: KeySpec, containerWidth: CGFloat) -> Bool {
+        if let options = KeyLayout.cross(for: key.kind, chinese: chineseMode) {
+            cross = CrossPopup(key: key, options: options, containerWidth: containerWidth)
+            keyFeedback(for: .space)
+            return true
+        }
         guard let options = KeyLayout.alternates(for: key.kind, chinese: chineseMode) else { return false }
         let shown = shift == .off ? options : options.map { $0.uppercased() }
         alternates = AlternatesPopup(key: key, options: shown, containerWidth: containerWidth)
@@ -255,7 +260,16 @@ extension KeyboardModel {
         return true
     }
 
-    func moveAlternates(toX x: CGFloat) {
+    func moveAlternates(to point: CGPoint) {
+        if var popup = cross {
+            let direction = popup.direction(at: point)
+            if direction != popup.selected {
+                popup.selected = direction
+                cross = popup
+            }
+            return
+        }
+        let x = point.x
         guard var popup = alternates else { return }
         let index = popup.index(atX: x)
         if index != popup.selected {
@@ -264,10 +278,19 @@ extension KeyboardModel {
         }
     }
 
+    /// 松手：十字滑回中间算取消。
     func commitAlternate() {
-        guard let popup = alternates else { return }
-        alternates = nil
-        let text = popup.options[popup.selected]
+        let text: String
+        if let popup = cross {
+            cross = nil
+            guard let direction = popup.selected, let option = popup.options[direction] else { return }
+            text = option.allSatisfy(\.isLetter) ? option.lowercased() : option
+        } else if let popup = alternates {
+            alternates = nil
+            text = popup.options[popup.selected]
+        } else {
+            return
+        }
         // 九宫格打拼音时长按选的字母接着拼，相当于把这一位定成这个字母。
         if showsNineKey && layer == .letters && isComposing && text.allSatisfy(\.isLetter) {
             if let output = engine.input(text.lowercased()) { commit(output) }

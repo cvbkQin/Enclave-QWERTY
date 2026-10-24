@@ -97,7 +97,7 @@ enum KeyLayout {
             add("delete", .delete, x: unit * 8.5, row: 2, width: unit * 1.5,
                 visualX: size.width - wideKey, visualWidth: wideKey)
         case .numbers, .symbols:
-            let rows = state.layer == .numbers ? numberSymbols(chinese: state.chineseMode) : moreSymbols
+            let rows = state.layer == .numbers ? numberSymbols(chinese: state.chineseMode) : moreSymbols(chinese: state.chineseMode)
             for row in 0..<2 {
                 for (i, s) in rows[row].enumerated() {
                     add("s\(row)-\(i)", .symbol(s), x: CGFloat(i) * unit, row: row, width: unit)
@@ -141,12 +141,15 @@ enum KeyLayout {
     /// 😀/地球 选拼音 空格（两格）   （换行占两行）
     /// 打拼音时左列上三格换成拼音选择栏。
     private static func nineKey(_ state: State, size: CGSize) -> KeyLayoutResult {
-        let slot = KeyboardMetrics.slotHeight
-        let column = size.width / 5
+        let slot = KeyboardMetrics.nineRowPitch
+        let top = KeyboardMetrics.nineTopOffset
+        // 每格 = 键 + 一条缝；按键区本身离屏幕边 sidePadding，两边再各留（边距 − sidePadding − 半条缝）。
+        let edge = KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding - KeyboardMetrics.nineKeyInsetX
+        let column = (size.width - edge * 2) / 5
         var keys: [KeySpec] = []
         func add(_ id: String, _ kind: KeyKind, col: Int, row: Int, cols: Int = 1, rows: Int = 1) {
             var key = KeySpec(id: id, kind: kind,
-                              frame: CGRect(x: CGFloat(col) * column, y: CGFloat(row) * slot,
+                              frame: CGRect(x: edge + CGFloat(col) * column, y: top + CGFloat(row) * slot,
                                             width: column * CGFloat(cols), height: slot * CGFloat(rows)))
             key.insetX = KeyboardMetrics.nineKeyInsetX
             key.insetY = KeyboardMetrics.nineKeyInsetY
@@ -161,7 +164,7 @@ enum KeyLayout {
         }
         var pinyinColumn: CGRect?
         if state.composing {
-            pinyinColumn = CGRect(x: 0, y: 0, width: column, height: slot * 3)
+            pinyinColumn = CGRect(x: edge, y: top, width: column, height: slot * 3)
         } else {
             add("layer", .layer(.numbers), col: 0, row: 0)
             add("symbols", .layer(.symbols), col: 0, row: 1)
@@ -182,21 +185,33 @@ enum KeyLayout {
             : [digits, ["-", "/", ":", ";", "(", ")", "$", "&", "@", "\""], [".", ",", "?", "!", "'"]]
     }
 
-    static let moreSymbols: [[String]] = [
-        ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="],
-        ["_", "\\", "|", "~", "<", ">", "€", "£", "•", "…"],
-        ["·", "《", "》", "‘", "’"],
-    ]
+    /// 符号页（九宫格的 #@¥）。中文时第三行放九宫格长按里拿掉的那些标点。
+    static func moreSymbols(chinese: Bool) -> [[String]] {
+        chinese
+            ? [["[", "]", "{", "}", "#", "%", "^", "*", "+", "="],
+               ["_", "\\", "|", "～", "<", ">", "€", "£", "•", "…"],
+               ["、", "：", "；", "·", "《", "》", "“", "”"]]
+            : [["[", "]", "{", "}", "#", "%", "^", "*", "+", "="],
+               ["_", "\\", "|", "~", "<", ">", "€", "£", "•", "…"],
+               ["·", "《", "》", "‘", "’"]]
+    }
 
-    /// 长按按键弹出的备选：九宫格是数字和字母，全键盘第一行是数字，元音带声调和变音。
+    /// 九宫格长按的十字：标点键左「，」上「。」右「？」下「！」；字母键 DEF 是左 D 上 E 右 F，四字母键第四个在下。
+    static func cross(for kind: KeyKind, chinese: Bool) -> [CrossPopup.Direction: String]? {
+        guard case .nine(let digit) = kind else { return nil }
+        let options: [String]
+        if digit == "'" {
+            options = chinese ? ["，", "。", "？", "！"] : [",", ".", "?", "!"]
+        } else {
+            guard let letters = nineKeyLetters[digit] else { return nil }
+            options = letters.map(String.init)
+        }
+        return Dictionary(uniqueKeysWithValues: zip(CrossPopup.Direction.allCases, options))
+    }
+
+    /// 全键盘长按弹出的备选：第一行是数字，元音带声调和变音。
     static func alternates(for kind: KeyKind, chinese: Bool) -> [String]? {
         switch kind {
-        case .nine("'"):
-            return chinese ? ["，", "。", "？", "！", "、", "：", "；", "…", "～", "“", "”"]
-                : [",", ".", "?", "!", "'", ":", ";", "-", "~", "\""]
-        case .nine(let digit):
-            guard let letters = nineKeyLetters[digit] else { return nil }
-            return [digit] + letters.lowercased().map(String.init)
         case .letter(let letter):
             var options: [String] = []
             if let index = letterRows[0].firstIndex(of: letter) { options.append(digits[index]) }

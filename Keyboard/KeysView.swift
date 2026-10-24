@@ -39,6 +39,9 @@ struct KeysView: View {
                     if let popup = model.alternates {
                         AlternatesView(popup: popup)
                     }
+                    if let popup = model.cross {
+                        CrossView(model: model, popup: popup)
+                    }
                 }
             }
         }

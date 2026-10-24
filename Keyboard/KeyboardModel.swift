@@ -48,6 +48,8 @@ final class KeyboardModel: ObservableObject {
     @Published var keysPanel: KeysPanel?
     /// 长按按键弹出的备选条。
     @Published var alternates: AlternatesPopup?
+    /// 九宫格长按的十字弹层。
+    @Published var cross: CrossPopup?
     /// 输入框里是否有带下划线的拼音（marked text）。
     var hasMarkedText = false
     var lastSpaceTime = Date.distantPast

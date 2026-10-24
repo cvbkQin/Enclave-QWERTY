@@ -100,7 +100,7 @@ final class KeyTouchView: UIView {
             guard let state = tracking[touch] else { continue }
             let point = touch.location(in: self)
             if state.alternates {
-                model.moveAlternates(toX: point.x)
+                model.moveAlternates(to: point)
                 continue
             }
             if state.key.kind == .globe {
@@ -161,7 +161,10 @@ final class KeyTouchView: UIView {
             guard let state = tracking.removeValue(forKey: touch) else { continue }
             state.timer?.invalidate()
             if state.trackpadX != nil { model.setTrackpad(false) }
-            if state.alternates { model.alternates = nil }
+            if state.alternates {
+                model.alternates = nil
+                model.cross = nil
+            }
             model.keyReleased(state.key.id)
         }
     }

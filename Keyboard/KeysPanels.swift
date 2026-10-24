@@ -137,7 +137,7 @@ struct PinyinColumn: View {
                 ForEach(model.pinyinOptions, id: \.self) { syllable in
                     Button { model.choosePinyin(syllable) } label: {
                         Text(syllable).font(.system(size: 17)).foregroundStyle(Color.primary)
-                            .frame(maxWidth: .infinity, minHeight: 36).contentShape(Rectangle())
+                            .frame(maxWidth: .infinity, minHeight: KeyboardMetrics.pinyinCellHeight).contentShape(Rectangle())
                     }
                     .buttonStyle(KeyPressStyle())
                 }
@@ -150,6 +150,58 @@ struct PinyinColumn: View {
         .padding(.vertical, KeyboardMetrics.nineKeyInsetY)
         .frame(width: frame.width, height: frame.height)
         .offset(x: frame.minX, y: frame.minY)
+    }
+}
+
+/// 九宫格长按的十字：中间浅灰显示原键帽，四周白底圆角带阴影，选中那格内缩 4pt 填紫色、白字。
+struct CrossView: View {
+    @ObservedObject var model: KeyboardModel
+    let popup: CrossPopup
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            let outer = CrossPopup.Direction.allCases.filter { popup.options[$0] != nil }
+            // 外圈先画一层带阴影的白底，四格连成一个十字。
+            ForEach(outer, id: \.self) { direction in
+                cell(popup.frame(for: direction)) {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(KeyStyle.charKey)
+                        .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 1)
+                }
+            }
+            cell(popup.center) {
+                Rectangle().fill(Brand.crossCenterFill)
+                    .overlay(centerLabel.foregroundStyle(Color.primary))
+            }
+            ForEach(outer, id: \.self) { direction in
+                let selected = popup.selected == direction
+                cell(popup.frame(for: direction)) {
+                    ZStack {
+                        if selected {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.purple).padding(4)
+                        }
+                        Text(popup.options[direction] ?? "")
+                            .font(.system(size: 26))
+                            .foregroundStyle(selected ? Color.white : Color.primary)
+                    }
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func cell<Content: View>(_ frame: CGRect, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .frame(width: frame.width, height: frame.height)
+            .offset(x: frame.minX, y: frame.minY)
+    }
+
+    @ViewBuilder
+    private var centerLabel: some View {
+        if case .nine(let digit) = popup.key.kind, digit != "'" {
+            Text(KeyLayout.nineKeyLetters[digit] ?? digit).font(KeyStyle.nineKeyFont).tracking(1)
+        } else {
+            PunctuationLabel()
+        }
     }
 }
 

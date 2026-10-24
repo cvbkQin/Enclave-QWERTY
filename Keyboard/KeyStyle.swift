@@ -11,9 +11,18 @@ enum KeyboardMetrics {
     static let keysHeight: CGFloat = slotHeight * 4
     /// 全键盘 Shift、删除键画出来的宽度（触摸范围仍是 1.5 格）。
     static let shiftKeyWidth: CGFloat = 45
-    /// 九宫格的键 72.6×44（iOS 26 实测），五列等宽。
-    static let nineKeyInsetX: CGFloat = 3.15
-    static let nineKeyInsetY: CGFloat = 5
+    /// 九宫格对齐原生：键高 46、行距 7（每行 53），列距 6、两边各 7，五列等宽。
+    /// 四行 212pt，比按键区少 4pt，上下各留 2pt，键盘总高不变。
+    static let nineKeyHeight: CGFloat = 46
+    static let nineRowGap: CGFloat = 7
+    static let nineColumnGap: CGFloat = 6
+    static let nineSideMargin: CGFloat = 7
+    static let nineRowPitch: CGFloat = nineKeyHeight + nineRowGap
+    static let nineTopOffset: CGFloat = (keysHeight - nineRowPitch * 4) / 2
+    static let nineKeyInsetX: CGFloat = nineColumnGap / 2
+    static let nineKeyInsetY: CGFloat = nineRowGap / 2
+    /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝。
+    static let pinyinCellHeight: CGFloat = 38
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     static let topRow: CGFloat = 44
@@ -113,6 +122,10 @@ enum Brand {
         ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)
         : UIColor(red: 0xE9 / 255, green: 0xE5 / 255, blue: 0xFD / 255, alpha: 1) })
     static let softFill = purple.opacity(0.14)
+    /// 九宫格长按十字弹层中间那格 #E6E5EB。
+    static let crossCenterFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.36, alpha: 1)
+        : UIColor(red: 0xE6 / 255, green: 0xE5 / 255, blue: 0xEB / 255, alpha: 1) })
 }
 
 /// 四角星，logo 星星组的一颗。
