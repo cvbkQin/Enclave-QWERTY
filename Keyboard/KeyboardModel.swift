@@ -80,6 +80,15 @@ final class KeyboardModel: ObservableObject {
     /// 快速模式在 AI 栏上的状态：润色中（流光圈住 AI 栏）、✓ 已润色（1.5 秒后消失）、润色失败点重试。
     @Published private(set) var quickStatus: QuickStatus?
     enum QuickStatus { case running, done, failed }
+    /// 这次生成是哪个按钮点的：特效只在那个按钮上（AI 栏「润色」或风格浮层「再润」），收起展开都一样。
+    enum RunOrigin { case polish, rerun }
+    @Published private(set) var runOrigin: RunOrigin?
+    /// 刚完成的一次，按钮上的星星闪金用。
+    struct Finished: Equatable {
+        var origin: RunOrigin
+        var at: Date
+    }
+    @Published private(set) var finished: Finished?
     enum QuickOutcome { case replaced, changed, failed }
     /// 每次替换或插入记一笔：写进去的文字和被它换掉的原文。撤销和重做在两个栈之间来回挪。
     private var undoStack: [FieldEdit] = []
@@ -364,6 +373,7 @@ final class KeyboardModel: ObservableObject {
                         updated.conversation.append(.assistant(result))
                     }
                     self.session = updated
+                    self.finished = Finished(origin: self.runOrigin ?? .polish, at: Date())
                     self.resultUse = nil
                     self.resultStale = false
                     SessionStore.save(updated)
@@ -380,13 +390,22 @@ final class KeyboardModel: ObservableObject {
                 }
             }
             self?.isRunning = false
+            self?.runOrigin = nil
         }
+    }
+
+    /// 点了「润色」或「再润」：记下是哪个按钮，没开始生成（提示、出错）就清掉。
+    func start(from origin: RunOrigin, _ action: () -> Void) {
+        runOrigin = origin
+        action()
+        if !isRunning { runOrigin = nil }
     }
 
     func stop() {
         task?.cancel()
         task = nil
         isRunning = false
+        runOrigin = nil
         quickSource = nil
         quickStatus = nil
     }
@@ -444,7 +463,31 @@ final class KeyboardModel: ObservableObject {
     /// 截图用：收起状态下 AI 栏上的快速模式（-keyboardDebug quick:running|done|failed）。
     func loadDebugQuick(_ status: QuickStatus) {
         quickStatus = status
-        if status == .running { isRunning = true }
+        if status == .running {
+            isRunning = true
+            runOrigin = .polish
+        }
+    }
+
+    /// 截图用：风格浮层「再润」生成中（rerun:running），或 3 秒后完成闪金、每 5 秒重来（rerun:cycle）。
+    func loadDebugRerun(cycle: Bool) {
+        styleMenuOpen = true
+        guard cycle else {
+            isRunning = true
+            runOrigin = .rerun
+            return
+        }
+        Task { [weak self] in
+            while let self {
+                self.isRunning = true
+                self.runOrigin = .rerun
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                self.isRunning = false
+                self.runOrigin = nil
+                self.finished = Finished(origin: .rerun, at: Date())
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
     }
 
     /// 截图用：润色中 3 秒后完成，看完成时星星闪金（-keyboardDebug quick:cycle），每 5 秒重来一次。
@@ -454,7 +497,9 @@ final class KeyboardModel: ObservableObject {
                 self.loadDebugQuick(.running)
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 self.isRunning = false
+                self.runOrigin = nil
                 self.quickStatus = .done
+                self.finished = Finished(origin: .polish, at: Date())
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
             }
         }

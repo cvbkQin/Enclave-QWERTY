@@ -362,12 +362,12 @@ extension KeyboardModel {
         guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
         if target == .card { finishCardEdit() }
         guard !aiExpanded else {
-            execute()
+            start(from: .polish) { execute() }
             return
         }
         finishComposition()
         beginQuickMode(source: readField().text)
-        execute()
+        start(from: .polish) { execute() }
         // 没开始生成（空输入框提示、没配置、没开完全访问）就展开，把原因显示出来。
         if !isRunning {
             quickSource = nil
@@ -400,11 +400,11 @@ extension KeyboardModel {
         if target == .card { finishCardEdit() }
         finishComposition()
         guard !aiExpanded else {
-            regenerate()
+            start(from: .rerun) { regenerate() }
             return
         }
         beginQuickMode(source: readField().text)
-        regenerate()
+        start(from: .rerun) { regenerate() }
         if !isRunning {
             quickSource = nil
             clearQuickStatus()
@@ -551,6 +551,8 @@ extension KeyboardModel {
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
             case "quick:cycle": loadDebugQuickCycle()
+            case "rerun:running": loadDebugRerun(cycle: false)
+            case "rerun:cycle": loadDebugRerun(cycle: true)
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "undo": loadDebugUndo()

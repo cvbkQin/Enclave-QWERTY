@@ -177,7 +177,8 @@ struct PolishButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var doneAt: Date?
 
-    private var quickRunning: Bool { model.isRunning && model.quickStatus == .running && !model.aiExpanded }
+    /// 这次是点「润色」开始的：收起和展开都在按钮上放特效；「再润」时这里不动。
+    private var quickRunning: Bool { model.isRunning && model.runOrigin == .polish }
     /// 关了发光动画或开了减弱动态效果：只留星星轻微闪动。
     private var fullMotion: Bool { model.settings.polishAnimation && !reduceMotion }
 
@@ -214,8 +215,8 @@ struct PolishButton: View {
         }
         .buttonStyle(KeyPressStyle())
         .accessibilityLabel(model.isRunning ? "正在润色，轻点取消" : "润色")
-        .onChange(of: model.quickStatus) { status in
-            doneAt = status == .done ? Date() : nil
+        .onChange(of: model.finished) { finished in
+            if finished?.origin == .polish { doneAt = finished?.at }
         }
     }
 
@@ -224,27 +225,47 @@ struct PolishButton: View {
     }
 }
 
-/// 快速模式润色中按钮里的动画：1.5pt 流光描边（1.6 秒一圈，外面不加光晕）、60pt 白色光带扫过、10 颗白色小闪光。
+/// 生成中按钮里的动画：1.5pt 流光描边（1.6 秒一圈，外面不加光晕）、60pt 白色光带扫过、一圈白色小闪光。
+/// 「润色」用品牌色描边和 10 颗闪光；「再润」用粉紫描边和 7 颗。
 struct PolishButtonGlow: View {
+    typealias Sparkle = (x: CGFloat, y: CGFloat, d: CGFloat, period: Double, offset: Double)
+
     /// 小闪光的位置（相对 84×34 的按钮，x、y、大小）和周期。
-    private static let sparkles: [(x: CGFloat, y: CGFloat, d: CGFloat, period: Double, offset: Double)] = [
+    static let polishSparkles: [Sparkle] = [
         (4, 8, 6, 1.5, 0.0), (9, 22, 5, 1.7, 0.6), (21, 2, 6, 1.9, 1.1), (29, 26, 5, 1.6, 0.3), (39, 1, 5, 1.8, 0.9),
         (52, 27, 6, 1.5, 1.3), (60, 1, 5, 1.7, 0.2), (72, 6, 6, 1.9, 0.7), (76, 20, 6, 1.6, 1.5), (65, 26, 5, 1.8, 0.4),
     ]
+    /// 「再润」73×30 按钮上的 7 颗。
+    static let rerunSparkles: [Sparkle] = [
+        (4, 7, 5, 1.5, 0.0), (9, 20, 4, 1.7, 0.6), (20, 2, 5, 1.9, 1.1), (46, 1, 4, 1.6, 0.3),
+        (56, 22, 5, 1.8, 0.9), (64, 5, 5, 1.5, 1.3), (36, 23, 4, 1.7, 0.2),
+    ]
+    /// 「再润」描边：#A855F7 → #EC4899 → #FDE68A → #F0ABFC。
+    static let rerunRing: [Color] = [
+        Color(red: 0xA8 / 255, green: 0x55 / 255, blue: 0xF7 / 255),
+        Color(red: 0xEC / 255, green: 0x48 / 255, blue: 0x99 / 255),
+        Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255),
+        Color(red: 0xF0 / 255, green: 0xAB / 255, blue: 0xFC / 255),
+    ]
+
+    var ring: [Color] = Brand.gradient
+    var sparkles: [Sparkle] = Self.polishSparkles
+    /// 闪光坐标对应的按钮大小。
+    var designSize = CGSize(width: 84, height: 34)
 
     var body: some View {
         GeometryReader { geo in
             TimelineView(.animation) { context in
                 let time = context.date.timeIntervalSinceReferenceDate
                 let phase = time.truncatingRemainder(dividingBy: 1.6) / 1.6
-                let sx = geo.size.width / 84, sy = geo.size.height / 34
+                let sx = geo.size.width / designSize.width, sy = geo.size.height / designSize.height
                 ZStack(alignment: .topLeading) {
                     LinearGradient(colors: [.white.opacity(0), .white.opacity(0.32), .white.opacity(0)],
                                    startPoint: .leading, endPoint: .trailing)
                         .frame(width: 60, height: geo.size.height)
                         .blur(radius: 4)
                         .offset(x: -60 + (geo.size.width + 60) * phase)
-                    ForEach(Array(Self.sparkles.enumerated()), id: \.offset) { _, s in
+                    ForEach(Array(sparkles.enumerated()), id: \.offset) { _, s in
                         let t = (time + s.offset).truncatingRemainder(dividingBy: s.period) / s.period
                         let scale = sin(.pi * t)
                         FourPointStar()
@@ -255,7 +276,7 @@ struct PolishButtonGlow: View {
                             .shadow(color: .white.opacity(0.8), radius: 1.5)
                             .position(x: (s.x + s.d / 2) * sx, y: (s.y + s.d / 2) * sy)
                     }
-                    Capsule().strokeBorder(AngularGradient(colors: Brand.gradient + [Brand.gradient[0]], center: .center,
+                    Capsule().strokeBorder(AngularGradient(colors: ring + [ring[0]], center: .center,
                                                            angle: .degrees(phase * 360)),
                                            lineWidth: 1.5)
                 }
@@ -493,23 +514,39 @@ struct StyleMenu: View {
 /// 面板收起时直接替换输入框，展开时进结果卡片。
 struct MenuPolishButton: View {
     @ObservedObject var model: KeyboardModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var doneAt: Date?
+
+    /// 这次是点「再润」开始的：特效放在这个按钮上，和「润色」同一套，换成粉紫。
+    private var running: Bool { model.isRunning && model.runOrigin == .rerun }
+    private var fullMotion: Bool { model.settings.polishAnimation && !reduceMotion }
 
     var body: some View {
         Button {
             model.isRunning ? model.stop() : model.menuPolishTapped()
         } label: {
             HStack(spacing: 4) {
-                SparkleMark(size: 13, color: .white)
+                PolishStars(size: 13, running: running, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
                 Text("再润")
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color.white)
             .frame(width: 72, height: 30)
             .background(Capsule().fill(Brand.rerunGradient))
+            .overlay {
+                if running && fullMotion {
+                    PolishButtonGlow(ring: PolishButtonGlow.rerunRing, sparkles: PolishButtonGlow.rerunSparkles,
+                                     designSize: CGSize(width: 73, height: 30))
+                        .clipShape(Capsule())
+                }
+            }
             .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
         }
         .buttonStyle(KeyPressStyle())
         .accessibilityLabel(model.isRunning ? "正在润色，轻点取消" : "再润")
+        .onChange(of: model.finished) { finished in
+            if finished?.origin == .rerun { doneAt = finished?.at }
+        }
     }
 }
 
