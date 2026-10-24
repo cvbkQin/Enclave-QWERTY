@@ -84,7 +84,7 @@ struct KeyCapView: View {
                 .font(KeyStyle.letterFont)
                 .offset(y: -1)
         case .symbol(let symbol):
-            Text(symbol).font(KeyStyle.symbolFont)
+            Text(KeyStyle.capText(symbol)).font(KeyStyle.capFont(for: symbol))
         case .nine(let digit):
             if digit == "'" {
                 // 打拼音时是分词键，平时连按切换标点。
@@ -96,7 +96,7 @@ struct KeyCapView: View {
             } else {
                 Text(KeyLayout.nineKeyLetters[digit] ?? digit)
                     .font(KeyStyle.nineKeyFont)
-                    .tracking(2.2)
+                    .tracking(1)
             }
         case .shift:
             Image(systemName: model.shift == .locked ? "capslock.fill" : (model.shift == .on ? "shift.fill" : "shift"))
@@ -112,18 +112,31 @@ struct KeyCapView: View {
                 Image(systemName: "return.left").font(KeyStyle.iconFont)
             }
         case .toggleChinese:
-            Text(model.showsNineKey ? "ABC" : (model.chineseMode ? "中" : "英")).font(KeyStyle.functionFont)
+            if model.showsNineKey {
+                Text("ABC").font(KeyStyle.nineKeyFont).tracking(1)
+            } else {
+                Text(model.chineseMode ? "中" : "英").font(KeyStyle.functionFont)
+            }
         case .globe:
             Image(systemName: "globe").font(KeyStyle.iconFont)
         case .emoticon:
-            Text(model.isComposing ? "重输" : "^^").font(KeyStyle.functionFont)
+            if model.isComposing {
+                Text("重输").font(KeyStyle.functionFont)
+            } else {
+                // 「^^」字形偏上，往下挪一点视觉上才居中。
+                Text("^^").font(KeyStyle.nineKeyFont).tracking(1).offset(y: 7)
+            }
         case .emoji:
             Image(systemName: "face.smiling").font(KeyStyle.iconFont)
         case .pickPinyin:
             Text("选拼音").font(KeyStyle.functionFont)
                 .opacity(model.isComposing ? 1 : 0.35)
         case .layer(let target):
-            Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.functionFont)
+            if model.showsNineKey && model.layer == .letters {
+                Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.nineKeyFont).tracking(1)
+            } else {
+                Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.functionFont)
+            }
         }
     }
 
@@ -153,21 +166,11 @@ struct KeyCapView: View {
     }
 }
 
-/// 九宫格第一格的「，。?!」：四个标点各占等宽的一格，按模拟器实测微调位置，让间距均匀、整体居中。
+/// 九宫格第一格的标点，照原生写成「,｡?!」：逗号半角，句号用半角圈，字距 1pt。
+/// 全角「，。」的字形偏在左下角，排在一起会显得散。
 struct PunctuationLabel: View {
-    private static let marks: [(String, CGFloat)] = [("，", 1), ("。", -0.2), ("?", 0), ("!", 0)]
-
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Self.marks, id: \.0) { mark, shift in
-                Text(mark)
-                    .font(KeyStyle.functionFont)
-                    .fixedSize()
-                    .offset(x: shift)
-                    .frame(width: 11)
-            }
-        }
-        .offset(y: -1.5)
+        Text(",｡?!").font(KeyStyle.nineKeyFont).tracking(1)
     }
 }
 

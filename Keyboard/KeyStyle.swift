@@ -1,3 +1,4 @@
+import CoreText
 import SwiftUI
 import UIKit
 
@@ -53,9 +54,28 @@ enum KeyStyle {
 
     static let letterFont = Font.system(size: 24)
     static let symbolFont = Font.system(size: 22)
-    static let nineKeyFont = Font.system(size: 15.5)
+    /// 九宫格的字母键、标点键、123、#@¥、^^：16pt，字距 1pt。
+    static let nineKeyFont = Font.system(size: 16)
     static let functionFont = Font.system(size: 17)
     static let iconFont = Font.system(size: 19, weight: .regular)
+
+    /// 数字和符号层里的全角标点，键帽上画成半角字形（上屏的仍是全角字符），排出来不散。
+    private static let halfWidthCaps: [String: String] = [
+        "。": "｡", "，": ",", "、": "､", "（": "(", "）": ")", "：": ":", "；": ";", "？": "?", "！": "!",
+    ]
+
+    static func capText(_ symbol: String) -> String { halfWidthCaps[symbol] ?? symbol }
+
+    /// 《》用字体的 halt 特性收窄成半宽，其余照常。
+    static func capFont(for symbol: String) -> Font {
+        guard symbol == "《" || symbol == "》" else { return symbolFont }
+        let base = UIFont.systemFont(ofSize: 22)
+        let descriptor = base.fontDescriptor.addingAttributes([
+            .featureSettings: [[UIFontDescriptor.FeatureKey.type: kTextSpacingType,
+                                UIFontDescriptor.FeatureKey.selector: kAltHalfWidthTextSelector]],
+        ])
+        return Font(UIFont(descriptor: descriptor, size: 22))
+    }
 }
 
 /// 品牌色：紫色主色、渐变、菜单和要求框的淡紫底。
