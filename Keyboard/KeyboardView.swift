@@ -394,9 +394,10 @@ struct RequestField: View {
                     (Text(editing ? "|" : "").foregroundColor(.white)
                         + Text("写要求，比如：语气委婉一点").foregroundColor(Color.white.opacity(0.78)))
                 } else {
-                    (Text(text)
-                        + Text(editing ? model.composition : "").underline()
-                        + Text(editing ? "|" : ""))
+                    // 每段都写明白色：拼到一半的拼音不写的话会显示成强调色，在紫底上看不清。
+                    (Text(text).foregroundColor(.white)
+                        + Text(editing ? model.composition : "").underline(color: .white).foregroundColor(.white)
+                        + Text(editing ? "|" : "").foregroundColor(.white))
                 }
             }
             .lineLimit(1)
