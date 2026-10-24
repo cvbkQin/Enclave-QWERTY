@@ -82,10 +82,22 @@ private struct StyleEditor: View {
     @Binding var settings: EnclaveSettings
     @Environment(\.dismiss) private var dismiss
 
+    private var builtIn: StylePreset? { StyleSuggestions.builtIn(style) }
+
     var body: some View {
         Form {
             Section {
-                TextField("名称", text: $style.name)
+                HStack {
+                    TextField("名称", text: $style.name)
+                    if settings.selectedStyle?.id == style.id {
+                        Text("默认")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.accentColor.opacity(0.14)))
+                    }
+                }
             } header: {
                 Text("名称")
             } footer: {
@@ -93,13 +105,39 @@ private struct StyleEditor: View {
             }
             Section {
                 TextEditor(text: $style.prompt)
-                    .frame(minHeight: 160)
+                    .frame(minHeight: 120)
+                    .overlay(alignment: .topLeading) {
+                        if style.prompt.isEmpty {
+                            Text("比如：场景是回复客户，语气耐心")
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 8)
+                                .padding(.leading, 5)
+                                .allowsHitTesting(false)
+                        }
+                    }
             } header: {
                 Text("提示词")
             } footer: {
-                Text("描述场景和语气，例如「场景是微信聊天，语气轻松，句子简短」。会加到每次请求的系统提示里。")
+                Text("描述场景和语气，会加到每次请求的系统提示里。")
             }
             Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("建议", systemImage: "sparkle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppColor.deepPurple)
+                    SuggestionChips(tags: StyleSuggestions.tags(for: style), prompt: $style.prompt)
+                    Text(builtIn == nil ? "点一下加进提示词，再点一下拿掉。自定义风格显示通用建议。" : "点一下加进提示词，再点一下拿掉。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                .listRowBackground(Color.clear)
+            }
+            Section {
+                if let builtIn {
+                    Button("恢复这个风格的默认提示词") { style.prompt = builtIn.prompt }
+                        .disabled(style.prompt == builtIn.prompt)
+                }
                 Button("设为默认风格") { settings.selectedStyleID = style.id }
                     .disabled(settings.selectedStyle?.id == style.id)
                 Button("删除这个风格", role: .destructive) {

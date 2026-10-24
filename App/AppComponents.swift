@@ -7,6 +7,15 @@ enum AppColor {
     static let violet = Color(red: 0x7C / 255, green: 0x3A / 255, blue: 0xED / 255)
     static let gold = Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255)
     static let softFill = purple.opacity(0.12)
+    /// 建议标签：字 #4A3BD6；未选白底 #DCD6FB 细圈，选中 #ECEAFD 底 #8B7CF6 细圈。
+    static let deepPurple = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
+        : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
+    static let chipRing = Color(red: 0xDC / 255, green: 0xD6 / 255, blue: 0xFB / 255)
+    static let chipSelectedRing = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
+    static let chipSelectedFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)
+        : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
     static let heroGradient = LinearGradient(colors: [Color(red: 0x4F / 255, green: 0x46 / 255, blue: 0xE5 / 255), violet],
                                              startPoint: .topLeading, endPoint: .bottomTrailing)
 }
