@@ -12,9 +12,9 @@ final class KeyboardModel: ObservableObject {
     /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
     @Published private(set) var copied = false
     /// 结果卡片展开到五行。
-    @Published var cardExpanded = false
+    @Published var cardExpanded = false { didSet { heightMayChange?() } }
     /// 「正式▾」浮层：风格和要求。
-    @Published var styleMenuOpen = false
+    @Published var styleMenuOpen = false { didSet { heightMayChange?() } }
     /// 当前结果已经替换或插入过：卡片变灰，按钮显示「✓ 已替换」。
     @Published private(set) var resultUse: ResultUse?
     /// 输入框又改过，当前结果和输入对不上：卡片同样变灰。
@@ -31,7 +31,7 @@ final class KeyboardModel: ObservableObject {
     @Published var layer: KeyLayer = .letters
     @Published var shift: ShiftState = .off
     @Published var chineseMode = true
-    @Published var aiExpanded = false
+    @Published var aiExpanded = false { didSet { heightMayChange?() } }
     @Published var composition = ""
     @Published var candidates: [String] = []
     var engine: InputEngine = DirectEngine()
@@ -87,6 +87,9 @@ final class KeyboardModel: ObservableObject {
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
     var cardTall: Bool { cardExpanded || aiBlocked }
+
+    /// 控制器在这里同步改高度，和 SwiftUI 的新布局落在同一帧。
+    var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
         KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen)
