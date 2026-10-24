@@ -609,14 +609,15 @@ final class KeyboardModel: ObservableObject {
 
     func insertInInstruction(_ text: String) {
         let split = instruction.index(instruction.startIndex, offsetBy: instructionCaret)
-        storeInstruction(instruction[..<split] + text + instruction[split...], caret: instructionCaret + text.count)
+        storeInstruction(String(instruction[..<split]) + text + String(instruction[split...]),
+                         caret: instructionCaret + text.count)
     }
 
     func deleteInInstruction() {
         guard instructionCaret > 0 else { return }
         let end = instruction.index(instruction.startIndex, offsetBy: instructionCaret)
         let start = instruction.index(before: end)
-        storeInstruction(String(instruction[..<start] + instruction[end...]), caret: instructionCaret - 1)
+        storeInstruction(String(instruction[..<start]) + String(instruction[end...]), caret: instructionCaret - 1)
     }
 
     func moveInstructionCaret(by offset: Int) {
