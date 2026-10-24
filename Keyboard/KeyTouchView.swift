@@ -19,11 +19,15 @@ final class KeyTouchView: UIView {
         var slidFromLayer = false
         /// 长按弹出了备选条，松手时打出选中的那个。
         var alternates = false
+        /// 按下的位置，九宫格按住直接往外划用。
+        var start: CGPoint = .zero
 
         init(key: KeySpec) { self.key = key }
     }
 
     private var tracking: [UITouch: Tracking] = [:]
+    /// 九宫格按住划出多远算方向划。
+    private static let flickDistance: CGFloat = 16
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -64,6 +68,7 @@ final class KeyTouchView: UIView {
                 model.keyReleased(other.key.id)
             }
             let state = Tracking(key: key)
+            state.start = touch.location(in: self)
             tracking[touch] = state
             model.keyPressed(key)
 
@@ -100,6 +105,16 @@ final class KeyTouchView: UIView {
             guard let state = tracking[touch] else { continue }
             let point = touch.location(in: self)
             if state.alternates {
+                model.moveAlternates(to: point)
+                continue
+            }
+            // 九宫格和原生一样：按住直接往上下左右划，不用等长按，十字马上出来并选中那个方向。
+            if !state.fired, case .nine(let digit) = state.key.kind, !(digit == "'" && model.isComposing),
+               hypot(point.x - state.start.x, point.y - state.start.y) > Self.flickDistance,
+               model.showAlternates(for: state.key, containerWidth: bounds.width) {
+                state.timer?.invalidate()
+                state.alternates = true
+                state.fired = true
                 model.moveAlternates(to: point)
                 continue
             }
