@@ -332,7 +332,10 @@ extension KeyboardModel {
     /// 中文模式用拼音引擎，英文模式或词库不可用时字母直接上屏。
     func selectEngine() {
         engine.reset()
-        pinyinReady = hasFullAccess && RimeEngine.shared.prepare(schema: RimeStore.schema(for: activeLayout))
+        pinyinReady = RimeEngine.shared.prepare(schema: RimeStore.schema(for: activeLayout), useShared: hasFullAccess)
+        #if DEBUG
+        KeyboardProbe.run(fullAccess: hasFullAccess, pinyinReady: pinyinReady, source: RimeEngine.shared.source)
+        #endif
         engine = chineseMode && pinyinReady ? RimeEngine.shared : DirectEngine()
         syncEngine()
     }

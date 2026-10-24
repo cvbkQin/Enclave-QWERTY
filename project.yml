@@ -86,6 +86,11 @@ targets:
     sources:
       - Keyboard
       - Shared
+      # 不开完全访问时用的自带词库（编译好的），由 scripts/prebuild-rime.sh 生成。
+      - path: Vendor/RimeBuild
+        type: folder
+        buildPhase: resources
+        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave.keyboard
