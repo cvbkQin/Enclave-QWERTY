@@ -29,8 +29,9 @@ struct SettingsView: View {
                     }
                     Toggle("按键震动", isOn: $settings.keyHaptics)
                     Toggle("按键声音", isOn: $settings.keySound)
+                    Toggle("润色时的发光动画", isOn: $settings.polishAnimation)
                 } footer: {
-                    Text("九宫格只用于中文；切到英文时自动用全键盘。键盘上点风格菜单也能切换布局。按键声音在手机静音时不响。")
+                    Text("九宫格只用于中文；切到英文时自动用全键盘。按键声音在手机静音时不响。系统开了「减弱动态效果」时发光动画自动关闭。")
                 }
                 apiSection
                 testSection

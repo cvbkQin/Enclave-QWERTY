@@ -67,7 +67,7 @@ struct KeyCapView: View {
 
     /// iOS 26 键盘：所有键同色，按下变灰；带气泡的键按下时键帽不变色，气泡代替反馈。
     private func fill(pressed: Bool) -> Color {
-        if highlighted { return Color.accentColor.opacity(pressed ? 0.75 : 1) }
+        if highlighted { return Brand.purple.opacity(pressed ? 0.75 : 1) }
         let showsPopup = key.kind.typesCharacter && !(model.showsNineKey && model.layer == .letters)
         return pressed && !showsPopup ? KeyStyle.pressedKey : KeyStyle.charKey
     }

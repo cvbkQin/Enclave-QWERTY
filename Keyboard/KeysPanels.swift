@@ -166,7 +166,7 @@ struct AlternatesView: View {
                     .foregroundStyle(index == popup.selected ? Color.white : Color.primary)
                     .frame(width: AlternatesPopup.cellWidth, height: AlternatesPopup.height - 8)
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(index == popup.selected ? Color.accentColor : Color.clear))
+                        .fill(index == popup.selected ? Brand.purple : Color.clear))
             }
         }
         .frame(width: frame.width, height: frame.height)
