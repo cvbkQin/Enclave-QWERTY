@@ -131,15 +131,14 @@ struct PanelToggleButton: View {
     }
 }
 
-/// 「✨ 润色」：收起和展开都是这一个按钮，尺寸不变。展开时生成中原位变「停止」；
-/// 收起时（快速模式）文字不变，动画只在按钮里：流光描边、白色扫光、星星闪、小闪光，完成时星星闪一下金色。
+/// 「✨ 润色」：收起和展开都是这一个按钮，尺寸、文字和颜色一直不变；生成中再点一下就取消。
+/// 收起时（快速模式）动画只在按钮里：流光描边、白色扫光、星星闪、小闪光，完成时星星闪一下金色。
 struct PolishButton: View {
     @ObservedObject var model: KeyboardModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var doneAt: Date?
 
     private var quickRunning: Bool { model.isRunning && model.quickStatus == .running && !model.aiExpanded }
-    private var showsStop: Bool { model.isRunning && !quickRunning }
     /// 关了发光动画或开了减弱动态效果：只留星星轻微闪动。
     private var fullMotion: Bool { model.settings.polishAnimation && !reduceMotion }
 
@@ -149,13 +148,8 @@ struct PolishButton: View {
             model.isRunning ? model.stop() : model.sparkleTapped()
         } label: {
             HStack(spacing: 5) {
-                if showsStop {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 9, height: 9)
-                    Text("停止")
-                } else {
-                    PolishStars(size: 15, running: quickRunning, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
-                    Text("润色")
-                }
+                PolishStars(size: 15, running: quickRunning, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
+                Text("润色")
             }
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(.white)
@@ -168,13 +162,13 @@ struct PolishButton: View {
             }
         }
         .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(model.isRunning ? "正在润色，轻点取消" : "润色")
         .onChange(of: model.quickStatus) { status in
             doneAt = status == .done ? Date() : nil
         }
     }
 
     private var fill: Color {
-        if showsStop { return Color(white: 0.16) }
         return model.aiBlocked && !model.isRunning ? Brand.purple.opacity(0.35) : Brand.purple
     }
 }
@@ -440,7 +434,7 @@ struct StyleMenu: View {
     }
 }
 
-/// 浮层里的「再润」：和「润色」同款实心胶囊，换成紫到粉的渐变区分开；按选好的风格和要求开始改，生成中原位变深灰「停止」。
+/// 浮层里的「再润」：和「润色」同款实心胶囊，换成紫到粉的渐变区分开；按选好的风格和要求开始改，生成中样子不变，再点一下取消。
 /// 面板收起时直接替换输入框，展开时进结果卡片。
 struct MenuPolishButton: View {
     @ObservedObject var model: KeyboardModel
@@ -450,27 +444,17 @@ struct MenuPolishButton: View {
             model.isRunning ? model.stop() : model.menuPolishTapped()
         } label: {
             HStack(spacing: 4) {
-                if model.isRunning {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 8, height: 8)
-                    Text("停止")
-                } else {
-                    SparkleMark(size: 13, color: .white)
-                    Text("再润")
-                }
+                SparkleMark(size: 13, color: .white)
+                Text("再润")
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color.white)
             .frame(width: 72, height: 30)
-            .background {
-                if model.isRunning {
-                    Capsule().fill(Brand.stopFill)
-                } else {
-                    Capsule().fill(Brand.rerunGradient)
-                }
-            }
+            .background(Capsule().fill(Brand.rerunGradient))
             .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
         }
         .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(model.isRunning ? "正在润色，轻点取消" : "再润")
     }
 }
 

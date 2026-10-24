@@ -107,8 +107,6 @@ enum Brand {
     static let deepPurple = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
         : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
-    /// 生成中「停止」的底色 #3A3A3C。
-    static let stopFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
     /// 「正式▾」按钮打开时的底色 #F4F2FF。
     static let menuFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.17, green: 0.16, blue: 0.27, alpha: 1)
