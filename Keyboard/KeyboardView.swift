@@ -773,8 +773,8 @@ struct RequestField: View {
     @State private var lastTyped = Date()
     /// 文字区在框里的位置，点按和长按拖动时换算成第几个字。
     @State private var textFrame = CGRect.zero
-    /// 长按拖动时上一次移动光标的位置。
-    @State private var dragX: CGFloat?
+    /// 这次按下的时间；按住超过 0.3 秒就进入拖动光标，否则松手算点一下。
+    @State private var pressStart: Date?
 
     private static let font = UIFont.systemFont(ofSize: 14)
 
@@ -842,39 +842,33 @@ struct RequestField: View {
         .animation(.easeOut(duration: 0.15), value: editing)
         .contentShape(Rectangle())
         .coordinateSpace(name: "requestField")
-        .gesture(caretDrag.exclusively(before: SpatialTapGesture(coordinateSpace: .named("requestField")).onEnded { tap in
-            // 激活且有字时点一下把光标放到点的位置；其他时候点一下切换激活。
-            if model.target == .instruction, !model.instruction.isEmpty, !model.isComposing {
-                placeCaret(atX: tap.location.x)
-            } else {
-                model.toggleInstructionEditing()
-            }
-        }))
+        .gesture(press)
         .onChange(of: model.instruction) { _ in lastTyped = Date() }
         .onChange(of: model.composition) { _ in lastTyped = Date() }
         .onChange(of: editing) { _ in lastTyped = Date() }
     }
 
-    /// 长按后左右拖动：每 9pt 移一个字，和按住空格移动光标一样。没激活时长按会先激活。
-    private var caretDrag: some Gesture {
-        LongPressGesture(minimumDuration: 0.3)
-            .sequenced(before: DragGesture(minimumDistance: 0))
+    /// 点一下：激活且有字时把光标放到点的位置，其他时候切换激活。
+    /// 按住 0.3 秒后拖动：光标跟着手指走（没激活时先激活）。用一个手势自己计时，点按和长按不会互相吃掉。
+    private var press: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named("requestField"))
             .onChanged { value in
-                guard case .second(true, let drag?) = value else { return }
+                let start = pressStart ?? Date()
+                if pressStart == nil { pressStart = start }
+                guard Date().timeIntervalSince(start) > 0.3 else { return }
                 if model.target != .instruction { model.toggleInstructionEditing() }
-                let x = drag.location.x
-                guard let last = dragX else {
-                    dragX = x
-                    return
-                }
-                let steps = Int((x - last) / 9)
-                if steps != 0 {
-                    model.moveInstructionCaret(by: steps)
-                    dragX = last + CGFloat(steps) * 9
-                    lastTyped = Date()
+                if !model.isComposing { placeCaret(atX: value.location.x) }
+            }
+            .onEnded { value in
+                let held = Date().timeIntervalSince(pressStart ?? Date()) > 0.3
+                pressStart = nil
+                if model.target == .instruction, !model.instruction.isEmpty, !model.isComposing {
+                    placeCaret(atX: value.location.x)
+                } else if !(held && model.target == .instruction) {
+                    // 长按已经激活了就不再切回去。
+                    model.toggleInstructionEditing()
                 }
             }
-            .onEnded { _ in dragX = nil }
     }
 
     /// 文字、拼音、光标排成一行；光标透明度为 nil 时不画。没写字时光标在占位字前面。
@@ -900,7 +894,8 @@ struct RequestField: View {
         let split = text.index(text.startIndex, offsetBy: caret)
         var before = Substring(text[..<split])
         let after = String(text[split...])
-        let room = textFrame.width - 4 - Self.width(composing)
+        // 后面还要留出尾部截断的「…」和一个字的位置，不然光标会被截进尾部的「…」里。
+        let room = textFrame.width - 2 - Self.width(composing) - Self.width("…") - (after.isEmpty ? 0 : Self.width("字")) - 6
         guard room > 0, Self.width(String(before)) > room else { return (String(before), after, 0) }
         var dropped = 0
         while !before.isEmpty, Self.width("…" + before) > room {
