@@ -1,0 +1,48 @@
+# Rime schema
+# encoding: utf-8
+# 全键盘拼音。
+schema:
+  schema_id: enclave
+  name: Enclave 拼音
+  version: "1"
+  dependencies:
+    - enclave_en
+
+switches:
+  - name: ascii_mode
+    reset: 0
+
+engine:
+  processors:
+    - speller
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - abc_segmentor
+    - fallback_segmentor
+  translators:
+    - script_translator
+    - table_translator@english
+  filters:
+    - uniquifier
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba
+  delimiter: " '"
+  algebra:
+    __include: enclave_algebra:/pinyin
+
+translator:
+  dictionary: enclave
+  enable_user_dict: true
+  preedit_format:
+    - xform/([jqxy])v/$1u/
+
+# 中英混输：拼音打不出词时，同样的字母也能出英文单词。
+english:
+  dictionary: enclave_en
+  enable_completion: false
+  enable_sentence: false
+  enable_user_dict: false
+  initial_quality: 0

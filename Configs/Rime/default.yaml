@@ -1,0 +1,9 @@
+# Enclave 键盘的 Rime 全局设置。键盘只把字母、数字和分词符交给引擎，标点和上屏都由键盘自己处理。
+config_version: "1"
+
+schema_list:
+  - schema: enclave
+  - schema: enclave_t9
+
+menu:
+  page_size: 9

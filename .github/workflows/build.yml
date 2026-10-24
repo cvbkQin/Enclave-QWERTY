@@ -21,7 +21,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: Vendor
-          key: vendor-${{ hashFiles('scripts/fetch-rime.sh') }}
+          key: vendor-${{ hashFiles('scripts/fetch-rime.sh', 'scripts/build-dict.py', 'Configs/Rime/**') }}
       - name: Fetch Rime engine and dictionary
         run: bash scripts/fetch-rime.sh
       - name: Generate project

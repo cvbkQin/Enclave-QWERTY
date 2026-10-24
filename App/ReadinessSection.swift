@@ -83,7 +83,7 @@ struct ReadinessSection: View {
         switch deployer.state {
         case .deploying: return "正在部署…"
         case .failed: return "部署失败"
-        default: return deployer.needsDeploy ? "未部署" : "雾凇拼音 · 已就绪"
+        default: return deployer.needsDeploy ? "未部署" : "拼音词库 · 已就绪"
         }
     }
 }

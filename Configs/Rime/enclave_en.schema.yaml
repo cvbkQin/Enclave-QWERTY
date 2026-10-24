@@ -1,0 +1,24 @@
+# Rime schema
+# encoding: utf-8
+# 英文单词表，挂在拼音方案里做中英混输；单独存在是为了让部署时编译这份词库。
+schema:
+  schema_id: enclave_en
+  name: Enclave 英文
+  version: "1"
+
+engine:
+  processors:
+    - speller
+    - selector
+    - express_editor
+  segmentors:
+    - abc_segmentor
+  translators:
+    - table_translator
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba
+
+translator:
+  dictionary: enclave_en
+  enable_sentence: false

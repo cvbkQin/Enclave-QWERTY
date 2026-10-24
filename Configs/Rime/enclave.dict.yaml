@@ -1,0 +1,17 @@
+# Rime dictionary
+# encoding: utf-8
+# 中文词库。数据来自万象拼音 https://github.com/amzxyz/rime_wanxiang （CC BY 4.0），
+# 由 scripts/build-dict.py 去掉声调后放进 cn_dicts/。
+---
+name: enclave
+version: "1"
+sort: by_weight
+use_preset_vocabulary: false
+import_tables:
+  - cn_dicts/zi
+  - cn_dicts/jichu
+  - cn_dicts/duoyin
+  - cn_dicts/diming
+  - cn_dicts/mingren
+  - cn_dicts/yiren
+...

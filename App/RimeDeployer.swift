@@ -95,7 +95,7 @@ struct PinyinSection: View {
     var body: some View {
         Section {
             HStack {
-                Text("雾凇拼音")
+                Text("万象拼音词库")
                 Spacer()
                 status
             }
@@ -104,7 +104,7 @@ struct PinyinSection: View {
         } header: {
             Text("拼音词库")
         } footer: {
-            Text("词库在本机编译，第一次打开 App 时自动部署，大约需要一分钟，期间不要退出 App。键盘需要打开「允许完全访问」才能读到词库。")
+            Text("词库在本机编译，第一次打开 App 时自动部署，大约需要一分钟，期间不要退出 App。键盘需要打开「允许完全访问」才能读到词库。词库数据来自万象拼音（CC BY 4.0）。")
         }
     }
 

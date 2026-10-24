@@ -1,6 +1,6 @@
 import Foundation
 
-/// RIME 拼音引擎（雾凇拼音）。词库由主 App 部署到共享目录，这里只加载。
+/// RIME 拼音引擎（词库来自万象拼音）。词库由主 App 部署到共享目录，这里只加载。
 final class RimeEngine: InputEngine {
     static let shared = RimeEngine()
 

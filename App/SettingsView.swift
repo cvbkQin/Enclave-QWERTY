@@ -41,6 +41,9 @@ struct SettingsView: View {
                 PinyinSection()
                 syncSection
                 SetupGuideSection()
+                Section {
+                    NavigationLink("开源许可") { LicensesView() }
+                }
             }
             .navigationTitle("Enclave")
             .navigationDestination(isPresented: $router.showPlayground) {
