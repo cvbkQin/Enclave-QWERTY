@@ -98,8 +98,10 @@ struct KeyCapView: View {
         case .symbol(let symbol):
             if model.layer == .digits {
                 Text(symbol).font(.system(size: 24))
-            } else if let drop = KeyStyle.centeredGlyphCaps[symbol] {
-                CenteredGlyph(symbol, size: 20, drop: drop)
+            } else if let mark = ChinesePunctMark.Kind(rawValue: symbol) {
+                ChinesePunctMark(kind: mark)
+            } else if KeyStyle.centeredGlyphCaps.contains(symbol) {
+                CenteredGlyph(symbol, size: 20)
             } else {
                 Text(KeyStyle.capText(symbol)).font(KeyStyle.capFont(for: symbol))
             }
@@ -263,6 +265,41 @@ struct SymbolsKeyLabel: View {
             Text("@").font(.system(size: 14.5)).offset(y: -1).frame(width: 13)
             Text("¥").font(KeyStyle.nineKeyFont).frame(width: 13)
         }
+    }
+}
+
+/// 中文符号页的 ，。、 照设计稿 cn-comma / cn-period / cn-dun.svg 画在 24×24 的框里，放在键正中。
+/// 三个符号上下对齐，底端落在同一行 ?! . 的底线上（键中心往下约 7pt）。颜色跟着前景色。
+struct ChinesePunctMark: View {
+    enum Kind: String { case comma = "，", period = "。", dun = "、" }
+    let kind: Kind
+
+    var body: some View {
+        Canvas { context, _ in
+            let round = StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
+            switch kind {
+            case .period:
+                context.stroke(Path(ellipseIn: CGRect(x: 12 - 1.62, y: 17.05 - 1.62, width: 3.24, height: 3.24)),
+                               with: .foreground, lineWidth: 1.15)
+            case .comma:
+                context.fill(Path(ellipseIn: CGRect(x: 11.55 - 1.3, y: 16.15 - 1.3, width: 2.6, height: 2.6)), with: .foreground)
+                var tail = Path()
+                tail.move(to: CGPoint(x: 12.8, y: 16.3))
+                tail.addCurve(to: CGPoint(x: 11.05, y: 19.05),
+                              control1: CGPoint(x: 12.9, y: 17.55), control2: CGPoint(x: 12.35, y: 18.45))
+                context.stroke(tail, with: .foreground, style: round)
+            case .dun:
+                var stroke = Path()
+                stroke.move(to: CGPoint(x: 10.95, y: 15.6))
+                stroke.addCurve(to: CGPoint(x: 13.05, y: 18.5),
+                                control1: CGPoint(x: 11.85, y: 16.2), control2: CGPoint(x: 12.55, y: 17.1))
+                var style = round
+                style.lineWidth = 1.5
+                context.stroke(stroke, with: .foreground, style: style)
+            }
+        }
+        .frame(width: 24, height: 24)
+        .accessibilityLabel(kind.rawValue)
     }
 }
 

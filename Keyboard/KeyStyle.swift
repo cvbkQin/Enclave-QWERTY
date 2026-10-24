@@ -88,8 +88,8 @@ enum KeyStyle {
         "（": "(", "）": ")", "？": "?", "！": "!",
     ]
 
-    /// 键帽上画成居中全角字形的中文标点，值是额外往下偏的点数：，。、保留「跟在字后面」的感觉。
-    static let centeredGlyphCaps: [String: CGFloat] = ["，": 1.5, "。": 1.5, "、": 1.5, "：": 0, "；": 0]
+    /// 键帽上画成居中全角字形的中文标点（，。、用 ChinesePunctMark 的矢量图）。
+    static let centeredGlyphCaps: Set<String> = ["：", "；"]
 
     static func capText(_ symbol: String) -> String { halfWidthCaps[symbol] ?? symbol }
 
