@@ -126,8 +126,9 @@ enum KeyLayout {
             add("emoji", .emoji, x: x, row: 3, width: side)
             x += side
         }
-        add("chinese", .toggleChinese, x: x, row: 3, width: side)
-        x += side
+        let toggle = KeyboardMetrics.toggleKeyWidth + KeyboardMetrics.keyInsetX * 2
+        add("chinese", .toggleChinese, x: x, row: 3, width: toggle)
+        x += toggle
         let returnWidth = unit * 2.5
         add("space", .space, x: x, row: 3, width: size.width - returnWidth - x)
         add("return", .returnKey, x: size.width - returnWidth, row: 3, width: returnWidth)

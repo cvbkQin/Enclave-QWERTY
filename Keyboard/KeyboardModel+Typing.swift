@@ -115,6 +115,19 @@ extension KeyboardModel {
 
     func keyReleased(_ id: String) {
         pressedKeys.remove(id)
+        // 自己打的字系统不一定发 textDidChange，松手时顺便更新发送键。
+        refreshHostState()
+    }
+
+    func refreshHostState() {
+        let hasText = proxy?.hasText ?? false
+        var returnKey = proxy?.returnKeyType ?? .default
+        #if DEBUG
+        // 截图用：-keyboardDebug send 假装对方是发送键。
+        if KeyboardDebug.options.contains("send") { returnKey = .send }
+        #endif
+        if hasText != hostHasText { hostHasText = hasText }
+        if returnKey != hostReturnKey { hostReturnKey = returnKey }
     }
 
     /// 按下时的震动和声音，声音和系统键盘一样分字符、删除、功能键三种。
@@ -408,21 +421,44 @@ extension KeyboardModel {
 // MARK: - 按键上的字
 
 extension KeyboardModel {
-    /// nil 表示空格键不写字（和 iOS 26 一样只在角落标语言）。九宫格的空格键照系统写「空格」。
-    var spaceTitle: String? {
+    /// 空格键：中文写「空格」，英文写「space」，打拼音时是「选定」。
+    var spaceTitle: String {
         if isComposing { return "选定" }
         // 词库没部署或没开完全访问时，中文模式也只能直接打字母。
         if chineseMode && !pinyinReady { return "空格（拼音未就绪）" }
-        return showsNineKey ? "空格" : nil
+        return chineseMode ? "空格" : "space"
     }
 
-    /// nil 表示画系统的换行图标。
-    var returnTitle: String? {
-        if isComposing { return "确认" }
-        return target == .instruction ? "执行" : nil
+    /// 回车键的样子：换行和确认是浅紫底紫字；「执行」实心紫；发送类按输入框有没有字在浅紫和实心紫之间切。
+    struct ReturnLook: Equatable {
+        /// nil 画换行图标。
+        var title: String?
+        var solid: Bool
+        var bold = false
     }
 
-    var returnHighlighted: Bool { target == .instruction && !isComposing }
+    var returnLook: ReturnLook {
+        if isComposing { return ReturnLook(title: "确认", solid: false) }
+        if target == .instruction { return ReturnLook(title: "执行", solid: true) }
+        if let title = sendTitle { return ReturnLook(title: title, solid: hostHasText, bold: true) }
+        return ReturnLook(title: nil, solid: false)
+    }
+
+    /// 对方输入框的回车键是发送、搜索、前往这一类时的文字。
+    private var sendTitle: String? {
+        let titles: (String, String)
+        switch hostReturnKey {
+        case .send: titles = ("发送", "send")
+        case .search, .google, .yahoo: titles = ("搜索", "search")
+        case .go, .route: titles = ("前往", "go")
+        case .join: titles = ("加入", "join")
+        case .done: titles = ("完成", "done")
+        case .next: titles = ("下一项", "next")
+        case .continue: titles = ("继续", "continue")
+        default: return nil
+        }
+        return chineseMode ? titles.0 : titles.1
+    }
 }
 
 // MARK: - 模拟器截图用的调试状态

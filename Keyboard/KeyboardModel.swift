@@ -50,6 +50,9 @@ final class KeyboardModel: ObservableObject {
     @Published var alternates: AlternatesPopup?
     /// 九宫格长按的十字弹层。
     @Published var cross: CrossPopup?
+    /// 对方输入框有没有字、回车键是什么类型，决定发送键的颜色和文字。
+    @Published var hostHasText = false
+    @Published var hostReturnKey: UIReturnKeyType = .default
     /// 输入框里是否有带下划线的拼音（marked text）。
     var hasMarkedText = false
     var lastSpaceTime = Date.distantPast
@@ -93,6 +96,7 @@ final class KeyboardModel: ObservableObject {
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         hasFullAccess = controller?.hasFullAccess ?? false
         if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
+        refreshHostState()
         selectEngine()
     }
 
@@ -268,6 +272,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 输入框的文字变了（系统通知）：和当前结果对不上就把卡片变灰。
     func fieldDidChange() {
+        refreshHostState()
         guard let session, session.current != nil, !isRunning else { return }
         let stale = !session.belongs(to: CommandParser.parse(readField().text).content)
         if stale != resultStale { resultStale = stale }

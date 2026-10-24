@@ -9,6 +9,10 @@ enum KeyboardMetrics {
     static let keyInsetX: CGFloat = 3.1
     static let keyInsetY: CGFloat = 5.5
     static let keysHeight: CGFloat = slotHeight * 4
+    /// 全键盘底行「中/英」键宽 42pt，字 14pt；九宫格的「中/英」16pt。
+    static let toggleKeyWidth: CGFloat = 42
+    static let toggleFontSize: CGFloat = 14
+    static let nineToggleFontSize: CGFloat = 16
     /// 全键盘 Shift、删除键画出来的宽度（触摸范围仍是 1.5 格）。
     static let shiftKeyWidth: CGFloat = 45
     /// 九宫格对齐原生：键高 46、行距 7（每行 53），列距 6、两边各 7，五列等宽。
@@ -122,6 +126,17 @@ enum Brand {
         ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)
         : UIColor(red: 0xE9 / 255, green: 0xE5 / 255, blue: 0xFD / 255, alpha: 1) })
     static let softFill = purple.opacity(0.14)
+    /// 换行、确认和空输入框时的发送键：浅紫底 #ECEAFD，字和图标用 deepPurple #4A3BD6。
+    static let returnSoftFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)
+        : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
+    /// 「中/英」键：当前语言那个字 #1C1C1E，另一个 #AEAEB2，斜杠 #C7C7CC。
+    static let toggleActive = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? .white : UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1) })
+    static let toggleInactive = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.55, alpha: 1) : UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1) })
+    static let toggleSlash = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.45, alpha: 1) : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) })
     /// 九宫格长按十字弹层中间那格 #E6E5EB。
     static let crossCenterFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.36, alpha: 1)
