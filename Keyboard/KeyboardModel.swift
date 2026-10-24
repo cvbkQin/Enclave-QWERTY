@@ -88,6 +88,7 @@ final class KeyboardModel: ObservableObject {
         session = SessionStore.load()
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         hasFullAccess = controller?.hasFullAccess ?? false
+        if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
         selectEngine()
     }
 
