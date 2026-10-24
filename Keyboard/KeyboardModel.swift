@@ -315,6 +315,19 @@ final class KeyboardModel: ObservableObject {
         quickStatus = status
         if status == .running { isRunning = true }
     }
+
+    /// 截图用：润色中 3 秒后完成，看完成时星星闪金（-keyboardDebug quick:cycle），每 5 秒重来一次。
+    func loadDebugQuickCycle() {
+        Task { [weak self] in
+            while let self {
+                self.loadDebugQuick(.running)
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                self.isRunning = false
+                self.quickStatus = .done
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
     #endif
 
     func showVersion(offset: Int) {

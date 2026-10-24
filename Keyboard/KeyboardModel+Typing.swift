@@ -520,6 +520,7 @@ extension KeyboardModel {
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
+            case "quick:cycle": loadDebugQuickCycle()
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "undo": loadDebugUndo()
