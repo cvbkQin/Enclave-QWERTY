@@ -108,6 +108,13 @@ enum KeyStyle {
 /// 品牌色：紫色主色、渐变、菜单和要求框的淡紫底。
 enum Brand {
     static let purple = Color(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255)
+    /// 紫色用作文字、图标、线条时：深色模式下 #5B4BE8 看不清，换成 #B4A9FF。实心按钮底色仍用 purple。
+    static let purpleText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)
+        : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
+    /// 深色模式下「选中」用浅灰底黑字（选中的风格、打开的「自动 ^」）：#F2F2F7 / #1C1C1E。
+    private static let darkSelectedFill = UIColor(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255, alpha: 1)
+    private static let darkSelectedText = UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1)
     /// 流光边框和新结果细边用的渐变：#4F46E5 → #7C3AED → #FDE68A → #A78BFA。
     static let gradient: [Color] = [
         Color(red: 0x4F / 255, green: 0x46 / 255, blue: 0xE5 / 255),
@@ -121,10 +128,15 @@ enum Brand {
     static let deepPurple = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
         : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
-    /// 「正式▾」按钮打开时的底色 #F4F2FF。
+    /// 「正式▾」按钮打开时的底色 #F4F2FF，深色 #F2F2F7。
     static let menuFill = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.17, green: 0.16, blue: 0.27, alpha: 1)
+        ? darkSelectedFill
         : UIColor(red: 0xF4 / 255, green: 0xF2 / 255, blue: 0xFF / 255, alpha: 1) })
+    /// 「正式▾」打开时的字和箭头：浅色紫，深色 #1C1C1E。描边只在浅色模式画。
+    static let menuText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? darkSelectedText : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
+    static let menuStroke = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? .clear : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
     /// 「正式▾」浮层（清爽紫）：纯白底，深色模式用系统深灰。
     static let panelFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x2C / 255, green: 0x2C / 255, blue: 0x2E / 255, alpha: 1) : .white })
@@ -155,19 +167,29 @@ enum Brand {
         ? UIColor(white: 0.25, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1) })
     /// 确认卡标题里的星星、隐私政策链接 #5B4BE8。
     static let tagSelectedText = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
+        ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)
         : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
     /// 没选中的风格标签、没激活的要求框 #F2F2F7。
     static let tagFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
         : UIColor(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255, alpha: 1) })
-    /// 选中的风格标签：#ECEAFD 底、#4A3BD6 字，1pt #D6D1FA 内描边。
+    /// 选中的风格标签：#ECEAFD 底、#4A3BD6 字，1pt #D6D1FA 内描边；深色 #F2F2F7 底、#1C1C1E 字，无描边。
+    static let tagSelectedFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? darkSelectedFill : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
+    static let tagSelectedLabel = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? darkSelectedText : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
     static let tagSelectedStroke = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.36, green: 0.32, blue: 0.58, alpha: 1)
-        : UIColor(red: 0xD6 / 255, green: 0xD1 / 255, blue: 0xFA / 255, alpha: 1) })
+        ? .clear : UIColor(red: 0xD6 / 255, green: 0xD1 / 255, blue: 0xFA / 255, alpha: 1) })
+    /// 没选中的风格标签文字：深色 #EBEBF5。
+    static let tagLabel = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xEB / 255, green: 0xEB / 255, blue: 0xF5 / 255, alpha: 1) : .label })
+    /// 要求框激活：浅色白底紫边紫光标，深色 #1C1C1E 底、#F2F2F7 边和光标。
+    static let fieldActiveFill = Color(UIColor { $0.userInterfaceStyle == .dark ? darkSelectedText : .white })
+    static let fieldActiveLine = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? darkSelectedFill : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
     /// 要求框里写了的字 #3A3A3C；占位字和没激活的铅笔 #8E8E93。
     static let fieldText = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(white: 0.9, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
+        ? darkSelectedFill : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
     static let fieldPlaceholder = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
     /// 要求框的清空按钮：#C7C7CC 圆、白叉。
     static let fieldClear = Color(UIColor { $0.userInterfaceStyle == .dark

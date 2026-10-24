@@ -96,7 +96,7 @@ struct KeyboardView: View {
                         Button { model.selectCandidate(index) } label: {
                             Text(word)
                                 .font(.system(size: 20))
-                                .foregroundStyle(index == 0 ? Brand.purple : Color.primary)
+                                .foregroundStyle(index == 0 ? Brand.purpleText : Color.primary)
                                 // 来自常用词：右上角一个 5pt 紫点。
                                 .overlay(alignment: .topTrailing) {
                                     if index == 0 && model.commonWordTexts.contains(word) {
@@ -379,9 +379,9 @@ struct StyleChip: View {
             .font(.system(size: 14, weight: highlighted ? .semibold : .regular))
             .padding(.horizontal, 12)
             .frame(height: KeyboardMetrics.chipHeight)
-            .foregroundStyle(highlighted ? Brand.purple : Color.primary)
+            .foregroundStyle(highlighted ? Brand.menuText : Color.primary)
             .background(Capsule().fill(highlighted ? Brand.menuFill : KeyStyle.charKey))
-            .overlay(Capsule().strokeBorder(Brand.purple, lineWidth: highlighted ? 1.2 : 0))
+            .overlay(Capsule().strokeBorder(Brand.menuStroke, lineWidth: highlighted ? 1.2 : 0))
             .opacity(locked ? 0.45 : 1)
         }
         .buttonStyle(KeyPressStyle())
@@ -750,10 +750,10 @@ struct MenuStyleTag: View {
                 .font(.system(size: 14, weight: selected ? .semibold : .regular))
                 .padding(.horizontal, 11)
                 .frame(height: 28)
-                .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
+                .foregroundStyle(selected ? Brand.tagSelectedLabel : Brand.tagLabel)
                 .background {
                     if selected {
-                        Capsule().fill(Brand.returnSoftFill)
+                        Capsule().fill(Brand.tagSelectedFill)
                         Capsule().strokeBorder(Brand.tagSelectedStroke, lineWidth: 1)
                     } else {
                         Capsule().fill(Brand.tagFill)
@@ -787,7 +787,7 @@ struct RequestField: View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         HStack(spacing: 5) {
             Image(systemName: "pencil").font(.system(size: 13, weight: .medium))
-                .foregroundStyle(editing || !text.isEmpty ? Brand.tagSelectedText : Brand.fieldPlaceholder)
+                .foregroundStyle(editing || !text.isEmpty ? Brand.purpleText : Brand.fieldPlaceholder)
             Group {
                 if editing {
                     TimelineView(.animation(minimumInterval: 1 / 30)) { context in
@@ -795,7 +795,7 @@ struct RequestField: View {
                         content(text: text, caretOpacity: opacity)
                             .overlay(alignment: .leading) {
                                 if text.isEmpty && model.composition.isEmpty {
-                                    Image(uiImage: Self.caret).foregroundStyle(Brand.purple.opacity(opacity))
+                                    Image(uiImage: Self.caret).foregroundStyle(Brand.fieldActiveLine.opacity(opacity))
                                         .offset(x: -2)
                                 }
                             }
@@ -824,8 +824,8 @@ struct RequestField: View {
         .frame(maxWidth: .infinity)
         .frame(height: 32)
         .background {
-            shape.fill(editing ? KeyStyle.charKey : Brand.tagFill)
-            shape.strokeBorder(editing ? Brand.purple : Brand.tagFill, lineWidth: 1.5)
+            shape.fill(editing ? Brand.fieldActiveFill : Brand.tagFill)
+            shape.strokeBorder(editing ? Brand.fieldActiveLine : Brand.tagFill, lineWidth: 1.5)
         }
         .animation(.easeOut(duration: 0.15), value: editing)
         .contentShape(Rectangle())
@@ -839,14 +839,14 @@ struct RequestField: View {
     private func content(text: String, caretOpacity: Double?) -> Text {
         let composing = model.target == .instruction ? model.composition : ""
         let caret = caretOpacity.map {
-            Text(Image(uiImage: Self.caret)).foregroundColor(Brand.purple.opacity($0)).baselineOffset(-3)
+            Text(Image(uiImage: Self.caret)).foregroundColor(Brand.fieldActiveLine.opacity($0)).baselineOffset(-3)
         } ?? Text("")
         if text.isEmpty && composing.isEmpty {
             // 光标叠在占位字左边，不占宽度，激活前后占位字不挪位置。
             return Text(placeholder).foregroundColor(Brand.fieldPlaceholder)
         }
         return Text(text).foregroundColor(Brand.fieldText)
-            + Text(composing).foregroundColor(.primary).underline(color: Brand.purple)
+            + Text(composing).foregroundColor(Brand.fieldText).underline(color: Brand.fieldActiveLine)
             + caret
     }
 
@@ -963,7 +963,7 @@ struct ResultCard: View {
 
     @ViewBuilder
     private func resultText(faded: Bool) -> some View {
-        let text = Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(Brand.purple)
+        let text = Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(Brand.purpleText)
         Group {
             if model.cardTall {
                 ScrollView {
@@ -1045,7 +1045,7 @@ struct ResultCard: View {
     private func iconColumn(faded: Bool) -> some View {
         VStack(spacing: 0) {
             if model.isRunning {
-                SparkleMark(size: 15, color: Brand.purple, animating: animating)
+                SparkleMark(size: 15, color: Brand.purpleText, animating: animating)
                     .frame(width: 24, height: 18)
                     .background(Capsule().fill(Brand.softFill))
             } else {
@@ -1059,7 +1059,7 @@ struct ResultCard: View {
                 .disabled(!model.hasResult)
             }
             Spacer(minLength: 0)
-            iconButton(model.copied ? "doc.on.doc.fill" : "doc.on.doc", tint: model.copied ? Brand.purple : .secondary) {
+            iconButton(model.copied ? "doc.on.doc.fill" : "doc.on.doc", tint: model.copied ? Brand.purpleText : .secondary) {
                 model.copy()
             }
             .disabled(!model.hasResult)
@@ -1133,7 +1133,7 @@ struct ResultCard: View {
             if animating {
                 FlowingBorder(shape: shape)
             } else {
-                shape.strokeBorder(Brand.purple.opacity(0.5), lineWidth: 1)
+                shape.strokeBorder(Brand.purpleText.opacity(0.5), lineWidth: 1)
             }
         case .fresh:
             shape.strokeBorder(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing),
@@ -1157,8 +1157,8 @@ struct ResultCard: View {
                 Text(notice).font(.system(size: 13)).foregroundStyle(Color.primary)
             } else {
                 HStack(spacing: 4) {
-                    SparkleMark(size: 11, color: Brand.purple)
-                    Text("点「润色」整理输入框里的话").font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purple)
+                    SparkleMark(size: 11, color: Brand.purpleText)
+                    Text("点「润色」整理输入框里的话").font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purpleText)
                 }
                 Text("选中一段只改选中的部分；点「\(model.settings.selectedStyle?.name ?? "风格")▾」换风格或写要求；输入框为空时写要求，它会帮你写。")
                     .font(.system(size: 11.5))
@@ -1186,7 +1186,7 @@ struct ResultCard: View {
     private var checklist: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
-                SparkleMark(size: 12, color: Brand.purple)
+                SparkleMark(size: 12, color: Brand.purpleText)
                 Text("还差几步就能用 AI，打字不受影响").font(.system(size: 13, weight: .semibold))
             }
             checkRow(1, "打开「允许完全访问」", done: model.hasFullAccess)
@@ -1197,7 +1197,7 @@ struct ResultCard: View {
                     Button { model.importConfigFromPasteboard() } label: {
                         Text("从剪贴板导入")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Brand.purple)
+                            .foregroundStyle(Brand.purpleText)
                             .padding(.horizontal, 10)
                             .frame(height: 24)
                             .background(Capsule().fill(Brand.softFill))
