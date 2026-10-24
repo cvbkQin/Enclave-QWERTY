@@ -38,8 +38,6 @@ struct SettingsView: View {
                     NavigationLink(value: AppRouter.SettingsPage.about) {
                         IconRow(systemName: "info", color: .gray, title: "关于 Enclave", value: AboutView.version)
                     }
-                } footer: {
-                    Text("API Key 只存在本机钥匙串里，不经过任何第三方服务器。")
                 }
             }
             .navigationTitle("设置")
@@ -138,6 +136,7 @@ struct ModelSettingsView: View {
                 Text(provider == .ollama
                      ? "把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。"
                      : "选一个服务商会自动填好地址。自建 Ollama / vLLM / LM Studio 选「自定义」，地址填到 /v1。")
+                    + Text("API Key 只存在本机钥匙串里，不经过任何第三方服务器。")
             }
             Section {
                 Stepper(value: $store.settings.temperature, in: 0...1.5, step: 0.1) {
