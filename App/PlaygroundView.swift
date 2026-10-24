@@ -10,15 +10,15 @@ struct PlaygroundView: View {
     }
 
     static let samples: [Sample] = [
-        Sample(id: 0, title: "润色口语", hint: "点 ✨润色，把随口说的话整理通顺。",
-               text: "那个明天的会我可能去不了 家里有点事 你帮我跟老板说一下 不好意思啊"),
-        Sample(id: 1, title: "按要求改", hint: "输入框里「//」后面是要求，点 ✨润色 按要求改；也可以在要求栏里写，或点上面的风格标签。",
-               text: "下周三下午三点在三楼会议室讨论新版本上线计划，大家提前看下文档 // 更正式一点"),
-        Sample(id: 2, title: "帮我写", hint: "输入框留空，点「要求」，输入「帮我写一段请假说明，请两天」后执行。",
+        Sample(id: 0, title: "润色口语", hint: "点「✨ 润色」，再点「替换」。",
+               text: "那个文件我看了一下大概没啥问题就是第三页有个数好像不太对你再看看"),
+        Sample(id: 1, title: "按要求改", hint: "点「✨ 润色」右边的风格按钮，在「要求」里写「语气委婉一点」，按键盘上的紫色「执行」。",
+               text: "周五前给不了，下周一吧"),
+        Sample(id: 2, title: "帮我写", hint: "输入框留空，在「要求」里写「请假一天的理由，给领导」。",
                text: ""),
-        Sample(id: 3, title: "中英混合", hint: "试试拼音和英文切换，或者让它「翻成英文」。",
+        Sample(id: 3, title: "中英混合", hint: "用拼音打中文，点「中/英」切全键盘打英文，看候选和切换。",
                text: "这个 bug 我今天下班前 fix 掉，明天早上再 sync 一下进度"),
-        Sample(id: 4, title: "长段落纠错", hint: "有错别字的一段话，选中一部分只改选中的内容，或者整段润色。",
+        Sample(id: 4, title: "长段落纠错", hint: "润色后用卡片右边的 ▲▼ 翻看几版结果，长按卡片复制。",
                text: "我们这次的活动非常成功，参加的人数比预计的多了一倍。大家的反溃都很好，特别是互动环节，很多人表示下次还要来。不过也有一些问题，比如签到太慢，饮料不够，下次需要提前准被。"),
     ]
 
@@ -35,7 +35,7 @@ struct PlaygroundView: View {
     var body: some View {
         Form {
             Section {
-                Text("点一个输入框，长按或点地球键 🌐 切换到 Enclave 键盘，然后按提示试。改乱了点「重置」恢复。")
+                Text("每个例子点进输入框，切到 Enclave，按提示操作。改乱了点「重置」恢复。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -59,6 +59,7 @@ struct PlaygroundView: View {
             }
         }
         .navigationTitle("试一试")
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: autoFocusToken) {
             guard autoFocusToken != nil else { return }
             try? await Task.sleep(nanoseconds: 600_000_000)

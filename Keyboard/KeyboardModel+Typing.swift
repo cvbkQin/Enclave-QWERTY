@@ -74,8 +74,7 @@ extension KeyboardModel {
         switch target {
         case .host: proxy?.insertText("\n")
         case .instruction:
-            target = .host
-            execute()
+            menuPolishTapped()
         }
     }
 
@@ -306,20 +305,29 @@ extension KeyboardModel {
     }
 
     func setAIExpanded(_ expanded: Bool) {
+        guard expanded != aiExpanded else { return }
         finishComposition()
         aiExpanded = expanded
-        // 展开后打字仍然进原输入框；收起时也退出要求框。
-        if !expanded { target = .host }
+    }
+
+    /// 点「正式▾」：打开或关上风格浮层（只有这里能收起）。打开时光标进要求框，回车键变「执行」；关上回到原输入框。
+    func toggleStyleMenu() {
+        finishComposition()
+        styleMenuOpen.toggle()
+        target = styleMenuOpen ? .instruction : .host
+    }
+
+    /// 浮层里的「润色」：按选好的风格和要求开始改。浮层不收起，只有再点「正式▾」才收。
+    func menuPolishTapped() {
+        finishComposition()
+        setAIExpanded(true)
+        regenerate()
     }
 
     /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
     func toggleInstructionEditing() {
         finishComposition()
-        if target == .instruction {
-            target = .host
-        } else {
-            target = .instruction
-        }
+        target = target == .instruction ? .host : .instruction
     }
 
     /// 把正在拼的字母原样上屏，然后清空引擎。
@@ -411,9 +419,11 @@ extension KeyboardModel {
             case "numbers": layer = .numbers
             case "symbols": layer = .symbols
             case "english": if chineseMode { toggleChinese() }
-            case "instruction": aiExpanded = true; target = .instruction
+            case "instruction", "menu": styleMenuOpen = true; target = .instruction
+            case "cardExpanded": aiExpanded = true; cardExpanded = true
             #if DEBUG
-            case "versions": aiExpanded = true; loadDebugVersions()
+            case "versions": aiExpanded = true; debugUnblocked = true; loadDebugVersions()
+            case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "undo": loadDebugUndo()

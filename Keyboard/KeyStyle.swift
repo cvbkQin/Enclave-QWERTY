@@ -1,3 +1,4 @@
+import CoreText
 import SwiftUI
 import UIKit
 
@@ -14,22 +15,31 @@ enum KeyboardMetrics {
     static let nineKeyInsetX: CGFloat = 3.15
     static let nineKeyInsetY: CGFloat = 5
 
-    static let topRow: CGFloat = 42
-    static let previewHeight: CGFloat = 62
-    /// 键盘被系统压矮时，预览行最多缩到这么高，保证按键和操作行完整显示。
-    static let minPreviewHeight: CGFloat = 30
+    /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
+    static let topRow: CGFloat = 44
+    /// AI 栏里按钮的高度；✨ 润色按钮 84×34。
+    static let chipHeight: CGFloat = 34
+    static let polishButtonWidth: CGFloat = 84
+    /// 结果卡片：默认两行，展开到五行，再多就在卡片里滚动。
+    static let cardHeight: CGFloat = 60
+    static let expandedCardHeight: CGFloat = 120
     static let actionRow: CGFloat = 32
-    static let instructionRow: CGFloat = 32
-    /// 顶栏和要求行里圆形/胶囊按钮的高度（展开键、润色）。
-    static let chipHeight: CGFloat = 32
+    /// 「正式▾」浮层：风格行 + 要求行，底下一个小尖角指向按钮。
+    static let menuHeight: CGFloat = 94
     static let panelSpacing: CGFloat = 5
     static let panelTop: CGFloat = 6
     static let sidePadding: CGFloat = 3.7
 
-    static var collapsedHeight: CGFloat { topRow + keysHeight }
-    /// 展开后没有顶栏：预览行、操作行、要求行，下面是按键。
-    static var expandedHeight: CGFloat {
-        panelTop + previewHeight + actionRow + instructionRow + panelSpacing * 3 + keysHeight
+    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加浮层。
+    static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool) -> CGFloat {
+        var height = topRow + keysHeight
+        if expanded {
+            height += panelTop + (cardExpanded ? expandedCardHeight : cardHeight) + panelSpacing + actionRow
+        }
+        if menuOpen {
+            height += menuHeight + panelSpacing + (expanded ? 0 : panelTop)
+        }
+        return height
     }
 }
 
@@ -44,9 +54,125 @@ enum KeyStyle {
 
     static let letterFont = Font.system(size: 24)
     static let symbolFont = Font.system(size: 22)
-    static let nineKeyFont = Font.system(size: 15.5)
+    /// 九宫格的字母键、标点键、123、#@¥、^^：16pt，字距 1pt。
+    static let nineKeyFont = Font.system(size: 16)
     static let functionFont = Font.system(size: 17)
     static let iconFont = Font.system(size: 19, weight: .regular)
+
+    /// 数字和符号层里的全角标点，键帽上画成半角字形（上屏的仍是全角字符），排出来不散。
+    private static let halfWidthCaps: [String: String] = [
+        "。": "｡", "，": ",", "、": "､", "（": "(", "）": ")", "：": ":", "；": ";", "？": "?", "！": "!",
+    ]
+
+    static func capText(_ symbol: String) -> String { halfWidthCaps[symbol] ?? symbol }
+
+    /// 《》用字体的 halt 特性收窄成半宽，其余照常。
+    static func capFont(for symbol: String) -> Font {
+        guard symbol == "《" || symbol == "》" else { return symbolFont }
+        let base = UIFont.systemFont(ofSize: 22)
+        let descriptor = base.fontDescriptor.addingAttributes([
+            .featureSettings: [[UIFontDescriptor.FeatureKey.type: kTextSpacingType,
+                                UIFontDescriptor.FeatureKey.selector: kAltHalfWidthTextSelector]],
+        ])
+        return Font(UIFont(descriptor: descriptor, size: 22))
+    }
+}
+
+/// 品牌色：紫色主色、渐变、菜单和要求框的淡紫底。
+enum Brand {
+    static let purple = Color(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255)
+    /// 流光边框和新结果细边用的渐变：#4F46E5 → #7C3AED → #FDE68A → #A78BFA。
+    static let gradient: [Color] = [
+        Color(red: 0x4F / 255, green: 0x46 / 255, blue: 0xE5 / 255),
+        Color(red: 0x7C / 255, green: 0x3A / 255, blue: 0xED / 255),
+        Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255),
+        Color(red: 0xA7 / 255, green: 0x8B / 255, blue: 0xFA / 255),
+    ]
+    static let violet = gradient[1]
+    static let gold = gradient[2]
+    /// 「再润」的文字色 #4A3BD6。
+    static let deepPurple = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
+        : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
+    /// 生成中「停止」的底色 #3A3A3C。
+    static let stopFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
+    /// 「正式▾」浮层底色 #F4F2FF，描边 #DCD6FB。
+    static let menuFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.17, green: 0.16, blue: 0.27, alpha: 1)
+        : UIColor(red: 0xF4 / 255, green: 0xF2 / 255, blue: 0xFF / 255, alpha: 1) })
+    static let menuStroke = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.30, green: 0.27, blue: 0.48, alpha: 1)
+        : UIColor(red: 0xDC / 255, green: 0xD6 / 255, blue: 0xFB / 255, alpha: 1) })
+    /// 要求框描边 #C9C3F7，输入时 #8B7CF6。
+    static let fieldStroke = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.36, green: 0.32, blue: 0.58, alpha: 1)
+        : UIColor(red: 0xC9 / 255, green: 0xC3 / 255, blue: 0xF7 / 255, alpha: 1) })
+    static let fieldActiveStroke = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
+    /// 要求框底色 #E9E5FD。
+    static let fieldFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)
+        : UIColor(red: 0xE9 / 255, green: 0xE5 / 255, blue: 0xFD / 255, alpha: 1) })
+    static let softFill = purple.opacity(0.14)
+}
+
+/// 四角星，logo 星星组的一颗。
+struct FourPointStar: Shape {
+    func path(in rect: CGRect) -> Path {
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let w = rect.width / 2, h = rect.height / 2, k: CGFloat = 0.22
+        var path = Path()
+        path.move(to: CGPoint(x: c.x, y: c.y - h))
+        path.addQuadCurve(to: CGPoint(x: c.x + w, y: c.y), control: CGPoint(x: c.x + w * k, y: c.y - h * k))
+        path.addQuadCurve(to: CGPoint(x: c.x, y: c.y + h), control: CGPoint(x: c.x + w * k, y: c.y + h * k))
+        path.addQuadCurve(to: CGPoint(x: c.x - w, y: c.y), control: CGPoint(x: c.x - w * k, y: c.y + h * k))
+        path.addQuadCurve(to: CGPoint(x: c.x, y: c.y - h), control: CGPoint(x: c.x - w * k, y: c.y - h * k))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// logo 那组星星：一颗大星、五颗小星。animating 时小星错开闪烁，大星轻轻放大带金色微光，周期 1.6 秒，不旋转。
+struct SparkleMark: View {
+    var size: CGFloat
+    var color: Color
+    var animating = false
+
+    /// 每颗星：中心位置、直径（都按图标边长的比例）、闪烁的起始相位。
+    private static let stars: [(x: CGFloat, y: CGFloat, d: CGFloat, phase: Double)] = [
+        (0.40, 0.58, 0.66, 0),
+        (0.80, 0.18, 0.28, 0.0),
+        (0.90, 0.60, 0.16, 0.35),
+        (0.16, 0.14, 0.16, 0.6),
+        (0.70, 0.92, 0.14, 0.2),
+        (0.08, 0.88, 0.12, 0.8),
+    ]
+
+    var body: some View {
+        if animating {
+            TimelineView(.animation) { context in
+                cluster(time: context.date.timeIntervalSinceReferenceDate)
+            }
+        } else {
+            cluster(time: nil)
+        }
+    }
+
+    private func cluster(time: TimeInterval?) -> some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(Self.stars.enumerated()), id: \.offset) { index, star in
+                let wave = time.map { (1 - cos(2 * .pi * ($0 / 1.6 + star.phase))) / 2 } ?? 0
+                let scale = index == 0 ? 1 + 0.08 * wave : 1 - 0.4 * wave
+                FourPointStar()
+                    .fill(color)
+                    .frame(width: size * star.d, height: size * star.d)
+                    .scaleEffect(scale)
+                    .opacity(index == 0 ? 1 : 1 - 0.7 * wave)
+                    .shadow(color: index == 0 && time != nil ? Brand.gold.opacity(0.8 * wave) : .clear, radius: 2)
+                    .position(x: size * star.x, y: size * star.y)
+            }
+        }
+        .frame(width: size, height: size)
+    }
 }
 
 /// 按键外观：圆角、底色、底部细阴影。外面留出间隙，间隙也能点到这个键，和系统键盘一样没有死区。
@@ -102,7 +228,7 @@ struct FunctionKey: View {
 
     var body: some View {
         Button(action: action) {
-            KeyCap(fill: highlighted ? Color.accentColor : KeyStyle.functionKey) {
+            KeyCap(fill: highlighted ? Brand.purple : KeyStyle.functionKey) {
                 Group {
                     if let systemImage {
                         Image(systemName: systemImage).font(KeyStyle.iconFont)

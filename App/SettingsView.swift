@@ -15,6 +15,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                ReadinessSection(apiConfigured: settings.isConfigured)
                 Section {
                     NavigationLink {
                         PlaygroundView()
@@ -22,19 +23,22 @@ struct SettingsView: View {
                         Label("试一试键盘", systemImage: "keyboard")
                     }
                 }
-                PinyinSection()
+                apiSection
+                testSection
+                styleSection
                 Section {
                     Picker("键盘布局", selection: $settings.keyboardLayout) {
                         ForEach(KeyboardLayout.allCases) { Text($0.title).tag($0) }
                     }
                     Toggle("按键震动", isOn: $settings.keyHaptics)
                     Toggle("按键声音", isOn: $settings.keySound)
+                    Toggle("润色时的发光动画", isOn: $settings.polishAnimation)
+                } header: {
+                    Text("键盘")
                 } footer: {
-                    Text("九宫格只用于中文；切到英文时自动用全键盘。键盘上点风格菜单也能切换布局。按键声音在手机静音时不响。")
+                    Text("九宫格只用于中文；切到英文时自动用全键盘。系统开了「减弱动态效果」时发光动画自动关闭。")
                 }
-                apiSection
-                testSection
-                styleSection
+                PinyinSection()
                 syncSection
                 SetupGuideSection()
             }
@@ -113,12 +117,12 @@ struct SettingsView: View {
                 ForEach(settings.styles) { Text($0.name).tag($0.id) }
             }
             NavigationLink("编辑风格预设") {
-                StylesView(styles: $settings.styles)
+                StylesView(settings: $settings)
             }
         } header: {
             Text("风格")
         } footer: {
-            Text("风格会加到每次请求的系统提示里，键盘顶部也可以随时切换。")
+            Text("键盘上点「\(settings.selectedStyle?.name ?? "风格")▾」也能随时切换。")
         }
     }
 
@@ -181,12 +185,16 @@ private struct LabeledField: View {
 
 private struct SetupGuideSection: View {
     var body: some View {
-        Section("开启键盘") {
-            Text("1. 打开 设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选择 Enclave。")
-            Text("2. 点进 Enclave，打开「允许完全访问」。键盘需要它才能联网调用你的模型。")
-            Text("3. 在任意输入框长按或点地球键切到 Enclave。")
-            Text("用法：在输入框写原话，点「执行」润色；写「原话 // 要求」按要求改；只写「// 要求」让它帮你写。满意后点「替换」或「插入」，发送仍由你自己按。")
-                .foregroundStyle(.secondary)
+        Section {
+            Text("1. 设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选择 Enclave。")
+            Text("2. 点下面按钮进入 Enclave 设置 › 键盘，打开「允许完全访问」。键盘需要它才能联网调用你的模型。")
+            Text("3. 在输入框长按或点地球键切到 Enclave。")
+            Button("打开 Enclave 设置") { AppSettings.open() }
+                .font(.footnote.weight(.semibold))
+        } header: {
+            Text("开启键盘")
+        } footer: {
+            Text("用法：写好原话点「✨ 润色」，满意后点「替换」或「插入」，发送仍由你自己按。点「✨ 润色」右边的风格按钮换风格或写要求；输入框留空写要求，它会帮你写。语音用键盘下方系统自带的话筒。")
         }
         .font(.footnote)
     }

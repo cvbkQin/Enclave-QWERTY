@@ -1,52 +1,59 @@
 import SwiftUI
 
 /// 键盘主体。
-/// 收起时：顶部一行（展开、润色；打拼音时换成候选词），下面是按键。
-/// 展开时：预览行（左润色、右结果）、操作行（打拼音时换成候选词）、要求行，下面是按键。
+/// AI 栏永远紧贴按键上方，收起和展开是同一条：[展开/收起] [✨ 润色] [正式▾] … [撤销|重做]；打拼音时这一行换成候选。
+/// 展开时 AI 栏上面是结果卡片和动作行（替换、插入）；打开「正式▾」时 AI 栏上面再加风格浮层。
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
+
+    private var inset: CGFloat { KeyboardMetrics.sidePadding + KeyboardMetrics.keyInsetX }
 
     var body: some View {
         VStack(spacing: 0) {
             if model.aiExpanded {
-                aiPanel
-                    .padding(.horizontal, KeyboardMetrics.sidePadding + KeyboardMetrics.keyInsetX)
-                    .padding(.top, KeyboardMetrics.panelTop)
-                    .padding(.bottom, KeyboardMetrics.panelSpacing)
-            } else {
-                Group {
-                    if model.isComposing {
-                        candidateBar
-                    } else {
-                        toolBar
-                    }
+                VStack(spacing: KeyboardMetrics.panelSpacing) {
+                    ResultCard(model: model)
+                        .frame(height: model.cardTall ? KeyboardMetrics.expandedCardHeight : KeyboardMetrics.cardHeight)
+                    actionRow
+                        .frame(height: KeyboardMetrics.actionRow)
                 }
-                .frame(height: KeyboardMetrics.topRow)
+                .padding(.horizontal, inset)
+                .padding(.top, KeyboardMetrics.panelTop)
             }
+            if model.styleMenuOpen {
+                StyleMenu(model: model)
+                    .frame(height: KeyboardMetrics.menuHeight)
+                    .padding(.horizontal, inset)
+                    .padding(.top, model.aiExpanded ? KeyboardMetrics.panelSpacing : KeyboardMetrics.panelTop)
+            }
+            Group {
+                if model.isComposing {
+                    candidateBar
+                } else {
+                    aiBar
+                }
+            }
+            .frame(height: KeyboardMetrics.topRow)
             KeysView(model: model)
                 .padding(.horizontal, KeyboardMetrics.sidePadding)
                 .layoutPriority(1)
         }
-        // 系统给的高度不够时先压缩预览行，再从顶上裁，按键始终完整贴在底部。
+        // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .clipped()
     }
 
-    // MARK: - 收起时的顶栏
+    // MARK: - AI 栏
 
-    /// 展开键在最左边，和展开后要求行里的收起键位置、大小完全一样。
-    private var toolBar: some View {
+    private var aiBar: some View {
         HStack(spacing: 6) {
-            PanelToggleButton(expanded: false) { model.setAIExpanded(true) }
-            ToolChip(title: model.isRunning ? "停止" : "润色", systemImage: model.isRunning ? "stop.fill" : "sparkles",
-                     prominent: true) {
-                model.isRunning ? model.stop() : model.sparkleTapped()
-            }
+            PanelToggleButton(expanded: model.aiExpanded) { model.setAIExpanded(!model.aiExpanded) }
+            PolishButton(model: model)
+            StyleChip(model: model)
             Spacer(minLength: 0)
+            UndoRedoPair(model: model)
         }
-        .padding(.horizontal, KeyboardMetrics.sidePadding + KeyboardMetrics.keyInsetX)
-        .padding(.bottom, KeyboardMetrics.panelSpacing)
-        .frame(maxHeight: .infinity, alignment: .bottom)
+        .padding(.horizontal, inset)
     }
 
     /// 打拼音时的候选栏，右边的箭头展开整页候选。
@@ -58,7 +65,7 @@ struct KeyboardView: View {
                         Button { model.selectCandidate(index) } label: {
                             Text(word)
                                 .font(.system(size: 20))
-                                .foregroundStyle(Color.primary)
+                                .foregroundStyle(index == 0 ? Brand.purple : Color.primary)
                                 .padding(.horizontal, 11)
                                 .frame(maxHeight: .infinity)
                                 .contentShape(Rectangle())
@@ -82,198 +89,28 @@ struct KeyboardView: View {
         }
     }
 
-    // MARK: - AI 面板
+    // MARK: - 动作行
 
-    private var aiPanel: some View {
-        VStack(spacing: KeyboardMetrics.panelSpacing) {
-            previewRow
-            Group {
-                if model.isComposing {
-                    candidateBar
-                } else {
-                    actionRow
-                }
-            }
-            .frame(height: KeyboardMetrics.actionRow)
-            requirementRow
-        }
-    }
-
-    /// 预览行：左边润色，右边结果。
-    private var previewRow: some View {
-        HStack(spacing: 6) {
-            SideButton(title: model.isRunning ? "停止" : "润色",
-                       systemImage: model.isRunning ? "stop.fill" : "sparkles",
-                       fill: model.isRunning ? .red : .accentColor, foreground: .white) {
-                model.isRunning ? model.stop() : model.execute()
-            }
-            preview
-        }
-        .frame(minHeight: KeyboardMetrics.minPreviewHeight, maxHeight: KeyboardMetrics.previewHeight)
-    }
-
-    private var preview: some View {
-        VersionPager(model: model) {
-            VStack(alignment: .leading, spacing: 4) {
-                setupHint
-                if let error = model.errorMessage {
-                    Text(error).foregroundStyle(.red)
-                } else if let notice = model.notice, model.displayText.isEmpty {
-                    Text(notice).foregroundStyle(.secondary)
-                }
-                if model.displayText.isEmpty && model.errorMessage == nil && model.notice == nil {
-                    Text(placeholder)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(model.displayText)
-                        .foregroundStyle(.primary)
-                }
-            }
-            .font(.subheadline)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-        }
-        // 长按结果复制，不单独放复制按钮。
-        .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.copy() })
-        .overlay {
-            if model.copiedFlash {
-                Label("已复制", systemImage: "checkmark")
-                    .font(.footnote.weight(.semibold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .foregroundStyle(.white)
-                    .background(Capsule().fill(Color.black.opacity(0.75)))
-                    .transition(.opacity)
-                    .allowsHitTesting(false)
-            }
-        }
-    }
-
-    /// 没开完全访问或没配置 API 时的提示，放在预览区里，不额外占高度。
-    @ViewBuilder
-    private var setupHint: some View {
-        if !model.hasFullAccess {
-            Text("请到 设置 › 通用 › 键盘 › 键盘 › Enclave，打开「允许完全访问」。")
-                .foregroundStyle(.orange)
-        } else if !model.settings.isConfigured {
-            HStack {
-                Text("还没有配置 API").foregroundStyle(.orange)
-                Spacer()
-                Button("从剪贴板导入配置") { model.importConfigFromPasteboard() }
-            }
-        }
-    }
-
-    private var placeholder: String {
-        if model.isRunning { return "生成中…" }
-        return "点左边「润色」整理输入框里的内容。下面选风格或写要求。结果出来后长按可复制。"
-    }
-
-    private var hasResult: Bool { !model.isRunning && model.session?.current != nil }
-
-    /// 操作行：替换（最常用，实心主色）、插入（描边）、撤销/重做（一组）、新会话，最右边是布局菜单。
-    /// 复制改成长按预览。
+    /// 结果卡片下面只有替换和插入；用过以后按钮显示「✓ 已替换」「✓ 已插入」。
     private var actionRow: some View {
-        HStack(spacing: 5) {
-            PanelButton(title: "替换", systemImage: "arrow.left.arrow.right", kind: .primary) { model.replace() }
-                .disabled(!hasResult)
-            PanelButton(title: "插入", systemImage: "text.insert", kind: .outlined) { model.insert() }
-                .disabled(!hasResult)
-            UndoRedoPair(model: model)
-            PanelButton(title: "新会话", systemImage: nil) { model.newSession() }
-                .disabled(model.session == nil && !model.isRunning)
-            layoutMenu
-                .frame(width: 40)
+        let replaced = model.resultUse == .replaced
+        let inserted = model.resultUse == .inserted
+        return HStack(spacing: 6) {
+            PanelButton(title: replaced ? "已替换" : "替换",
+                        systemImage: replaced ? "checkmark" : "arrow.left.arrow.right",
+                        kind: replaced ? .done : .primary) { model.replace() }
+                .disabled(!model.hasResult || replaced)
+            PanelButton(title: inserted ? "已插入" : "插入",
+                        systemImage: inserted ? "checkmark" : "text.insert",
+                        kind: inserted ? .done : .outlined) { model.insert() }
+                .disabled(!model.hasResult || inserted)
         }
-    }
-
-    /// 键盘布局切换（风格改成了要求行里的标签）。
-    private var layoutMenu: some View {
-        Menu {
-            ForEach(KeyboardLayout.allCases) { layout in
-                Button {
-                    model.setLayout(layout)
-                } label: {
-                    if layout == model.settings.keyboardLayout {
-                        Label(layout.title, systemImage: "checkmark")
-                    } else {
-                        Text(layout.title)
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "keyboard")
-                .font(.footnote)
-                .foregroundStyle(Color.primary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
-        }
-    }
-
-    /// 要求行：左边收起，中间可左右滑动——先是风格标签（单选），一条细线隔开，再是写要求；右边执行。
-    /// 已有结果时，点风格会立刻生成新的一版，可以上下滑回之前的版本。
-    private var requirementRow: some View {
-        HStack(spacing: 6) {
-            PanelToggleButton(expanded: true) { model.setAIExpanded(false) }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(model.settings.styles) { style in
-                        StyleTag(title: style.name, selected: style.id == model.settings.selectedStyle?.id) {
-                            model.styleTagTapped(style)
-                        }
-                    }
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.4))
-                        .frame(width: 1, height: 18)
-                        .padding(.horizontal, 2)
-                    customRequirementChip
-                }
-            }
-            .hidingScrollEdgeEffect()
-
-            ExecuteButton(model: model)
-        }
-        .frame(height: KeyboardMetrics.instructionRow)
-    }
-
-    /// 自己写的要求。
-    private var customRequirementChip: some View {
-        let editing = model.target == .instruction
-        let custom = model.instruction
-        let showsText = !custom.isEmpty || (editing && model.isComposing)
-        return HStack(spacing: 4) {
-            Image(systemName: "pencil")
-            if showsText {
-                (Text(custom)
-                    + Text(editing ? model.composition : "").foregroundColor(.secondary).underline()
-                    + Text(editing ? "|" : "").foregroundColor(.accentColor))
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .frame(maxWidth: 180, alignment: .leading)
-                    .fixedSize(horizontal: custom.count < 12, vertical: false)
-            } else {
-                Text(editing ? "输入要求…" : "写要求").foregroundStyle(editing ? Color.secondary : Color.primary)
-            }
-            if !custom.isEmpty {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.secondary)
-                    .onTapGesture { model.setInstruction("") }
-            }
-        }
-        .font(.footnote)
-        .padding(.horizontal, 10)
-        .frame(height: KeyboardMetrics.chipHeight)
-        .foregroundStyle(Color.primary)
-        .background(Capsule().fill(KeyStyle.charKey))
-        .overlay(Capsule().stroke(Color.accentColor, lineWidth: editing ? 1.5 : 0))
-        .contentShape(Capsule())
-        .onTapGesture { model.toggleInstructionEditing() }
     }
 }
 
-/// 展开/收起 AI 面板的键。收起时在顶栏最左边，展开时在要求行最左边，两处的位置和大小一样。
+// MARK: - AI 栏的按钮
+
+/// 展开/收起 AI 面板，AI 栏最左边的圆钮。
 struct PanelToggleButton: View {
     var expanded: Bool
     var action: () -> Void
@@ -281,7 +118,7 @@ struct PanelToggleButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: expanded ? "chevron.down" : "chevron.up")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .frame(width: KeyboardMetrics.chipHeight, height: KeyboardMetrics.chipHeight)
                 .foregroundStyle(Color.primary)
                 .background(Circle().fill(KeyStyle.charKey))
@@ -290,119 +127,83 @@ struct PanelToggleButton: View {
     }
 }
 
-/// 风格标签：选中时是描边加粗的胶囊，和下面的常用要求（实心）区分开。
-struct StyleTag: View {
-    var title: String
-    var selected: Bool
-    var action: () -> Void
+/// 「✨ 润色」：收起和展开都是这一个按钮，生成中原位变「停止」，尺寸不变。
+struct PolishButton: View {
+    @ObservedObject var model: KeyboardModel
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.footnote.weight(selected ? .semibold : .regular))
-                .padding(.horizontal, 10)
-                .frame(height: KeyboardMetrics.chipHeight)
-                .foregroundStyle(selected ? Color.accentColor : Color.primary)
-                .background(Capsule().fill(selected ? Color.accentColor.opacity(0.15) : KeyStyle.charKey))
-                .overlay(Capsule().stroke(Color.accentColor, lineWidth: selected ? 1.2 : 0))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// 顶部一行的胶囊按钮。
-struct ToolChip: View {
-    var title: String?
-    var systemImage: String?
-    var prominent = false
-    var tint: Color = .accentColor
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            ChipLabel(title: title, systemImage: systemImage, prominent: prominent, tint: tint)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-struct ChipLabel: View {
-    var title: String?
-    var systemImage: String?
-    var prominent = false
-    var tint: Color = .accentColor
-    var foreground: Color?
-
-    var body: some View {
-        let filled = prominent || tint != .accentColor
-        HStack(spacing: 4) {
-            if let systemImage { Image(systemName: systemImage) }
-            if let title { Text(title) }
-        }
-        .font(.footnote.weight(prominent ? .semibold : .regular))
-        // 只有图标的按钮是正圆，带字的是胶囊；和展开键一样高。
-        .padding(.horizontal, title == nil ? 0 : 12)
-        .frame(minWidth: KeyboardMetrics.chipHeight)
-        .frame(height: KeyboardMetrics.chipHeight)
-        .foregroundStyle(foreground ?? (filled ? Color.white : Color.primary))
-        .background(Capsule().fill(filled ? tint : KeyStyle.charKey))
-    }
-}
-
-/// AI 面板里的小按钮。primary 是实心主色（替换），outlined 是主色描边（插入），plain 是普通按键色。
-struct PanelButton: View {
-    enum Kind { case plain, primary, outlined }
-
-    var title: String
-    var systemImage: String?
-    var kind: Kind = .plain
-    var action: () -> Void
-    @Environment(\.isEnabled) private var isEnabled
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
-        Button(action: action) {
-            HStack(spacing: 3) {
-                if let systemImage { Image(systemName: systemImage) }
-                Text(title)
+        Button {
+            model.isRunning ? model.stop() : model.sparkleTapped()
+        } label: {
+            HStack(spacing: 5) {
+                if model.isRunning {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 9, height: 9)
+                    Text("停止")
+                } else {
+                    SparkleMark(size: 15, color: .white)
+                    Text("润色")
+                }
             }
-            .font(kind == .plain ? .footnote : .footnote.weight(.semibold))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .foregroundStyle(foreground)
-            .background(shape.fill(kind == .primary ? Color.accentColor.opacity(isEnabled ? 1 : 0.35) : KeyStyle.charKey))
-            .overlay(shape.strokeBorder(Color.accentColor.opacity(isEnabled ? 0.9 : 0.3),
-                                        lineWidth: kind == .outlined ? 1.2 : 0))
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: KeyboardMetrics.polishButtonWidth, height: KeyboardMetrics.chipHeight)
+            .background(Capsule().fill(fill))
         }
         .buttonStyle(KeyPressStyle())
     }
 
-    private var foreground: Color {
-        switch kind {
-        case .primary: return isEnabled ? .white : .white.opacity(0.8)
-        case .outlined: return isEnabled ? .accentColor : .secondary
-        case .plain: return isEnabled ? .primary : .secondary
-        }
+    private var fill: Color {
+        if model.isRunning { return Color(white: 0.16) }
+        return model.aiBlocked ? Brand.purple.opacity(0.35) : Brand.purple
     }
 }
 
-/// 撤销和重做拼成一个按钮，中间一条细线。
+/// 「正式▾」：显示当前风格，有要求时写「正式 · 有要求」并描紫边；点开风格浮层。
+struct StyleChip: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        let highlighted = model.styleMenuOpen || !model.instruction.isEmpty
+        Button { model.toggleStyleMenu() } label: {
+            HStack(spacing: 3) {
+                Text(title).lineLimit(1)
+                Image(systemName: model.styleMenuOpen ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .font(.system(size: 14, weight: highlighted ? .semibold : .regular))
+            .padding(.horizontal, 12)
+            .frame(height: KeyboardMetrics.chipHeight)
+            .foregroundStyle(highlighted ? Brand.purple : Color.primary)
+            .background(Capsule().fill(highlighted ? Brand.menuFill : KeyStyle.charKey))
+            .overlay(Capsule().strokeBorder(Brand.purple, lineWidth: highlighted ? 1.2 : 0))
+        }
+        .buttonStyle(KeyPressStyle())
+    }
+
+    private var title: String {
+        let name = model.settings.selectedStyle?.name ?? "风格"
+        return model.instruction.isEmpty ? name : "\(name) · 有要求"
+    }
+}
+
+/// 撤销和重做拼成一个胶囊，中间一条细线。AI 栏最右边，收起和展开都在。
 struct UndoRedoPair: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
         HStack(spacing: 0) {
             half("arrow.uturn.backward", enabled: model.canUndo) { model.undo() }
-            Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1).padding(.vertical, 7)
+            Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1).padding(.vertical, 9)
             half("arrow.uturn.forward", enabled: model.canRedo) { model.redo() }
         }
-        .frame(width: 76)
-        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
+        .frame(width: 76, height: KeyboardMetrics.chipHeight)
+        .background(Capsule().fill(KeyStyle.charKey))
     }
 
     private func half(_ systemImage: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.footnote.weight(.medium))
+                .font(.system(size: 14, weight: .medium))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.6))
                 .contentShape(Rectangle())
@@ -412,55 +213,502 @@ struct UndoRedoPair: View {
     }
 }
 
-/// 预览框两边的竖按钮。
-struct SideButton: View {
+/// 动作行的按钮。primary 是实心紫（替换），outlined 是紫色描边（插入），done 是用过之后的淡紫底。
+struct PanelButton: View {
+    enum Kind { case primary, outlined, done }
+
     var title: String
-    var systemImage: String
-    var fill: Color
-    var foreground: Color = .primary
+    var systemImage: String?
+    var kind: Kind
     var action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         Button(action: action) {
-            SideButtonLabel(title: title, systemImage: systemImage, fill: fill, foreground: foreground)
+            HStack(spacing: 4) {
+                if let systemImage { Image(systemName: systemImage) }
+                Text(title)
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .foregroundStyle(foreground)
+            .background(shape.fill(fill))
+            .overlay(shape.strokeBorder(Brand.purple.opacity(isEnabled ? 0.9 : 0.3), lineWidth: kind == .outlined ? 1.2 : 0))
+        }
+        .buttonStyle(KeyPressStyle())
+    }
+
+    private var fill: Color {
+        switch kind {
+        case .primary: return Brand.purple.opacity(isEnabled ? 1 : 0.35)
+        case .outlined: return KeyStyle.charKey
+        case .done: return Brand.softFill
+        }
+    }
+
+    private var foreground: Color {
+        switch kind {
+        case .primary: return isEnabled ? .white : .white.opacity(0.85)
+        case .outlined: return isEnabled ? Brand.purple : Brand.purple.opacity(0.4)
+        case .done: return Brand.purple
+        }
+    }
+}
+
+// MARK: - 「正式▾」浮层
+
+/// 淡紫浮层，尖角指向「正式▾」：上面一行选风格，下面一行写要求和「润色」。
+/// 点风格只切换，不马上改；点「润色」或回车「执行」才开始，浮层不收起，再点「正式▾」才收。
+struct StyleMenu: View {
+    @ObservedObject var model: KeyboardModel
+
+    /// 尖角对准「正式▾」：展开键 + 间距 + 润色键 + 间距，再往右到按钮中间附近。
+    private let arrowX: CGFloat = KeyboardMetrics.chipHeight + 6 + KeyboardMetrics.polishButtonWidth + 6 + 34
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                rowLabel("风格")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 2) {
+                        ForEach(model.settings.styles) { style in
+                            MenuStyleTag(title: style.name, selected: style.id == model.settings.selectedStyle?.id) {
+                                model.selectStyle(style)
+                            }
+                        }
+                    }
+                }
+                .hidingScrollEdgeEffect()
+            }
+            .frame(height: 32)
+            HStack(spacing: 8) {
+                rowLabel("要求")
+                RequestField(model: model)
+                MenuPolishButton(model: model)
+            }
+            .frame(height: 32)
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 8 + MenuBubble.arrowHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(MenuBubble(arrowX: arrowX).fill(Brand.menuFill).shadow(color: .black.opacity(0.08), radius: 4, y: 1))
+        .overlay(MenuBubble(arrowX: arrowX).stroke(Brand.menuStroke, lineWidth: 1))
+    }
+
+    private func rowLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Brand.purple)
+            .frame(width: 26, alignment: .leading)
+    }
+}
+
+/// 浮层里的「再润」：白底紫描边，和 AI 栏实心的「✨ 润色」区分开；按选好的风格和要求开始改，生成中原位变深灰「停止」。
+struct MenuPolishButton: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        Button {
+            model.isRunning ? model.stop() : model.menuPolishTapped()
+        } label: {
+            HStack(spacing: 4) {
+                if model.isRunning {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 8, height: 8)
+                    Text("停止")
+                } else {
+                    SparkleMark(size: 13, color: Brand.violet)
+                    Text("再润")
+                }
+            }
+            .font(.system(size: 14, weight: .bold))
+            .foregroundStyle(model.isRunning ? Color.white : Brand.deepPurple)
+            .frame(width: 72, height: 30)
+            .background(Capsule().fill(model.isRunning ? Brand.stopFill : KeyStyle.charKey))
+            .overlay(Capsule().strokeBorder(Brand.violet, lineWidth: model.isRunning ? 0 : 1.5))
+            .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
         }
         .buttonStyle(KeyPressStyle())
     }
 }
 
-struct SideButtonLabel: View {
-    var title: String?
-    var systemImage: String
-    var fill: Color
-    var foreground: Color = .primary
+/// 浮层的形状：圆角矩形，底边一个小尖角。
+struct MenuBubble: Shape {
+    static let arrowHeight: CGFloat = 6
+    var arrowX: CGFloat
 
-    var body: some View {
-        VStack(spacing: 3) {
-            Image(systemName: systemImage).font(.system(size: 17, weight: .semibold))
-            if let title { Text(title).font(.caption2.weight(.semibold)) }
-        }
-        .foregroundStyle(foreground)
-        .frame(width: 46)
-        .frame(maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(fill))
+    func path(in rect: CGRect) -> Path {
+        let body = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height - Self.arrowHeight)
+        var path = Path(roundedRect: body, cornerRadius: 12, style: .continuous)
+        let x = min(max(arrowX, 20), rect.width - 20)
+        path.move(to: CGPoint(x: x - 7, y: body.maxY))
+        path.addLine(to: CGPoint(x: x, y: rect.maxY))
+        path.addLine(to: CGPoint(x: x + 7, y: body.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 
-/// 执行键：单击执行，生成中再点一下停止。
-struct ExecuteButton: View {
+/// 浮层里的风格：选中的是实心紫色胶囊。
+struct MenuStyleTag: View {
+    var title: String
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: selected ? .semibold : .regular))
+                .padding(.horizontal, 11)
+                .frame(height: 28)
+                .foregroundStyle(selected ? Color.white : Color.primary)
+                .background(Capsule().fill(selected ? Brand.purple : Color.clear))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 要求框：方角淡紫底，铅笔图标，紫色字。键盘打的字进这里，回车就执行。
+struct RequestField: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
-        Text(model.isRunning ? "停止" : "执行")
-            .font(.subheadline.weight(.semibold))
-            .frame(width: 62, height: KeyboardMetrics.instructionRow)
-            .foregroundStyle(.white)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(model.isRunning ? Color.red : Color.accentColor))
-            .contentShape(Rectangle())
-            .onTapGesture {
-                model.isRunning ? model.stop() : model.execute()
+        let editing = model.target == .instruction
+        let text = model.instruction
+        let showsPlaceholder = text.isEmpty && !(editing && model.isComposing)
+        HStack(spacing: 5) {
+            Image(systemName: "pencil").font(.system(size: 13, weight: .medium))
+            Group {
+                if showsPlaceholder {
+                    (Text(editing ? "|" : "").foregroundColor(Brand.purple)
+                        + Text("写要求，比如：语气委婉一点").foregroundColor(Brand.purple.opacity(0.45)))
+                } else {
+                    (Text(text)
+                        + Text(editing ? model.composition : "").underline()
+                        + Text(editing ? "|" : ""))
+                }
             }
+            .lineLimit(1)
+            .truncationMode(.head)
+            Spacer(minLength: 0)
+            if !text.isEmpty {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(Brand.purple.opacity(0.4))
+                    .onTapGesture { model.setInstruction("") }
+            }
+        }
+        .font(.system(size: 14))
+        .foregroundStyle(Brand.purple)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity)
+        .frame(height: 32)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.fieldFill))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .strokeBorder(editing ? Brand.fieldActiveStroke : Brand.fieldStroke, lineWidth: editing ? 1.5 : 1))
+        .contentShape(Rectangle())
+        .onTapGesture { model.toggleInstructionEditing() }
+    }
+}
+
+// MARK: - 结果卡片
+
+/// 结果卡片：提示、出错、首次使用清单也都显示在这个位置。
+/// 有结果时右边一列是 ✦ 状态、复制、展开，多个版本时再加一列 ▲ 2/3 ▼。
+struct ResultCard: View {
+    @ObservedObject var model: KeyboardModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded }
+
+    private var look: Look {
+        if model.aiBlocked { return .checklist }
+        if let error = model.errorMessage { return .error(error) }
+        if model.isRunning { return .running }
+        if model.session?.current != nil {
+            return model.resultUse != nil || model.resultStale ? .faded : .fresh
+        }
+        return .hint(model.notice)
+    }
+
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
+
+    /// 只在生成中播放；App 里关了动画或系统开了「减弱动态效果」就不播。
+    private var animating: Bool { model.isRunning && model.settings.polishAnimation && !reduceMotion }
+
+    var body: some View {
+        let look = look
+        Group {
+            switch look {
+            case .checklist: checklist
+            case .error(let message): errorView(message)
+            case .hint(let notice): hintView(notice)
+            case .running, .fresh, .faded: resultView(faded: { if case .faded = look { return true } else { return false } }())
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background {
+            shape.fill(KeyStyle.charKey)
+            if case .error = look { shape.fill(Color.red.opacity(0.07)) }
+        }
+        .overlay {
+            if animating { SweepBand().clipShape(shape) }
+        }
+        .overlay { border(look) }
+        .overlay {
+            if model.copied {
+                Label("已复制", systemImage: "checkmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .foregroundStyle(.white)
+                    .background(Capsule().fill(Brand.purple))
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    // MARK: 结果
+
+    private func resultView(faded: Bool) -> some View {
+        HStack(alignment: .top, spacing: 2) {
+            resultText(faded: faded)
+                .padding(.leading, 10)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+                // 长按卡片也能复制；不展开时上下滑翻版本。
+                .onLongPressGesture(minimumDuration: 0.45) { model.copy() }
+                .simultaneousGesture(DragGesture(minimumDistance: 14).onEnded { value in
+                    guard !model.cardTall, abs(value.translation.height) > abs(value.translation.width) else { return }
+                    if value.translation.height < -24 { turn(1) } else if value.translation.height > 24 { turn(-1) }
+                })
+            iconColumn(faded: faded)
+                .padding(.vertical, 5)
+            if let session = model.session, session.versions.count > 1, !model.isRunning {
+                pager(index: session.currentIndex, count: session.versions.count)
+            }
+        }
+        .padding(.trailing, 4)
+    }
+
+    @ViewBuilder
+    private func resultText(faded: Bool) -> some View {
+        let text = Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(Brand.purple)
+        Group {
+            if model.cardTall {
+                ScrollView {
+                    text.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .hidingScrollEdgeEffect()
+            } else {
+                // 生成中只放得下两行时显示最新的部分。
+                text.lineLimit(2).truncationMode(model.isRunning ? .head : .tail)
+            }
+        }
+        .font(.system(size: 15))
+        .foregroundStyle(faded ? Color.secondary : Color.primary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// ✦ 状态、复制、展开：15pt 线性图标，24×18 点击区，上中下对齐。
+    private func iconColumn(faded: Bool) -> some View {
+        VStack(spacing: 0) {
+            SparkleMark(size: 15, color: faded ? Color.secondary.opacity(0.7) : Brand.purple, animating: animating)
+                .frame(width: 24, height: 18)
+                .background(Capsule().fill(model.isRunning ? Brand.softFill : Color.clear))
+            Spacer(minLength: 0)
+            iconButton(model.copied ? "doc.on.doc.fill" : "doc.on.doc", tint: model.copied ? Brand.purple : .secondary) {
+                model.copy()
+            }
+            .disabled(!model.hasResult)
+            Spacer(minLength: 0)
+            iconButton(model.cardExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                       tint: .secondary) {
+                withAnimation(.easeOut(duration: 0.2)) { model.cardExpanded.toggle() }
+            }
+        }
+        .frame(width: 24)
+    }
+
+    private func iconButton(_ systemImage: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(tint)
+                .frame(width: 24, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 多个版本：▲ 2/3 ▼。
+    private func pager(index: Int, count: Int) -> some View {
+        VStack(spacing: 0) {
+            Button { turn(-1) } label: {
+                Image(systemName: "chevron.up").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .disabled(index == 0)
+            Text("\(index + 1)/\(count)")
+                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                .foregroundStyle(Color.primary)
+            Button { turn(1) } label: {
+                Image(systemName: "chevron.down").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .disabled(index >= count - 1)
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(Color.secondary)
+        .buttonStyle(.plain)
+        .frame(width: 28)
+        .padding(.vertical, 2)
+    }
+
+    private func turn(_ offset: Int) {
+        model.keyFeedback(for: .space)
+        withAnimation(.easeOut(duration: 0.2)) { model.showVersion(offset: offset) }
+    }
+
+    // MARK: 边框
+
+    @ViewBuilder
+    private func border(_ look: Look) -> some View {
+        switch look {
+        case .running:
+            if animating {
+                FlowingBorder(shape: shape)
+            } else {
+                shape.strokeBorder(Brand.purple.opacity(0.5), lineWidth: 1)
+            }
+        case .fresh:
+            shape.strokeBorder(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing),
+                               lineWidth: 1.2)
+        case .faded:
+            shape.strokeBorder(Color.secondary.opacity(0.35), lineWidth: 0.8)
+        case .error:
+            shape.strokeBorder(Color.red.opacity(0.35), lineWidth: 0.8)
+        case .checklist, .hint:
+            EmptyView()
+        }
+    }
+
+    // MARK: 提示、出错、检查清单
+
+    private func hintView(_ notice: String?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let notice {
+                Text(notice).font(.system(size: 13)).foregroundStyle(Color.primary)
+            } else {
+                HStack(spacing: 4) {
+                    SparkleMark(size: 11, color: Brand.purple)
+                    Text("点「润色」整理输入框里的话").font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purple)
+                }
+                Text("选中一段只改选中的部分；点「\(model.settings.selectedStyle?.name ?? "风格")▾」换风格或写要求；输入框为空时写要求，它会帮你写。")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Color.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    private func errorView(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Label("出错了", systemImage: "exclamationmark.circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.red)
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundStyle(Color.primary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    /// 首次使用：没开完全访问或没配置 API 时，卡片位置列出还差的几步，✨ 置灰，打字不受影响。
+    private var checklist: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                SparkleMark(size: 12, color: Brand.purple)
+                Text("还差几步就能用 AI，打字不受影响").font(.system(size: 13, weight: .semibold))
+            }
+            checkRow(1, "打开「允许完全访问」", done: model.hasFullAccess)
+            checkRow(2, model.pinyinReady ? "拼音词库已就绪" : "拼音词库：打开一次 Enclave App 部署", done: model.pinyinReady)
+            HStack {
+                checkRow(3, "配置模型 API", done: model.settings.isConfigured)
+                Spacer(minLength: 0)
+                if !model.settings.isConfigured {
+                    Button { model.importConfigFromPasteboard() } label: {
+                        Text("从剪贴板导入")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Brand.purple)
+                            .padding(.horizontal, 10)
+                            .frame(height: 24)
+                            .background(Capsule().fill(Brand.softFill))
+                    }
+                    .buttonStyle(KeyPressStyle())
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+    }
+
+    private func checkRow(_ number: Int, _ title: String, done: Bool) -> some View {
+        HStack(spacing: 6) {
+            if done {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.green)
+            } else {
+                Text("\(number)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 14, height: 14)
+                    .background(Circle().fill(Brand.purple))
+            }
+            Text(title).font(.system(size: 13)).foregroundStyle(done ? Color.secondary : Color.primary)
+        }
+    }
+}
+
+// MARK: - 润色动画（方案 A）
+
+/// 生成中的边框：品牌渐变沿边框转一圈，周期 1.6 秒；外圈淡紫光晕轻微明暗。
+struct FlowingBorder: View {
+    var shape: RoundedRectangle
+
+    var body: some View {
+        TimelineView(.animation) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
+            let wave = (1 - cos(2 * .pi * phase)) / 2
+            ZStack {
+                shape.stroke(Brand.violet.opacity(0.18 + 0.14 * wave), lineWidth: 4).blur(radius: 3)
+                shape.strokeBorder(AngularGradient(colors: Brand.gradient + [Brand.gradient[0]], center: .center,
+                                                   angle: .degrees(phase * 360)),
+                                   lineWidth: 1.6)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// 卡片里的扫光：约 300pt 宽的斜向光带从左往右匀速扫过，中间最深（#7C3AED 16%），一趟 1.6 秒，和边框同步。
+struct SweepBand: View {
+    var body: some View {
+        GeometryReader { geo in
+            TimelineView(.animation) { context in
+                let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
+                let band: CGFloat = 300
+                LinearGradient(colors: [Brand.violet.opacity(0), Brand.violet.opacity(0.16), Brand.violet.opacity(0)],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(width: band, height: geo.size.height * 2)
+                    .rotationEffect(.degrees(18))
+                    .offset(x: -band + (geo.size.width + band) * phase, y: -geo.size.height / 2)
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -480,131 +728,3 @@ extension View {
     }
 }
 
-/// 预览框：多个版本像一叠卡片，上下滑动翻页（上滑看下一版，下滑看上一版），右边竖排页码。
-/// 文字超出一屏时卡片内部先滚动，这时用右边的页码条滑动或点箭头翻页。
-struct VersionPager<Content: View>: View {
-    @ObservedObject var model: KeyboardModel
-    var content: Content
-
-    init(model: KeyboardModel, @ViewBuilder content: () -> Content) {
-        self.model = model
-        self.content = content()
-    }
-
-    @State private var drag: CGFloat = 0
-    /// 1 表示翻到下一版（新卡片从下面上来），-1 表示上一版。
-    @State private var direction = 1
-    @State private var contentHeight: CGFloat = 0
-    @State private var viewportHeight: CGFloat = 0
-
-    private var count: Int { model.session?.versions.count ?? 0 }
-    private var index: Int { model.session?.currentIndex ?? 0 }
-    private var paging: Bool { count > 1 && !model.isRunning }
-    private var fits: Bool { contentHeight <= viewportHeight + 1 }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            card
-            if paging { indicator }
-        }
-        .background(alignment: .bottom) { stackEdge }
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemBackground).opacity(0.9)))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    /// 当前版本的文字，翻页时整张卡片滑走、下一张滑进来。
-    private var card: some View {
-        GeometryReader { outer in
-            ScrollView {
-                content
-                    .background(GeometryReader { inner in
-                        Color.clear.preference(key: ContentHeightKey.self, value: inner.size.height)
-                    })
-            }
-            .hidingScrollEdgeEffect()
-            .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
-            .onAppear { viewportHeight = outer.size.height }
-            .onChange(of: outer.size.height) { viewportHeight = $0 }
-        }
-        .id(index)
-        .transition(.asymmetric(
-            insertion: .move(edge: direction > 0 ? .bottom : .top).combined(with: .opacity),
-            removal: .move(edge: direction > 0 ? .top : .bottom).combined(with: .opacity)))
-        .offset(y: drag)
-        .contentShape(Rectangle())
-        // 文字一屏放得下时，整张卡片都能上下滑翻页。
-        .simultaneousGesture(swipe, including: fits && paging ? .all : .subviews)
-    }
-
-    /// 右边竖排的「↑ 2/3 ↓」，本身也能上下滑。
-    private var indicator: some View {
-        VStack(spacing: 0) {
-            Button { turn(-1) } label: {
-                Image(systemName: "chevron.up").frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .disabled(index == 0)
-            VStack(spacing: 0) {
-                Text("\(index + 1)")
-                Rectangle().frame(width: 10, height: 1).opacity(0.4)
-                Text("\(count)").foregroundStyle(.secondary)
-            }
-            .font(.caption2.monospacedDigit().weight(.semibold))
-            Button { turn(1) } label: {
-                Image(systemName: "chevron.down").frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .disabled(index >= count - 1)
-        }
-        .font(.system(size: 11, weight: .semibold))
-        .tint(.primary)
-        .frame(width: 26)
-        .padding(.vertical, 2)
-        .background(Color.primary.opacity(0.05))
-        .contentShape(Rectangle())
-        .gesture(swipe)
-    }
-
-    /// 后面还有版本时，卡片底下露出一条边，像一叠卡片。
-    @ViewBuilder
-    private var stackEdge: some View {
-        if paging && index < count - 1 {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.08))
-                .frame(height: 6)
-                .padding(.horizontal, 6)
-        }
-    }
-
-    private var swipe: some Gesture {
-        DragGesture(minimumDistance: 10)
-            .onChanged { value in
-                guard abs(value.translation.height) > abs(value.translation.width) else { return }
-                let dy = value.translation.height
-                // 到头了就只拉动一点，像系统的回弹。
-                let atEdge = (dy < 0 && index >= count - 1) || (dy > 0 && index == 0)
-                drag = atEdge ? dy / 4 : dy / 2
-            }
-            .onEnded { value in
-                let dy = value.predictedEndTranslation.height
-                if dy < -40 && index < count - 1 {
-                    turn(1)
-                } else if dy > 40 && index > 0 {
-                    turn(-1)
-                }
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { drag = 0 }
-            }
-    }
-
-    private func turn(_ offset: Int) {
-        direction = offset
-        model.keyFeedback(for: .space)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
-            drag = 0
-            model.showVersion(offset: offset)
-        }
-    }
-}
-
-private struct ContentHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
-}

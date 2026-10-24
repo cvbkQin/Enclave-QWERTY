@@ -37,10 +37,12 @@ struct EnclaveSettings: Codable, Equatable {
     var keyHaptics: Bool = true
     /// 按键声音（手机静音时不响）。
     var keySound: Bool = true
+    /// 润色时结果卡片的流光和星星动画；系统打开「减弱动态效果」时不播。
+    var polishAnimation: Bool = true
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
-        case keyboardLayout, keyHaptics, keySound
+        case keyboardLayout, keyHaptics, keySound, polishAnimation
     }
 
     var isConfigured: Bool {
@@ -73,6 +75,7 @@ extension EnclaveSettings {
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
+        polishAnimation = try c.decodeIfPresent(Bool.self, forKey: .polishAnimation) ?? polishAnimation
     }
 }
 

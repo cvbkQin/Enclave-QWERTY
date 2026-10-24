@@ -9,8 +9,16 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
-    /// 长按预览复制后短暂显示「已复制」。
-    @Published private(set) var copiedFlash = false
+    /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
+    @Published private(set) var copied = false
+    /// 结果卡片展开到五行。
+    @Published var cardExpanded = false
+    /// 「正式▾」浮层：风格和要求。
+    @Published var styleMenuOpen = false
+    /// 当前结果已经替换或插入过：卡片变灰，按钮显示「✓ 已替换」。
+    @Published private(set) var resultUse: ResultUse?
+    /// 输入框又改过，当前结果和输入对不上：卡片同样变灰。
+    @Published private(set) var resultStale = false
     @Published var errorMessage: String?
     @Published var notice: String?
     @Published var hasFullAccess = true
@@ -58,9 +66,23 @@ final class KeyboardModel: ObservableObject {
 
     var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
 
+    enum ResultUse { case replaced, inserted }
+
     /// 预览区显示的文字。
     var displayText: String {
         isRunning ? streamingText : (session?.current ?? "")
+    }
+
+    /// 没开完全访问或没配置 API：✨ 置灰，卡片位置显示检查清单。
+    var aiBlocked: Bool { !debugUnblocked && (!hasFullAccess || !settings.isConfigured) }
+    /// 模拟器截图用：没配 API 也显示结果卡片。
+    var debugUnblocked = false
+
+    /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
+    var cardTall: Bool { cardExpanded || aiBlocked }
+
+    var keyboardHeight: CGFloat {
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen)
     }
 
     func reload() {
@@ -68,6 +90,7 @@ final class KeyboardModel: ObservableObject {
         session = SessionStore.load()
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         hasFullAccess = controller?.hasFullAccess ?? false
+        if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
         selectEngine()
     }
 
@@ -92,7 +115,7 @@ final class KeyboardModel: ObservableObject {
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
-            notice = "先在输入框里写点什么，或者在要求栏填一个要求让它帮你写。"
+            notice = "先在输入框里写点什么，或者点「\(settings.selectedStyle?.name ?? "风格")▾」写一个要求让它帮你写。"
 
         case (false, true):
             // 润色：开启一个新会话。
@@ -139,27 +162,35 @@ final class KeyboardModel: ObservableObject {
     /// 预览区已经有一个结果（不在生成中）。
     var hasResult: Bool { !isRunning && session?.current != nil }
 
-    /// 点风格标签：选中它；已有结果时立刻用这个风格重写原话，结果作为新的一版。
-    func styleTagTapped(_ style: StylePreset) {
-        selectStyle(style)
+    /// 风格浮层里的「润色」和回车「执行」：按当前风格和要求生成。
+    /// 已有这段文字的结果时，用原话重写一版追加到后面，可以上下翻回之前的版本；否则照常执行。
+    func regenerate() {
         guard !isRunning else { return }
-        // 输入框里已经换成别的文字：按这个风格润色它，不再重写上一次的原话。
+        let request = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let content = CommandParser.parse(readField().text).content
-        if dropSession(unlessItBelongsTo: content) {
-            guard checkCanCallModel() else { return }
-            run(Prompts.polish(content, style: style), pending: EditSession(mode: .polish, original: content))
+        guard !content.isEmpty, !dropSession(unlessItBelongsTo: content),
+              hasResult, var pending = session, let current = pending.current, let style = settings.selectedStyle
+        else {
+            execute()
             return
         }
-        guard hasResult, var pending = session, let current = pending.current, checkCanCallModel() else { return }
+        guard checkCanCallModel() else { return }
         switch pending.mode {
         case .polish:
-            run(Prompts.polish(pending.original, style: style), pending: pending)
+            run(rewrite(pending.original, request: request, style: style), pending: pending)
         case .write:
-            let request = "按「\(style.name)」的写法重写一遍。"
-            pending.conversation.append(.user(request))
-            run(Prompts.revise(original: pending.original, current: current, instruction: request, style: style),
+            let ask = ["按「\(style.name)」的写法重写一遍。", request].filter { !$0.isEmpty }.joined(separator: "；")
+            pending.conversation.append(.user(ask))
+            run(Prompts.revise(original: pending.original, current: current, instruction: ask, style: style),
                 pending: pending)
         }
+    }
+
+    /// 按风格重写一段原话；有要求时按要求改。
+    private func rewrite(_ text: String, request: String, style: StylePreset) -> [ChatMessage] {
+        request.isEmpty
+            ? Prompts.polish(text, style: style)
+            : Prompts.revise(original: text, current: text, instruction: request, style: style)
     }
 
     private func run(_ messages: [ChatMessage], pending: EditSession) {
@@ -184,6 +215,8 @@ final class KeyboardModel: ObservableObject {
                         updated.conversation.append(.assistant(result))
                     }
                     self.session = updated
+                    self.resultUse = nil
+                    self.resultStale = false
                     SessionStore.save(updated)
                 }
             } catch {
@@ -213,6 +246,12 @@ final class KeyboardModel: ObservableObject {
         debug.currentIndex = 1
         session = debug
     }
+
+    /// 模拟器截图用：停在生成中，看流光动画。
+    func loadDebugRunning() {
+        isRunning = true
+        streamingText = "不好意思，明天的会我可能参加不了，家里临时有点事"
+    }
     #endif
 
     func showVersion(offset: Int) {
@@ -221,16 +260,15 @@ final class KeyboardModel: ObservableObject {
         guard session.versions.indices.contains(index) else { return }
         session.currentIndex = index
         self.session = session
+        resultUse = nil
         SessionStore.save(session)
     }
 
-    func newSession() {
-        stop()
-        session = nil
-        SessionStore.save(nil)
-        setInstruction("")
-        errorMessage = nil
-        notice = "已开始新会话。"
+    /// 输入框的文字变了（系统通知）：和当前结果对不上就把卡片变灰。
+    func fieldDidChange() {
+        guard let session, session.current != nil, !isRunning else { return }
+        let stale = !session.belongs(to: CommandParser.parse(readField().text).content)
+        if stale != resultStale { resultStale = stale }
     }
 
     /// 输入框里的文字和当前会话对不上时丢掉会话，返回是否丢掉了。
@@ -289,20 +327,21 @@ final class KeyboardModel: ObservableObject {
             clearField(proxy)
             proxy.insertText(text)
         }
-        recordEdit(inserted: text, original: field.text)
+        recordEdit(inserted: text, original: field.text, use: .replaced)
     }
 
     /// 在光标处插入当前版本。
     func insert() {
         guard let text = session?.current, let proxy else { return }
         proxy.insertText(text)
-        recordEdit(inserted: text, original: "")
+        recordEdit(inserted: text, original: "", use: .inserted)
     }
 
     func undo() {
         guard let edit = undoStack.popLast(), let proxy else { return }
         swap(edit.inserted, for: edit.original, in: proxy)
         redoStack.append(edit)
+        resultUse = nil
         updateUndoState()
     }
 
@@ -310,6 +349,7 @@ final class KeyboardModel: ObservableObject {
         guard let edit = redoStack.popLast(), let proxy else { return }
         swap(edit.original, for: edit.inserted, in: proxy)
         undoStack.append(edit)
+        resultUse = edit.use
         updateUndoState()
     }
 
@@ -319,19 +359,21 @@ final class KeyboardModel: ObservableObject {
         if !new.isEmpty { proxy.insertText(new) }
     }
 
-    /// 长按预览：复制当前版本。
+    /// 卡片上的复制图标或长按卡片：复制当前版本。
     func copy() {
         guard hasResult, let text = session?.current else { return }
         UIPasteboard.general.string = text
         keyFeedback(for: .space)
-        withAnimation(.easeOut(duration: 0.15)) { copiedFlash = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            withAnimation(.easeIn(duration: 0.2)) { self?.copiedFlash = false }
+        withAnimation(.easeOut(duration: 0.15)) { copied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            withAnimation(.easeIn(duration: 0.2)) { self?.copied = false }
         }
     }
 
-    private func recordEdit(inserted: String, original: String) {
-        undoStack.append(FieldEdit(inserted: inserted, original: original))
+    private func recordEdit(inserted: String, original: String, use: ResultUse) {
+        resultUse = use
+        resultStale = false
+        undoStack.append(FieldEdit(inserted: inserted, original: original, use: use))
         redoStack.removeAll()
         updateUndoState()
     }
@@ -344,8 +386,8 @@ final class KeyboardModel: ObservableObject {
     #if DEBUG
     /// 模拟器截图用：让撤销、重做都可点。
     func loadDebugUndo() {
-        undoStack = [FieldEdit(inserted: "", original: "")]
-        redoStack = [FieldEdit(inserted: "", original: "")]
+        undoStack = [FieldEdit(inserted: "", original: "", use: .replaced)]
+        redoStack = [FieldEdit(inserted: "", original: "", use: .replaced)]
         updateUndoState()
     }
     #endif
@@ -385,4 +427,5 @@ final class KeyboardModel: ObservableObject {
 private struct FieldEdit {
     var inserted: String
     var original: String
+    var use: KeyboardModel.ResultUse
 }

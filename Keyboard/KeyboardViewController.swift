@@ -30,24 +30,30 @@ final class KeyboardViewController: UIInputViewController {
         // 键盘高度只由这一条必需约束决定。allowsSelfSizing 让系统按我们的约束算高度，
         // 而不是套用它自己的固定高度——否则展开后系统仍按旧高度摆放，面板顶部和最后一排键会被裁掉。
         inputView?.allowsSelfSizing = true
-        let height = view.heightAnchor.constraint(equalToConstant: KeyboardMetrics.collapsedHeight)
+        let height = view.heightAnchor.constraint(equalToConstant: model.keyboardHeight)
         height.priority = .required
         height.isActive = true
         heightConstraint = height
 
-        model.$aiExpanded
-            .removeDuplicates()
-            .sink { [weak self] expanded in self?.updateHeight(expanded: expanded) }
+        // 展开、卡片展开、风格菜单都会改变高度；在变化之后的下一轮读新值。
+        model.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateHeight() }
             .store(in: &cancellables)
     }
 
-    private func updateHeight(expanded: Bool) {
-        let target = expanded ? KeyboardMetrics.expandedHeight : KeyboardMetrics.collapsedHeight
+    private func updateHeight() {
+        let target = model.keyboardHeight
         guard let heightConstraint, heightConstraint.constant != target else { return }
         heightConstraint.constant = target
         view.setNeedsLayout()
         view.superview?.setNeedsLayout()
         view.superview?.layoutIfNeeded()
+    }
+
+    override func textDidChange(_ textInput: UITextInput?) {
+        super.textDidChange(textInput)
+        model.fieldDidChange()
     }
 
     override func viewWillAppear(_ animated: Bool) {
