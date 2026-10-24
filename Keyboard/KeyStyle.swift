@@ -46,7 +46,7 @@ enum KeyboardMetrics {
     /// 点「润色」时 AI 栏上方的提示卡：没开完全访问（P02）、首次发送前确认（P03），换了地址时多一行旧地址（P04）。
     static func gateHeight(_ gate: KeyboardModel.AIGate) -> CGFloat {
         switch gate {
-        case .fullAccess: return 204
+        case .fullAccess: return 188
         case .consent(_, let previous): return previous == nil ? 178 : 196
         }
     }
