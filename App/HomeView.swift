@@ -48,7 +48,7 @@ private struct Dashboard: View {
         sectionTitle("当前配置")
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
             ConfigCard(icon: "cpu", color: AppColor.purple, label: "模型", value: store.settings.model,
-                       detail: modelDetail.text, dot: modelDetail.color) { router.openSettings(.model) }
+                       detail: modelDetail.text, dot: modelDetail.color) { router.openModel() }
             ConfigCard(icon: "sparkles", color: Color(red: 0.69, green: 0.32, blue: 0.87), label: "默认风格",
                        value: store.settings.selectedStyle?.name ?? "—",
                        detail: "共 \(store.settings.styles.count) 个风格", dot: nil) { router.tab = .styles }
@@ -181,7 +181,7 @@ struct OnboardingSteps: View {
             }
             StepCard(number: 3, title: "配置模型接口", done: done[2], current: current == 2) {
                 Text("填 API 地址和 Key，或者从剪贴板导入配置。")
-                Button("去配置") { router.openSettings(.model) }
+                Button("去配置") { router.openModel() }
                     .buttonStyle(StepButtonStyle(prominent: current == 2))
             }
             DeployCard()

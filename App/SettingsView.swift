@@ -11,10 +11,6 @@ struct SettingsView: View {
         NavigationStack(path: $router.settingsPath) {
             List {
                 Section {
-                    NavigationLink(value: AppRouter.SettingsPage.model) {
-                        IconRow(systemName: "cpu", color: AppColor.purple, title: "模型接口",
-                                value: store.settings.model.isEmpty ? "未配置" : store.settings.model)
-                    }
                     NavigationLink(value: AppRouter.SettingsPage.keyboard) {
                         IconRow(systemName: "keyboard", color: .blue, title: "键盘",
                                 value: store.settings.keyboardLayout.shortTitle)
@@ -49,7 +45,6 @@ struct SettingsView: View {
             .navigationTitle("设置")
             .navigationDestination(for: AppRouter.SettingsPage.self) { page in
                 switch page {
-                case .model: ModelSettingsView()
                 case .keyboard: KeyboardSettingsView()
                 case .fuzzy: FuzzyPinyinView()
                 case .pinyin: PinyinView()
@@ -191,7 +186,6 @@ struct ModelSettingsView: View {
             }
         }
         .navigationTitle("模型接口")
-        .navigationBarTitleDisplayMode(.inline)
         .onAppear { provider = Provider.detect(store.settings.baseURL) }
     }
 

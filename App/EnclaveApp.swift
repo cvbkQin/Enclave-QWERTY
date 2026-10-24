@@ -45,6 +45,9 @@ struct RootView: View {
             StylesTab()
                 .tabItem { Label("风格", systemImage: "sparkles") }
                 .tag(AppRouter.Tab.styles)
+            NavigationStack { ModelSettingsView() }
+                .tabItem { Label("接口", systemImage: "cpu") }
+                .tag(AppRouter.Tab.model)
             SettingsView()
                 .tabItem { Label("设置", systemImage: "gearshape") }
                 .tag(AppRouter.Tab.settings)
@@ -57,10 +60,10 @@ struct RootView: View {
 final class AppRouter: ObservableObject {
     static let shared = AppRouter()
 
-    enum Tab: Hashable { case home, styles, settings }
+    enum Tab: Hashable { case home, styles, model, settings }
 
     enum SettingsPage: String, Hashable {
-        case model, keyboard, fuzzy, pinyin, guide, playground, privacy, about
+        case keyboard, fuzzy, pinyin, guide, playground, privacy, about
     }
 
     @Published var tab: Tab = .home
@@ -74,7 +77,7 @@ final class AppRouter: ObservableObject {
         let args = ProcessInfo.processInfo.arguments
         showPlayground = args.contains("-playground")
         if let i = args.firstIndex(of: "-appTab"), args.indices.contains(i + 1) {
-            tab = ["styles": .styles, "settings": .settings][args[i + 1]] ?? .home
+            tab = ["styles": .styles, "model": .model, "settings": .settings][args[i + 1]] ?? .home
         }
         if let i = args.firstIndex(of: "-appPage"), args.indices.contains(i + 1) {
             let pages = args[i + 1].split(separator: "/").compactMap { SettingsPage(rawValue: String($0)) }
@@ -89,6 +92,11 @@ final class AppRouter: ObservableObject {
         playgroundFocusToken = UUID()
         tab = .home
         showPlayground = true
+    }
+
+    /// 从首页卡片跳到「接口」标签。
+    func openModel() {
+        tab = .model
     }
 
     /// 从首页卡片跳到设置里的某一页。
