@@ -791,7 +791,14 @@ struct RequestField: View {
             Group {
                 if editing {
                     TimelineView(.animation(minimumInterval: 1 / 30)) { context in
-                        content(text: text, caretOpacity: caretOpacity(at: context.date))
+                        let opacity = caretOpacity(at: context.date)
+                        content(text: text, caretOpacity: opacity)
+                            .overlay(alignment: .leading) {
+                                if text.isEmpty && model.composition.isEmpty {
+                                    Image(uiImage: Self.caret).foregroundStyle(Brand.purple.opacity(opacity))
+                                        .offset(x: -2)
+                                }
+                            }
                     }
                 } else {
                     content(text: text, caretOpacity: nil)
@@ -835,7 +842,8 @@ struct RequestField: View {
             Text(Image(uiImage: Self.caret)).foregroundColor(Brand.purple.opacity($0)).baselineOffset(-3)
         } ?? Text("")
         if text.isEmpty && composing.isEmpty {
-            return caret + Text(placeholder).foregroundColor(Brand.fieldPlaceholder)
+            // 光标叠在占位字左边，不占宽度，激活前后占位字不挪位置。
+            return Text(placeholder).foregroundColor(Brand.fieldPlaceholder)
         }
         return Text(text).foregroundColor(Brand.fieldText)
             + Text(composing).foregroundColor(.primary).underline(color: Brand.purple)
