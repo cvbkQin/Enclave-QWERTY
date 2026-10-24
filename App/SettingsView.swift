@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// 设置：模型接口、键盘、拼音词库；开启键盘指南、试一试；共享配置、隐私、关于。
+/// 设置：拼音词库；开启键盘指南、场景实验室；共享配置、隐私、关于。
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -10,14 +10,10 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack(path: $router.settingsPath) {
             List {
+                // 键盘和常用词从首页进。
                 Section {
-                    NavigationLink(value: AppRouter.SettingsPage.keyboard) {
-                        IconRow(systemName: "keyboard", color: .blue, title: "键盘",
-                                value: store.settings.keyboardLayout.shortTitle)
-                    }
                     NavigationLink(value: AppRouter.SettingsPage.pinyin) {
-                        IconRow(systemName: "character.book.closed", color: .orange, title: "拼音词库",
-                                value: PinyinStatus.current(deployer).text)
+                        IconRow(systemName: "character.book.closed", color: .orange, title: "拼音词库", value: "万象拼音")
                     }
                 }
                 Section {
@@ -25,7 +21,8 @@ struct SettingsView: View {
                         IconRow(systemName: "questionmark", color: .green, title: "开启键盘指南")
                     }
                     NavigationLink(value: AppRouter.SettingsPage.playground) {
-                        IconRow(systemName: "hand.tap", color: Color(red: 0.69, green: 0.32, blue: 0.87), title: "试一试")
+                        IconRow(systemName: "flask", color: Color(red: 0.69, green: 0.32, blue: 0.87), title: "场景实验室",
+                                value: "\(LabScene.all.count) 个场景")
                     }
                 }
                 Section {
@@ -53,7 +50,7 @@ struct SettingsView: View {
                     .background(Color(.systemGroupedBackground))
                     .navigationTitle("开启键盘指南")
                     .navigationBarTitleDisplayMode(.inline)
-                case .playground: PlaygroundView()
+                case .playground: LabView()
                 case .privacy: PrivacyView()
                 case .about: AboutView()
                 }

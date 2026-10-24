@@ -97,6 +97,12 @@ struct KeyboardView: View {
                             Text(word)
                                 .font(.system(size: 20))
                                 .foregroundStyle(index == 0 ? Brand.purple : Color.primary)
+                                // 来自常用词：右上角一个 5pt 紫点。
+                                .overlay(alignment: .topTrailing) {
+                                    if index == 0 && model.commonWordTexts.contains(word) {
+                                        Circle().fill(Brand.commonWordDot).frame(width: 5, height: 5).offset(x: 5, y: 2)
+                                    }
+                                }
                                 .padding(.horizontal, 11)
                                 .frame(maxHeight: .infinity)
                                 .contentShape(Rectangle())

@@ -9,7 +9,7 @@ struct HomeView: View {
     @State private var refresh = UUID()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $router.homePath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if Readiness.remainingSteps(apiConfigured: store.settings.isConfigured) == 0 {
@@ -25,11 +25,20 @@ struct HomeView: View {
                 .id(refresh)
             }
             .background(Color(.systemGroupedBackground))
-            // 自己画大标题，导航栏标题写「首页」，这样「试一试」的返回按钮叫「首页」。
+            // 自己画大标题，导航栏标题写「首页」，这样二级页的返回按钮叫「首页」。
             .navigationTitle("首页")
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(isPresented: $router.showPlayground) {
-                PlaygroundView(autoFocusToken: router.playgroundFocusToken)
+            .navigationDestination(for: AppRouter.HomePage.self) { page in
+                switch page {
+                case .keyboard: KeyboardSettingsView()
+                case .commonWords: CommonWordsView()
+                case .lab: LabView()
+                case .scene(let index): SceneView(index: index)
+                }
+            }
+            // 键盘页里的「模糊拼音」。
+            .navigationDestination(for: AppRouter.SettingsPage.self) { page in
+                if page == .fuzzy { FuzzyPinyinView() }
             }
             .onChange(of: scenePhase) { if $0 == .active { refresh = UUID() } }
         }
@@ -40,24 +49,20 @@ struct HomeView: View {
 private struct Dashboard: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
-    @ObservedObject private var deployer = RimeDeployer.shared
+    @StateObject private var words = CommonWordsModel()
 
     var body: some View {
         if !SharedStorage.isShared { SharedConfigBanner() }
         hero
         sectionTitle("当前配置")
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
-            ConfigCard(icon: "cpu", color: AppColor.purple, label: "模型", value: store.settings.model,
-                       detail: modelDetail.text, dot: modelDetail.color) { router.openModel() }
-            ConfigCard(icon: "sparkles", color: Color(red: 0.69, green: 0.32, blue: 0.87), label: "默认风格",
-                       value: store.settings.selectedStyle?.name ?? "—",
-                       detail: "共 \(store.settings.styles.count) 个风格", dot: nil) { router.tab = .styles }
+        ModelRow(model: store.settings.model, status: modelStatus) { router.openModel() }
+        HStack(spacing: 12) {
             ConfigCard(icon: "keyboard", color: .blue, label: "键盘", value: store.settings.keyboardLayout.shortTitle,
-                       detail: keyboardDetail, dot: nil) { router.openSettings(.keyboard) }
-            let pinyin = PinyinStatus.current(deployer)
-            ConfigCard(icon: "character.book.closed", color: .orange, label: "拼音词库", value: "万象拼音",
-                       detail: pinyin.text, dot: pinyin.color) { router.openSettings(.pinyin) }
+                       detail: "布局、模糊拼音、震动", dot: nil) { router.openHome(.keyboard) }
+            ConfigCard(icon: "text.book.closed", color: .green, label: "常用词", value: "\(words.all.count) 个",
+                       detail: wordsDetail, dot: nil) { router.openHome(.commonWords) }
         }
+        .onAppear { words.reload() }
         sectionTitle("小技巧")
         VStack(alignment: .leading, spacing: 8) {
             Text("· 选中一段文字再点润色，只改选中的部分")
@@ -79,9 +84,9 @@ private struct Dashboard: View {
                     .font(.footnote).opacity(0.85)
                     .padding(.trailing, 70)
                 Button {
-                    router.openPlayground()
+                    router.openHome(.lab)
                 } label: {
-                    Label("试一试", systemImage: "keyboard")
+                    Label("场景实验室", systemImage: "flask")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppColor.purple)
                         .padding(.horizontal, 16)
@@ -100,17 +105,25 @@ private struct Dashboard: View {
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppColor.heroGradient))
     }
 
-    private var modelDetail: (text: String, color: Color) {
+    /// 测试过才知道连不连得上；没测过显示「还没测试」。
+    private var modelStatus: (text: String, color: Color) {
         switch store.test {
         case .success: return ("连接正常", .green)
-        case .failure: return ("连接失败", .red)
+        case .failure: return ("连不上", .red)
         case .running: return ("正在测试", .orange)
-        case .idle: return ("还没测试", Color.secondary.opacity(0.5))
+        case .idle:
+            switch store.lastTestOK {
+            case true?: return ("连接正常", .green)
+            case false?: return ("连不上", .red)
+            case nil: return ("还没测试", Color.secondary.opacity(0.6))
+            }
         }
     }
 
-    private var keyboardDetail: String {
-        "震动\(store.settings.keyHaptics ? "开" : "关") · 动画\(store.settings.polishAnimation ? "开" : "关")"
+    private var wordsDetail: String {
+        let manual = words.count(.manual), imported = words.count(.imported)
+        if manual + imported == 0 { return words.all.isEmpty ? "还没有，点进去添加" : "来自系统文本替换" }
+        return "手动 \(manual) · 导入 \(imported)"
     }
 
     private func sectionTitle(_ text: String) -> some View {
@@ -118,7 +131,35 @@ private struct Dashboard: View {
     }
 }
 
-/// 首页四宫格的一张卡片，点了跳到对应页面。
+/// 首页「接口」整行：模型名和连接状态，点进「接口」标签。
+private struct ModelRow: View {
+    var model: String
+    var status: (text: String, color: Color)
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                RowIcon(systemName: "cpu", color: AppColor.purple, size: 34)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("接口").font(.caption).foregroundStyle(.secondary)
+                    Text(model.isEmpty ? "未配置" : model).font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                }
+                Spacer()
+                HStack(spacing: 5) {
+                    Circle().fill(status.color).frame(width: 7, height: 7)
+                    Text(status.text).font(.footnote.weight(.semibold)).foregroundStyle(status.color)
+                }
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 首页的一张卡片，点了跳到对应页面。
 private struct ConfigCard: View {
     var icon: String
     var color: Color

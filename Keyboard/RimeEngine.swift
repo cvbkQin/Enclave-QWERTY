@@ -35,7 +35,8 @@ final class RimeEngine: InputEngine {
             ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false)),
             ("enclave_phrase_t9", CommonWordStore.phraseTable(entries, nineKey: true)),
             // 九宫格拼写栏显示常用词的拼音用（enclave_t9_preedit.lua 读）。
-            ("enclave_phrase_t9_pinyin", entries.map { "\($0.text)\t\($0.code)" }.joined(separator: "\n") + "\n"),
+            // 同一个词有全拼和简码时只记第一个（全拼）。
+            ("enclave_phrase_t9_pinyin", firstCodes(entries).map { "\($0.text)\t\($0.code)" }.joined(separator: "\n") + "\n"),
         ]
         for (name, table) in files {
             let url = paths.user.appendingPathComponent(name + ".txt")
@@ -47,6 +48,11 @@ final class RimeEngine: InputEngine {
             enclave_rime_destroy_session(session)
             session = 0
         }
+    }
+
+    private func firstCodes(_ entries: [(text: String, code: String)]) -> [(text: String, code: String)] {
+        var seen = Set<String>()
+        return entries.filter { seen.insert($0.text).inserted }
     }
 
     private var useShared = true

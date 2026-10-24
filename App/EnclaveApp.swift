@@ -18,8 +18,8 @@ struct EnclaveApp: App {
         if let index = args.firstIndex(of: "-commonWords"), args.indices.contains(index + 1) {
             CommonWordStore.save(args[index + 1].split(separator: ",").map { item in
                 let parts = item.split(separator: "=", maxSplits: 1).map(String.init)
-                let code = parts.count > 1 ? CommonWordStore.normalizeCode(parts[1]) : CommonWordStore.pinyin(of: parts[0])
-                return CommonWord(text: parts[0], code: code)
+                return CommonWord(text: parts[0], pinyin: CommonWordStore.pinyin(of: parts[0]),
+                                  shortcut: parts.count > 1 ? parts[1] : "")
             })
         }
         #endif
@@ -45,6 +45,9 @@ struct EnclaveApp: App {
                             }
                         }
                     case "privacy-policy": router.openSettings(.privacy)
+                    case "common-words":
+                        router.tab = .home
+                        router.homePath = NavigationPath([AppRouter.HomePage.commonWords])
                     default: break
                     }
                 }
@@ -85,16 +88,22 @@ final class AppRouter: ObservableObject {
         case keyboard, fuzzy, pinyin, guide, playground, privacy, about
     }
 
+    /// 首页里的二级页：键盘、常用词、场景实验室和其中一个场景。
+    enum HomePage: Hashable { case keyboard, commonWords, lab, scene(Int) }
+
     @Published var tab: Tab = .home
     @Published var settingsPath: [SettingsPage] = []
-    @Published var showPlayground = false
-    /// 每次打开「试一试」都换一个值，让页面重新聚焦第一个输入框。
-    @Published private(set) var playgroundFocusToken = UUID()
+    @Published var homePath = NavigationPath()
 
     init() {
-        // 截图用：-playground 打开试一试；-appPage model 打开设置里的某一页；-appTab styles 切标签。
+        // 截图用：-playground 打开第一个场景；-homePage commonWords / lab / keyboard 打开首页的二级页；
+        // -appPage model 打开设置里的某一页；-appTab styles 切标签。
         let args = ProcessInfo.processInfo.arguments
-        showPlayground = args.contains("-playground")
+        if args.contains("-playground") { homePath = NavigationPath([HomePage.lab, HomePage.scene(0)]) }
+        if let i = args.firstIndex(of: "-homePage"), args.indices.contains(i + 1) {
+            let page: HomePage? = ["keyboard": .keyboard, "commonWords": .commonWords, "lab": .lab][args[i + 1]]
+            if let page { homePath = NavigationPath([page]) }
+        }
         if let i = args.firstIndex(of: "-appTab"), args.indices.contains(i + 1) {
             tab = ["styles": .styles, "model": .model, "settings": .settings][args[i + 1]] ?? .home
         }
@@ -107,10 +116,14 @@ final class AppRouter: ObservableObject {
         }
     }
 
+    /// enclave://playground：打开场景实验室的第一个场景，进去自动弹键盘。
     func openPlayground() {
-        playgroundFocusToken = UUID()
         tab = .home
-        showPlayground = true
+        homePath = NavigationPath([HomePage.lab, HomePage.scene(0)])
+    }
+
+    func openHome(_ page: HomePage) {
+        homePath.append(page)
     }
 
     /// 从首页卡片跳到「接口」标签。
@@ -155,6 +168,13 @@ final class AppStore: ObservableObject {
         test = .idle
     }
 
+    /// 上次测试这个地址和模型的结果，首页「接口」卡片显示连接状态用。
+    var lastTestOK: Bool? {
+        SharedStorage.defaults.object(forKey: testKey) as? Bool
+    }
+
+    private var testKey: String { "test.ok.\(settings.baseURL)|\(settings.model)" }
+
     func runTest() async {
         test = .running
         let start = Date()
@@ -169,6 +189,11 @@ final class AppStore: ObservableObject {
                 : .success(String(reply.prefix(40)), Date().timeIntervalSince(start))
         } catch {
             test = .failure(error.localizedDescription)
+        }
+        if case .success = test {
+            SharedStorage.defaults.set(true, forKey: testKey)
+        } else {
+            SharedStorage.defaults.set(false, forKey: testKey)
         }
     }
 }

@@ -136,6 +136,8 @@ enum Brand {
     static let disabledFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.24, alpha: 1) : UIColor(red: 0xE5 / 255, green: 0xE5 / 255, blue: 0xEA / 255, alpha: 1) })
     static let disabledText = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
+    /// 候选来自常用词的小圆点 #8B7CF6。
+    static let commonWordDot = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
     /// 设置路径里的「>」#AEAEB2。
     static let pathSeparator = Color(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255)
     /// 提示卡正文 #3A3A3C、说明 #6B6B73。

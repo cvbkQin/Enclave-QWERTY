@@ -37,6 +37,8 @@ final class KeyboardModel: ObservableObject {
     /// 在结果卡片里直接改（target == .card）：改到一半的文字和光标位置（按字符数）。
     @Published private(set) var cardDraft = ""
     @Published private(set) var cardCaret = 0
+    /// 常用词，候选栏里给它们加个小紫点。
+    @Published private(set) var commonWordTexts: Set<String> = []
 
     // 打字状态，逻辑在 KeyboardModel+Typing.swift
     @Published var target: InputTarget = .host { didSet { if (target == .card) != (oldValue == .card) { heightMayChange?() } } }
@@ -135,24 +137,35 @@ final class KeyboardModel: ObservableObject {
     }
 
     /// 常用词交给拼音引擎：App 里加的和导入的，加上系统「文本替换」和通讯录人名（开了完全访问才读得到）。
+    /// 读到的系统词存一份快照给 App 的常用词页显示。
     func refreshCommonWords() {
-        let words = CommonWordStore.load().map { (text: $0.text, code: $0.code) }
-        guard hasFullAccess, CommonWordStore.usesLexicon, let controller else {
-            RimeEngine.shared.updatePhrases(words)
+        guard hasFullAccess, let controller else {
+            applyCommonWords(CommonWordStore.active(lexicon: CommonWordStore.lexicon))
             return
         }
         controller.requestSupplementaryLexicon { lexicon in
-            var entries = words
+            var seen = Set<String>()
+            var words: [CommonWord] = []
             for entry in lexicon.entries {
                 // 文本替换：输入码是缩写（yx → 邮箱）；人名：输入码就是名字本身，中文名按拼音打。
-                let hasHanzi = entry.userInput.unicodeScalars.contains { (0x3400...0x9FFF).contains($0.value) }
-                let code = hasHanzi ? CommonWordStore.pinyin(of: entry.userInput)
-                    : CommonWordStore.normalizeCode(entry.userInput)
-                guard !code.isEmpty, hasHanzi || entry.userInput != entry.documentText else { continue }
-                entries.append((text: entry.documentText, code: code))
+                let isName = entry.userInput == entry.documentText
+                let hanzi = CommonWordStore.containsHanzi(entry.userInput)
+                guard !isName || hanzi, seen.insert(entry.userInput + "\t" + entry.documentText).inserted else { continue }
+                words.append(CommonWord(text: entry.documentText,
+                                        pinyin: hanzi ? CommonWordStore.pinyin(of: entry.userInput) : "",
+                                        shortcut: hanzi ? "" : entry.userInput,
+                                        source: isName ? .contact : .textReplacement))
             }
-            DispatchQueue.main.async { RimeEngine.shared.updatePhrases(entries) }
+            DispatchQueue.main.async {
+                CommonWordStore.lexicon = words
+                self.applyCommonWords(CommonWordStore.active(lexicon: words))
+            }
         }
+    }
+
+    private func applyCommonWords(_ words: [CommonWord]) {
+        commonWordTexts = Set(words.map(\.text))
+        RimeEngine.shared.updatePhrases(CommonWordStore.phraseEntries(words))
     }
 
     // MARK: - 执行
