@@ -133,7 +133,9 @@ enum KeyLayout {
         }
 
         let returnWidth = unit * 2.5
-        // 中文的数字和符号页照原生：底栏只有「拼音」、空格、换行，不放表情和中/英。
+        let toggle = KeyboardMetrics.toggleKeyWidth + KeyboardMetrics.keyInsetX * 2
+        // 中文的数字和符号页：底栏是「拼音」、中/英、空格、换行，不放表情。
+        // 留着中/英，才能从中文符号直接切到英文符号。
         if state.layer != .letters && (state.chineseMode || state.nineKey) {
             let back = unit * 2.4
             var x: CGFloat = 0
@@ -143,6 +145,8 @@ enum KeyLayout {
                 add("globe", .globe, x: x, row: 3, width: unit * 1.25)
                 x += unit * 1.25
             }
+            add("chinese", .toggleChinese, x: x, row: 3, width: toggle)
+            x += toggle
             add("space", .space, x: x, row: 3, width: size.width - returnWidth - x)
             add("return", .returnKey, x: size.width - returnWidth, row: 3, width: returnWidth)
             return KeyLayoutResult(keys: keys)
@@ -161,7 +165,6 @@ enum KeyLayout {
             add("emoji", .emoji, x: x, row: 3, width: side)
             x += side
         }
-        let toggle = KeyboardMetrics.toggleKeyWidth + KeyboardMetrics.keyInsetX * 2
         add("chinese", .toggleChinese, x: x, row: 3, width: toggle)
         x += toggle
         add("space", .space, x: x, row: 3, width: size.width - returnWidth - x)
