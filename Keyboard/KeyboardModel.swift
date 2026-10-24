@@ -159,27 +159,38 @@ final class KeyboardModel: ObservableObject {
     /// 预览区已经有一个结果（不在生成中）。
     var hasResult: Bool { !isRunning && session?.current != nil }
 
-    /// 点风格标签：选中它；已有结果时立刻用这个风格重写原话，结果作为新的一版。
+    /// 点风格标签：选中它；已有结果时立刻用这个风格（带上当前的要求）重写原话，结果作为新的一版。
+    /// 浮层保持打开，结果卡片在上方显示生成中。
     func styleTagTapped(_ style: StylePreset) {
         selectStyle(style)
         guard !isRunning else { return }
+        let request = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         // 输入框里已经换成别的文字：按这个风格润色它，不再重写上一次的原话。
         let content = CommandParser.parse(readField().text).content
         if dropSession(unlessItBelongsTo: content) {
-            guard checkCanCallModel() else { return }
-            run(Prompts.polish(content, style: style), pending: EditSession(mode: .polish, original: content))
+            guard !content.isEmpty, checkCanCallModel() else { return }
+            setAIExpanded(true)
+            run(rewrite(content, request: request, style: style), pending: EditSession(mode: .polish, original: content))
             return
         }
         guard hasResult, var pending = session, let current = pending.current, checkCanCallModel() else { return }
+        setAIExpanded(true)
         switch pending.mode {
         case .polish:
-            run(Prompts.polish(pending.original, style: style), pending: pending)
+            run(rewrite(pending.original, request: request, style: style), pending: pending)
         case .write:
-            let request = "按「\(style.name)」的写法重写一遍。"
-            pending.conversation.append(.user(request))
-            run(Prompts.revise(original: pending.original, current: current, instruction: request, style: style),
+            let ask = ["按「\(style.name)」的写法重写一遍。", request].filter { !$0.isEmpty }.joined(separator: "；")
+            pending.conversation.append(.user(ask))
+            run(Prompts.revise(original: pending.original, current: current, instruction: ask, style: style),
                 pending: pending)
         }
+    }
+
+    /// 按风格重写一段原话；有要求时按要求改。
+    private func rewrite(_ text: String, request: String, style: StylePreset) -> [ChatMessage] {
+        request.isEmpty
+            ? Prompts.polish(text, style: style)
+            : Prompts.revise(original: text, current: text, instruction: request, style: style)
     }
 
     private func run(_ messages: [ChatMessage], pending: EditSession) {
