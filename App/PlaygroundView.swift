@@ -59,6 +59,7 @@ struct PlaygroundView: View {
             }
         }
         .navigationTitle("试一试")
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: autoFocusToken) {
             guard autoFocusToken != nil else { return }
             try? await Task.sleep(nanoseconds: 600_000_000)
