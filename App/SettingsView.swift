@@ -265,6 +265,8 @@ struct KeyboardSettingsView: View {
                         }
                     }
                 }
+                // 留出描边的位置，免得被分组的圆角裁掉。
+                .padding(2)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             } header: {
