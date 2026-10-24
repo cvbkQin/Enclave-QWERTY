@@ -487,7 +487,8 @@ struct ResultCard: View {
             if let session = model.session, session.versions.count > 1, !model.isRunning {
                 pager(index: session.currentIndex, count: session.versions.count)
                     .contentShape(Rectangle())
-                    .simultaneousGesture(swipeToTurn)
+                    // 优先于 ▲▼ 按钮：手指在按钮里滑一下松开，按钮也会算一次点击，就翻了两页。
+                    .highPriorityGesture(swipeToTurn)
             }
         }
         .padding(.trailing, 4)
@@ -568,8 +569,11 @@ struct ResultCard: View {
     /// 上滑看下一版，下滑看上一版。
     private var swipeToTurn: some Gesture {
         DragGesture(minimumDistance: 12).onEnded { value in
-            guard abs(value.translation.height) > abs(value.translation.width) else { return }
-            if value.translation.height < -20 { turn(1) } else if value.translation.height > 20 { turn(-1) }
+            // 快速轻扫移动距离短，用预测的终点算。
+            let dy = abs(value.predictedEndTranslation.height) > abs(value.translation.height)
+                ? value.predictedEndTranslation.height : value.translation.height
+            guard abs(dy) > abs(value.translation.width) else { return }
+            if dy < -20 { turn(1) } else if dy > 20 { turn(-1) }
         }
     }
 
