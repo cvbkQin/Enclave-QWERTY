@@ -90,7 +90,6 @@ targets:
       - path: Vendor/RimeBuild
         type: folder
         buildPhase: resources
-        optional: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave.keyboard

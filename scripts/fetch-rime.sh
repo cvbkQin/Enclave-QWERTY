@@ -15,6 +15,9 @@ FRAMEWORKS_SHA256="43a0921538827fedb2679e5d26bb389dec3759d44ccdcfd439e8ec21a7f93
 WANXIANG_COMMIT="f9e2d6cf4d63bf2637ab5662e6a94fc0c13bac9f"
 CONFIG="$ROOT/Configs/Rime"
 
+# 键盘自带的编译好的词库由 scripts/prebuild-rime.sh 生成；没生成时放个空目录，工程照样能编。
+mkdir -p "$VENDOR/RimeBuild"
+
 STAMP="$VENDOR/.stamp"
 # 方案文件或整理脚本改了也要重新生成。
 inputs_hash() {
