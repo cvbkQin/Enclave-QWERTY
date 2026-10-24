@@ -34,6 +34,9 @@ final class KeyboardModel: ObservableObject {
     @Published var needsGlobeKey = true
     /// 要求栏：和正文分开存放的修改要求，执行时和输入框里的「// 要求」合并。
     @Published private(set) var instruction = ""
+    /// 在结果卡片里直接改（target == .card）：改到一半的文字和光标位置（按字符数）。
+    @Published private(set) var cardDraft = ""
+    @Published private(set) var cardCaret = 0
 
     // 打字状态，逻辑在 KeyboardModel+Typing.swift
     @Published var target: InputTarget = .host
@@ -129,8 +132,13 @@ final class KeyboardModel: ObservableObject {
 
         guard checkCanCallModel() else { return }
 
-        let parsed = CommandParser.parse(readField().text)
-        dropSession(unlessItBelongsTo: parsed.content)
+        var parsed = CommandParser.parse(readField().text)
+        // 卡片上显示的是手改过的一版：拿它当原文；否则读输入框此刻的内容。
+        if let session, session.currentIsEdited, let edited = session.current {
+            parsed.content = edited
+        } else {
+            dropSession(unlessItBelongsTo: parsed.content)
+        }
         let command = CommandParser.Command(
             content: parsed.content,
             instruction: [instruction.trimmingCharacters(in: .whitespacesAndNewlines), parsed.instruction]
@@ -223,6 +231,61 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
+    // MARK: - 在卡片里改结果
+
+    /// 进入修改：点文字时光标放在点的位置，点铅笔放到末尾。只在面板展开、有结果时能改。
+    func beginCardEdit(caret: Int? = nil) {
+        guard aiExpanded, hasResult, let text = session?.current else { return }
+        if target != .card {
+            finishComposition()
+            cardDraft = text
+        } else {
+            finishComposition()
+        }
+        cardCaret = min(max(caret ?? cardDraft.count, 0), cardDraft.count)
+        target = .card
+    }
+
+    /// 完成修改：改过就存成新的一版（标「已改」），没改就只退出。
+    func finishCardEdit() {
+        guard target == .card else { return }
+        finishComposition()
+        target = .host
+        let text = cardDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var session, !text.isEmpty, cardDraft != session.current else { return }
+        session.append(cardDraft, edited: true)
+        self.session = session
+        resultUse = nil
+        resultStale = false
+        SessionStore.save(session)
+    }
+
+    /// 取消修改：丢掉这次改的，回到进入前那一版。
+    func cancelCardEdit() {
+        guard target == .card else { return }
+        engine.reset()
+        syncEngine()
+        target = .host
+        cardDraft = ""
+    }
+
+    func insertInCard(_ text: String) {
+        let index = cardDraft.index(cardDraft.startIndex, offsetBy: cardCaret)
+        cardDraft.insert(contentsOf: text, at: index)
+        cardCaret += text.count
+    }
+
+    func deleteInCard() {
+        guard cardCaret > 0 else { return }
+        let index = cardDraft.index(cardDraft.startIndex, offsetBy: cardCaret - 1)
+        cardDraft.remove(at: index)
+        cardCaret -= 1
+    }
+
+    func moveCardCaret(by offset: Int) {
+        cardCaret = min(max(cardCaret + offset, 0), cardDraft.count)
+    }
+
     func dismissGate() {
         afterConsent = nil
         if gate != nil { gate = nil }
@@ -250,8 +313,9 @@ final class KeyboardModel: ObservableObject {
     func regenerate() {
         guard !isRunning else { return }
         let request = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        let content = CommandParser.parse(readField().text).content
-        guard !content.isEmpty, !dropSession(unlessItBelongsTo: content),
+        let edited = session?.currentIsEdited == true ? session?.current : nil
+        let content = edited ?? CommandParser.parse(readField().text).content
+        guard !content.isEmpty, edited != nil || !dropSession(unlessItBelongsTo: content),
               hasResult, var pending = session, let style = settings.selectedStyle
         else {
             execute()
@@ -398,6 +462,7 @@ final class KeyboardModel: ObservableObject {
     #endif
 
     func showVersion(offset: Int) {
+        if target == .card { finishCardEdit() }
         guard var session else { return }
         let index = session.currentIndex + offset
         guard session.versions.indices.contains(index) else { return }

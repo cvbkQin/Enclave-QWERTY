@@ -3,7 +3,8 @@ import UIKit
 
 /// 打字：按键、组字、上屏，以及把文字送到聊天输入框还是要求框。
 extension KeyboardModel {
-    enum InputTarget { case host, instruction }
+    /// card：在结果卡片里直接改。
+    enum InputTarget { case host, instruction, card }
     /// digits 是九宫格的数字键盘；numbers、symbols 是全键盘那样的数字符号页（九宫格的 #@¥ 也进这里）。
     enum KeyLayer { case letters, numbers, symbols, digits }
     enum ShiftState { case off, on, locked }
@@ -44,6 +45,8 @@ extension KeyboardModel {
         case .instruction:
             guard !instruction.isEmpty else { return }
             setInstruction(String(instruction.dropLast()))
+        case .card:
+            deleteInCard()
         }
     }
 
@@ -79,6 +82,8 @@ extension KeyboardModel {
         case .host: proxy?.insertText("\n")
         case .instruction:
             menuPolishTapped()
+        case .card:
+            commit("\n")
         }
     }
 
@@ -161,8 +166,11 @@ extension KeyboardModel {
     }
 
     func moveCursor(by offset: Int) {
-        guard target == .host else { return }
-        proxy?.adjustTextPosition(byCharacterOffset: offset)
+        switch target {
+        case .host: proxy?.adjustTextPosition(byCharacterOffset: offset)
+        case .card: moveCardCaret(by: offset)
+        case .instruction: break
+        }
     }
 
     func shiftKey() {
@@ -352,6 +360,7 @@ extension KeyboardModel {
     /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
         guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
+        if target == .card { finishCardEdit() }
         guard !aiExpanded else {
             execute()
             return
@@ -369,6 +378,8 @@ extension KeyboardModel {
 
     func setAIExpanded(_ expanded: Bool) {
         guard expanded != aiExpanded else { return }
+        // 收起就看不到卡片了，改到一半的先存下来。
+        if target == .card { finishCardEdit() }
         finishComposition()
         if expanded { clearQuickStatus() }
         aiExpanded = expanded
@@ -376,6 +387,7 @@ extension KeyboardModel {
 
     /// 点「正式▾」：打开或关上风格浮层（只有这里能收起）。打开时光标进要求框，回车键变「执行」；关上回到原输入框。
     func toggleStyleMenu() {
+        if target == .card { finishCardEdit() }
         finishComposition()
         styleMenuOpen.toggle()
         target = styleMenuOpen ? .instruction : .host
@@ -385,6 +397,7 @@ extension KeyboardModel {
     /// 面板收起时是快速模式，润完直接替换输入框（AI 栏上流光）；展开时进结果卡片，等替换或插入。
     func menuPolishTapped() {
         guard passGate(then: { [weak self] in self?.menuPolishTapped() }) else { return }
+        if target == .card { finishCardEdit() }
         finishComposition()
         guard !aiExpanded else {
             regenerate()
@@ -401,12 +414,14 @@ extension KeyboardModel {
 
     /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
     func toggleInstructionEditing() {
+        // 同一时间只有一处接收打字：正在改卡片就先保存，焦点给要求框。
+        if target == .card { finishCardEdit() }
         finishComposition()
         target = target == .instruction ? .host : .instruction
     }
 
     /// 把正在拼的字母原样上屏，然后清空引擎。
-    private func finishComposition() {
+    func finishComposition() {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         syncEngine()
@@ -422,6 +437,8 @@ extension KeyboardModel {
             updateAutoShift()
         case .instruction:
             setInstruction(instruction + text)
+        case .card:
+            insertInCard(text)
         }
     }
 
@@ -479,6 +496,7 @@ extension KeyboardModel {
     var returnLook: ReturnLook {
         if isComposing { return ReturnLook(title: "确认", solid: false) }
         if target == .instruction { return ReturnLook(title: "执行", solid: true) }
+        if target == .card { return ReturnLook(title: nil, solid: false) }
         if let title = sendTitle { return ReturnLook(title: title, solid: hostHasText, bold: true) }
         return ReturnLook(title: nil, solid: false)
     }
@@ -523,6 +541,11 @@ extension KeyboardModel {
             case "cardExpanded": aiExpanded = true; cardExpanded = true
             #if DEBUG
             case "versions": aiExpanded = true; debugUnblocked = true; loadDebugVersions()
+            // cardEdit：停在卡片修改中；cardEdited：已经存了一版「已改」。
+            case "cardEdit": aiExpanded = true; debugUnblocked = true; loadDebugVersions(); beginCardEdit(caret: 8)
+            case "cardEdited":
+                aiExpanded = true; debugUnblocked = true; loadDebugVersions()
+                beginCardEdit(); insertInCard("周五补上进度。"); finishCardEdit()
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)

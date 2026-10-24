@@ -35,6 +35,8 @@ struct KeyboardView: View {
             Group {
                 if model.isComposing {
                     candidateBar
+                } else if model.target == .card {
+                    cardEditHint
                 } else {
                     aiBar
                 }
@@ -50,6 +52,25 @@ struct KeyboardView: View {
     }
 
     // MARK: - AI 栏
+
+    /// 在卡片里改结果时 AI 栏换成提示。
+    private var cardEditHint: some View {
+        HStack(spacing: 8) {
+            Label("正在修改结果", systemImage: "pencil")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Brand.deepPurple)
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(Capsule().fill(Brand.returnSoftFill))
+            Text("打字进卡片，按住空格左右滑动移光标")
+                .font(.system(size: 13))
+                .foregroundStyle(Brand.cardNote)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, inset)
+    }
 
     private var aiBar: some View {
         HStack(spacing: 6) {
@@ -102,7 +123,19 @@ struct KeyboardView: View {
     // MARK: - 动作行
 
     /// 结果卡片下面只有替换和插入；用过以后按钮显示「✓ 已替换」「✓ 已插入」。
+    @ViewBuilder
     private var actionRow: some View {
+        if model.target == .card {
+            HStack(spacing: 6) {
+                PanelButton(title: "取消修改", systemImage: nil, kind: .plain) { model.cancelCardEdit() }
+                PanelButton(title: "完成修改", systemImage: "checkmark", kind: .primary) { model.finishCardEdit() }
+            }
+        } else {
+            useRow
+        }
+    }
+
+    private var useRow: some View {
         let replaced = model.resultUse == .replaced
         let inserted = model.resultUse == .inserted
         return HStack(spacing: 6) {
@@ -362,7 +395,8 @@ struct UndoRedoPair: View {
 
 /// 动作行的按钮。primary 是实心紫（替换），outlined 是紫色描边（插入），done 是用过之后的淡紫底。
 struct PanelButton: View {
-    enum Kind { case primary, outlined, done }
+    /// plain：白底深灰字（「取消修改」）。
+    enum Kind { case primary, outlined, done, plain }
 
     var title: String
     var systemImage: String?
@@ -387,17 +421,19 @@ struct PanelButton: View {
 
     /// 替换用润色的蓝紫渐变，插入用青到靛蓝，都是白字；不能点时一律灰底灰字，不做半透明。
     private var fill: AnyShapeStyle {
-        guard kind == .done || isEnabled else { return AnyShapeStyle(Brand.disabledFill) }
+        guard kind == .done || kind == .plain || isEnabled else { return AnyShapeStyle(Brand.disabledFill) }
         switch kind {
         case .primary: return AnyShapeStyle(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
                                                           startPoint: .topLeading, endPoint: .bottomTrailing))
         case .outlined: return AnyShapeStyle(Brand.insertGradient)
         case .done: return AnyShapeStyle(Brand.returnSoftFill)
+        case .plain: return AnyShapeStyle(KeyStyle.charKey)
         }
     }
 
     private var foreground: Color {
         if kind == .done { return Brand.deepPurple }
+        if kind == .plain { return Brand.cardBody }
         return isEnabled ? .white : Brand.disabledText
     }
 }
@@ -608,6 +644,39 @@ struct GateButton: View {
     }
 }
 
+/// 结果卡片里点到第几个字，以及修改时的光标图形。和卡片文字一样用 15pt 系统字体排版。
+enum CardTextHit {
+    /// 2pt 宽的光标，模板图，颜色跟着文字前景色。
+    static let caret: UIImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 18)).image { context in
+        UIColor.black.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 2, height: 18))
+    }.withRenderingMode(.alwaysTemplate)
+
+    static func index(at point: CGPoint, in text: String, width: CGFloat) -> Int {
+        guard !text.isEmpty, width > 0 else { return 0 }
+        let storage = NSTextStorage(string: text, attributes: [.font: UIFont.systemFont(ofSize: 15)])
+        let layout = NSLayoutManager()
+        storage.addLayoutManager(layout)
+        let container = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        layout.addTextContainer(container)
+        if point.y > layout.usedRect(for: container).maxY { return text.count }
+        var fraction: CGFloat = 0
+        let glyph = layout.glyphIndex(for: point, in: container, fractionOfDistanceThroughGlyph: &fraction)
+        var utf16 = layout.characterIndexForGlyph(at: glyph)
+        if fraction > 0.5 { utf16 += 1 }
+        // UTF-16 位置换成第几个字（表情等占两个单位）。
+        var count = 0
+        var offset = 0
+        for character in text {
+            if offset >= utf16 { break }
+            offset += character.utf16.count
+            count += 1
+        }
+        return count
+    }
+}
+
 /// 浮层的形状：圆角矩形，底边一个小尖角。
 struct MenuBubble: Shape {
     static let arrowHeight: CGFloat = 6
@@ -704,11 +773,14 @@ struct RequestField: View {
 struct ResultCard: View {
     @ObservedObject var model: KeyboardModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 文字区宽度，点文字时换算成第几个字。
+    @State private var textWidth: CGFloat = 200
 
-    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded }
+    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded, editing }
 
     private var look: Look {
         if model.aiBlocked { return .checklist }
+        if model.target == .card { return .editing }
         if let error = model.errorMessage { return .error(error) }
         if model.isRunning { return .running }
         if model.session?.current != nil {
@@ -730,10 +802,13 @@ struct ResultCard: View {
             case .error(let message): errorView(message)
             case .hint(let notice): hintView(notice)
             case .running, .fresh, .faded: resultView(faded: { if case .faded = look { return true } else { return false } }())
+            case .editing: editView
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background {
+            // 修改中：外面一圈 4pt 淡紫光。
+            if case .editing = look { shape.inset(by: -4).fill(Brand.tagSelectedText.opacity(0.14)) }
             shape.fill(KeyStyle.charKey)
             if case .error = look { shape.fill(Color.red.opacity(0.07)) }
         }
@@ -767,6 +842,13 @@ struct ResultCard: View {
                 // 滑动放在主手势、长按放在同时识别，onLongPressGesture 会把拖动吞掉。
                 .gesture(swipeToTurn, including: model.cardTall ? .subviews : .all)
                 .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.copy() })
+                // 点文字进入修改，光标放在点的位置。
+                .simultaneousGesture(SpatialTapGesture().onEnded { value in
+                    guard model.hasResult, let text = model.session?.current else { return }
+                    // 减掉文字区的内边距；展开卡片滚动过时按未滚动估算，进入后可以再点一次调整。
+                    let point = CGPoint(x: value.location.x - 10, y: value.location.y - 8)
+                    model.beginCardEdit(caret: CardTextHit.index(at: point, in: text, width: textWidth))
+                })
             iconColumn(faded: faded)
                 .padding(.vertical, 5)
             if let session = model.session, session.versions.count > 1, !model.isRunning {
@@ -796,14 +878,82 @@ struct ResultCard: View {
         .font(.system(size: 15))
         .foregroundStyle(faded ? Color.secondary : Color.primary)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(GeometryReader { proxy in
+            Color.clear.onAppear { textWidth = proxy.size.width }
+                .onChange(of: proxy.size.width) { textWidth = $0 }
+        })
+    }
+
+    // MARK: 修改中
+
+    /// 卡片里的文字可以直接改：光标前、正在拼的拼音（紫色下划线）、闪烁的光标、光标后。
+    private var editView: some View {
+        HStack(alignment: .top, spacing: 2) {
+            ScrollViewReader { reader in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        editText
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(GeometryReader { proxy in
+                                Color.clear.onAppear { textWidth = proxy.size.width }
+                            })
+                            .contentShape(Rectangle())
+                            .simultaneousGesture(SpatialTapGesture().onEnded { value in
+                                model.beginCardEdit(caret: CardTextHit.index(at: value.location, in: model.cardDraft,
+                                                                             width: textWidth))
+                            })
+                        Color.clear.frame(height: 1).id("end")
+                    }
+                }
+                .hidingScrollEdgeEffect()
+                .onChange(of: model.cardDraft) { _ in
+                    // 在末尾打字时跟着滚到最下面。
+                    if model.cardCaret >= model.cardDraft.count - 1 { reader.scrollTo("end", anchor: .bottom) }
+                }
+                .onAppear {
+                    if model.cardCaret >= model.cardDraft.count { reader.scrollTo("end", anchor: .bottom) }
+                }
+            }
+            .padding(.leading, 10)
+            .padding(.vertical, 8)
+            iconColumn(faded: false)
+                .padding(.vertical, 5)
+        }
+        .padding(.trailing, 4)
+    }
+
+    private var editText: some View {
+        let draft = model.cardDraft
+        let split = draft.index(draft.startIndex, offsetBy: min(model.cardCaret, draft.count))
+        return TimelineView(.periodic(from: .now, by: 0.5)) { context in
+            let visible = Int(context.date.timeIntervalSinceReferenceDate * 2) % 2 == 0 || model.isComposing
+            (Text(draft[..<split])
+                + Text(model.composition).underline(color: Brand.tagSelectedText)
+                + Text(Image(uiImage: CardTextHit.caret)).foregroundColor(visible ? Brand.tagSelectedText : .clear)
+                    .baselineOffset(-3)
+                + Text(draft[split...]))
+                .font(.system(size: 15))
+                .foregroundStyle(Color.primary)
+        }
     }
 
     /// ✦ 状态、复制、展开：15pt 线性图标，24×18 点击区，上中下对齐。
     private func iconColumn(faded: Bool) -> some View {
         VStack(spacing: 0) {
-            SparkleMark(size: 15, color: faded ? Color.secondary.opacity(0.7) : Brand.purple, animating: animating)
-                .frame(width: 24, height: 18)
-                .background(Capsule().fill(model.isRunning ? Brand.softFill : Color.clear))
+            if model.isRunning {
+                SparkleMark(size: 15, color: Brand.purple, animating: animating)
+                    .frame(width: 24, height: 18)
+                    .background(Capsule().fill(Brand.softFill))
+            } else {
+                // 修改结果：平时紫色，显示的是改过的一版时变灰（还能再点进去改），修改中带浅紫底。
+                let editing = model.target == .card
+                let tint = editing || !(model.session?.currentIsEdited ?? false) ? Brand.tagSelectedText : Brand.pathSeparator
+                iconButton("pencil", tint: faded && !editing ? .secondary : tint) {
+                    editing ? model.finishCardEdit() : model.beginCardEdit()
+                }
+                .background(Capsule().fill(editing ? Brand.softFill : Color.clear))
+                .disabled(!model.hasResult)
+            }
             Spacer(minLength: 0)
             iconButton(model.copied ? "doc.on.doc.fill" : "doc.on.doc", tint: model.copied ? Brand.purple : .secondary) {
                 model.copy()
@@ -839,6 +989,9 @@ struct ResultCard: View {
             Text("\(index + 1)/\(count)")
                 .font(.system(size: 10, weight: .semibold).monospacedDigit())
                 .foregroundStyle(Color.primary)
+            if model.session?.currentIsEdited == true {
+                Text("已改").font(.system(size: 9.5, weight: .semibold)).foregroundStyle(Brand.deepPurple)
+            }
             Button { turn(1) } label: {
                 Image(systemName: "chevron.down").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -885,6 +1038,8 @@ struct ResultCard: View {
             shape.strokeBorder(Color.secondary.opacity(0.35), lineWidth: 0.8)
         case .error:
             shape.strokeBorder(Color.red.opacity(0.35), lineWidth: 0.8)
+        case .editing:
+            shape.strokeBorder(Brand.tagSelectedText, lineWidth: 2)
         case .checklist, .hint:
             EmptyView()
         }

@@ -12,14 +12,20 @@ struct EditSession: Codable, Equatable {
     var currentIndex: Int = 0
     /// 帮我写模式的多轮对话（不含 system）。
     var conversation: [ChatMessage] = []
+    /// 用户在卡片里手改后存下的版本序号，卡片上标「已改」。旧数据里没有这一项。
+    var editedVersions: [Int]?
 
     var current: String? {
         versions.indices.contains(currentIndex) ? versions[currentIndex] : nil
     }
 
-    mutating func append(_ version: String) {
+    /// 正在显示的是手改过的版本。
+    var currentIsEdited: Bool { editedVersions?.contains(currentIndex) ?? false }
+
+    mutating func append(_ version: String, edited: Bool = false) {
         versions.append(version)
         currentIndex = versions.count - 1
+        if edited { editedVersions = (editedVersions ?? []) + [currentIndex] }
     }
 
     /// 输入框里的文字是否还是这次会话的内容：包含原话或任一版本。
