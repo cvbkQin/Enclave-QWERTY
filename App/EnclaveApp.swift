@@ -14,6 +14,14 @@ struct EnclaveApp: App {
         } else {
             SharedStorage.defaults.removeObject(forKey: KeyboardDebug.key)
         }
+        // 测试常用词：-commonWords "张三丰,me@example.com=yx" 写入几个词（= 后面是编码，不写就按拼音）。
+        if let index = args.firstIndex(of: "-commonWords"), args.indices.contains(index + 1) {
+            CommonWordStore.save(args[index + 1].split(separator: ",").map { item in
+                let parts = item.split(separator: "=", maxSplits: 1).map(String.init)
+                let code = parts.count > 1 ? CommonWordStore.normalizeCode(parts[1]) : CommonWordStore.pinyin(of: parts[0])
+                return CommonWord(text: parts[0], code: code)
+            })
+        }
         #endif
     }
 
