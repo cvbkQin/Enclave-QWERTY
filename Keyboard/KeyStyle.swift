@@ -153,15 +153,21 @@ enum Brand {
     static let tagSelectedText = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
         : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
-    /// 没选中的风格标签 #F4F5F7 黑字。
+    /// 没选中的风格标签、没激活的要求框 #F2F2F7。
     static let tagFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
-        : UIColor(red: 0xF4 / 255, green: 0xF5 / 255, blue: 0xF7 / 255, alpha: 1) })
-    /// 要求框和选中的风格：100° 渐变 #9488F7 → #B4A9FB，白字。
-    static let fieldLinearGradient = LinearGradient(
-        colors: [Color(red: 0x94 / 255, green: 0x88 / 255, blue: 0xF7 / 255),
-                 Color(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFB / 255)],
-        startPoint: UnitPoint(x: 0, y: 0.41), endPoint: UnitPoint(x: 1, y: 0.59))
+        : UIColor(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255, alpha: 1) })
+    /// 选中的风格标签：#ECEAFD 底、#4A3BD6 字，1pt #D6D1FA 内描边。
+    static let tagSelectedStroke = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.36, green: 0.32, blue: 0.58, alpha: 1)
+        : UIColor(red: 0xD6 / 255, green: 0xD1 / 255, blue: 0xFA / 255, alpha: 1) })
+    /// 要求框里写了的字 #3A3A3C；占位字和没激活的铅笔 #8E8E93。
+    static let fieldText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.9, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
+    static let fieldPlaceholder = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
+    /// 要求框的清空按钮：#C7C7CC 圆、白叉。
+    static let fieldClear = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.45, alpha: 1) : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) })
     /// 「再润」：135° 紫到粉 #A855F7 → #EC4899。
     static let rerunGradient = LinearGradient(
         colors: [Color(red: 0xA8 / 255, green: 0x55 / 255, blue: 0xF7 / 255),

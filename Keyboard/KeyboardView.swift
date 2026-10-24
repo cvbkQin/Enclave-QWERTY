@@ -738,7 +738,7 @@ struct MenuBubble: Shape {
     }
 }
 
-/// 浮层里的风格：没选中浅灰底黑字，选中和要求框同一个渐变、白字。
+/// 浮层里的风格：没选中浅灰底黑字，选中浅紫底深紫字、细描边。
 struct MenuStyleTag: View {
     var title: String
     var selected: Bool
@@ -750,10 +750,11 @@ struct MenuStyleTag: View {
                 .font(.system(size: 14, weight: selected ? .semibold : .regular))
                 .padding(.horizontal, 11)
                 .frame(height: 28)
-                .foregroundStyle(selected ? Color.white : Color.primary)
+                .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
                 .background {
                     if selected {
-                        Capsule().fill(Brand.fieldLinearGradient)
+                        Capsule().fill(Brand.returnSoftFill)
+                        Capsule().strokeBorder(Brand.tagSelectedStroke, lineWidth: 1)
                     } else {
                         Capsule().fill(Brand.tagFill)
                     }
@@ -764,26 +765,36 @@ struct MenuStyleTag: View {
     }
 }
 
-/// 要求框：实心紫色渐变，白字白光标，铅笔图标。键盘打的字进这里，回车就执行。
+/// 要求框：没激活时灰底，激活时白底加紫色内描边。键盘打的字进这里，回车就执行。
+/// 描边一直都画着（没激活时和底色相同），激活前后框的大小和文字位置不动。
 struct RequestField: View {
     @ObservedObject var model: KeyboardModel
+    /// 最后一次打字的时间：打字时光标常亮，停下 0.5 秒后才开始闪。
+    @State private var lastTyped = Date()
+
+    static let caret: UIImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 17)).image { _ in
+        UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 2, height: 17), cornerRadius: 1).fill()
+    }.withRenderingMode(.alwaysTemplate)
+
+    private var placeholder: String {
+        guard let style = model.settings.selectedStyle, !style.prompt.isEmpty else { return "写要求，比如：语气委婉一点" }
+        return "按\(style.name)语气，还想怎么改？"
+    }
 
     var body: some View {
         let editing = model.target == .instruction
         let text = model.instruction
-        let showsPlaceholder = text.isEmpty && !(editing && model.isComposing)
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         HStack(spacing: 5) {
             Image(systemName: "pencil").font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.9))
+                .foregroundStyle(editing || !text.isEmpty ? Brand.tagSelectedText : Brand.fieldPlaceholder)
             Group {
-                if showsPlaceholder {
-                    (Text(editing ? "|" : "").foregroundColor(.white)
-                        + Text("写要求，比如：语气委婉一点").foregroundColor(Color.white.opacity(0.85)))
+                if editing {
+                    TimelineView(.animation(minimumInterval: 1 / 30)) { context in
+                        content(text: text, caretOpacity: caretOpacity(at: context.date))
+                    }
                 } else {
-                    // 每段都写明白色：拼到一半的拼音不写的话会显示成强调色，在紫底上看不清。
-                    (Text(text).foregroundColor(.white)
-                        + Text(editing ? model.composition : "").underline(color: .white).foregroundColor(.white)
-                        + Text(editing ? "|" : "").foregroundColor(.white))
+                    content(text: text, caretOpacity: nil)
                 }
             }
             .lineLimit(1)
@@ -794,19 +805,56 @@ struct RequestField: View {
                     .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 16, height: 16)
-                    .background(Circle().fill(Color.white.opacity(0.35)))
+                    .background(Circle().fill(Brand.fieldClear))
+                    // 点击区放大到 44pt 宽、整框高。
+                    .frame(width: 44, height: 32, alignment: .trailing)
+                    .contentShape(Rectangle())
                     .onTapGesture { model.setInstruction("") }
             }
         }
         .font(.system(size: 14))
-        .foregroundStyle(.white)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
         .frame(height: 32)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(Brand.fieldLinearGradient))
+        .background {
+            shape.fill(editing ? KeyStyle.charKey : Brand.tagFill)
+            shape.strokeBorder(editing ? Brand.purple : Brand.tagFill, lineWidth: 1.5)
+        }
+        .animation(.easeOut(duration: 0.15), value: editing)
         .contentShape(Rectangle())
         .onTapGesture { model.toggleInstructionEditing() }
+        .onChange(of: model.instruction) { _ in lastTyped = Date() }
+        .onChange(of: model.composition) { _ in lastTyped = Date() }
+        .onChange(of: editing) { _ in lastTyped = Date() }
+    }
+
+    /// 文字、拼音、光标排成一行；光标透明度为 nil 时不画。没写字时光标在占位字前面。
+    private func content(text: String, caretOpacity: Double?) -> Text {
+        let composing = model.target == .instruction ? model.composition : ""
+        let caret = caretOpacity.map {
+            Text(Image(uiImage: Self.caret)).foregroundColor(Brand.purple.opacity($0)).baselineOffset(-3)
+        } ?? Text("")
+        if text.isEmpty && composing.isEmpty {
+            return caret + Text(placeholder).foregroundColor(Brand.fieldPlaceholder)
+        }
+        return Text(text).foregroundColor(Brand.fieldText)
+            + Text(composing).foregroundColor(.primary).underline(color: Brand.purple)
+            + caret
+    }
+
+    /// 打字或拼音时常亮；停下 0.5 秒后亮 0.5 秒、灭 0.5 秒，亮灭之间约 80ms 渐变。
+    private func caretOpacity(at date: Date) -> Double {
+        if model.isComposing { return 1 }
+        let idle = date.timeIntervalSince(lastTyped) - 0.5
+        guard idle > 0 else { return 1 }
+        let phase = idle.truncatingRemainder(dividingBy: 1)
+        let fade = 0.08
+        switch phase {
+        case ..<0.5: return 1
+        case ..<(0.5 + fade): return 1 - (phase - 0.5) / fade
+        case ..<(1 - fade): return 0
+        default: return (phase - (1 - fade)) / fade
+        }
     }
 }
 
