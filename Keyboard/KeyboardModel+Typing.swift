@@ -376,10 +376,20 @@ extension KeyboardModel {
     }
 
     /// 浮层里的「润色」：按选好的风格和要求开始改。浮层不收起，只有再点「正式▾」才收。
+    /// 面板收起时是快速模式，润完直接替换输入框（AI 栏上流光）；展开时进结果卡片，等替换或插入。
     func menuPolishTapped() {
         finishComposition()
-        setAIExpanded(true)
+        guard !aiExpanded else {
+            regenerate()
+            return
+        }
+        beginQuickMode(source: readField().text)
         regenerate()
+        if !isRunning {
+            quickSource = nil
+            clearQuickStatus()
+            setAIExpanded(true)
+        }
     }
 
     /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。

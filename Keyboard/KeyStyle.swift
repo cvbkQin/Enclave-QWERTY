@@ -109,22 +109,31 @@ enum Brand {
         : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
     /// 生成中「停止」的底色 #3A3A3C。
     static let stopFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
-    /// 「正式▾」浮层底色 #F4F2FF，描边 #DCD6FB。
+    /// 「正式▾」按钮打开时的底色 #F4F2FF。
     static let menuFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.17, green: 0.16, blue: 0.27, alpha: 1)
         : UIColor(red: 0xF4 / 255, green: 0xF2 / 255, blue: 0xFF / 255, alpha: 1) })
-    static let menuStroke = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.30, green: 0.27, blue: 0.48, alpha: 1)
-        : UIColor(red: 0xDC / 255, green: 0xD6 / 255, blue: 0xFB / 255, alpha: 1) })
-    /// 要求框描边 #C9C3F7，输入时 #8B7CF6。
-    static let fieldStroke = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.36, green: 0.32, blue: 0.58, alpha: 1)
-        : UIColor(red: 0xC9 / 255, green: 0xC3 / 255, blue: 0xF7 / 255, alpha: 1) })
-    static let fieldActiveStroke = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
-    /// 要求框底色 #E9E5FD。
-    static let fieldFill = Color(UIColor { $0.userInterfaceStyle == .dark
+    /// 「正式▾」浮层（清爽紫）：纯白底，深色模式用系统深灰。
+    static let panelFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x2C / 255, green: 0x2C / 255, blue: 0x2E / 255, alpha: 1) : .white })
+    /// 浮层里「风格」「要求」两个字 #8E8E93。
+    static let panelLabel = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
+    /// 风格标签：没选中 #F4F5F7 黑字，选中 #EEEBFF 底 #5B4BE8 字。
+    static let tagFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+        : UIColor(red: 0xF4 / 255, green: 0xF5 / 255, blue: 0xF7 / 255, alpha: 1) })
+    static let tagSelectedFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)
-        : UIColor(red: 0xE9 / 255, green: 0xE5 / 255, blue: 0xFD / 255, alpha: 1) })
+        : UIColor(red: 0xEE / 255, green: 0xEB / 255, blue: 0xFF / 255, alpha: 1) })
+    static let tagSelectedText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
+        : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
+    /// 要求框：实心渐变 #7B6CF6 → #A08CFB（100°），白字。
+    static let fieldGradient = [Color(red: 0x7B / 255, green: 0x6C / 255, blue: 0xF6 / 255),
+                                Color(red: 0xA0 / 255, green: 0x8C / 255, blue: 0xFB / 255)]
+    /// 「再润」的字和描边 #6A5AF0，星星 #8B7CF6。
+    static let rerunText = Color(red: 0x6A / 255, green: 0x5A / 255, blue: 0xF0 / 255)
+    static let rerunStar = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
     static let softFill = purple.opacity(0.14)
     /// 换行、确认和空输入框时的发送键：浅紫底 #ECEAFD，字和图标用 deepPurple #4A3BD6。
     static let returnSoftFill = Color(UIColor { $0.userInterfaceStyle == .dark

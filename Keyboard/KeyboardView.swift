@@ -297,19 +297,22 @@ struct StyleMenu: View {
         .padding(.top, 8)
         .padding(.bottom, 8 + MenuBubble.arrowHeight)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(MenuBubble(arrowX: arrowX).fill(Brand.menuFill).shadow(color: .black.opacity(0.08), radius: 4, y: 1))
-        .overlay(MenuBubble(arrowX: arrowX).stroke(Brand.menuStroke, lineWidth: 1))
+        // 清爽紫：纯白底不描紫边，一圈极淡的轮廓加柔和投影。
+        .background(MenuBubble(arrowX: arrowX).fill(Brand.panelFill)
+            .shadow(color: .black.opacity(0.06), radius: 0.5)
+            .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.10), radius: 10, y: 6))
     }
 
     private func rowLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Brand.purple)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(Brand.panelLabel)
             .frame(width: 26, alignment: .leading)
     }
 }
 
-/// 浮层里的「再润」：白底紫描边，和 AI 栏实心的「✨ 润色」区分开；按选好的风格和要求开始改，生成中原位变深灰「停止」。
+/// 浮层里的「再润」：白底、#6A5AF0 字和淡描边，和 AI 栏实心的「✨ 润色」区分开；按选好的风格和要求开始改，生成中原位变深灰「停止」。
+/// 面板收起时直接替换输入框，展开时进结果卡片。
 struct MenuPolishButton: View {
     @ObservedObject var model: KeyboardModel
 
@@ -322,15 +325,16 @@ struct MenuPolishButton: View {
                     RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 8, height: 8)
                     Text("停止")
                 } else {
-                    SparkleMark(size: 13, color: Brand.violet)
+                    SparkleMark(size: 13, color: Brand.rerunStar)
                     Text("再润")
                 }
             }
             .font(.system(size: 14, weight: .bold))
-            .foregroundStyle(model.isRunning ? Color.white : Brand.deepPurple)
+            .foregroundStyle(model.isRunning ? Color.white : Brand.rerunText)
             .frame(width: 72, height: 30)
-            .background(Capsule().fill(model.isRunning ? Brand.stopFill : KeyStyle.charKey))
-            .overlay(Capsule().strokeBorder(Brand.violet, lineWidth: model.isRunning ? 0 : 1.5))
+            .background(Capsule().fill(model.isRunning ? Brand.stopFill : KeyStyle.charKey)
+                .shadow(color: .black.opacity(model.isRunning ? 0 : 0.08), radius: 2, y: 1))
+            .overlay(Capsule().strokeBorder(Brand.rerunText.opacity(0.33), lineWidth: model.isRunning ? 0 : 1))
             .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
         }
         .buttonStyle(KeyPressStyle())
@@ -354,7 +358,7 @@ struct MenuBubble: Shape {
     }
 }
 
-/// 浮层里的风格：选中的是实心紫色胶囊。
+/// 浮层里的风格：没选中浅灰底黑字，选中淡紫底紫字。
 struct MenuStyleTag: View {
     var title: String
     var selected: Bool
@@ -366,15 +370,15 @@ struct MenuStyleTag: View {
                 .font(.system(size: 14, weight: selected ? .semibold : .regular))
                 .padding(.horizontal, 11)
                 .frame(height: 28)
-                .foregroundStyle(selected ? Color.white : Color.primary)
-                .background(Capsule().fill(selected ? Brand.purple : Color.clear))
+                .foregroundStyle(selected ? Brand.tagSelectedText : Color.primary)
+                .background(Capsule().fill(selected ? Brand.tagSelectedFill : Brand.tagFill))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
 }
 
-/// 要求框：方角淡紫底，铅笔图标，紫色字。键盘打的字进这里，回车就执行。
+/// 要求框：实心紫色渐变，白字白光标，铅笔图标。键盘打的字进这里，回车就执行。
 struct RequestField: View {
     @ObservedObject var model: KeyboardModel
 
@@ -384,10 +388,11 @@ struct RequestField: View {
         let showsPlaceholder = text.isEmpty && !(editing && model.isComposing)
         HStack(spacing: 5) {
             Image(systemName: "pencil").font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.9))
             Group {
                 if showsPlaceholder {
-                    (Text(editing ? "|" : "").foregroundColor(Brand.purple)
-                        + Text("写要求，比如：语气委婉一点").foregroundColor(Brand.purple.opacity(0.45)))
+                    (Text(editing ? "|" : "").foregroundColor(.white)
+                        + Text("写要求，比如：语气委婉一点").foregroundColor(Color.white.opacity(0.78)))
                 } else {
                     (Text(text)
                         + Text(editing ? model.composition : "").underline()
@@ -398,19 +403,22 @@ struct RequestField: View {
             .truncationMode(.head)
             Spacer(minLength: 0)
             if !text.isEmpty {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(Brand.purple.opacity(0.4))
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 16, height: 16)
+                    .background(Circle().fill(Color.white.opacity(0.35)))
                     .onTapGesture { model.setInstruction("") }
             }
         }
         .font(.system(size: 14))
-        .foregroundStyle(Brand.purple)
+        .foregroundStyle(.white)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
         .frame(height: 32)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.fieldFill))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .strokeBorder(editing ? Brand.fieldActiveStroke : Brand.fieldStroke, lineWidth: editing ? 1.5 : 1))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(LinearGradient(colors: Brand.fieldGradient, startPoint: UnitPoint(x: 0, y: 0.41),
+                                 endPoint: UnitPoint(x: 1, y: 0.59))))
         .contentShape(Rectangle())
         .onTapGesture { model.toggleInstructionEditing() }
     }
