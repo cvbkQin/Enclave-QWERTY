@@ -40,6 +40,7 @@ final class KeyTouchView: UIView {
     /// 九宫格的拼音选择栏盖在这一层上面，那块区域的触摸交给它。
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         if let column = layout.pinyinColumn, column.contains(point) { return false }
+        if let column = layout.operatorColumn, column.contains(point) { return false }
         return super.point(inside: point, with: event)
     }
 
@@ -109,7 +110,7 @@ final class KeyTouchView: UIView {
                 continue
             }
             // 九宫格和原生一样：按住直接往上下左右划，不用等长按，十字马上出来并选中那个方向。
-            if !state.fired, case .nine(let digit) = state.key.kind, !(digit == "'" && model.isComposing),
+            if !state.fired, state.key.kind.flicks(composing: model.isComposing),
                hypot(point.x - state.start.x, point.y - state.start.y) > Self.flickDistance,
                model.showAlternates(for: state.key, containerWidth: bounds.width, origin: state.start) {
                 state.timer?.invalidate()

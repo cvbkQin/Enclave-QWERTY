@@ -4,10 +4,13 @@ import UIKit
 /// 打字：按键、组字、上屏，以及把文字送到聊天输入框还是要求框。
 extension KeyboardModel {
     enum InputTarget { case host, instruction }
-    enum KeyLayer { case letters, numbers, symbols }
+    /// digits 是九宫格的数字键盘；numbers、symbols 是全键盘那样的数字符号页（九宫格的 #@¥ 也进这里）。
+    enum KeyLayer { case letters, numbers, symbols, digits }
     enum ShiftState { case off, on, locked }
 
     var isComposing: Bool { !composition.isEmpty }
+    /// 现在画的是五列的九宫格（拼音或数字），按下不出放大气泡。
+    var nineGrid: Bool { showsNineKey && (layer == .letters || layer == .digits) }
 
     func typeLetter(_ letter: String) {
         let text = shift == .off ? letter : letter.uppercased()
@@ -61,7 +64,8 @@ extension KeyboardModel {
             commit(" ")
             lastSpaceTime = now
         }
-        if layer != .letters { layer = .letters }
+        // 数字符号页打完空格回到字母；九宫格数字键盘和原生一样留着，方便接着打数字。
+        if layer != .letters && layer != .digits { layer = .letters }
     }
 
     /// 组字时回车把字母原样上屏；在要求框里回车就是「执行」。
@@ -87,7 +91,7 @@ extension KeyboardModel {
 
     var layoutState: KeyLayout.State {
         KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
-                        composing: isComposing)
+                        composing: isComposing, digitsMore: digitsMore)
     }
 
     func perform(_ kind: KeyKind) {
@@ -101,6 +105,8 @@ extension KeyboardModel {
         case .returnKey: returnKey()
         case .toggleChinese: toggleChinese()
         case .layer(let layer): switchLayer(layer)
+        case .digitPunct: typeSymbol(".")
+        case .digitsMore: digitsMore.toggle()
         case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
         case .pickPinyin: if isComposing && !pinyinOptions.isEmpty { openPanel(.pinyin) }
@@ -139,7 +145,7 @@ extension KeyboardModel {
         if settings.keySound {
             let sound: SystemSoundID
             switch kind {
-            case .letter, .symbol, .nine, .space: sound = 1104
+            case .letter, .symbol, .nine, .digitPunct, .space: sound = 1104
             case .delete: sound = 1155
             default: sound = 1156
             }
@@ -171,6 +177,8 @@ extension KeyboardModel {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         chineseMode.toggle()
+        // 九宫格数字键盘上切英文：回到英文字母。
+        if layer == .digits { switchLayer(.letters) }
         selectEngine()
         if chineseMode { shift = .off } else { updateAutoShift() }
     }
@@ -304,8 +312,9 @@ extension KeyboardModel {
         } else {
             return
         }
-        // 九宫格打拼音时长按选的字母接着拼，相当于把这一位定成这个字母。
-        if showsNineKey && layer == .letters && isComposing && text.allSatisfy(\.isLetter) {
+        // 九宫格中文下划出来的字母也是拼音：在拼就接着拼（把这一位定成这个字母），没在拼就从它开始拼，
+        // 不然空输入框里划一个字母会直接上屏成英文。
+        if showsNineKey && layer == .letters && (isComposing || chineseMode) && text.allSatisfy(\.isLetter) {
             if let output = engine.input(text.lowercased()) { commit(output) }
             syncEngine()
         } else {
@@ -330,6 +339,7 @@ extension KeyboardModel {
 
     func switchLayer(_ layer: KeyLayer) {
         self.layer = layer
+        if digitsMore { digitsMore = false }
     }
 
     // MARK: - AI 面板
@@ -487,6 +497,8 @@ extension KeyboardModel {
             case "qwerty": if settings.keyboardLayout != .qwerty { setLayout(.qwerty) }
             case "numbers": layer = .numbers
             case "symbols": layer = .symbols
+            case "digits": layer = .digits
+            case "digitsMore": layer = .digits; digitsMore = true
             case "english": if chineseMode { toggleChinese() }
             case "instruction", "menu": styleMenuOpen = true; target = .instruction
             case "cardExpanded": aiExpanded = true; cardExpanded = true

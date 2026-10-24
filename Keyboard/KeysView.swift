@@ -27,8 +27,11 @@ struct KeysView: View {
                     if let column = layout.pinyinColumn {
                         PinyinColumn(model: model, frame: column)
                     }
+                    if let column = layout.operatorColumn {
+                        OperatorColumn(model: model, frame: column)
+                    }
                     // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选时也不显示）。
-                    if !(model.layer == .letters && model.showsNineKey) {
+                    if !model.nineGrid {
                         ForEach(layout.keys.filter {
                             model.pressedKeys.contains($0.id) && $0.kind.typesCharacter && model.alternates?.key.id != $0.id
                         }) { key in
@@ -75,7 +78,7 @@ struct KeyCapView: View {
         if let look = returnLook {
             return look.solid ? Brand.purple.opacity(pressed ? 0.75 : 1) : Brand.returnSoftFill.opacity(pressed ? 0.7 : 1)
         }
-        let showsPopup = key.kind.typesCharacter && !(model.showsNineKey && model.layer == .letters)
+        let showsPopup = key.kind.typesCharacter && !model.nineGrid
         return pressed && !showsPopup ? KeyStyle.pressedKey : KeyStyle.charKey
     }
 
@@ -92,7 +95,19 @@ struct KeyCapView: View {
                 .font(KeyStyle.letterFont)
                 .offset(y: -1)
         case .symbol(let symbol):
-            Text(KeyStyle.capText(symbol)).font(KeyStyle.capFont(for: symbol))
+            if model.layer == .digits {
+                Text(symbol).font(.system(size: 24))
+            } else {
+                Text(KeyStyle.capText(symbol)).font(KeyStyle.capFont(for: symbol))
+            }
+        case .digitPunct:
+            Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
+        case .digitsMore:
+            if model.digitsMore {
+                Text("返回").font(.system(size: 16, weight: .semibold)).foregroundStyle(Brand.deepPurple)
+            } else {
+                Text("更多").font(KeyStyle.nineKeyFont)
+            }
         case .nine(let digit):
             if digit == "'" {
                 // 打拼音时是分词键，平时连按切换标点。
@@ -139,7 +154,7 @@ struct KeyCapView: View {
             Text("选拼音").font(KeyStyle.functionFont)
                 .opacity(model.isComposing ? 1 : 0.35)
         case .layer(let target):
-            if model.showsNineKey && model.layer == .letters {
+            if model.nineGrid {
                 Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.nineKeyFont).tracking(1)
             } else {
                 Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.functionFont)
@@ -158,7 +173,8 @@ struct KeyCapView: View {
         switch target {
         case .numbers: return "123"
         case .symbols: return "#+="
-        case .letters: return model.chineseMode ? "拼音" : "ABC"
+        case .digits: return "123"
+        case .letters: return model.chineseMode || model.showsNineKey ? "拼音" : "ABC"
         }
     }
 }

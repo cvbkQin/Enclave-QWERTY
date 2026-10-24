@@ -29,6 +29,8 @@ final class KeyboardModel: ObservableObject {
     // 打字状态，逻辑在 KeyboardModel+Typing.swift
     @Published var target: InputTarget = .host
     @Published var layer: KeyLayer = .letters
+    /// 九宫格数字键盘点了「更多」，左列是运算符。
+    @Published var digitsMore = false
     @Published var shift: ShiftState = .off
     @Published var chineseMode = true
     @Published var aiExpanded = false { didSet { heightMayChange?() } }

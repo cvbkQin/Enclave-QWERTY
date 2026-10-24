@@ -153,6 +153,36 @@ struct PinyinColumn: View {
     }
 }
 
+/// 九宫格数字键盘点「更多」后左列的运算符，和拼音栏一样上下滑动，第一个浅紫高亮。
+struct OperatorColumn: View {
+    @ObservedObject var model: KeyboardModel
+    let frame: CGRect
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
+                ForEach(Array(KeyLayout.operators.enumerated()), id: \.offset) { index, symbol in
+                    Button { model.typeSymbol(symbol) } label: {
+                        Text(symbol).font(.system(size: 20))
+                            .foregroundStyle(index == 0 ? Brand.deepPurple : Color.primary)
+                            .frame(maxWidth: .infinity, minHeight: KeyboardMetrics.pinyinCellHeight)
+                            .background(index == 0 ? Brand.returnSoftFill : Color.clear)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(KeyPressStyle())
+                }
+            }
+        }
+        .hidingScrollEdgeEffect()
+        .background(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous).fill(KeyStyle.charKey))
+        .clipShape(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous))
+        .padding(.horizontal, KeyboardMetrics.nineKeyInsetX)
+        .padding(.vertical, KeyboardMetrics.nineKeyInsetY)
+        .frame(width: frame.width, height: frame.height)
+        .offset(x: frame.minX, y: frame.minY)
+    }
+}
+
 /// 九宫格长按的十字：中间浅灰显示原键帽，四周白底圆角带阴影，选中那格内缩 4pt 填紫色、白字。
 struct CrossView: View {
     @ObservedObject var model: KeyboardModel
@@ -197,7 +227,9 @@ struct CrossView: View {
 
     @ViewBuilder
     private var centerLabel: some View {
-        if case .nine(let digit) = popup.key.kind, digit != "'" {
+        if popup.key.kind == .digitPunct {
+            Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
+        } else if case .nine(let digit) = popup.key.kind, digit != "'" {
             Text(KeyLayout.nineKeyLetters[digit] ?? digit).font(KeyStyle.nineKeyFont).tracking(1)
         } else {
             PunctuationLabel()
