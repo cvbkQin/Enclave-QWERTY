@@ -334,10 +334,20 @@ extension KeyboardModel {
 
     // MARK: - AI 面板
 
-    /// ✨：展开 AI 面板并直接执行（输入框有内容就润色或按要求改）。
+    /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
-        setAIExpanded(true)
+        guard !aiExpanded else {
+            execute()
+            return
+        }
+        finishComposition()
+        quickSource = readField().text
         execute()
+        // 没开始生成（空输入框提示、没配置、没开完全访问）就展开，把原因显示出来。
+        if !isRunning {
+            quickSource = nil
+            setAIExpanded(true)
+        }
     }
 
     func setAIExpanded(_ expanded: Bool) {

@@ -61,6 +61,8 @@ final class KeyboardModel: ObservableObject {
 
     weak var controller: UIInputViewController?
     private var task: Task<Void, Never>?
+    /// 快速模式：收起时点 ✨，记下当时输入框的内容，润完直接替换；输入框中途被改过就不替换，展开给人看。
+    var quickSource: String?
     /// 每次替换或插入记一笔：写进去的文字和被它换掉的原文。撤销和重做在两个栈之间来回挪。
     private var undoStack: [FieldEdit] = []
     private var redoStack: [FieldEdit] = []
@@ -214,6 +216,7 @@ final class KeyboardModel: ObservableObject {
                 guard let self else { return }
                 if result.isEmpty {
                     self.errorMessage = "模型没有返回内容。"
+                    self.endQuickMode(replaced: false)
                 } else {
                     var updated = pending
                     updated.append(result)
@@ -224,10 +227,16 @@ final class KeyboardModel: ObservableObject {
                     self.resultUse = nil
                     self.resultStale = false
                     SessionStore.save(updated)
+                    if let source = self.quickSource {
+                        let unchanged = self.readField().text == source
+                        if unchanged { self.replace() }
+                        self.endQuickMode(replaced: unchanged)
+                    }
                 }
             } catch {
                 if !Task.isCancelled {
                     self?.errorMessage = error.localizedDescription
+                    self?.endQuickMode(replaced: false)
                 }
             }
             self?.isRunning = false
@@ -238,6 +247,14 @@ final class KeyboardModel: ObservableObject {
         task?.cancel()
         task = nil
         isRunning = false
+        quickSource = nil
+    }
+
+    /// 快速模式结束：替换成功就保持收起；出错、没替换的话展开面板，让人看到原因或结果。
+    func endQuickMode(replaced: Bool) {
+        guard quickSource != nil else { return }
+        quickSource = nil
+        if !replaced { aiExpanded = true }
     }
 
     // MARK: - 版本
@@ -316,7 +333,7 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - 写入输入框
 
-    private func readField() -> (text: String, isSelection: Bool) {
+    func readField() -> (text: String, isSelection: Bool) {
         guard let proxy else { return ("", false) }
         if let selected = proxy.selectedText, !selected.isEmpty {
             return (selected, true)
