@@ -425,7 +425,8 @@ extension KeyboardModel {
             case "instruction", "menu": styleMenuOpen = true; target = .instruction
             case "cardExpanded": aiExpanded = true; cardExpanded = true
             #if DEBUG
-            case "versions": aiExpanded = true; loadDebugVersions()
+            case "versions": aiExpanded = true; debugUnblocked = true; loadDebugVersions()
+            case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "undo": loadDebugUndo()

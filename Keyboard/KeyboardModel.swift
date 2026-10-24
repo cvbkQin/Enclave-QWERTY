@@ -74,7 +74,9 @@ final class KeyboardModel: ObservableObject {
     }
 
     /// 没开完全访问或没配置 API：✨ 置灰，卡片位置显示检查清单。
-    var aiBlocked: Bool { !hasFullAccess || !settings.isConfigured }
+    var aiBlocked: Bool { !debugUnblocked && (!hasFullAccess || !settings.isConfigured) }
+    /// 模拟器截图用：没配 API 也显示结果卡片。
+    var debugUnblocked = false
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
     var cardTall: Bool { cardExpanded || aiBlocked }
@@ -246,6 +248,12 @@ final class KeyboardModel: ObservableObject {
         debug.append("明天开会我去不了啦，家里有点事～帮我跟老板说下哈，不好意思！")
         debug.currentIndex = 1
         session = debug
+    }
+
+    /// 模拟器截图用：停在生成中，看流光动画。
+    func loadDebugRunning() {
+        isRunning = true
+        streamingText = "不好意思，明天的会我可能参加不了，家里临时有点事"
     }
     #endif
 
