@@ -82,10 +82,14 @@ enum KeyStyle {
     static let functionFont = Font.system(size: 17)
     static let iconFont = Font.system(size: 19, weight: .regular)
 
-    /// 数字和符号层里的全角标点，键帽上画成半角字形（上屏的仍是全角字符），排出来不散。
+    /// 数字和符号层里的（）？！键帽画成半角字形（上屏的仍是全角字符），全角居中后反而显大。
+    /// ，。、：；改用 CenteredGlyph 画全角字形，和英文页的半角标点一眼能分开。
     private static let halfWidthCaps: [String: String] = [
-        "。": "｡", "，": ",", "、": "､", "（": "(", "）": ")", "：": ":", "；": ";", "？": "?", "！": "!",
+        "（": "(", "）": ")", "？": "?", "！": "!",
     ]
+
+    /// 键帽上画成居中全角字形的中文标点，值是额外往下偏的点数：，。、保留「跟在字后面」的感觉。
+    static let centeredGlyphCaps: [String: CGFloat] = ["，": 1.5, "。": 1.5, "、": 1.5, "：": 0, "；": 0]
 
     static func capText(_ symbol: String) -> String { halfWidthCaps[symbol] ?? symbol }
 

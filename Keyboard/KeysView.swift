@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreText
 
 /// 按键区：画出按键，上面盖一层 UIKit 触摸层处理手感。
 struct KeysView: View {
@@ -97,6 +98,8 @@ struct KeyCapView: View {
         case .symbol(let symbol):
             if model.layer == .digits {
                 Text(symbol).font(.system(size: 24))
+            } else if let drop = KeyStyle.centeredGlyphCaps[symbol] {
+                CenteredGlyph(symbol, size: 20, drop: drop)
             } else {
                 Text(KeyStyle.capText(symbol)).font(KeyStyle.capFont(for: symbol))
             }
@@ -196,11 +199,53 @@ struct ToggleLabel: View {
     }
 }
 
-/// 九宫格第一格的标点，照原生写成「,｡?!」：逗号半角，句号用半角圈，字距 1pt。
-/// 全角「，。」的字形偏在左下角，排在一起会显得散。
+/// 九宫格第一格的标点「，。?!」：，。用居中的全角字形（看着像中文标点），两个挨紧；?! 照常。
 struct PunctuationLabel: View {
     var body: some View {
-        Text(",｡?!").font(KeyStyle.nineKeyFont).tracking(1)
+        HStack(spacing: 0) {
+            CenteredGlyph("，", size: 18, drop: 1.5, box: 11)
+            CenteredGlyph("。", size: 18, drop: 1.5, box: 11)
+            Text("?!").font(KeyStyle.nineKeyFont).tracking(1)
+        }
+    }
+}
+
+/// 全角标点的字形偏在字框左下角，直接用 Text 排出来会散。这里取 PingFang SC 的字形外框，
+/// 把外框中心画到图的中心，再按 drop 往下偏。模板图，颜色跟着前景色。
+struct CenteredGlyph: View {
+    let image: UIImage
+
+    init(_ character: String, size: CGFloat, drop: CGFloat = 0, box: CGFloat? = nil) {
+        image = Self.render(character, size: size, drop: drop, box: box ?? size)
+    }
+
+    var body: some View { Image(uiImage: image) }
+
+    private static var cache: [String: UIImage] = [:]
+
+    private static func render(_ character: String, size: CGFloat, drop: CGFloat, box: CGFloat) -> UIImage {
+        let key = "\(character)|\(size)|\(drop)|\(box)"
+        if let cached = cache[key] { return cached }
+        let font = CTFontCreateWithName("PingFangSC-Regular" as CFString, size, nil)
+        var chars = Array(character.utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: chars.count)
+        CTFontGetGlyphsForCharacters(font, &chars, &glyphs, chars.count)
+        let canvas = CGSize(width: box, height: size)
+        let image = UIGraphicsImageRenderer(size: canvas).image { context in
+            guard let glyph = glyphs.first, let path = CTFontCreatePathForGlyph(font, glyph, nil) else { return }
+            var bounds = CGRect.zero
+            var glyphCopy = glyph
+            CTFontGetBoundingRectsForGlyphs(font, .horizontal, &glyphCopy, &bounds, 1)
+            let cg = context.cgContext
+            // 字形坐标 y 向上：翻转后把外框中心移到画布中心，再往下偏 drop。
+            cg.translateBy(x: canvas.width / 2 - bounds.midX, y: canvas.height / 2 + bounds.midY + drop)
+            cg.scaleBy(x: 1, y: -1)
+            cg.addPath(path)
+            cg.setFillColor(UIColor.black.cgColor)
+            cg.fillPath()
+        }.withRenderingMode(.alwaysTemplate)
+        cache[key] = image
+        return image
     }
 }
 
