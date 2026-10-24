@@ -126,7 +126,8 @@ struct LabView: View {
                 Text("\(count)").opacity(0.6)
             }
             .font(.subheadline)
-            .foregroundStyle(selected ? Color.white : Color.primary)
+            // 选中时反色：浅色模式黑底白字，深色模式白底黑字，字始终看得清。
+            .foregroundStyle(selected ? Color(.systemBackground) : Color.primary)
             .padding(.horizontal, 14)
             .frame(height: 34)
             .background(Capsule().fill(selected ? Color.primary : Color(.secondarySystemGroupedBackground)))
