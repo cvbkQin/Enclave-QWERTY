@@ -508,23 +508,39 @@ struct GateCard: View {
                 .background(Circle().fill(Brand.returnSoftFill))
             Text("AI 润色需要开启「允许完全访问」").font(.system(size: 14, weight: .semibold))
         }
-        Text("拼音和英文打字不需要它，现在就能正常用。拼音布局可以长按「中/英」切换；模糊拼音、按键震动等 App 里的设置，开启后才会生效。")
+        Text("打字不受影响。开启后才能用 AI 润色，App 里的键盘设置也会同步过来。")
             .font(.system(size: 13))
             .foregroundStyle(Brand.cardBody)
             .fixedSize(horizontal: false, vertical: true)
-        Text("开启后，只有你点「润色」时，输入框里的文字才会发送到你设置的模型接口。")
-            .font(.system(size: 12))
-            .foregroundStyle(Brand.cardNote)
-            .fixedSize(horizontal: false, vertical: true)
+        // 没开完全访问时 iOS 不让键盘打开任何 App，只能把路径写出来。
+        VStack(alignment: .leading, spacing: 3) {
+            Text("在系统设置里开启").font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            settingsPath.font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
         Spacer(minLength: 0)
         HStack(spacing: 8) {
-            Spacer()
-            GateButton(title: "知道了", primary: false) { model.dismissGate() }
-            GateButton(title: "去开启", primary: true) {
-                model.dismissGate()
-                model.openContainingApp("enclave://fullaccess")
-            }
+            Text("也可以打开 Enclave App 按指引开启")
+                .font(.system(size: 12))
+                .foregroundStyle(Brand.disabledText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            GateButton(title: "知道了", primary: true) { model.dismissGate() }
         }
+    }
+
+    /// 设置 › 通用 › 键盘 › 键盘 › Enclave › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
+    private var settingsPath: Text {
+        let steps = ["设置", "通用", "键盘", "键盘", "Enclave"]
+        var text = Text("")
+        for step in steps {
+            text = text + Text(step).foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
+        }
+        return text + Text("允许完全访问").fontWeight(.semibold).foregroundColor(Brand.deepPurple)
     }
 
     @ViewBuilder

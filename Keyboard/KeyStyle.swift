@@ -46,7 +46,7 @@ enum KeyboardMetrics {
     /// 点「润色」时 AI 栏上方的提示卡：没开完全访问（P02）、首次发送前确认（P03），换了地址时多一行旧地址（P04）。
     static func gateHeight(_ gate: KeyboardModel.AIGate) -> CGFloat {
         switch gate {
-        case .fullAccess: return 176
+        case .fullAccess: return 204
         case .consent(_, let previous): return previous == nil ? 178 : 196
         }
     }
@@ -136,6 +136,8 @@ enum Brand {
     static let disabledFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.24, alpha: 1) : UIColor(red: 0xE5 / 255, green: 0xE5 / 255, blue: 0xEA / 255, alpha: 1) })
     static let disabledText = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
+    /// 设置路径里的「>」#AEAEB2。
+    static let pathSeparator = Color(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255)
     /// 提示卡正文 #3A3A3C、说明 #6B6B73。
     static let cardBody = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.85, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
