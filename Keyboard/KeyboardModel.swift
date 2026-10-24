@@ -200,17 +200,25 @@ final class KeyboardModel: ObservableObject {
 
     /// 键盘里打开主 App 的某个页面。扩展不能直接调 open(_:)，沿响应链找到 UIApplication 再调它。
     func openContainingApp(_ link: String) {
-        guard let url = URL(string: link) else { return }
-        var responder: UIResponder? = controller
-        let selector = NSSelectorFromString("openURL:options:completionHandler:")
+        guard let url = NSURL(string: link) else { return }
+        // 先沿响应链找，找不到再用 sharedApplication；两种在不同系统版本上各有失灵的时候。
+        var responder: UIResponder? = controller?.view ?? controller
+        var application: NSObject?
         while let current = responder {
-            if current.responds(to: selector), current is UIApplication || NSStringFromClass(type(of: current)).contains("UIApplication") {
-                typealias Open = @convention(c) (AnyObject, Selector, URL, NSDictionary, Any?) -> Void
-                let open = unsafeBitCast(current.method(for: selector), to: Open.self)
-                open(current, selector, url, NSDictionary(), nil)
-                return
-            }
+            if current is UIApplication { application = current; break }
             responder = current.next
+        }
+        if application == nil {
+            application = UIApplication.value(forKey: "sharedApplication") as? NSObject
+        }
+        guard let application else { return }
+        let modern = NSSelectorFromString("openURL:options:completionHandler:")
+        if application.responds(to: modern) {
+            typealias Open = @convention(c) (NSObject, Selector, NSURL, NSDictionary, AnyObject?) -> Void
+            let open = unsafeBitCast(application.method(for: modern), to: Open.self)
+            open(application, modern, url, NSDictionary(), nil)
+        } else {
+            application.perform(NSSelectorFromString("openURL:"), with: url)
         }
     }
 

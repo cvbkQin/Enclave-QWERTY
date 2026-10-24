@@ -30,8 +30,11 @@ struct EnclaveApp: App {
                     case "playground": router.openPlayground()
                     // 键盘「去开启」：先回到 App，再直接跳到系统设置里的 Enclave。
                     case "fullaccess":
-                        if let settings = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(settings)
+                        // 冷启动时界面还没起来，稍等一下再跳，不然系统会忽略这次打开。
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            if let settings = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(settings)
+                            }
                         }
                     case "privacy-policy": router.openSettings(.privacy)
                     default: break
