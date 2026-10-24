@@ -3,6 +3,7 @@ import UIKit
 
 /// 设置页顶部的「准备情况」：键盘加了没有、完全访问、拼音词库、共享配置。
 struct ReadinessSection: View {
+    var apiConfigured: Bool
     @ObservedObject private var deployer = RimeDeployer.shared
     @Environment(\.scenePhase) private var scenePhase
     /// 从系统设置回来时重新读一遍。
@@ -16,6 +17,9 @@ struct ReadinessSection: View {
             fullAccessRow
             row(pinyinState, "拼音词库") {
                 Text(pinyinText).foregroundStyle(.secondary)
+            }
+            row(apiConfigured ? .done : .missing, "模型接口") {
+                Text(apiConfigured ? "已配置" : "在下面填写").foregroundStyle(.secondary)
             }
             row(SharedStorage.isShared ? .done : .missing, "App 与键盘共享配置") {
                 Text(SharedStorage.isShared ? "已开启" : "不可用").foregroundStyle(.secondary)

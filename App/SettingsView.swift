@@ -15,7 +15,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                ReadinessSection()
+                ReadinessSection(apiConfigured: settings.isConfigured)
                 Section {
                     NavigationLink {
                         PlaygroundView()
@@ -194,7 +194,7 @@ private struct SetupGuideSection: View {
         } header: {
             Text("开启键盘")
         } footer: {
-            Text("用法：写好原话点「✨ 润色」，满意后点「替换」或「插入」，发送仍由你自己按。点「正式▾」换风格或写要求；输入框留空写要求，它会帮你写。语音用键盘下方系统自带的话筒。")
+            Text("用法：写好原话点「✨ 润色」，满意后点「替换」或「插入」，发送仍由你自己按。点「✨ 润色」右边的风格按钮换风格或写要求；输入框留空写要求，它会帮你写。语音用键盘下方系统自带的话筒。")
         }
         .font(.footnote)
     }

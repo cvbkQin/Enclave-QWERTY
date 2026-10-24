@@ -124,7 +124,7 @@ struct KeyCapView: View {
                 Text("重输").font(KeyStyle.functionFont)
             } else {
                 // 「^^」字形偏上，往下挪一点视觉上才居中。
-                Text("^^").font(KeyStyle.nineKeyFont).tracking(1).offset(y: 7)
+                Text("^^").font(KeyStyle.nineKeyFont).tracking(1).offset(y: 4)
             }
         case .emoji:
             Image(systemName: "face.smiling").font(KeyStyle.iconFont)

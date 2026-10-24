@@ -12,7 +12,7 @@ struct PlaygroundView: View {
     static let samples: [Sample] = [
         Sample(id: 0, title: "润色口语", hint: "点「✨ 润色」，再点「替换」。",
                text: "那个文件我看了一下大概没啥问题就是第三页有个数好像不太对你再看看"),
-        Sample(id: 1, title: "按要求改", hint: "点「正式▾」，在「要求」里写「语气委婉一点」，按键盘上的紫色「执行」。",
+        Sample(id: 1, title: "按要求改", hint: "点「✨ 润色」右边的风格按钮，在「要求」里写「语气委婉一点」，按键盘上的紫色「执行」。",
                text: "周五前给不了，下周一吧"),
         Sample(id: 2, title: "帮我写", hint: "输入框留空，在「要求」里写「请假一天的理由，给领导」。",
                text: ""),

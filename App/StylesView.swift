@@ -23,7 +23,9 @@ struct StylesView: View {
                                         .background(Capsule().fill(Color.accentColor.opacity(0.14)))
                                 }
                             }
-                            Text(style.prompt).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            if !style.prompt.isEmpty {
+                                Text(style.prompt).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
                         }
                     }
                 }

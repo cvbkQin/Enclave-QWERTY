@@ -63,6 +63,8 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Enclave
+        CFBundleDevelopmentRegion: zh-Hans
+        CFBundleLocalizations: [zh-Hans]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         EnclaveAppGroup: $(APP_GROUP_ID)
@@ -89,6 +91,8 @@ targets:
       path: Keyboard/Info.plist
       properties:
         CFBundleDisplayName: Enclave
+        CFBundleDevelopmentRegion: zh-Hans
+        CFBundleLocalizations: [zh-Hans]
         EnclaveAppGroup: $(APP_GROUP_ID)
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
