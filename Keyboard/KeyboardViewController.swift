@@ -56,6 +56,12 @@ final class KeyboardViewController: UIInputViewController {
         model.fieldDidChange()
     }
 
+    /// 换到别的输入框、移动光标时也更新一下发送键（有没有字、回车键类型）。
+    override func selectionDidChange(_ textInput: UITextInput?) {
+        super.selectionDidChange(textInput)
+        model.refreshHostState()
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         model.dropStaleSessionOnAppear()
