@@ -55,7 +55,7 @@ private struct Dashboard: View {
             ConfigCard(icon: "keyboard", color: .blue, label: "键盘", value: store.settings.keyboardLayout.shortTitle,
                        detail: keyboardDetail, dot: nil) { router.openSettings(.keyboard) }
             let pinyin = PinyinStatus.current(deployer)
-            ConfigCard(icon: "character.book.closed", color: .orange, label: "拼音词库", value: "雾凇拼音",
+            ConfigCard(icon: "character.book.closed", color: .orange, label: "拼音词库", value: "万象拼音",
                        detail: pinyin.text, dot: pinyin.color) { router.openSettings(.pinyin) }
         }
         sectionTitle("小技巧")

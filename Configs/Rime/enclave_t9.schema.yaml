@@ -1,0 +1,55 @@
+# Rime schema
+# encoding: utf-8
+# 九宫格拼音：和全键盘共用词库，按键是数字，选过拼音的部分是字母。
+schema:
+  schema_id: enclave_t9
+  name: Enclave 九宫格
+  version: "1"
+
+switches:
+  - name: ascii_mode
+    reset: 0
+
+engine:
+  processors:
+    - speller
+    - selector
+    - navigator
+    - express_editor
+  segmentors:
+    - abc_segmentor
+    - fallback_segmentor
+  translators:
+    - script_translator
+  filters:
+    - lua_filter@*enclave_t9_preedit
+    - uniquifier
+
+speller:
+  alphabet: zyxwvutsrqponmlkjihgfedcba23456789
+  initials: zyxwvutsrqponmlkjihgfedcba23456789
+  delimiter: " '"
+  # 简拼、ü 写法和全键盘一样，最后把字母换成手机键盘上的数字键。
+  # 每条 derive 都保留原来的写法，所以选过拼音的字母和还没选的数字可以混在一起。
+  algebra:
+    - abbrev/^([a-z]).+$/$1/
+    - abbrev/^([zcs]h).+$/$1/
+    - derive/^([nl])ve$/$1ue/
+    - derive/^([jqxy])u/$1v/
+    - derive/ong$/on/
+    - derive/[abc]/2/
+    - derive/[def]/3/
+    - derive/[ghi]/4/
+    - derive/[jkl]/5/
+    - derive/[mno]/6/
+    - derive/[pqrs]/7/
+    - derive/[tuv]/8/
+    - derive/[wxyz]/9/
+
+translator:
+  dictionary: enclave
+  prism: enclave_t9
+  enable_user_dict: true
+  # 把候选词的拼音放在注释里，交给 enclave_t9_preedit 换到拼写栏。
+  spelling_hints: 100
+  always_show_comments: true

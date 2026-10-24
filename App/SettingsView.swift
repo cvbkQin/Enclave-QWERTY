@@ -457,7 +457,7 @@ struct PinyinView: View {
                 HStack(spacing: 14) {
                     RowIcon(systemName: "character.book.closed", color: .orange, size: 44)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("雾凇拼音").font(.headline)
+                        Text("万象拼音").font(.headline)
                         Text(detail).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -502,7 +502,7 @@ struct PinyinView: View {
         if let size, size > 0 {
             parts.append("约 " + ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
         }
-        return parts.isEmpty ? "开源词库，GPL-3.0" : parts.joined(separator: " · ")
+        return parts.isEmpty ? "万象拼音词库，CC BY 4.0" : parts.joined(separator: " · ")
     }
 }
 
@@ -534,10 +534,7 @@ struct AboutView: View {
             Section {
                 HStack { Text("版本"); Spacer(); Text(Self.version).foregroundStyle(.secondary) }
             }
-            Section("开源组件") {
-                Text("雾凇拼音（rime-ice），GPL-3.0")
-                Text("RIME 输入法引擎（librime），BSD-3-Clause")
-            }
+            LicensesSection()
         }
         .navigationTitle("关于 Enclave")
         .navigationBarTitleDisplayMode(.inline)
