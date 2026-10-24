@@ -2,7 +2,7 @@
 import Foundation
 
 /// 上机验证「不开完全访问也能打拼音」：记下这时键盘能读写哪些地方、词库从哪加载、内存占用。
-/// 结果先写进扩展自己的容器；开了完全访问后再复制到共享目录 Diagnostics/，用 devicectl 取出来看。
+/// 结果先写进扩展自己的容器；开了完全访问后再复制到共享目录 Library/Diagnostics/（devicectl 只能取 Library、Documents、tmp），用 devicectl 取出来看。
 enum KeyboardProbe {
     private static var done: Set<Bool> = []
 
@@ -40,7 +40,7 @@ enum KeyboardProbe {
         }
         // 开了完全访问：把两份结果都复制到共享目录。
         if fullAccess, let own, let group {
-            let out = group.appendingPathComponent("Diagnostics", isDirectory: true)
+            let out = group.appendingPathComponent("Library/Diagnostics", isDirectory: true)
             try? fm.createDirectory(at: out, withIntermediateDirectories: true)
             for file in ["probe-off.json", "probe-on.json"] {
                 let from = own.appendingPathComponent(file), to = out.appendingPathComponent(file)
