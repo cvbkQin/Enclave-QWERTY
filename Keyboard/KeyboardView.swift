@@ -49,7 +49,8 @@ struct KeyboardView: View {
         HStack(spacing: 6) {
             PanelToggleButton(expanded: model.aiExpanded) { model.setAIExpanded(!model.aiExpanded) }
             PolishButton(model: model)
-            StyleChip(model: model)
+            // 风格按钮优先完整显示，地方不够时失败提示换成短的。
+            StyleChip(model: model).layoutPriority(1)
             if model.quickStatus == .failed, !model.aiExpanded {
                 QuickRetryLabel(model: model)
             }
@@ -863,11 +864,13 @@ struct QuickRetryLabel: View {
 
     var body: some View {
         Button { model.sparkleTapped() } label: {
-            Text("润色失败，点重试")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Brand.deepPurple)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            ViewThatFits(in: .horizontal) {
+                Text("润色失败，点重试")
+                Text("失败，重试")
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Brand.deepPurple)
+            .lineLimit(1)
         }
         .buttonStyle(KeyPressStyle())
         .padding(.leading, 2)
