@@ -159,7 +159,11 @@ struct KeyCapView: View {
                 .opacity(model.isComposing ? 1 : 0.35)
         case .layer(let target):
             if model.nineGrid {
-                Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.nineKeyFont).tracking(1)
+                if key.id == "symbols" {
+                    SymbolsKeyLabel()
+                } else {
+                    Text(layerTitle(target)).font(KeyStyle.nineKeyFont).tracking(1)
+                }
             } else {
                 Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.functionFont)
             }
@@ -199,13 +203,65 @@ struct ToggleLabel: View {
     }
 }
 
-/// 九宫格第一格的标点「，。?!」：，。用居中的全角字形（看着像中文标点），两个挨紧；?! 照常。
+/// 九宫格第一格的标点「，。?!」：四个符号按设计稿 nine-key-punct-label.svg 一起画，
+/// 笔画粗细、点的大小和间距统一，底线和旁边 16pt 的「123」「ABC」对齐。颜色跟着前景色。
 struct PunctuationLabel: View {
+    /// 设计稿 viewBox 是 (-0.5, 0, 32.5, 18)，底线 y = 15；显示高度 19.5pt。
+    private static let scale: CGFloat = 19.5 / 18
+    private static let size = CGSize(width: 32.5 * scale, height: 19.5)
+    /// 16pt 系统字的底线在行中心下方 (ascender + descender) / 2，图的底线在中心下方 (15 − 9) × scale，差多少挪多少。
+    private static let baselineShift: CGFloat = {
+        let font = UIFont.systemFont(ofSize: 16)
+        return (font.ascender + font.descender) / 2 - (15 - 9) * scale
+    }()
+
+    var body: some View {
+        Canvas { context, _ in
+            context.scaleBy(x: Self.scale, y: Self.scale)
+            context.translateBy(x: 0.5, y: 0)
+            func round(_ width: CGFloat) -> StrokeStyle { StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round) }
+            func dot(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat) -> Path {
+                Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+            }
+            // ，
+            context.fill(dot(1.5, 13.4, 1.5), with: .foreground)
+            var tail = Path()
+            tail.move(to: CGPoint(x: 2.9, y: 13.6))
+            tail.addCurve(to: CGPoint(x: 0.6, y: 17.5), control1: CGPoint(x: 3.0, y: 15.5), control2: CGPoint(x: 2.2, y: 16.8))
+            context.stroke(tail, with: .foreground, style: round(1.2))
+            // 。
+            context.stroke(dot(8.8 + 2.2, 12.85, 2.15), with: .foreground, lineWidth: 1.3)
+            // ?
+            var question = Path()
+            let qx: CGFloat = 17.4
+            question.move(to: CGPoint(x: qx + 0.8, y: 6.3))
+            question.addCurve(to: CGPoint(x: qx + 3.9, y: 3.2), control1: CGPoint(x: qx + 0.8, y: 4.4), control2: CGPoint(x: qx + 2.1, y: 3.2))
+            question.addCurve(to: CGPoint(x: qx + 7, y: 6.1), control1: CGPoint(x: qx + 5.7, y: 3.2), control2: CGPoint(x: qx + 7, y: 4.4))
+            question.addCurve(to: CGPoint(x: qx + 4.9, y: 9.1), control1: CGPoint(x: qx + 7, y: 7.7), control2: CGPoint(x: qx + 5.9, y: 8.4))
+            question.addCurve(to: CGPoint(x: qx + 3.9, y: 11.1), control1: CGPoint(x: qx + 4.2, y: 9.6), control2: CGPoint(x: qx + 3.9, y: 10.1))
+            question.addLine(to: CGPoint(x: qx + 3.9, y: 11.7))
+            context.stroke(question, with: .foreground, style: round(1.6))
+            context.fill(dot(qx + 3.9, 14, 1.05), with: .foreground)
+            // !
+            var bang = Path()
+            bang.move(to: CGPoint(x: 29.4 + 1.05, y: 3.6))
+            bang.addLine(to: CGPoint(x: 29.4 + 1.05, y: 11.2))
+            context.stroke(bang, with: .foreground, style: round(1.7))
+            context.fill(dot(29.4 + 1.05, 14, 1.05), with: .foreground)
+        }
+        .frame(width: Self.size.width, height: Self.size.height)
+        .offset(y: Self.baselineShift)
+        .accessibilityLabel("标点")
+    }
+}
+
+/// 九宫格左列的「#@¥」：三个字符各占 13pt 宽的格子，@ 缩到 14.5pt 并上移 1pt，三个看起来一样大。
+struct SymbolsKeyLabel: View {
     var body: some View {
         HStack(spacing: 0) {
-            CenteredGlyph("，", size: 18, drop: 1.5, box: 11)
-            CenteredGlyph("。", size: 18, drop: 1.5, box: 11)
-            Text("?!").font(KeyStyle.nineKeyFont).tracking(1)
+            Text("#").font(KeyStyle.nineKeyFont).frame(width: 13)
+            Text("@").font(.system(size: 14.5)).offset(y: -1).frame(width: 13)
+            Text("¥").font(KeyStyle.nineKeyFont).frame(width: 13)
         }
     }
 }
