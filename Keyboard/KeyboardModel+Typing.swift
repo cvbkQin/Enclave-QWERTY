@@ -463,5 +463,18 @@ extension KeyboardModel {
         }
         if options.contains("candidates") && !candidates.isEmpty { candidatesExpanded = true }
         if options.contains("pinyin") && isComposing { keysPanel = .pinyin }
+        #if DEBUG
+        // cross:1:right 按住「,｡?!」往右滑；cross:3:up 按住 DEF 往上滑。
+        for option in options where option.hasPrefix("cross:") {
+            let parts = option.split(separator: ":").map(String.init)
+            guard parts.count >= 2 else { continue }
+            let width = UIScreen.main.bounds.width - KeyboardMetrics.sidePadding * 2
+            let layout = KeyLayout.build(layoutState, size: CGSize(width: width, height: KeyboardMetrics.keysHeight))
+            guard let key = layout.keys.first(where: { $0.id == "n\(parts[1])" }),
+                  showAlternates(for: key, containerWidth: width) else { continue }
+            let directions: [String: CrossPopup.Direction] = ["left": .left, "up": .up, "right": .right, "down": .down]
+            if parts.count > 2 { cross?.selected = directions[parts[2]] }
+        }
+        #endif
     }
 }
