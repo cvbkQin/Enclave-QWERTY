@@ -50,13 +50,14 @@ enum CommonWordStore {
         }
     }
 
+    /// 系统「文本替换」和通讯录人名默认不用，用户在常用词页里自己打开。
     static var usesTextReplacement: Bool {
-        get { SharedStorage.defaults.object(forKey: textReplacementKey) as? Bool ?? true }
+        get { SharedStorage.defaults.object(forKey: textReplacementKey) as? Bool ?? false }
         set { SharedStorage.defaults.set(newValue, forKey: textReplacementKey) }
     }
 
     static var usesContacts: Bool {
-        get { SharedStorage.defaults.object(forKey: contactsKey) as? Bool ?? true }
+        get { SharedStorage.defaults.object(forKey: contactsKey) as? Bool ?? false }
         set { SharedStorage.defaults.set(newValue, forKey: contactsKey) }
     }
 

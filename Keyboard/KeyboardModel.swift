@@ -143,6 +143,12 @@ final class KeyboardModel: ObservableObject {
             applyCommonWords(CommonWordStore.active(lexicon: CommonWordStore.lexicon))
             return
         }
+        // 两个开关都关着就不读系统词，也清掉上次的快照。
+        guard CommonWordStore.usesTextReplacement || CommonWordStore.usesContacts else {
+            CommonWordStore.lexicon = []
+            applyCommonWords(CommonWordStore.load())
+            return
+        }
         controller.requestSupplementaryLexicon { lexicon in
             var seen = Set<String>()
             var words: [CommonWord] = []

@@ -36,7 +36,12 @@ final class CommonWordsModel: ObservableObject {
         didSet { CommonWordStore.usesContacts = usesContacts }
     }
 
-    var all: [CommonWord] { words + lexicon }
+    /// 只列出打开了开关的系统来源。
+    var all: [CommonWord] {
+        words + lexicon.filter {
+            ($0.source == .textReplacement && usesTextReplacement) || ($0.source == .contact && usesContacts)
+        }
+    }
 
     func count(_ source: CommonWord.Source?) -> Int {
         all.filter { source == nil || $0.source == source }.count
