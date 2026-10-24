@@ -478,16 +478,16 @@ struct ResultCard: View {
                 .padding(.leading, 10)
                 .padding(.vertical, 8)
                 .contentShape(Rectangle())
-                // 长按卡片也能复制；不展开时上下滑翻版本。
-                .onLongPressGesture(minimumDuration: 0.45) { model.copy() }
-                .simultaneousGesture(DragGesture(minimumDistance: 14).onEnded { value in
-                    guard !model.cardTall, abs(value.translation.height) > abs(value.translation.width) else { return }
-                    if value.translation.height < -24 { turn(1) } else if value.translation.height > 24 { turn(-1) }
-                })
+                // 不展开时上下滑翻版本（展开时文字区要留给滚动）；长按复制。
+                // 滑动放在主手势、长按放在同时识别，onLongPressGesture 会把拖动吞掉。
+                .gesture(swipeToTurn, including: model.cardTall ? .subviews : .all)
+                .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.copy() })
             iconColumn(faded: faded)
                 .padding(.vertical, 5)
             if let session = model.session, session.versions.count > 1, !model.isRunning {
                 pager(index: session.currentIndex, count: session.versions.count)
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(swipeToTurn)
             }
         }
         .padding(.trailing, 4)
@@ -563,6 +563,14 @@ struct ResultCard: View {
         .buttonStyle(.plain)
         .frame(width: 28)
         .padding(.vertical, 2)
+    }
+
+    /// 上滑看下一版，下滑看上一版。
+    private var swipeToTurn: some Gesture {
+        DragGesture(minimumDistance: 12).onEnded { value in
+            guard abs(value.translation.height) > abs(value.translation.width) else { return }
+            if value.translation.height < -20 { turn(1) } else if value.translation.height > 20 { turn(-1) }
+        }
     }
 
     private func turn(_ offset: Int) {
