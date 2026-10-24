@@ -12,9 +12,9 @@ final class KeyboardModel: ObservableObject {
     /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
     @Published private(set) var copied = false
     /// 结果卡片展开到五行。
-    @Published var cardExpanded = false
+    @Published var cardExpanded = false { didSet { heightMayChange?() } }
     /// 「正式▾」浮层：风格和要求。
-    @Published var styleMenuOpen = false
+    @Published var styleMenuOpen = false { didSet { heightMayChange?() } }
     /// 当前结果已经替换或插入过：卡片变灰，按钮显示「✓ 已替换」。
     @Published private(set) var resultUse: ResultUse?
     /// 输入框又改过，当前结果和输入对不上：卡片同样变灰。
@@ -29,9 +29,11 @@ final class KeyboardModel: ObservableObject {
     // 打字状态，逻辑在 KeyboardModel+Typing.swift
     @Published var target: InputTarget = .host
     @Published var layer: KeyLayer = .letters
+    /// 九宫格数字键盘点了「更多」，左列是运算符。
+    @Published var digitsMore = false
     @Published var shift: ShiftState = .off
     @Published var chineseMode = true
-    @Published var aiExpanded = false
+    @Published var aiExpanded = false { didSet { heightMayChange?() } }
     @Published var composition = ""
     @Published var candidates: [String] = []
     var engine: InputEngine = DirectEngine()
@@ -48,6 +50,11 @@ final class KeyboardModel: ObservableObject {
     @Published var keysPanel: KeysPanel?
     /// 长按按键弹出的备选条。
     @Published var alternates: AlternatesPopup?
+    /// 九宫格长按的十字弹层。
+    @Published var cross: CrossPopup?
+    /// 对方输入框有没有字、回车键是什么类型，决定发送键的颜色和文字。
+    @Published var hostHasText = false
+    @Published var hostReturnKey: UIReturnKeyType = .default
     /// 输入框里是否有带下划线的拼音（marked text）。
     var hasMarkedText = false
     var lastSpaceTime = Date.distantPast
@@ -56,6 +63,12 @@ final class KeyboardModel: ObservableObject {
 
     weak var controller: UIInputViewController?
     private var task: Task<Void, Never>?
+    /// 快速模式：收起时点 ✨，记下当时输入框的内容，润完直接替换；输入框中途被改过就不替换，展开给人看。
+    var quickSource: String?
+    /// 快速模式在 AI 栏上的状态：润色中（流光圈住 AI 栏）、✓ 已润色（1.5 秒后消失）、润色失败点重试。
+    @Published private(set) var quickStatus: QuickStatus?
+    enum QuickStatus { case running, done, failed }
+    enum QuickOutcome { case replaced, changed, failed }
     /// 每次替换或插入记一笔：写进去的文字和被它换掉的原文。撤销和重做在两个栈之间来回挪。
     private var undoStack: [FieldEdit] = []
     private var redoStack: [FieldEdit] = []
@@ -81,6 +94,9 @@ final class KeyboardModel: ObservableObject {
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
     var cardTall: Bool { cardExpanded || aiBlocked }
 
+    /// 控制器在这里同步改高度，和 SwiftUI 的新布局落在同一帧。
+    var heightMayChange: (() -> Void)?
+
     var keyboardHeight: CGFloat {
         KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen)
     }
@@ -91,6 +107,7 @@ final class KeyboardModel: ObservableObject {
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         hasFullAccess = controller?.hasFullAccess ?? false
         if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
+        refreshHostState()
         selectEngine()
     }
 
@@ -208,6 +225,7 @@ final class KeyboardModel: ObservableObject {
                 guard let self else { return }
                 if result.isEmpty {
                     self.errorMessage = "模型没有返回内容。"
+                    self.endQuickMode(.failed)
                 } else {
                     var updated = pending
                     updated.append(result)
@@ -218,10 +236,16 @@ final class KeyboardModel: ObservableObject {
                     self.resultUse = nil
                     self.resultStale = false
                     SessionStore.save(updated)
+                    if let source = self.quickSource {
+                        let unchanged = self.readField().text == source
+                        if unchanged { self.replace() }
+                        self.endQuickMode(unchanged ? .replaced : .changed)
+                    }
                 }
             } catch {
                 if !Task.isCancelled {
                     self?.errorMessage = error.localizedDescription
+                    self?.endQuickMode(.failed)
                 }
             }
             self?.isRunning = false
@@ -232,6 +256,39 @@ final class KeyboardModel: ObservableObject {
         task?.cancel()
         task = nil
         isRunning = false
+        quickSource = nil
+        quickStatus = nil
+    }
+
+    /// 快速模式开始：AI 栏进入「润色中」。
+    func beginQuickMode(source: String) {
+        quickSource = source
+        quickStatus = .running
+    }
+
+    /// 快速模式结束：替换成功显示「✓ 已润色」1.5 秒；出错留在 AI 栏上「润色失败，点重试」；
+    /// 输入框中途被改过就不替换，展开面板给人看结果。
+    func endQuickMode(_ outcome: QuickOutcome) {
+        guard quickSource != nil else { return }
+        quickSource = nil
+        switch outcome {
+        case .replaced:
+            quickStatus = .done
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                if self?.quickStatus == .done { self?.quickStatus = nil }
+            }
+        case .failed:
+            quickStatus = .failed
+        case .changed:
+            quickStatus = nil
+            aiExpanded = true
+        }
+    }
+
+    /// 展开面板或开始新的生成时，AI 栏上的快速模式提示就不用留着了。
+    func clearQuickStatus() {
+        if quickStatus != nil { quickStatus = nil }
     }
 
     // MARK: - 版本
@@ -252,6 +309,25 @@ final class KeyboardModel: ObservableObject {
         isRunning = true
         streamingText = "不好意思，明天的会我可能参加不了，家里临时有点事"
     }
+
+    /// 截图用：收起状态下 AI 栏上的快速模式（-keyboardDebug quick:running|done|failed）。
+    func loadDebugQuick(_ status: QuickStatus) {
+        quickStatus = status
+        if status == .running { isRunning = true }
+    }
+
+    /// 截图用：润色中 3 秒后完成，看完成时星星闪金（-keyboardDebug quick:cycle），每 5 秒重来一次。
+    func loadDebugQuickCycle() {
+        Task { [weak self] in
+            while let self {
+                self.loadDebugQuick(.running)
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                self.isRunning = false
+                self.quickStatus = .done
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+            }
+        }
+    }
     #endif
 
     func showVersion(offset: Int) {
@@ -266,6 +342,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 输入框的文字变了（系统通知）：和当前结果对不上就把卡片变灰。
     func fieldDidChange() {
+        refreshHostState()
         guard let session, session.current != nil, !isRunning else { return }
         let stale = !session.belongs(to: CommandParser.parse(readField().text).content)
         if stale != resultStale { resultStale = stale }
@@ -309,7 +386,7 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - 写入输入框
 
-    private func readField() -> (text: String, isSelection: Bool) {
+    func readField() -> (text: String, isSelection: Bool) {
         guard let proxy else { return ("", false) }
         if let selected = proxy.selectedText, !selected.isEmpty {
             return (selected, true)

@@ -10,8 +10,9 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    # 版本号：从 0.1 起每次改动加 0.1，正式发布时才改成 1.0。CURRENT_PROJECT_VERSION 同时加 1。
+    MARKETING_VERSION: "0.4"
+    CURRENT_PROJECT_VERSION: "4"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。
@@ -62,6 +63,8 @@ targets:
     info:
       path: App/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: Enclave
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations: [zh-Hans]
@@ -90,6 +93,8 @@ targets:
     info:
       path: Keyboard/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: Enclave
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations: [zh-Hans]

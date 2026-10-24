@@ -9,11 +9,24 @@ enum KeyboardMetrics {
     static let keyInsetX: CGFloat = 3.1
     static let keyInsetY: CGFloat = 5.5
     static let keysHeight: CGFloat = slotHeight * 4
+    /// 全键盘底行「中/英」键宽 42pt，字 14pt；九宫格的「中/英」16pt。
+    static let toggleKeyWidth: CGFloat = 42
+    static let toggleFontSize: CGFloat = 14
+    static let nineToggleFontSize: CGFloat = 16
     /// 全键盘 Shift、删除键画出来的宽度（触摸范围仍是 1.5 格）。
     static let shiftKeyWidth: CGFloat = 45
-    /// 九宫格的键 72.6×44（iOS 26 实测），五列等宽。
-    static let nineKeyInsetX: CGFloat = 3.15
-    static let nineKeyInsetY: CGFloat = 5
+    /// 九宫格对齐原生：键高 46、行距 7（每行 53），列距 6、两边各 7，五列等宽。
+    /// 四行 212pt，比按键区少 4pt，上下各留 2pt，键盘总高不变。
+    static let nineKeyHeight: CGFloat = 46
+    static let nineRowGap: CGFloat = 7
+    static let nineColumnGap: CGFloat = 6
+    static let nineSideMargin: CGFloat = 7
+    static let nineRowPitch: CGFloat = nineKeyHeight + nineRowGap
+    static let nineTopOffset: CGFloat = (keysHeight - nineRowPitch * 4) / 2
+    static let nineKeyInsetX: CGFloat = nineColumnGap / 2
+    static let nineKeyInsetY: CGFloat = nineRowGap / 2
+    /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝。
+    static let pinyinCellHeight: CGFloat = 38
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     static let topRow: CGFloat = 44
@@ -96,23 +109,46 @@ enum Brand {
         : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
     /// 生成中「停止」的底色 #3A3A3C。
     static let stopFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
-    /// 「正式▾」浮层底色 #F4F2FF，描边 #DCD6FB。
+    /// 「正式▾」按钮打开时的底色 #F4F2FF。
     static let menuFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.17, green: 0.16, blue: 0.27, alpha: 1)
         : UIColor(red: 0xF4 / 255, green: 0xF2 / 255, blue: 0xFF / 255, alpha: 1) })
-    static let menuStroke = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.30, green: 0.27, blue: 0.48, alpha: 1)
-        : UIColor(red: 0xDC / 255, green: 0xD6 / 255, blue: 0xFB / 255, alpha: 1) })
-    /// 要求框描边 #C9C3F7，输入时 #8B7CF6。
-    static let fieldStroke = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.36, green: 0.32, blue: 0.58, alpha: 1)
-        : UIColor(red: 0xC9 / 255, green: 0xC3 / 255, blue: 0xF7 / 255, alpha: 1) })
-    static let fieldActiveStroke = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
-    /// 要求框底色 #E9E5FD。
-    static let fieldFill = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)
-        : UIColor(red: 0xE9 / 255, green: 0xE5 / 255, blue: 0xFD / 255, alpha: 1) })
+    /// 「正式▾」浮层（清爽紫）：纯白底，深色模式用系统深灰。
+    static let panelFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x2C / 255, green: 0x2C / 255, blue: 0x2E / 255, alpha: 1) : .white })
+    /// 浮层里「风格」「要求」两个字 #3A3A3C。
+    static let panelLabel = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.78, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
+    /// 没选中的风格标签 #F4F5F7 黑字。
+    static let tagFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+        : UIColor(red: 0xF4 / 255, green: 0xF5 / 255, blue: 0xF7 / 255, alpha: 1) })
+    /// 要求框和选中的风格：100° 渐变 #9488F7 → #B4A9FB，白字。
+    static let fieldLinearGradient = LinearGradient(
+        colors: [Color(red: 0x94 / 255, green: 0x88 / 255, blue: 0xF7 / 255),
+                 Color(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFB / 255)],
+        startPoint: UnitPoint(x: 0, y: 0.41), endPoint: UnitPoint(x: 1, y: 0.59))
+    /// 「再润」：135° 紫到粉 #A855F7 → #EC4899。
+    static let rerunGradient = LinearGradient(
+        colors: [Color(red: 0xA8 / 255, green: 0x55 / 255, blue: 0xF7 / 255),
+                 Color(red: 0xEC / 255, green: 0x48 / 255, blue: 0x99 / 255)],
+        startPoint: .topLeading, endPoint: .bottomTrailing)
     static let softFill = purple.opacity(0.14)
+    /// 换行、确认和空输入框时的发送键：浅紫底 #ECEAFD，字和图标用 deepPurple #4A3BD6。
+    static let returnSoftFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)
+        : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
+    /// 「中/英」键：当前语言那个字 #1C1C1E，另一个 #AEAEB2，斜杠 #C7C7CC。
+    static let toggleActive = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? .white : UIColor(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255, alpha: 1) })
+    static let toggleInactive = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.55, alpha: 1) : UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1) })
+    static let toggleSlash = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.45, alpha: 1) : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) })
+    /// 九宫格长按十字弹层中间那格 #E6E5EB。
+    static let crossCenterFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.36, alpha: 1)
+        : UIColor(red: 0xE6 / 255, green: 0xE5 / 255, blue: 0xEB / 255, alpha: 1) })
 }
 
 /// 四角星，logo 星星组的一颗。

@@ -27,8 +27,11 @@ struct KeysView: View {
                     if let column = layout.pinyinColumn {
                         PinyinColumn(model: model, frame: column)
                     }
+                    if let column = layout.operatorColumn {
+                        OperatorColumn(model: model, frame: column)
+                    }
                     // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选时也不显示）。
-                    if !(model.layer == .letters && model.showsNineKey) {
+                    if !model.nineGrid {
                         ForEach(layout.keys.filter {
                             model.pressedKeys.contains($0.id) && $0.kind.typesCharacter && model.alternates?.key.id != $0.id
                         }) { key in
@@ -38,6 +41,9 @@ struct KeysView: View {
                     }
                     if let popup = model.alternates {
                         AlternatesView(popup: popup)
+                    }
+                    if let popup = model.cross {
+                        CrossView(model: model, popup: popup)
                     }
                 }
             }
@@ -60,20 +66,25 @@ struct KeyCapView: View {
         }
     }
 
-    private var highlighted: Bool {
-        if case .returnKey = key.kind { return model.returnHighlighted }
-        return false
+    private var returnLook: KeyboardModel.ReturnLook? {
+        if case .returnKey = key.kind { return model.returnLook }
+        return nil
     }
 
-    /// iOS 26 键盘：所有键同色，按下变灰；带气泡的键按下时键帽不变色，气泡代替反馈。
+    private var highlighted: Bool { returnLook?.solid == true }
+
+    /// iOS 26 键盘：所有键同色，按下变灰；带气泡的键按下时键帽不变色，气泡代替反馈。回车键浅紫或实心紫。
     private func fill(pressed: Bool) -> Color {
-        if highlighted { return Brand.purple.opacity(pressed ? 0.75 : 1) }
-        let showsPopup = key.kind.typesCharacter && !(model.showsNineKey && model.layer == .letters)
+        if let look = returnLook {
+            return look.solid ? Brand.purple.opacity(pressed ? 0.75 : 1) : Brand.returnSoftFill.opacity(pressed ? 0.7 : 1)
+        }
+        let showsPopup = key.kind.typesCharacter && !model.nineGrid
         return pressed && !showsPopup ? KeyStyle.pressedKey : KeyStyle.charKey
     }
 
     private var foreground: Color {
-        highlighted ? .white : .primary
+        if let look = returnLook { return look.solid ? .white : Brand.deepPurple }
+        return .primary
     }
 
     @ViewBuilder
@@ -84,7 +95,19 @@ struct KeyCapView: View {
                 .font(KeyStyle.letterFont)
                 .offset(y: -1)
         case .symbol(let symbol):
-            Text(KeyStyle.capText(symbol)).font(KeyStyle.capFont(for: symbol))
+            if model.layer == .digits {
+                Text(symbol).font(.system(size: 24))
+            } else {
+                Text(KeyStyle.capText(symbol)).font(KeyStyle.capFont(for: symbol))
+            }
+        case .digitPunct:
+            Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
+        case .digitsMore:
+            if model.digitsMore {
+                Text("返回").font(.system(size: 16, weight: .semibold)).foregroundStyle(Brand.deepPurple)
+            } else {
+                Text("更多").font(KeyStyle.nineKeyFont)
+            }
         case .nine(let digit):
             if digit == "'" {
                 // 打拼音时是分词键，平时连按切换标点。
@@ -106,17 +129,16 @@ struct KeyCapView: View {
         case .space:
             spaceLabel
         case .returnKey:
-            if let title = model.returnTitle {
-                Text(title).font(KeyStyle.functionFont)
+            let look = model.returnLook
+            if let title = look.title {
+                Text(title).font(.system(size: 17, weight: look.bold ? .semibold : .regular))
             } else {
                 Image(systemName: "return.left").font(KeyStyle.iconFont)
             }
         case .toggleChinese:
-            if model.showsNineKey {
-                Text("ABC").font(KeyStyle.nineKeyFont).tracking(1)
-            } else {
-                Text(model.chineseMode ? "中" : "英").font(KeyStyle.functionFont)
-            }
+            // 九宫格只用于中文，永远是「中」加深。
+            ToggleLabel(chinese: model.showsNineKey || model.chineseMode,
+                        size: model.showsNineKey ? KeyboardMetrics.nineToggleFontSize : KeyboardMetrics.toggleFontSize)
         case .globe:
             Image(systemName: "globe").font(KeyStyle.iconFont)
         case .emoticon:
@@ -132,7 +154,7 @@ struct KeyCapView: View {
             Text("选拼音").font(KeyStyle.functionFont)
                 .opacity(model.isComposing ? 1 : 0.35)
         case .layer(let target):
-            if model.showsNineKey && model.layer == .letters {
+            if model.nineGrid {
                 Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.nineKeyFont).tracking(1)
             } else {
                 Text(key.id == "symbols" ? "#@¥" : layerTitle(target)).font(KeyStyle.functionFont)
@@ -140,29 +162,34 @@ struct KeyCapView: View {
         }
     }
 
-    /// 和系统一样，空格键平时不写字，只在右下角用小字标出当前语言。
-    @ViewBuilder
+    /// 空格键：中文「空格」两字之间留宽字距（九宫格 3pt、全键盘 4pt），英文「space」。
     private var spaceLabel: some View {
-        if let title = model.spaceTitle {
-            // 九宫格的「空格」两字之间系统留了较宽的字距。
-            Text(title).font(KeyStyle.functionFont).tracking(model.showsNineKey && title == "空格" ? 3 : 0)
-        } else {
-            Color.clear.overlay(alignment: .bottomTrailing) {
-                Text(model.chineseMode ? "拼" : "EN")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.secondary)
-                    .padding(.trailing, 9)
-                    .padding(.bottom, 5)
-            }
-        }
+        let title = model.spaceTitle
+        return Text(title).font(KeyStyle.functionFont)
+            .tracking(title == "空格" ? (model.showsNineKey ? 3 : 4) : 0)
     }
 
     private func layerTitle(_ target: KeyboardModel.KeyLayer) -> String {
         switch target {
         case .numbers: return "123"
         case .symbols: return "#+="
-        case .letters: return model.chineseMode ? "拼音" : "ABC"
+        case .digits: return "123"
+        case .letters: return model.chineseMode || model.showsNineKey ? "拼音" : "ABC"
         }
+    }
+}
+
+/// 「中/英」：当前语言那个字加深加粗，另一个浅灰，斜杠更浅。
+struct ToggleLabel: View {
+    var chinese: Bool
+    var size: CGFloat
+
+    var body: some View {
+        Text("中").font(.system(size: size, weight: chinese ? .semibold : .regular))
+            .foregroundColor(chinese ? Brand.toggleActive : Brand.toggleInactive)
+        + Text("/").font(.system(size: size)).foregroundColor(Brand.toggleSlash)
+        + Text("英").font(.system(size: size, weight: chinese ? .regular : .semibold))
+            .foregroundColor(chinese ? Brand.toggleInactive : Brand.toggleActive)
     }
 }
 

@@ -19,11 +19,15 @@ final class KeyTouchView: UIView {
         var slidFromLayer = false
         /// 长按弹出了备选条，松手时打出选中的那个。
         var alternates = false
+        /// 按下的位置，九宫格按住直接往外划用。
+        var start: CGPoint = .zero
 
         init(key: KeySpec) { self.key = key }
     }
 
     private var tracking: [UITouch: Tracking] = [:]
+    /// 九宫格按住划出多远算方向划。
+    private static let flickDistance: CGFloat = 16
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -36,6 +40,7 @@ final class KeyTouchView: UIView {
     /// 九宫格的拼音选择栏盖在这一层上面，那块区域的触摸交给它。
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
         if let column = layout.pinyinColumn, column.contains(point) { return false }
+        if let column = layout.operatorColumn, column.contains(point) { return false }
         return super.point(inside: point, with: event)
     }
 
@@ -64,6 +69,7 @@ final class KeyTouchView: UIView {
                 model.keyReleased(other.key.id)
             }
             let state = Tracking(key: key)
+            state.start = touch.location(in: self)
             tracking[touch] = state
             model.keyPressed(key)
 
@@ -100,7 +106,17 @@ final class KeyTouchView: UIView {
             guard let state = tracking[touch] else { continue }
             let point = touch.location(in: self)
             if state.alternates {
-                model.moveAlternates(toX: point.x)
+                model.moveAlternates(to: point)
+                continue
+            }
+            // 九宫格和原生一样：按住直接往上下左右划，不用等长按，十字马上出来并选中那个方向。
+            if !state.fired, state.key.kind.flicks(composing: model.isComposing),
+               hypot(point.x - state.start.x, point.y - state.start.y) > Self.flickDistance,
+               model.showAlternates(for: state.key, containerWidth: bounds.width, origin: state.start) {
+                state.timer?.invalidate()
+                state.alternates = true
+                state.fired = true
+                model.moveAlternates(to: point)
                 continue
             }
             if state.key.kind == .globe {
@@ -130,6 +146,7 @@ final class KeyTouchView: UIView {
                 state.fired = false
             }
             state.key = next
+            state.start = point
             state.timer?.invalidate()
             scheduleAlternates(state)
         }
@@ -161,7 +178,10 @@ final class KeyTouchView: UIView {
             guard let state = tracking.removeValue(forKey: touch) else { continue }
             state.timer?.invalidate()
             if state.trackpadX != nil { model.setTrackpad(false) }
-            if state.alternates { model.alternates = nil }
+            if state.alternates {
+                model.alternates = nil
+                model.cross = nil
+            }
             model.keyReleased(state.key.id)
         }
     }
@@ -172,7 +192,8 @@ final class KeyTouchView: UIView {
             Task { @MainActor in
                 guard let self, let state, !state.fired,
                       self.tracking.values.contains(where: { $0 === state }),
-                      self.model?.showAlternates(for: state.key, containerWidth: self.bounds.width) == true else { return }
+                      self.model?.showAlternates(for: state.key, containerWidth: self.bounds.width,
+                                                              origin: state.start) == true else { return }
                 state.alternates = true
                 state.fired = true
             }
