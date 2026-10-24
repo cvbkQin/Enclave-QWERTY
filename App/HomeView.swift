@@ -1,0 +1,283 @@
+import SwiftUI
+
+/// 首页：准备好了显示就绪卡片和当前配置；没准备好换成分步引导。
+struct HomeView: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var router: AppRouter
+    @Environment(\.scenePhase) private var scenePhase
+    /// 从系统设置回来时重新读一遍键盘状态。
+    @State private var refresh = UUID()
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if Readiness.remainingSteps(apiConfigured: store.settings.isConfigured) == 0 {
+                        Text("Enclave").font(.largeTitle.bold()).padding(.top, 8)
+                        Dashboard()
+                    } else {
+                        Text("欢迎使用").font(.largeTitle.bold()).padding(.top, 8)
+                        OnboardingSteps()
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
+                .id(refresh)
+            }
+            .background(Color(.systemGroupedBackground))
+            // 自己画大标题，导航栏标题写「首页」，这样「试一试」的返回按钮叫「首页」。
+            .navigationTitle("首页")
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $router.showPlayground) {
+                PlaygroundView(autoFocusToken: router.playgroundFocusToken)
+            }
+            .onChange(of: scenePhase) { if $0 == .active { refresh = UUID() } }
+        }
+    }
+}
+
+/// 准备好以后的首页：就绪卡片、当前配置四宫格、小技巧。
+private struct Dashboard: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var router: AppRouter
+    @ObservedObject private var deployer = RimeDeployer.shared
+
+    var body: some View {
+        if !SharedStorage.isShared { SharedConfigBanner() }
+        hero
+        sectionTitle("当前配置")
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
+            ConfigCard(icon: "cpu", color: AppColor.purple, label: "模型", value: store.settings.model,
+                       detail: modelDetail.text, dot: modelDetail.color) { router.openSettings(.model) }
+            ConfigCard(icon: "sparkles", color: Color(red: 0.69, green: 0.32, blue: 0.87), label: "默认风格",
+                       value: store.settings.selectedStyle?.name ?? "—",
+                       detail: "共 \(store.settings.styles.count) 个风格", dot: nil) { router.tab = .styles }
+            ConfigCard(icon: "keyboard", color: .blue, label: "键盘", value: store.settings.keyboardLayout.shortTitle,
+                       detail: keyboardDetail, dot: nil) { router.openSettings(.keyboard) }
+            let pinyin = PinyinStatus.current(deployer)
+            ConfigCard(icon: "character.book.closed", color: .orange, label: "拼音词库", value: "雾凇拼音",
+                       detail: pinyin.text, dot: pinyin.color) { router.openSettings(.pinyin) }
+        }
+        sectionTitle("小技巧")
+        VStack(alignment: .leading, spacing: 8) {
+            Text("· 选中一段文字再点润色，只改选中的部分")
+            Text("· 点「\(store.settings.selectedStyle?.name ?? "风格")▾」写要求，比如「更委婉」「翻成英文」")
+            Text("· 长按结果卡片可以复制")
+        }
+        .font(.subheadline)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+    }
+
+    private var hero: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("准备就绪").font(.caption).opacity(0.8)
+                Text("键盘可以用了").font(.title2.bold())
+                Text("在任意输入框切到 Enclave，写完点「✨ 润色」。")
+                    .font(.footnote).opacity(0.85)
+                    .padding(.trailing, 70)
+                Button {
+                    router.openPlayground()
+                } label: {
+                    Label("试一试", systemImage: "keyboard")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppColor.purple)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(.white))
+                }
+                .padding(.top, 8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "sparkles")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(AppColor.gold)
+        }
+        .foregroundStyle(.white)
+        .padding(18)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppColor.heroGradient))
+    }
+
+    private var modelDetail: (text: String, color: Color) {
+        switch store.test {
+        case .success: return ("连接正常", .green)
+        case .failure: return ("连接失败", .red)
+        case .running: return ("正在测试", .orange)
+        case .idle: return ("还没测试", Color.secondary.opacity(0.5))
+        }
+    }
+
+    private var keyboardDetail: String {
+        "震动\(store.settings.keyHaptics ? "开" : "关") · 动画\(store.settings.polishAnimation ? "开" : "关")"
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text).font(.footnote).foregroundStyle(.secondary).padding(.leading, 4).padding(.bottom, -6)
+    }
+}
+
+/// 首页四宫格的一张卡片，点了跳到对应页面。
+private struct ConfigCard: View {
+    var icon: String
+    var color: Color
+    var label: String
+    var value: String
+    var detail: String
+    var dot: Color?
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .top) {
+                    RowIcon(systemName: icon, color: color, size: 26)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+                }
+                .padding(.bottom, 6)
+                Text(label).font(.caption).foregroundStyle(.secondary)
+                Text(value.isEmpty ? "未配置" : value).font(.headline).lineLimit(1).foregroundStyle(.primary)
+                HStack(spacing: 4) {
+                    if let dot { Circle().fill(dot).frame(width: 6, height: 6) }
+                    Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 开启键盘的三步：添加键盘、允许完全访问、配置模型接口；下面是词库部署进度。首页和「开启键盘指南」共用。
+struct OnboardingSteps: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var router: AppRouter
+    @ObservedObject private var deployer = RimeDeployer.shared
+
+    var body: some View {
+        let done = [Readiness.keyboardAdded, Readiness.fullAccess == true, store.settings.isConfigured]
+        let remaining = done.filter { !$0 }.count
+        let current = done.firstIndex(of: false)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(remaining == 0 ? "三步都完成了，键盘可以用了。" : "还差 \(remaining) 步就能用 AI 润色，打字现在就能用。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            ProgressView(value: Double(3 - remaining), total: 3).tint(AppColor.purple)
+            if !SharedStorage.isShared { SharedConfigBanner() }
+            StepCard(number: 1, title: "添加 Enclave 键盘", done: done[0], current: current == 0) {
+                Text("打开系统设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选 Enclave。")
+            }
+            StepCard(number: 2, title: "允许完全访问", done: done[1], current: current == 1) {
+                Text("键盘要联网才能调用你的模型。进入 Enclave 设置 › 键盘，打开「允许完全访问」。")
+                Button("打开 Enclave 设置") { AppSettings.open() }
+                    .buttonStyle(StepButtonStyle(prominent: current == 1))
+                Text(Readiness.fullAccess == false ? "键盘上次出现时完全访问还没打开。" : "用一次键盘后，这里会自动打勾。")
+                    .font(.caption)
+                    .foregroundStyle(Readiness.fullAccess == false ? Color.orange : Color.secondary)
+            }
+            StepCard(number: 3, title: "配置模型接口", done: done[2], current: current == 2) {
+                Text("填 API 地址和 Key，或者从剪贴板导入配置。")
+                Button("去配置") { router.openSettings(.model) }
+                    .buttonStyle(StepButtonStyle(prominent: current == 2))
+            }
+            DeployCard()
+        }
+    }
+}
+
+private struct StepCard<Content: View>: View {
+    var number: Int
+    var title: String
+    var done: Bool
+    var current: Bool
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                if done {
+                    Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(.green)
+                } else {
+                    Text("\(number)")
+                        .font(.footnote.bold())
+                        .foregroundStyle(current ? .white : .secondary)
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(current ? AppColor.purple : Color.clear))
+                        .overlay(Circle().strokeBorder(current ? Color.clear : Color.secondary.opacity(0.5)))
+                }
+                Text(title).font(.headline).foregroundStyle(done ? .secondary : .primary)
+            }
+            if !done {
+                VStack(alignment: .leading, spacing: 10) { content }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 32)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .strokeBorder(AppColor.purple, lineWidth: current ? 1.5 : 0))
+    }
+}
+
+/// 当前这一步是实心紫色按钮，后面的步骤是淡紫底。
+private struct StepButtonStyle: ButtonStyle {
+    var prominent: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(prominent ? Color.white : AppColor.purple)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(prominent ? AppColor.purple : AppColor.softFill))
+            .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+/// 拼音词库部署进度。编译没有真实进度，按大约一分钟估一条进度条。
+private struct DeployCard: View {
+    @ObservedObject private var deployer = RimeDeployer.shared
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RowIcon(systemName: "character.book.closed", color: .orange)
+            switch deployer.state {
+            case .deploying:
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("正在部署拼音词库…").font(.subheadline)
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let elapsed = context.date.timeIntervalSince(deployer.startedAt ?? context.date)
+                        HStack {
+                            ProgressView(value: min(elapsed / 60, 0.95)).tint(.orange)
+                            Text("约 \(max(5, 60 - Int(elapsed))) 秒").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            case .failed(let message):
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("拼音词库部署失败").font(.subheadline)
+                    Text(message).font(.caption).foregroundStyle(.red)
+                }
+                Spacer()
+                Button("重试") { deployer.deploy() }.font(.subheadline.weight(.semibold))
+            default:
+                Text(deployer.needsDeploy ? "拼音词库还没部署" : "拼音词库已就绪").font(.subheadline)
+                Spacer()
+                if deployer.needsDeploy {
+                    Button("部署") { deployer.deploy() }.font(.subheadline.weight(.semibold))
+                } else {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                }
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+    }
+}

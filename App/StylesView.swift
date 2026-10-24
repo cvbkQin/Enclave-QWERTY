@@ -1,8 +1,20 @@
 import SwiftUI
 
+/// 「风格」标签。
+struct StylesTab: View {
+    @EnvironmentObject private var store: AppStore
+
+    var body: some View {
+        NavigationStack {
+            StylesView(settings: $store.settings)
+        }
+    }
+}
+
 /// 风格预设：左滑删除，「编辑」拖动排序，添加，恢复默认。这里的顺序就是键盘「正式▾」菜单里的顺序。
 struct StylesView: View {
     @Binding var settings: EnclaveSettings
+    @State private var confirmReset = false
 
     var body: some View {
         List {
@@ -23,16 +35,20 @@ struct StylesView: View {
                                         .background(Capsule().fill(Color.accentColor.opacity(0.14)))
                                 }
                             }
-                            if !style.prompt.isEmpty {
-                                Text(style.prompt).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                            }
+                            Text(style.prompt.isEmpty ? "按原文的场景和语气润色，不改变意思。" : style.prompt)
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
                 }
                 .onDelete { settings.styles.remove(atOffsets: $0) }
                 .onMove { settings.styles.move(fromOffsets: $0, toOffset: $1) }
+            } header: {
+                Text("每个风格是一段提示词，润色时带上。")
+                    .font(.subheadline)
+                    .textCase(nil)
+                    .padding(.bottom, 4)
             } footer: {
-                Text("左滑删除，点「编辑」拖动排序。这里的顺序就是键盘「\(settings.selectedStyle?.name ?? "风格")▾」菜单里的顺序。")
+                Text("这里的顺序就是键盘「\(settings.selectedStyle?.name ?? "风格")▾」菜单里的顺序。点「编辑」拖动排序，左滑删除。")
             }
 
             Section {
@@ -41,13 +57,22 @@ struct StylesView: View {
                 } label: {
                     Label("添加风格", systemImage: "plus")
                 }
-                Button("恢复默认", role: .destructive) {
-                    settings.styles = StylePreset.defaults
-                    settings.selectedStyleID = nil
-                }
+            }
+            Section {
+                Button("恢复默认风格") { confirmReset = true }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
             }
         }
-        .navigationTitle("风格预设")
+        .confirmationDialog("恢复成默认的 5 个风格？你改过和添加的风格会被删掉。", isPresented: $confirmReset, titleVisibility: .visible) {
+            Button("恢复默认风格", role: .destructive) {
+                settings.styles = StylePreset.defaults
+                settings.selectedStyleID = nil
+            }
+        }
+        .navigationTitle("风格")
         .toolbar { EditButton() }
     }
 }
