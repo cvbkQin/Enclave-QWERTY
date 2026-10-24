@@ -137,8 +137,9 @@ struct KeyCapView: View {
             }
         case .toggleChinese:
             // 九宫格只用于中文，永远是「中」加深。
+            // 字号跟着键所在的排法走：数字符号页是全键盘那种底栏，即使从九宫格进来也用全键盘的字号。
             ToggleLabel(chinese: model.showsNineKey || model.chineseMode,
-                        size: model.showsNineKey ? KeyboardMetrics.nineToggleFontSize : KeyboardMetrics.toggleFontSize)
+                        size: model.nineGrid ? KeyboardMetrics.nineToggleFontSize : KeyboardMetrics.toggleFontSize)
         case .globe:
             Image(systemName: "globe").font(KeyStyle.iconFont)
         case .emoticon:
@@ -179,16 +180,18 @@ struct KeyCapView: View {
     }
 }
 
-/// 「中/英」：当前语言那个字加深加粗，另一个浅灰，斜杠更浅。
+/// 「中/英」：当前语言那个字加深，另一个浅灰，斜杠更浅。
+/// 两个字用同一个字重，只靠颜色区分：一粗一细时两边看着大小不一样，切换时字形也会跳。
 struct ToggleLabel: View {
     var chinese: Bool
     var size: CGFloat
 
     var body: some View {
-        Text("中").font(.system(size: size, weight: chinese ? .semibold : .regular))
+        let font = Font.system(size: size, weight: .medium)
+        return Text("中").font(font)
             .foregroundColor(chinese ? Brand.toggleActive : Brand.toggleInactive)
-        + Text("/").font(.system(size: size)).foregroundColor(Brand.toggleSlash)
-        + Text("英").font(.system(size: size, weight: chinese ? .regular : .semibold))
+        + Text("/").font(font).foregroundColor(Brand.toggleSlash)
+        + Text("英").font(font)
             .foregroundColor(chinese ? Brand.toggleInactive : Brand.toggleActive)
     }
 }
