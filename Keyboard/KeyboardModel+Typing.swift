@@ -351,11 +351,12 @@ extension KeyboardModel {
             return
         }
         finishComposition()
-        quickSource = readField().text
+        beginQuickMode(source: readField().text)
         execute()
         // 没开始生成（空输入框提示、没配置、没开完全访问）就展开，把原因显示出来。
         if !isRunning {
             quickSource = nil
+            clearQuickStatus()
             setAIExpanded(true)
         }
     }
@@ -363,6 +364,7 @@ extension KeyboardModel {
     func setAIExpanded(_ expanded: Bool) {
         guard expanded != aiExpanded else { return }
         finishComposition()
+        if expanded { clearQuickStatus() }
         aiExpanded = expanded
     }
 
@@ -505,6 +507,9 @@ extension KeyboardModel {
             #if DEBUG
             case "versions": aiExpanded = true; debugUnblocked = true; loadDebugVersions()
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
+            case "quick:running": loadDebugQuick(.running)
+            case "quick:done": loadDebugQuick(.done)
+            case "quick:failed": loadDebugQuick(.failed)
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "undo": loadDebugUndo()

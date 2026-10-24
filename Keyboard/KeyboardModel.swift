@@ -65,6 +65,10 @@ final class KeyboardModel: ObservableObject {
     private var task: Task<Void, Never>?
     /// 快速模式：收起时点 ✨，记下当时输入框的内容，润完直接替换；输入框中途被改过就不替换，展开给人看。
     var quickSource: String?
+    /// 快速模式在 AI 栏上的状态：润色中（流光圈住 AI 栏）、✓ 已润色（1.5 秒后消失）、润色失败点重试。
+    @Published private(set) var quickStatus: QuickStatus?
+    enum QuickStatus { case running, done, failed }
+    enum QuickOutcome { case replaced, changed, failed }
     /// 每次替换或插入记一笔：写进去的文字和被它换掉的原文。撤销和重做在两个栈之间来回挪。
     private var undoStack: [FieldEdit] = []
     private var redoStack: [FieldEdit] = []
@@ -221,7 +225,7 @@ final class KeyboardModel: ObservableObject {
                 guard let self else { return }
                 if result.isEmpty {
                     self.errorMessage = "模型没有返回内容。"
-                    self.endQuickMode(replaced: false)
+                    self.endQuickMode(.failed)
                 } else {
                     var updated = pending
                     updated.append(result)
@@ -235,13 +239,13 @@ final class KeyboardModel: ObservableObject {
                     if let source = self.quickSource {
                         let unchanged = self.readField().text == source
                         if unchanged { self.replace() }
-                        self.endQuickMode(replaced: unchanged)
+                        self.endQuickMode(unchanged ? .replaced : .changed)
                     }
                 }
             } catch {
                 if !Task.isCancelled {
                     self?.errorMessage = error.localizedDescription
-                    self?.endQuickMode(replaced: false)
+                    self?.endQuickMode(.failed)
                 }
             }
             self?.isRunning = false
@@ -253,13 +257,38 @@ final class KeyboardModel: ObservableObject {
         task = nil
         isRunning = false
         quickSource = nil
+        quickStatus = nil
     }
 
-    /// 快速模式结束：替换成功就保持收起；出错、没替换的话展开面板，让人看到原因或结果。
-    func endQuickMode(replaced: Bool) {
+    /// 快速模式开始：AI 栏进入「润色中」。
+    func beginQuickMode(source: String) {
+        quickSource = source
+        quickStatus = .running
+    }
+
+    /// 快速模式结束：替换成功显示「✓ 已润色」1.5 秒；出错留在 AI 栏上「润色失败，点重试」；
+    /// 输入框中途被改过就不替换，展开面板给人看结果。
+    func endQuickMode(_ outcome: QuickOutcome) {
         guard quickSource != nil else { return }
         quickSource = nil
-        if !replaced { aiExpanded = true }
+        switch outcome {
+        case .replaced:
+            quickStatus = .done
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                if self?.quickStatus == .done { self?.quickStatus = nil }
+            }
+        case .failed:
+            quickStatus = .failed
+        case .changed:
+            quickStatus = nil
+            aiExpanded = true
+        }
+    }
+
+    /// 展开面板或开始新的生成时，AI 栏上的快速模式提示就不用留着了。
+    func clearQuickStatus() {
+        if quickStatus != nil { quickStatus = nil }
     }
 
     // MARK: - 版本
@@ -279,6 +308,12 @@ final class KeyboardModel: ObservableObject {
     func loadDebugRunning() {
         isRunning = true
         streamingText = "不好意思，明天的会我可能参加不了，家里临时有点事"
+    }
+
+    /// 截图用：收起状态下 AI 栏上的快速模式（-keyboardDebug quick:running|done|failed）。
+    func loadDebugQuick(_ status: QuickStatus) {
+        quickStatus = status
+        if status == .running { isRunning = true }
     }
     #endif
 

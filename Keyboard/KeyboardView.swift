@@ -50,9 +50,13 @@ struct KeyboardView: View {
             PanelToggleButton(expanded: model.aiExpanded) { model.setAIExpanded(!model.aiExpanded) }
             PolishButton(model: model)
             StyleChip(model: model)
+            if let status = model.quickStatus, !model.aiExpanded {
+                QuickStatusLabel(model: model, status: status)
+            }
             Spacer(minLength: 0)
             UndoRedoPair(model: model)
         }
+        .modifier(QuickPolishGlow(model: model))
         .padding(.horizontal, inset)
     }
 
@@ -690,6 +694,7 @@ struct ResultCard: View {
 /// 生成中的边框：品牌渐变沿边框转一圈，周期 1.6 秒；外圈淡紫光晕轻微明暗。
 struct FlowingBorder: View {
     var shape: RoundedRectangle
+    var lineWidth: CGFloat = 1.6
 
     var body: some View {
         TimelineView(.animation) { context in
@@ -699,10 +704,63 @@ struct FlowingBorder: View {
                 shape.stroke(Brand.violet.opacity(0.18 + 0.14 * wave), lineWidth: 4).blur(radius: 3)
                 shape.strokeBorder(AngularGradient(colors: Brand.gradient + [Brand.gradient[0]], center: .center,
                                                    angle: .degrees(phase * 360)),
-                                   lineWidth: 1.6)
+                                   lineWidth: lineWidth)
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+/// 快速模式润色中：流光圈住整条 AI 栏（四边各外扩 1.5pt，圆角 19），栏内同步扫光。
+/// App 里关了动画或系统开了「减弱动态效果」就只留「停止」和「润色中」。
+struct QuickPolishGlow: ViewModifier {
+    @ObservedObject var model: KeyboardModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var animating: Bool {
+        model.quickStatus == .running && model.isRunning && !model.aiExpanded
+            && model.settings.polishAnimation && !reduceMotion
+    }
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 19, style: .continuous)
+        content
+            .background {
+                if animating { SweepBand().clipShape(shape).padding(-1.5) }
+            }
+            .overlay {
+                if animating { FlowingBorder(shape: shape, lineWidth: 1.5).padding(-1.5) }
+            }
+    }
+}
+
+/// AI 栏风格按钮右边的快速模式提示：✦ 润色中 / ✓ 已润色 / 润色失败，点重试。
+struct QuickStatusLabel: View {
+    @ObservedObject var model: KeyboardModel
+    let status: KeyboardModel.QuickStatus
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            switch status {
+            case .running:
+                HStack(spacing: 4) {
+                    SparkleMark(size: 13, color: Brand.purple,
+                                animating: model.settings.polishAnimation && !reduceMotion)
+                    Text("润色中")
+                }
+            case .done:
+                Text("✓ 已润色")
+            case .failed:
+                Button { model.sparkleTapped() } label: { Text("润色失败，点重试") }
+                    .buttonStyle(KeyPressStyle())
+            }
+        }
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(Brand.deepPurple)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+        .padding(.leading, 2)
     }
 }
 
