@@ -27,7 +27,22 @@ final class RimeDeployer: ObservableObject {
 
     /// 应该部署成的版本：自带词库版本 + 当前的模糊拼音。
     static var targetVersion: String? {
-        bundledVersion.map { $0 + FuzzyPinyin.versionTag(SettingsStore.load().fuzzyPinyin) }
+        bundledVersion.map { $0 + schemaPatchTag + FuzzyPinyin.versionTag(SettingsStore.load().fuzzyPinyin) }
+    }
+
+    /// 部署时对方案文件的固定改动；改了这里就换个编号，让已装的词库重新部署。
+    private static let schemaPatchTag = "+t9delim"
+
+    /// 九宫格方案没有设音节分隔符。选拼音栏会把「qin」写成字母再用 ' 隔开后面的数字，
+    /// 没有分隔符时 ' 把输入切成两段，前一段「qin」上屏时原样变成英文。补上和全键盘一样的分隔符。
+    nonisolated static func patchNineKeyDelimiter(_ text: String) -> String {
+        guard let speller = text.range(of: "\nspeller:\n") else { return text }
+        let rest = text[speller.upperBound...]
+        let end = rest.range(of: "\n[a-z_]+:", options: .regularExpression)?.lowerBound ?? rest.endIndex
+        if rest[..<end].contains("delimiter:") { return text }
+        var patched = text
+        patched.insert(contentsOf: "  delimiter: \" '\"\n", at: speller.upperBound)
+        return patched
     }
 
     /// 还没部署过，或者 App 自带的词库、模糊拼音变了。
@@ -100,6 +115,9 @@ final class RimeDeployer: ObservableObject {
             }
             try fm.createDirectory(at: paths.shared.deletingLastPathComponent(), withIntermediateDirectories: true)
             try fm.copyItem(at: source, to: paths.shared)
+            let nineKey = paths.shared.appendingPathComponent("\(RimeStore.nineKeySchemaID).schema.yaml")
+            let nineKeyText = try String(contentsOf: nineKey, encoding: .utf8)
+            try patchNineKeyDelimiter(nineKeyText).write(to: nineKey, atomically: true, encoding: .utf8)
             // 模糊拼音写进共享副本里的方案文件，App 自带的那份不动。
             for schema in [RimeStore.schemaID, RimeStore.nineKeySchemaID] where !fuzzy.isEmpty {
                 let url = paths.shared.appendingPathComponent("\(schema).schema.yaml")
