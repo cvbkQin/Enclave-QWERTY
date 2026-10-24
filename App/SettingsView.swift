@@ -265,10 +265,8 @@ struct KeyboardSettingsView: View {
                         }
                     }
                 }
-                // 留出描边的位置，免得被分组的圆角裁掉。
-                .padding(2)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
+                // 卡片放在普通行里，离分组的大圆角远一点，描边不会被裁。
+                .padding(.vertical, 6)
             } header: {
                 Text("中文布局")
             } footer: {
@@ -329,8 +327,9 @@ private struct LayoutCard: View {
                 }
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(selected ? AppColor.softFill.opacity(0.5) : Color(.systemGroupedBackground)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(selected ? AppColor.purple : Color.clear, lineWidth: 2))
         }
         .buttonStyle(.plain)
