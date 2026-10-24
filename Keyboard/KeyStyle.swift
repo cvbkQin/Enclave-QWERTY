@@ -90,10 +90,24 @@ enum Brand {
     ]
     static let violet = gradient[1]
     static let gold = gradient[2]
-    /// 「正式▾」浮层底色。
+    /// 「再润」的文字色 #4A3BD6。
+    static let deepPurple = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
+        : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
+    /// 生成中「停止」的底色 #3A3A3C。
+    static let stopFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
+    /// 「正式▾」浮层底色 #F4F2FF，描边 #DCD6FB。
     static let menuFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.17, green: 0.16, blue: 0.27, alpha: 1)
-        : UIColor(red: 0xF3 / 255, green: 0xF1 / 255, blue: 0xFE / 255, alpha: 1) })
+        : UIColor(red: 0xF4 / 255, green: 0xF2 / 255, blue: 0xFF / 255, alpha: 1) })
+    static let menuStroke = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.30, green: 0.27, blue: 0.48, alpha: 1)
+        : UIColor(red: 0xDC / 255, green: 0xD6 / 255, blue: 0xFB / 255, alpha: 1) })
+    /// 要求框描边 #C9C3F7，输入时 #8B7CF6。
+    static let fieldStroke = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0.36, green: 0.32, blue: 0.58, alpha: 1)
+        : UIColor(red: 0xC9 / 255, green: 0xC3 / 255, blue: 0xF7 / 255, alpha: 1) })
+    static let fieldActiveStroke = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
     /// 要求框底色 #E9E5FD。
     static let fieldFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.24, green: 0.21, blue: 0.40, alpha: 1)

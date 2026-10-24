@@ -294,6 +294,7 @@ struct StyleMenu: View {
         .padding(.bottom, 8 + MenuBubble.arrowHeight)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(MenuBubble(arrowX: arrowX).fill(Brand.menuFill).shadow(color: .black.opacity(0.08), radius: 4, y: 1))
+        .overlay(MenuBubble(arrowX: arrowX).stroke(Brand.menuStroke, lineWidth: 1))
     }
 
     private func rowLabel(_ text: String) -> some View {
@@ -304,7 +305,7 @@ struct StyleMenu: View {
     }
 }
 
-/// 浮层里的「润色」：按选好的风格和要求开始改，生成中变「停止」。
+/// 浮层里的「再润」：白底紫描边，和 AI 栏实心的「✨ 润色」区分开；按选好的风格和要求开始改，生成中原位变深灰「停止」。
 struct MenuPolishButton: View {
     @ObservedObject var model: KeyboardModel
 
@@ -317,14 +318,16 @@ struct MenuPolishButton: View {
                     RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 8, height: 8)
                     Text("停止")
                 } else {
-                    SparkleMark(size: 13, color: .white)
-                    Text("润色")
+                    SparkleMark(size: 13, color: Brand.violet)
+                    Text("再润")
                 }
             }
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: 72, height: 32)
-            .background(Capsule().fill(model.isRunning ? Color(white: 0.16) : Brand.purple.opacity(model.aiBlocked ? 0.35 : 1)))
+            .font(.system(size: 14, weight: .bold))
+            .foregroundStyle(model.isRunning ? Color.white : Brand.deepPurple)
+            .frame(width: 72, height: 30)
+            .background(Capsule().fill(model.isRunning ? Brand.stopFill : KeyStyle.charKey))
+            .overlay(Capsule().strokeBorder(Brand.violet, lineWidth: model.isRunning ? 0 : 1.5))
+            .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
         }
         .buttonStyle(KeyPressStyle())
     }
@@ -403,7 +406,7 @@ struct RequestField: View {
         .frame(height: 32)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.fieldFill))
         .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .strokeBorder(Brand.purple.opacity(editing ? 0.55 : 0), lineWidth: 1))
+            .strokeBorder(editing ? Brand.fieldActiveStroke : Brand.fieldStroke, lineWidth: editing ? 1.5 : 1))
         .contentShape(Rectangle())
         .onTapGesture { model.toggleInstructionEditing() }
     }
