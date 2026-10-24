@@ -258,7 +258,8 @@ struct PanelButton: View {
 
 // MARK: - 「正式▾」浮层
 
-/// 淡紫浮层，尖角指向「正式▾」：上面一行选风格，下面一行写要求和「完成」。写要求时回车键变紫色「执行」。
+/// 淡紫浮层，尖角指向「正式▾」：上面一行选风格，下面一行写要求和「润色」。
+/// 点风格只切换，不马上改；点「润色」或回车「执行」才开始，浮层不收起，再点「正式▾」才收。
 struct StyleMenu: View {
     @ObservedObject var model: KeyboardModel
 
@@ -273,7 +274,7 @@ struct StyleMenu: View {
                     HStack(spacing: 2) {
                         ForEach(model.settings.styles) { style in
                             MenuStyleTag(title: style.name, selected: style.id == model.settings.selectedStyle?.id) {
-                                model.styleTagTapped(style)
+                                model.selectStyle(style)
                             }
                         }
                     }
@@ -284,14 +285,7 @@ struct StyleMenu: View {
             HStack(spacing: 8) {
                 rowLabel("要求")
                 RequestField(model: model)
-                Button { model.closeStyleMenu() } label: {
-                    Text("完成")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 56, height: 32)
-                        .background(Capsule().fill(Brand.purple))
-                }
-                .buttonStyle(KeyPressStyle())
+                MenuPolishButton(model: model)
             }
             .frame(height: 32)
         }
@@ -307,6 +301,32 @@ struct StyleMenu: View {
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(Brand.purple)
             .frame(width: 26, alignment: .leading)
+    }
+}
+
+/// 浮层里的「润色」：按选好的风格和要求开始改，生成中变「停止」。
+struct MenuPolishButton: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        Button {
+            model.isRunning ? model.stop() : model.menuPolishTapped()
+        } label: {
+            HStack(spacing: 4) {
+                if model.isRunning {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 8, height: 8)
+                    Text("停止")
+                } else {
+                    SparkleMark(size: 13, color: .white)
+                    Text("润色")
+                }
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 72, height: 32)
+            .background(Capsule().fill(model.isRunning ? Color(white: 0.16) : Brand.purple.opacity(model.aiBlocked ? 0.35 : 1)))
+        }
+        .buttonStyle(KeyPressStyle())
     }
 }
 

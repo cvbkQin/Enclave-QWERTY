@@ -162,22 +162,19 @@ final class KeyboardModel: ObservableObject {
     /// 预览区已经有一个结果（不在生成中）。
     var hasResult: Bool { !isRunning && session?.current != nil }
 
-    /// 点风格标签：选中它；已有结果时立刻用这个风格（带上当前的要求）重写原话，结果作为新的一版。
-    /// 浮层保持打开，结果卡片在上方显示生成中。
-    func styleTagTapped(_ style: StylePreset) {
-        selectStyle(style)
+    /// 风格浮层里的「润色」和回车「执行」：按当前风格和要求生成。
+    /// 已有这段文字的结果时，用原话重写一版追加到后面，可以上下翻回之前的版本；否则照常执行。
+    func regenerate() {
         guard !isRunning else { return }
         let request = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        // 输入框里已经换成别的文字：按这个风格润色它，不再重写上一次的原话。
         let content = CommandParser.parse(readField().text).content
-        if dropSession(unlessItBelongsTo: content) {
-            guard !content.isEmpty, checkCanCallModel() else { return }
-            setAIExpanded(true)
-            run(rewrite(content, request: request, style: style), pending: EditSession(mode: .polish, original: content))
+        guard !content.isEmpty, !dropSession(unlessItBelongsTo: content),
+              hasResult, var pending = session, let current = pending.current, let style = settings.selectedStyle
+        else {
+            execute()
             return
         }
-        guard hasResult, var pending = session, let current = pending.current, checkCanCallModel() else { return }
-        setAIExpanded(true)
+        guard checkCanCallModel() else { return }
         switch pending.mode {
         case .polish:
             run(rewrite(pending.original, request: request, style: style), pending: pending)

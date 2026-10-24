@@ -74,10 +74,7 @@ extension KeyboardModel {
         switch target {
         case .host: proxy?.insertText("\n")
         case .instruction:
-            target = .host
-            styleMenuOpen = false
-            setAIExpanded(true)
-            execute()
+            menuPolishTapped()
         }
     }
 
@@ -313,18 +310,18 @@ extension KeyboardModel {
         aiExpanded = expanded
     }
 
-    /// 点「正式▾」：打开或关上风格浮层。打开时光标进要求框，回车键变「执行」；关上回到原输入框。
+    /// 点「正式▾」：打开或关上风格浮层（只有这里能收起）。打开时光标进要求框，回车键变「执行」；关上回到原输入框。
     func toggleStyleMenu() {
         finishComposition()
         styleMenuOpen.toggle()
         target = styleMenuOpen ? .instruction : .host
     }
 
-    /// 浮层里的「完成」。
-    func closeStyleMenu() {
+    /// 浮层里的「润色」：按选好的风格和要求开始改。浮层不收起，只有再点「正式▾」才收。
+    func menuPolishTapped() {
         finishComposition()
-        styleMenuOpen = false
-        target = .host
+        setAIExpanded(true)
+        regenerate()
     }
 
     /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
