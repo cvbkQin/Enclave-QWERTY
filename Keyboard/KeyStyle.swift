@@ -36,7 +36,7 @@ enum KeyboardMetrics {
     /// 结果卡片：默认两行，展开到五行，再多就在卡片里滚动。
     static let cardHeight: CGFloat = 60
     static let expandedCardHeight: CGFloat = 120
-    static let actionRow: CGFloat = 32
+    static let actionRow: CGFloat = 34
     /// 「正式▾」浮层：风格行 + 要求行，底下一个小尖角指向按钮。
     static let menuHeight: CGFloat = 94
     static let panelSpacing: CGFloat = 5
@@ -127,6 +127,15 @@ enum Brand {
     /// 浮层里「风格」「要求」两个字 #3A3A3C。
     static let panelLabel = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.78, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
+    /// 结果卡片「插入」：135° #0891B2 → #6366F1。
+    static let insertGradient = LinearGradient(
+        colors: [Color(red: 0x08 / 255, green: 0x91 / 255, blue: 0xB2 / 255),
+                 Color(red: 0x63 / 255, green: 0x66 / 255, blue: 0xF1 / 255)],
+        startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// 不能点的「替换」「插入」：#E5E5EA 底、#8E8E93 字。
+    static let disabledFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.24, alpha: 1) : UIColor(red: 0xE5 / 255, green: 0xE5 / 255, blue: 0xEA / 255, alpha: 1) })
+    static let disabledText = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
     /// 提示卡正文 #3A3A3C、说明 #6B6B73。
     static let cardBody = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.85, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })

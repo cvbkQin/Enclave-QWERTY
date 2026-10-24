@@ -371,7 +371,7 @@ struct PanelButton: View {
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
         Button(action: action) {
             HStack(spacing: 4) {
                 if let systemImage { Image(systemName: systemImage) }
@@ -381,25 +381,24 @@ struct PanelButton: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .foregroundStyle(foreground)
             .background(shape.fill(fill))
-            .overlay(shape.strokeBorder(Brand.purple.opacity(isEnabled ? 0.9 : 0.3), lineWidth: kind == .outlined ? 1.2 : 0))
         }
         .buttonStyle(KeyPressStyle())
     }
 
-    private var fill: Color {
+    /// 替换用润色的蓝紫渐变，插入用青到靛蓝，都是白字；不能点时一律灰底灰字，不做半透明。
+    private var fill: AnyShapeStyle {
+        guard kind == .done || isEnabled else { return AnyShapeStyle(Brand.disabledFill) }
         switch kind {
-        case .primary: return Brand.purple.opacity(isEnabled ? 1 : 0.35)
-        case .outlined: return KeyStyle.charKey
-        case .done: return Brand.softFill
+        case .primary: return AnyShapeStyle(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
+                                                          startPoint: .topLeading, endPoint: .bottomTrailing))
+        case .outlined: return AnyShapeStyle(Brand.insertGradient)
+        case .done: return AnyShapeStyle(Brand.returnSoftFill)
         }
     }
 
     private var foreground: Color {
-        switch kind {
-        case .primary: return isEnabled ? .white : .white.opacity(0.85)
-        case .outlined: return isEnabled ? Brand.purple : Brand.purple.opacity(0.4)
-        case .done: return Brand.purple
-        }
+        if kind == .done { return Brand.deepPurple }
+        return isEnabled ? .white : Brand.disabledText
     }
 }
 
