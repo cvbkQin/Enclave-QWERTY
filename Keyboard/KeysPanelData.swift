@@ -30,6 +30,58 @@ struct AlternatesPopup: Equatable {
     }
 }
 
+/// 九宫格长按弹出的十字，和原生一样：中间是按下的键，四周最多四个选项，手指滑到哪格选哪格，滑回中间松手取消。
+struct CrossPopup: Equatable {
+    enum Direction: CaseIterable { case left, up, right, down }
+
+    let key: KeySpec
+    let options: [Direction: String]
+    let containerWidth: CGFloat
+    /// 手指按下的位置，方向从这里算；没有就用键中心。
+    var origin: CGPoint?
+    var selected: Direction?
+
+    /// 每格 = 一个键加一条缝。
+    var cellSize: CGSize {
+        CGSize(width: key.cap.width + KeyboardMetrics.nineColumnGap, height: KeyboardMetrics.nineRowPitch)
+    }
+
+    /// 中间那格：以按下的键为中心；贴边时整个十字往里收，离屏幕边至少 4pt。
+    var center: CGRect {
+        let size = cellSize
+        var x = key.cap.midX - size.width / 2
+        // 按键区离屏幕边 sidePadding，换算成离屏幕边 4pt。
+        let margin = 4 - KeyboardMetrics.sidePadding
+        x = min(max(x, margin + size.width), containerWidth - margin - size.width * 2)
+        return CGRect(x: x, y: key.cap.midY - size.height / 2, width: size.width, height: size.height)
+    }
+
+    func frame(for direction: Direction) -> CGRect {
+        let c = center
+        switch direction {
+        case .left: return c.offsetBy(dx: -c.width, dy: 0)
+        case .right: return c.offsetBy(dx: c.width, dy: 0)
+        case .up:
+            // 第一行往上只有 AI 栏那么高，超出键盘顶会被裁平；顶到离键盘顶 2pt 为止，格子矮一点。
+            let up = c.offsetBy(dx: 0, dy: -c.height)
+            let top = max(up.minY, 2 - KeyboardMetrics.topRow)
+            return CGRect(x: up.minX, y: top, width: up.width, height: up.maxY - top)
+        case .down: return c.offsetBy(dx: 0, dy: c.height)
+        }
+    }
+
+    /// 手指离按下的位置不到 14pt 算在中间（nil，松手取消）；再远就按偏得更多的那个方向算，
+    /// 和原生一样轻轻一划就选中，不用划进格子里。那个方向没有选项也是 nil。
+    func direction(at point: CGPoint) -> Direction? {
+        let start = origin ?? CGPoint(x: key.cap.midX, y: key.cap.midY)
+        let dx = point.x - start.x
+        let dy = point.y - start.y
+        guard hypot(dx, dy) > 14 else { return nil }
+        let direction: Direction = abs(dx) >= abs(dy) ? (dx < 0 ? .left : .right) : (dy < 0 ? .up : .down)
+        return options[direction] == nil ? nil : direction
+    }
+}
+
 /// 表情按 Unicode 区段分组，只取默认就显示成彩色表情的字符，不用自己维护一大张表。
 enum EmojiCatalog {
     struct Category: Identifiable {

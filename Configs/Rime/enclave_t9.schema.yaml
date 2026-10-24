@@ -29,8 +29,22 @@ speller:
   alphabet: zyxwvutsrqponmlkjihgfedcba23456789
   initials: zyxwvutsrqponmlkjihgfedcba23456789
   delimiter: " '"
+  # 简拼、ü 写法和全键盘一样，最后把字母换成手机键盘上的数字键。
+  # 每条 derive 都保留原来的写法，所以选过拼音的字母和还没选的数字可以混在一起。
   algebra:
-    __include: enclave_algebra:/nine_key
+    - abbrev/^([a-z]).+$/$1/
+    - abbrev/^([zcs]h).+$/$1/
+    - derive/^([nl])ve$/$1ue/
+    - derive/^([jqxy])u/$1v/
+    - derive/ong$/on/
+    - derive/[abc]/2/
+    - derive/[def]/3/
+    - derive/[ghi]/4/
+    - derive/[jkl]/5/
+    - derive/[mno]/6/
+    - derive/[pqrs]/7/
+    - derive/[tuv]/8/
+    - derive/[wxyz]/9/
 
 translator:
   dictionary: enclave

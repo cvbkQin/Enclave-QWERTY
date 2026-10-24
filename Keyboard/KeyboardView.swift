@@ -49,7 +49,11 @@ struct KeyboardView: View {
         HStack(spacing: 6) {
             PanelToggleButton(expanded: model.aiExpanded) { model.setAIExpanded(!model.aiExpanded) }
             PolishButton(model: model)
-            StyleChip(model: model)
+            // 风格按钮优先完整显示，地方不够时失败提示换成短的。
+            StyleChip(model: model).layoutPriority(1)
+            if model.quickStatus == .failed, !model.aiExpanded {
+                QuickRetryLabel(model: model)
+            }
             Spacer(minLength: 0)
             UndoRedoPair(model: model)
         }
@@ -127,34 +131,163 @@ struct PanelToggleButton: View {
     }
 }
 
-/// 「✨ 润色」：收起和展开都是这一个按钮，生成中原位变「停止」，尺寸不变。
+/// 「✨ 润色」：收起和展开都是这一个按钮，尺寸不变。展开时生成中原位变「停止」；
+/// 收起时（快速模式）文字不变，动画只在按钮里：流光描边、白色扫光、星星闪、小闪光，完成时星星闪一下金色。
 struct PolishButton: View {
     @ObservedObject var model: KeyboardModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var doneAt: Date?
+
+    private var quickRunning: Bool { model.isRunning && model.quickStatus == .running && !model.aiExpanded }
+    private var showsStop: Bool { model.isRunning && !quickRunning }
+    /// 关了发光动画或开了减弱动态效果：只留星星轻微闪动。
+    private var fullMotion: Bool { model.settings.polishAnimation && !reduceMotion }
 
     var body: some View {
+        let shape = Capsule()
         Button {
             model.isRunning ? model.stop() : model.sparkleTapped()
         } label: {
             HStack(spacing: 5) {
-                if model.isRunning {
+                if showsStop {
                     RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 9, height: 9)
                     Text("停止")
                 } else {
-                    SparkleMark(size: 15, color: .white)
+                    PolishStars(size: 15, running: quickRunning, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
                     Text("润色")
                 }
             }
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(.white)
             .frame(width: KeyboardMetrics.polishButtonWidth, height: KeyboardMetrics.chipHeight)
-            .background(Capsule().fill(fill))
+            .background(shape.fill(fill))
+            .overlay {
+                if quickRunning && fullMotion {
+                    PolishButtonGlow().clipShape(shape)
+                }
+            }
         }
         .buttonStyle(KeyPressStyle())
+        .onChange(of: model.quickStatus) { status in
+            doneAt = status == .done ? Date() : nil
+        }
     }
 
     private var fill: Color {
-        if model.isRunning { return Color(white: 0.16) }
-        return model.aiBlocked ? Brand.purple.opacity(0.35) : Brand.purple
+        if showsStop { return Color(white: 0.16) }
+        return model.aiBlocked && !model.isRunning ? Brand.purple.opacity(0.35) : Brand.purple
+    }
+}
+
+/// 快速模式润色中按钮里的动画：1.5pt 流光描边（1.6 秒一圈，外面不加光晕）、60pt 白色光带扫过、10 颗白色小闪光。
+struct PolishButtonGlow: View {
+    /// 小闪光的位置（相对 84×34 的按钮，x、y、大小）和周期。
+    private static let sparkles: [(x: CGFloat, y: CGFloat, d: CGFloat, period: Double, offset: Double)] = [
+        (4, 8, 6, 1.5, 0.0), (9, 22, 5, 1.7, 0.6), (21, 2, 6, 1.9, 1.1), (29, 26, 5, 1.6, 0.3), (39, 1, 5, 1.8, 0.9),
+        (52, 27, 6, 1.5, 1.3), (60, 1, 5, 1.7, 0.2), (72, 6, 6, 1.9, 0.7), (76, 20, 6, 1.6, 1.5), (65, 26, 5, 1.8, 0.4),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            TimelineView(.animation) { context in
+                let time = context.date.timeIntervalSinceReferenceDate
+                let phase = time.truncatingRemainder(dividingBy: 1.6) / 1.6
+                let sx = geo.size.width / 84, sy = geo.size.height / 34
+                ZStack(alignment: .topLeading) {
+                    LinearGradient(colors: [.white.opacity(0), .white.opacity(0.32), .white.opacity(0)],
+                                   startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 60, height: geo.size.height)
+                        .blur(radius: 4)
+                        .offset(x: -60 + (geo.size.width + 60) * phase)
+                    ForEach(Array(Self.sparkles.enumerated()), id: \.offset) { _, s in
+                        let t = (time + s.offset).truncatingRemainder(dividingBy: s.period) / s.period
+                        let scale = sin(.pi * t)
+                        FourPointStar()
+                            .fill(Color.white)
+                            .frame(width: s.d, height: s.d)
+                            .scaleEffect(scale)
+                            .rotationEffect(.degrees(20 * t))
+                            .shadow(color: .white.opacity(0.8), radius: 1.5)
+                            .position(x: (s.x + s.d / 2) * sx, y: (s.y + s.d / 2) * sy)
+                    }
+                    Capsule().strokeBorder(AngularGradient(colors: Brand.gradient + [Brand.gradient[0]], center: .center,
+                                                           angle: .degrees(phase * 360)),
+                                           lineWidth: 1.5)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// 润色按钮里的白色星星组：平时不动；润色中大星几乎不动（1.0↔1.08），小星错开闪（0.6↔1.4 倍、35%↔100%）带白色微光；
+/// 完成时 1.2 秒内变金色放大一下再回白色。glowing 为 false（关了动画、减弱动态效果）时只轻微闪动。
+struct PolishStars: View {
+    var size: CGFloat
+    var running: Bool
+    var glowing: Bool
+    var doneAt: Date?
+
+    private static let stars: [(x: CGFloat, y: CGFloat, d: CGFloat, phase: Double)] = [
+        (0.40, 0.58, 0.66, 0),
+        (0.80, 0.18, 0.28, 0.0),
+        (0.90, 0.60, 0.16, 0.35),
+        (0.16, 0.14, 0.16, 0.6),
+        (0.70, 0.92, 0.14, 0.2),
+        (0.08, 0.88, 0.12, 0.8),
+    ]
+
+    var body: some View {
+        if running || doneAt != nil {
+            TimelineView(.animation) { context in
+                cluster(now: context.date)
+            }
+        } else {
+            cluster(now: nil)
+        }
+    }
+
+    /// 完成闪金的进度（0…1），1.2 秒后为 nil。
+    private func doneProgress(_ now: Date) -> Double? {
+        guard let doneAt else { return nil }
+        let p = now.timeIntervalSince(doneAt) / 1.2
+        return p >= 0 && p < 1 ? p : nil
+    }
+
+    /// 25% 到顶，60% 回到 1.05，100% 回 1.0。
+    private func bump(_ p: Double, peak: CGFloat) -> CGFloat {
+        if p < 0.25 { return 1 + (peak - 1) * p / 0.25 }
+        if p < 0.6 { return peak - (peak - 1.05) * (p - 0.25) / 0.35 }
+        return 1.05 - 0.05 * (p - 0.6) / 0.4
+    }
+
+    private func cluster(now: Date?) -> some View {
+        let time = now?.timeIntervalSinceReferenceDate
+        let done = now.flatMap(doneProgress)
+        return ZStack(alignment: .topLeading) {
+            ForEach(Array(Self.stars.enumerated()), id: \.offset) { index, star in
+                let big = index == 0
+                let wave = running ? time.map { (1 - cos(2 * .pi * ($0 / 1.6 + star.phase))) / 2 } ?? 0 : 0
+                let scale: CGFloat = {
+                    if let done { return bump(done, peak: big ? 1.22 : 1.3) }
+                    if !running { return 1 }
+                    if big { return 1 + 0.08 * wave }
+                    return glowing ? 0.6 + 0.8 * wave : 1 - 0.2 * wave
+                }()
+                let opacity: Double = big || !running ? 1 : (glowing ? 0.35 + 0.65 * wave : 1 - 0.3 * wave)
+                let gold = done.map { $0 < 0.6 ? 1.0 : 1 - ($0 - 0.6) / 0.4 } ?? 0
+                FourPointStar()
+                    .fill(Color.white)
+                    .overlay(FourPointStar().fill(Brand.gold).opacity(gold))
+                    .frame(width: size * star.d, height: size * star.d)
+                    .scaleEffect(scale)
+                    .opacity(opacity)
+                    .shadow(color: done != nil ? Brand.gold.opacity(0.9 * gold) : .white.opacity(running && glowing ? 0.9 * wave : 0),
+                            radius: 3)
+                    .position(x: size * star.x, y: size * star.y)
+            }
+        }
+        .frame(width: size, height: size)
     }
 }
 
@@ -293,19 +426,22 @@ struct StyleMenu: View {
         .padding(.top, 8)
         .padding(.bottom, 8 + MenuBubble.arrowHeight)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(MenuBubble(arrowX: arrowX).fill(Brand.menuFill).shadow(color: .black.opacity(0.08), radius: 4, y: 1))
-        .overlay(MenuBubble(arrowX: arrowX).stroke(Brand.menuStroke, lineWidth: 1))
+        // 清爽紫：纯白底不描紫边，一圈极淡的轮廓加柔和投影。
+        .background(MenuBubble(arrowX: arrowX).fill(Brand.panelFill)
+            .shadow(color: .black.opacity(0.06), radius: 0.5)
+            .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.10), radius: 10, y: 6))
     }
 
     private func rowLabel(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Brand.purple)
-            .frame(width: 26, alignment: .leading)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Brand.panelLabel)
+            .frame(width: 34, alignment: .leading)
     }
 }
 
-/// 浮层里的「再润」：白底紫描边，和 AI 栏实心的「✨ 润色」区分开；按选好的风格和要求开始改，生成中原位变深灰「停止」。
+/// 浮层里的「再润」：和「润色」同款实心胶囊，换成紫到粉的渐变区分开；按选好的风格和要求开始改，生成中原位变深灰「停止」。
+/// 面板收起时直接替换输入框，展开时进结果卡片。
 struct MenuPolishButton: View {
     @ObservedObject var model: KeyboardModel
 
@@ -318,15 +454,20 @@ struct MenuPolishButton: View {
                     RoundedRectangle(cornerRadius: 2, style: .continuous).frame(width: 8, height: 8)
                     Text("停止")
                 } else {
-                    SparkleMark(size: 13, color: Brand.violet)
+                    SparkleMark(size: 13, color: .white)
                     Text("再润")
                 }
             }
-            .font(.system(size: 14, weight: .bold))
-            .foregroundStyle(model.isRunning ? Color.white : Brand.deepPurple)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Color.white)
             .frame(width: 72, height: 30)
-            .background(Capsule().fill(model.isRunning ? Brand.stopFill : KeyStyle.charKey))
-            .overlay(Capsule().strokeBorder(Brand.violet, lineWidth: model.isRunning ? 0 : 1.5))
+            .background {
+                if model.isRunning {
+                    Capsule().fill(Brand.stopFill)
+                } else {
+                    Capsule().fill(Brand.rerunGradient)
+                }
+            }
             .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
         }
         .buttonStyle(KeyPressStyle())
@@ -350,7 +491,7 @@ struct MenuBubble: Shape {
     }
 }
 
-/// 浮层里的风格：选中的是实心紫色胶囊。
+/// 浮层里的风格：没选中浅灰底黑字，选中和要求框同一个渐变、白字。
 struct MenuStyleTag: View {
     var title: String
     var selected: Bool
@@ -363,14 +504,20 @@ struct MenuStyleTag: View {
                 .padding(.horizontal, 11)
                 .frame(height: 28)
                 .foregroundStyle(selected ? Color.white : Color.primary)
-                .background(Capsule().fill(selected ? Brand.purple : Color.clear))
+                .background {
+                    if selected {
+                        Capsule().fill(Brand.fieldLinearGradient)
+                    } else {
+                        Capsule().fill(Brand.tagFill)
+                    }
+                }
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
 }
 
-/// 要求框：方角淡紫底，铅笔图标，紫色字。键盘打的字进这里，回车就执行。
+/// 要求框：实心紫色渐变，白字白光标，铅笔图标。键盘打的字进这里，回车就执行。
 struct RequestField: View {
     @ObservedObject var model: KeyboardModel
 
@@ -380,33 +527,37 @@ struct RequestField: View {
         let showsPlaceholder = text.isEmpty && !(editing && model.isComposing)
         HStack(spacing: 5) {
             Image(systemName: "pencil").font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.9))
             Group {
                 if showsPlaceholder {
-                    (Text(editing ? "|" : "").foregroundColor(Brand.purple)
-                        + Text("写要求，比如：语气委婉一点").foregroundColor(Brand.purple.opacity(0.45)))
+                    (Text(editing ? "|" : "").foregroundColor(.white)
+                        + Text("写要求，比如：语气委婉一点").foregroundColor(Color.white.opacity(0.85)))
                 } else {
-                    (Text(text)
-                        + Text(editing ? model.composition : "").underline()
-                        + Text(editing ? "|" : ""))
+                    // 每段都写明白色：拼到一半的拼音不写的话会显示成强调色，在紫底上看不清。
+                    (Text(text).foregroundColor(.white)
+                        + Text(editing ? model.composition : "").underline(color: .white).foregroundColor(.white)
+                        + Text(editing ? "|" : "").foregroundColor(.white))
                 }
             }
             .lineLimit(1)
             .truncationMode(.head)
             Spacer(minLength: 0)
             if !text.isEmpty {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(Brand.purple.opacity(0.4))
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 16, height: 16)
+                    .background(Circle().fill(Color.white.opacity(0.35)))
                     .onTapGesture { model.setInstruction("") }
             }
         }
         .font(.system(size: 14))
-        .foregroundStyle(Brand.purple)
+        .foregroundStyle(.white)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
         .frame(height: 32)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.fieldFill))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .strokeBorder(editing ? Brand.fieldActiveStroke : Brand.fieldStroke, lineWidth: editing ? 1.5 : 1))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(Brand.fieldLinearGradient))
         .contentShape(Rectangle())
         .onTapGesture { model.toggleInstructionEditing() }
     }
@@ -478,16 +629,17 @@ struct ResultCard: View {
                 .padding(.leading, 10)
                 .padding(.vertical, 8)
                 .contentShape(Rectangle())
-                // 长按卡片也能复制；不展开时上下滑翻版本。
-                .onLongPressGesture(minimumDuration: 0.45) { model.copy() }
-                .simultaneousGesture(DragGesture(minimumDistance: 14).onEnded { value in
-                    guard !model.cardTall, abs(value.translation.height) > abs(value.translation.width) else { return }
-                    if value.translation.height < -24 { turn(1) } else if value.translation.height > 24 { turn(-1) }
-                })
+                // 不展开时上下滑翻版本（展开时文字区要留给滚动）；长按复制。
+                // 滑动放在主手势、长按放在同时识别，onLongPressGesture 会把拖动吞掉。
+                .gesture(swipeToTurn, including: model.cardTall ? .subviews : .all)
+                .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.copy() })
             iconColumn(faded: faded)
                 .padding(.vertical, 5)
             if let session = model.session, session.versions.count > 1, !model.isRunning {
                 pager(index: session.currentIndex, count: session.versions.count)
+                    .contentShape(Rectangle())
+                    // 优先于 ▲▼ 按钮：手指在按钮里滑一下松开，按钮也会算一次点击，就翻了两页。
+                    .highPriorityGesture(swipeToTurn)
             }
         }
         .padding(.trailing, 4)
@@ -563,6 +715,17 @@ struct ResultCard: View {
         .buttonStyle(.plain)
         .frame(width: 28)
         .padding(.vertical, 2)
+    }
+
+    /// 上滑看下一版，下滑看上一版。
+    private var swipeToTurn: some Gesture {
+        DragGesture(minimumDistance: 12).onEnded { value in
+            // 快速轻扫移动距离短，用预测的终点算。
+            let dy = abs(value.predictedEndTranslation.height) > abs(value.translation.height)
+                ? value.predictedEndTranslation.height : value.translation.height
+            guard abs(dy) > abs(value.translation.width) else { return }
+            if dy < -20 { turn(1) } else if dy > 20 { turn(-1) }
+        }
     }
 
     private func turn(_ offset: Int) {
@@ -678,6 +841,7 @@ struct ResultCard: View {
 /// 生成中的边框：品牌渐变沿边框转一圈，周期 1.6 秒；外圈淡紫光晕轻微明暗。
 struct FlowingBorder: View {
     var shape: RoundedRectangle
+    var lineWidth: CGFloat = 1.6
 
     var body: some View {
         TimelineView(.animation) { context in
@@ -687,10 +851,29 @@ struct FlowingBorder: View {
                 shape.stroke(Brand.violet.opacity(0.18 + 0.14 * wave), lineWidth: 4).blur(radius: 3)
                 shape.strokeBorder(AngularGradient(colors: Brand.gradient + [Brand.gradient[0]], center: .center,
                                                    angle: .degrees(phase * 360)),
-                                   lineWidth: 1.6)
+                                   lineWidth: lineWidth)
             }
         }
         .allowsHitTesting(false)
+    }
+}
+
+/// 快速模式出错：AI 栏风格按钮右边「润色失败，点重试」。
+struct QuickRetryLabel: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        Button { model.sparkleTapped() } label: {
+            ViewThatFits(in: .horizontal) {
+                Text("润色失败，点重试")
+                Text("失败，重试")
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Brand.deepPurple)
+            .lineLimit(1)
+        }
+        .buttonStyle(KeyPressStyle())
+        .padding(.leading, 2)
     }
 }
 

@@ -4,10 +4,13 @@ import UIKit
 /// 打字：按键、组字、上屏，以及把文字送到聊天输入框还是要求框。
 extension KeyboardModel {
     enum InputTarget { case host, instruction }
-    enum KeyLayer { case letters, numbers, symbols }
+    /// digits 是九宫格的数字键盘；numbers、symbols 是全键盘那样的数字符号页（九宫格的 #@¥ 也进这里）。
+    enum KeyLayer { case letters, numbers, symbols, digits }
     enum ShiftState { case off, on, locked }
 
     var isComposing: Bool { !composition.isEmpty }
+    /// 现在画的是五列的九宫格（拼音或数字），按下不出放大气泡。
+    var nineGrid: Bool { showsNineKey && (layer == .letters || layer == .digits) }
 
     func typeLetter(_ letter: String) {
         let text = shift == .off ? letter : letter.uppercased()
@@ -61,7 +64,8 @@ extension KeyboardModel {
             commit(" ")
             lastSpaceTime = now
         }
-        if layer != .letters { layer = .letters }
+        // 数字符号页打完空格回到字母；九宫格数字键盘和原生一样留着，方便接着打数字。
+        if layer != .letters && layer != .digits { layer = .letters }
     }
 
     /// 组字时回车把字母原样上屏；在要求框里回车就是「执行」。
@@ -87,7 +91,7 @@ extension KeyboardModel {
 
     var layoutState: KeyLayout.State {
         KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
-                        composing: isComposing)
+                        composing: isComposing, digitsMore: digitsMore)
     }
 
     func perform(_ kind: KeyKind) {
@@ -101,6 +105,8 @@ extension KeyboardModel {
         case .returnKey: returnKey()
         case .toggleChinese: toggleChinese()
         case .layer(let layer): switchLayer(layer)
+        case .digitPunct: typeSymbol(".")
+        case .digitsMore: digitsMore.toggle()
         case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
         case .pickPinyin: if isComposing && !pinyinOptions.isEmpty { openPanel(.pinyin) }
@@ -115,6 +121,19 @@ extension KeyboardModel {
 
     func keyReleased(_ id: String) {
         pressedKeys.remove(id)
+        // 自己打的字系统不一定发 textDidChange，松手时顺便更新发送键。
+        refreshHostState()
+    }
+
+    func refreshHostState() {
+        let hasText = proxy?.hasText ?? false
+        var returnKey = proxy?.returnKeyType ?? .default
+        #if DEBUG
+        // 截图用：-keyboardDebug send 假装对方是发送键。
+        if KeyboardDebug.options.contains("send") { returnKey = .send }
+        #endif
+        if hasText != hostHasText { hostHasText = hasText }
+        if returnKey != hostReturnKey { hostReturnKey = returnKey }
     }
 
     /// 按下时的震动和声音，声音和系统键盘一样分字符、删除、功能键三种。
@@ -126,7 +145,7 @@ extension KeyboardModel {
         if settings.keySound {
             let sound: SystemSoundID
             switch kind {
-            case .letter, .symbol, .nine, .space: sound = 1104
+            case .letter, .symbol, .nine, .digitPunct, .space: sound = 1104
             case .delete: sound = 1155
             default: sound = 1156
             }
@@ -158,6 +177,8 @@ extension KeyboardModel {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         chineseMode.toggle()
+        // 九宫格数字键盘上切英文：回到英文字母。
+        if layer == .digits { switchLayer(.letters) }
         selectEngine()
         if chineseMode { shift = .off } else { updateAutoShift() }
     }
@@ -247,7 +268,12 @@ extension KeyboardModel {
 
     // MARK: - 长按备选
 
-    func showAlternates(for key: KeySpec, containerWidth: CGFloat) -> Bool {
+    func showAlternates(for key: KeySpec, containerWidth: CGFloat, origin: CGPoint? = nil) -> Bool {
+        if let options = KeyLayout.cross(for: key.kind, chinese: chineseMode) {
+            cross = CrossPopup(key: key, options: options, containerWidth: containerWidth, origin: origin)
+            keyFeedback(for: .space)
+            return true
+        }
         guard let options = KeyLayout.alternates(for: key.kind, chinese: chineseMode) else { return false }
         let shown = shift == .off ? options : options.map { $0.uppercased() }
         alternates = AlternatesPopup(key: key, options: shown, containerWidth: containerWidth)
@@ -255,7 +281,16 @@ extension KeyboardModel {
         return true
     }
 
-    func moveAlternates(toX x: CGFloat) {
+    func moveAlternates(to point: CGPoint) {
+        if var popup = cross {
+            let direction = popup.direction(at: point)
+            if direction != popup.selected {
+                popup.selected = direction
+                cross = popup
+            }
+            return
+        }
+        let x = point.x
         guard var popup = alternates else { return }
         let index = popup.index(atX: x)
         if index != popup.selected {
@@ -264,12 +299,22 @@ extension KeyboardModel {
         }
     }
 
+    /// 松手：十字滑回中间算取消。
     func commitAlternate() {
-        guard let popup = alternates else { return }
-        alternates = nil
-        let text = popup.options[popup.selected]
-        // 九宫格打拼音时长按选的字母接着拼，相当于把这一位定成这个字母。
-        if showsNineKey && layer == .letters && isComposing && text.allSatisfy(\.isLetter) {
+        let text: String
+        if let popup = cross {
+            cross = nil
+            guard let direction = popup.selected, let option = popup.options[direction] else { return }
+            text = option.allSatisfy(\.isLetter) ? option.lowercased() : option
+        } else if let popup = alternates {
+            alternates = nil
+            text = popup.options[popup.selected]
+        } else {
+            return
+        }
+        // 九宫格中文下划出来的字母也是拼音：在拼就接着拼（把这一位定成这个字母），没在拼就从它开始拼，
+        // 不然空输入框里划一个字母会直接上屏成英文。
+        if showsNineKey && layer == .letters && (isComposing || chineseMode) && text.allSatisfy(\.isLetter) {
             if let output = engine.input(text.lowercased()) { commit(output) }
             syncEngine()
         } else {
@@ -294,19 +339,32 @@ extension KeyboardModel {
 
     func switchLayer(_ layer: KeyLayer) {
         self.layer = layer
+        if digitsMore { digitsMore = false }
     }
 
     // MARK: - AI 面板
 
-    /// ✨：展开 AI 面板并直接执行（输入框有内容就润色或按要求改）。
+    /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
-        setAIExpanded(true)
+        guard !aiExpanded else {
+            execute()
+            return
+        }
+        finishComposition()
+        beginQuickMode(source: readField().text)
         execute()
+        // 没开始生成（空输入框提示、没配置、没开完全访问）就展开，把原因显示出来。
+        if !isRunning {
+            quickSource = nil
+            clearQuickStatus()
+            setAIExpanded(true)
+        }
     }
 
     func setAIExpanded(_ expanded: Bool) {
         guard expanded != aiExpanded else { return }
         finishComposition()
+        if expanded { clearQuickStatus() }
         aiExpanded = expanded
     }
 
@@ -318,10 +376,20 @@ extension KeyboardModel {
     }
 
     /// 浮层里的「润色」：按选好的风格和要求开始改。浮层不收起，只有再点「正式▾」才收。
+    /// 面板收起时是快速模式，润完直接替换输入框（AI 栏上流光）；展开时进结果卡片，等替换或插入。
     func menuPolishTapped() {
         finishComposition()
-        setAIExpanded(true)
+        guard !aiExpanded else {
+            regenerate()
+            return
+        }
+        beginQuickMode(source: readField().text)
         regenerate()
+        if !isRunning {
+            quickSource = nil
+            clearQuickStatus()
+            setAIExpanded(true)
+        }
     }
 
     /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
@@ -385,21 +453,44 @@ extension KeyboardModel {
 // MARK: - 按键上的字
 
 extension KeyboardModel {
-    /// nil 表示空格键不写字（和 iOS 26 一样只在角落标语言）。九宫格的空格键照系统写「空格」。
-    var spaceTitle: String? {
+    /// 空格键：中文写「空格」，英文写「space」，打拼音时是「选定」。
+    var spaceTitle: String {
         if isComposing { return "选定" }
         // 词库没部署或没开完全访问时，中文模式也只能直接打字母。
         if chineseMode && !pinyinReady { return "空格（拼音未就绪）" }
-        return showsNineKey ? "空格" : nil
+        return chineseMode ? "空格" : "space"
     }
 
-    /// nil 表示画系统的换行图标。
-    var returnTitle: String? {
-        if isComposing { return "确认" }
-        return target == .instruction ? "执行" : nil
+    /// 回车键的样子：换行和确认是浅紫底紫字；「执行」实心紫；发送类按输入框有没有字在浅紫和实心紫之间切。
+    struct ReturnLook: Equatable {
+        /// nil 画换行图标。
+        var title: String?
+        var solid: Bool
+        var bold = false
     }
 
-    var returnHighlighted: Bool { target == .instruction && !isComposing }
+    var returnLook: ReturnLook {
+        if isComposing { return ReturnLook(title: "确认", solid: false) }
+        if target == .instruction { return ReturnLook(title: "执行", solid: true) }
+        if let title = sendTitle { return ReturnLook(title: title, solid: hostHasText, bold: true) }
+        return ReturnLook(title: nil, solid: false)
+    }
+
+    /// 对方输入框的回车键是发送、搜索、前往这一类时的文字。
+    private var sendTitle: String? {
+        let titles: (String, String)
+        switch hostReturnKey {
+        case .send: titles = ("发送", "send")
+        case .search, .google, .yahoo: titles = ("搜索", "search")
+        case .go, .route: titles = ("前往", "go")
+        case .join: titles = ("加入", "join")
+        case .done: titles = ("完成", "done")
+        case .next: titles = ("下一项", "next")
+        case .continue: titles = ("继续", "continue")
+        default: return nil
+        }
+        return chineseMode ? titles.0 : titles.1
+    }
 }
 
 // MARK: - 模拟器截图用的调试状态
@@ -418,12 +509,18 @@ extension KeyboardModel {
             case "qwerty": if settings.keyboardLayout != .qwerty { setLayout(.qwerty) }
             case "numbers": layer = .numbers
             case "symbols": layer = .symbols
+            case "digits": layer = .digits
+            case "digitsMore": layer = .digits; digitsMore = true
             case "english": if chineseMode { toggleChinese() }
             case "instruction", "menu": styleMenuOpen = true; target = .instruction
             case "cardExpanded": aiExpanded = true; cardExpanded = true
             #if DEBUG
             case "versions": aiExpanded = true; debugUnblocked = true; loadDebugVersions()
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
+            case "quick:running": loadDebugQuick(.running)
+            case "quick:done": loadDebugQuick(.done)
+            case "quick:failed": loadDebugQuick(.failed)
+            case "quick:cycle": loadDebugQuickCycle()
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "undo": loadDebugUndo()
@@ -440,5 +537,18 @@ extension KeyboardModel {
         }
         if options.contains("candidates") && !candidates.isEmpty { candidatesExpanded = true }
         if options.contains("pinyin") && isComposing { keysPanel = .pinyin }
+        #if DEBUG
+        // cross:1:right 按住「,｡?!」往右滑；cross:3:up 按住 DEF 往上滑。
+        for option in options where option.hasPrefix("cross:") {
+            let parts = option.split(separator: ":").map(String.init)
+            guard parts.count >= 2 else { continue }
+            let width = UIScreen.main.bounds.width - KeyboardMetrics.sidePadding * 2
+            let layout = KeyLayout.build(layoutState, size: CGSize(width: width, height: KeyboardMetrics.keysHeight))
+            guard let key = layout.keys.first(where: { $0.id == "n\(parts[1])" }),
+                  showAlternates(for: key, containerWidth: width) else { continue }
+            let directions: [String: CrossPopup.Direction] = ["left": .left, "up": .up, "right": .right, "down": .down]
+            if parts.count > 2 { cross?.selected = directions[parts[2]] }
+        }
+        #endif
     }
 }

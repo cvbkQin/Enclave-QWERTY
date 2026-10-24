@@ -20,6 +20,8 @@ enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
         case .nineKey: return "九宫格"
         }
     }
+
+    var shortTitle: String { self == .qwerty ? "全键盘" : "九宫格" }
 }
 
 struct EnclaveSettings: Codable, Equatable {
@@ -39,10 +41,12 @@ struct EnclaveSettings: Codable, Equatable {
     var keySound: Bool = true
     /// 润色时结果卡片的流光和星星动画；系统打开「减弱动态效果」时不播。
     var polishAnimation: Bool = true
+    /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
+    var fuzzyPinyin: Set<FuzzyPinyin> = []
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
-        case keyboardLayout, keyHaptics, keySound, polishAnimation
+        case keyboardLayout, keyHaptics, keySound, polishAnimation, fuzzyPinyin
     }
 
     var isConfigured: Bool {
@@ -76,6 +80,7 @@ extension EnclaveSettings {
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
         polishAnimation = try c.decodeIfPresent(Bool.self, forKey: .polishAnimation) ?? polishAnimation
+        fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
     }
 }
 

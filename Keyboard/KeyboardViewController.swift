@@ -35,7 +35,10 @@ final class KeyboardViewController: UIInputViewController {
         height.isActive = true
         heightConstraint = height
 
-        // 展开、卡片展开、风格菜单都会改变高度；在变化之后的下一轮读新值。
+        // 展开、卡片展开、风格菜单一改就同步改高度：等到下一轮的话，SwiftUI 先按旧高度画出新内容，
+        // 系统再把高度变化做成动画，风格浮层展开时内容会错位、按键被挤到底下。
+        model.heightMayChange = { [weak self] in self?.updateHeight() }
+        // 其余会影响高度的变化（比如配置好接口后卡片变矮）在下一轮补上。
         model.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateHeight() }
@@ -45,15 +48,23 @@ final class KeyboardViewController: UIInputViewController {
     private func updateHeight() {
         let target = model.keyboardHeight
         guard let heightConstraint, heightConstraint.constant != target else { return }
-        heightConstraint.constant = target
-        view.setNeedsLayout()
-        view.superview?.setNeedsLayout()
-        view.superview?.layoutIfNeeded()
+        UIView.performWithoutAnimation {
+            heightConstraint.constant = target
+            view.setNeedsLayout()
+            view.superview?.setNeedsLayout()
+            view.superview?.layoutIfNeeded()
+        }
     }
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
         model.fieldDidChange()
+    }
+
+    /// 换到别的输入框、移动光标时也更新一下发送键（有没有字、回车键类型）。
+    override func selectionDidChange(_ textInput: UITextInput?) {
+        super.selectionDidChange(textInput)
+        model.refreshHostState()
     }
 
     override func viewWillAppear(_ animated: Bool) {

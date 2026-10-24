@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// App 用到的开源组件和数据，以及它们的许可证。
-struct LicensesView: View {
+/// 「关于」页里的开源组件和数据，以及它们的许可证。
+struct LicensesSection: View {
     private struct Component: Identifiable {
         let name: String
         let license: String
@@ -26,21 +26,22 @@ struct LicensesView: View {
     ]
 
     var body: some View {
-        List(components) { item in
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(item.name)
-                    Spacer()
-                    Text(item.license).foregroundStyle(.secondary)
-                }
-                if let note = item.note {
-                    Text(note).font(.footnote).foregroundStyle(.secondary)
-                }
-                if let url = URL(string: item.url) {
-                    Link(item.url, destination: url).font(.footnote)
+        Section("开源组件") {
+            ForEach(components) { item in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(item.name)
+                        Spacer()
+                        Text(item.license).foregroundStyle(.secondary)
+                    }
+                    if let note = item.note {
+                        Text(note).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    if let url = URL(string: item.url) {
+                        Link(item.url, destination: url).font(.footnote)
+                    }
                 }
             }
         }
-        .navigationTitle("开源许可")
     }
 }

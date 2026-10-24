@@ -31,7 +31,16 @@ speller:
   alphabet: zyxwvutsrqponmlkjihgfedcba
   delimiter: " '"
   algebra:
-    __include: enclave_algebra:/pinyin
+    # 简拼：每个音节可以只打声母，zh ch sh 算一个声母。
+    - abbrev/^([a-z]).+$/$1/
+    - abbrev/^([zcs]h).+$/$1/
+    # ü 打成 v 或 u 都行：lve/lue、jv/ju。
+    - derive/^([nl])ve$/$1ue/
+    - derive/^([jqxy])u/$1v/
+    # 常见的手误：后鼻音 ng 打成 gn。
+    - derive/([aeio])ng$/$1gn/
+    # ong 少打一个 g 也能出字（拼音里没有 on 这个韵母，不会混）。
+    - derive/ong$/on/
 
 translator:
   dictionary: enclave

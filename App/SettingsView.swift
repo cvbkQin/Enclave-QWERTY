@@ -1,170 +1,227 @@
 import SwiftUI
 import UIKit
 
+/// 设置：模型接口、键盘、拼音词库；开启键盘指南、试一试；共享配置、隐私、关于。
 struct SettingsView: View {
-    @State private var settings = SettingsStore.load()
-    @State private var apiKey = SettingsStore.apiKey ?? ""
-    @State private var testState: TestState = .idle
-    @State private var copied = false
+    @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
-
-    enum TestState: Equatable {
-        case idle, running, success(String), failure(String)
-    }
+    @ObservedObject private var deployer = RimeDeployer.shared
 
     var body: some View {
-        NavigationStack {
-            Form {
-                ReadinessSection(apiConfigured: settings.isConfigured)
+        NavigationStack(path: $router.settingsPath) {
+            List {
                 Section {
-                    NavigationLink {
-                        PlaygroundView()
+                    NavigationLink(value: AppRouter.SettingsPage.keyboard) {
+                        IconRow(systemName: "keyboard", color: .blue, title: "键盘",
+                                value: store.settings.keyboardLayout.shortTitle)
+                    }
+                    NavigationLink(value: AppRouter.SettingsPage.pinyin) {
+                        IconRow(systemName: "character.book.closed", color: .orange, title: "拼音词库",
+                                value: PinyinStatus.current(deployer).text)
+                    }
+                }
+                Section {
+                    NavigationLink(value: AppRouter.SettingsPage.guide) {
+                        IconRow(systemName: "questionmark", color: .green, title: "开启键盘指南")
+                    }
+                    NavigationLink(value: AppRouter.SettingsPage.playground) {
+                        IconRow(systemName: "hand.tap", color: Color(red: 0.69, green: 0.32, blue: 0.87), title: "试一试")
+                    }
+                }
+                Section {
+                    IconRow(systemName: "link", color: .gray, title: "App 与键盘共享配置",
+                            value: SharedStorage.isShared ? "已开启" : "不可用")
+                    if !SharedStorage.isShared { SharedConfigBanner().listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)) }
+                    NavigationLink(value: AppRouter.SettingsPage.privacy) {
+                        IconRow(systemName: "lock", color: .gray, title: "隐私")
+                    }
+                    NavigationLink(value: AppRouter.SettingsPage.about) {
+                        IconRow(systemName: "info", color: .gray, title: "关于 Enclave", value: AboutView.version)
+                    }
+                }
+            }
+            .navigationTitle("设置")
+            .navigationDestination(for: AppRouter.SettingsPage.self) { page in
+                switch page {
+                case .keyboard: KeyboardSettingsView()
+                case .fuzzy: FuzzyPinyinView()
+                case .pinyin: PinyinView()
+                case .guide:
+                    ScrollView {
+                        OnboardingSteps().padding(16)
+                    }
+                    .background(Color(.systemGroupedBackground))
+                    .navigationTitle("开启键盘指南")
+                    .navigationBarTitleDisplayMode(.inline)
+                case .playground: PlaygroundView()
+                case .privacy: PrivacyView()
+                case .about: AboutView()
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 模型接口
+
+/// 常用服务商，选了自动填地址和模型。
+private enum Provider: CaseIterable, Identifiable {
+    case deepseek, openai, ollama, custom
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .deepseek: return "DeepSeek"
+        case .openai: return "OpenAI"
+        case .ollama: return "Ollama"
+        case .custom: return "自定义"
+        }
+    }
+
+    var preset: (baseURL: String, model: String)? {
+        switch self {
+        case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-chat")
+        case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
+        case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
+        case .custom: return nil
+        }
+    }
+
+    static func detect(_ baseURL: String) -> Provider {
+        if baseURL.contains("api.deepseek.com") { return .deepseek }
+        if baseURL.contains("api.openai.com") { return .openai }
+        if baseURL.contains(":11434") { return .ollama }
+        return .custom
+    }
+}
+
+struct ModelSettingsView: View {
+    @EnvironmentObject private var store: AppStore
+    @State private var provider: Provider = .custom
+    @State private var importResult: Bool?
+
+    var body: some View {
+        Form {
+            Section("服务商") {
+                HStack(spacing: 8) {
+                    ForEach(Provider.allCases) { item in
+                        Button { choose(item) } label: {
+                            Text(item.title)
+                                .font(.subheadline.weight(provider == item ? .semibold : .regular))
+                                .foregroundStyle(provider == item ? Color.white : Color.primary)
+                                .padding(.horizontal, 12)
+                                .frame(height: 32)
+                                .background(Capsule().fill(provider == item ? AppColor.purple : Color(.secondarySystemGroupedBackground)))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+            }
+            Section {
+                LabeledField(title: "API 地址", text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
+                LabeledField(title: "模型", text: $store.settings.model, placeholder: "deepseek-chat")
+                HStack {
+                    Text("API Key")
+                    SecureField("自建服务可以留空", text: $store.apiKey)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+            } header: {
+                Text("连接")
+            } footer: {
+                Text(provider == .ollama
+                     ? "把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。"
+                     : "选一个服务商会自动填好地址。自建 Ollama / vLLM / LM Studio 选「自定义」，地址填到 /v1。")
+                    + Text("API Key 只存在本机钥匙串里，不经过任何第三方服务器。")
+            }
+            Section {
+                Stepper(value: $store.settings.temperature, in: 0...1.5, step: 0.1) {
+                    HStack {
+                        Text("温度")
+                        Spacer()
+                        Text(store.settings.temperature, format: .number.precision(.fractionLength(1)))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Stepper(value: $store.settings.maxTokens, in: 256...8192, step: 256) {
+                    HStack {
+                        Text("最大输出")
+                        Spacer()
+                        Text("\(store.settings.maxTokens)").foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("生成参数")
+            } footer: {
+                Text("温度越低越稳定，润色建议 0.2–0.5。")
+            }
+            Section {
+                VStack(spacing: 10) {
+                    Button {
+                        Task { await store.runTest() }
                     } label: {
-                        Label("试一试键盘", systemImage: "keyboard")
+                        HStack(spacing: 8) {
+                            if store.test == .running { ProgressView().tint(.white) }
+                            Text(store.test == .running ? "正在测试…" : "测试连接")
+                        }
                     }
-                }
-                apiSection
-                testSection
-                styleSection
-                Section {
-                    Picker("键盘布局", selection: $settings.keyboardLayout) {
-                        ForEach(KeyboardLayout.allCases) { Text($0.title).tag($0) }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(!store.settings.isConfigured || store.test == .running)
+                    testResult
+                    Button(importResult == false ? "剪贴板里没有 Enclave 配置" : importResult == true ? "已导入" : "从剪贴板导入配置") {
+                        importConfig()
                     }
-                    Toggle("按键震动", isOn: $settings.keyHaptics)
-                    Toggle("按键声音", isOn: $settings.keySound)
-                    Toggle("润色时的发光动画", isOn: $settings.polishAnimation)
-                } header: {
-                    Text("键盘")
-                } footer: {
-                    Text("九宫格只用于中文；切到英文时自动用全键盘。系统开了「减弱动态效果」时发光动画自动关闭。")
+                    .font(.footnote)
+                    .foregroundStyle(importResult == false ? Color.orange : AppColor.purple)
+                    .padding(.top, 4)
                 }
-                PinyinSection()
-                syncSection
-                SetupGuideSection()
-                Section {
-                    NavigationLink("开源许可") { LicensesView() }
-                }
+                .buttonStyle(.plain)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
-            .navigationTitle("Enclave")
-            .navigationDestination(isPresented: $router.showPlayground) {
-                PlaygroundView(autoFocusToken: router.playgroundFocusToken)
-            }
-            .onChange(of: settings) { SettingsStore.save($0) }
-            .onChange(of: apiKey) { SettingsStore.apiKey = $0 }
+        }
+        .navigationTitle("模型接口")
+        .onAppear { provider = Provider.detect(store.settings.baseURL) }
+    }
+
+    @ViewBuilder
+    private var testResult: some View {
+        switch store.test {
+        case .success(_, let seconds):
+            Label("连接成功，用时 \(seconds, format: .number.precision(.fractionLength(1))) 秒", systemImage: "checkmark")
+                .font(.footnote)
+                .foregroundStyle(.green)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .failure(let message):
+            Label(message, systemImage: "xmark")
+                .font(.footnote)
+                .foregroundStyle(.red)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        default:
+            EmptyView()
         }
     }
 
-    private var apiSection: some View {
-        Section {
-            LabeledField(title: "API 地址", text: $settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
-            LabeledField(title: "模型", text: $settings.model, placeholder: "deepseek-chat")
-            HStack {
-                Text("API Key")
-                SecureField("自建服务可以留空", text: $apiKey)
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-            }
-            Stepper(value: $settings.temperature, in: 0...1.5, step: 0.1) {
-                HStack {
-                    Text("温度")
-                    Spacer()
-                    Text(settings.temperature, format: .number.precision(.fractionLength(1)))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Stepper(value: $settings.maxTokens, in: 256...8192, step: 256) {
-                HStack {
-                    Text("最大输出")
-                    Spacer()
-                    Text("\(settings.maxTokens) tokens").foregroundStyle(.secondary)
-                }
-            }
-        } header: {
-            Text("模型接口（OpenAI 兼容）")
-        } footer: {
-            Text("支持任何 OpenAI 兼容接口：第三方 API、自建 Ollama / vLLM / LM Studio。地址填到 /v1 为止。API Key 只存在本机钥匙串里。")
+    private func choose(_ item: Provider) {
+        if item != provider, let preset = item.preset {
+            store.settings.baseURL = preset.baseURL
+            store.settings.model = preset.model
         }
+        provider = item
     }
 
-    private var testSection: some View {
-        Section {
-            Button {
-                Task { await runTest() }
-            } label: {
-                HStack {
-                    Text("测试连接")
-                    Spacer()
-                    if testState == .running { ProgressView() }
-                }
-            }
-            .disabled(!settings.isConfigured || testState == .running)
-
-            switch testState {
-            case .success(let reply):
-                Text("连接成功：\(reply)").font(.footnote).foregroundStyle(.green)
-            case .failure(let message):
-                Text(message).font(.footnote).foregroundStyle(.red)
-            default:
-                EmptyView()
-            }
+    private func importConfig() {
+        guard let string = UIPasteboard.general.string, SettingsStore.importString(string) else {
+            importResult = false
+            return
         }
-    }
-
-    private var styleSection: some View {
-        Section {
-            Picker("默认风格", selection: Binding(
-                get: { settings.selectedStyle?.id ?? UUID() },
-                set: { settings.selectedStyleID = $0 }
-            )) {
-                ForEach(settings.styles) { Text($0.name).tag($0.id) }
-            }
-            NavigationLink("编辑风格预设") {
-                StylesView(settings: $settings)
-            }
-        } header: {
-            Text("风格")
-        } footer: {
-            Text("键盘上点「\(settings.selectedStyle?.name ?? "风格")▾」也能随时切换。")
-        }
-    }
-
-    private var syncSection: some View {
-        Section {
-            HStack {
-                Text("App 与键盘共享配置")
-                Spacer()
-                Text(SharedStorage.isShared ? "已开启" : "不可用")
-                    .foregroundStyle(SharedStorage.isShared ? .green : .orange)
-            }
-            if !SharedStorage.isShared {
-                Button(copied ? "已复制，去键盘里点「从剪贴板导入配置」" : "复制配置") {
-                    if let string = SettingsStore.exportString() {
-                        UIPasteboard.general.string = string
-                        copied = true
-                    }
-                }
-            }
-        } footer: {
-            if !SharedStorage.isShared {
-                Text("当前签名没有拿到 App Group，键盘读不到这里的设置。复制配置后在键盘里导入，导入后剪贴板会自动清空。")
-            }
-        }
-    }
-
-    private func runTest() async {
-        testState = .running
-        let client = LLMClient(settings: settings, apiKey: apiKey)
-        var raw = ""
-        do {
-            for try await piece in client.stream([.user("只回复两个字：你好")]) {
-                raw += piece
-            }
-            let reply = ModelOutput.clean(raw)
-            testState = reply.isEmpty ? .failure("连上了，但模型没有返回内容。") : .success(String(reply.prefix(40)))
-        } catch {
-            testState = .failure(error.localizedDescription)
-        }
+        store.reload()
+        provider = Provider.detect(store.settings.baseURL)
+        importResult = true
     }
 }
 
@@ -186,19 +243,300 @@ private struct LabeledField: View {
     }
 }
 
-private struct SetupGuideSection: View {
+// MARK: - 键盘
+
+struct KeyboardSettingsView: View {
+    @EnvironmentObject private var store: AppStore
+
     var body: some View {
-        Section {
-            Text("1. 设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选择 Enclave。")
-            Text("2. 点下面按钮进入 Enclave 设置 › 键盘，打开「允许完全访问」。键盘需要它才能联网调用你的模型。")
-            Text("3. 在输入框长按或点地球键切到 Enclave。")
-            Button("打开 Enclave 设置") { AppSettings.open() }
-                .font(.footnote.weight(.semibold))
-        } header: {
-            Text("开启键盘")
-        } footer: {
-            Text("用法：写好原话点「✨ 润色」，满意后点「替换」或「插入」，发送仍由你自己按。点「✨ 润色」右边的风格按钮换风格或写要求；输入框留空写要求，它会帮你写。语音用键盘下方系统自带的话筒。")
+        Form {
+            Section {
+                HStack(spacing: 12) {
+                    ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
+                        LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout) {
+                            store.settings.keyboardLayout = layout
+                        }
+                    }
+                }
+                // 卡片放在普通行里，离分组的大圆角远一点，描边不会被裁。
+                .padding(.vertical, 6)
+            } header: {
+                Text("中文布局")
+            } footer: {
+                Text("英文总是用全键盘。")
+            }
+            Section("拼音") {
+                NavigationLink(value: AppRouter.SettingsPage.fuzzy) {
+                    HStack {
+                        Text("模糊拼音")
+                        Spacer()
+                        Text(store.settings.fuzzyPinyin.isEmpty ? "未开启" : "已开 \(store.settings.fuzzyPinyin.count) 组")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Section("按键反馈") {
+                Toggle("按键震动", isOn: $store.settings.keyHaptics)
+                Toggle(isOn: $store.settings.keySound) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("按键声音")
+                        Text("手机静音时不响").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Section("动画") {
+                Toggle(isOn: $store.settings.polishAnimation) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("润色时的发光动画")
+                        Text("系统开了「减弱动态效果」时自动关闭").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
-        .font(.footnote)
+        .tint(AppColor.purple)
+        .navigationTitle("键盘")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 布局选择卡片：上面一张简化的键盘图示，下面名称和勾选圈。
+private struct LayoutCard: View {
+    var layout: KeyboardLayout
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                illustration
+                    .padding(8)
+                    .frame(height: 76)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
+                HStack {
+                    Text(layout.shortTitle).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selected ? AppColor.purple : Color.secondary)
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(selected ? AppColor.softFill.opacity(0.5) : Color(.systemGroupedBackground)))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(selected ? AppColor.purple : Color.clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var illustration: some View {
+        let rows = layout == .nineKey ? [4, 4, 4, 4] : [10, 9, 7, 5]
+        return VStack(spacing: 3) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, count in
+                HStack(spacing: 3) {
+                    ForEach(0..<count, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Color(.systemBackground))
+                    }
+                }
+                .padding(.horizontal, layout == .qwerty && count < 10 ? CGFloat(10 - count) * 3 : 0)
+            }
+        }
+    }
+}
+
+// MARK: - 模糊拼音
+
+struct FuzzyPinyinView: View {
+    @EnvironmentObject private var store: AppStore
+    @ObservedObject private var deployer = RimeDeployer.shared
+    @State private var selection: Set<FuzzyPinyin> = []
+    @State private var loaded = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                header("快速选择")
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        ForEach([FuzzyPinyin.Preset.off, .retroflex, .nasal]) { presetChip($0) }
+                    }
+                    presetChip(.southern)
+                }
+                header("声母")
+                grid(FuzzyPinyin.initials)
+                header("韵母")
+                grid(FuzzyPinyin.finals)
+                Text("例：开了 z = zh，打 zi 也会出「知」。开得越多，候选越杂，按自己的口音选几组就好。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
+                Button(deployer.state == .deploying ? "正在部署…" : "应用并重新部署词库") {
+                    store.settings.fuzzyPinyin = selection
+                    deployer.deploy()
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(deployer.state == .deploying || (selection == store.settings.fuzzyPinyin && !deployer.needsDeploy))
+                .padding(.top, 8)
+                Group {
+                    if case .failed(let message) = deployer.state {
+                        Text(message).foregroundStyle(.red)
+                    } else if deployer.state == .done && selection == store.settings.fuzzyPinyin {
+                        Text("已生效，切回键盘就能用。").foregroundStyle(.green)
+                    } else {
+                        Text("改动后要重新部署一次词库才生效，约 1 分钟。").foregroundStyle(.secondary)
+                    }
+                }
+                .font(.footnote)
+                .frame(maxWidth: .infinity)
+            }
+            .padding(16)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("模糊拼音")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            guard !loaded else { return }
+            selection = store.settings.fuzzyPinyin
+            loaded = true
+        }
+    }
+
+    private func header(_ text: String) -> some View {
+        Text(text).font(.footnote).foregroundStyle(.secondary).padding(.top, 8)
+    }
+
+    private func presetChip(_ preset: FuzzyPinyin.Preset) -> some View {
+        let on = selection == preset.groups
+        return Button { selection = preset.groups } label: {
+            Text(preset.title)
+                .font(.subheadline.weight(on ? .semibold : .regular))
+                .foregroundStyle(on ? Color.white : Color.primary)
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(Capsule().fill(on ? AppColor.purple : Color(.secondarySystemGroupedBackground)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func grid(_ items: [FuzzyPinyin]) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())], spacing: 8) {
+            ForEach(items) { item in
+                let on = selection.contains(item)
+                Button {
+                    if on { selection.remove(item) } else { selection.insert(item) }
+                } label: {
+                    HStack {
+                        Text(item.title).font(.body.monospaced())
+                            .foregroundStyle(on ? AppColor.purple : Color.primary)
+                        Spacer()
+                        Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(on ? AppColor.purple : Color.secondary.opacity(0.6))
+                    }
+                    .padding(.horizontal, 12)
+                    .frame(height: 44)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(on ? AppColor.softFill : Color(.secondarySystemGroupedBackground)))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(on ? AppColor.purple : Color.clear, lineWidth: 1.5))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+// MARK: - 拼音词库
+
+struct PinyinView: View {
+    @EnvironmentObject private var store: AppStore
+    @ObservedObject private var deployer = RimeDeployer.shared
+    @State private var size: Int64?
+
+    var body: some View {
+        Form {
+            Section {
+                HStack(spacing: 14) {
+                    RowIcon(systemName: "character.book.closed", color: .orange, size: 44)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("万象拼音").font(.headline)
+                        Text(detail).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if deployer.state == .deploying {
+                        ProgressView()
+                    } else {
+                        let status = PinyinStatus.current(deployer)
+                        Text(status.text).font(.subheadline.weight(.semibold)).foregroundStyle(status.color)
+                    }
+                }
+                .padding(.vertical, 6)
+                if case .failed(let message) = deployer.state {
+                    Text(message).font(.footnote).foregroundStyle(.red)
+                }
+                if !store.settings.fuzzyPinyin.isEmpty {
+                    HStack {
+                        Text("模糊拼音")
+                        Spacer()
+                        Text("已开 \(store.settings.fuzzyPinyin.count) 组").foregroundStyle(.secondary)
+                    }
+                }
+            }
+            Section {
+                Button(deployer.state == .deploying ? "正在部署…" : "重新部署词库") { deployer.deploy() }
+                    .disabled(deployer.state == .deploying)
+            } footer: {
+                Text("词库在本机编译，第一次打开 App 时自动部署，大约一分钟，期间不要退出 App。词库出错或更新后再点重新部署。键盘需要打开「允许完全访问」才能读到词库。")
+            }
+        }
+        .navigationTitle("拼音词库")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: deployer.state) {
+            size = await Task.detached { RimeDeployer.diskSize() }.value
+        }
+    }
+
+    private var detail: String {
+        var parts: [String] = []
+        if let date = RimeDeployer.deployedAt, !deployer.needsDeploy {
+            parts.append(date.formatted(.dateTime.month().day()) + " 部署")
+        }
+        if let size, size > 0 {
+            parts.append("约 " + ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+        }
+        return parts.isEmpty ? "万象拼音词库，CC BY 4.0" : parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - 隐私、关于
+
+struct PrivacyView: View {
+    var body: some View {
+        Form {
+            Section {
+                Text("打字和拼音候选全部在手机上完成，不联网。")
+                Text("只有点「✨ 润色」或「再润」时，输入框里的文字和你写的要求才会发给你自己配置的模型接口，Enclave 没有自己的服务器。")
+                Text("API Key 只存在本机钥匙串里。")
+                Text("「允许完全访问」只用来联网调用模型、按键震动，以及和 App 共享设置。")
+            }
+            .font(.subheadline)
+        }
+        .navigationTitle("隐私")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct AboutView: View {
+    static var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                HStack { Text("版本"); Spacer(); Text(Self.version).foregroundStyle(.secondary) }
+            }
+            LicensesSection()
+        }
+        .navigationTitle("关于 Enclave")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
