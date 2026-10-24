@@ -217,7 +217,7 @@ final class KeyboardModel: ObservableObject {
                 pending = EditSession(mode: .write, original: command.instruction)
             }
             pending.conversation.append(.user(command.instruction))
-            run([Prompts.writeSystem(style: style)] + pending.conversation, pending: pending)
+            run(Prompts.write(pending.conversation, style: style), pending: pending)
 
         case (false, false):
             // 按要求改：输入框里的内容（可能被手改过）就是当前版本。

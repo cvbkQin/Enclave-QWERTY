@@ -77,10 +77,35 @@ enum Prompts {
 
         按修改要求改写当前版本。尽量少改动，要求没有涉及的地方保持原样。只输出修改后的完整正文。
         """
+        if let block = requestStyleBlock(style) {
+            prompt += "\n" + block
+        }
         return [.system(system(style: style)), .user(prompt)]
     }
 
     static func writeSystem(style: StylePreset?) -> ChatMessage {
         .system(system(style: style) + "\n用户会描述想写的内容，你直接写出可以发送的正文。用户后续追加的要求，是对你上一版的修改意见。")
+    }
+
+    /// 帮我写：最后一条要求后面附上本次风格。会话里存的仍是用户的原话，换了风格再追问时按新风格写。
+    static func write(_ conversation: [ChatMessage], style: StylePreset?) -> [ChatMessage] {
+        var messages = [writeSystem(style: style)] + conversation
+        if let block = requestStyleBlock(style), let last = messages.indices.last, messages[last].role == "user" {
+            messages[last].content += "\n\n" + block
+        }
+        return messages
+    }
+
+    /// 按要求改和帮我写时的风格：只放在系统提示里会被「尽量少改动」和要求本身盖过，
+    /// 所以和润色一样在用户消息里再强调一次。选了「自动」时没有。
+    private static func requestStyleBlock(_ style: StylePreset?) -> String? {
+        guard let style, !style.prompt.isEmpty else { return nil }
+        return """
+        <本次风格>「\(style.name)」
+        \(style.prompt)
+        </本次风格>
+        按要求写，同时整体的语气和措辞用这个风格，为了贴合风格可以多改一些，不受「尽量少改动」限制。
+        要求里明确写了的（比如字数、要不要分点、具体的说法）以要求为准。
+        """
     }
 }
