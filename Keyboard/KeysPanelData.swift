@@ -59,7 +59,11 @@ struct CrossPopup: Equatable {
         switch direction {
         case .left: return c.offsetBy(dx: -c.width, dy: 0)
         case .right: return c.offsetBy(dx: c.width, dy: 0)
-        case .up: return c.offsetBy(dx: 0, dy: -c.height)
+        case .up:
+            // 第一行往上只有 AI 栏那么高，超出键盘顶会被裁平；顶到离键盘顶 2pt 为止，格子矮一点。
+            let up = c.offsetBy(dx: 0, dy: -c.height)
+            let top = max(up.minY, 2 - KeyboardMetrics.topRow)
+            return CGRect(x: up.minX, y: top, width: up.width, height: up.maxY - top)
         case .down: return c.offsetBy(dx: 0, dy: c.height)
         }
     }
