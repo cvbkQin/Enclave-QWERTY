@@ -122,15 +122,19 @@ private struct StyleEditor: View {
             }
             Section {
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("建议", systemImage: "sparkle")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(AppColor.deepPurple)
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkle")
+                        Text("建议")
+                    }
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppColor.deepPurple)
                     SuggestionChips(tags: StyleSuggestions.tags(for: style), prompt: $style.prompt)
                     Text(builtIn == nil ? "点一下加进提示词，再点一下拿掉。自定义风格显示通用建议。" : "点一下加进提示词，再点一下拿掉。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                // 和上面分组标题、说明文字对齐。
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                 .listRowBackground(Color.clear)
             }
             Section {

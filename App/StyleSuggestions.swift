@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 编辑风格页提示词下面的建议标签：点一下加进提示词，再点一下拿掉。
 enum StyleSuggestions {
@@ -53,6 +54,8 @@ struct SuggestionChips: View {
             ForEach(tags, id: \.self) { tag in
                 let selected = prompt.contains(tag)
                 Button {
+                    // 点标签不该让名称框抢到焦点弹出键盘。
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     prompt = selected ? StyleSuggestions.removing(tag, from: prompt) : StyleSuggestions.adding(tag, to: prompt)
                 } label: {
                     HStack(spacing: 4) {
