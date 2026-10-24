@@ -37,6 +37,8 @@ struct CrossPopup: Equatable {
     let key: KeySpec
     let options: [Direction: String]
     let containerWidth: CGFloat
+    /// 手指按下的位置，方向从这里算；没有就用键中心。
+    var origin: CGPoint?
     var selected: Direction?
 
     /// 每格 = 一个键加一条缝。
@@ -68,11 +70,12 @@ struct CrossPopup: Equatable {
         }
     }
 
-    /// 手指离按下的键中心不到 14pt 算在中间（nil，松手取消）；再远就按偏得更多的那个方向算，
+    /// 手指离按下的位置不到 14pt 算在中间（nil，松手取消）；再远就按偏得更多的那个方向算，
     /// 和原生一样轻轻一划就选中，不用划进格子里。那个方向没有选项也是 nil。
     func direction(at point: CGPoint) -> Direction? {
-        let dx = point.x - key.cap.midX
-        let dy = point.y - key.cap.midY
+        let start = origin ?? CGPoint(x: key.cap.midX, y: key.cap.midY)
+        let dx = point.x - start.x
+        let dy = point.y - start.y
         guard hypot(dx, dy) > 14 else { return nil }
         let direction: Direction = abs(dx) >= abs(dy) ? (dx < 0 ? .left : .right) : (dy < 0 ? .up : .down)
         return options[direction] == nil ? nil : direction

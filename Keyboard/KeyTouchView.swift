@@ -111,7 +111,7 @@ final class KeyTouchView: UIView {
             // 九宫格和原生一样：按住直接往上下左右划，不用等长按，十字马上出来并选中那个方向。
             if !state.fired, case .nine(let digit) = state.key.kind, !(digit == "'" && model.isComposing),
                hypot(point.x - state.start.x, point.y - state.start.y) > Self.flickDistance,
-               model.showAlternates(for: state.key, containerWidth: bounds.width) {
+               model.showAlternates(for: state.key, containerWidth: bounds.width, origin: state.start) {
                 state.timer?.invalidate()
                 state.alternates = true
                 state.fired = true
@@ -145,6 +145,7 @@ final class KeyTouchView: UIView {
                 state.fired = false
             }
             state.key = next
+            state.start = point
             state.timer?.invalidate()
             scheduleAlternates(state)
         }
@@ -190,7 +191,8 @@ final class KeyTouchView: UIView {
             Task { @MainActor in
                 guard let self, let state, !state.fired,
                       self.tracking.values.contains(where: { $0 === state }),
-                      self.model?.showAlternates(for: state.key, containerWidth: self.bounds.width) == true else { return }
+                      self.model?.showAlternates(for: state.key, containerWidth: self.bounds.width,
+                                                              origin: state.start) == true else { return }
                 state.alternates = true
                 state.fired = true
             }

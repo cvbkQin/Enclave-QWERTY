@@ -260,9 +260,9 @@ extension KeyboardModel {
 
     // MARK: - 长按备选
 
-    func showAlternates(for key: KeySpec, containerWidth: CGFloat) -> Bool {
+    func showAlternates(for key: KeySpec, containerWidth: CGFloat, origin: CGPoint? = nil) -> Bool {
         if let options = KeyLayout.cross(for: key.kind, chinese: chineseMode) {
-            cross = CrossPopup(key: key, options: options, containerWidth: containerWidth)
+            cross = CrossPopup(key: key, options: options, containerWidth: containerWidth, origin: origin)
             keyFeedback(for: .space)
             return true
         }
