@@ -31,9 +31,14 @@ final class RimeEngine: InputEngine {
     func updatePhrases(_ entries: [(text: String, code: String)]) {
         guard let (paths, _) = location() else { return }
         var changed = false
-        for (name, nineKey) in [("enclave_phrase", false), ("enclave_phrase_t9", true)] {
+        let files = [
+            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false)),
+            ("enclave_phrase_t9", CommonWordStore.phraseTable(entries, nineKey: true)),
+            // 九宫格拼写栏显示常用词的拼音用（enclave_t9_preedit.lua 读）。
+            ("enclave_phrase_t9_pinyin", entries.map { "\($0.text)\t\($0.code)" }.joined(separator: "\n") + "\n"),
+        ]
+        for (name, table) in files {
             let url = paths.user.appendingPathComponent(name + ".txt")
-            let table = CommonWordStore.phraseTable(entries, nineKey: nineKey)
             guard (try? String(contentsOf: url, encoding: .utf8)) != table else { continue }
             try? table.write(to: url, atomically: true, encoding: .utf8)
             changed = true
