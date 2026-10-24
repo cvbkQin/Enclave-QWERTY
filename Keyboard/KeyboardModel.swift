@@ -19,6 +19,15 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var resultUse: ResultUse?
     /// 输入框又改过，当前结果和输入对不上：卡片同样变灰。
     @Published private(set) var resultStale = false
+    /// 点「润色」「再润」时先要过的一关：没开完全访问出提示卡，还没同意过当前接口地址出确认卡。
+    @Published private(set) var gate: AIGate? { didSet { heightMayChange?() } }
+    enum AIGate: Equatable {
+        case fullAccess
+        /// previous：上次同意的是另一个地址，确认卡上划掉显示。
+        case consent(endpoint: String, previous: String?)
+    }
+    /// 同意后接着做的那一步（润色或再润）。
+    private var afterConsent: (() -> Void)?
     @Published var errorMessage: String?
     @Published var notice: String?
     @Published var hasFullAccess = true
@@ -98,7 +107,7 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen)
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen, gate: gate)
     }
 
     func reload() {
@@ -160,6 +169,54 @@ final class KeyboardModel: ObservableObject {
                                           instruction: command.instruction, style: style)
             run(messages, pending: pending)
         }
+    }
+
+    /// 能不能现在发给模型；不能时弹出对应的提示卡，返回 false。接口还没配置时交给原来的流程提示。
+    func passGate(then action: @escaping () -> Void) -> Bool {
+        if !hasFullAccess && !debugUnblocked {
+            gate = .fullAccess
+            return false
+        }
+        guard settings.isConfigured, let endpoint = ConsentStore.endpoint(of: settings.baseURL),
+              !ConsentStore.isConsented(endpoint) else { return true }
+        gate = .consent(endpoint: endpoint, previous: ConsentStore.consented?.endpoint)
+        afterConsent = action
+        return false
+    }
+
+    /// 确认卡上的「同意并润色」：记下这个地址，接着做刚才那一步。
+    func acceptConsent() {
+        guard case .consent(let endpoint, _) = gate else { return }
+        ConsentStore.grant(endpoint)
+        let action = afterConsent
+        dismissGate()
+        action?()
+    }
+
+    /// 风格按钮在没开完全访问时也只出提示卡。
+    func showFullAccessTip() {
+        gate = .fullAccess
+    }
+
+    /// 键盘里打开主 App 的某个页面。扩展不能直接调 open(_:)，沿响应链找到 UIApplication 再调它。
+    func openContainingApp(_ link: String) {
+        guard let url = URL(string: link) else { return }
+        var responder: UIResponder? = controller
+        let selector = NSSelectorFromString("openURL:options:completionHandler:")
+        while let current = responder {
+            if current.responds(to: selector), current is UIApplication || NSStringFromClass(type(of: current)).contains("UIApplication") {
+                typealias Open = @convention(c) (AnyObject, Selector, URL, NSDictionary, Any?) -> Void
+                let open = unsafeBitCast(current.method(for: selector), to: Open.self)
+                open(current, selector, url, NSDictionary(), nil)
+                return
+            }
+            responder = current.next
+        }
+    }
+
+    func dismissGate() {
+        afterConsent = nil
+        if gate != nil { gate = nil }
     }
 
     private func checkCanCallModel() -> Bool {

@@ -43,13 +43,23 @@ enum KeyboardMetrics {
     static let panelTop: CGFloat = 6
     static let sidePadding: CGFloat = 3.7
 
-    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加浮层。
-    static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool) -> CGFloat {
+    /// 点「润色」时 AI 栏上方的提示卡：没开完全访问（P02）、首次发送前确认（P03），换了地址时多一行旧地址（P04）。
+    static func gateHeight(_ gate: KeyboardModel.AIGate) -> CGFloat {
+        switch gate {
+        case .fullAccess: return 176
+        case .consent(_, let previous): return previous == nil ? 178 : 196
+        }
+    }
+
+    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单或提示卡时再加一块（提示卡盖过风格菜单）。
+    static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool, gate: KeyboardModel.AIGate? = nil) -> CGFloat {
         var height = topRow + keysHeight
         if expanded {
             height += panelTop + (cardExpanded ? expandedCardHeight : cardHeight) + panelSpacing + actionRow
         }
-        if menuOpen {
+        if let gate {
+            height += gateHeight(gate) + panelSpacing + (expanded ? 0 : panelTop)
+        } else if menuOpen {
             height += menuHeight + panelSpacing + (expanded ? 0 : panelTop)
         }
         return height
@@ -107,8 +117,6 @@ enum Brand {
     static let deepPurple = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
         : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
-    /// 生成中「停止」的底色 #3A3A3C。
-    static let stopFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
     /// 「正式▾」按钮打开时的底色 #F4F2FF。
     static let menuFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.17, green: 0.16, blue: 0.27, alpha: 1)
@@ -119,6 +127,19 @@ enum Brand {
     /// 浮层里「风格」「要求」两个字 #3A3A3C。
     static let panelLabel = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.78, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
+    /// 提示卡正文 #3A3A3C、说明 #6B6B73。
+    static let cardBody = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.85, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
+    static let cardNote = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.62, alpha: 1) : UIColor(red: 0x6B / 255, green: 0x6B / 255, blue: 0x73 / 255, alpha: 1) })
+    /// 润色按钮上的小锁：#8E8E93 圆，外圈 #DCDEE4。
+    static let lockFill = Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255)
+    static let lockRing = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 0.25, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1) })
+    /// 确认卡标题里的星星、隐私政策链接 #5B4BE8。
+    static let tagSelectedText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xC4 / 255, green: 0xB5 / 255, blue: 0xFD / 255, alpha: 1)
+        : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
     /// 没选中的风格标签 #F4F5F7 黑字。
     static let tagFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
