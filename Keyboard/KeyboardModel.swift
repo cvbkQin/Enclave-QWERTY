@@ -144,8 +144,9 @@ final class KeyboardModel: ObservableObject {
             notice = "先在输入框里写点什么，或者点「\(settings.selectedStyle?.name ?? "风格")▾」写一个要求让它帮你写。"
 
         case (false, true):
-            // 润色：开启一个新会话。
-            let pending = EditSession(mode: .polish, original: command.content)
+            // 润色：总是润输入框里现在的文字（可能是替换后又手改过的），结果接在这次会话后面，翻页还能找回之前的版本。
+            var pending = EditSession(mode: .polish, original: command.content)
+            if let session, session.mode == .polish { pending = session }
             run(Prompts.polish(command.content, style: style), pending: pending)
 
         case (true, false):
@@ -251,7 +252,7 @@ final class KeyboardModel: ObservableObject {
         let request = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         let content = CommandParser.parse(readField().text).content
         guard !content.isEmpty, !dropSession(unlessItBelongsTo: content),
-              hasResult, var pending = session, let current = pending.current, let style = settings.selectedStyle
+              hasResult, var pending = session, let style = settings.selectedStyle
         else {
             execute()
             return
@@ -259,11 +260,12 @@ final class KeyboardModel: ObservableObject {
         guard checkCanCallModel() else { return }
         switch pending.mode {
         case .polish:
-            run(rewrite(pending.original, request: request, style: style), pending: pending)
+            // 再润也以输入框里现在的文字为准，不退回最初的原话。
+            run(rewrite(content, request: request, style: style), pending: pending)
         case .write:
             let ask = ["按「\(style.name)」的写法重写一遍。", request].filter { !$0.isEmpty }.joined(separator: "；")
             pending.conversation.append(.user(ask))
-            run(Prompts.revise(original: pending.original, current: current, instruction: ask, style: style),
+            run(Prompts.revise(original: pending.original, current: content, instruction: ask, style: style),
                 pending: pending)
         }
     }
@@ -415,9 +417,10 @@ final class KeyboardModel: ObservableObject {
 
     /// 输入框里的文字和当前会话对不上时丢掉会话，返回是否丢掉了。
     /// 会话存在共享存储里，不清掉的话润色、风格和按要求改都会把上一次的内容带进来。
+    /// 刚把结果替换或插入进输入框的，手改过也还算这次会话，再润的结果接着往后翻。
     @discardableResult
     func dropSession(unlessItBelongsTo fieldText: String) -> Bool {
-        guard let session, !session.belongs(to: fieldText) else { return false }
+        guard let session, resultUse == nil, !session.belongs(to: fieldText) else { return false }
         self.session = nil
         SessionStore.save(nil)
         return true
