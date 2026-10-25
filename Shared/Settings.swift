@@ -36,7 +36,7 @@ enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     var shortTitle: String { self == .qwerty ? L("全键盘", "QWERTY", "QWERTY") : L("九宫格", "10-key", "10キー") }
 }
 
-/// 日间 / 夜间：跟随 iPhone，或者固定浅色、深色。App 和键盘都按这个画。
+/// 日间 / 夜间：跟随 iPhone，或者固定浅色、深色。只管 App；键盘跟着正在打字的 App 走，和系统键盘一样。
 enum Appearance: String, Codable, CaseIterable, Identifiable {
     case system, light, dark
 

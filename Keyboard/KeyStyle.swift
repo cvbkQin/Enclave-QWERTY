@@ -73,10 +73,6 @@ enum KeyboardMetrics {
 
 /// 按键颜色，取自 iOS 26 键盘：字符键和功能键同色，没有阴影；按下的功能键变灰。
 enum KeyStyle {
-    /// App 里固定了浅色或深色时铺在键盘下面的底色，接近系统键盘的底色。
-    static let keyboardBackground = UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0x2B / 255, green: 0x2B / 255, blue: 0x2D / 255, alpha: 1)
-        : UIColor(red: 0xD1 / 255, green: 0xD3 / 255, blue: 0xD9 / 255, alpha: 1) }
     static let charKey = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 71 / 255, green: 71 / 255, blue: 73 / 255, alpha: 1) : .white })
     static let functionKey = charKey
