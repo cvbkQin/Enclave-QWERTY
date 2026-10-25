@@ -466,6 +466,12 @@ extension KeyboardModel {
         TypingStats.noteMemoryWarning()
     }
 
+    /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。
+    var pinyinContextForTouch: String? {
+        guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared else { return nil }
+        return QueuedEngine.shared.expectedRawInput
+    }
+
     /// 九宫格「重输」：清掉正在拼的内容。
     func clearComposition() {
         engine.reset()

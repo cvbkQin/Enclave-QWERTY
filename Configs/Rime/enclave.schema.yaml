@@ -46,6 +46,8 @@ speller:
 translator:
   dictionary: enclave
   enable_user_dict: true
+  # 按错相邻键也能出字（librime 自带的全键盘同排邻键纠错，比如 nihap 也出「你好」），排在正确拼写之后。
+  enable_correction: true
   preedit_format:
     - xform/([jqxy])v/$1u/
 

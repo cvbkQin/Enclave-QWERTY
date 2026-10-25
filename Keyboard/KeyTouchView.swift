@@ -45,9 +45,12 @@ final class KeyTouchView: UIView {
     }
 
     private func key(at point: CGPoint) -> KeySpec? {
-        if let hit = layout.keys.first(where: { $0.frame.contains(point) }) { return hit }
-        // 落在缝隙或边缘外：取最近的键。
-        return layout.keys.min { distance($0.frame, point) < distance($1.frame, point) }
+        let hit = layout.keys.first(where: { $0.frame.contains(point) })
+            // 落在缝隙或边缘外：取最近的键。
+            ?? layout.keys.min { distance($0.frame, point) < distance($1.frame, point) }
+        // 全键盘打拼音：交界附近按拼音规律判给更可能的字母（动态热区）。
+        guard let hit, let raw = model?.pinyinContextForTouch else { return hit }
+        return TouchPrior.resolve(point: point, hit: hit, keys: layout.keys, raw: raw)
     }
 
     private func distance(_ rect: CGRect, _ p: CGPoint) -> CGFloat {
@@ -61,14 +64,14 @@ final class KeyTouchView: UIView {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let model else { return }
         for touch in touches {
-            guard let key = key(at: touch.location(in: self)) else { continue }
-            // 另一根手指按下：之前还没松开的字符键先上屏，快速连打不丢字。
+            // 另一根手指按下：之前还没松开的字符键先上屏，快速连打不丢字。先打出来，下面判定新键时就算上它。
             for (_, other) in tracking where !other.fired && other.key.kind.typesCharacter {
                 other.fired = true
                 model.keyEventTime = touch.timestamp
                 model.perform(other.key.kind)
                 model.keyReleased(other.key.id)
             }
+            guard let key = key(at: touch.location(in: self)) else { continue }
             let state = Tracking(key: key)
             state.start = touch.location(in: self)
             tracking[touch] = state
