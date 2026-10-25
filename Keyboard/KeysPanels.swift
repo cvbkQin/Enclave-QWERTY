@@ -101,13 +101,10 @@ struct SymbolPanel: View {
 struct QuickWordsPanel: View {
     @ObservedObject var model: KeyboardModel
 
-    private static let gap: CGFloat = 5
-    private static let cellHeight: CGFloat = 32
-    private static let font = UIFont.systemFont(ofSize: 13.5)
-    private static let textPadding: CGFloat = 9
+    private static let gap = KeyboardWordsLayout.gap
     private static let star = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
     /// 词格和底排按键的左右边缘对齐九宫格的键。
-    private static let sideInset = KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding
+    private static let sideInset = KeyboardWordsLayout.sideMargin - KeyboardMetrics.sidePadding
 
     var body: some View {
         let words = model.quickWords
@@ -137,22 +134,21 @@ struct QuickWordsPanel: View {
     }
 
     private func grid(_ words: [String], width: CGFloat) -> some View {
-        let column = (width - Self.gap * 3) / 4
+        let column = KeyboardWordsLayout.columnWidth(gridWidth: width)
         return ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: Self.gap) {
-                ForEach(Array(CommonWordStore.keyboardRows(words, column: column, gap: Self.gap, font: Self.font,
-                                                           padding: Self.textPadding).enumerated()), id: \.offset) { _, row in
+                ForEach(Array(KeyboardWordsLayout.rows(words, gridWidth: width).enumerated()), id: \.offset) { _, row in
                     HStack(spacing: Self.gap) {
                         ForEach(row, id: \.text) { cell in
                             Button { model.pickQuickWord(cell.text) } label: {
                                 Text(cell.text)
-                                    .font(.system(size: 13.5))
+                                    .font(.system(size: KeyboardWordsLayout.fontSize))
                                     .foregroundStyle(Color.primary)
                                     .lineLimit(1)
                                     .truncationMode(.tail)
-                                    .padding(.horizontal, Self.textPadding)
+                                    .padding(.horizontal, KeyboardWordsLayout.textPadding)
                                     .frame(width: column * CGFloat(cell.span) + Self.gap * CGFloat(cell.span - 1),
-                                           height: Self.cellHeight, alignment: .leading)
+                                           height: KeyboardWordsLayout.cellHeight, alignment: .leading)
                                     .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
                                     .contentShape(Rectangle())
                             }

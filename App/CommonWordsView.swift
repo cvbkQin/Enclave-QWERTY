@@ -163,18 +163,20 @@ struct CommonWordsView: View {
                 }
                 .listRowBackground(Color.orange.opacity(0.12))
             }
-            Section {
-                tabBar
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
-                if tab == .all {
-                    filterBar
-                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0))
-                        .listRowBackground(Color.clear)
-                }
-            }
             if tab == .keyboard { keyboardSections } else { allSections }
         }
+        // 两个分段控件放在列表外面、紧贴搜索框下面，不和列表的分区间距叠在一起。
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 8) {
+                tabBar
+                if tab == .all { filterBar }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 6)
+            .background(Color(.systemGroupedBackground))
+        }
+        .environment(\.defaultMinListHeaderHeight, 6)
         .tint(AppColor.purple)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: L("搜索词或拼音", "Search words or pinyin", "語またはピンインを検索"))
         .navigationTitle(L("常用词", "My Words", "ユーザ辞書"))
@@ -378,38 +380,48 @@ private struct KeyboardStar: View {
     }
 }
 
-/// 「键盘里的样子」：灰底 #DCDEE4，按键盘同样的一行四格规则缩小显示。
+/// 「键盘里的样子」：灰底 #DCDEE4。按键盘的实际宽度分好行（和键盘面板一致），再按比例缩小画。
 private struct KeyboardWordsPreview: View {
     let texts: [String]
 
-    private static let gap: CGFloat = 4
-    private static let font = UIFont.systemFont(ofSize: 11)
-    private static let padding: CGFloat = 7
+    private static let padding: CGFloat = 8
+    private static let maxRows = 4
 
     var body: some View {
-        // 列表行宽 = 屏宽减两边 16 的边距，再减预览自己的内边距 8。
-        let width = UIScreen.main.bounds.width - 32 - 16
-        let column = (width - Self.gap * 3) / 4
-        VStack(alignment: .leading, spacing: Self.gap) {
-            ForEach(Array(CommonWordStore.keyboardRows(texts, column: column, gap: Self.gap, font: Self.font,
-                                                       padding: Self.padding).prefix(4).enumerated()), id: \.offset) { _, row in
-                HStack(spacing: Self.gap) {
-                    ForEach(row, id: \.self) { cell in
-                        Text(cell.text)
-                            .font(.system(size: 11))
-                            .lineLimit(1)
-                            .padding(.horizontal, Self.padding)
-                            .frame(width: column * CGFloat(cell.span) + Self.gap * CGFloat(cell.span - 1), height: 24, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color(.systemBackground)))
+        let gridWidth = UIScreen.main.bounds.width - KeyboardWordsLayout.sideMargin * 2
+        let rows = Array(KeyboardWordsLayout.rows(texts, gridWidth: gridWidth).prefix(Self.maxRows))
+        // 行高按列表行的宽度估（分组列表两边各留 20），实际宽度用 GeometryReader 量。
+        let estimatedScale = (UIScreen.main.bounds.width - 40 - Self.padding * 2) / gridWidth
+        let height = CGFloat(rows.count) * (KeyboardWordsLayout.cellHeight + KeyboardWordsLayout.gap) * estimatedScale
+            - KeyboardWordsLayout.gap * estimatedScale + Self.padding * 2
+        GeometryReader { geo in
+            let inner = geo.size.width - Self.padding * 2
+            let scale = inner / gridWidth
+            let gap = KeyboardWordsLayout.gap * scale
+            let column = KeyboardWordsLayout.columnWidth(gridWidth: gridWidth) * scale
+            VStack(alignment: .leading, spacing: gap) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: gap) {
+                        ForEach(row, id: \.self) { cell in
+                            Text(cell.text)
+                                .font(.system(size: KeyboardWordsLayout.fontSize * scale))
+                                .lineLimit(1)
+                                .padding(.horizontal, KeyboardWordsLayout.textPadding * scale)
+                                .frame(width: column * CGFloat(cell.span) + gap * CGFloat(cell.span - 1),
+                                       height: KeyboardWordsLayout.cellHeight * scale, alignment: .leading)
+                                .background(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous).fill(Color(.systemBackground)))
+                        }
                     }
                 }
             }
+            .padding(Self.padding)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: height)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(uiColor: UIColor { trait in
             trait.userInterfaceStyle == .dark ? UIColor(white: 0.18, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1)
         })))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -469,6 +481,7 @@ private struct AddToKeyboardSheet: View {
                     }
                 }
             }
+            .environment(\.defaultMinListHeaderHeight, 6)
             .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: L("搜索词或拼音", "Search words or pinyin", "語またはピンインを検索"))
             .navigationTitle(L("添加到键盘", "Add to Keyboard", "キーボードに追加"))
             .navigationBarTitleDisplayMode(.inline)

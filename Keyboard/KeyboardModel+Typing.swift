@@ -113,7 +113,8 @@ extension KeyboardModel {
         case .digitsMore: digitsMore.toggle()
         case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
-        case .quickWords: openPanel(.quickWords)
+        // 「常用」只在没打拼音时露出来；万一打字时触发，不打开，免得丢掉没上屏的拼音。
+        case .quickWords: if !isComposing { openPanel(.quickWords) }
         case .globe: break
         }
     }

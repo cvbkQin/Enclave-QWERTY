@@ -107,35 +107,6 @@ enum CommonWordStore {
         return String(code.compactMap { keys[$0] })
     }
 
-    // MARK: - 键盘「常用」面板
-
-    /// 面板里的一格：词和占几格（1、2 或整行 4）。
-    struct KeyboardCell: Hashable {
-        let text: String
-        let span: Int
-    }
-
-    /// 按顺序排进一行四格：显示宽度放得下一格的占一格，放得下两格的占两格，否则占整行；这一行剩下的格子不够就换行。
-    /// 键盘面板和 App 里的预览共用，App 里按比例缩小传进来。
-    static func keyboardRows(_ texts: [String], column: CGFloat, gap: CGFloat, font: UIFont, padding: CGFloat) -> [[KeyboardCell]] {
-        var rows: [[KeyboardCell]] = []
-        var current: [KeyboardCell] = []
-        var used = 0
-        for text in texts {
-            let width = (text as NSString).size(withAttributes: [.font: font]).width + padding * 2
-            let span = width <= column ? 1 : width <= column * 2 + gap ? 2 : 4
-            if used + span > 4 {
-                rows.append(current)
-                current = []
-                used = 0
-            }
-            current.append(KeyboardCell(text: text, span: span))
-            used += span
-        }
-        if !current.isEmpty { rows.append(current) }
-        return rows
-    }
-
     // MARK: - 导入
 
     struct ImportResult {
@@ -216,5 +187,46 @@ enum CommonWordStore {
     /// 每个词的每个编码一行。
     static func phraseEntries(_ words: [CommonWord]) -> [(text: String, code: String)] {
         words.flatMap { word in word.codes.map { (text: word.text, code: $0) } }
+    }
+}
+
+/// 键盘「常用」面板的排法（W6）：一行四格，格高 32、间距 5、字 13.5pt。
+/// 键盘面板和 App 里的「键盘里的样子」共用，App 按键盘的实际宽度排好再缩小画，两边分行一致。
+enum KeyboardWordsLayout {
+    static let gap: CGFloat = 5
+    static let cellHeight: CGFloat = 32
+    static let fontSize: CGFloat = 13.5
+    static let textPadding: CGFloat = 9
+    /// 词格左右和九宫格的键对齐：离屏幕边 7pt。
+    static let sideMargin: CGFloat = 7
+
+    struct Cell: Hashable {
+        let text: String
+        /// 占几格：1、2 或整行 4。
+        let span: Int
+    }
+
+    static func columnWidth(gridWidth: CGFloat) -> CGFloat { (gridWidth - gap * 3) / 4 }
+
+    /// 按顺序排进一行四格：显示宽度放得下一格的占一格，放得下两格的占两格，否则占整行；这一行剩下的格子不够就换行。
+    static func rows(_ texts: [String], gridWidth: CGFloat) -> [[Cell]] {
+        let column = columnWidth(gridWidth: gridWidth)
+        let font = UIFont.systemFont(ofSize: fontSize)
+        var rows: [[Cell]] = []
+        var current: [Cell] = []
+        var used = 0
+        for text in texts {
+            let width = (text as NSString).size(withAttributes: [.font: font]).width + textPadding * 2
+            let span = width <= column ? 1 : width <= column * 2 + gap ? 2 : 4
+            if used + span > 4 {
+                rows.append(current)
+                current = []
+                used = 0
+            }
+            current.append(Cell(text: text, span: span))
+            used += span
+        }
+        if !current.isEmpty { rows.append(current) }
+        return rows
     }
 }
