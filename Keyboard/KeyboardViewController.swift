@@ -70,6 +70,8 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         model.dropStaleSessionOnAppear()
+        // 每次弹出都按输入框类型重新选一次页（数字框直接出数字键盘）。
+        model.hostKeyboardType = nil
         model.reload()
         model.applyDebugState()
     }

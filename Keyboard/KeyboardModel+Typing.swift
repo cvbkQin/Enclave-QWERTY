@@ -140,6 +140,24 @@ extension KeyboardModel {
         #endif
         if hasText != hostHasText { hostHasText = hasText }
         if returnKey != hostReturnKey { hostReturnKey = returnKey }
+        let keyboardType = proxy?.keyboardType ?? .default
+        if keyboardType != hostKeyboardType {
+            hostKeyboardType = keyboardType
+            applyLayer(for: keyboardType)
+        }
+    }
+
+    /// 数字、电话、金额输入框直接出数字键盘；数字和标点框出数字符号页；其他输入框回到字母（正在组字时不动）。
+    private func applyLayer(for keyboardType: UIKeyboardType) {
+        guard target == .host, !isComposing else { return }
+        switch keyboardType {
+        case .numberPad, .phonePad, .decimalPad, .asciiCapableNumberPad:
+            if layer != .digits { switchLayer(.digits) }
+        case .numbersAndPunctuation:
+            if layer != .numbers { switchLayer(.numbers) }
+        default:
+            if layer == .digits || layer == .numbers || layer == .symbols { switchLayer(.letters) }
+        }
     }
 
     /// 按下时的震动和声音，声音和系统键盘一样分字符、删除、功能键三种。

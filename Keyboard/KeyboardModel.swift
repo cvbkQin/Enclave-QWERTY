@@ -73,6 +73,8 @@ final class KeyboardModel: ObservableObject {
     /// 对方输入框有没有字、回车键是什么类型，决定发送键的颜色和文字。
     @Published var hostHasText = false
     @Published var hostReturnKey: UIReturnKeyType = .default
+    /// 上次按输入框类型切过页的 keyboardType；换了输入框、类型变了才再切一次，不打断用户自己切的页。
+    var hostKeyboardType: UIKeyboardType?
     /// 输入框里是否有带下划线的拼音（marked text）。
     var hasMarkedText = false
     var lastSpaceTime = Date.distantPast
