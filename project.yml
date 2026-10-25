@@ -66,6 +66,8 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: Enclave
+        # 只用系统的 HTTPS，属于豁免加密，上传 TestFlight 时不再每次询问出口合规。
+        ITSAppUsesNonExemptEncryption: false
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations: [zh-Hans]
         UILaunchScreen: {}
