@@ -302,6 +302,8 @@ struct CommonWordsView: View {
 
     // MARK: 键盘
 
+    private var canReorder: Bool { query.text.isEmpty }
+
     private func move(from source: IndexSet, to destination: Int) {
         model.moveKeyboard(from: source, to: destination)
     }
@@ -338,7 +340,7 @@ struct CommonWordsView: View {
                 }
             }
             // 搜索时列表不全，不能拖。
-            .onMove(perform: query.text.isEmpty ? move : nil)
+            .onMove(perform: canReorder ? move : nil)
             Button { addingToKeyboard = true } label: {
                 Label(L("添加到键盘", "Add to Keyboard", "キーボードに追加"), systemImage: "plus")
                     .foregroundStyle(AppColor.purple)
@@ -391,25 +393,20 @@ private struct KeyboardWordsPreview: View {
         let gridWidth = UIScreen.main.bounds.width - KeyboardWordsLayout.sideMargin * 2
         let rows = Array(KeyboardWordsLayout.rows(texts, gridWidth: gridWidth).prefix(Self.maxRows))
         // 行高按列表行的宽度估（分组列表两边各留 20），实际宽度用 GeometryReader 量。
-        let estimatedScale = (UIScreen.main.bounds.width - 40 - Self.padding * 2) / gridWidth
-        let height = CGFloat(rows.count) * (KeyboardWordsLayout.cellHeight + KeyboardWordsLayout.gap) * estimatedScale
-            - KeyboardWordsLayout.gap * estimatedScale + Self.padding * 2
+        let estimatedScale: CGFloat = (UIScreen.main.bounds.width - 40 - Self.padding * 2) / gridWidth
+        let rowCount = CGFloat(rows.count)
+        let rowsHeight: CGFloat = rowCount * KeyboardWordsLayout.cellHeight + (rowCount - 1) * KeyboardWordsLayout.gap
+        let height: CGFloat = rowsHeight * estimatedScale + Self.padding * 2
         GeometryReader { geo in
-            let inner = geo.size.width - Self.padding * 2
-            let scale = inner / gridWidth
-            let gap = KeyboardWordsLayout.gap * scale
-            let column = KeyboardWordsLayout.columnWidth(gridWidth: gridWidth) * scale
+            let inner: CGFloat = geo.size.width - Self.padding * 2
+            let scale: CGFloat = inner / gridWidth
+            let gap: CGFloat = KeyboardWordsLayout.gap * scale
+            let column: CGFloat = KeyboardWordsLayout.columnWidth(gridWidth: gridWidth) * scale
             VStack(alignment: .leading, spacing: gap) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     HStack(spacing: gap) {
                         ForEach(row, id: \.self) { cell in
-                            Text(cell.text)
-                                .font(.system(size: KeyboardWordsLayout.fontSize * scale))
-                                .lineLimit(1)
-                                .padding(.horizontal, KeyboardWordsLayout.textPadding * scale)
-                                .frame(width: column * CGFloat(cell.span) + gap * CGFloat(cell.span - 1),
-                                       height: KeyboardWordsLayout.cellHeight * scale, alignment: .leading)
-                                .background(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous).fill(Color(.systemBackground)))
+                            PreviewCell(text: cell.text, span: cell.span, column: column, gap: gap, scale: scale)
                         }
                     }
                 }
@@ -422,6 +419,27 @@ private struct KeyboardWordsPreview: View {
             trait.userInterfaceStyle == .dark ? UIColor(white: 0.18, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1)
         })))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// 预览里的一格，按缩放比例画。
+private struct PreviewCell: View {
+    let text: String
+    let span: Int
+    let column: CGFloat
+    let gap: CGFloat
+    let scale: CGFloat
+
+    var body: some View {
+        let spans = CGFloat(span)
+        let width: CGFloat = column * spans + gap * (spans - 1)
+        let height: CGFloat = KeyboardWordsLayout.cellHeight * scale
+        return Text(text)
+            .font(.system(size: KeyboardWordsLayout.fontSize * scale))
+            .lineLimit(1)
+            .padding(.horizontal, KeyboardWordsLayout.textPadding * scale)
+            .frame(width: width, height: height, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous).fill(Color(.systemBackground)))
     }
 }
 
