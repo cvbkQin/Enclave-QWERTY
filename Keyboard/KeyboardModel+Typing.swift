@@ -304,9 +304,9 @@ extension KeyboardModel {
         if keysPanel == .emoji { RecentEmoji.add(text) }
     }
 
-    /// 「常用」面板里的词：App 里放到键盘的，按用户排的顺序；系统来源的词关了开关就不显示。
+    /// 「常用」面板里的词句：App 里的键盘常用语，按用户排的顺序。
     var quickWords: [String] {
-        CommonWordStore.keyboardTexts.filter { commonWordTexts.contains($0) }
+        CommonWordStore.keyboardTexts
     }
 
     /// 「常用」面板里点了一个：上屏，回到九宫格。

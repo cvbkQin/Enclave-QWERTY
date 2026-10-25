@@ -32,7 +32,7 @@ struct HomeView: View {
                 switch page {
                 case .keyboard: KeyboardSettingsView()
                 case .commonWords: CommonWordsView()
-                case .keyboardWords: CommonWordsView(tab: .keyboard)
+                case .keyboardWords: KeyboardPhrasesView()
                 case .lab: LabView()
                 case .scene(let index): SceneView(index: index)
                 }
@@ -95,6 +95,7 @@ private struct Dashboard: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
     @StateObject private var words = CommonWordsModel()
+    @StateObject private var phrases = KeyboardPhrasesModel()
 
     var body: some View {
         if !SharedStorage.isShared { SharedConfigBanner() }
@@ -108,8 +109,11 @@ private struct Dashboard: View {
             ConfigCard(icon: "text.book.closed", color: .green, label: L("常用词", "My Words", "ユーザ辞書"), value: L("\(words.all.count) 个", "\(words.all.count)", "\(words.all.count) 語"),
                        detail: wordsDetail, dot: nil) { router.openHome(.commonWords) }
         }
-        KeyboardWordsRow(words: words.keyboardWords.map(\.text)) { router.openHome(.keyboardWords) }
-            .onAppear { words.reload() }
+        KeyboardWordsRow(words: phrases.phrases) { router.openHome(.keyboardWords) }
+            .onAppear {
+                words.reload()
+                phrases.reload()
+            }
         sectionTitle(L("小技巧", "Tips", "ヒント"))
         VStack(alignment: .leading, spacing: 8) {
             Text(L("· 选中一段文字再点润色，只改选中的部分", "· Select some text before tapping Polish to change only that part", "· 文章の一部を選択してから「整える」で、その部分だけ直せます"))
@@ -206,7 +210,7 @@ private struct ModelRow: View {
     }
 }
 
-/// 首页「键盘常用词」整行（W11）：橙色星标、个数，右边预览前两个词，点进常用词页的「键盘」标签。
+/// 首页「键盘常用语」整行（W11）：橙色星标、条数，右边预览前两条，点进键盘常用语页。
 private struct KeyboardWordsRow: View {
     var words: [String]
     var action: () -> Void
@@ -216,8 +220,8 @@ private struct KeyboardWordsRow: View {
             HStack(spacing: 12) {
                 RowIcon(systemName: "star.fill", color: AppColor.keyboardStar, size: 26)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(L("键盘常用词", "Keyboard Words", "キーボードの単語")).font(.system(size: 13)).foregroundStyle(.secondary)
-                    Text(L("\(words.count) 个", "\(words.count)", "\(words.count) 語")).font(.system(size: 17, weight: .bold))
+                    Text(L("键盘常用语", "Keyboard Phrases", "キーボードの定型文")).font(.system(size: 13)).foregroundStyle(.secondary)
+                    Text(L("\(words.count) 条", "\(words.count)", "\(words.count) 件")).font(.system(size: 17, weight: .bold))
                 }
                 .fixedSize()
                 Spacer(minLength: 8)

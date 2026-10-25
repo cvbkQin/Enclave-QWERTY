@@ -22,7 +22,7 @@ struct EnclaveApp: App {
                                   shortcut: parts.count > 1 ? parts[1] : "")
             })
         }
-        // -keyboardWords "张三丰,me@example.com" 放到键盘「常用」面板（词要已经在常用词里）。
+        // -keyboardWords "张三丰,me@example.com" 写进键盘常用语。
         if let index = args.firstIndex(of: "-keyboardWords"), args.indices.contains(index + 1) {
             CommonWordStore.keyboardTexts = args[index + 1].split(separator: ",").map(String.init)
         }

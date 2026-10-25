@@ -63,7 +63,7 @@ enum CommonWordStore {
         set { SharedStorage.defaults.set(newValue, forKey: contactsKey) }
     }
 
-    /// 放到键盘「常用」面板里的词，按用户排的顺序。存的是词本身：系统来源的词每次读都是新的 id。
+    /// 键盘常用语：九宫格「常用」面板里点着输入的词句，按用户排的顺序。和常用词分开，不用拼音。
     static var keyboardTexts: [String] {
         get { SharedStorage.defaults.stringArray(forKey: keyboardKey) ?? [] }
         set { SharedStorage.defaults.set(newValue, forKey: keyboardKey) }
