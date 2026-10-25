@@ -535,6 +535,11 @@ private struct InfoRow: View {
 private struct TestFlightTools: View {
     @ObservedObject var unlock: UnlockStore
 
+    private var isExpired: Bool {
+        if case .expired = unlock.access { return true }
+        return false
+    }
+
     private var options: [(value: String?, title: String)] {
         [(nil, L("真实状态", "Actual", "実際の状態")),
          ("days:14", L("试用中", "Trial", "体験中")),
@@ -564,18 +569,22 @@ private struct TestFlightTools: View {
                     }
                     .buttonStyle(.plain)
                     Divider().padding(.leading, 14)
+                        .opacity(isExpired || option.value != "unlocked" ? 1 : 0)
                 }
-                Button { unlock.resetUsesToday() } label: {
-                    HStack {
-                        Text(L("今天的次数清零（现在剩 \(AIAccess.usesLeftToday) 次）", "Reset today's uses (\(AIAccess.usesLeftToday) left)", "今日の回数をリセット（残り \(AIAccess.usesLeftToday) 回）"))
-                            .foregroundStyle(AppColor.purple)
-                        Spacer()
+                // 次数只在试用结束后才算。
+                if isExpired {
+                    Button { unlock.resetUsesToday() } label: {
+                        HStack {
+                            Text(L("今天的次数清零（现在剩 \(AIAccess.usesLeftToday) 次）", "Reset today's uses (\(AIAccess.usesLeftToday) left)", "今日の回数をリセット（残り \(AIAccess.usesLeftToday) 回）"))
+                                .foregroundStyle(AppColor.purple)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(height: 44)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.horizontal, 14)
-                    .frame(height: 44)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
             Text(L("模拟的状态只影响这台手机上的 App 和键盘，不会真的购买。选「真实状态」回到 App Store 的记录。",
