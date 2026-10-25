@@ -1,4 +1,4 @@
-import Foundation
+import UIKit
 
 struct StylePreset: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
@@ -36,6 +36,29 @@ enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     var shortTitle: String { self == .qwerty ? L("全键盘", "QWERTY", "QWERTY") : L("九宫格", "10-key", "10キー") }
 }
 
+/// 日间 / 夜间：跟随 iPhone，或者固定浅色、深色。App 和键盘都按这个画。
+enum Appearance: String, Codable, CaseIterable, Identifiable {
+    case system, light, dark
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: return L("跟随系统", "Automatic", "自動")
+        case .light: return L("浅色", "Light", "ライト")
+        case .dark: return L("深色", "Dark", "ダーク")
+        }
+    }
+
+    var style: UIUserInterfaceStyle {
+        switch self {
+        case .system: return .unspecified
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 struct EnclaveSettings: Codable, Equatable {
     /// OpenAI 兼容接口的 base URL，例如 https://api.deepseek.com/v1 或 http://100.x.x.x:11434/v1
     var baseURL: String = ""
@@ -55,10 +78,11 @@ struct EnclaveSettings: Codable, Equatable {
     var polishAnimation: Bool = true
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
+    var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
-        case keyboardLayout, keyHaptics, keySound, polishAnimation, fuzzyPinyin
+        case keyboardLayout, keyHaptics, keySound, polishAnimation, fuzzyPinyin, appearance
     }
 
     var isConfigured: Bool {
@@ -93,6 +117,7 @@ extension EnclaveSettings {
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
         polishAnimation = try c.decodeIfPresent(Bool.self, forKey: .polishAnimation) ?? polishAnimation
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
+        appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }
 

@@ -70,12 +70,22 @@ struct EnclaveApp: App {
 /// 底部三个标签：首页、风格、设置。
 struct RootView: View {
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var store: AppStore
 
     var body: some View {
         tabs
             // 语言变了整棵视图按新语言重画；页面路径存在 router 里，不会回到首页。
             .id(router.language)
             .environment(\.locale, Loc.locale)
+            .onAppear { applyAppearance(store.settings.appearance) }
+            .onChange(of: store.settings.appearance) { applyAppearance($0) }
+    }
+
+    /// 日间 / 夜间设在窗口上，弹出的页面和系统控件跟着一起变；选回「跟随系统」也能马上还原。
+    private func applyAppearance(_ appearance: Appearance) {
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            for window in scene.windows { window.overrideUserInterfaceStyle = appearance.style }
+        }
     }
 
     private var tabs: some View {

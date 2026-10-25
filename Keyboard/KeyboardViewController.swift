@@ -41,8 +41,20 @@ final class KeyboardViewController: UIInputViewController {
         // 其余会影响高度的变化（比如配置好接口后卡片变矮）在下一轮补上。
         model.objectWillChange
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateHeight() }
+            .sink { [weak self] _ in
+                self?.updateHeight()
+                self?.updateAppearance()
+            }
             .store(in: &cancellables)
+        updateAppearance()
+    }
+
+    /// App 里选了固定浅色或深色时，键盘不跟输入框的深浅走。系统的键盘底色改不了，自己铺一层底色。
+    private func updateAppearance() {
+        let style = model.settings.appearance.style
+        guard view.overrideUserInterfaceStyle != style else { return }
+        view.overrideUserInterfaceStyle = style
+        view.backgroundColor = style == .unspecified ? nil : KeyStyle.keyboardBackground
     }
 
     private func updateHeight() {
