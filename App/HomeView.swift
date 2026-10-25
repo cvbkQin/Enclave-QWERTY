@@ -59,9 +59,9 @@ private struct TrialBanner: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L("试用还剩 \(days) 天", "\(days) days left in your free trial", "無料体験は残り \(days) 日"))
                         .font(.system(size: 15, weight: .semibold))
-                    Text(L("到期后 AI 每天限 \(AIAccess.dailyFreeUses) 次，打字免费",
-                           "After that, AI is limited to \(AIAccess.dailyFreeUses) a day. Typing stays free",
-                           "終了後の AI は 1 日 \(AIAccess.dailyFreeUses) 回まで。入力は無料です"))
+                    Text(L("之后每天免费 \(AIAccess.dailyFreeUses) 次，解锁不限次数",
+                           "Then \(AIAccess.dailyFreeUses) free a day, or unlock for unlimited",
+                           "その後は 1 日 \(AIAccess.dailyFreeUses) 回無料、購入で無制限"))
                         .font(.system(size: 12.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

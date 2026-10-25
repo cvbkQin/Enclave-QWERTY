@@ -128,7 +128,16 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen, gate: gate)
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen, gate: gate,
+                               reminder: showsTrialReminder)
+    }
+
+    /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
+    @Published private(set) var trialReminder = false { didSet { heightMayChange?() } }
+    var showsTrialReminder: Bool { trialReminder && gate == nil && !aiExpanded && !styleMenuOpen }
+
+    func dismissTrialReminder() {
+        trialReminder = false
     }
 
     func reload() {
@@ -138,6 +147,10 @@ final class KeyboardModel: ObservableObject {
         instructionCaret = instruction.count
         hasFullAccess = controller?.hasFullAccess ?? false
         if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
+        if hasFullAccess && settings.isConfigured && AIAccess.reminderDueToday {
+            trialReminder = true
+            AIAccess.markReminderShown()
+        }
         refreshHostState()
         selectEngine()
         refreshCommonWords()

@@ -32,6 +32,12 @@ struct KeyboardView: View {
                     .padding(.horizontal, inset)
                     .padding(.top, model.aiExpanded ? KeyboardMetrics.panelSpacing : KeyboardMetrics.panelTop)
             }
+            if model.showsTrialReminder {
+                TrialReminderStrip(model: model)
+                    .frame(height: KeyboardMetrics.trialReminderHeight)
+                    .padding(.horizontal, inset)
+                    .padding(.top, KeyboardMetrics.panelTop)
+            }
             Group {
                 if model.isComposing {
                     candidateBar
@@ -216,6 +222,23 @@ struct PolishButton: View {
                         .background(Circle().fill(Brand.lockFill))
                         .overlay(Circle().strokeBorder(Brand.lockRing, lineWidth: 2))
                         .offset(x: 72, y: -4)
+                        .accessibilityLabel(model.aiQuotaUsed
+                            ? L("今天的免费次数用完了", "No free uses left today", "今日の無料分は終了")
+                            : L("需要允许完全访问", "Needs Allow Full Access", "フルアクセスの許可が必要"))
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                // 试用结束、今天还有免费次数：右上角显示剩几次（K4）。
+                if let left = freeUsesLeft {
+                    Text("\(left)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255))
+                        .padding(.horizontal, 6)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(Capsule().fill(Color.white))
+                        .overlay(Capsule().strokeBorder(Brand.lockRing, lineWidth: 2))
+                        .offset(x: 6, y: -7)
+                        .accessibilityLabel(L("今天还剩 \(left) 次", "\(left) free uses left today", "今日あと \(left) 回"))
                 }
             }
         }
@@ -224,6 +247,13 @@ struct PolishButton: View {
         .onChange(of: model.finished) { finished in
             if finished?.origin == .polish { doneAt = finished?.at }
         }
+    }
+
+    /// 试用结束、今天还有次数时的剩余次数；试用中、已购买、用完时为 nil。
+    private var freeUsesLeft: Int? {
+        guard model.hasFullAccess, !model.debugUnblocked, case .expired = AIAccess.current else { return nil }
+        let left = AIAccess.usesLeftToday
+        return left > 0 ? left : nil
     }
 
     private var fill: Color {
@@ -613,25 +643,31 @@ struct GateCard: View {
         }
     }
 
-    /// 试用结束后今天的免费次数用完：打字照常，明天再有，或去 App 里解锁。
+    /// 试用结束后今天的免费次数用完（K2）：打字照常，明天 0 点恢复，或去 App 里买断。
     @ViewBuilder
     private var quotaUsed: some View {
+        let uses = AIAccess.dailyFreeUses
         HStack(spacing: 7) {
             Image(systemName: "lock.fill")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(Brand.deepPurple)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(Brand.returnSoftFill))
-            Text("今天的 \(AIAccess.dailyFreeUses) 次用完了").font(.system(size: 14, weight: .semibold))
+            Text(L("今天的 \(uses) 次用完了", "You’ve used today’s \(uses) free uses", "今日の無料分（\(uses) 回）を使い切りました"))
+                .font(.system(size: 14, weight: .semibold))
         }
-        Text("14 天试用已结束，明天还能用 \(AIAccess.dailyFreeUses) 次。一次买断后不限次数，打字一直免费。")
+        Text(L("试用结束后每天可以免费用 \(uses) 次，明天 0 点恢复。在 Enclave App 里一次买断，就不限次数。打字、拼音、常用词一直免费。",
+               "After the trial you get \(uses) free uses a day, reset at midnight. Unlock once in the Enclave app for unlimited use. Typing, pinyin and My Words are always free.",
+               "無料体験のあとも 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。Enclave アプリで購入すると回数無制限に。入力・ピンイン・ユーザ辞書はずっと無料です。"))
             .font(.system(size: 13))
             .foregroundStyle(Brand.cardBody)
             .fixedSize(horizontal: false, vertical: true)
         VStack(alignment: .leading, spacing: 3) {
-            Text("在 App 里解锁").font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
-            (Text("打开 Enclave").foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
-                + Text("设置").foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
+            Text(L("在 App 里解锁", "Unlock in the app", "アプリで購入")).font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            (Text(L("打开 Enclave", "Open Enclave", "Enclave を開く")).foregroundColor(Brand.cardBody)
+                + Text(" › ").foregroundColor(Brand.pathSeparator)
+                + Text(L("设置", "Settings", "設定")).foregroundColor(Brand.cardBody)
+                + Text(" › ").foregroundColor(Brand.pathSeparator)
                 + Text("Enclave AI").fontWeight(.semibold).foregroundColor(Brand.deepPurple))
                 .font(.system(size: 13))
         }
@@ -641,17 +677,13 @@ struct GateCard: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
         Spacer(minLength: 0)
         HStack(spacing: 8) {
-            Text("买过了？在 App 里点恢复购买")
+            Text(L("买过了？在 App 里点「恢复购买」", "Already bought? Tap Restore Purchases in the app", "購入済みの場合はアプリで「購入を復元」"))
                 .font(.system(size: 12))
                 .foregroundStyle(Brand.disabledText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 4)
-            GateButton(title: "知道了", primary: false) { model.dismissGate() }
-            GateButton(title: "去解锁", primary: true) {
-                model.dismissGate()
-                model.openContainingApp("enclave://unlock")
-            }
+            GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
         }
     }
 
@@ -701,6 +733,46 @@ struct GateCard: View {
             GateButton(title: "取消", primary: false) { model.dismissGate() }
             GateButton(title: "同意并润色", primary: true) { model.acceptConsent() }
         }
+    }
+}
+
+/// 试用最后 3 天 AI 栏上方的白条（K3）：一句提示 + ✕，每天最多出现一次。
+struct TrialReminderStrip: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "clock")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Brand.deepPurple)
+            Text(text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Brand.cardBody)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            Button { model.dismissTrialReminder() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Brand.disabledText)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(L("关闭", "Close", "閉じる"))
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .frame(maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.panelFill))
+    }
+
+    private var text: String {
+        let days: Int
+        if case .trial(let left, _) = AIAccess.current { days = left } else { days = 0 }
+        let uses = AIAccess.dailyFreeUses
+        return L("AI 试用还剩 \(days) 天，之后每天免费 \(uses) 次", "\(days) days left in your trial, then \(uses) free uses a day",
+                 "無料体験は残り \(days) 日。その後は 1 日 \(uses) 回まで無料")
     }
 }
 

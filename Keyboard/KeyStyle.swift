@@ -39,6 +39,8 @@ enum KeyboardMetrics {
     static let actionRow: CGFloat = 34
     /// 「正式▾」浮层：风格行 + 要求行，底下一个小尖角指向按钮。
     static let menuHeight: CGFloat = 94
+    /// 试用最后 3 天的提示条（K3）。
+    static let trialReminderHeight: CGFloat = 34
     static let panelSpacing: CGFloat = 5
     static let panelTop: CGFloat = 6
     static let sidePadding: CGFloat = 3.7
@@ -48,15 +50,17 @@ enum KeyboardMetrics {
         switch gate {
         case .fullAccess: return 188
         case .consent(_, let previous): return previous == nil ? 178 : 196
-        case .quotaUsed: return 178
+        case .quotaUsed: return 196
         }
     }
 
     /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加一块。
     /// 提示卡出现时只留它一块，不和结果卡片、风格菜单叠在一起。
-    static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool, gate: KeyboardModel.AIGate? = nil) -> CGFloat {
+    static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool, gate: KeyboardModel.AIGate? = nil,
+                       reminder: Bool = false) -> CGFloat {
         var height = topRow + keysHeight
         if let gate { return height + panelTop + gateHeight(gate) }
+        if reminder { height += panelTop + trialReminderHeight }
         if expanded {
             height += panelTop + (cardExpanded ? expandedCardHeight : cardHeight) + panelSpacing + actionRow
         }

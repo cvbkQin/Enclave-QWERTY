@@ -29,9 +29,11 @@ struct EnclaveAIRow: View {
         case .trial(_, let ends):
             return L("\(Loc.monthDay(ends)) 结束", "Ends \(Loc.monthDay(ends))", "\(Loc.monthDay(ends))に終了")
         case .expired:
-            return L("今天已用 \(AIAccess.usesToday) / \(AIAccess.dailyFreeUses) 次",
-                     "\(AIAccess.usesToday) of \(AIAccess.dailyFreeUses) used today",
-                     "今日 \(AIAccess.usesToday) / \(AIAccess.dailyFreeUses) 回使用")
+            let uses = AIAccess.dailyFreeUses
+            return AIAccess.usesLeftToday > 0
+                ? L("试用已结束 · 每天免费 \(uses) 次", "Trial ended · \(uses) free a day", "無料体験終了 · 1 日 \(uses) 回無料")
+                : L("明天 0 点恢复 \(uses) 次 · 解锁不限次数", "\(uses) more at midnight · unlock for unlimited",
+                    "0 時に \(uses) 回に戻ります · 購入で無制限")
         case .unlocked:
             return L("一次买断 · 不限次数", "One-time purchase · No limits", "買い切り・回数制限なし")
         }
@@ -42,7 +44,11 @@ struct EnclaveAIRow: View {
         case .trial(let days, _):
             return (L("试用剩余 \(days) 天", "\(days) days left", "残り \(days) 日"),
                     Color(hex: unlock.access.isEndingSoon ? 0xC93400 : 0x5B4BE8))
-        case .expired: return (L("试用已结束", "Trial ended", "無料体験が終了"), Color(hex: 0xD70015))
+        case .expired:
+            let left = AIAccess.usesLeftToday
+            return left > 0
+                ? (L("今天剩 \(left) 次", "\(left) left today", "今日あと \(left) 回"), Color(hex: 0xC93400))
+                : (L("今天已用完", "None left today", "今日の分は終了"), Color(hex: 0xD70015))
         case .unlocked: return (L("已解锁", "Unlocked", "購入済み"), Color(hex: 0x248A3D))
         }
     }

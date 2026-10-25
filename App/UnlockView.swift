@@ -120,7 +120,7 @@ struct UnlockView: View {
 
     private func featureList(unlocked: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(unlocked ? L("已解锁", "Unlocked", "購入済み") : L("解锁后可以用", "What you get", "購入すると使える機能"))
+            Text(unlocked ? L("已解锁", "Unlocked", "購入済み") : L("解锁后不限次数", "Unlimited after unlock", "購入で回数無制限"))
                 .font(.system(size: 17, weight: .semibold))
             VStack(spacing: 0) {
                 ForEach(Array(Self.features.enumerated()), id: \.offset) { index, feature in
@@ -152,9 +152,8 @@ struct UnlockView: View {
             }
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
             if !unlocked {
-                Text(L("打字、拼音、常用词一直免费，不受试用影响。试用结束后 AI 每天还能用 \(AIAccess.dailyFreeUses) 次。",
-                       "Typing, pinyin and My Words stay free. After the trial, AI works \(AIAccess.dailyFreeUses) times a day.",
-                       "入力、ピンイン、ユーザ辞書はずっと無料です。無料体験の終了後も AI は 1 日 \(AIAccess.dailyFreeUses) 回まで使えます。"))
+                Text(L("打字、拼音、常用词一直免费，不受试用影响", "Typing, pinyin and My Words are always free",
+                       "入力・ピンイン・ユーザ辞書はずっと無料です"))
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
@@ -253,6 +252,21 @@ struct UnlockHeroCard: View {
         return false
     }
 
+    private var subtitle: String {
+        let uses = AIAccess.dailyFreeUses
+        switch access {
+        case .unlocked:
+            return L("谢谢支持。AI 功能一直能用，模型随你换。", "Thanks for your support. AI features are yours to keep, with any model.",
+                     "ご購入ありがとうございます。AI 機能はずっと使え、モデルも自由に変えられます。")
+        case .expired:
+            return L("试用结束后每天免费用 \(uses) 次。一次买断，不限次数。", "After the trial: \(uses) free uses a day. Pay once for unlimited.",
+                     "無料体験のあとも 1 日 \(uses) 回まで無料。買い切りで回数無制限。")
+        case .trial:
+            return L("接上你自己的模型润色。一次买断，没有订阅。", "Polish with your own model. One-time purchase, no subscription.",
+                     "自分のモデルで文章を整えます。買い切りで、サブスクはありません。")
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: "sparkles")
@@ -269,10 +283,7 @@ struct UnlockHeroCard: View {
                           : L("解锁 AI 润色", "Unlock AI Polish", "AI 機能のロックを解除"))
                 .font(.system(size: 23, weight: .bold))
                 .foregroundStyle(.white)
-            Text(unlocked ? L("谢谢支持。AI 功能一直能用，模型随你换。", "Thanks for your support. AI features are yours to keep, with any model.",
-                              "ご購入ありがとうございます。AI 機能はずっと使え、モデルも自由に変えられます。")
-                          : L("接上你自己的模型润色。一次买断，没有订阅。", "Polish with your own model. One-time purchase, no subscription.",
-                              "自分のモデルで文章を整えます。買い切りで、サブスクはありません。"))
+            Text(subtitle)
                 .font(.system(size: 14.5))
                 .foregroundStyle(Color(hex: 0xDCD8FF))
                 .fixedSize(horizontal: false, vertical: true)
@@ -310,12 +321,12 @@ struct UnlockHeroCard: View {
                                    "Free trial · \(days) days left · Ends \(Loc.monthDay(ends))",
                                    "無料体験 残り \(days) 日・\(Loc.monthDay(ends))に終了"),
                         Color(hex: 0xE4E0FF), .white.opacity(0.14))
-            case .expired(let ended):
+            case .expired:
                 let left = AIAccess.usesLeftToday
-                return ("lock.fill", L("试用已在 \(Loc.monthDay(ended)) 结束 · 今天还能用 \(left) 次",
-                                       "Trial ended \(Loc.monthDay(ended)) · \(left) uses left today",
-                                       "\(Loc.monthDay(ended))に無料体験が終了・今日はあと \(left) 回"),
-                        Color(hex: 0xFFD3CF), .white.opacity(0.14))
+                let text = left > 0
+                    ? L("试用已结束 · 今天还能用 \(left) 次", "Trial ended · \(left) free uses left today", "無料体験終了 · 今日あと \(left) 回")
+                    : L("试用已结束 · 今天已用完", "Trial ended · none left today", "無料体験終了 · 今日の分は終了")
+                return ("lock.fill", text, Color(hex: 0xFFD3CF), .white.opacity(0.14))
             case .unlocked:
                 return ("checkmark", L("已解锁", "Unlocked", "購入済み"), Color(hex: 0xB7F5C8),
                         Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255).opacity(0.22))
