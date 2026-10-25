@@ -6,7 +6,7 @@
 
 ## 引言
 
-Enclave（以下简称“本应用”）由 ［开发者名称］（以下简称“我们”）提供。我们重视您的个人信息和隐私保护。本政策说明本应用在您使用过程中如何处理相关信息，以及您享有的权利。
+Enclave（以下简称“本应用”）由 gengyun qin（以下简称“我们”）提供。我们重视您的个人信息和隐私保护。本政策说明本应用在您使用过程中如何处理相关信息，以及您享有的权利。
 
 本政策适用于 Enclave 应用及其附带的键盘扩展。请您在使用本应用前仔细阅读并充分理解本政策。
 
@@ -90,7 +90,7 @@ Effective date: October 25, 2026
 
 ## Introduction
 
-Enclave (the "App") is provided by ［开发者名称］ ("we", "us"). This Privacy Policy explains how information is handled when you use the App and its keyboard extension, and describes your rights.
+Enclave (the "App") is provided by gengyun qin ("we", "us"). This Privacy Policy explains how information is handled when you use the App and its keyboard extension, and describes your rights.
 
 ## 1. Information We Collect
 
@@ -168,7 +168,7 @@ We will respond within 15 business days.
 
 ## はじめに
 
-Enclave（以下「本アプリ」）は ［开发者名称］（以下「当方」）が提供します。本ポリシーは、本アプリおよび付属のキーボード拡張をご利用いただく際の情報の取り扱いと、お客様の権利について説明するものです。
+Enclave（以下「本アプリ」）は gengyun qin（以下「当方」）が提供します。本ポリシーは、本アプリおよび付属のキーボード拡張をご利用いただく際の情報の取り扱いと、お客様の権利について説明するものです。
 
 ## 1. 収集する情報
 
