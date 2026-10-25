@@ -6,7 +6,7 @@
 
 ## 引言
 
-Enclave（以下简称“本应用”）由 gengyun qin（以下简称“我们”）提供。我们重视您的个人信息和隐私保护。本政策说明本应用在您使用过程中如何处理相关信息，以及您享有的权利。
+Enclave（以下简称“本应用”）由 Gengyun Qin（以下简称“我们”）提供。我们重视您的个人信息和隐私保护。本政策说明本应用在您使用过程中如何处理相关信息，以及您享有的权利。
 
 本政策适用于 Enclave 应用及其附带的键盘扩展。请您在使用本应用前仔细阅读并充分理解本政策。
 
@@ -78,7 +78,7 @@ AI 润色功能所使用的模型服务由您自行选择和配置。您与该�
 
 如您对本政策有任何疑问、意见或建议，可通过以下方式与我们联系：
 
-电子邮箱：［联系邮箱］
+电子邮箱：cvbk.qin@gmail.com
 
 我们将在收到您的反馈后 15 个工作日内予以答复。
 
@@ -90,7 +90,7 @@ Effective date: October 25, 2026
 
 ## Introduction
 
-Enclave (the "App") is provided by gengyun qin ("we", "us"). This Privacy Policy explains how information is handled when you use the App and its keyboard extension, and describes your rights.
+Enclave (the "App") is provided by Gengyun Qin ("we", "us"). This Privacy Policy explains how information is handled when you use the App and its keyboard extension, and describes your rights.
 
 ## 1. Information We Collect
 
@@ -156,7 +156,7 @@ We may update this Privacy Policy from time to time. Updates will be published i
 
 ## 9. Contact Us
 
-Email: ［联系邮箱］
+Email: cvbk.qin@gmail.com
 
 We will respond within 15 business days.
 
@@ -168,7 +168,7 @@ We will respond within 15 business days.
 
 ## はじめに
 
-Enclave（以下「本アプリ」）は gengyun qin（以下「当方」）が提供します。本ポリシーは、本アプリおよび付属のキーボード拡張をご利用いただく際の情報の取り扱いと、お客様の権利について説明するものです。
+Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が提供します。本ポリシーは、本アプリおよび付属のキーボード拡張をご利用いただく際の情報の取り扱いと、お客様の権利について説明するものです。
 
 ## 1. 収集する情報
 
@@ -234,6 +234,6 @@ Enclave（以下「本アプリ」）は gengyun qin（以下「当方」）が�
 
 ## 9. お問い合わせ
 
-メール：［联系邮箱］
+メール：cvbk.qin@gmail.com
 
 お問い合わせには 15 営業日以内に回答します。

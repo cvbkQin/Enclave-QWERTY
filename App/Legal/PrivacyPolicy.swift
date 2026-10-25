@@ -247,6 +247,6 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 /// 上架前填写：App Store 上显示的开发者名称、对外联系邮箱。
 enum LegalInfo {
-    static let developer = "gengyun qin"
-    static let email = "［联系邮箱］"
+    static let developer = "Gengyun Qin"
+    static let email = "cvbk.qin@gmail.com"
 }
