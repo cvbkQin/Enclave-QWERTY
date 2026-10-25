@@ -11,7 +11,9 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         let host = UIHostingController(rootView: KeyboardView(model: model))
-        host.view.backgroundColor = .clear
+        // 不能完全透明：完全透明的地方系统不把触摸交给键盘（键之间的缝、候选词之间、箭头四周点了没反应），
+        // 几乎透明就算键盘的，再由触摸层判给最近的键。看起来和透明一样。
+        host.view.backgroundColor = UIColor(white: 0, alpha: 0.001)
         // 键盘区域不需要安全区留白，否则预览区内容会被额外内边距推开。
         if #available(iOS 16.4, *) {
             host.safeAreaRegions = []
@@ -74,6 +76,7 @@ final class KeyboardViewController: UIInputViewController {
         model.hostKeyboardType = nil
         model.reload()
         model.applyDebugState()
+        TouchCalibration.reload()
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -83,6 +86,12 @@ final class KeyboardViewController: UIInputViewController {
         model.pressedKeys = []
         model.trackpadActive = false
         TypingStats.flush()
+        TouchCalibration.flush()
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        model.noteMemoryWarning()
     }
 
     override func viewWillLayoutSubviews() {

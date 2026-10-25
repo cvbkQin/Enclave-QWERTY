@@ -376,6 +376,7 @@ struct KeyboardSettingsView: View {
                     }
                 }
             }
+            TouchCalibrationSection()
             Section(L("按键反馈", "Key feedback", "キーのフィードバック")) {
                 Toggle(L("按键震动", "Haptics", "触覚"), isOn: $store.settings.keyHaptics)
                 Toggle(isOn: $store.settings.keySound) {
@@ -553,6 +554,8 @@ struct PinyinView: View {
     @ObservedObject private var deployer = RimeDeployer.shared
     @State private var size: Int64?
     @State private var typingStats: TypingStats.Summary?
+    @ObservedObject private var grammar = GrammarDownloader.shared
+    @State private var confirmDeleteGrammar = false
 
     var body: some View {
         Form {
@@ -589,12 +592,22 @@ struct PinyinView: View {
             } footer: {
                 Text(L("词库在本机编译，第一次打开 App 时自动部署，大约一分钟，期间不要退出 App。词库出错或更新后再点重新部署。键盘需要打开「允许完全访问」才能读到词库。", "The dictionary is built on this iPhone the first time you open the app, in about a minute. Keep the app open meanwhile. Reinstall if it has problems or after an update. The keyboard needs Allow Full Access to read it.", "辞書は初回起動時にこの iPhone 上で作成されます（約 1 分）。その間アプリを閉じないでください。不具合や更新のあとは再インストールしてください。キーボードが辞書を読むには「フルアクセスを許可」が必要です。"))
             }
+            grammarSection
             if let stats = typingStats {
                 Section {
                     LabeledContent(L("一般", "Typical", "通常"), value: Self.milliseconds(stats.medianTotal))
                     LabeledContent(L("较慢的 10%", "Slowest 10%", "遅い 10%"), value: Self.milliseconds(stats.slowTotal))
                     LabeledContent(L("最慢", "Slowest", "最も遅い"), value: Self.milliseconds(stats.slowestTotal))
                     LabeledContent(L("其中拼音引擎", "Of which pinyin engine", "うちピンインエンジン"), value: Self.milliseconds(stats.medianEngine))
+                    if let memory = stats.memory {
+                        LabeledContent(L("键盘内存", "Keyboard memory", "キーボードのメモリ"), value: Self.megabytes(memory))
+                    }
+                    if let memory = stats.memoryWithModel {
+                        LabeledContent(L("键盘内存（整句模型）", "Keyboard memory (sentence model)", "キーボードのメモリ（文章モデル）"), value: Self.megabytes(memory))
+                    }
+                    if stats.memoryWarnings > 0 {
+                        LabeledContent(L("内存警告", "Memory warnings", "メモリ警告"), value: "\(stats.memoryWarnings)")
+                    }
                     Button(L("清空记录", "Clear", "記録を消去")) {
                         TypingStats.clear()
                         typingStats = nil
@@ -602,7 +615,7 @@ struct PinyinView: View {
                 } header: {
                     Text(L("打字速度", "Typing speed", "入力の速さ"))
                 } footer: {
-                    Text(L("最近 \(stats.count) 个拼音按键，从按下到候选出来用的时间。一般在 30 毫秒以内就感觉不到卡。", "The last \(stats.count) pinyin keys, from tap to candidates shown. Under about 30 ms feels instant.", "直近 \(stats.count) 回のピンイン入力で、タップから候補が出るまでの時間です。30 ミリ秒以内ならほぼ遅れを感じません。"))
+                    Text(L("最近 \(stats.count) 个拼音按键，从按下到候选出来用的时间。一般在 30 毫秒以内就感觉不到卡。键盘内存是一般 / 最高，键盘扩展能用的内存有限，太高会被系统关掉。", "The last \(stats.count) pinyin keys, from tap to candidates shown. Under about 30 ms feels instant. Keyboard memory is typical / peak; keyboards get limited memory and are closed by the system if they use too much.", "直近 \(stats.count) 回のピンイン入力で、タップから候補が出るまでの時間です。30 ミリ秒以内ならほぼ遅れを感じません。キーボードのメモリは通常 / 最大です。使いすぎるとシステムに閉じられます。"))
                 }
             }
         }
@@ -612,6 +625,68 @@ struct PinyinView: View {
             size = await Task.detached { RimeDeployer.diskSize() }.value
         }
         .onAppear { typingStats = TypingStats.summary }
+    }
+
+    /// 整句模型：下载后整句首选更准。
+    private var grammarSection: some View {
+        Section {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L("整句模型", "Sentence model", "文章モデル"))
+                    Text(grammarDetail).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if case .downloading = grammar.state {
+                    Button(L("取消", "Cancel", "キャンセル")) { grammar.cancel() }
+                } else if grammar.installed {
+                    Button(L("删除", "Delete", "削除"), role: .destructive) { confirmDeleteGrammar = true }
+                        .disabled(deployer.state == .deploying)
+                } else {
+                    Button(L("下载", "Download", "ダウンロード")) { grammar.download() }
+                        .disabled(deployer.state == .deploying)
+                }
+            }
+            if case .downloading(let received, let expected) = grammar.state {
+                ProgressView(value: Double(received), total: Double(max(expected, 1)))
+            }
+            if grammar.installed {
+                // 关掉时模型留着，随时再打开，方便对比。切换后重新部署词库。
+                Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
+                       isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
+                    .disabled(deployer.state == .deploying)
+            }
+            if case .failed(let message) = grammar.state {
+                Text(message).font(.footnote).foregroundStyle(.red)
+            }
+        } footer: {
+            Text(L("万象语法模型，CC BY 4.0。按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。约 380MB，从万象的 GitHub 下载，下载时不要退出 App；下完会自动重新部署词库。",
+                   "Wanxiang grammar model, CC BY 4.0. It picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. About 380 MB, downloaded from Wanxiang's GitHub; keep the app open meanwhile. The dictionary is reinstalled afterwards.",
+                   "万象文法モデル（CC BY 4.0）。語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。約 380 MB、万象の GitHub からダウンロードします。完了まで App を閉じないでください。終わると辞書を再インストールします。"))
+        }
+        .confirmationDialog(L("删除整句模型？", "Delete the sentence model?", "文章モデルを削除しますか？"), isPresented: $confirmDeleteGrammar, titleVisibility: .visible) {
+            Button(L("删除", "Delete", "削除"), role: .destructive) { grammar.delete() }
+        }
+        .onAppear { grammar.refresh() }
+    }
+
+    private var grammarDetail: String {
+        switch grammar.state {
+        case .downloading(let received, let expected):
+            return ByteCountFormatter.string(fromByteCount: received, countStyle: .file) + " / "
+                + ByteCountFormatter.string(fromByteCount: expected, countStyle: .file)
+        default:
+            if grammar.installed {
+                let size = GrammarModel.installedSize.map { " · " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? ""
+                let status = grammar.enabled ? L("已安装", "Installed", "インストール済み") : L("已安装 · 已关闭", "Installed · Off", "インストール済み · オフ")
+                return status + size
+            }
+            return L("未下载 · 约 380MB", "Not downloaded · about 380 MB", "未ダウンロード · 約 380 MB")
+        }
+    }
+
+    /// 「一般 / 最高」。
+    private static func megabytes(_ memory: TypingStats.Memory) -> String {
+        String(format: "%.0f / %.0f MB", memory.median, memory.peak)
     }
 
     private static func milliseconds(_ value: Double) -> String {

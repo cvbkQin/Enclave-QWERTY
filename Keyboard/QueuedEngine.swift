@@ -19,7 +19,7 @@ final class QueuedEngine: InputEngine {
     struct Result {
         var commit: String?
         var snapshot: Snapshot
-        /// 交给队列的时刻，和引擎自己算了多久（秒）。
+        /// 触摸发生（拿不到时是交给队列）的时刻，和引擎自己算了多久（秒）。
         var queuedAt: CFTimeInterval
         var engineTime: CFTimeInterval
         var signpost: OSSignpostIntervalState
@@ -37,6 +37,10 @@ final class QueuedEngine: InputEngine {
     private var state = Snapshot()
     /// 交给队列、还没取回结果的按键数。
     private(set) var pending = 0
+    /// 交给队列、还没取回结果的按键本身，按顺序。
+    private var queuedKeys: [String] = []
+    /// 算上还在排队的键，引擎里现在的原始输入（动态热区看上下文用）。
+    var expectedRawInput: String { state.rawInput + queuedKeys.joined() }
     /// 有结果算完了（主线程调用）：键盘取回结果，上屏、更新候选。
     var resultsReady: (() -> Void)?
     /// 同步操作前先让键盘把排着的结果处理掉（上屏），这样上屏顺序和按键顺序一致。
@@ -53,9 +57,11 @@ final class QueuedEngine: InputEngine {
     // MARK: - 后台
 
     /// 字母、九宫格数字：交给队列就返回，算完后 resultsReady 通知键盘来取。
-    func inputLater(_ key: String) {
+    /// since：触摸事件的时刻（和 CACurrentMediaTime 同一个时钟），耗时从这里算。
+    func inputLater(_ key: String, since: CFTimeInterval? = nil) {
         pending += 1
-        let queuedAt = CACurrentMediaTime()
+        queuedKeys.append(key)
+        let queuedAt = since ?? CACurrentMediaTime()
         let signpost = Self.signposter.beginInterval("key", id: Self.signposter.makeSignpostID())
         queue.async { [inner] in
             let start = CACurrentMediaTime()
@@ -77,6 +83,7 @@ final class QueuedEngine: InputEngine {
         lock.unlock()
         guard let last = results.last else { return [] }
         pending -= results.count
+        queuedKeys.removeFirst(min(results.count, queuedKeys.count))
         state = last.snapshot
         return results
     }

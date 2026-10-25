@@ -32,7 +32,8 @@ final class KeyTouchView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         isMultipleTouchEnabled = true
-        backgroundColor = .clear
+        // 不能用 .clear：完全透明的地方（键之间的缝）系统不把触摸交给键盘，按了没反应。
+        backgroundColor = UIColor(white: 0, alpha: 0.001)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -45,9 +46,30 @@ final class KeyTouchView: UIView {
     }
 
     private func key(at point: CGPoint) -> KeySpec? {
-        if let hit = layout.keys.first(where: { $0.frame.contains(point) }) { return hit }
-        // 落在缝隙或边缘外：取最近的键。
-        return layout.keys.min { distance($0.frame, point) < distance($1.frame, point) }
+        let hit = layout.keys.first(where: { $0.frame.contains(point) })
+            // 落在缝隙或边缘外：取最近的键。
+            ?? layout.keys.min { distance($0.frame, point) < distance($1.frame, point) }
+        // 打拼音：交界附近按拼音规律判给更可能的字母（动态热区）；学到了手指习惯时，按挪过的键中心判。
+        guard let hit else { return nil }
+        let raw = model?.pinyinContextForTouch
+        guard raw != nil || TouchCalibration.hasShifts else { return hit }
+        return TouchPrior.resolve(point: point, hit: hit, keys: layout.keys, raw: raw)
+    }
+
+    /// 打出一个键：字母键记下落点（之后没被删掉才算进手指习惯），删除键撤掉上一个，别的键确认前面的都没打错。
+    private func noteFired(_ key: KeySpec, at point: CGPoint) {
+        switch key.kind {
+        case .delete: TouchCalibration.undo()
+        case .shift, .layer, .globe: break
+        default:
+            if let name = TouchPrior.calibrationKey(for: key) {
+                TouchCalibration.observe(key: name,
+                                         dx: Double((point.x - key.frame.midX) / key.frame.width),
+                                         dy: Double((point.y - key.frame.midY) / key.frame.height))
+            } else {
+                TouchCalibration.confirm()
+            }
+        }
     }
 
     private func distance(_ rect: CGRect, _ p: CGPoint) -> CGFloat {
@@ -61,13 +83,15 @@ final class KeyTouchView: UIView {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let model else { return }
         for touch in touches {
-            guard let key = key(at: touch.location(in: self)) else { continue }
-            // 另一根手指按下：之前还没松开的字符键先上屏，快速连打不丢字。
+            // 另一根手指按下：之前还没松开的字符键先上屏，快速连打不丢字。先打出来，下面判定新键时就算上它。
             for (_, other) in tracking where !other.fired && other.key.kind.typesCharacter {
                 other.fired = true
+                model.keyEventTime = touch.timestamp
+                noteFired(other.key, at: other.start)
                 model.perform(other.key.kind)
                 model.keyReleased(other.key.id)
             }
+            guard let key = key(at: touch.location(in: self)) else { continue }
             let state = Tracking(key: key)
             state.start = touch.location(in: self)
             tracking[touch] = state
@@ -82,6 +106,7 @@ final class KeyTouchView: UIView {
                 model.perform(key.kind)
                 state.fired = true
             case .delete:
+                TouchCalibration.undo()
                 model.perform(.delete)
                 state.fired = true
                 startRepeating(state)
@@ -175,6 +200,8 @@ final class KeyTouchView: UIView {
             } else if state.trackpadX != nil {
                 model.setTrackpad(false)
             } else if !state.fired {
+                model.keyEventTime = touch.timestamp
+                noteFired(state.key, at: state.start)
                 model.perform(state.key.kind)
                 // 从 123 滑过来打的符号，打完回到字母。
                 if state.slidFromLayer { model.switchLayer(.letters) }
@@ -224,6 +251,7 @@ final class KeyTouchView: UIView {
 
     private func repeatDelete(_ state: Tracking) {
         guard tracking.values.contains(where: { $0 === state }) else { return }
+        TouchCalibration.undo()
         model?.perform(.delete)
         state.repeats += 1
         let interval = state.repeats > 20 ? 0.04 : (state.repeats > 8 ? 0.07 : 0.1)

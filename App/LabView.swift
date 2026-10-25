@@ -143,6 +143,27 @@ struct LabView: View {
                         }
                     }
                 }
+                NavigationLink {
+                    TypingTestView()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "speedometer")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundStyle(AppColor.purple)
+                            .frame(width: 38, height: 38)
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(AppColor.softFill))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("压力测试", "Stress test", "負荷テスト")).font(.system(size: 15.5, weight: .semibold))
+                            Text(L("照着文章连续打字，看速度、卡顿和键盘内存", "Type a passage nonstop and see speed, lag and keyboard memory", "文章を続けて入力し、速さ・遅延・メモリを確認"))
+                                .font(.system(size: 12)).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+                }
+                .buttonStyle(.plain)
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
                     ForEach(scenes) { scene in
                         NavigationLink {

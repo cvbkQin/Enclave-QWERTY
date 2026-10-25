@@ -1,0 +1,50 @@
+name: librime
+
+# 编出带 octagram（语言模型）和 predict（联想）插件的 librime，发到本仓库的 Release，scripts/fetch-rime.sh 从那里下载。
+# 改了构建脚本时会自动跑；换版本时同时改 TAG。
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/build-librime.sh
+      - .github/workflows/librime.yml
+
+permissions:
+  contents: write
+
+env:
+  TAG: librime-1.16.1-enclave.1
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Skip if already released
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Select newest Xcode
+        if: steps.check.outputs.exists != 'true'
+        run: |
+          latest=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -n 1)
+          sudo xcode-select -s "$latest"
+          xcodebuild -version
+      - name: Build librime
+        if: steps.check.outputs.exists != 'true'
+        run: bash scripts/build-librime.sh "$RUNNER_TEMP/librime"
+      - name: Publish release
+        if: steps.check.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$RUNNER_TEMP/librime"
+          shasum -a 256 Frameworks.tgz | tee Frameworks.tgz.sha256
+          gh release create "$TAG" Frameworks.tgz Frameworks.tgz.sha256 --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "$TAG" \
+            --notes "librime 1.16.1 iOS XCFrameworks（LibrimeKit-iOS v0.2.2 构建脚本）+ librime-lua、librime-octagram、librime-predict 插件。由 scripts/build-librime.sh 生成。"

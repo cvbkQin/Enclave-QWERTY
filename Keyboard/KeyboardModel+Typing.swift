@@ -34,7 +34,8 @@ extension KeyboardModel {
             syncEngine()
             return
         }
-        queued.inputLater(key)
+        queued.inputLater(key, since: keyEventTime)
+        keyEventTime = nil
     }
 
     /// 取回后台算完的按键：按顺序上屏，再显示最新的拼写和候选。wait：先等排着的键算完（同步操作前用）。
@@ -125,6 +126,8 @@ extension KeyboardModel {
     }
 
     func selectCandidate(_ index: Int) {
+        // 选了候选：前面打的拼音键都没按错，算进手指习惯。
+        TouchCalibration.confirm()
         if let text = engine.select(index) { commit(text) }
         syncEngine()
     }
@@ -423,6 +426,54 @@ extension KeyboardModel {
         if shift == .on { shift = .off }
     }
 
+    #if DEBUG
+    /// 模拟器测内存（debug 选项 memtest）：打一组整句，记下首选、耗时和内存，
+    /// 结果写到共享目录 Library/Diagnostics/memtest-gram.json（有整句模型）或 memtest-plain.json。
+    func runMemoryTest() {
+        let sentences = [
+            "woxiangqugongsishangban", "jintiantianqizhenhao", "womenyiqiquchifanba", "zhegewentiwomenmingtianzaitaolun",
+            "tazuotianwanshangmeiyouhuijia", "qingbangwochayixiahuochepiao", "zhejianshiqingbiwoxiangdeyaofuza",
+            "nikanjianwodeshoujilema", "xiawusandianzaihuiyishikaihui", "zhegexiangmudejindubijiaoman",
+        ]
+        let engine = QueuedEngine.shared
+        guard self.engine === engine else { return }
+        var report: [String: Any] = ["model": TypingStats.modelInUse, "startMB": TypingStats.footprintMB() ?? -1]
+        var results: [[String: Any]] = []
+        var peak = 0.0
+        for sentence in sentences {
+            engine.reset()
+            let start = CACurrentMediaTime()
+            for letter in sentence { _ = engine.input(String(letter)) }
+            let memory = TypingStats.footprintMB() ?? -1
+            peak = max(peak, memory)
+            results.append(["input": sentence, "first": engine.candidates.first ?? "",
+                            "ms": (CACurrentMediaTime() - start) * 1000, "mb": memory])
+        }
+        engine.reset()
+        report["sentences"] = results
+        report["peakMB"] = peak
+        report["afterTypingMB"] = TypingStats.footprintMB() ?? -1
+        syncEngine()
+        guard let group = SharedStorage.appGroupID.flatMap({ FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }),
+              let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) else { return }
+        let out = group.appendingPathComponent("Library/Diagnostics", isDirectory: true)
+        try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        try? data.write(to: out.appendingPathComponent(TypingStats.modelInUse ? "memtest-gram.json" : "memtest-plain.json"))
+    }
+    #endif
+
+    /// 系统内存警告：只记下次数。试过关掉 Rime 引擎，实测只省 0.2–0.4MB（词典和整句模型是文件映射，本来就不算进占用），
+    /// 还要丢掉正在拼的内容，不值得。
+    func noteMemoryWarning() {
+        TypingStats.noteMemoryWarning()
+    }
+
+    /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。
+    var pinyinContextForTouch: String? {
+        guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared else { return nil }
+        return QueuedEngine.shared.expectedRawInput
+    }
+
     /// 九宫格「重输」：清掉正在拼的内容。
     func clearComposition() {
         engine.reset()
@@ -436,6 +487,8 @@ extension KeyboardModel {
         let queued = QueuedEngine.shared
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
+        TypingStats.modelInUse = useShared && RimeStore.isDeployed
+            && (RimeStore.deployedVersion?.hasSuffix(GrammarModel.versionTag(installed: true)) ?? false)
         engine = chineseMode && pinyinReady ? queued : DirectEngine()
         syncEngine()
         queued.prepare(schema: RimeStore.schema(for: activeLayout), useShared: useShared) { [weak self] ok, source in
@@ -659,6 +712,7 @@ extension KeyboardModel {
             case "kaomoji": keysPanel = .kaomoji
             case "quickWords": keysPanel = .quickWords
             case "undo": loadDebugUndo()
+            case "memtest": runMemoryTest()
             #endif
             default: break
             }
