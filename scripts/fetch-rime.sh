@@ -6,9 +6,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENDOR="$ROOT/Vendor"
 
-# librime 1.16 + librime-lua，构建脚本见 https://github.com/thomfang/LibrimeKit-iOS
-FRAMEWORKS_URL="https://github.com/thomfang/LibrimeKit-iOS/releases/download/v0.2.2/Frameworks.tgz"
-FRAMEWORKS_SHA256="43a0921538827fedb2679e5d26bb389dec3759d44ccdcfd439e8ec21a7f93223"
+# librime 1.16 + librime-lua、octagram、predict 插件，由 scripts/build-librime.sh（.github/workflows/librime.yml）编出
+FRAMEWORKS_URL="https://github.com/cvbkQin/Enclave-QWERTY/releases/download/librime-1.16.1-enclave.1/Frameworks.tgz"
+FRAMEWORKS_SHA256="e24f3f60591d4b7766e3de47e1a3672cace3bf03c2398a0b0f1d2a468d6be129"
 
 # 词库数据来自万象拼音 https://github.com/amzxyz/rime_wanxiang （CC BY 4.0，可商用，需署名）。
 # 只用它的词库，方案文件是自己写的，在 Configs/Rime/。
