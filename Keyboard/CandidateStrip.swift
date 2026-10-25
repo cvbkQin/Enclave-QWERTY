@@ -24,6 +24,8 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         alwaysBounceHorizontal = true
         delaysContentTouches = false
         delegate = self
+        // 不能完全透明，否则候选词之间、字旁边的空白点了没反应（同 KeyTouchView）。
+        backgroundColor = UIColor(white: 0, alpha: 0.001)
         // iOS 26 默认给滚动视图边缘加一层渐隐模糊，候选栏这么矮会整条糊掉（和 SwiftUI 那边的 hidingScrollEdgeEffect 一样关掉）。
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {

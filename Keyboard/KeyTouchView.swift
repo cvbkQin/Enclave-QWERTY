@@ -32,7 +32,8 @@ final class KeyTouchView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         isMultipleTouchEnabled = true
-        backgroundColor = .clear
+        // 不能用 .clear：完全透明的地方（键之间的缝）系统不把触摸交给键盘，按了没反应。
+        backgroundColor = UIColor(white: 0, alpha: 0.001)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
