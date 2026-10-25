@@ -648,6 +648,12 @@ struct PinyinView: View {
             if case .downloading(let received, let expected) = grammar.state {
                 ProgressView(value: Double(received), total: Double(max(expected, 1)))
             }
+            if grammar.installed {
+                // 关掉时模型留着，随时再打开，方便对比。切换后重新部署词库。
+                Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
+                       isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
+                    .disabled(deployer.state == .deploying)
+            }
             if case .failed(let message) = grammar.state {
                 Text(message).font(.footnote).foregroundStyle(.red)
             }
@@ -670,7 +676,8 @@ struct PinyinView: View {
         default:
             if grammar.installed {
                 let size = GrammarModel.installedSize.map { " · " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? ""
-                return L("已安装", "Installed", "インストール済み") + size
+                let status = grammar.enabled ? L("已安装", "Installed", "インストール済み") : L("已安装 · 已关闭", "Installed · Off", "インストール済み · オフ")
+                return status + size
             }
             return L("未下载 · 约 380MB", "Not downloaded · about 380 MB", "未ダウンロード · 約 380 MB")
         }

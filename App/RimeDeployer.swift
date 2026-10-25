@@ -29,7 +29,7 @@ final class RimeDeployer: ObservableObject {
     static var targetVersion: String? {
         bundledVersion.map {
             $0 + schemaPatchTag + FuzzyPinyin.versionTag(SettingsStore.load().fuzzyPinyin)
-                + GrammarModel.versionTag(installed: GrammarModel.isInstalled)
+                + GrammarModel.versionTag(installed: GrammarModel.isActive)
         }
     }
 
@@ -87,7 +87,7 @@ final class RimeDeployer: ObservableObject {
             return
         }
         let fuzzy = SettingsStore.load().fuzzyPinyin
-        let grammar = GrammarModel.isInstalled
+        let grammar = GrammarModel.isActive
         state = .deploying
         startedAt = Date()
         Task.detached(priority: .userInitiated) {

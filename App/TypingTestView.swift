@@ -21,7 +21,7 @@ struct TypingTestView: View {
     @State private var startedAt: Date?
     @State private var finishedAt: Date?
     @State private var stats: TypingStats.Summary?
-    @State private var modelInstalled = GrammarModel.isInstalled
+    @State private var modelInstalled = GrammarModel.isActive
     @FocusState private var focused: Bool
 
     private var target: [Character] { Array(article.text) }
@@ -85,7 +85,7 @@ struct TypingTestView: View {
                 }
             }
         }
-        .onAppear { modelInstalled = GrammarModel.isInstalled }
+        .onAppear { modelInstalled = GrammarModel.isActive }
         // 和场景页一样，进来自动弹出键盘。
         .task {
             try? await Task.sleep(nanoseconds: 600_000_000)
@@ -143,7 +143,7 @@ struct TypingTestView: View {
             Text(L("结果", "Results", "結果")).font(.headline).padding(.bottom, 10)
             resultRow(L("速度", "Speed", "速さ"), L("\(speed(elapsed)) 字/分", "\(speed(elapsed)) chars/min", "\(speed(elapsed)) 字/分"))
             resultRow(L("准确率", "Accuracy", "正確さ"), typedChars.isEmpty ? "–" : String(format: "%.0f%%", Double(correctCount) / Double(typedChars.count) * 100))
-            resultRow(L("整句模型", "Sentence model", "文章モデル"), modelInstalled ? L("已开", "On", "オン") : L("未下载", "Not downloaded", "未ダウンロード"))
+            resultRow(L("整句模型", "Sentence model", "文章モデル"), modelInstalled ? L("已开", "On", "オン") : L("未开", "Off", "オフ"))
             if let stats {
                 Divider().padding(.vertical, 8)
                 resultRow(L("按键到候选：一般", "Key to candidates: typical", "キー→候補：通常"), Self.ms(stats.medianTotal))

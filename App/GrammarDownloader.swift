@@ -15,12 +15,22 @@ final class GrammarDownloader: NSObject, ObservableObject {
 
     @Published private(set) var state: State = .idle
     @Published private(set) var installed = GrammarModel.isInstalled
+    @Published private(set) var enabled = GrammarModel.isEnabled
 
     private var task: URLSessionDownloadTask?
     private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
 
     func refresh() {
         installed = GrammarModel.isInstalled
+        enabled = GrammarModel.isEnabled
+    }
+
+    /// 开关整句模型：文件不动，重新部署一次词库。
+    func setEnabled(_ value: Bool) {
+        guard value != enabled else { return }
+        GrammarModel.isEnabled = value
+        enabled = value
+        RimeDeployer.shared.deploy()
     }
 
     func download() {

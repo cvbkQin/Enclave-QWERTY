@@ -17,6 +17,15 @@ enum GrammarModel {
         return isValid(fileURL)
     }
 
+    /// 下载后的开关：关掉时文件留着，部署时不用它（方便对比有没有模型）。默认开。
+    static var isEnabled: Bool {
+        get { SharedStorage.defaults.object(forKey: "grammar.enabled") as? Bool ?? true }
+        set { SharedStorage.defaults.set(newValue, forKey: "grammar.enabled") }
+    }
+
+    /// 已下载并且开着：部署时用上。
+    static var isActive: Bool { isInstalled && isEnabled }
+
     static var installedSize: Int64? {
         guard let path = fileURL?.path,
               let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber else { return nil }
