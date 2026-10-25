@@ -74,6 +74,7 @@ final class KeyboardViewController: UIInputViewController {
         model.hostKeyboardType = nil
         model.reload()
         model.applyDebugState()
+        TouchCalibration.reload()
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -83,6 +84,7 @@ final class KeyboardViewController: UIInputViewController {
         model.pressedKeys = []
         model.trackpadActive = false
         TypingStats.flush()
+        TouchCalibration.flush()
     }
 
     override func didReceiveMemoryWarning() {

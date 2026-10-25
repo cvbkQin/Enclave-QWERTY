@@ -13,8 +13,8 @@ enum TouchPrior {
     private static let startsWeight = 0.55
     private static let impossibleWeight = 0.08
 
-    /// 落点 point、原本命中的键 hit；只在字母键之间换。raw：已经打了、还没上屏的拼音。
-    static func resolve(point: CGPoint, hit: KeySpec, keys: [KeySpec], raw: String) -> KeySpec {
+    /// 落点 point、原本命中的键 hit；只在字母键之间换。raw：已经打了、还没上屏的拼音，不在打拼音时为空（只按手指习惯校准）。
+    static func resolve(point: CGPoint, hit: KeySpec, keys: [KeySpec], raw: String?) -> KeySpec {
         guard let mode = Mode(hit), symbol(of: hit, mode) != nil else { return hit }
         let neighbors = keys.filter { key in
             guard symbol(of: key, mode) != nil else { return false }
@@ -23,21 +23,33 @@ enum TouchPrior {
             return dx < 1.1 && dy < 0.9
         }
         guard neighbors.count > 1 else { return hit }
-        let context = Context(raw, mode)
+        let context = raw.map { Context($0, mode) }
         var best = hit
         var bestScore = -1.0
         for key in neighbors {
             guard let char = symbol(of: key, mode) else { continue }
-            let dx = Double((point.x - key.frame.midX) / key.frame.width)
-            let dy = Double((point.y - key.frame.midY) / key.frame.height)
+            // 键的中心按手指习惯挪过（没学到时不挪）。
+            let shift = TouchCalibration.shift(for: calibrationKey(char, mode))
+            let dx = Double((point.x - key.frame.midX) / key.frame.width) - shift.dx
+            let dy = Double((point.y - key.frame.midY) / key.frame.height) - shift.dy
             let spatial = exp(-(dx * dx + dy * dy) / (2 * sigma * sigma))
-            let score = spatial * context.weight(of: char)
+            let score = spatial * (context?.weight(of: char) ?? 1)
             if score > bestScore {
                 bestScore = score
                 best = key
             }
         }
         return best
+    }
+
+    /// 校准用的键名：全键盘和九宫格分开记。别的键不校准。
+    static func calibrationKey(for key: KeySpec) -> String? {
+        guard let mode = Mode(key), let char = symbol(of: key, mode) else { return nil }
+        return calibrationKey(char, mode)
+    }
+
+    private static func calibrationKey(_ char: Character, _ mode: Mode) -> String {
+        (mode == .letters ? "q:" : "9:") + String(char)
     }
 
     private enum Mode {

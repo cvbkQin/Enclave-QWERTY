@@ -376,6 +376,7 @@ struct KeyboardSettingsView: View {
                     }
                 }
             }
+            TouchCalibrationSection()
             Section(L("按键反馈", "Key feedback", "キーのフィードバック")) {
                 Toggle(L("按键震动", "Haptics", "触覚"), isOn: $store.settings.keyHaptics)
                 Toggle(isOn: $store.settings.keySound) {

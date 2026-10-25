@@ -126,6 +126,8 @@ extension KeyboardModel {
     }
 
     func selectCandidate(_ index: Int) {
+        // 选了候选：前面打的拼音键都没按错，算进手指习惯。
+        TouchCalibration.confirm()
         if let text = engine.select(index) { commit(text) }
         syncEngine()
     }

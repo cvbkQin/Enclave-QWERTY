@@ -22,6 +22,8 @@ struct TypingTestRecord: Codable, Identifiable {
     var article: String
     var layout: KeyboardLayout
     var model: Bool
+    /// 测的时候开没开手指校准、已经校准了几个键（加这一项之前的记录为空）。
+    var calibratedKeys: Int?
     var chars: Int
     var seconds: Double
     var accuracy: Double?
@@ -249,7 +251,7 @@ struct TypingTestView: View {
             HStack {
                 Text(record.date.formatted(date: .abbreviated, time: .shortened))
                 Spacer()
-                Text([record.article, record.layout.shortTitle, model].joined(separator: " · "))
+                Text(([record.article, record.layout.shortTitle, model] + calibration(record)).joined(separator: " · "))
             }
             .font(.caption).foregroundStyle(.secondary)
             Text(numbers.joined(separator: " · ")).font(.subheadline.weight(.semibold)).monospacedDigit()
@@ -257,6 +259,11 @@ struct TypingTestView: View {
                 Text(keyboard.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
         }
+    }
+
+    private func calibration(_ record: TypingTestRecord) -> [String] {
+        guard let keys = record.calibratedKeys else { return [] }
+        return [keys > 0 ? L("校准 \(keys) 键", "\(keys) keys tuned", "調整 \(keys) キー") : L("未校准", "Not tuned", "未調整")]
     }
 
     private func resultRow(_ title: String, _ value: String) -> some View {
@@ -302,6 +309,7 @@ struct TypingTestView: View {
         let memory = stats?.memoryWithModel ?? stats?.memory
         let entry = TypingTestRecord(
             date: startedAt, article: article.title, layout: SettingsStore.load().keyboardLayout, model: modelInstalled,
+            calibratedKeys: TouchCalibration.isEnabled ? TouchCalibration.summary.keys : 0,
             chars: typedChars.count, seconds: finishedAt.timeIntervalSince(startedAt),
             accuracy: Double(correctCount) / Double(typedChars.count),
             medianTotal: stats?.medianTotal, slowTotal: stats?.slowTotal, slowestTotal: stats?.slowestTotal,

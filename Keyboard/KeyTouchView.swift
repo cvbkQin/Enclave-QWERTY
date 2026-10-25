@@ -48,9 +48,27 @@ final class KeyTouchView: UIView {
         let hit = layout.keys.first(where: { $0.frame.contains(point) })
             // 落在缝隙或边缘外：取最近的键。
             ?? layout.keys.min { distance($0.frame, point) < distance($1.frame, point) }
-        // 全键盘打拼音：交界附近按拼音规律判给更可能的字母（动态热区）。
-        guard let hit, let raw = model?.pinyinContextForTouch else { return hit }
+        // 打拼音：交界附近按拼音规律判给更可能的字母（动态热区）；学到了手指习惯时，按挪过的键中心判。
+        guard let hit else { return nil }
+        let raw = model?.pinyinContextForTouch
+        guard raw != nil || TouchCalibration.hasShifts else { return hit }
         return TouchPrior.resolve(point: point, hit: hit, keys: layout.keys, raw: raw)
+    }
+
+    /// 打出一个键：字母键记下落点（之后没被删掉才算进手指习惯），删除键撤掉上一个，别的键确认前面的都没打错。
+    private func noteFired(_ key: KeySpec, at point: CGPoint) {
+        switch key.kind {
+        case .delete: TouchCalibration.undo()
+        case .shift, .layer, .globe: break
+        default:
+            if let name = TouchPrior.calibrationKey(for: key) {
+                TouchCalibration.observe(key: name,
+                                         dx: Double((point.x - key.frame.midX) / key.frame.width),
+                                         dy: Double((point.y - key.frame.midY) / key.frame.height))
+            } else {
+                TouchCalibration.confirm()
+            }
+        }
     }
 
     private func distance(_ rect: CGRect, _ p: CGPoint) -> CGFloat {
@@ -68,6 +86,7 @@ final class KeyTouchView: UIView {
             for (_, other) in tracking where !other.fired && other.key.kind.typesCharacter {
                 other.fired = true
                 model.keyEventTime = touch.timestamp
+                noteFired(other.key, at: other.start)
                 model.perform(other.key.kind)
                 model.keyReleased(other.key.id)
             }
@@ -86,6 +105,7 @@ final class KeyTouchView: UIView {
                 model.perform(key.kind)
                 state.fired = true
             case .delete:
+                TouchCalibration.undo()
                 model.perform(.delete)
                 state.fired = true
                 startRepeating(state)
@@ -180,6 +200,7 @@ final class KeyTouchView: UIView {
                 model.setTrackpad(false)
             } else if !state.fired {
                 model.keyEventTime = touch.timestamp
+                noteFired(state.key, at: state.start)
                 model.perform(state.key.kind)
                 // 从 123 滑过来打的符号，打完回到字母。
                 if state.slidFromLayer { model.switchLayer(.letters) }
@@ -229,6 +250,7 @@ final class KeyTouchView: UIView {
 
     private func repeatDelete(_ state: Tracking) {
         guard tracking.values.contains(where: { $0 === state }) else { return }
+        TouchCalibration.undo()
         model?.perform(.delete)
         state.repeats += 1
         let interval = state.repeats > 20 ? 0.04 : (state.repeats > 8 ? 0.07 : 0.1)
