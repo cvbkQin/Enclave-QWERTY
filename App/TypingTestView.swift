@@ -15,6 +15,42 @@ struct TypingTestArticle: Identifiable {
     ]
 }
 
+/// 每一轮压力测试的结果，存在 App 自己这边，最多留 50 条，最新的在前面。
+struct TypingTestRecord: Codable, Identifiable {
+    var id = UUID()
+    var date: Date
+    var article: String
+    var layout: KeyboardLayout
+    var model: Bool
+    var chars: Int
+    var seconds: Double
+    var accuracy: Double?
+    /// 下面是键盘记下的数据，键盘没开完全访问时为空。
+    var medianTotal: Double?
+    var slowTotal: Double?
+    var slowestTotal: Double?
+    var medianEngine: Double?
+    var memoryMedian: Double?
+    var memoryPeak: Double?
+    var memoryWarnings: Int?
+
+    var speed: Int { seconds < 1 ? 0 : Int(Double(chars) / seconds * 60) }
+
+    private static let key = "typingTest.history"
+    private static let keep = 50
+
+    static func load() -> [TypingTestRecord] {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
+        return (try? JSONDecoder().decode([TypingTestRecord].self, from: data)) ?? []
+    }
+
+    static func save(_ records: [TypingTestRecord]) {
+        if let data = try? JSONEncoder().encode(Array(records.prefix(keep))) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+}
+
 struct TypingTestView: View {
     @State private var article = TypingTestArticle.all[0]
     @State private var typed = ""
@@ -22,6 +58,8 @@ struct TypingTestView: View {
     @State private var finishedAt: Date?
     @State private var stats: TypingStats.Summary?
     @State private var modelInstalled = GrammarModel.isActive
+    @State private var history = TypingTestRecord.load()
+    @State private var confirmClear = false
     @FocusState private var focused: Bool
 
     private var target: [Character] { Array(article.text) }
@@ -64,6 +102,7 @@ struct TypingTestView: View {
                     }
                 progressRow
                 if finished { results }
+                if !history.isEmpty { historyView }
             }
             .padding(16)
         }
@@ -86,6 +125,12 @@ struct TypingTestView: View {
             }
         }
         .onAppear { modelInstalled = GrammarModel.isActive }
+        .confirmationDialog(L("清空所有历史记录？", "Clear all history?", "履歴をすべて消去しますか？"), isPresented: $confirmClear, titleVisibility: .visible) {
+            Button(L("清空", "Clear", "消去"), role: .destructive) {
+                history = []
+                TypingTestRecord.save(history)
+            }
+        }
         // 和场景页一样，进来自动弹出键盘。
         .task {
             try? await Task.sleep(nanoseconds: 600_000_000)
@@ -165,6 +210,55 @@ struct TypingTestView: View {
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
     }
 
+    /// 以前每一轮的结果，最新的在上面。
+    private var historyView: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(L("历史记录", "History", "履歴")).font(.headline)
+                Spacer()
+                Button(L("清空", "Clear", "消去")) { confirmClear = true }.font(.subheadline)
+            }
+            .padding(.bottom, 6)
+            ForEach(Array(history.enumerated()), id: \.element.id) { index, record in
+                if index > 0 { Divider() }
+                historyRow(record).padding(.vertical, 8)
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+    }
+
+    private func historyRow(_ record: TypingTestRecord) -> some View {
+        let model = record.model ? L("模型开", "Model on", "モデルオン") : L("模型关", "Model off", "モデルオフ")
+        var numbers = [L("\(record.speed) 字/分", "\(record.speed) chars/min", "\(record.speed) 字/分")]
+        if let accuracy = record.accuracy { numbers.append(String(format: "%.0f%%", accuracy * 100)) }
+        var keyboard: [String] = []
+        if let median = record.medianTotal, let slow = record.slowTotal, let slowest = record.slowestTotal {
+            keyboard.append(L("按键 \(Self.ms(median)) / \(Self.ms(slow)) / 最慢 \(Self.ms(slowest))",
+                              "Keys \(Self.ms(median)) / \(Self.ms(slow)) / max \(Self.ms(slowest))",
+                              "キー \(Self.ms(median)) / \(Self.ms(slow)) / 最大 \(Self.ms(slowest))"))
+        }
+        if let engine = record.medianEngine { keyboard.append(L("引擎 \(Self.ms(engine))", "Engine \(Self.ms(engine))", "エンジン \(Self.ms(engine))")) }
+        if let median = record.memoryMedian, let peak = record.memoryPeak {
+            keyboard.append(String(format: "%.0f / %.0f MB", median, peak))
+        }
+        if let warnings = record.memoryWarnings, warnings > 0 {
+            keyboard.append(L("内存警告 \(warnings)", "\(warnings) memory warnings", "メモリ警告 \(warnings)"))
+        }
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(record.date.formatted(date: .abbreviated, time: .shortened))
+                Spacer()
+                Text([record.article, record.layout.shortTitle, model].joined(separator: " · "))
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            Text(numbers.joined(separator: " · ")).font(.subheadline.weight(.semibold)).monospacedDigit()
+            if !keyboard.isEmpty {
+                Text(keyboard.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+        }
+    }
+
     private func resultRow(_ title: String, _ value: String) -> some View {
         HStack {
             Text(title)
@@ -198,7 +292,23 @@ struct TypingTestView: View {
         Task {
             try? await Task.sleep(nanoseconds: 800_000_000)
             stats = TypingStats.summary
+            record()
         }
+    }
+
+    /// 这一轮存进历史记录。
+    private func record() {
+        guard let startedAt, let finishedAt, !typedChars.isEmpty else { return }
+        let memory = stats?.memoryWithModel ?? stats?.memory
+        let entry = TypingTestRecord(
+            date: startedAt, article: article.title, layout: SettingsStore.load().keyboardLayout, model: modelInstalled,
+            chars: typedChars.count, seconds: finishedAt.timeIntervalSince(startedAt),
+            accuracy: Double(correctCount) / Double(typedChars.count),
+            medianTotal: stats?.medianTotal, slowTotal: stats?.slowTotal, slowestTotal: stats?.slowestTotal,
+            medianEngine: stats?.medianEngine, memoryMedian: memory?.median, memoryPeak: memory?.peak,
+            memoryWarnings: stats?.memoryWarnings)
+        history.insert(entry, at: 0)
+        TypingTestRecord.save(history)
     }
 
     private func elapsedSeconds(now: Date) -> Double {
