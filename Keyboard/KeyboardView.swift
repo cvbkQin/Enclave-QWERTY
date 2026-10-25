@@ -97,7 +97,8 @@ struct KeyboardView: View {
     private var candidateBar: some View {
         HStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
+                // 懒加载：只画看得见的几个；滑到已取到的最后一个时再往后取候选。
+                LazyHStack(spacing: 0) {
                     ForEach(Array(model.candidates.prefix(60).enumerated()), id: \.offset) { index, word in
                         Button { model.selectCandidate(index) } label: {
                             Text(word)
@@ -114,6 +115,9 @@ struct KeyboardView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(KeyPressStyle())
+                        .onAppear {
+                            if index == model.candidates.count - 1 { model.loadMoreCandidates() }
+                        }
                     }
                 }
                 .padding(.leading, 2)

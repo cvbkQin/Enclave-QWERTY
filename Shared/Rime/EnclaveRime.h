@@ -28,6 +28,8 @@ char *enclave_rime_get_input(uint64_t session);
 
 /// 取最多 limit 个候选词，每个用 free() 释放，返回实际数量。
 size_t enclave_rime_get_candidates(uint64_t session, char **out, size_t limit);
+/// 从第 start 个候选词开始取，最多 limit 个；用来在候选栏滑到头、展开整页时再往后取。
+size_t enclave_rime_get_candidates_from(uint64_t session, char **out, size_t start, size_t limit);
 bool enclave_rime_select_candidate(uint64_t session, size_t index);
 
 #endif

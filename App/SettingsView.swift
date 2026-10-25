@@ -544,6 +544,7 @@ struct PinyinView: View {
     @EnvironmentObject private var store: AppStore
     @ObservedObject private var deployer = RimeDeployer.shared
     @State private var size: Int64?
+    @State private var typingStats: TypingStats.Summary?
 
     var body: some View {
         Form {
@@ -580,12 +581,33 @@ struct PinyinView: View {
             } footer: {
                 Text(L("词库在本机编译，第一次打开 App 时自动部署，大约一分钟，期间不要退出 App。词库出错或更新后再点重新部署。键盘需要打开「允许完全访问」才能读到词库。", "The dictionary is built on this iPhone the first time you open the app, in about a minute. Keep the app open meanwhile. Reinstall if it has problems or after an update. The keyboard needs Allow Full Access to read it.", "辞書は初回起動時にこの iPhone 上で作成されます（約 1 分）。その間アプリを閉じないでください。不具合や更新のあとは再インストールしてください。キーボードが辞書を読むには「フルアクセスを許可」が必要です。"))
             }
+            if let stats = typingStats {
+                Section {
+                    LabeledContent(L("一般", "Typical", "通常"), value: Self.milliseconds(stats.medianTotal))
+                    LabeledContent(L("较慢的 10%", "Slowest 10%", "遅い 10%"), value: Self.milliseconds(stats.slowTotal))
+                    LabeledContent(L("最慢", "Slowest", "最も遅い"), value: Self.milliseconds(stats.slowestTotal))
+                    LabeledContent(L("其中拼音引擎", "Of which pinyin engine", "うちピンインエンジン"), value: Self.milliseconds(stats.medianEngine))
+                    Button(L("清空记录", "Clear", "記録を消去")) {
+                        TypingStats.clear()
+                        typingStats = nil
+                    }
+                } header: {
+                    Text(L("打字速度", "Typing speed", "入力の速さ"))
+                } footer: {
+                    Text(L("最近 \(stats.count) 个拼音按键，从按下到候选出来用的时间。一般在 30 毫秒以内就感觉不到卡。", "The last \(stats.count) pinyin keys, from tap to candidates shown. Under about 30 ms feels instant.", "直近 \(stats.count) 回のピンイン入力で、タップから候補が出るまでの時間です。30 ミリ秒以内ならほぼ遅れを感じません。"))
+                }
+            }
         }
         .navigationTitle(L("拼音词库", "Pinyin dictionary", "ピンイン辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: deployer.state) {
             size = await Task.detached { RimeDeployer.diskSize() }.value
         }
+        .onAppear { typingStats = TypingStats.summary }
+    }
+
+    private static func milliseconds(_ value: Double) -> String {
+        String(format: "%.0f ms", value)
     }
 
     private var detail: String {

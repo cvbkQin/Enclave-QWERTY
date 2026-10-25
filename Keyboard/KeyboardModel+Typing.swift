@@ -1,4 +1,5 @@
 import AudioToolbox
+import QuartzCore
 import UIKit
 
 /// 打字：按键、组字、上屏，以及把文字送到聊天输入框还是要求框。
@@ -9,20 +10,57 @@ extension KeyboardModel {
     enum KeyLayer { case letters, numbers, symbols, digits }
     enum ShiftState { case off, on, locked }
 
-    var isComposing: Bool { !composition.isEmpty }
+    /// 正在拼，或者还有字母在后台引擎里排着（结果还没回来）。
+    var isComposing: Bool { !composition.isEmpty || QueuedEngine.shared.pending > 0 }
     /// 现在画的是五列的九宫格（拼音或数字），按下不出放大气泡。
     var nineGrid: Bool { showsNineKey && (layer == .letters || layer == .digits) }
 
     func typeLetter(_ letter: String) {
         let text = shift == .off ? letter : letter.uppercased()
         if shift == .on { shift = .off }
-        // 大写字母不进拼音组字，直接上屏。
+        // 大写字母不进拼音组字，直接上屏（先把排着的字母处理完，顺序才对）。
         if text != letter {
+            applyEngineResults(wait: true)
             commit(text)
             return
         }
-        if let output = engine.input(text) { commit(output) }
+        feedEngine(text)
+    }
+
+    /// 字母、九宫格数字交给拼音引擎。拼音引擎在后台算，这里不等，算完由 applyEngineResults 上屏、更新候选。
+    func feedEngine(_ key: String) {
+        guard let queued = engine as? QueuedEngine else {
+            if let output = engine.input(key) { commit(output) }
+            syncEngine()
+            return
+        }
+        queued.inputLater(key)
+    }
+
+    /// 取回后台算完的按键：按顺序上屏，再显示最新的拼写和候选。wait：先等排着的键算完（同步操作前用）。
+    func applyEngineResults(wait: Bool = false) {
+        let queued = QueuedEngine.shared
+        let results = wait ? queued.drain() : queued.takeResults()
+        guard !results.isEmpty else { return }
+        for result in results {
+            if let text = result.commit { commit(text) }
+        }
         syncEngine()
+        // 下一轮主循环时界面已经按新候选画完，这时记耗时。
+        DispatchQueue.main.async {
+            let shown = CACurrentMediaTime()
+            for result in results {
+                QueuedEngine.signposter.endInterval("key", result.signpost)
+                TypingStats.record(total: shown - result.queuedAt, engine: result.engineTime)
+            }
+        }
+    }
+
+    /// 候选只先取了第一屏：候选栏滑到最后、展开整页时再往后取。
+    func loadMoreCandidates() {
+        guard isComposing else { return }
+        engine.loadMoreCandidates()
+        if engine.candidates.count != candidates.count { candidates = engine.candidates }
     }
 
     /// 数字、标点等非字母键：先把正在组的字上屏。
@@ -230,8 +268,7 @@ extension KeyboardModel {
             cyclePunctuation()
             return
         }
-        if let output = engine.input(key) { commit(output) }
-        syncEngine()
+        feedEngine(key)
     }
 
     private static let cycledMarks = ["，", "。", "？", "！"]
@@ -296,6 +333,8 @@ extension KeyboardModel {
 
     /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼。
     func choosePinyin(_ syllable: String) {
+        // 拼音栏按的是已经算完的输入，后面还排着的数字先算完再拆。
+        applyEngineResults(wait: true)
         let (fixed, rest) = pinyinSplit
         var raw = fixed.isEmpty ? syllable : fixed + "'" + syllable
         let remaining = rest.dropFirst(syllable.count)
@@ -377,8 +416,7 @@ extension KeyboardModel {
         // 九宫格中文下划出来的字母也是拼音：在拼就接着拼（把这一位定成这个字母），没在拼就从它开始拼，
         // 不然空输入框里划一个字母会直接上屏成英文。
         if showsNineKey && layer == .letters && (isComposing || chineseMode) && text.allSatisfy(\.isLetter) {
-            if let output = engine.input(text.lowercased()) { commit(output) }
-            syncEngine()
+            feedEngine(text.lowercased())
         } else {
             typeSymbol(text)
         }
@@ -392,14 +430,27 @@ extension KeyboardModel {
     }
 
     /// 中文模式用拼音引擎，英文模式或词库不可用时字母直接上屏。
+    /// 启动 Rime、切方案在后台做，键盘不等它就弹出来：有词库就先当作能用，按键排在引擎准备好之后。
     func selectEngine() {
         engine.reset()
-        pinyinReady = RimeEngine.shared.prepare(schema: RimeStore.schema(for: activeLayout), useShared: hasFullAccess)
-        #if DEBUG
-        KeyboardProbe.run(fullAccess: hasFullAccess, pinyinReady: pinyinReady, source: RimeEngine.shared.source)
-        #endif
-        engine = chineseMode && pinyinReady ? RimeEngine.shared : DirectEngine()
+        let queued = QueuedEngine.shared
+        let useShared = hasFullAccess
+        pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
+        engine = chineseMode && pinyinReady ? queued : DirectEngine()
         syncEngine()
+        queued.prepare(schema: RimeStore.schema(for: activeLayout), useShared: useShared) { [weak self] ok, source in
+            #if DEBUG
+            KeyboardProbe.run(fullAccess: useShared, pinyinReady: ok, source: source)
+            #endif
+            guard let self, !ok, self.pinyinReady else { return }
+            // 词库其实读不出来：退回直接打字母。
+            self.pinyinReady = false
+            if self.engine === queued {
+                self.engine.reset()
+                self.engine = DirectEngine()
+                self.syncEngine()
+            }
+        }
     }
 
     func switchLayer(_ layer: KeyLayer) {

@@ -1,6 +1,7 @@
 import Foundation
 
 /// RIME 拼音引擎（词库来自万象拼音）。词库由主 App 部署到共享目录，这里只加载。
+/// 不是线程安全的：键盘里只通过 QueuedEngine 在它的串行队列上调用。
 final class RimeEngine: InputEngine {
     static let shared = RimeEngine()
 
@@ -10,7 +11,9 @@ final class RimeEngine: InputEngine {
     private var loadedVersion: String?
     private var schema = RimeStore.schemaID
 
-    private static let candidateLimit = 150
+    /// 每次按键只取够候选栏第一屏的数量，取得越多 Rime 要往后查得越深；滑到头或展开整页时再补到 candidateLimit。
+    static let firstPage = 30
+    static let candidateLimit = 150
     private static let backspaceKey: Int32 = 0xff08
 
     /// 准备好引擎并切到指定方案；词库没部署或读不到共享目录时返回 false。
@@ -23,8 +26,14 @@ final class RimeEngine: InputEngine {
             guard enclave_rime_select_schema(session, wanted) else { return false }
             enclave_rime_set_option(session, "ascii_mode", false)
             schema = wanted
+            warmUp()
         }
         return true
+    }
+
+    /// 有没有能加载的词库（只看文件，不启动引擎），用来在引擎准备好之前先决定用不用拼音。
+    static func hasDictionary(useShared: Bool) -> Bool {
+        (useShared && RimeStore.isDeployed) || RimeStore.bundled != nil
     }
 
     /// 把常用词写成两份短语表（全拼、九宫格数字）放进现在用的用户目录。内容变了就重建会话，让引擎重新读。
@@ -47,6 +56,8 @@ final class RimeEngine: InputEngine {
         if changed && session != 0 {
             enclave_rime_destroy_session(session)
             session = 0
+            // 马上重建，免得下一个按键等它。
+            _ = prepare()
         }
     }
 
@@ -82,8 +93,19 @@ final class RimeEngine: InputEngine {
             session = enclave_rime_create_session(schema)
             guard session != 0 else { return false }
             enclave_rime_set_option(session, "ascii_mode", false)
+            warmUp()
         }
         return true
+    }
+
+    /// 新会话先拼一个字母再清掉：词典和方案在这时读进内存，用户的第一个键就不用等。
+    private func warmUp() {
+        enclave_rime_process_key(session, 0x6e, 0) // n
+        enclave_rime_process_key(session, 0x69, 0) // i
+        var buffer = [UnsafeMutablePointer<CChar>?](repeating: nil, count: Self.firstPage)
+        let count = enclave_rime_get_candidates(session, &buffer, Self.firstPage)
+        for index in 0..<count { free(buffer[index]) }
+        enclave_rime_clear(session)
     }
 
     func input(_ letter: String) -> String? {
@@ -146,14 +168,21 @@ final class RimeEngine: InputEngine {
     private func refresh() -> String? {
         let commit = takeString(enclave_rime_get_commit(session))
         composition = takeString(enclave_rime_get_preedit(session)) ?? ""
-        if composition.isEmpty {
-            candidates = []
-        } else {
-            var buffer = [UnsafeMutablePointer<CChar>?](repeating: nil, count: Self.candidateLimit)
-            let count = enclave_rime_get_candidates(session, &buffer, Self.candidateLimit)
-            candidates = (0..<count).compactMap { takeString(buffer[$0]) }
-        }
+        candidates = composition.isEmpty ? [] : fetchCandidates(from: 0, limit: Self.firstPage)
         return commit
+    }
+
+    /// 候选栏滑到头、展开整页时调用：在已经取到的后面接着取，一共到 candidateLimit 个。
+    func loadMoreCandidates() {
+        guard session != 0, !composition.isEmpty, candidates.count >= Self.firstPage,
+              candidates.count < Self.candidateLimit else { return }
+        candidates += fetchCandidates(from: candidates.count, limit: Self.candidateLimit - candidates.count)
+    }
+
+    private func fetchCandidates(from start: Int, limit: Int) -> [String] {
+        var buffer = [UnsafeMutablePointer<CChar>?](repeating: nil, count: limit)
+        let count = enclave_rime_get_candidates_from(session, &buffer, start, limit)
+        return (0..<count).compactMap { takeString(buffer[$0]) }
     }
 
     private func takeString(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
