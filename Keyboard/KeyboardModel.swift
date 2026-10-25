@@ -153,6 +153,7 @@ final class KeyboardModel: ObservableObject {
         // 没开完全访问时读不到 App 里选的语言，跟随 iPhone。
         Loc.followSystemOnly = !hasFullAccess
         if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
+        KeyboardStatus.keyboardSeen = true
         if hasFullAccess && settings.isConfigured && AIAccess.reminderDueToday {
             trialReminder = true
             AIAccess.markReminderShown()

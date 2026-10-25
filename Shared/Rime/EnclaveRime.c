@@ -3,9 +3,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <rime_api.h>
+#include <CoreFoundation/CoreFoundation.h>
 
 static bool did_setup = false;
 static bool did_initialize = false;
+
+/// App 的版本号（MARKETING_VERSION），读不到时用 "1.0"。
+static const char *app_version(void) {
+  static char version[32] = "";
+  if (version[0] != '\0') return version;
+  CFTypeRef value = CFBundleGetValueForInfoDictionaryKey(CFBundleGetMainBundle(), CFSTR("CFBundleShortVersionString"));
+  if (value == NULL || CFGetTypeID(value) != CFStringGetTypeID() ||
+      !CFStringGetCString((CFStringRef)value, version, sizeof(version), kCFStringEncodingUTF8)) {
+    strcpy(version, "1.0");
+  }
+  return version;
+}
 
 static void fill_traits(RimeTraits *traits, const char *shared_dir, const char *user_dir, const char *log_dir) {
   RIME_STRUCT_INIT(RimeTraits, *traits);
@@ -14,7 +27,7 @@ static void fill_traits(RimeTraits *traits, const char *shared_dir, const char *
   traits->log_dir = log_dir;
   traits->distribution_name = "Enclave";
   traits->distribution_code_name = "enclave";
-  traits->distribution_version = "1.0";
+  traits->distribution_version = app_version();
   traits->app_name = "rime.enclave";
   traits->min_log_level = 2;
 }

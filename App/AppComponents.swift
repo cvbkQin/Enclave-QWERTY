@@ -32,8 +32,9 @@ enum AppSettings {
 
 /// 键盘能不能用：加没加键盘、完全访问、模型接口。
 enum Readiness {
-    /// 系统把用户加的键盘记在 AppleKeyboards 里，第三方键盘是扩展的 bundle id。
+    /// 先看键盘自己记下的标记；键盘没开完全访问时写不进来，再看系统的键盘列表（AppleKeyboards，第三方键盘是扩展的 bundle id）。
     static var keyboardAdded: Bool {
+        if KeyboardStatus.keyboardSeen { return true }
         guard let app = Bundle.main.bundleIdentifier else { return false }
         let keyboards = UserDefaults.standard.object(forKey: "AppleKeyboards") as? [String] ?? []
         return keyboards.contains("\(app).keyboard")
