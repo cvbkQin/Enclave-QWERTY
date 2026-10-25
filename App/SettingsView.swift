@@ -590,6 +590,15 @@ struct PinyinView: View {
                     LabeledContent(L("较慢的 10%", "Slowest 10%", "遅い 10%"), value: Self.milliseconds(stats.slowTotal))
                     LabeledContent(L("最慢", "Slowest", "最も遅い"), value: Self.milliseconds(stats.slowestTotal))
                     LabeledContent(L("其中拼音引擎", "Of which pinyin engine", "うちピンインエンジン"), value: Self.milliseconds(stats.medianEngine))
+                    if let memory = stats.memory {
+                        LabeledContent(L("键盘内存", "Keyboard memory", "キーボードのメモリ"), value: Self.megabytes(memory))
+                    }
+                    if let memory = stats.memoryWithModel {
+                        LabeledContent(L("键盘内存（整句模型）", "Keyboard memory (sentence model)", "キーボードのメモリ（文章モデル）"), value: Self.megabytes(memory))
+                    }
+                    if stats.memoryWarnings > 0 {
+                        LabeledContent(L("内存警告", "Memory warnings", "メモリ警告"), value: "\(stats.memoryWarnings)")
+                    }
                     Button(L("清空记录", "Clear", "記録を消去")) {
                         TypingStats.clear()
                         typingStats = nil
@@ -597,7 +606,7 @@ struct PinyinView: View {
                 } header: {
                     Text(L("打字速度", "Typing speed", "入力の速さ"))
                 } footer: {
-                    Text(L("最近 \(stats.count) 个拼音按键，从按下到候选出来用的时间。一般在 30 毫秒以内就感觉不到卡。", "The last \(stats.count) pinyin keys, from tap to candidates shown. Under about 30 ms feels instant.", "直近 \(stats.count) 回のピンイン入力で、タップから候補が出るまでの時間です。30 ミリ秒以内ならほぼ遅れを感じません。"))
+                    Text(L("最近 \(stats.count) 个拼音按键，从按下到候选出来用的时间。一般在 30 毫秒以内就感觉不到卡。键盘内存是一般 / 最高，键盘扩展能用的内存有限，太高会被系统关掉。", "The last \(stats.count) pinyin keys, from tap to candidates shown. Under about 30 ms feels instant. Keyboard memory is typical / peak; keyboards get limited memory and are closed by the system if they use too much.", "直近 \(stats.count) 回のピンイン入力で、タップから候補が出るまでの時間です。30 ミリ秒以内ならほぼ遅れを感じません。キーボードのメモリは通常 / 最大です。使いすぎるとシステムに閉じられます。"))
                 }
             }
         }
@@ -657,6 +666,11 @@ struct PinyinView: View {
             }
             return L("未下载 · 约 380MB", "Not downloaded · about 380 MB", "未ダウンロード · 約 380 MB")
         }
+    }
+
+    /// 「一般 / 最高」。
+    private static func megabytes(_ memory: TypingStats.Memory) -> String {
+        String(format: "%.0f / %.0f MB", memory.median, memory.peak)
     }
 
     private static func milliseconds(_ value: Double) -> String {

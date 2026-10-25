@@ -85,6 +85,11 @@ final class KeyboardViewController: UIInputViewController {
         TypingStats.flush()
     }
 
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning()
+        model.releaseEngineMemory()
+    }
+
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
         model.needsGlobeKey = needsInputModeSwitchKey

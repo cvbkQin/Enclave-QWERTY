@@ -423,6 +423,58 @@ extension KeyboardModel {
         if shift == .on { shift = .off }
     }
 
+    #if DEBUG
+    /// 模拟器测内存（debug 选项 memtest）：打一组整句，记下首选、耗时和内存，再模拟内存警告释放引擎，
+    /// 结果写到共享目录 Library/Diagnostics/memtest-gram.json（有整句模型）或 memtest-plain.json。
+    func runMemoryTest() {
+        let sentences = [
+            "woxiangqugongsishangban", "jintiantianqizhenhao", "womenyiqiquchifanba", "zhegewentiwomenmingtianzaitaolun",
+            "tazuotianwanshangmeiyouhuijia", "qingbangwochayixiahuochepiao", "zhejianshiqingbiwoxiangdeyaofuza",
+            "nikanjianwodeshoujilema", "xiawusandianzaihuiyishikaihui", "zhegexiangmudejindubijiaoman",
+        ]
+        let engine = QueuedEngine.shared
+        guard self.engine === engine else { return }
+        var report: [String: Any] = ["model": TypingStats.modelInUse, "startMB": TypingStats.footprintMB() ?? -1]
+        var results: [[String: Any]] = []
+        var peak = 0.0
+        for sentence in sentences {
+            engine.reset()
+            let start = CACurrentMediaTime()
+            for letter in sentence { _ = engine.input(String(letter)) }
+            let memory = TypingStats.footprintMB() ?? -1
+            peak = max(peak, memory)
+            results.append(["input": sentence, "first": engine.candidates.first ?? "",
+                            "ms": (CACurrentMediaTime() - start) * 1000, "mb": memory])
+        }
+        engine.reset()
+        report["sentences"] = results
+        report["peakMB"] = peak
+        report["afterTypingMB"] = TypingStats.footprintMB() ?? -1
+        releaseEngineMemory()
+        report["afterReleaseMB"] = TypingStats.footprintMB() ?? -1
+        // 释放后再打一句：确认引擎能重新启动，记下这一下要多久。
+        let restart = CACurrentMediaTime()
+        for letter in sentences[0] { _ = engine.input(String(letter)) }
+        report["restartFirst"] = engine.candidates.first ?? ""
+        report["restartMs"] = (CACurrentMediaTime() - restart) * 1000
+        engine.reset()
+        syncEngine()
+        guard let group = SharedStorage.appGroupID.flatMap({ FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }),
+              let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) else { return }
+        let out = group.appendingPathComponent("Library/Diagnostics", isDirectory: true)
+        try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        try? data.write(to: out.appendingPathComponent(TypingStats.modelInUse ? "memtest-gram.json" : "memtest-plain.json"))
+    }
+    #endif
+
+    /// 系统内存警告：关掉拼音引擎省内存，下一个按键时在后台重新启动。正在拼的内容会丢掉，总比键盘被系统杀掉好。
+    func releaseEngineMemory() {
+        TypingStats.noteMemoryWarning()
+        guard engine === QueuedEngine.shared else { return }
+        QueuedEngine.shared.release()
+        syncEngine()
+    }
+
     /// 九宫格「重输」：清掉正在拼的内容。
     func clearComposition() {
         engine.reset()
@@ -436,6 +488,8 @@ extension KeyboardModel {
         let queued = QueuedEngine.shared
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
+        TypingStats.modelInUse = useShared && RimeStore.isDeployed
+            && (RimeStore.deployedVersion?.hasSuffix(GrammarModel.versionTag(installed: true)) ?? false)
         engine = chineseMode && pinyinReady ? queued : DirectEngine()
         syncEngine()
         queued.prepare(schema: RimeStore.schema(for: activeLayout), useShared: useShared) { [weak self] ok, source in
@@ -659,6 +713,7 @@ extension KeyboardModel {
             case "kaomoji": keysPanel = .kaomoji
             case "quickWords": keysPanel = .quickWords
             case "undo": loadDebugUndo()
+            case "memtest": runMemoryTest()
             #endif
             default: break
             }
