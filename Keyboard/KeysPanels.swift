@@ -96,7 +96,7 @@ struct SymbolPanel: View {
     }
 }
 
-/// 九宫格「常用」打开的面板（W6）：App 里放到键盘的常用词，一行四格，短词一格、中等两格、长的占整行。
+/// 九宫格「常用」打开的面板（W6）：App 里的键盘常用语，一行四格，短词一格、中等两格、长的占整行。
 /// 点一个上屏并回到九宫格；底排 返回、空格、⌫、回车，和九宫格底排对齐。
 struct QuickWordsPanel: View {
     @ObservedObject var model: KeyboardModel
@@ -113,7 +113,7 @@ struct QuickWordsPanel: View {
             VStack(spacing: 0) {
                 HStack(spacing: 4) {
                     Text("★").foregroundStyle(Self.star)
-                    Text(L("放到键盘的常用词", "Keyboard Words", "キーボードの単語"))
+                    Text(L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"))
                     Text("\(words.count)").foregroundStyle(Color.secondary.opacity(0.6))
                 }
                 .font(.system(size: 12.5))
@@ -170,10 +170,10 @@ struct QuickWordsPanel: View {
 
     private var emptyCard: some View {
         VStack(spacing: 5) {
-            Text(L("还没有放到键盘的词", "No keyboard words yet", "キーボードの単語はまだありません"))
+            Text(L("还没有键盘常用语", "No keyboard phrases yet", "キーボードの定型文はまだありません"))
                 .font(.system(size: 15, weight: .semibold))
-            Text(L("在 Enclave App 的「常用词 › 键盘」里添加", "Add them in Enclave under My Words › Keyboard.",
-                   "Enclave の「ユーザ辞書 › キーボード」で追加できます。"))
+            Text(L("在 Enclave App 首页的「键盘常用语」里添加", "Add them in Enclave under Home › Keyboard Phrases.",
+                   "Enclave のホーム「キーボードの定型文」で追加できます。"))
                 .font(.system(size: 12.5))
                 .foregroundStyle(Color.secondary)
                 .multilineTextAlignment(.center)
