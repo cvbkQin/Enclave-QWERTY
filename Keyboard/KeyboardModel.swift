@@ -64,7 +64,7 @@ final class KeyboardModel: ObservableObject {
     @Published var trackpadActive = false
     /// 候选词展开成整页。
     @Published var candidatesExpanded = false
-    /// 盖在按键区上的面板：表情、颜文字、选拼音。
+    /// 盖在按键区上的面板：表情、颜文字、常用词。
     @Published var keysPanel: KeysPanel?
     /// 长按按键弹出的备选条。
     @Published var alternates: AlternatesPopup?

@@ -353,12 +353,14 @@ struct FunctionKey: View {
 /// 按住会连续触发的按键（删除键）。
 struct RepeatingKey: View {
     var systemImage: String
+    var insetX = KeyboardMetrics.keyInsetX
+    var insetY = KeyboardMetrics.keyInsetY
     var action: () -> Void
     @State private var timer: Timer?
     @State private var pressed = false
 
     var body: some View {
-        KeyCap(fill: pressed ? KeyStyle.pressedKey : KeyStyle.functionKey) {
+        KeyCap(fill: pressed ? KeyStyle.pressedKey : KeyStyle.functionKey, insetX: insetX, insetY: insetY) {
             Image(systemName: systemImage).font(KeyStyle.iconFont).foregroundStyle(Color.primary)
         }
         .gesture(

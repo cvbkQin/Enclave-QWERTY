@@ -96,33 +96,128 @@ struct SymbolPanel: View {
     }
 }
 
-/// 「选拼音」打开的整页音节，选一个回到键盘。
-struct PinyinPanel: View {
+/// 九宫格「常用」打开的面板（W6）：App 里放到键盘的常用词，一行四格，短词一格、中等两格、长的占整行。
+/// 点一个上屏并回到九宫格；底排 返回、空格、⌫、回车，和九宫格底排对齐。
+struct QuickWordsPanel: View {
     @ObservedObject var model: KeyboardModel
 
+    private static let gap: CGFloat = 5
+    private static let cellHeight: CGFloat = 32
+    private static let font = UIFont.systemFont(ofSize: 13.5)
+    private static let textPadding: CGFloat = 9
+    private static let star = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
+    /// 词格和底排按键的左右边缘对齐九宫格的键。
+    private static let sideInset = KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding
+
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 0)], spacing: 0) {
-                    ForEach(model.pinyinOptions, id: \.self) { syllable in
-                        Button { model.choosePinyin(syllable) } label: {
-                            Text(syllable).font(.system(size: 19)).foregroundStyle(Color.primary)
-                                .frame(maxWidth: .infinity, minHeight: 46).contentShape(Rectangle())
+        let words = model.quickWords
+        GeometryReader { geo in
+            let width = geo.size.width - Self.sideInset * 2
+            VStack(spacing: 0) {
+                HStack(spacing: 4) {
+                    Text("★").foregroundStyle(Self.star)
+                    Text(L("放到键盘的常用词", "Keyboard Words", "キーボードの単語"))
+                    Text("\(words.count)").foregroundStyle(Color.secondary.opacity(0.6))
+                }
+                .font(.system(size: 12.5))
+                .foregroundStyle(Color.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Self.sideInset + 2)
+                .frame(height: 22)
+                Group {
+                    if words.isEmpty { emptyCard } else { grid(words, width: width) }
+                }
+                .padding(.horizontal, Self.sideInset)
+                .frame(maxHeight: .infinity)
+                bottomRow(width: geo.size.width)
+                    .frame(height: KeyboardMetrics.nineRowPitch)
+                    .padding(.bottom, KeyboardMetrics.nineTopOffset)
+            }
+        }
+    }
+
+    private func grid(_ words: [String], width: CGFloat) -> some View {
+        let column = (width - Self.gap * 3) / 4
+        return ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: Self.gap) {
+                ForEach(Array(CommonWordStore.keyboardRows(words, column: column, gap: Self.gap, font: Self.font,
+                                                           padding: Self.textPadding).enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: Self.gap) {
+                        ForEach(row, id: \.text) { cell in
+                            Button { model.pickQuickWord(cell.text) } label: {
+                                Text(cell.text)
+                                    .font(.system(size: 13.5))
+                                    .foregroundStyle(Color.primary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .padding(.horizontal, Self.textPadding)
+                                    .frame(width: column * CGFloat(cell.span) + Self.gap * CGFloat(cell.span - 1),
+                                           height: Self.cellHeight, alignment: .leading)
+                                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(KeyPressStyle())
                         }
-                        .buttonStyle(KeyPressStyle())
                     }
                 }
             }
-            .frame(maxWidth: .infinity)
-            .hidingScrollEdgeEffect()
-            VStack(spacing: 0) {
-                FunctionKey(title: "返回") { model.closePanel() }.frame(height: KeyboardMetrics.slotHeight)
-                RepeatingKey(systemImage: "delete.left") { model.deleteKey() }.frame(height: KeyboardMetrics.slotHeight)
-                FunctionKey(title: "重输") { model.clearComposition() }.frame(height: KeyboardMetrics.slotHeight)
-                Spacer(minLength: 0)
-            }
-            .frame(width: 64)
+            .padding(.top, 2)
+            .padding(.bottom, 22)
         }
+        .hidingScrollEdgeEffect()
+        // 底部 22pt 渐隐，提示还能往下滑。
+        .mask(VStack(spacing: 0) {
+            Color.black
+            LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 22)
+        })
+    }
+
+    private var emptyCard: some View {
+        VStack(spacing: 5) {
+            Text(L("还没有放到键盘的词", "No keyboard words yet", "キーボードの単語はまだありません"))
+                .font(.system(size: 15, weight: .semibold))
+            Text(L("在 Enclave App 的「常用词 › 键盘」里添加", "Add them in Enclave under My Words › Keyboard.",
+                   "Enclave の「ユーザ辞書 › キーボード」で追加できます。"))
+                .font(.system(size: 12.5))
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(KeyStyle.charKey.opacity(0.6)))
+        .padding(.bottom, 4)
+    }
+
+    private func bottomRow(width: CGFloat) -> some View {
+        let edge = KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding - KeyboardMetrics.nineKeyInsetX
+        let column = (width - edge * 2) / 5
+        let insetX = KeyboardMetrics.nineKeyInsetX, insetY = KeyboardMetrics.nineKeyInsetY
+        return HStack(spacing: 0) {
+            Button { model.closePanel() } label: {
+                KeyCap(fill: KeyStyle.functionKey, insetX: insetX, insetY: insetY) {
+                    Text("返回").font(KeyStyle.functionFont).foregroundStyle(Color.primary)
+                }
+            }
+            .buttonStyle(KeyPressStyle())
+            .frame(width: column)
+            Button { model.spaceKey() } label: {
+                KeyCap(fill: KeyStyle.charKey, insetX: insetX, insetY: insetY) {
+                    Text("空格").font(KeyStyle.functionFont).tracking(3).foregroundStyle(Color.primary)
+                }
+            }
+            .buttonStyle(KeyPressStyle())
+            .frame(width: column * 2)
+            RepeatingKey(systemImage: "delete.left", insetX: insetX, insetY: insetY) { model.deleteKey() }
+                .frame(width: column)
+            Button { model.returnKey() } label: {
+                KeyCap(fill: Brand.returnSoftFill, insetX: insetX, insetY: insetY) {
+                    Image(systemName: "return.left").font(KeyStyle.iconFont).foregroundStyle(Brand.deepPurple)
+                }
+            }
+            .buttonStyle(KeyPressStyle())
+            .frame(width: column)
+        }
+        .padding(.horizontal, edge)
     }
 }
 

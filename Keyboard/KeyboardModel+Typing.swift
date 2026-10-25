@@ -113,7 +113,7 @@ extension KeyboardModel {
         case .digitsMore: digitsMore.toggle()
         case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
-        case .pickPinyin: if isComposing && !pinyinOptions.isEmpty { openPanel(.pinyin) }
+        case .quickWords: openPanel(.quickWords)
         case .globe: break
         }
     }
@@ -266,6 +266,17 @@ extension KeyboardModel {
         if keysPanel == .emoji { RecentEmoji.add(text) }
     }
 
+    /// 「常用」面板里的词：App 里放到键盘的，按用户排的顺序；系统来源的词关了开关就不显示。
+    var quickWords: [String] {
+        CommonWordStore.keyboardTexts.filter { commonWordTexts.contains($0) }
+    }
+
+    /// 「常用」面板里点了一个：上屏，回到九宫格。
+    func pickQuickWord(_ text: String) {
+        typeSymbol(text)
+        closePanel()
+    }
+
     // MARK: - 选拼音
 
     /// 九宫格原始输入拆成两段：最后一个字母为止是已经选定的拼音，后面是还没定的数字（可能带分词符）。
@@ -290,7 +301,6 @@ extension KeyboardModel {
         if !remaining.isEmpty { raw += (remaining.hasPrefix("'") ? "" : "'") + remaining }
         engine.replaceInput(raw)
         syncEngine()
-        if keysPanel == .pinyin { keysPanel = nil }
     }
 
     // MARK: - 长按备选
@@ -487,7 +497,6 @@ extension KeyboardModel {
         composition = engine.composition
         candidates = engine.candidates
         if candidates.isEmpty { candidatesExpanded = false }
-        if keysPanel == .pinyin && !isComposing { keysPanel = nil }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
         if target == .host && isComposing {
             proxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
@@ -596,6 +605,7 @@ extension KeyboardModel {
             case "rerun:cycle": loadDebugRerun(cycle: true)
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
+            case "quickWords": keysPanel = .quickWords
             case "undo": loadDebugUndo()
             #endif
             default: break
@@ -609,7 +619,6 @@ extension KeyboardModel {
             syncEngine()
         }
         if options.contains("candidates") && !candidates.isEmpty { candidatesExpanded = true }
-        if options.contains("pinyin") && isComposing { keysPanel = .pinyin }
         #if DEBUG
         // cross:1:right 按住「,｡?!」往右滑；cross:3:up 按住 DEF 往上滑。
         for option in options where option.hasPrefix("cross:") {

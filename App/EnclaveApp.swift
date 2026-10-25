@@ -22,6 +22,10 @@ struct EnclaveApp: App {
                                   shortcut: parts.count > 1 ? parts[1] : "")
             })
         }
+        // -keyboardWords "张三丰,me@example.com" 放到键盘「常用」面板（词要已经在常用词里）。
+        if let index = args.firstIndex(of: "-keyboardWords"), args.indices.contains(index + 1) {
+            CommonWordStore.keyboardTexts = args[index + 1].split(separator: ",").map(String.init)
+        }
         #endif
     }
 
@@ -103,8 +107,8 @@ final class AppRouter: ObservableObject {
         case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language, privacyPolicy, licenses
     }
 
-    /// 首页里的二级页：键盘、常用词、场景实验室和其中一个场景。
-    enum HomePage: Hashable { case keyboard, commonWords, lab, scene(Int) }
+    /// 首页里的二级页：键盘、常用词（全部 / 键盘标签）、场景实验室和其中一个场景。
+    enum HomePage: Hashable { case keyboard, commonWords, keyboardWords, lab, scene(Int) }
 
     @Published var tab: Tab = .home
     /// 界面语言，改了马上存进 App Group，整个界面按新语言重画（导航位置保留）。
@@ -115,12 +119,12 @@ final class AppRouter: ObservableObject {
     @Published var homePath = NavigationPath()
 
     init() {
-        // 截图用：-playground 打开第一个场景；-homePage commonWords / lab / keyboard 打开首页的二级页；
+        // 截图用：-playground 打开第一个场景；-homePage commonWords / keyboardWords / lab / keyboard 打开首页的二级页；
         // -appPage model 打开设置里的某一页；-appTab styles 切标签。
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-playground") { homePath = NavigationPath([HomePage.lab, HomePage.scene(0)]) }
         if let i = args.firstIndex(of: "-homePage"), args.indices.contains(i + 1) {
-            let page: HomePage? = ["keyboard": .keyboard, "commonWords": .commonWords, "lab": .lab][args[i + 1]]
+            let page: HomePage? = ["keyboard": .keyboard, "commonWords": .commonWords, "keyboardWords": .keyboardWords, "lab": .lab][args[i + 1]]
             if let page { homePath = NavigationPath([page]) }
         }
         if let i = args.firstIndex(of: "-appTab"), args.indices.contains(i + 1) {

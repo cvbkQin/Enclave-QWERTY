@@ -10,8 +10,8 @@ enum KeyKind: Equatable {
     /// 九宫格的「^^」：平时打开颜文字，打拼音时是「重输」。
     case emoticon
     case emoji
-    /// 九宫格的「选拼音」。
-    case pickPinyin
+    /// 九宫格左列的「常用」：打开放到键盘的常用词。
+    case quickWords
     case layer(KeyboardModel.KeyLayer)
     /// 九宫格数字键盘的「.,:」：点一下是「.」，往左划「,」、往上划「:」。
     case digitPunct
@@ -172,12 +172,12 @@ enum KeyLayout {
         return KeyLayoutResult(keys: keys)
     }
 
-    /// 九宫格，照 iOS 26 的五列排法：
+    /// 九宫格，五列：
     /// 123   ,。?!  ABC   DEF   删除
     /// #@¥   GHI   JKL   MNO   ^^（打拼音时是重输）
-    /// ABC   PQRS  TUV   WXYZ  换行
-    /// 😀/地球 选拼音 空格（两格）   （换行占两行）
-    /// 打拼音时左列上三格换成拼音选择栏。
+    /// 常用  PQRS  TUV   WXYZ  换行
+    /// 😀/地球 中/英 空格（两格）   （换行占两行）
+    /// 打拼音时左列上三格换成拼音选择栏。中/英放在底排第二格，和全键盘的位置大体一致。
     private static func nineKey(_ state: State, size: CGSize) -> KeyLayoutResult {
         let slot = KeyboardMetrics.nineRowPitch
         let top = KeyboardMetrics.nineTopOffset
@@ -206,10 +206,10 @@ enum KeyLayout {
         } else {
             add("layer", .layer(.digits), col: 0, row: 0)
             add("symbols", .layer(.numbers), col: 0, row: 1)
-            add("chinese", .toggleChinese, col: 0, row: 2)
+            add("quickWords", .quickWords, col: 0, row: 2)
         }
         add(state.needsGlobeKey ? "globe" : "emoji", state.needsGlobeKey ? .globe : .emoji, col: 0, row: 3)
-        add("pinyin", .pickPinyin, col: 1, row: 3)
+        add("chinese", .toggleChinese, col: 1, row: 3)
         add("space", .space, col: 2, row: 3, cols: 2)
         add("delete", .delete, col: 4, row: 0)
         add("emoticon", .emoticon, col: 4, row: 1)

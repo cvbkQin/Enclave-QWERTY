@@ -32,6 +32,7 @@ struct HomeView: View {
                 switch page {
                 case .keyboard: KeyboardSettingsView()
                 case .commonWords: CommonWordsView()
+                case .keyboardWords: CommonWordsView(tab: .keyboard)
                 case .lab: LabView()
                 case .scene(let index): SceneView(index: index)
                 }
@@ -107,7 +108,8 @@ private struct Dashboard: View {
             ConfigCard(icon: "text.book.closed", color: .green, label: L("常用词", "My Words", "ユーザ辞書"), value: L("\(words.all.count) 个", "\(words.all.count)", "\(words.all.count) 語"),
                        detail: wordsDetail, dot: nil) { router.openHome(.commonWords) }
         }
-        .onAppear { words.reload() }
+        KeyboardWordsRow(words: words.keyboardWords.map(\.text)) { router.openHome(.keyboardWords) }
+            .onAppear { words.reload() }
         sectionTitle(L("小技巧", "Tips", "ヒント"))
         VStack(alignment: .leading, spacing: 8) {
             Text(L("· 选中一段文字再点润色，只改选中的部分", "· Select some text before tapping Polish to change only that part", "· 文章の一部を選択してから「整える」で、その部分だけ直せます"))
@@ -194,6 +196,42 @@ private struct ModelRow: View {
                 HStack(spacing: 5) {
                     Circle().fill(status.color).frame(width: 7, height: 7)
                     Text(status.text).font(.footnote.weight(.semibold)).foregroundStyle(status.color)
+                }
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 首页「键盘常用词」整行（W11）：橙色星标、个数，右边预览前两个词，点进常用词页的「键盘」标签。
+private struct KeyboardWordsRow: View {
+    var words: [String]
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                RowIcon(systemName: "star.fill", color: AppColor.keyboardStar, size: 26)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(L("键盘常用词", "Keyboard Words", "キーボードの単語")).font(.system(size: 13)).foregroundStyle(.secondary)
+                    Text(L("\(words.count) 个", "\(words.count)", "\(words.count) 語")).font(.system(size: 17, weight: .bold))
+                }
+                .fixedSize()
+                Spacer(minLength: 8)
+                HStack(spacing: 6) {
+                    ForEach(words.prefix(2), id: \.self) { word in
+                        Text(word)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(maxWidth: 84)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(.systemGray6)))
+                    }
                 }
                 Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
             }

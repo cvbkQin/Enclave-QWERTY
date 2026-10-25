@@ -6,6 +6,8 @@ enum AppColor {
     static let purple = Color(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255)
     static let violet = Color(red: 0x7C / 255, green: 0x3A / 255, blue: 0xED / 255)
     static let gold = Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255)
+    /// 键盘常用词的星标 #FF9F0A。
+    static let keyboardStar = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
     static let softFill = purple.opacity(0.12)
     /// 建议标签：字 #4A3BD6；未选白底 #DCD6FB 细圈，选中 #ECEAFD 底 #8B7CF6 细圈。
     static let deepPurple = Color(UIColor { $0.userInterfaceStyle == .dark

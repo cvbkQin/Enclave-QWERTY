@@ -19,7 +19,7 @@ protocol InputEngine: AnyObject {
     func reset()
     /// 引擎收到的原始按键（九宫格是数字，选过拼音的部分是字母）。
     var rawInput: String { get }
-    /// 整段换掉原始输入，用于九宫格选拼音。
+    /// 整段换掉原始输入，用于九宫格在拼音列里选拼音。
     func replaceInput(_ raw: String)
 }
 

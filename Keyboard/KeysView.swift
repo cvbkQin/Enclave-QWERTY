@@ -11,7 +11,7 @@ struct KeysView: View {
             ZStack(alignment: .topLeading) {
                 if let panel = model.keysPanel {
                     Group {
-                        if panel == .pinyin { PinyinPanel(model: model) } else { SymbolPanel(model: model) }
+                        if panel == .quickWords { QuickWordsPanel(model: model) } else { SymbolPanel(model: model) }
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
                 } else if model.candidatesExpanded {
@@ -159,9 +159,8 @@ struct KeyCapView: View {
             }
         case .emoji:
             Image(systemName: "face.smiling").font(KeyStyle.iconFont)
-        case .pickPinyin:
-            Text("选拼音").font(KeyStyle.functionFont)
-                .opacity(model.isComposing ? 1 : 0.35)
+        case .quickWords:
+            Text("常用").font(KeyStyle.nineKeyFont).tracking(1)
         case .layer(let target):
             if model.nineGrid {
                 if key.id == "symbols" {
@@ -199,12 +198,17 @@ struct ToggleLabel: View {
     var size: CGFloat
 
     var body: some View {
+        // 斜杠往「中」挪 1pt、「英」跟着挪 0.5pt（左右间距 2/2 → 1/2.5），抵消斜杠倾斜后看着偏「英」。
         let font = Font.system(size: size, weight: .medium)
-        return Text("中").font(font)
-            .foregroundColor(chinese ? Brand.toggleActive : Brand.toggleInactive)
-        + Text("/").font(font).foregroundColor(Brand.toggleSlash)
-        + Text("英").font(font)
-            .foregroundColor(chinese ? Brand.toggleInactive : Brand.toggleActive)
+        return HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text("中").font(font)
+                .foregroundColor(chinese ? Brand.toggleActive : Brand.toggleInactive)
+            Text("/").font(font).foregroundColor(Brand.toggleSlash)
+                .padding(.leading, -1)
+            Text("英").font(font)
+                .foregroundColor(chinese ? Brand.toggleInactive : Brand.toggleActive)
+                .padding(.leading, 0.5)
+        }
     }
 }
 

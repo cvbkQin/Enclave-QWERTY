@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// 常用词：用户在 App 里加的、从别的输入法导入的词，打拼音或简码时排在候选最前。
 /// 系统「文本替换」和通讯录人名只有键盘读得到（UILexicon），键盘读到后存一份快照，App 里只读显示。
@@ -26,6 +27,7 @@ enum CommonWordStore {
     private static let lexiconKey = "commonWords.lexicon"
     private static let textReplacementKey = "commonWords.useTextReplacement"
     private static let contactsKey = "commonWords.useContacts"
+    private static let keyboardKey = "commonWords.keyboard"
 
     /// App 里加的和导入的词。
     static func load() -> [CommonWord] {
@@ -59,6 +61,12 @@ enum CommonWordStore {
     static var usesContacts: Bool {
         get { SharedStorage.defaults.object(forKey: contactsKey) as? Bool ?? false }
         set { SharedStorage.defaults.set(newValue, forKey: contactsKey) }
+    }
+
+    /// 放到键盘「常用」面板里的词，按用户排的顺序。存的是词本身：系统来源的词每次读都是新的 id。
+    static var keyboardTexts: [String] {
+        get { SharedStorage.defaults.stringArray(forKey: keyboardKey) ?? [] }
+        set { SharedStorage.defaults.set(newValue, forKey: keyboardKey) }
     }
 
     /// 键盘这次要用的全部常用词：自己加的、导入的，加上打开了开关的系统来源。
@@ -97,6 +105,35 @@ enum CommonWordStore {
             "t": "8", "u": "8", "v": "8", "w": "9", "x": "9", "y": "9", "z": "9",
         ]
         return String(code.compactMap { keys[$0] })
+    }
+
+    // MARK: - 键盘「常用」面板
+
+    /// 面板里的一格：词和占几格（1、2 或整行 4）。
+    struct KeyboardCell: Hashable {
+        let text: String
+        let span: Int
+    }
+
+    /// 按顺序排进一行四格：显示宽度放得下一格的占一格，放得下两格的占两格，否则占整行；这一行剩下的格子不够就换行。
+    /// 键盘面板和 App 里的预览共用，App 里按比例缩小传进来。
+    static func keyboardRows(_ texts: [String], column: CGFloat, gap: CGFloat, font: UIFont, padding: CGFloat) -> [[KeyboardCell]] {
+        var rows: [[KeyboardCell]] = []
+        var current: [KeyboardCell] = []
+        var used = 0
+        for text in texts {
+            let width = (text as NSString).size(withAttributes: [.font: font]).width + padding * 2
+            let span = width <= column ? 1 : width <= column * 2 + gap ? 2 : 4
+            if used + span > 4 {
+                rows.append(current)
+                current = []
+                used = 0
+            }
+            current.append(KeyboardCell(text: text, span: span))
+            used += span
+        }
+        if !current.isEmpty { rows.append(current) }
+        return rows
     }
 
     // MARK: - 导入

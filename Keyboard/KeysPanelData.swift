@@ -3,7 +3,7 @@ import Foundation
 
 /// 盖在按键区上的面板。
 enum KeysPanel: Equatable {
-    case emoji, kaomoji, pinyin
+    case emoji, kaomoji, quickWords
 }
 
 /// 长按按键弹出的一排备选，手指左右滑动来选，松手上屏。

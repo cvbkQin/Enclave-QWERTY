@@ -43,6 +43,10 @@ final class CommonWordsModel: ObservableObject {
     @Published var usesContacts = CommonWordStore.usesContacts {
         didSet { CommonWordStore.usesContacts = usesContacts }
     }
+    /// 放到键盘「常用」面板的词，按键盘里的顺序。
+    @Published var keyboard = CommonWordStore.keyboardTexts {
+        didSet { if keyboard != oldValue { CommonWordStore.keyboardTexts = keyboard } }
+    }
 
     /// 只列出打开了开关的系统来源。
     var all: [CommonWord] {
@@ -55,14 +59,49 @@ final class CommonWordsModel: ObservableObject {
         all.filter { source == nil || $0.source == source }.count
     }
 
+    /// 键盘里的词，按键盘顺序；系统来源关了开关的不算。
+    var keyboardWords: [CommonWord] {
+        let words = all
+        return keyboard.compactMap { text in words.first { $0.text == text } }
+    }
+
+    func isOnKeyboard(_ word: CommonWord) -> Bool { keyboard.contains(word.text) }
+
+    /// 点 ☆ / ★：放到键盘（排在最后）或拿掉。
+    func toggleKeyboard(_ word: CommonWord) {
+        if isOnKeyboard(word) { removeFromKeyboard(word) } else { addToKeyboard([word.text]) }
+    }
+
+    func addToKeyboard(_ texts: [String]) {
+        for text in texts where !keyboard.contains(text) { keyboard.append(text) }
+    }
+
+    /// 只是不放到键盘，词本身还在。
+    func removeFromKeyboard(_ word: CommonWord) {
+        keyboard.removeAll { $0 == word.text }
+    }
+
+    /// 键盘标签里拖动排序。列表只显示还在的词，按这些词在 keyboard 里的位置挪。
+    func moveKeyboard(from source: IndexSet, to destination: Int) {
+        var shown = keyboardWords.map(\.text)
+        shown.move(fromOffsets: source, toOffset: destination)
+        keyboard = shown + keyboard.filter { !shown.contains($0) }
+    }
+
     func reload() {
         words = CommonWordStore.load()
         lexicon = CommonWordStore.lexicon
+        keyboard = CommonWordStore.keyboardTexts
     }
 
     func save(_ word: CommonWord) {
         if let index = words.firstIndex(where: { $0.id == word.id }) {
+            // 改了词本身，键盘里的那一条跟着改。
+            let old = words[index].text
             words[index] = word
+            if old != word.text, let position = keyboard.firstIndex(of: old) {
+                if keyboard.contains(word.text) { keyboard.remove(at: position) } else { keyboard[position] = word.text }
+            }
         } else {
             words.insert(word, at: 0)
         }
@@ -70,27 +109,43 @@ final class CommonWordsModel: ObservableObject {
 
     func delete(_ word: CommonWord) {
         words.removeAll { $0.id == word.id }
+        if !all.contains(where: { $0.text == word.text }) { keyboard.removeAll { $0 == word.text } }
     }
 }
 
-/// 常用词列表（W2）：搜索、按来源筛选、点一行编辑、左滑删除、从文件导入、系统来源开关。
+/// 常用词页：上面分「键盘」「全部」两个标签。
+/// 全部（W2 / W9）：搜索、按来源筛选、点一行编辑、左滑删除、点 ☆ 放到键盘、从文件导入、系统来源开关。
+/// 键盘（W8）：放到键盘「常用」面板的词，拖 ≡ 排序、点 ★ 或左滑拿掉、添加到键盘，下面预览键盘里的样子。
 struct CommonWordsView: View {
+    enum Tab: Hashable { case keyboard, all }
+
     @StateObject private var model = CommonWordsModel()
+    @State private var tab: Tab
     @State private var search = ""
     @State private var filter: CommonWord.Source?
     @State private var editing: CommonWord?
     @State private var adding = false
+    @State private var addingToKeyboard = false
     @State private var readOnly: CommonWord?
     @State private var importing = false
     @State private var preview: ImportPreview?
 
+    init(tab: Tab = .all) {
+        _tab = State(initialValue: tab)
+    }
+
+    private var query: (text: String, code: String) {
+        let text = search.trimmingCharacters(in: .whitespaces).lowercased()
+        return (text, CommonWordStore.normalizeCode(text))
+    }
+
+    private func matches(_ word: CommonWord) -> Bool {
+        let (text, code) = query
+        return text.isEmpty || word.text.lowercased().contains(text) || (!code.isEmpty && word.codes.contains { $0.contains(code) })
+    }
+
     private var shown: [CommonWord] {
-        let query = search.trimmingCharacters(in: .whitespaces).lowercased()
-        let compact = CommonWordStore.normalizeCode(query)
-        return model.all.filter { word in
-            (filter == nil || word.source == filter) && (query.isEmpty || word.text.lowercased().contains(query)
-                || (!compact.isEmpty && word.codes.contains { $0.contains(compact) }))
-        }
+        model.all.filter { (filter == nil || $0.source == filter) && matches($0) }
     }
 
     var body: some View {
@@ -109,57 +164,16 @@ struct CommonWordsView: View {
                 .listRowBackground(Color.orange.opacity(0.12))
             }
             Section {
-                filterBar
+                tabBar
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
+                if tab == .all {
+                    filterBar
+                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(Color.clear)
+                }
             }
-            Section {
-                if shown.isEmpty {
-                    Text(model.all.isEmpty ? L("还没有常用词。点右上角「＋」加一个，或者从文件导入。", "No words yet. Tap ＋ to add one, or import from a file.", "まだ登録がありません。右上の「＋」で追加するか、ファイルから読み込みます。") : L("没有找到。", "No results.", "見つかりません。"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(shown) { word in
-                    Button {
-                        if word.isReadOnly { readOnly = word } else { editing = word }
-                    } label: {
-                        WordRow(word: word)
-                    }
-                    .buttonStyle(.plain)
-                    .swipeActions {
-                        if !word.isReadOnly {
-                            Button(role: .destructive) { model.delete(word) } label: { Label(L("删除", "Delete", "削除"), systemImage: "trash") }
-                                .tint(.red)
-                        }
-                    }
-                }
-            } footer: {
-                Text(L("打拼音或简码时，常用词排在候选第一位。左滑删除，点一下编辑；文本替换和通讯录的词要去系统里改。", "Your words come first when you type their pinyin or shortcut. Swipe left to delete, tap to edit. Text Replacement and Contacts entries are edited in iOS.", "ピンインや略語を入力すると、登録した語が候補の先頭に出ます。左にスワイプで削除、タップで編集。ユーザ辞書と連絡先の語は iOS 側で変更します。"))
-            }
-            Section {
-                Button { importing = true } label: {
-                    Label(L("从文件导入（搜狗、百度、RIME 等）", "Import from file (Sogou, Baidu, RIME…)", "ファイルから読み込む（Sogou・Baidu・RIME など）"), systemImage: "square.and.arrow.down")
-                }
-                .tint(AppColor.purple)
-            }
-            Section {
-                Toggle(isOn: $model.usesTextReplacement) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("使用系统文本替换", "Use Text Replacements", "iPhone のユーザ辞書を使う"))
-                        Text(L("设置 › 通用 › 键盘 › 文本替换里的词", "Words in Settings › General › Keyboard › Text Replacement", "設定 › 一般 › キーボード › ユーザ辞書 の語")).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                Toggle(isOn: $model.usesContacts) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("使用通讯录里的名字", "Use names from Contacts", "連絡先の名前を使う"))
-                        Text(L("只读名字，不读电话和其他信息", "Names only, never numbers or other details", "名前だけを読み、電話番号などは読みません")).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            } header: {
-                Text(L("自动加入", "Add automatically", "自動で追加"))
-            } footer: {
-                Text(L("这两项和你在这里加的词，都要键盘开了「允许完全访问」才会用上。", "These and the words you add here need Allow Full Access on the keyboard.", "これらとここで追加した語は、キーボードの「フルアクセスを許可」がオンのときに使われます。"))
-            }
+            if tab == .keyboard { keyboardSections } else { allSections }
         }
         .tint(AppColor.purple)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: L("搜索词或拼音", "Search words or pinyin", "語またはピンインを検索"))
@@ -175,6 +189,9 @@ struct CommonWordsView: View {
         }
         .sheet(item: $editing) { word in
             WordEditor(word: word) { model.save($0) } onDelete: { model.delete($0) }
+        }
+        .sheet(isPresented: $addingToKeyboard) {
+            AddToKeyboardSheet(model: model)
         }
         .alert(item: $readOnly) { word in
             Alert(title: Text(word.text),
@@ -203,6 +220,14 @@ struct CommonWordsView: View {
         .onAppear { model.reload() }
     }
 
+    private var tabBar: some View {
+        Picker(L("显示", "Show", "表示"), selection: $tab) {
+            Text(L("键盘 \(model.keyboardWords.count)", "Keyboard \(model.keyboardWords.count)", "キーボード \(model.keyboardWords.count)")).tag(Tab.keyboard)
+            Text(L("全部 \(model.all.count)", "All \(model.all.count)", "すべて \(model.all.count)")).tag(Tab.all)
+        }
+        .pickerStyle(.segmented)
+    }
+
     private var filterBar: some View {
         Picker(L("来源", "Source", "ソース"), selection: $filter) {
             Text(L("全部 \(model.count(nil))", "All \(model.count(nil))", "すべて \(model.count(nil))")).tag(CommonWord.Source?.none)
@@ -211,6 +236,262 @@ struct CommonWordsView: View {
             }
         }
         .pickerStyle(.segmented)
+    }
+
+    private func edit(_ word: CommonWord) {
+        if word.isReadOnly { readOnly = word } else { editing = word }
+    }
+
+    // MARK: 全部
+
+    @ViewBuilder
+    private var allSections: some View {
+        Section {
+            if shown.isEmpty {
+                Text(model.all.isEmpty ? L("还没有常用词。点右上角「＋」加一个，或者从文件导入。", "No words yet. Tap ＋ to add one, or import from a file.", "まだ登録がありません。右上の「＋」で追加するか、ファイルから読み込みます。") : L("没有找到。", "No results.", "見つかりません。"))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(shown) { word in
+                HStack(spacing: 12) {
+                    Button { edit(word) } label: {
+                        WordRow(word: word)
+                    }
+                    .buttonStyle(.plain)
+                    KeyboardStar(on: model.isOnKeyboard(word)) { model.toggleKeyboard(word) }
+                }
+                .swipeActions {
+                    if !word.isReadOnly {
+                        Button(role: .destructive) { model.delete(word) } label: { Label(L("删除", "Delete", "削除"), systemImage: "trash") }
+                            .tint(.red)
+                    }
+                }
+            }
+        } footer: {
+            Text(L("点 ☆ 把词放到键盘的「常用」里，默认都不放。打拼音或简码时，常用词照常排在候选第一位。左滑删除，点一下编辑；文本替换和通讯录的词要去系统里改。",
+                   "Tap ☆ to put a word in the keyboard's 常用 panel; none are added by default. Your words still come first when you type their pinyin or shortcut. Swipe left to delete, tap to edit. Text Replacement and Contacts entries are edited in iOS.",
+                   "☆ をタップするとキーボードの「常用」に入ります（初期状態では入りません）。ピンインや略語を入力すると、登録した語が候補の先頭に出ます。左にスワイプで削除、タップで編集。ユーザ辞書と連絡先の語は iOS 側で変更します。"))
+        }
+        Section {
+            Button { importing = true } label: {
+                Label(L("从文件导入（搜狗、百度、RIME 等）", "Import from file (Sogou, Baidu, RIME…)", "ファイルから読み込む（Sogou・Baidu・RIME など）"), systemImage: "square.and.arrow.down")
+            }
+            .tint(AppColor.purple)
+        }
+        Section {
+            Toggle(isOn: $model.usesTextReplacement) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("使用系统文本替换", "Use Text Replacements", "iPhone のユーザ辞書を使う"))
+                    Text(L("设置 › 通用 › 键盘 › 文本替换里的词", "Words in Settings › General › Keyboard › Text Replacement", "設定 › 一般 › キーボード › ユーザ辞書 の語")).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Toggle(isOn: $model.usesContacts) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("使用通讯录里的名字", "Use names from Contacts", "連絡先の名前を使う"))
+                    Text(L("只读名字，不读电话和其他信息", "Names only, never numbers or other details", "名前だけを読み、電話番号などは読みません")).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text(L("自动加入", "Add automatically", "自動で追加"))
+        } footer: {
+            Text(L("这两项和你在这里加的词，都要键盘开了「允许完全访问」才会用上。", "These and the words you add here need Allow Full Access on the keyboard.", "これらとここで追加した語は、キーボードの「フルアクセスを許可」がオンのときに使われます。"))
+        }
+    }
+
+    // MARK: 键盘
+
+    private func move(from source: IndexSet, to destination: Int) {
+        model.moveKeyboard(from: source, to: destination)
+    }
+
+    @ViewBuilder
+    private var keyboardSections: some View {
+        let words = model.keyboardWords
+        let filtered = words.filter(matches)
+        Section {
+            if !query.text.isEmpty && filtered.isEmpty {
+                Text(L("没有找到。", "No results.", "見つかりません。")).font(.subheadline).foregroundStyle(.secondary)
+            }
+            ForEach(filtered) { word in
+                HStack(spacing: 12) {
+                    Button { edit(word) } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(word.text).font(.system(size: 16)).lineLimit(1)
+                            if !word.pinyin.isEmpty {
+                                Text(word.pinyin).font(.system(size: 12.5, design: .monospaced)).foregroundStyle(Color(hex: 0x8E8E93))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    KeyboardStar(on: true) { model.removeFromKeyboard(word) }
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color(hex: 0xC7C7CC))
+                }
+                .swipeActions {
+                    Button { model.removeFromKeyboard(word) } label: { Label(L("拿掉", "Remove", "外す"), systemImage: "star.slash") }
+                        .tint(.orange)
+                }
+            }
+            // 搜索时列表不全，不能拖。
+            .onMove(perform: query.text.isEmpty ? move : nil)
+            Button { addingToKeyboard = true } label: {
+                Label(L("添加到键盘", "Add to Keyboard", "キーボードに追加"), systemImage: "plus")
+                    .foregroundStyle(AppColor.purple)
+            }
+        } footer: {
+            Text(L("按住右边的 ≡ 上下拖动，键盘里按这个顺序显示。点 ★ 或左滑从键盘里拿掉，词本身还在「全部」里。",
+                   "Touch and hold ≡ and drag to reorder; the keyboard shows them in this order. Tap ★ or swipe left to remove a word from the keyboard. It stays in All.",
+                   "≡ を長押しして上下にドラッグすると並べ替えられ、キーボードもこの順で表示します。★ をタップするか左にスワイプでキーボードから外せます（語は「すべて」に残ります）。"))
+        }
+        if !words.isEmpty {
+            Section {
+                KeyboardWordsPreview(texts: words.map(\.text))
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            } header: {
+                Text(L("键盘里的样子", "On the keyboard", "キーボードでの表示"))
+            } footer: {
+                Text(L("一行四格：短词一格，邮箱这类两格，地址和长句占一整行。", "Four per row: short words take one cell, emails two, addresses and sentences a full row.", "1 行 4 マス：短い語は 1 マス、メールアドレスなどは 2 マス、住所や長い文は 1 行。"))
+            }
+        }
+    }
+}
+
+/// 放到键盘的星标：☆ 灰色、★ 橙色 #FF9F0A。
+private struct KeyboardStar: View {
+    var on: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: on ? "star.fill" : "star")
+                .font(.system(size: 19))
+                .foregroundStyle(on ? AppColor.keyboardStar : Color(hex: 0xC7C7CC))
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(on ? L("从键盘里拿掉", "Remove from keyboard", "キーボードから外す") : L("放到键盘", "Add to keyboard", "キーボードに追加"))
+    }
+}
+
+/// 「键盘里的样子」：灰底 #DCDEE4，按键盘同样的一行四格规则缩小显示。
+private struct KeyboardWordsPreview: View {
+    let texts: [String]
+
+    private static let gap: CGFloat = 4
+    private static let font = UIFont.systemFont(ofSize: 11)
+    private static let padding: CGFloat = 7
+
+    var body: some View {
+        // 列表行宽 = 屏宽减两边 16 的边距，再减预览自己的内边距 8。
+        let width = UIScreen.main.bounds.width - 32 - 16
+        let column = (width - Self.gap * 3) / 4
+        VStack(alignment: .leading, spacing: Self.gap) {
+            ForEach(Array(CommonWordStore.keyboardRows(texts, column: column, gap: Self.gap, font: Self.font,
+                                                       padding: Self.padding).prefix(4).enumerated()), id: \.offset) { _, row in
+                HStack(spacing: Self.gap) {
+                    ForEach(row, id: \.self) { cell in
+                        Text(cell.text)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                            .padding(.horizontal, Self.padding)
+                            .frame(width: column * CGFloat(cell.span) + Self.gap * CGFloat(cell.span - 1), height: 24, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color(.systemBackground)))
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark ? UIColor(white: 0.18, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1)
+        })))
+    }
+}
+
+/// 添加到键盘（W10）：输入一个新词，或者从常用词里多选；已经在键盘里的置灰。
+private struct AddToKeyboardSheet: View {
+    @ObservedObject var model: CommonWordsModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var search = ""
+    /// 按勾选顺序加到键盘最后。
+    @State private var selected: [String] = []
+    @State private var creating = false
+    /// 新词存好了：关掉新建页后这一页也关掉。
+    @State private var created = false
+
+    private var candidates: [CommonWord] {
+        let text = search.trimmingCharacters(in: .whitespaces).lowercased()
+        let code = CommonWordStore.normalizeCode(text)
+        var seen = Set<String>()
+        return model.all.filter { word in
+            seen.insert(word.text).inserted && (text.isEmpty || word.text.lowercased().contains(text)
+                || (!code.isEmpty && word.codes.contains { $0.contains(code) }))
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button { creating = true } label: {
+                        Label(L("输入一个新词", "New Word", "新しい単語"), systemImage: "plus").foregroundStyle(AppColor.purple)
+                    }
+                }
+                Section(L("从常用词里选", "From My Words", "ユーザ辞書から選ぶ")) {
+                    ForEach(candidates) { word in
+                        let added = model.isOnKeyboard(word)
+                        let checked = selected.contains(word.text)
+                        Button {
+                            if checked { selected.removeAll { $0 == word.text } } else { selected.append(word.text) }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: added || checked ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(added ? Color(hex: 0xC7C7CC) : checked ? AppColor.purple : Color(hex: 0xC7C7CC))
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(word.text).font(.system(size: 16)).lineLimit(1)
+                                        .foregroundStyle(added ? Color.secondary : Color.primary)
+                                    Text(added ? L("已在键盘里", "Already added", "追加済み") : word.pinyin)
+                                        .font(.system(size: 12.5, design: added ? .default : .monospaced))
+                                        .foregroundStyle(Color(hex: 0x8E8E93))
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(added)
+                    }
+                }
+            }
+            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: L("搜索词或拼音", "Search words or pinyin", "語またはピンインを検索"))
+            .navigationTitle(L("添加到键盘", "Add to Keyboard", "キーボードに追加"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button(L("取消", "Cancel", "キャンセル")) { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(selected.isEmpty ? L("添加", "Add", "追加") : L("添加 \(selected.count) 个", "Add (\(selected.count))", "\(selected.count)件を追加")) {
+                        model.addToKeyboard(selected)
+                        dismiss()
+                    }
+                    .disabled(selected.isEmpty)
+                }
+            }
+            .tint(AppColor.purple)
+            .sheet(isPresented: $creating, onDismiss: { if created { dismiss() } }) {
+                // 新词保存后直接放到键盘。
+                WordEditor(word: nil) { word in
+                    model.save(word)
+                    model.addToKeyboard([word.text])
+                    created = true
+                } onDelete: { _ in }
+            }
+        }
     }
 }
 
