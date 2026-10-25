@@ -71,6 +71,14 @@ struct SettingsView: View {
                         IconRow(systemName: "globe", color: Color(hex: 0x007AFF), title: L("语言", "Language", "言語"),
                                 value: router.language == .system ? nil : router.language.nativeName)
                     }
+                    Picker(selection: $store.settings.appearance) {
+                        ForEach(Appearance.allCases) { Text($0.title).tag($0) }
+                    } label: {
+                        IconRow(systemName: "circle.lefthalf.filled", color: Color(hex: 0x5856D6), title: L("日间 / 夜间", "Appearance", "外観"))
+                    }
+                    .pickerStyle(.menu)
+                } footer: {
+                    Text(L("App 和键盘都按这里显示。", "Applies to the app and the keyboard.", "App とキーボードの両方に適用されます。"))
                 }
                 // 键盘和常用词从首页进。
                 Section {
