@@ -25,8 +25,14 @@ struct TypingTestView: View {
     @FocusState private var focused: Bool
 
     private var target: [Character] { Array(article.text) }
-    private var typedChars: [Character] { Array(typed) }
-    private var correctCount: Int { zip(typedChars, target).filter { $0 == $1 }.count }
+    /// 只比汉字：标点、空格不算（不打标点也不会把后面全判错），还没上屏的拼音字母也不算。
+    private var targetChars: [Character] { target.filter(Self.counts) }
+    private var typedChars: [Character] { Array(typed).filter(Self.counts) }
+    private var correctCount: Int { zip(typedChars, targetChars).filter { $0 == $1 }.count }
+
+    private static func counts(_ char: Character) -> Bool {
+        !(char.isASCII || char.isPunctuation || char.isWhitespace || char.isSymbol)
+    }
     private var finished: Bool { finishedAt != nil }
 
     var body: some View {
@@ -54,7 +60,7 @@ struct TypingTestView: View {
                         .strokeBorder(AppColor.purple, lineWidth: focused ? 2 : 0))
                     .onChange(of: typed) { value in
                         if startedAt == nil && !value.isEmpty { start() }
-                        if value.count >= target.count && !finished { finish() }
+                        if typedChars.count >= targetChars.count && !finished { finish() }
                     }
                 progressRow
                 if finished { results }
@@ -63,6 +69,8 @@ struct TypingTestView: View {
         }
         .background(Color(.systemGroupedBackground))
         .navigationTitle(L("压力测试", "Stress test", "負荷テスト"))
+        // 底部标签栏会盖住结果卡片。
+        .toolbar(.hidden, for: .tabBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -90,8 +98,16 @@ struct TypingTestView: View {
     private var articleView: some View {
         let typed = typedChars
         var runs: [(Color, String)] = []
-        for (index, char) in target.enumerated() {
-            let color: Color = index >= typed.count ? .secondary : (typed[index] == char ? .green : .red)
+        var index = 0
+        var previous: Color = .secondary
+        for char in target {
+            // 标点跟着前一个字的颜色。
+            var color = previous
+            if Self.counts(char) {
+                color = index >= typed.count ? .secondary : (typed[index] == char ? .green : .red)
+                index += 1
+                previous = color
+            }
             if let last = runs.last, last.0 == color {
                 runs[runs.count - 1].1.append(char)
             } else {
@@ -111,7 +127,7 @@ struct TypingTestView: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let elapsed = elapsedSeconds(now: context.date)
             HStack {
-                Text(L("\(typedChars.count) / \(target.count) 字", "\(typedChars.count) / \(target.count) chars", "\(typedChars.count) / \(target.count) 字"))
+                Text(L("\(typedChars.count) / \(targetChars.count) 字", "\(typedChars.count) / \(targetChars.count) chars", "\(typedChars.count) / \(targetChars.count) 字"))
                 Spacer()
                 Text(String(format: "%d:%02d", Int(elapsed) / 60, Int(elapsed) % 60)).monospacedDigit()
                 Text(L("\(speed(elapsed)) 字/分", "\(speed(elapsed)) chars/min", "\(speed(elapsed)) 字/分"))

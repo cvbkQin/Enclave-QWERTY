@@ -62,8 +62,11 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
             setNeedsLayout()
         }
         for (index, label) in labels.enumerated() where index < words.count {
-            label.textColor = index == 0 ? firstColor : .label
-            label.alpha = index == pressed ? 0.45 : 1
+            // 没变就不设：设一次就要重画这个词。
+            let color = index == 0 ? firstColor : .label
+            if label.textColor != color { label.textColor = color }
+            let alpha: CGFloat = index == pressed ? 0.45 : 1
+            if label.alpha != alpha { label.alpha = alpha }
         }
         if firstIsCommon, let first = labels.first, !words.isEmpty {
             if dot.superlayer == nil { first.layer.addSublayer(dot) }
@@ -72,8 +75,13 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         }
     }
 
+    /// 上次排版时的候选和高度：滚动时 layoutSubviews 每帧都会调，没变就不重新量字宽、摆位置。
+    private var laidOut: (words: [String], height: CGFloat)?
+
     override func layoutSubviews() {
         super.layoutSubviews()
+        if let laidOut, laidOut.words == words, laidOut.height == bounds.height { return }
+        laidOut = (words, bounds.height)
         var x = Self.leading
         for (index, label) in labels.enumerated() where index < words.count {
             let width = ceil((words[index] as NSString).size(withAttributes: [.font: Self.font]).width) + Self.padding * 2
