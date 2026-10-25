@@ -19,7 +19,7 @@ final class QueuedEngine: InputEngine {
     struct Result {
         var commit: String?
         var snapshot: Snapshot
-        /// 交给队列的时刻，和引擎自己算了多久（秒）。
+        /// 触摸发生（拿不到时是交给队列）的时刻，和引擎自己算了多久（秒）。
         var queuedAt: CFTimeInterval
         var engineTime: CFTimeInterval
         var signpost: OSSignpostIntervalState
@@ -53,9 +53,10 @@ final class QueuedEngine: InputEngine {
     // MARK: - 后台
 
     /// 字母、九宫格数字：交给队列就返回，算完后 resultsReady 通知键盘来取。
-    func inputLater(_ key: String) {
+    /// since：触摸事件的时刻（和 CACurrentMediaTime 同一个时钟），耗时从这里算。
+    func inputLater(_ key: String, since: CFTimeInterval? = nil) {
         pending += 1
-        let queuedAt = CACurrentMediaTime()
+        let queuedAt = since ?? CACurrentMediaTime()
         let signpost = Self.signposter.beginInterval("key", id: Self.signposter.makeSignpostID())
         queue.async { [inner] in
             let start = CACurrentMediaTime()

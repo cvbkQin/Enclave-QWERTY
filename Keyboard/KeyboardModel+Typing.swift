@@ -34,7 +34,8 @@ extension KeyboardModel {
             syncEngine()
             return
         }
-        queued.inputLater(key)
+        queued.inputLater(key, since: keyEventTime)
+        keyEventTime = nil
     }
 
     /// 取回后台算完的按键：按顺序上屏，再显示最新的拼写和候选。wait：先等排着的键算完（同步操作前用）。

@@ -65,6 +65,7 @@ final class KeyTouchView: UIView {
             // 另一根手指按下：之前还没松开的字符键先上屏，快速连打不丢字。
             for (_, other) in tracking where !other.fired && other.key.kind.typesCharacter {
                 other.fired = true
+                model.keyEventTime = touch.timestamp
                 model.perform(other.key.kind)
                 model.keyReleased(other.key.id)
             }
@@ -175,6 +176,7 @@ final class KeyTouchView: UIView {
             } else if state.trackpadX != nil {
                 model.setTrackpad(false)
             } else if !state.fired {
+                model.keyEventTime = touch.timestamp
                 model.perform(state.key.kind)
                 // 从 123 滑过来打的符号，打完回到字母。
                 if state.slidFromLayer { model.switchLayer(.letters) }

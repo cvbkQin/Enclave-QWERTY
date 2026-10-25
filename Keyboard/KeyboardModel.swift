@@ -86,6 +86,8 @@ final class KeyboardModel: ObservableObject {
     var lastSpaceTime = Date.distantPast
     var lastPunctuationTap = Date.distantPast
     lazy var haptic = UIImpactFeedbackGenerator(style: .light)
+    /// 触发这次按键的触摸事件发生的时刻（UITouch.timestamp），打字耗时从这里算起：主线程忙、触摸排队也算进去。
+    var keyEventTime: TimeInterval?
 
     weak var controller: UIInputViewController?
     private var task: Task<Void, Never>?

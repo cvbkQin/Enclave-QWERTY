@@ -85,14 +85,20 @@ struct TypingTestView: View {
         }
     }
 
-    /// 原文：打对的字变绿，打错的变红，没打到的灰色。
+    /// 原文：打对的字变绿，打错的变红，没打到的灰色。连续同色的字拼成一段，每打一个字只重排几段文字，
+    /// 不拖慢输入框（这页本身卡的话，测出来的就不是键盘了）。
     private var articleView: some View {
         let typed = typedChars
-        let text = target.enumerated().reduce(Text("")) { result, item in
-            let (index, char) = item
+        var runs: [(Color, String)] = []
+        for (index, char) in target.enumerated() {
             let color: Color = index >= typed.count ? .secondary : (typed[index] == char ? .green : .red)
-            return result + Text(String(char)).foregroundColor(color)
+            if let last = runs.last, last.0 == color {
+                runs[runs.count - 1].1.append(char)
+            } else {
+                runs.append((color, String(char)))
+            }
         }
+        let text = runs.reduce(Text("")) { $0 + Text($1.1).foregroundColor($1.0) }
         return text
             .font(.system(size: 17))
             .lineSpacing(6)
