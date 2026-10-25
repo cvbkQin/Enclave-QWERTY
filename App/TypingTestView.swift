@@ -78,6 +78,11 @@ struct TypingTestView: View {
             }
         }
         .onAppear { modelInstalled = GrammarModel.isInstalled }
+        // 和场景页一样，进来自动弹出键盘。
+        .task {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            focused = true
+        }
     }
 
     /// 原文：打对的字变绿，打错的变红，没打到的灰色。
