@@ -12,6 +12,14 @@ extension CommonWord.Source {
         }
     }
 
+    /// 分段控件里用的短名，英文、日文五段放得下。
+    var shortTitle: String {
+        switch self {
+        case .textReplacement: return L("文本替换", "System", "辞書")
+        default: return title
+        }
+    }
+
     var colors: (text: Color, fill: Color) {
         switch self {
         case .manual: return (Color(hex: 0x4A3BD6), Color(hex: 0xECEAFD))
@@ -199,7 +207,7 @@ struct CommonWordsView: View {
         Picker(L("来源", "Source", "ソース"), selection: $filter) {
             Text(L("全部 \(model.count(nil))", "All \(model.count(nil))", "すべて \(model.count(nil))")).tag(CommonWord.Source?.none)
             ForEach([CommonWord.Source.manual, .imported, .textReplacement, .contact], id: \.self) { source in
-                Text("\(source.title) \(model.count(source))").tag(Optional(source))
+                Text("\(source.shortTitle) \(model.count(source))").tag(Optional(source))
             }
         }
         .pickerStyle(.segmented)

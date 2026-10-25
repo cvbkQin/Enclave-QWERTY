@@ -81,8 +81,8 @@ struct PrivacyView: View {
         .navigationTitle(L("隐私", "Privacy", "プライバシー"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { consent = ConsentStore.consented }
-        .confirmationDialog(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } }),
-                            titleVisibility: .visible) {
+        .alert(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
             Button(L("清除", "Clear", "消去"), role: .destructive) {
                 guard let target = confirm else { return }
                 switch target {
@@ -339,7 +339,7 @@ struct LicensesView: View {
 
     private func info(_ label: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label).font(.subheadline).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
+            Text(label).font(.subheadline).foregroundStyle(.secondary).fixedSize().frame(minWidth: 64, alignment: .leading)
             Text(value).font(.subheadline).fixedSize(horizontal: false, vertical: true)
         }
     }
