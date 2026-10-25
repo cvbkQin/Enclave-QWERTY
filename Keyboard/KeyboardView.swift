@@ -96,39 +96,15 @@ struct KeyboardView: View {
     /// 打拼音时的候选栏，右边的箭头展开整页候选。
     private var candidateBar: some View {
         HStack(spacing: 0) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                // 懒加载：只画看得见的几个；滑到已取到的最后一个时再往后取候选。
-                LazyHStack(spacing: 0) {
-                    ForEach(Array(model.candidates.prefix(60).enumerated()), id: \.offset) { index, word in
-                        Button { model.selectCandidate(index) } label: {
-                            Text(word)
-                                .font(.system(size: 20))
-                                .foregroundStyle(index == 0 ? Brand.purpleText : Color.primary)
-                                // 来自常用词：右上角一个 5pt 紫点。
-                                .overlay(alignment: .topTrailing) {
-                                    if index == 0 && model.commonWordTexts.contains(word) {
-                                        Circle().fill(Brand.commonWordDot).frame(width: 5, height: 5).offset(x: 5, y: 2)
-                                    }
-                                }
-                                .padding(.horizontal, 11)
-                                .frame(maxHeight: .infinity)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(KeyPressStyle())
-                        .onAppear {
-                            if index == model.candidates.count - 1 { model.loadMoreCandidates() }
-                        }
-                    }
-                }
-                .padding(.leading, 2)
-            }
-            .hidingScrollEdgeEffect()
+            // 点击判定在 UIKit 里做，见 CandidateStrip。
+            CandidateStrip(model: model)
             Divider().frame(height: 22)
             Button { model.candidatesExpanded.toggle() } label: {
                 Image(systemName: model.candidatesExpanded ? "chevron.up" : "chevron.down")
                     .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(Color.primary)
-                    .frame(width: 44)
+                    // 放宽到 54pt，靠右边缘也好按。
+                    .frame(width: 54)
                     .frame(maxHeight: .infinity)
                     .contentShape(Rectangle())
             }
