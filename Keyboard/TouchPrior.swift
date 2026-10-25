@@ -1,7 +1,8 @@
 import CoreGraphics
 import Foundation
 
-/// 动态热区：全键盘打拼音时，手指落在两个字母键交界附近，判给按拼音规律更可能的那个。
+/// 动态热区：打拼音时手指落在两个键交界附近，判给按拼音规律更可能的那个。全键盘按字母算，九宫格按数字串算
+/// （比如打了 94 之后，哪些数字还能接成拼音）。
 /// 和系统键盘一样，键的样子不变，只是判定悄悄偏向可能的字母：打了「zh」后 a/e/i/o/u 更容易按中，
 /// 拼不成拼音的字母（比如开头的 i、u、v）要按得更准才算。按在键中间时永远是那个键。
 enum TouchPrior {
@@ -14,19 +15,19 @@ enum TouchPrior {
 
     /// 落点 point、原本命中的键 hit；只在字母键之间换。raw：已经打了、还没上屏的拼音。
     static func resolve(point: CGPoint, hit: KeySpec, keys: [KeySpec], raw: String) -> KeySpec {
-        guard letter(of: hit) != nil else { return hit }
+        guard let mode = Mode(hit), symbol(of: hit, mode) != nil else { return hit }
         let neighbors = keys.filter { key in
-            guard letter(of: key) != nil else { return false }
+            guard symbol(of: key, mode) != nil else { return false }
             let dx = abs(point.x - key.frame.midX) / key.frame.width
             let dy = abs(point.y - key.frame.midY) / key.frame.height
             return dx < 1.1 && dy < 0.9
         }
         guard neighbors.count > 1 else { return hit }
-        let context = Context(raw)
+        let context = Context(raw, mode)
         var best = hit
         var bestScore = -1.0
         for key in neighbors {
-            guard let char = letter(of: key) else { continue }
+            guard let char = symbol(of: key, mode) else { continue }
             let dx = Double((point.x - key.frame.midX) / key.frame.width)
             let dy = Double((point.y - key.frame.midY) / key.frame.height)
             let spatial = exp(-(dx * dx + dy * dy) / (2 * sigma * sigma))
@@ -39,9 +40,34 @@ enum TouchPrior {
         return best
     }
 
-    private static func letter(of key: KeySpec) -> Character? {
-        guard case .letter(let text) = key.kind, text.count == 1, let char = text.lowercased().first,
-              char.isASCII, char.isLetter else { return nil }
+    private enum Mode {
+        case letters, digits
+
+        init?(_ key: KeySpec) {
+            switch key.kind {
+            case .letter: self = .letters
+            case .nine: self = .digits
+            default: return nil
+            }
+        }
+
+        var syllables: Set<String> { self == .letters ? TouchPrior.syllables : TouchPrior.digitSyllables }
+        var prefixes: Set<String> { self == .letters ? TouchPrior.prefixes : TouchPrior.digitPrefixes }
+
+        func belongs(_ char: Character) -> Bool {
+            self == .letters ? (char.isASCII && char.isLetter) : ("2"..."9").contains(char)
+        }
+    }
+
+    /// 键上的字母（全键盘）或数字 2–9（九宫格）；别的键不参与。
+    private static func symbol(of key: KeySpec, _ mode: Mode) -> Character? {
+        let text: String
+        switch (key.kind, mode) {
+        case (.letter(let value), .letters): text = value.lowercased()
+        case (.nine(let value), .digits): text = value
+        default: return nil
+        }
+        guard text.count == 1, let char = text.first, mode.belongs(char) else { return nil }
         return char
     }
 
@@ -52,26 +78,31 @@ enum TouchPrior {
         /// 已打的拼音恰好切成完整音节，下一个字母可以开始新音节。
         let complete: Bool
 
-        init(_ raw: String) {
-            // 只看最后一个分隔符之后的字母，最多 16 个。
-            let letters = String(raw.lowercased().split(whereSeparator: { !($0.isASCII && $0.isLetter) }).last ?? "")
-            let s = Array(letters.suffix(16))
+        let prefixes: Set<String>
+
+        init(_ raw: String, _ mode: Mode) {
+            let prefixSet = mode.prefixes
+            prefixes = prefixSet
+            let syllables = mode.syllables
+            // 只看最后一个分隔符（九宫格还有选拼音后留下的字母）之后的部分，最多 16 个。
+            let tail = String(raw.lowercased().split(whereSeparator: { !mode.belongs($0) }).last ?? "")
+            let s = Array(tail.suffix(16))
             var reachable = Array(repeating: false, count: s.count + 1)
             reachable[0] = true
             for i in 0..<s.count where reachable[i] {
-                for length in 1...min(6, s.count - i) where TouchPrior.syllables.contains(String(s[i..<(i + length)])) {
+                for length in 1...min(6, s.count - i) where syllables.contains(String(s[i..<(i + length)])) {
                     reachable[i + length] = true
                 }
             }
-            partial = (0..<s.count).filter { reachable[$0] }.map { String(s[$0...]) }.filter { TouchPrior.prefixes.contains($0) }
+            partial = (0..<s.count).filter { reachable[$0] }.map { String(s[$0...]) }.filter { prefixSet.contains($0) }
             complete = reachable[s.count]
         }
 
         func weight(of char: Character) -> Double {
             // 已打的字母本来就拼不成拼音（比如混着打的英文）：没法判断，不偏。
             guard !partial.isEmpty || complete else { return 1 }
-            if partial.contains(where: { TouchPrior.prefixes.contains($0 + String(char)) }) { return TouchPrior.extendsWeight }
-            if complete && TouchPrior.prefixes.contains(String(char)) {
+            if partial.contains(where: { prefixes.contains($0 + String(char)) }) { return TouchPrior.extendsWeight }
+            if complete && prefixes.contains(String(char)) {
                 return partial.isEmpty ? TouchPrior.extendsWeight : TouchPrior.startsWeight
             }
             return TouchPrior.impossibleWeight
@@ -104,4 +135,8 @@ enum TouchPrior {
         }
         return result
     }()
+
+    /// 九宫格：同样的音节和前缀换成数字串。
+    static let digitSyllables = Set(syllables.map(PinyinSyllables.digits(of:)))
+    static let digitPrefixes = Set(prefixes.map(PinyinSyllables.digits(of:)))
 }
