@@ -146,6 +146,8 @@ final class KeyboardModel: ObservableObject {
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         instructionCaret = instruction.count
         hasFullAccess = controller?.hasFullAccess ?? false
+        // 没开完全访问时读不到 App 里选的语言，跟随 iPhone。
+        Loc.followSystemOnly = !hasFullAccess
         if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
         if hasFullAccess && settings.isConfigured && AIAccess.reminderDueToday {
             trialReminder = true
@@ -220,7 +222,7 @@ final class KeyboardModel: ObservableObject {
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
-            notice = "先在输入框里写点什么，或者点「\(settings.selectedStyle?.name ?? "风格")▾」写一个要求让它帮你写。"
+            notice = L("先在输入框里写点什么，或者点「\(settings.selectedStyle?.displayName ?? "风格")▾」写一个要求让它帮你写。", "Type something first, or tap \(settings.selectedStyle?.displayName ?? "Style") ▾ and add a prompt to have it written for you.", "先に何か入力するか、「\(settings.selectedStyle?.displayName ?? "文体")▾」で指示を書くと下書きを作成します。")
 
         case (false, true):
             // 润色：总是润输入框里现在的文字（可能是替换后又手改过的），结果接在这次会话后面，翻页还能找回之前的版本。
@@ -370,7 +372,7 @@ final class KeyboardModel: ObservableObject {
         errorMessage = nil
         notice = nil
         guard hasFullAccess else {
-            errorMessage = "需要在 设置 › 通用 › 键盘 › 键盘 › Enclave 里打开「允许完全访问」才能联网。"
+            errorMessage = L("需要在 设置 › 通用 › 键盘 › 键盘 › Enclave 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › Enclave to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › Enclave で「フルアクセスを許可」をオンにしてください。")
             return false
         }
         guard settings.isConfigured else {
@@ -430,7 +432,7 @@ final class KeyboardModel: ObservableObject {
                 let result = ModelOutput.clean(raw)
                 guard let self else { return }
                 if result.isEmpty {
-                    self.errorMessage = "模型没有返回内容。"
+                    self.errorMessage = L("模型没有返回内容。", "The model returned nothing.", "モデルから応答がありませんでした。")
                     self.endQuickMode(.failed)
                 } else {
                     // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
@@ -759,14 +761,14 @@ final class KeyboardModel: ObservableObject {
 
     func importConfigFromPasteboard() {
         guard let string = UIPasteboard.general.string, SettingsStore.importString(string) else {
-            errorMessage = "剪贴板里没有 Enclave 配置。先在 App 里点「复制配置」。"
+            errorMessage = L("剪贴板里没有 Enclave 配置。先在 App 里点「复制配置」。", "No Enclave settings on the clipboard. Tap Copy settings in the app first.", "クリップボードに Enclave の設定がありません。先にアプリで「設定をコピー」をタップしてください。")
             return
         }
         // 配置里有 API key，导入后马上清掉剪贴板。
         UIPasteboard.general.string = ""
         reload()
         errorMessage = nil
-        notice = "配置已导入。"
+        notice = L("配置已导入。", "Settings imported.", "設定を読み込みました。")
     }
 }
 

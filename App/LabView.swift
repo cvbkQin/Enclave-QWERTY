@@ -3,7 +3,17 @@ import SwiftUI
 /// 场景实验室（原「试一试」）：10 个真实场景，每个一页，带预填文字和两步提示，用来练键盘的打字、润色和按要求改。
 struct LabScene: Identifiable {
     enum Category: String, CaseIterable {
-        case work = "工作", client = "客户", social = "社交", life = "生活", language = "语言"
+        case work, client, social, life, language
+
+        var name: String {
+            switch self {
+            case .work: return L("工作", "Work", "仕事")
+            case .client: return L("客户", "Customers", "お客様")
+            case .social: return L("社交", "Social", "交流")
+            case .life: return L("生活", "Life", "暮らし")
+            case .language: return L("语言", "Language", "言語")
+            }
+        }
 
         /// 分类色：字色和浅底。
         var colors: (text: Color, fill: Color) {
@@ -26,48 +36,81 @@ struct LabScene: Identifiable {
     let text: String
     let steps: [String]
 
-    static let all: [LabScene] = [
-        LabScene(id: 0, category: .work, title: "回复领导", icon: "briefcase", tag: "润色",
-                 situation: "领导让你看一份文件，你想回得清楚又不啰嗦。",
+    /// 场景文字跟着界面语言；练习用的原文保持中文（拼音键盘练的就是中文）。
+    /// 步骤里的 {style} 换成当前风格名。
+    static var all: [LabScene] { [
+        LabScene(id: 0, category: .work, title: L("回复领导", "Reply to your manager", "上司への返信"), icon: "briefcase",
+                 tag: L("润色", "Polish", "整える"),
+                 situation: L("领导让你看一份文件，你想回得清楚又不啰嗦。", "Your manager asked you to review a file. You want a clear, brief reply.",
+                              "上司に資料の確認を頼まれました。簡潔でわかりやすく返したいときに。"),
                  text: "那个文件我看了一下大概没啥问题就是第三页有个数好像不太对你再看看",
-                 steps: ["点「✨ 润色」", "看结果卡片，满意就点「替换」"]),
-        LabScene(id: 1, category: .work, title: "委婉拒绝", icon: "checkmark.shield", tag: "按要求改",
-                 situation: "同事催进度，但这周确实做不完。",
+                 steps: [L("点「✨ 润色」", "Tap ✨ Polish", "「✨ 整える」をタップ"),
+                         L("看结果卡片，满意就点「替换」", "Check the result card and tap Replace if you like it", "結果カードを見て、よければ「置き換え」をタップ")]),
+        LabScene(id: 1, category: .work, title: L("委婉拒绝", "Say no politely", "やんわり断る"), icon: "checkmark.shield",
+                 tag: L("按要求改", "Custom changes", "指示して直す"),
+                 situation: L("同事催进度，但这周确实做不完。", "A coworker is pushing for progress, but you really can't finish this week.",
+                              "同僚に進捗を急かされたけれど、今週中には終わらないときに。"),
                  text: "周五前给不了，下周一吧",
-                 steps: ["点「正式 ▾」，在「要求」里写「语气委婉一点」", "按键盘上的紫色「执行」"]),
-        LabScene(id: 2, category: .work, title: "请假申请", icon: "calendar", tag: "帮我写",
-                 situation: "什么都不用打，让 AI 起草一段请假理由。",
+                 steps: [L("点「{style} ▾」，在「要求」里写「语气委婉一点」", "Tap {style} ▾ and type \"softer\" in Prompt", "「{style} ▾」をタップし、「指示」に「やわらかく」と入力"),
+                         L("按键盘上的紫色「执行」", "Tap the purple Go key", "キーボードの紫の「実行」をタップ")]),
+        LabScene(id: 2, category: .work, title: L("请假申请", "Ask for a day off", "休暇の申請"), icon: "calendar",
+                 tag: L("帮我写", "Help me write", "下書きを作成"),
+                 situation: L("什么都不用打，让 AI 起草一段请假理由。", "Type nothing and let AI draft a reason for a day off.",
+                              "何も入力せずに、AI に休暇の理由を下書きしてもらいます。"),
                  text: "",
-                 steps: ["输入框留空，点「正式 ▾」", "在「要求」里写「请假一天的理由，给领导」，按「执行」"]),
-        LabScene(id: 3, category: .client, title: "安抚客户", icon: "headphones", tag: "润色 · 正式",
-                 situation: "客户催发货，你想道歉并给出明确时间。",
+                 steps: [L("输入框留空，点「{style} ▾」", "Leave the field empty and tap {style} ▾", "入力欄を空のまま「{style} ▾」をタップ"),
+                         L("在「要求」里写「请假一天的理由，给领导」，按「执行」", "In Prompt, type \"reason for a day off, to my manager\" and tap Go",
+                           "「指示」に「上司宛て、1 日休む理由」と入力して「実行」")]),
+        LabScene(id: 3, category: .client, title: L("安抚客户", "Calm a customer", "お客様へのお詫び"), icon: "headphones",
+                 tag: L("润色 · 正式", "Polish · Formal", "整える · 丁寧"),
+                 situation: L("客户催发货，你想道歉并给出明确时间。", "A customer is chasing a delivery. You want to apologize and give a clear time.",
+                              "発送を急かすお客様に、お詫びとはっきりした日時を伝えたいときに。"),
                  text: "不好意思啊 仓库那边最近爆单了 明天肯定给你发出去 别退款了哈",
-                 steps: ["风格选「正式」，点「✨ 润色」", "不满意点「再润」换一版"]),
-        LabScene(id: 4, category: .social, title: "朋友圈文案", icon: "camera", tag: "按要求改",
-                 situation: "爬山回来，想发一条有点文艺感的朋友圈。",
+                 steps: [L("风格选「正式」，点「✨ 润色」", "Choose the Formal style and tap ✨ Polish", "文体で「丁寧」を選び、「✨ 整える」をタップ"),
+                         L("不满意点「再润」换一版", "Not happy? Tap Rewrite for another version", "気に入らなければ「別の案」で別の案を出します")]),
+        LabScene(id: 4, category: .social, title: L("朋友圈文案", "Social post", "SNS の投稿"), icon: "camera",
+                 tag: L("按要求改", "Custom changes", "指示して直す"),
+                 situation: L("爬山回来，想发一条有点文艺感的朋友圈。", "Back from a hike and want to post something a little poetic.",
+                              "山登りから帰って、少し情緒のある投稿をしたいときに。"),
                  text: "今天去爬山了 累死 但是山顶的风景真的绝了 值",
-                 steps: ["点「正式 ▾」，在「要求」里写「写成朋友圈文案，文艺一点」", "按「执行」"]),
-        LabScene(id: 5, category: .social, title: "和好道歉", icon: "heart", tag: "按要求改",
-                 situation: "昨天和朋友吵了两句，想真诚地道个歉。",
+                 steps: [L("点「{style} ▾」，在「要求」里写「写成朋友圈文案，文艺一点」", "Tap {style} ▾ and type \"social post, a bit poetic\" in Prompt",
+                           "「{style} ▾」をタップし、「指示」に「SNS 投稿風に、少し情緒的に」と入力"),
+                         L("按「执行」", "Tap Go", "「実行」をタップ")]),
+        LabScene(id: 5, category: .social, title: L("和好道歉", "Make up with a friend", "仲直りのお詫び"), icon: "heart",
+                 tag: L("按要求改", "Custom changes", "指示して直す"),
+                 situation: L("昨天和朋友吵了两句，想真诚地道个歉。", "You argued with a friend yesterday and want to apologize sincerely.",
+                              "昨日友達と言い合いになり、素直に謝りたいときに。"),
                  text: "昨天是我说话太冲了 不是故意的 别生气了",
-                 steps: ["在「要求」里写「真诚一点，别太肉麻」", "按「执行」，用 ▲▼ 翻看几版"]),
-        LabScene(id: 6, category: .life, title: "闲置转卖", icon: "tag", tag: "帮我写",
-                 situation: "把一台闲置 iPad 挂到二手平台。",
+                 steps: [L("在「要求」里写「真诚一点，别太肉麻」", "In Prompt, type \"sincere, not too sappy\"", "「指示」に「誠実に、でも大げさにしない」と入力"),
+                         L("按「执行」，用 ▲▼ 翻看几版", "Tap Go and flip through versions with ▲▼", "「実行」をタップし、▲▼ で案を見比べます")]),
+        LabScene(id: 6, category: .life, title: L("闲置转卖", "Sell something used", "不用品の出品"), icon: "tag",
+                 tag: L("帮我写", "Help me write", "下書きを作成"),
+                 situation: L("把一台闲置 iPad 挂到二手平台。", "List a spare iPad on a secondhand marketplace.", "使っていない iPad をフリマに出品します。"),
                  text: "九成新 iPad 买了没怎么用 2000 出 不刀",
-                 steps: ["在「要求」里写「写成闲鱼商品描述，分点列出」", "按「执行」"]),
-        LabScene(id: 7, category: .language, title: "英文邮件", icon: "globe", tag: "翻译",
-                 situation: "约外国同事改会议时间，直接用中文写。",
+                 steps: [L("在「要求」里写「写成闲鱼商品描述，分点列出」", "In Prompt, type \"marketplace listing, as bullets\"", "「指示」に「フリマの商品説明に、箇条書きで」と入力"),
+                         L("按「执行」", "Tap Go", "「実行」をタップ")]),
+        LabScene(id: 7, category: .language, title: L("英文邮件", "Email in English", "英語のメール"), icon: "globe",
+                 tag: L("翻译", "Translate", "翻訳"),
+                 situation: L("约外国同事改会议时间，直接用中文写。", "Ask a coworker abroad to move a meeting, writing in Chinese.",
+                              "海外の同僚に会議の変更をお願いします。中国語のまま書きます。"),
                  text: "麻烦帮我确认一下下周二的会议时间，如果你不方便的话可以改到周三下午",
-                 steps: ["在「要求」里写「翻成英文邮件」", "按「执行」，点「替换」"]),
-        LabScene(id: 8, category: .language, title: "中英混打", icon: "keyboard", tag: "输入",
-                 situation: "技术群里聊天，中文里夹着英文词。",
+                 steps: [L("在「要求」里写「翻成英文邮件」", "In Prompt, type \"English email\"", "「指示」に「英語のメールに」と入力"),
+                         L("按「执行」，点「替换」", "Tap Go, then Replace", "「実行」をタップし、「置き換え」")]),
+        LabScene(id: 8, category: .language, title: L("中英混打", "Mix Chinese and English", "中国語と英語を混ぜる"), icon: "keyboard",
+                 tag: L("输入", "Typing", "入力"),
+                 situation: L("技术群里聊天，中文里夹着英文词。", "Chatting with engineers, with English words in Chinese.", "技術チャットで、中国語に英単語を混ぜて書きます。"),
                  text: "这个 bug 我今天下班前 fix 掉，明天早上再 sync 一下进度",
-                 steps: ["用拼音打中文", "点「中/英」切到全键盘打英文，再切回来"]),
-        LabScene(id: 9, category: .life, title: "错字校对", icon: "doc.text.magnifyingglass", tag: "润色 · 多版本",
-                 situation: "活动总结里有几个错别字，帮你一次找出来。",
+                 steps: [L("用拼音打中文", "Type Chinese with pinyin", "ピンインで中国語を入力"),
+                         L("点「中/英」切到全键盘打英文，再切回来", "Tap 中/英 to switch to QWERTY for English, then back", "「中/英」で QWERTY に切り替えて英語を入力し、また戻します")]),
+        LabScene(id: 9, category: .life, title: L("错字校对", "Fix typos", "誤字のチェック"), icon: "doc.text.magnifyingglass",
+                 tag: L("润色 · 多版本", "Polish · Versions", "整える · 複数案"),
+                 situation: L("活动总结里有几个错别字，帮你一次找出来。", "An event recap has a few typos. Find them all at once.",
+                              "イベントの報告に誤字がいくつか。まとめて見つけます。"),
                  text: "我们这次的活动非常成功，参加的人数比预计的多了一倍。大家的反溃都很好，特别是互动环节，很多人表示下次还要来。不过也有一些问题，比如签到太慢，饮料不够，下次需要提前准被。",
-                 steps: ["点「✨ 润色」", "用卡片右边的 ▲▼ 翻看几版，长按卡片复制"]),
-    ]
+                 steps: [L("点「✨ 润色」", "Tap ✨ Polish", "「✨ 整える」をタップ"),
+                         L("用卡片右边的 ▲▼ 翻看几版，长按卡片复制", "Flip versions with ▲▼ on the card, touch and hold to copy",
+                           "カード右の ▲▼ で案を見比べ、長押しでコピー")]),
+    ] }
 }
 
 extension Color {
@@ -89,14 +132,14 @@ struct LabView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("\(LabScene.all.count) 个真实场景").font(.title.bold())
-                    Text("挑一个点进去，切到 Enclave 跟着做一遍。").font(.subheadline).foregroundStyle(.secondary)
+                    Text(L("\(LabScene.all.count) 个真实场景", "\(LabScene.all.count) real-life scenes", "\(LabScene.all.count) 個のシーン")).font(.title.bold())
+                    Text(L("挑一个点进去，切到 Enclave 跟着做一遍。", "Pick one, switch to Enclave and follow along.", "1 つ選んで Enclave に切り替え、手順どおりに試してみましょう。")).font(.subheadline).foregroundStyle(.secondary)
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        filterChip(nil, title: "全部", count: LabScene.all.count)
+                        filterChip(nil, title: L("全部", "All", "すべて"), count: LabScene.all.count)
                         ForEach(LabScene.Category.allCases, id: \.self) { item in
-                            filterChip(item, title: item.rawValue, count: LabScene.all.filter { $0.category == item }.count)
+                            filterChip(item, title: item.name, count: LabScene.all.filter { $0.category == item }.count)
                         }
                     }
                 }
@@ -114,7 +157,7 @@ struct LabView: View {
             .padding(16)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("场景实验室")
+        .navigationTitle(L("场景实验室", "Playground", "お試しラボ"))
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -149,7 +192,7 @@ private struct SceneCard: View {
                     .frame(width: 34, height: 34)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(colors.fill))
                 Spacer()
-                Text(scene.category.rawValue).font(.caption.weight(.semibold)).foregroundStyle(colors.text)
+                Text(scene.category.name).font(.caption.weight(.semibold)).foregroundStyle(colors.text)
             }
             .padding(.bottom, 4)
             Text(scene.title).font(.system(size: 15.5, weight: .semibold))
@@ -195,14 +238,14 @@ struct SceneView: View {
                         .frame(width: 40, height: 40)
                         .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(colors.fill))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("\(scene.category.rawValue) · 场景 \(index + 1)/\(LabScene.all.count)")
+                        Text(L("\(scene.category.name) · 场景 \(index + 1)/\(LabScene.all.count)", "\(scene.category.name) · Scene \(index + 1)/\(LabScene.all.count)", "\(scene.category.name) · シーン \(index + 1)/\(LabScene.all.count)"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(colors.text)
                         Text(scene.title).font(.system(size: 20, weight: .bold))
                     }
                 }
                 Text(scene.situation).font(.subheadline).foregroundStyle(.secondary)
-                TextField(scene.text.isEmpty ? "输入框留空，按下面的提示让它帮你写" : "在这里输入…", text: $text, axis: .vertical)
+                TextField(scene.text.isEmpty ? L("输入框留空，按下面的提示让它帮你写", "Leave this empty and follow the steps below to have it written for you", "空欄のまま、下の手順で書いてもらいます") : L("在这里输入…", "Type here…", "ここに入力…"), text: $text, axis: .vertical)
                     .lineLimit(3...10)
                     .focused($focused)
                     .padding(14)
@@ -210,7 +253,7 @@ struct SceneView: View {
                     .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(AppColor.purple, lineWidth: focused ? 2 : 0))
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("试试这样做").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                    Text(L("试试这样做", "Try this", "試してみましょう")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                     ForEach(Array(scene.steps.enumerated()), id: \.offset) { number, step in
                         HStack(alignment: .top, spacing: 8) {
                             Text("\(number + 1)")
@@ -219,8 +262,8 @@ struct SceneView: View {
                                 .frame(width: 20, height: 20)
                                 .background(Circle().fill(AppColor.softFill))
                             // 风格按钮上显示的是当前风格名，提示里跟着写。
-                            Text(step.replacingOccurrences(of: "「正式 ▾」",
-                                                           with: "「\(store.settings.selectedStyle?.name ?? "正式") ▾」"))
+                            Text(step.replacingOccurrences(of: "{style}",
+                                                           with: store.settings.selectedStyle?.displayName ?? L("正式", "Formal", "丁寧")))
                                 .font(.subheadline)
                         }
                     }
@@ -229,13 +272,13 @@ struct SceneView: View {
                 .padding(14)
                 .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
                 HStack {
-                    Button { go(index - 1) } label: { Label("上一个", systemImage: "chevron.left") }
+                    Button { go(index - 1) } label: { Label(L("上一个", "Previous", "前へ"), systemImage: "chevron.left") }
                         .disabled(index == 0)
                     Spacer()
                     if index + 1 < LabScene.all.count {
                         Button { go(index + 1) } label: {
                             HStack(spacing: 4) {
-                                Text("下一个：\(LabScene.all[index + 1].title)")
+                                Text(L("下一个：\(LabScene.all[index + 1].title)", "Next: \(LabScene.all[index + 1].title)", "次へ：\(LabScene.all[index + 1].title)"))
                                 Image(systemName: "chevron.right")
                             }
                         }
@@ -247,7 +290,7 @@ struct SceneView: View {
             .padding(16)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("场景实验室")
+        .navigationTitle(L("场景实验室", "Playground", "お試しラボ"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: index) {
             try? await Task.sleep(nanoseconds: 600_000_000)
@@ -255,12 +298,12 @@ struct SceneView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button("重置") { text = scene.text }
+                Button(L("重置", "Reset", "リセット")) { text = scene.text }
             }
             ToolbarItem(placement: .keyboard) {
                 HStack {
                     Spacer()
-                    Button("收起键盘") { focused = false }
+                    Button(L("收起键盘", "Hide keyboard", "キーボードを閉じる")) { focused = false }
                 }
             }
         }

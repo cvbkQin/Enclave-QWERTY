@@ -66,18 +66,25 @@ struct RootView: View {
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
+        tabs
+            // 语言变了整棵视图按新语言重画；页面路径存在 router 里，不会回到首页。
+            .id(router.language)
+            .environment(\.locale, Loc.locale)
+    }
+
+    private var tabs: some View {
         TabView(selection: $router.tab) {
             HomeView()
-                .tabItem { Label("首页", systemImage: "house") }
+                .tabItem { Label(L("首页", "Home", "ホーム"), systemImage: "house") }
                 .tag(AppRouter.Tab.home)
             StylesTab()
-                .tabItem { Label("风格", systemImage: "sparkles") }
+                .tabItem { Label(L("风格", "Styles", "文体"), systemImage: "sparkles") }
                 .tag(AppRouter.Tab.styles)
             NavigationStack { ModelSettingsView() }
-                .tabItem { Label("接口", systemImage: "cpu") }
+                .tabItem { Label(L("接口", "API", "API"), systemImage: "cpu") }
                 .tag(AppRouter.Tab.model)
             SettingsView()
-                .tabItem { Label("设置", systemImage: "gearshape") }
+                .tabItem { Label(L("设置", "Settings", "設定"), systemImage: "gearshape") }
                 .tag(AppRouter.Tab.settings)
         }
     }
@@ -91,13 +98,17 @@ final class AppRouter: ObservableObject {
     enum Tab: Hashable { case home, styles, model, settings }
 
     enum SettingsPage: String, Hashable {
-        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock
+        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language
     }
 
     /// 首页里的二级页：键盘、常用词、场景实验室和其中一个场景。
     enum HomePage: Hashable { case keyboard, commonWords, lab, scene(Int) }
 
     @Published var tab: Tab = .home
+    /// 界面语言，改了马上存进 App Group，整个界面按新语言重画（导航位置保留）。
+    @Published var language = Loc.setting {
+        didSet { Loc.setting = language }
+    }
     @Published var settingsPath: [SettingsPage] = []
     @Published var homePath = NavigationPath()
 
@@ -191,7 +202,7 @@ final class AppStore: ObservableObject {
                 raw += piece
             }
             let reply = ModelOutput.clean(raw)
-            test = reply.isEmpty ? .failure("连上了，但模型没有返回内容。")
+            test = reply.isEmpty ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success(String(reply.prefix(40)), Date().timeIntervalSince(start))
         } catch {
             test = .failure(error.localizedDescription)

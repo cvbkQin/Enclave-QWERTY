@@ -86,10 +86,10 @@ struct PinyinStatus {
     @MainActor
     static func current(_ deployer: RimeDeployer) -> PinyinStatus {
         switch deployer.state {
-        case .deploying: return PinyinStatus(text: "正在部署", color: .orange)
-        case .failed: return PinyinStatus(text: "部署失败", color: .red)
+        case .deploying: return PinyinStatus(text: L("正在部署", "Installing", "インストール中"), color: .orange)
+        case .failed: return PinyinStatus(text: L("部署失败", "Install failed", "インストール失敗"), color: .red)
         default:
-            return deployer.needsDeploy ? PinyinStatus(text: "未部署", color: .orange) : PinyinStatus(text: "已就绪", color: .green)
+            return deployer.needsDeploy ? PinyinStatus(text: L("未部署", "Not installed", "未インストール"), color: .orange) : PinyinStatus(text: L("已就绪", "Ready", "準備完了"), color: .green)
         }
     }
 }
@@ -114,13 +114,13 @@ struct SharedConfigBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("键盘读不到 App 里的设置", systemImage: "exclamationmark.triangle.fill")
+            Label(L("键盘读不到 App 里的设置", "The keyboard can't read the app's settings", "キーボードがアプリの設定を読み込めません"), systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.orange)
-            Text("当前签名没有拿到 App Group。复制配置后，在键盘里点「从剪贴板导入配置」，导入后剪贴板会自动清空。")
+            Text(L("当前签名没有拿到 App Group。复制配置后，在键盘里点「从剪贴板导入配置」，导入后剪贴板会自动清空。", "This build has no App Group. Copy the settings, then tap \"Import settings from clipboard\" in the keyboard. The clipboard is cleared afterward.", "このビルドでは App Group が使えません。設定をコピーして、キーボードで「クリップボードから設定を読み込む」をタップしてください。読み込み後にクリップボードは消去されます。"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Button(copied ? "已复制" : "复制配置") {
+            Button(copied ? L("已复制", "Copied", "コピーしました") : L("复制配置", "Copy settings", "設定をコピー")) {
                 if let string = SettingsStore.exportString() {
                     UIPasteboard.general.string = string
                     copied = true

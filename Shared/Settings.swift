@@ -4,6 +4,18 @@ struct StylePreset: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var name: String
     var prompt: String
+
+    /// 界面上显示的名字：自带的 5 个风格按界面语言翻译，用户自己起的名字原样显示。提示词不翻。
+    var displayName: String {
+        switch name {
+        case "自动": return L("自动", "Auto", "おまかせ")
+        case "正式": return L("正式", "Formal", "丁寧")
+        case "口语": return L("口语", "Casual", "カジュアル")
+        case "简短": return L("简短", "Concise", "簡潔に")
+        case "结构": return L("结构", "Bullets", "箇条書き")
+        default: return name
+        }
+    }
 }
 
 enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
@@ -16,12 +28,12 @@ enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .qwerty: return "全键盘（26 键）"
-        case .nineKey: return "九宫格"
+        case .qwerty: return L("全键盘（26 键）", "QWERTY", "QWERTY")
+        case .nineKey: return L("九宫格", "10-key", "10キー")
         }
     }
 
-    var shortTitle: String { self == .qwerty ? "全键盘" : "九宫格" }
+    var shortTitle: String { self == .qwerty ? L("全键盘", "QWERTY", "QWERTY") : L("九宫格", "10-key", "10キー") }
 }
 
 struct EnclaveSettings: Codable, Equatable {

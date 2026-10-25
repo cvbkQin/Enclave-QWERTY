@@ -5,10 +5,10 @@ import UniformTypeIdentifiers
 extension CommonWord.Source {
     var title: String {
         switch self {
-        case .manual: return "手动"
-        case .imported: return "导入"
-        case .textReplacement: return "文本替换"
-        case .contact: return "通讯录"
+        case .manual: return L("手动", "Added", "手動")
+        case .imported: return L("导入", "Imported", "読み込み")
+        case .textReplacement: return L("文本替换", "Text Replacement", "ユーザ辞書")
+        case .contact: return L("通讯录", "Contacts", "連絡先")
         }
     }
 
@@ -91,8 +91,8 @@ struct CommonWordsView: View {
                 Section {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("常用词还没同步到键盘").font(.subheadline.weight(.semibold))
-                            Text("键盘开了「允许完全访问」才会用上这里的词。").font(.caption).foregroundStyle(.secondary)
+                            Text(L("常用词还没同步到键盘", "My Words aren't on the keyboard yet", "ユーザ辞書はまだキーボードに反映されていません")).font(.subheadline.weight(.semibold))
+                            Text(L("键盘开了「允许完全访问」才会用上这里的词。", "The keyboard uses these words once Allow Full Access is on.", "キーボードで「フルアクセスを許可」をオンにすると使われます。")).font(.caption).foregroundStyle(.secondary)
                         }
                     } icon: {
                         Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
@@ -107,7 +107,7 @@ struct CommonWordsView: View {
             }
             Section {
                 if shown.isEmpty {
-                    Text(model.all.isEmpty ? "还没有常用词。点右上角「＋」加一个，或者从文件导入。" : "没有找到。")
+                    Text(model.all.isEmpty ? L("还没有常用词。点右上角「＋」加一个，或者从文件导入。", "No words yet. Tap ＋ to add one, or import from a file.", "まだ登録がありません。右上の「＋」で追加するか、ファイルから読み込みます。") : L("没有找到。", "No results.", "見つかりません。"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -120,42 +120,42 @@ struct CommonWordsView: View {
                     .buttonStyle(.plain)
                     .swipeActions {
                         if !word.isReadOnly {
-                            Button(role: .destructive) { model.delete(word) } label: { Label("删除", systemImage: "trash") }
+                            Button(role: .destructive) { model.delete(word) } label: { Label(L("删除", "Delete", "削除"), systemImage: "trash") }
                                 .tint(.red)
                         }
                     }
                 }
             } footer: {
-                Text("打拼音或简码时，常用词排在候选第一位。左滑删除，点一下编辑；文本替换和通讯录的词要去系统里改。")
+                Text(L("打拼音或简码时，常用词排在候选第一位。左滑删除，点一下编辑；文本替换和通讯录的词要去系统里改。", "Your words come first when you type their pinyin or shortcut. Swipe left to delete, tap to edit. Text Replacement and Contacts entries are edited in iOS.", "ピンインや略語を入力すると、登録した語が候補の先頭に出ます。左にスワイプで削除、タップで編集。ユーザ辞書と連絡先の語は iOS 側で変更します。"))
             }
             Section {
                 Button { importing = true } label: {
-                    Label("从文件导入（搜狗、百度、RIME 等）", systemImage: "square.and.arrow.down")
+                    Label(L("从文件导入（搜狗、百度、RIME 等）", "Import from file (Sogou, Baidu, RIME…)", "ファイルから読み込む（Sogou・Baidu・RIME など）"), systemImage: "square.and.arrow.down")
                 }
                 .tint(AppColor.purple)
             }
             Section {
                 Toggle(isOn: $model.usesTextReplacement) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("使用系统文本替换")
-                        Text("设置 › 通用 › 键盘 › 文本替换里的词").font(.caption).foregroundStyle(.secondary)
+                        Text(L("使用系统文本替换", "Use Text Replacements", "iPhone のユーザ辞書を使う"))
+                        Text(L("设置 › 通用 › 键盘 › 文本替换里的词", "Words in Settings › General › Keyboard › Text Replacement", "設定 › 一般 › キーボード › ユーザ辞書 の語")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 Toggle(isOn: $model.usesContacts) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("使用通讯录里的名字")
-                        Text("只读名字，不读电话和其他信息").font(.caption).foregroundStyle(.secondary)
+                        Text(L("使用通讯录里的名字", "Use names from Contacts", "連絡先の名前を使う"))
+                        Text(L("只读名字，不读电话和其他信息", "Names only, never numbers or other details", "名前だけを読み、電話番号などは読みません")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
             } header: {
-                Text("自动加入")
+                Text(L("自动加入", "Add automatically", "自動で追加"))
             } footer: {
-                Text("这两项和你在这里加的词，都要键盘开了「允许完全访问」才会用上。")
+                Text(L("这两项和你在这里加的词，都要键盘开了「允许完全访问」才会用上。", "These and the words you add here need Allow Full Access on the keyboard.", "これらとここで追加した語は、キーボードの「フルアクセスを許可」がオンのときに使われます。"))
             }
         }
         .tint(AppColor.purple)
-        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索词或拼音")
-        .navigationTitle("常用词")
+        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: L("搜索词或拼音", "Search words or pinyin", "語またはピンインを検索"))
+        .navigationTitle(L("常用词", "My Words", "ユーザ辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -171,9 +171,9 @@ struct CommonWordsView: View {
         .alert(item: $readOnly) { word in
             Alert(title: Text(word.text),
                   message: Text(word.source == .contact
-                                ? "这个名字来自通讯录，要改请去「通讯录」。"
-                                : "这个词来自系统文本替换，要改请去 设置 › 通用 › 键盘 › 文本替换。"),
-                  dismissButton: .default(Text("知道了")))
+                                ? L("这个名字来自通讯录，要改请去「通讯录」。", "This name comes from Contacts. Edit it there.", "この名前は連絡先から読み込んでいます。連絡先で変更してください。")
+                                : L("这个词来自系统文本替换，要改请去 设置 › 通用 › 键盘 › 文本替换。", "This word comes from Text Replacement. Edit it in Settings › General › Keyboard › Text Replacement.", "この語は iPhone のユーザ辞書から読み込んでいます。設定 › 一般 › キーボード › ユーザ辞書 で変更してください。")),
+                  dismissButton: .default(Text(L("知道了", "Got it", "OK"))))
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.plainText, .text, .utf8PlainText]) { result in
             guard case .success(let url) = result else { return }
@@ -196,8 +196,8 @@ struct CommonWordsView: View {
     }
 
     private var filterBar: some View {
-        Picker("来源", selection: $filter) {
-            Text("全部 \(model.count(nil))").tag(CommonWord.Source?.none)
+        Picker(L("来源", "Source", "ソース"), selection: $filter) {
+            Text(L("全部 \(model.count(nil))", "All \(model.count(nil))", "すべて \(model.count(nil))")).tag(CommonWord.Source?.none)
             ForEach([CommonWord.Source.manual, .imported, .textReplacement, .contact], id: \.self) { source in
                 Text("\(source.title) \(model.count(source))").tag(Optional(source))
             }
@@ -234,7 +234,7 @@ struct ShortcutTag: View {
     let code: String
 
     var body: some View {
-        Text("简码 \(code)")
+        Text(L("简码 \(code)", "Shortcut \(code)", "略語 \(code)"))
             .font(.system(size: 11, weight: .medium, design: .monospaced))
             .foregroundStyle(Color(hex: 0x4A3BD6))
             .padding(.horizontal, 5)
@@ -295,14 +295,14 @@ private struct WordEditor: View {
             Form {
                 Section {
                     HStack(alignment: .firstTextBaseline, spacing: 16) {
-                        Text("词").frame(width: 36, alignment: .leading)
-                        TextField("比如：你的邮箱或地址", text: $text, axis: .vertical)
+                        Text(L("词", "Word", "語")).frame(width: 36, alignment: .leading)
+                        TextField(L("比如：你的邮箱或地址", "e.g. your email or address", "例：メールアドレスや住所"), text: $text, axis: .vertical)
                             .onChange(of: text) { value in
                                 if !pinyinEdited { pinyin = CommonWordStore.pinyin(of: value) }
                             }
                     }
                     HStack(alignment: .firstTextBaseline, spacing: 16) {
-                        Text("拼音").frame(width: 36, alignment: .leading)
+                        Text(L("拼音", "Pinyin", "ピンイン")).frame(width: 36, alignment: .leading)
                         VStack(alignment: .leading, spacing: 3) {
                             TextField("you xiang", text: Binding(get: { pinyin }, set: {
                                 pinyin = $0
@@ -311,28 +311,28 @@ private struct WordEditor: View {
                             .font(.body.monospaced())
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
-                            Text("根据词自动生成，可以改；英文和数字的词请自己填一个好记的拼音")
+                            Text(L("根据词自动生成，可以改；英文和数字的词请自己填一个好记的拼音", "Generated from the word and editable. For English or numbers, enter pinyin that's easy to remember", "語から自動で作成され、変更もできます。英語や数字の語は覚えやすいピンインを入れてください"))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     HStack(alignment: .firstTextBaseline, spacing: 16) {
-                        Text("简码").frame(width: 36, alignment: .leading)
+                        Text(L("简码", "Shortcut", "略語")).frame(width: 36, alignment: .leading)
                         VStack(alignment: .leading, spacing: 3) {
-                            TextField("可不填", text: $shortcut)
+                            TextField(L("可不填", "Optional", "任意"), text: $shortcut)
                                 .font(.body.monospaced())
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
-                            Text("打这几个字母也能出这个词").font(.caption).foregroundStyle(.secondary)
+                            Text(L("打这几个字母也能出这个词", "Type these letters to get the word too", "この文字を入力しても候補に出ます")).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
-                Section("键盘里的样子") {
+                Section(L("键盘里的样子", "Preview", "キーボードでの表示")) {
                     CandidatePreview(word: draft)
                         .listRowInsets(EdgeInsets())
                 }
                 if let original {
                     Section {
-                        Button("删除这个词", role: .destructive) {
+                        Button(L("删除这个词", "Delete this word", "この語を削除"), role: .destructive) {
                             onDelete(original)
                             dismiss()
                         }
@@ -340,12 +340,12 @@ private struct WordEditor: View {
                     }
                 }
             }
-            .navigationTitle(original == nil ? "添加常用词" : "编辑常用词")
+            .navigationTitle(original == nil ? L("添加常用词", "Add word", "語を追加") : L("编辑常用词", "Edit word", "語を編集"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(L("取消", "Cancel", "キャンセル")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button(L("保存", "Save", "保存")) {
                         onSave(draft)
                         dismiss()
                     }
@@ -364,11 +364,11 @@ private struct CandidatePreview: View {
     var body: some View {
         let hints = [word.shortcut, word.pinyin].filter { !$0.isEmpty }
         VStack(alignment: .leading, spacing: 6) {
-            Text(hints.isEmpty ? "填好拼音或简码后在这里预览" : "打 " + hints.joined(separator: " 或 "))
+            Text(hints.isEmpty ? L("填好拼音或简码后在这里预览", "Enter pinyin or a shortcut to preview here", "ピンインか略語を入れるとここでプレビューできます") : L("打 ", "Type ", "") + hints.joined(separator: L(" 或 ", " or ", " または ")) + L("", "", " と入力"))
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
             HStack(spacing: 16) {
-                Text(word.text.isEmpty ? "你的词" : word.text)
+                Text(word.text.isEmpty ? L("你的词", "Your word", "あなたの語") : word.text)
                     .font(.system(size: 17))
                     .foregroundStyle(AppColor.purple)
                     .lineLimit(1)
@@ -400,7 +400,7 @@ struct ImportPreview: Identifiable {
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         let empty = CommonWordStore.ImportResult(format: "", words: [], lines: 0, unreadable: 0)
         guard let data = try? Data(contentsOf: url) else {
-            return ImportPreview(fileName: url.lastPathComponent, result: empty, error: "读不了这个文件。")
+            return ImportPreview(fileName: url.lastPathComponent, result: empty, error: L("读不了这个文件。", "Can't read this file.", "このファイルを読み込めません。"))
         }
         // 搜狗、百度导出的有时是 UTF-16 或 GB18030。
         let gb18030 = String.Encoding(rawValue: CFStringConvertEncodingToNSStringEncoding(
@@ -408,7 +408,7 @@ struct ImportPreview: Identifiable {
         let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .utf16)
             ?? String(data: data, encoding: gb18030)
         guard let text else {
-            return ImportPreview(fileName: url.lastPathComponent, result: empty, error: "文件不是文本，或者编码认不出来。")
+            return ImportPreview(fileName: url.lastPathComponent, result: empty, error: L("文件不是文本，或者编码认不出来。", "The file isn't text, or its encoding isn't recognized.", "テキストファイルでないか、文字コードを判別できません。"))
         }
         return ImportPreview(fileName: url.lastPathComponent, result: CommonWordStore.parseImport(text), error: nil)
     }
@@ -439,44 +439,44 @@ private struct ImportPreviewView: View {
                             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(hex: 0xFFF1DC)))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(preview.fileName).font(.subheadline.weight(.semibold)).lineLimit(1)
-                            Text(preview.error ?? "识别为：\(preview.result.format)")
+                            Text(preview.error ?? L("识别为：\(preview.result.format)", "Detected: \(preview.result.format)", "判別結果：\(preview.result.format)"))
                                 .font(.caption)
                                 .foregroundStyle(preview.error == nil ? Color.secondary : Color.red)
                         }
                     }
                     if preview.error == nil {
                         HStack {
-                            stat(preview.result.lines, "文件里", .primary)
-                            stat(fresh.count, "可导入", Color(hex: 0x1F7A45))
-                            stat(duplicates.count, "已经有了", .secondary)
-                            stat(preview.result.unreadable, "读不出", Color(hex: 0xA15C00))
+                            stat(preview.result.lines, L("文件里", "In file", "ファイル内"), .primary)
+                            stat(fresh.count, L("可导入", "New", "読み込み可"), Color(hex: 0x1F7A45))
+                            stat(duplicates.count, L("已经有了", "Already added", "登録済み"), .secondary)
+                            stat(preview.result.unreadable, L("读不出", "Unreadable", "読めない行"), Color(hex: 0xA15C00))
                         }
                         .padding(.vertical, 4)
                     }
                 }
                 if !preview.result.words.isEmpty {
-                    Section("预览") {
+                    Section(L("预览", "Preview", "プレビュー")) {
                         ForEach(preview.result.words.prefix(3)) { WordRow(word: $0) }
                         if preview.result.words.count > 3 {
-                            Text("还有 \(preview.result.words.count - 3) 条")
+                            Text(L("还有 \(preview.result.words.count - 3) 条", "\(preview.result.words.count - 3) more", "ほか \(preview.result.words.count - 3) 件"))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity)
                         }
                     }
                     Section {
-                        Picker("已经有的词", selection: $overwrite) {
-                            Text("跳过").tag(false)
-                            Text("覆盖").tag(true)
+                        Picker(L("已经有的词", "Existing words", "登録済みの語"), selection: $overwrite) {
+                            Text(L("跳过", "Skip", "スキップ")).tag(false)
+                            Text(L("覆盖", "Replace", "上書き")).tag(true)
                         }
                     } footer: {
                         if preview.result.unreadable > 0 {
-                            Text("\(preview.result.unreadable) 条读不出的多半是空行，或者没有汉字也没有拼音的行。")
+                            Text(L("\(preview.result.unreadable) 条读不出的多半是空行，或者没有汉字也没有拼音的行。", "The \(preview.result.unreadable) unreadable lines are usually blank or have neither Chinese nor pinyin.", "読めなかった \(preview.result.unreadable) 行は、たいてい空行か、漢字もピンインもない行です。"))
                         }
                     }
                 }
                 Section {
-                    Button("导入 \(importCount) 个词") {
+                    Button(L("导入 \(importCount) 个词", "Import \(importCount) words", "\(importCount) 語を読み込む")) {
                         onImport(fresh + (overwrite ? duplicates : []), overwrite)
                         dismiss()
                     }
@@ -485,15 +485,15 @@ private struct ImportPreviewView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 } footer: {
-                    Text("支持 .txt：搜狗、百度、QQ 拼音、RIME（词 拼音 权重）、每行一个词。")
+                    Text(L("支持 .txt：搜狗、百度、QQ 拼音、RIME（词 拼音 权重）、每行一个词。", "Supports .txt from Sogou, Baidu, QQ Pinyin, RIME (word pinyin weight), or one word per line.", "対応形式（.txt）：Sogou、Baidu、QQ ピンイン、RIME（語 ピンイン 重み）、1 行 1 語。"))
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
                 }
             }
-            .navigationTitle("导入预览")
+            .navigationTitle(L("导入预览", "Import preview", "読み込みのプレビュー"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(L("取消", "Cancel", "キャンセル")) { dismiss() } }
             }
             .tint(AppColor.purple)
         }

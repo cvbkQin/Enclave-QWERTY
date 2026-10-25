@@ -62,13 +62,13 @@ struct KeyboardView: View {
     /// 在卡片里改结果时 AI 栏换成提示。
     private var cardEditHint: some View {
         HStack(spacing: 8) {
-            Label("正在修改结果", systemImage: "pencil")
+            Label(L("正在修改结果", "Editing result", "結果を編集中"), systemImage: "pencil")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Brand.deepPurple)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
                 .background(Capsule().fill(Brand.returnSoftFill))
-            Text("打字进卡片，按住空格左右滑动移光标")
+            Text(L("打字进卡片，按住空格左右滑动移光标", "Typing goes into the card. Touch and hold space and slide to move the cursor", "カードに入力します。スペースを長押ししてスライドでカーソル移動"))
                 .font(.system(size: 13))
                 .foregroundStyle(Brand.cardNote)
                 .lineLimit(1)
@@ -139,8 +139,8 @@ struct KeyboardView: View {
     private var actionRow: some View {
         if model.target == .card {
             HStack(spacing: 6) {
-                PanelButton(title: "取消修改", systemImage: nil, kind: .plain) { model.cancelCardEdit() }
-                PanelButton(title: "完成修改", systemImage: "checkmark", kind: .primary) { model.finishCardEdit() }
+                PanelButton(title: L("取消修改", "Cancel", "キャンセル"), systemImage: nil, kind: .plain) { model.cancelCardEdit() }
+                PanelButton(title: L("完成修改", "Done", "完了"), systemImage: "checkmark", kind: .primary) { model.finishCardEdit() }
             }
         } else {
             useRow
@@ -151,11 +151,11 @@ struct KeyboardView: View {
         let replaced = model.resultUse == .replaced
         let inserted = model.resultUse == .inserted
         return HStack(spacing: 6) {
-            PanelButton(title: replaced ? "已替换" : "替换",
+            PanelButton(title: replaced ? L("已替换", "Replaced", "置き換え済み") : L("替换", "Replace", "置き換え"),
                         systemImage: replaced ? "checkmark" : "arrow.left.arrow.right",
                         kind: replaced ? .done : .primary) { model.replace() }
                 .disabled(!model.hasResult || replaced)
-            PanelButton(title: inserted ? "已插入" : "插入",
+            PanelButton(title: inserted ? L("已插入", "Inserted", "挿入済み") : L("插入", "Insert", "挿入"),
                         systemImage: inserted ? "checkmark" : "text.insert",
                         kind: inserted ? .done : .outlined) { model.insert() }
                 .disabled(!model.hasResult || inserted)
@@ -201,7 +201,7 @@ struct PolishButton: View {
         } label: {
             HStack(spacing: 5) {
                 PolishStars(size: 15, running: quickRunning, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
-                Text("润色")
+                Text(L("润色", "Polish", "整える"))
             }
             .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(.white)
@@ -243,7 +243,7 @@ struct PolishButton: View {
             }
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel(model.isRunning ? "正在润色，轻点取消" : "润色")
+        .accessibilityLabel(model.isRunning ? L("正在润色，轻点取消", "Polishing. Tap to cancel", "整えています。タップでキャンセル") : L("润色", "Polish", "整える"))
         .onChange(of: model.finished) { finished in
             if finished?.origin == .polish { doneAt = finished?.at }
         }
@@ -418,8 +418,8 @@ struct StyleChip: View {
     }
 
     private var title: String {
-        let name = model.settings.selectedStyle?.name ?? "风格"
-        return model.instruction.isEmpty ? name : "\(name) · 有要求"
+        let name = model.settings.selectedStyle?.displayName ?? L("风格", "Style", "文体")
+        return model.instruction.isEmpty ? name : L("\(name) · 有要求", "\(name) · Prompt", "\(name) · 指示あり")
     }
 }
 
@@ -508,11 +508,11 @@ struct StyleMenu: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                rowLabel("风格")
+                rowLabel(L("风格", "Style", "文体"))
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 2) {
                         ForEach(model.settings.styles) { style in
-                            MenuStyleTag(title: style.name, selected: style.id == model.settings.selectedStyle?.id) {
+                            MenuStyleTag(title: style.displayName, selected: style.id == model.settings.selectedStyle?.id) {
                                 model.selectStyle(style)
                             }
                         }
@@ -522,7 +522,7 @@ struct StyleMenu: View {
             }
             .frame(height: 32)
             HStack(spacing: 8) {
-                rowLabel("要求")
+                rowLabel(L("要求", "Prompt", "指示"))
                 RequestField(model: model)
                 MenuPolishButton(model: model)
             }
@@ -542,7 +542,9 @@ struct StyleMenu: View {
         Text(text)
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Brand.panelLabel)
-            .frame(width: 34, alignment: .leading)
+            .lineLimit(1)
+            .fixedSize()
+            .frame(minWidth: 34, alignment: .leading)
     }
 }
 
@@ -563,11 +565,13 @@ struct MenuPolishButton: View {
         } label: {
             HStack(spacing: 4) {
                 PolishStars(size: 13, running: running, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
-                Text("再润")
+                Text(L("再润", "Rewrite", "別の案")).lineLimit(1).fixedSize()
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color.white)
-            .frame(width: 72, height: 30)
+            // 英文、日文更长时按内容撑开，不缩字号。
+            .padding(.horizontal, 10)
+            .frame(minWidth: 72, minHeight: 30, maxHeight: 30)
             .background(Capsule().fill(Brand.rerunGradient))
             .overlay {
                 if running && fullMotion {
@@ -579,7 +583,7 @@ struct MenuPolishButton: View {
             .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel(model.isRunning ? "正在润色，轻点取消" : "再润")
+        .accessibilityLabel(model.isRunning ? L("正在润色，轻点取消", "Polishing. Tap to cancel", "整えています。タップでキャンセル") : L("再润", "Rewrite", "別の案"))
         .onChange(of: model.finished) { finished in
             if finished?.origin == .rerun { doneAt = finished?.at }
         }
@@ -616,15 +620,15 @@ struct GateCard: View {
                 .foregroundStyle(Brand.deepPurple)
                 .frame(width: 22, height: 22)
                 .background(Circle().fill(Brand.returnSoftFill))
-            Text("AI 润色需要开启「允许完全访问」").font(.system(size: 14, weight: .semibold))
+            Text(L("AI 润色需要开启「允许完全访问」", "AI Polish needs Allow Full Access", "AI 機能には「フルアクセスを許可」が必要です")).font(.system(size: 14, weight: .semibold))
         }
-        Text("打字不受影响。开启后才能用 AI 润色，App 里的键盘设置也会同步过来。")
+        Text(L("打字不受影响。开启后才能用 AI 润色，App 里的键盘设置也会同步过来。", "Typing still works. Turn it on to use AI Polish and to sync keyboard settings from the app.", "入力はそのまま使えます。オンにすると AI 機能が使え、アプリのキーボード設定も同期されます。"))
             .font(.system(size: 13))
             .foregroundStyle(Brand.cardBody)
             .fixedSize(horizontal: false, vertical: true)
         // 没开完全访问时 iOS 不让键盘打开任何 App，只能把路径写出来。
         VStack(alignment: .leading, spacing: 3) {
-            Text("在系统设置里开启").font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            Text(L("在系统设置里开启", "Turn it on in Settings", "設定でオンにする")).font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
             settingsPath.font(.system(size: 13)).fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 9)
@@ -633,13 +637,13 @@ struct GateCard: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
         Spacer(minLength: 0)
         HStack(spacing: 8) {
-            Text("也可以打开 Enclave App 按指引开启")
+            Text(L("也可以打开 Enclave App 按指引开启", "Or open the Enclave app for a guide", "Enclave アプリの案内からも設定できます"))
                 .font(.system(size: 12))
                 .foregroundStyle(Brand.disabledText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 4)
-            GateButton(title: "知道了", primary: true) { model.dismissGate() }
+            GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
         }
     }
 
@@ -689,22 +693,22 @@ struct GateCard: View {
 
     /// 设置 › 通用 › 键盘 › 键盘 › Enclave › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
     private var settingsPath: Text {
-        let steps = ["设置", "通用", "键盘", "键盘", "Enclave"]
+        let steps = [L("设置", "Settings", "設定"), L("通用", "General", "一般"), L("键盘", "Keyboard", "キーボード"), L("键盘", "Keyboards", "キーボード"), "Enclave"]
         var text = Text("")
         for step in steps {
             text = text + Text(step).foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
         }
-        return text + Text("允许完全访问").fontWeight(.semibold).foregroundColor(Brand.deepPurple)
+        return text + Text(L("允许完全访问", "Allow Full Access", "フルアクセスを許可")).fontWeight(.semibold).foregroundColor(Brand.deepPurple)
     }
 
     @ViewBuilder
     private func consent(_ endpoint: String, previous: String?) -> some View {
         HStack(spacing: 6) {
             SparkleMark(size: 14, color: Brand.tagSelectedText)
-            Text(previous == nil ? "润色前确认一下" : "接口地址变了，再确认一次").font(.system(size: 14, weight: .semibold))
+            Text(previous == nil ? L("润色前确认一下", "Before you polish", "整える前に確認") : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください")).font(.system(size: 14, weight: .semibold))
         }
         HStack(spacing: 6) {
-            Text("文字会发送到").font(.system(size: 13)).foregroundStyle(Brand.cardBody)
+            Text(L("文字会发送到", "Text will be sent to", "文章の送信先")).font(.system(size: 13)).foregroundStyle(Brand.cardBody)
             HStack(spacing: 4) {
                 Image(systemName: "globe").font(.system(size: 11, weight: .semibold))
                 Text(endpoint).font(.system(size: 12.5, weight: .semibold, design: .monospaced)).lineLimit(1)
@@ -715,23 +719,23 @@ struct GateCard: View {
             .background(Capsule().fill(Brand.returnSoftFill))
         }
         if let previous {
-            (Text("原来是 ") + Text(previous).strikethrough())
+            (Text(L("原来是 ", "Was ", "以前は ")) + Text(previous).strikethrough())
                 .font(.system(size: 12))
                 .foregroundStyle(Brand.panelLabel.opacity(0.7))
         }
-        Text("只在你点「润色」或「再润」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；Enclave 没有自己的服务器，也不保存你的文字。")
+        Text(L("只在你点「润色」或「再润」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；Enclave 没有自己的服务器，也不保存你的文字。", "Sent only when you tap Polish or Rewrite: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. Enclave has no servers and doesn't keep your text.", "「整える」か「別の案」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。Enclave はサーバーを持たず、文章を保存しません。"))
             .font(.system(size: 12))
             .foregroundStyle(Brand.cardNote)
             .fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 0)
         HStack(spacing: 8) {
             Button { model.openContainingApp("enclave://privacy-policy") } label: {
-                Text("隐私政策").font(.system(size: 12)).foregroundStyle(Brand.tagSelectedText)
+                Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12)).foregroundStyle(Brand.tagSelectedText)
             }
             .buttonStyle(.plain)
             Spacer()
-            GateButton(title: "取消", primary: false) { model.dismissGate() }
-            GateButton(title: "同意并润色", primary: true) { model.acceptConsent() }
+            GateButton(title: L("取消", "Cancel", "キャンセル"), primary: false) { model.dismissGate() }
+            GateButton(title: L("同意并润色", "Agree and Polish", "同意して整える"), primary: true) { model.acceptConsent() }
         }
     }
 }
@@ -898,8 +902,8 @@ struct RequestField: View {
     }.withRenderingMode(.alwaysTemplate)
 
     private var placeholder: String {
-        guard let style = model.settings.selectedStyle, !style.prompt.isEmpty else { return "写要求，比如：语气委婉一点" }
-        return "按\(style.name)语气，还想怎么改？"
+        guard let style = model.settings.selectedStyle, !style.prompt.isEmpty else { return L("写要求，比如：语气委婉一点", "Describe your change, e.g. softer", "変更内容を入力（例：やわらかく）") }
+        return L("按\(style.displayName)语气，还想怎么改？", "\(style.displayName). Describe any other changes", "\(style.displayName)に。ほかに変えたい点は？")
     }
 
     var body: some View {
@@ -1109,7 +1113,7 @@ struct ResultCard: View {
         .overlay { border(look) }
         .overlay {
             if model.copied {
-                Label("已复制", systemImage: "checkmark")
+                Label(L("已复制", "Copied", "コピーしました"), systemImage: "checkmark")
                     .font(.system(size: 12, weight: .semibold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
@@ -1285,7 +1289,7 @@ struct ResultCard: View {
                 .font(.system(size: 10, weight: .semibold).monospacedDigit())
                 .foregroundStyle(Color.primary)
             if model.session?.currentIsEdited == true {
-                Text("已改").font(.system(size: 9.5, weight: .semibold)).foregroundStyle(Brand.deepPurple)
+                Text(L("已改", "Edited", "編集済み")).font(.system(size: 9.5, weight: .semibold)).foregroundStyle(Brand.deepPurple)
             }
             Button { turn(1) } label: {
                 Image(systemName: "chevron.down").frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1349,9 +1353,9 @@ struct ResultCard: View {
             } else {
                 HStack(spacing: 4) {
                     SparkleMark(size: 11, color: Brand.purpleText)
-                    Text("点「润色」整理输入框里的话").font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purpleText)
+                    Text(L("点「润色」整理输入框里的话", "Tap Polish to tidy up what you typed", "「整える」で入力した文章を整えます")).font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purpleText)
                 }
-                Text("选中一段只改选中的部分；点「\(model.settings.selectedStyle?.name ?? "风格")▾」换风格或写要求；输入框为空时写要求，它会帮你写。")
+                Text(L("选中一段只改选中的部分；点「\(model.settings.selectedStyle?.displayName ?? L("风格", "Style", "文体"))▾」换风格或写要求；输入框为空时写要求，它会帮你写。", "Select a part to change only that part. Tap \(model.settings.selectedStyle?.displayName ?? "Style") ▾ to switch styles or add a prompt. With an empty field, a prompt writes a draft for you.", "選択した部分だけを直せます。「\(model.settings.selectedStyle?.displayName ?? "文体")▾」で文体の変更や指示の入力。入力欄が空なら、指示どおりに下書きを作成します。"))
                     .font(.system(size: 11.5))
                     .foregroundStyle(Color.secondary)
             }
@@ -1362,7 +1366,7 @@ struct ResultCard: View {
 
     private func errorView(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Label("出错了", systemImage: "exclamationmark.circle")
+            Label(L("出错了", "Something went wrong", "エラーが発生しました"), systemImage: "exclamationmark.circle")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Color.red)
             Text(message)
@@ -1378,15 +1382,15 @@ struct ResultCard: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 5) {
                 SparkleMark(size: 12, color: Brand.purpleText)
-                Text("还差几步就能用 AI，打字不受影响").font(.system(size: 13, weight: .semibold))
+                Text(L("还差几步就能用 AI，打字不受影响", "A few steps to use AI. Typing works now", "あと数ステップで AI が使えます。入力はすぐに使えます")).font(.system(size: 13, weight: .semibold))
             }
-            checkRow(1, "打开「允许完全访问」", done: model.hasFullAccess)
+            checkRow(1, L("打开「允许完全访问」", "Turn on Allow Full Access", "「フルアクセスを許可」をオン"), done: model.hasFullAccess)
             HStack {
-                checkRow(2, "配置模型 API", done: model.settings.isConfigured)
+                checkRow(2, L("配置模型 API", "Set up a model API", "モデル API を設定"), done: model.settings.isConfigured)
                 Spacer(minLength: 0)
                 if !model.settings.isConfigured {
                     Button { model.importConfigFromPasteboard() } label: {
-                        Text("从剪贴板导入")
+                        Text(L("从剪贴板导入", "Import from clipboard", "クリップボードから読み込む"))
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Brand.purpleText)
                             .padding(.horizontal, 10)
@@ -1448,8 +1452,8 @@ struct QuickRetryLabel: View {
     var body: some View {
         Button { model.sparkleTapped() } label: {
             ViewThatFits(in: .horizontal) {
-                Text("润色失败，点重试")
-                Text("失败，重试")
+                Text(L("润色失败，点重试", "Polish failed. Tap to retry", "失敗しました。タップで再試行"))
+                Text(L("失败，重试", "Failed, retry", "失敗・再試行"))
             }
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(Brand.deepPurple)

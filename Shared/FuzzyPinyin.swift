@@ -51,10 +51,10 @@ enum FuzzyPinyin: String, Codable, CaseIterable, Identifiable {
 
         var title: String {
             switch self {
-            case .off: return "全部关闭"
-            case .retroflex: return "平翘舌不分"
-            case .nasal: return "前后鼻音不分"
-            case .southern: return "南方口音"
+            case .off: return L("全部关闭", "All off", "すべてオフ")
+            case .retroflex: return L("平翘舌不分", "z/zh, c/ch, s/sh", "z/zh・c/ch・s/sh を区別しない")
+            case .nasal: return L("前后鼻音不分", "an/ang, en/eng, in/ing", "an/ang・en/eng・in/ing を区別しない")
+            case .southern: return L("南方口音", "Southern accent", "南方なまり")
             }
         }
 

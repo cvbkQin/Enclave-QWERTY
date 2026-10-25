@@ -76,11 +76,11 @@ final class RimeDeployer: ObservableObject {
     func deploy() {
         guard state != .deploying else { return }
         guard let paths = RimeStore.paths else {
-            state = .failed("App Group 没有生效，键盘读不到词库。请检查签名里的 App Group。")
+            state = .failed(L("App Group 没有生效，键盘读不到词库。请检查签名里的 App Group。", "The App Group isn't working, so the keyboard can't read the dictionary. Check the App Group in signing.", "App Group が有効でないため、キーボードが辞書を読み込めません。署名の App Group を確認してください。"))
             return
         }
         guard let source = Self.bundledData, let version = Self.targetVersion else {
-            state = .failed("App 里没有词库。构建前需要运行 scripts/fetch-rime.sh。")
+            state = .failed(L("App 里没有词库。构建前需要运行 scripts/fetch-rime.sh。", "The app has no dictionary. Run scripts/fetch-rime.sh before building.", "アプリに辞書がありません。ビルド前に scripts/fetch-rime.sh を実行してください。"))
             return
         }
         let fuzzy = SettingsStore.load().fuzzyPinyin
@@ -135,7 +135,7 @@ final class RimeDeployer: ObservableObject {
         let ok = enclave_rime_deploy(paths.shared.path, paths.user.path, nil)
         let schema = paths.user.appendingPathComponent("build/\(RimeStore.schemaID).schema.yaml")
         guard ok, fm.fileExists(atPath: schema.path) else {
-            return .failure(DeployError(errorDescription: "词库编译失败。"))
+            return .failure(DeployError(errorDescription: L("词库编译失败。", "Couldn't build the dictionary.", "辞書の作成に失敗しました。")))
         }
         return .success(())
     }

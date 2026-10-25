@@ -146,10 +146,10 @@ enum CommonWordStore {
             let spelled = written.isEmpty
                 ? Self.pinyin(of: word)
                 : written.split(whereSeparator: { $0 == "'" || $0 == " " }).joined(separator: " ").lowercased()
-            formats[baiduPinyin != nil ? "百度格式（词(拼|音) 词频）"
-                    : line.hasPrefix("'") ? "搜狗格式（'拼'音 词）"
-                    : line.contains("\t") ? "RIME 格式（词 拼音 权重）"
-                    : written.isEmpty ? "每行一个词（拼音自动生成）" : "拼音 词", default: 0] += 1
+            formats[baiduPinyin != nil ? L("百度格式（词(拼|音) 词频）", "Baidu format", "Baidu 形式")
+                    : line.hasPrefix("'") ? L("搜狗格式（'拼'音 词）", "Sogou format", "Sogou 形式")
+                    : line.contains("\t") ? L("RIME 格式（词 拼音 权重）", "RIME format", "RIME 形式")
+                    : written.isEmpty ? L("每行一个词（拼音自动生成）", "One word per line (pinyin added automatically)", "1 行に 1 語（ピンインは自動）") : L("拼音 词", "Pinyin + word", "ピンイン + 語"), default: 0] += 1
             let code = normalizeCode(spelled)
             if code.isEmpty {
                 unreadable += 1
@@ -158,7 +158,7 @@ enum CommonWordStore {
             guard seen.insert(word + "\t" + code).inserted else { continue }
             words.append(CommonWord(text: word, pinyin: spelled, source: .imported))
         }
-        let format = formats.count > 1 ? "多种格式（每行分别识别）" : formats.first?.key ?? "没认出格式"
+        let format = formats.count > 1 ? L("多种格式（每行分别识别）", "Mixed formats (each line detected)", "複数の形式（行ごとに判別）") : formats.first?.key ?? L("没认出格式", "Unknown format", "形式を判別できません")
         return ImportResult(format: format, words: words, lines: lines, unreadable: unreadable)
     }
 

@@ -66,34 +66,40 @@ struct SettingsView: View {
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.unlock) { EnclaveAIRow() }
                 }
+                Section {
+                    NavigationLink(value: AppRouter.SettingsPage.language) {
+                        IconRow(systemName: "globe", color: Color(hex: 0x007AFF), title: L("语言", "Language", "言語"),
+                                value: router.language == .system ? nil : router.language.nativeName)
+                    }
+                }
                 // 键盘和常用词从首页进。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.pinyin) {
-                        IconRow(systemName: "character.book.closed", color: .orange, title: "拼音词库", value: "万象拼音")
+                        IconRow(systemName: "character.book.closed", color: .orange, title: L("拼音词库", "Pinyin dictionary", "ピンイン辞書"), value: L("万象拼音", "Wanxiang Pinyin", "万象ピンイン"))
                     }
                 }
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
-                        IconRow(systemName: "questionmark", color: .green, title: "开启键盘指南")
+                        IconRow(systemName: "questionmark", color: .green, title: L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.playground) {
-                        IconRow(systemName: "flask", color: Color(red: 0.69, green: 0.32, blue: 0.87), title: "场景实验室",
-                                value: "\(LabScene.all.count) 个场景")
+                        IconRow(systemName: "flask", color: Color(red: 0.69, green: 0.32, blue: 0.87), title: L("场景实验室", "Playground", "お試しラボ"),
+                                value: L("\(LabScene.all.count) 个场景", "\(LabScene.all.count) scenes", "\(LabScene.all.count) 個のシーン"))
                     }
                 }
                 Section {
-                    IconRow(systemName: "link", color: .gray, title: "App 与键盘共享配置",
-                            value: SharedStorage.isShared ? "已开启" : "不可用")
+                    IconRow(systemName: "link", color: .gray, title: L("App 与键盘共享配置", "Shared with keyboard", "キーボードと設定を共有"),
+                            value: SharedStorage.isShared ? L("已开启", "On", "オン") : L("不可用", "Unavailable", "利用不可"))
                     if !SharedStorage.isShared { SharedConfigBanner().listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)) }
                     NavigationLink(value: AppRouter.SettingsPage.privacy) {
-                        IconRow(systemName: "lock", color: .gray, title: "隐私")
+                        IconRow(systemName: "lock", color: .gray, title: L("隐私", "Privacy", "プライバシー"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.about) {
-                        IconRow(systemName: "info", color: .gray, title: "关于 Enclave", value: AboutView.version)
+                        IconRow(systemName: "info", color: .gray, title: L("关于 Enclave", "About Enclave", "Enclave について"), value: AboutView.version)
                     }
                 }
             }
-            .navigationTitle("设置")
+            .navigationTitle(L("设置", "Settings", "設定"))
             .navigationDestination(for: AppRouter.SettingsPage.self) { page in
                 switch page {
                 case .keyboard: KeyboardSettingsView()
@@ -104,12 +110,13 @@ struct SettingsView: View {
                         OnboardingSteps().padding(16)
                     }
                     .background(Color(.systemGroupedBackground))
-                    .navigationTitle("开启键盘指南")
+                    .navigationTitle(L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
                     .navigationBarTitleDisplayMode(.inline)
                 case .playground: LabView()
                 case .privacy: PrivacyView()
                 case .about: AboutView()
                 case .unlock: UnlockView()
+                case .language: LanguageView()
                 }
             }
         }
@@ -129,7 +136,7 @@ private enum Provider: CaseIterable, Identifiable {
         case .deepseek: return "DeepSeek"
         case .openai: return "OpenAI"
         case .ollama: return "Ollama"
-        case .custom: return "自定义"
+        case .custom: return L("自定义", "Custom", "カスタム")
         }
     }
 
@@ -157,7 +164,7 @@ struct ModelSettingsView: View {
 
     var body: some View {
         Form {
-            Section("服务商") {
+            Section(L("服务商", "Provider", "サービス")) {
                 HStack(spacing: 8) {
                     ForEach(Provider.allCases) { item in
                         Button { choose(item) } label: {
@@ -175,27 +182,27 @@ struct ModelSettingsView: View {
                 .listRowBackground(Color.clear)
             }
             Section {
-                LabeledField(title: "API 地址", text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
-                LabeledField(title: "模型", text: $store.settings.model, placeholder: "deepseek-chat")
+                LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
+                LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.model, placeholder: "deepseek-chat")
                 HStack {
                     Text("API Key")
-                    SecureField("自建服务可以留空", text: $store.apiKey)
+                    SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: $store.apiKey)
                         .multilineTextAlignment(.trailing)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
             } header: {
-                Text("连接")
+                Text(L("连接", "Connection", "接続"))
             } footer: {
                 Text(provider == .ollama
-                     ? "把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。"
-                     : "选一个服务商会自动填好地址。自建 Ollama / vLLM / LM Studio 选「自定义」，地址填到 /v1。")
-                    + Text("API Key 只存在本机钥匙串里，不经过任何第三方服务器。")
+                     ? L("把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。", "Replace the IP with the local address of the computer running Ollama. The URL ends with /v1. ", "IP を Ollama を動かしているパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
+                     : L("选一个服务商会自动填好地址。自建 Ollama / vLLM / LM Studio 选「自定义」，地址填到 /v1。", "Pick a provider to fill in the URL. For self-hosted Ollama, vLLM or LM Studio, choose Custom. The URL ends with /v1. ", "サービスを選ぶと URL が入力されます。セルフホストの Ollama / vLLM / LM Studio は「カスタム」を選び、URL は /v1 までです。"))
+                    + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
             }
             Section {
                 Stepper(value: $store.settings.temperature, in: 0...1.5, step: 0.1) {
                     HStack {
-                        Text("温度")
+                        Text(L("温度", "Temperature", "温度"))
                         Spacer()
                         Text(store.settings.temperature, format: .number.precision(.fractionLength(1)))
                             .foregroundStyle(.secondary)
@@ -203,15 +210,15 @@ struct ModelSettingsView: View {
                 }
                 Stepper(value: $store.settings.maxTokens, in: 256...8192, step: 256) {
                     HStack {
-                        Text("最大输出")
+                        Text(L("最大输出", "Max output", "最大出力"))
                         Spacer()
                         Text("\(store.settings.maxTokens)").foregroundStyle(.secondary)
                     }
                 }
             } header: {
-                Text("生成参数")
+                Text(L("生成参数", "Generation", "生成パラメータ"))
             } footer: {
-                Text("温度越低越稳定，润色建议 0.2–0.5。")
+                Text(L("温度越低越稳定，润色建议 0.2–0.5。", "Lower is steadier. 0.2–0.5 works well for polishing.", "低いほど安定します。整えるには 0.2〜0.5 がおすすめです。"))
             }
             Section {
                 VStack(spacing: 10) {
@@ -220,13 +227,13 @@ struct ModelSettingsView: View {
                     } label: {
                         HStack(spacing: 8) {
                             if store.test == .running { ProgressView().tint(.white) }
-                            Text(store.test == .running ? "正在测试…" : "测试连接")
+                            Text(store.test == .running ? L("正在测试…", "Testing…", "テスト中…") : L("测试连接", "Test connection", "接続をテスト"))
                         }
                     }
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(!store.settings.isConfigured || store.test == .running)
                     testResult
-                    Button(importResult == false ? "剪贴板里没有 Enclave 配置" : importResult == true ? "已导入" : "从剪贴板导入配置") {
+                    Button(importResult == false ? L("剪贴板里没有 Enclave 配置", "No Enclave settings on the clipboard", "クリップボードに Enclave の設定がありません") : importResult == true ? L("已导入", "Imported", "読み込みました") : L("从剪贴板导入配置", "Import settings from clipboard", "クリップボードから設定を読み込む")) {
                         importConfig()
                     }
                     .font(.footnote)
@@ -238,7 +245,7 @@ struct ModelSettingsView: View {
                 .listRowBackground(Color.clear)
             }
         }
-        .navigationTitle("模型接口")
+        .navigationTitle(L("模型接口", "Model API", "モデル API"))
         .onAppear { provider = Provider.detect(store.settings.baseURL) }
     }
 
@@ -246,7 +253,7 @@ struct ModelSettingsView: View {
     private var testResult: some View {
         switch store.test {
         case .success(_, let seconds):
-            Label("连接成功，用时 \(seconds, format: .number.precision(.fractionLength(1))) 秒", systemImage: "checkmark")
+            Label(L("连接成功，用时 \(String(format: "%.1f", seconds)) 秒", "Connected in \(String(format: "%.1f", seconds)) s", "接続できました（\(String(format: "%.1f", seconds)) 秒）"), systemImage: "checkmark")
                 .font(.footnote)
                 .foregroundStyle(.green)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -315,40 +322,40 @@ struct KeyboardSettingsView: View {
                 // 卡片放在普通行里，离分组的大圆角远一点，描边不会被裁。
                 .padding(.vertical, 6)
             } header: {
-                Text("中文布局")
+                Text(L("中文布局", "Chinese layout", "中国語の配列"))
             } footer: {
-                Text("英文总是用全键盘。")
+                Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
             }
-            Section("拼音") {
+            Section(L("拼音", "Pinyin", "ピンイン")) {
                 NavigationLink(value: AppRouter.SettingsPage.fuzzy) {
                     HStack {
-                        Text("模糊拼音")
+                        Text(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
                         Spacer()
-                        Text(store.settings.fuzzyPinyin.isEmpty ? "未开启" : "已开 \(store.settings.fuzzyPinyin.count) 组")
+                        Text(store.settings.fuzzyPinyin.isEmpty ? L("未开启", "Off", "オフ") : L("已开 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) on", "\(store.settings.fuzzyPinyin.count) 組オン"))
                             .foregroundStyle(.secondary)
                     }
                 }
             }
-            Section("按键反馈") {
-                Toggle("按键震动", isOn: $store.settings.keyHaptics)
+            Section(L("按键反馈", "Key feedback", "キーのフィードバック")) {
+                Toggle(L("按键震动", "Haptics", "触覚"), isOn: $store.settings.keyHaptics)
                 Toggle(isOn: $store.settings.keySound) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("按键声音")
-                        Text("手机静音时不响").font(.caption).foregroundStyle(.secondary)
+                        Text(L("按键声音", "Sounds", "サウンド"))
+                        Text(L("手机静音时不响", "Silent when the iPhone is muted", "消音モードでは鳴りません")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
-            Section("动画") {
+            Section(L("动画", "Animation", "アニメーション")) {
                 Toggle(isOn: $store.settings.polishAnimation) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("润色时的发光动画")
-                        Text("系统开了「减弱动态效果」时自动关闭").font(.caption).foregroundStyle(.secondary)
+                        Text(L("润色时的发光动画", "Glow while polishing", "整えるときの光るアニメーション"))
+                        Text(L("系统开了「减弱动态效果」时自动关闭", "Turns off automatically with Reduce Motion", "「視差効果を減らす」がオンのときは自動でオフ")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
         }
         .tint(AppColor.purple)
-        .navigationTitle("键盘")
+        .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -408,22 +415,22 @@ struct FuzzyPinyinView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                header("快速选择")
+                header(L("快速选择", "Presets", "プリセット"))
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         ForEach([FuzzyPinyin.Preset.off, .retroflex, .nasal]) { presetChip($0) }
                     }
                     presetChip(.southern)
                 }
-                header("声母")
+                header(L("声母", "Initials", "声母"))
                 grid(FuzzyPinyin.initials)
-                header("韵母")
+                header(L("韵母", "Finals", "韻母"))
                 grid(FuzzyPinyin.finals)
-                Text("例：开了 z = zh，打 zi 也会出「知」。开得越多，候选越杂，按自己的口音选几组就好。")
+                Text(L("例：开了 z = zh，打 zi 也会出「知」。开得越多，候选越杂，按自己的口音选几组就好。", "Example: with z = zh on, typing zi also gives 知. More pairs mean noisier candidates, so pick just the ones that match your accent.", "例：z = zh をオンにすると zi でも「知」が出ます。増やすほど候補が増えるので、なまりに合うものだけ選びましょう。"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
-                Button(deployer.state == .deploying ? "正在部署…" : "应用并重新部署词库") {
+                Button(deployer.state == .deploying ? L("正在部署…", "Installing…", "インストール中…") : L("应用并重新部署词库", "Apply and reinstall dictionary", "適用して辞書を再インストール")) {
                     store.settings.fuzzyPinyin = selection
                     deployer.deploy()
                 }
@@ -434,9 +441,9 @@ struct FuzzyPinyinView: View {
                     if case .failed(let message) = deployer.state {
                         Text(message).foregroundStyle(.red)
                     } else if deployer.state == .done && selection == store.settings.fuzzyPinyin {
-                        Text("已生效，切回键盘就能用。").foregroundStyle(.green)
+                        Text(L("已生效，切回键盘就能用。", "Done. Switch back to the keyboard to use it.", "反映されました。キーボードに戻ると使えます。")).foregroundStyle(.green)
                     } else {
-                        Text("改动后要重新部署一次词库才生效，约 1 分钟。").foregroundStyle(.secondary)
+                        Text(L("改动后要重新部署一次词库才生效，约 1 分钟。", "Changes take effect after reinstalling the dictionary, about 1 minute.", "変更は辞書の再インストール後に反映されます（約 1 分）。")).foregroundStyle(.secondary)
                     }
                 }
                 .font(.footnote)
@@ -445,7 +452,7 @@ struct FuzzyPinyinView: View {
             .padding(16)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("模糊拼音")
+        .navigationTitle(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             guard !loaded else { return }
@@ -511,7 +518,7 @@ struct PinyinView: View {
                 HStack(spacing: 14) {
                     RowIcon(systemName: "character.book.closed", color: .orange, size: 44)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("万象拼音").font(.headline)
+                        Text(L("万象拼音", "Wanxiang Pinyin", "万象ピンイン")).font(.headline)
                         Text(detail).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -528,20 +535,20 @@ struct PinyinView: View {
                 }
                 if !store.settings.fuzzyPinyin.isEmpty {
                     HStack {
-                        Text("模糊拼音")
+                        Text(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
                         Spacer()
-                        Text("已开 \(store.settings.fuzzyPinyin.count) 组").foregroundStyle(.secondary)
+                        Text(L("已开 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) on", "\(store.settings.fuzzyPinyin.count) 組オン")).foregroundStyle(.secondary)
                     }
                 }
             }
             Section {
-                Button(deployer.state == .deploying ? "正在部署…" : "重新部署词库") { deployer.deploy() }
+                Button(deployer.state == .deploying ? L("正在部署…", "Installing…", "インストール中…") : L("重新部署词库", "Reinstall dictionary", "辞書を再インストール")) { deployer.deploy() }
                     .disabled(deployer.state == .deploying)
             } footer: {
-                Text("词库在本机编译，第一次打开 App 时自动部署，大约一分钟，期间不要退出 App。词库出错或更新后再点重新部署。键盘需要打开「允许完全访问」才能读到词库。")
+                Text(L("词库在本机编译，第一次打开 App 时自动部署，大约一分钟，期间不要退出 App。词库出错或更新后再点重新部署。键盘需要打开「允许完全访问」才能读到词库。", "The dictionary is built on this iPhone the first time you open the app, in about a minute. Keep the app open meanwhile. Reinstall if it has problems or after an update. The keyboard needs Allow Full Access to read it.", "辞書は初回起動時にこの iPhone 上で作成されます（約 1 分）。その間アプリを閉じないでください。不具合や更新のあとは再インストールしてください。キーボードが辞書を読むには「フルアクセスを許可」が必要です。"))
             }
         }
-        .navigationTitle("拼音词库")
+        .navigationTitle(L("拼音词库", "Pinyin dictionary", "ピンイン辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: deployer.state) {
             size = await Task.detached { RimeDeployer.diskSize() }.value
@@ -551,12 +558,12 @@ struct PinyinView: View {
     private var detail: String {
         var parts: [String] = []
         if let date = RimeDeployer.deployedAt, !deployer.needsDeploy {
-            parts.append(date.formatted(.dateTime.month().day()) + " 部署")
+            parts.append(L("\(Loc.monthDay(date)) 部署", "Installed \(Loc.monthDay(date))", "\(Loc.monthDay(date))にインストール"))
         }
         if let size, size > 0 {
-            parts.append("约 " + ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+            parts.append(L("约 ", "About ", "約 ") + ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
         }
-        return parts.isEmpty ? "万象拼音词库，CC BY 4.0" : parts.joined(separator: " · ")
+        return parts.isEmpty ? L("万象拼音词库，CC BY 4.0", "Wanxiang Pinyin, CC BY 4.0", "万象ピンイン、CC BY 4.0") : parts.joined(separator: " · ")
     }
 }
 
@@ -566,14 +573,14 @@ struct PrivacyView: View {
     var body: some View {
         Form {
             Section {
-                Text("打字和拼音候选全部在手机上完成，不联网。")
-                Text("只有点「✨ 润色」或「再润」时，输入框里的文字和你写的要求才会发给你自己配置的模型接口，Enclave 没有自己的服务器。")
-                Text("API Key 只存在本机钥匙串里。")
-                Text("「允许完全访问」只用来联网调用模型、按键震动，以及和 App 共享设置。")
+                Text(L("打字和拼音候选全部在手机上完成，不联网。", "Typing and pinyin candidates happen entirely on your iPhone, offline.", "入力とピンインの候補はすべて iPhone 上で処理され、通信しません。"))
+                Text(L("只有点「✨ 润色」或「再润」时，输入框里的文字和你写的要求才会发给你自己配置的模型接口，Enclave 没有自己的服务器。", "Only when you tap ✨ Polish or Rewrite are the text in the field and your prompt sent to the model API you set up. Enclave has no servers of its own.", "「✨ 整える」か「別の案」をタップしたときだけ、入力欄の文章と指示が自分で設定したモデル API に送られます。Enclave は独自のサーバーを持ちません。"))
+                Text(L("API Key 只存在本机钥匙串里。", "Your API key stays in this iPhone's keychain.", "API キーはこの iPhone のキーチェーンにだけ保存されます。"))
+                Text(L("「允许完全访问」只用来联网调用模型、按键震动，以及和 App 共享设置。", "Allow Full Access is used only to reach your model, for haptics, and to share settings with the app.", "「フルアクセスを許可」は、モデルとの通信、触覚、アプリとの設定共有にだけ使います。"))
             }
             .font(.subheadline)
         }
-        .navigationTitle("隐私")
+        .navigationTitle(L("隐私", "Privacy", "プライバシー"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -586,11 +593,50 @@ struct AboutView: View {
     var body: some View {
         Form {
             Section {
-                HStack { Text("版本"); Spacer(); Text(Self.version).foregroundStyle(.secondary) }
+                HStack { Text(L("版本", "Version", "バージョン")); Spacer(); Text(Self.version).foregroundStyle(.secondary) }
             }
             LicensesSection()
         }
-        .navigationTitle("关于 Enclave")
+        .navigationTitle(L("关于 Enclave", "About Enclave", "Enclave について"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 语言（L2）：跟随 iPhone / 简体中文 / English / 日本語，选完马上生效；下面一组说明会改哪些。
+struct LanguageView: View {
+    @EnvironmentObject private var router: AppRouter
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(AppLanguage.allCases) { language in
+                    Button { router.language = language } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(language.nativeName).foregroundStyle(.primary)
+                                if language == .system {
+                                    Text(L("现在是\(Loc.system.nativeName)", "Currently \(Loc.system.nativeName)",
+                                           "現在は\(Loc.system.nativeName)"))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            if router.language == language {
+                                Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(Color(hex: 0x5B4BE8))
+                            }
+                        }
+                    }
+                }
+            }
+            Section(L("会改哪些", "What changes", "変わるもの")) {
+                LabeledContent(L("App 界面、键盘里的 AI 文字", "App and keyboard AI text", "アプリとキーボードの AI 表示"),
+                               value: L("跟这里一致", "Follow this setting", "この設定に合わせる"))
+                LabeledContent(L("拼音按键", "Pinyin keys", "ピンインのキー"), value: L("一直是中文", "Always Chinese", "常に中国語"))
+                LabeledContent(L("润色结果", "Polish results", "整えた結果"), value: L("不受影响", "Not affected", "影響なし"))
+            }
+        }
+        .navigationTitle(L("语言", "Language", "言語"))
         .navigationBarTitleDisplayMode(.inline)
     }
 }

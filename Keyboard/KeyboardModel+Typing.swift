@@ -494,7 +494,7 @@ extension KeyboardModel {
 
     var returnLook: ReturnLook {
         if isComposing { return ReturnLook(title: "确认", solid: false) }
-        if target == .instruction { return ReturnLook(title: "执行", solid: true) }
+        if target == .instruction { return ReturnLook(title: L("执行", "Go", "実行"), solid: true) }
         if target == .card { return ReturnLook(title: nil, solid: false) }
         if let title = sendTitle { return ReturnLook(title: title, solid: hostHasText, bold: true) }
         return ReturnLook(title: nil, solid: false)
