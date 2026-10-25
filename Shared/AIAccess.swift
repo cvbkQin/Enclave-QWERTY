@@ -70,7 +70,10 @@ enum AIAccess: Equatable {
         return .trial(daysLeft: max(left, 1), ends: ends)
     }
 
-    /// 截图和测试用：-aiAccess expired / unlocked / days:2；TestFlight 里解锁页的「测试」块也用它。
+    /// TestFlight 版写进这个值，App 和键盘都按已解锁处理（没有购买日期）。
+    static let testFlightUnlock = "testflight"
+
+    /// 截图和测试用：-aiAccess expired / unlocked / days:2；TestFlight 版由 App 写入 testflight。
     static func setDebug(_ value: String?) {
         SharedStorage.defaults.set(value, forKey: debugKey)
     }
@@ -82,6 +85,7 @@ enum AIAccess: Equatable {
         switch value {
         case "expired": return .expired(ended: now.addingTimeInterval(-2 * day))
         case "unlocked": return .unlocked(purchased: now.addingTimeInterval(-day))
+        case testFlightUnlock: return .unlocked(purchased: nil)
         default:
             guard value.hasPrefix("days:"), let days = Int(value.dropFirst(5)) else { return nil }
             return .trial(daysLeft: days, ends: now.addingTimeInterval(Double(days) * day))
@@ -112,11 +116,6 @@ enum AIAccess: Equatable {
             ? SharedStorage.defaults.integer(forKey: usesCountKey) : 0
         SharedStorage.defaults.set(today, forKey: usesDayKey)
         SharedStorage.defaults.set(used + 1, forKey: usesCountKey)
-    }
-
-    /// 测试用：今天的次数清零。
-    static func resetUsesToday() {
-        SharedStorage.defaults.removeObject(forKey: usesCountKey)
     }
 
     // MARK: - 键盘里最后几天的轻提示：每天最多一次，关掉当天不再出

@@ -25,7 +25,6 @@ struct UnlockView: View {
                     sellingPoints
                     featureList(unlocked: false)
                 }
-                if unlock.isTestBuild { TestFlightTools(unlock: unlock) }
             }
             .padding(16)
             .padding(.bottom, unlocked ? 0 : 120)
@@ -528,70 +527,5 @@ private struct InfoRow: View {
         }
         .padding(.horizontal, 14)
         .frame(minHeight: 44)
-    }
-}
-
-/// 只在 TestFlight 和开发版里显示：不用付款，直接切换试用 / 到期 / 已解锁，键盘跟着变。正式版看不到。
-private struct TestFlightTools: View {
-    @ObservedObject var unlock: UnlockStore
-
-    private var isExpired: Bool {
-        if case .expired = unlock.access { return true }
-        return false
-    }
-
-    private var options: [(value: String?, title: String)] {
-        [(nil, L("真实状态", "Actual", "実際の状態")),
-         ("days:14", L("试用中", "Trial", "体験中")),
-         ("days:2", L("试用剩 2 天", "2 days left", "残り 2 日")),
-         ("expired", L("试用结束", "Trial ended", "体験終了")),
-         ("unlocked", L("已解锁", "Unlocked", "購入済み"))]
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(L("测试（只在 TestFlight 里显示）", "Testing (TestFlight only)", "テスト（TestFlight のみ）"))
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-            VStack(spacing: 0) {
-                ForEach(options, id: \.title) { option in
-                    Button { unlock.simulate(option.value) } label: {
-                        HStack {
-                            Text(option.title).foregroundStyle(.primary)
-                            Spacer()
-                            if unlock.simulated == option.value {
-                                Image(systemName: "checkmark").foregroundStyle(AppColor.purple)
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(height: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    Divider().padding(.leading, 14)
-                        .opacity(isExpired || option.value != "unlocked" ? 1 : 0)
-                }
-                // 次数只在试用结束后才算。
-                if isExpired {
-                    Button { unlock.resetUsesToday() } label: {
-                        HStack {
-                            Text(L("今天的次数清零（现在剩 \(AIAccess.usesLeftToday) 次）", "Reset today's uses (\(AIAccess.usesLeftToday) left)", "今日の回数をリセット（残り \(AIAccess.usesLeftToday) 回）"))
-                                .foregroundStyle(AppColor.purple)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(height: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
-            Text(L("模拟的状态只影响这台手机上的 App 和键盘，不会真的购买。选「真实状态」回到 App Store 的记录。",
-                   "Simulated states only affect the app and keyboard on this iPhone; nothing is purchased. Choose Actual to go back to your App Store record.",
-                   "シミュレーションはこの iPhone の App とキーボードだけに反映され、購入は行われません。「実際の状態」で App Store の記録に戻ります。"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 }
