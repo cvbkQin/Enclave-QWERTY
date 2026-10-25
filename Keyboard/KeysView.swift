@@ -270,10 +270,8 @@ struct ToggleLabel: View {
 
 /// 九宫格第一格的标点「，。?!」：四个符号按设计稿 nine-key-punct-label.svg 一起画，
 /// 笔画粗细、点的大小和间距统一，底线和旁边 16pt 的「123」「ABC」对齐。
-/// 颜色按深浅色直接给黑或白：Canvas 的 .foreground 在深色键盘里有时画不出来（键帽空白）。
+/// 画成 Shape、颜色跟着前景色：之前用 Canvas，在别的 App 里打开键盘时整个画不出来（键帽空白）。
 struct PunctuationLabel: View {
-    @Environment(\.colorScheme) private var scheme
-
     /// 设计稿 viewBox 是 (-0.5, 0, 32.5, 18)，底线 y = 15；显示高度 19.5pt。
     private static let scale: CGFloat = 19.5 / 18
     private static let size = CGSize(width: 32.5 * scale, height: 19.5)
@@ -284,44 +282,73 @@ struct PunctuationLabel: View {
     }()
 
     var body: some View {
-        let ink = GraphicsContext.Shading.color(scheme == .dark ? .white : .black)
-        Canvas { context, _ in
-            context.scaleBy(x: Self.scale, y: Self.scale)
-            context.translateBy(x: 0.5, y: 0)
-            func round(_ width: CGFloat) -> StrokeStyle { StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round) }
-            func dot(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat) -> Path {
-                Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
-            }
-            // ，
-            context.fill(dot(1.5, 13.4, 1.5), with: ink)
-            var tail = Path()
-            tail.move(to: CGPoint(x: 2.9, y: 13.6))
-            tail.addCurve(to: CGPoint(x: 0.6, y: 17.5), control1: CGPoint(x: 3.0, y: 15.5), control2: CGPoint(x: 2.2, y: 16.8))
-            context.stroke(tail, with: ink, style: round(1.2))
-            // 。
-            context.stroke(dot(8.8 + 2.2, 12.85, 2.15), with: ink, lineWidth: 1.3)
-            // ?
-            var question = Path()
-            let qx: CGFloat = 17.4
-            question.move(to: CGPoint(x: qx + 0.8, y: 6.3))
-            question.addCurve(to: CGPoint(x: qx + 3.9, y: 3.2), control1: CGPoint(x: qx + 0.8, y: 4.4), control2: CGPoint(x: qx + 2.1, y: 3.2))
-            question.addCurve(to: CGPoint(x: qx + 7, y: 6.1), control1: CGPoint(x: qx + 5.7, y: 3.2), control2: CGPoint(x: qx + 7, y: 4.4))
-            question.addCurve(to: CGPoint(x: qx + 4.9, y: 9.1), control1: CGPoint(x: qx + 7, y: 7.7), control2: CGPoint(x: qx + 5.9, y: 8.4))
-            question.addCurve(to: CGPoint(x: qx + 3.9, y: 11.1), control1: CGPoint(x: qx + 4.2, y: 9.6), control2: CGPoint(x: qx + 3.9, y: 10.1))
-            question.addLine(to: CGPoint(x: qx + 3.9, y: 11.7))
-            context.stroke(question, with: ink, style: round(1.6))
-            context.fill(dot(qx + 3.9, 14, 1.05), with: ink)
-            // !
-            var bang = Path()
-            bang.move(to: CGPoint(x: 29.4 + 1.05, y: 3.6))
-            bang.addLine(to: CGPoint(x: 29.4 + 1.05, y: 11.2))
-            context.stroke(bang, with: ink, style: round(1.7))
-            context.fill(dot(29.4 + 1.05, 14, 1.05), with: ink)
-        }
-        .frame(width: Self.size.width, height: Self.size.height)
-        .offset(y: Self.baselineShift)
-        .accessibilityLabel("标点")
+        GlyphPieces(pieces: PunctuationShape.pieces, transform: CGAffineTransform(scaleX: Self.scale, y: Self.scale).translatedBy(x: 0.5, y: 0))
+            .frame(width: Self.size.width, height: Self.size.height)
+            .offset(y: Self.baselineShift)
+            .accessibilityLabel("标点")
     }
+}
+
+/// 笔画都转成轮廓（strokedPath），每一笔单独填色，重叠处不会因为绕向相反而镂空。
+private struct GlyphPieces: View {
+    let pieces: [Path]
+    var transform: CGAffineTransform = .identity
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(pieces.indices, id: \.self) { index in
+                PieceShape(path: pieces[index].applying(transform))
+            }
+        }
+    }
+}
+
+private struct PieceShape: Shape {
+    let path: Path
+
+    func path(in rect: CGRect) -> Path {
+        path.applying(CGAffineTransform(translationX: rect.minX, y: rect.minY))
+    }
+}
+
+private func dot(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat) -> Path {
+    Path(ellipseIn: CGRect(x: x - r, y: y - r, width: r * 2, height: r * 2))
+}
+
+private func roundStroke(_ path: Path, _ width: CGFloat) -> Path {
+    path.strokedPath(StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+}
+
+private enum PunctuationShape {
+    static let pieces: [Path] = {
+        var pieces: [Path] = []
+        // ，
+        pieces.append(dot(1.5, 13.4, 1.5))
+        var tail = Path()
+        tail.move(to: CGPoint(x: 2.9, y: 13.6))
+        tail.addCurve(to: CGPoint(x: 0.6, y: 17.5), control1: CGPoint(x: 3.0, y: 15.5), control2: CGPoint(x: 2.2, y: 16.8))
+        pieces.append(roundStroke(tail, 1.2))
+        // 。
+        pieces.append(dot(8.8 + 2.2, 12.85, 2.15).strokedPath(StrokeStyle(lineWidth: 1.3)))
+        // ?
+        var question = Path()
+        let qx: CGFloat = 17.4
+        question.move(to: CGPoint(x: qx + 0.8, y: 6.3))
+        question.addCurve(to: CGPoint(x: qx + 3.9, y: 3.2), control1: CGPoint(x: qx + 0.8, y: 4.4), control2: CGPoint(x: qx + 2.1, y: 3.2))
+        question.addCurve(to: CGPoint(x: qx + 7, y: 6.1), control1: CGPoint(x: qx + 5.7, y: 3.2), control2: CGPoint(x: qx + 7, y: 4.4))
+        question.addCurve(to: CGPoint(x: qx + 4.9, y: 9.1), control1: CGPoint(x: qx + 7, y: 7.7), control2: CGPoint(x: qx + 5.9, y: 8.4))
+        question.addCurve(to: CGPoint(x: qx + 3.9, y: 11.1), control1: CGPoint(x: qx + 4.2, y: 9.6), control2: CGPoint(x: qx + 3.9, y: 10.1))
+        question.addLine(to: CGPoint(x: qx + 3.9, y: 11.7))
+        pieces.append(roundStroke(question, 1.6))
+        pieces.append(dot(qx + 3.9, 14, 1.05))
+        // !
+        var bang = Path()
+        bang.move(to: CGPoint(x: 29.4 + 1.05, y: 3.6))
+        bang.addLine(to: CGPoint(x: 29.4 + 1.05, y: 11.2))
+        pieces.append(roundStroke(bang, 1.7))
+        pieces.append(dot(29.4 + 1.05, 14, 1.05))
+        return pieces
+    }()
 }
 
 /// 九宫格左列的「#@¥」：三个字符各占 13pt 宽的格子，@ 缩到 14.5pt 并上移 1pt，三个看起来一样大。
@@ -336,40 +363,40 @@ struct SymbolsKeyLabel: View {
 }
 
 /// 中文符号页的 ，。、 照设计稿 cn-comma / cn-period / cn-dun.svg 画在 24×24 的框里，放在键正中。
-/// 三个符号上下对齐，底端落在同一行 ?! . 的底线上（键中心往下约 7pt）。颜色和九宫格标点一样按深浅色给。
+/// 三个符号上下对齐，底端落在同一行 ?! . 的底线上（键中心往下约 7pt）。和九宫格标点一样画成 Shape，颜色跟着前景色。
 struct ChinesePunctMark: View {
-    @Environment(\.colorScheme) private var scheme
-
     enum Kind: String { case comma = "，", period = "。", dun = "、" }
     let kind: Kind
 
     var body: some View {
-        let ink = GraphicsContext.Shading.color(scheme == .dark ? .white : .black)
-        Canvas { context, _ in
-            let round = StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round)
-            switch kind {
-            case .period:
-                context.stroke(Path(ellipseIn: CGRect(x: 12 - 1.62, y: 17.05 - 1.62, width: 3.24, height: 3.24)),
-                               with: ink, lineWidth: 1.15)
-            case .comma:
-                context.fill(Path(ellipseIn: CGRect(x: 11.55 - 1.3, y: 16.15 - 1.3, width: 2.6, height: 2.6)), with: ink)
-                var tail = Path()
-                tail.move(to: CGPoint(x: 12.8, y: 16.3))
-                tail.addCurve(to: CGPoint(x: 11.05, y: 19.05),
-                              control1: CGPoint(x: 12.9, y: 17.55), control2: CGPoint(x: 12.35, y: 18.45))
-                context.stroke(tail, with: ink, style: round)
-            case .dun:
-                var stroke = Path()
-                stroke.move(to: CGPoint(x: 10.95, y: 15.6))
-                stroke.addCurve(to: CGPoint(x: 13.05, y: 18.5),
-                                control1: CGPoint(x: 11.85, y: 16.2), control2: CGPoint(x: 12.55, y: 17.1))
-                var style = round
-                style.lineWidth = 1.5
-                context.stroke(stroke, with: ink, style: style)
-            }
+        GlyphPieces(pieces: ChinesePunctShape.pieces(kind))
+            .frame(width: 24, height: 24)
+            .accessibilityLabel(kind.rawValue)
+    }
+}
+
+private enum ChinesePunctShape {
+    static func pieces(_ kind: ChinesePunctMark.Kind) -> [Path] {
+        var pieces: [Path] = []
+        switch kind {
+        case .period:
+            pieces.append(Path(ellipseIn: CGRect(x: 12 - 1.62, y: 17.05 - 1.62, width: 3.24, height: 3.24))
+                .strokedPath(StrokeStyle(lineWidth: 1.15)))
+        case .comma:
+            pieces.append(Path(ellipseIn: CGRect(x: 11.55 - 1.3, y: 16.15 - 1.3, width: 2.6, height: 2.6)))
+            var tail = Path()
+            tail.move(to: CGPoint(x: 12.8, y: 16.3))
+            tail.addCurve(to: CGPoint(x: 11.05, y: 19.05),
+                          control1: CGPoint(x: 12.9, y: 17.55), control2: CGPoint(x: 12.35, y: 18.45))
+            pieces.append(roundStroke(tail, 1.2))
+        case .dun:
+            var stroke = Path()
+            stroke.move(to: CGPoint(x: 10.95, y: 15.6))
+            stroke.addCurve(to: CGPoint(x: 13.05, y: 18.5),
+                            control1: CGPoint(x: 11.85, y: 16.2), control2: CGPoint(x: 12.55, y: 17.1))
+            pieces.append(roundStroke(stroke, 1.5))
         }
-        .frame(width: 24, height: 24)
-        .accessibilityLabel(kind.rawValue)
+        return pieces
     }
 }
 
