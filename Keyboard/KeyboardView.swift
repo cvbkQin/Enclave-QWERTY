@@ -1388,7 +1388,7 @@ struct ResultCard: View {
             HStack {
                 checkRow(2, L("配置模型 API", "Set up a model API", "モデル API を設定"), done: model.settings.isConfigured)
                 Spacer(minLength: 0)
-                if !model.settings.isConfigured {
+                if !model.settings.isConfigured && SharedStorage.usesClipboardConfig {
                     Button { model.importConfigFromPasteboard() } label: {
                         Text(L("从剪贴板导入", "Import from clipboard", "クリップボードから読み込む"))
                             .font(.system(size: 12, weight: .semibold))

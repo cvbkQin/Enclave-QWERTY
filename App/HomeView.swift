@@ -266,7 +266,9 @@ struct OnboardingSteps: View {
                     .foregroundStyle(Readiness.fullAccess == false ? Color.orange : Color.secondary)
             }
             StepCard(number: 3, title: L("配置模型接口", "Set up your model API", "モデル API を設定"), done: done[2], current: current == 2) {
-                Text(L("填 API 地址和 Key，或者从剪贴板导入配置。", "Enter the API URL and key, or import settings from the clipboard.", "API の URL とキーを入力するか、クリップボードから設定を読み込みます。"))
+                Text(SharedStorage.usesClipboardConfig
+                     ? L("填 API 地址和 Key，或者从剪贴板导入配置。", "Enter the API URL and key, or import settings from the clipboard.", "API の URL とキーを入力するか、クリップボードから設定を読み込みます。")
+                     : L("填 API 地址和 Key。", "Enter the API URL and key.", "API の URL とキーを入力します。"))
                 Button(L("去配置", "Set up", "設定する")) { router.openModel() }
                     .buttonStyle(StepButtonStyle(prominent: current == 2))
             }

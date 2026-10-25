@@ -23,6 +23,15 @@ enum SharedStorage {
         return .standard
     }()
 
+    /// 「复制配置」「从剪贴板导入配置」：只在 App Group 不可用（免费签名）时才需要；开发版一直显示方便测试。
+    static var usesClipboardConfig: Bool {
+        #if DEBUG
+        return true
+        #else
+        return !isShared
+        #endif
+    }
+
     /// 钥匙串访问组：App Group 生效时用它让两个 target 共享 API key。
     static var keychainAccessGroup: String? { isShared ? appGroupID : nil }
 }

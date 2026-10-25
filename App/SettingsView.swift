@@ -88,9 +88,11 @@ struct SettingsView: View {
                     }
                 }
                 Section {
+                    if SharedStorage.usesClipboardConfig {
                     IconRow(systemName: "link", color: .gray, title: L("App 与键盘共享配置", "Shared with keyboard", "キーボードと設定を共有"),
                             value: SharedStorage.isShared ? L("已开启", "On", "オン") : L("不可用", "Unavailable", "利用不可"))
                     if !SharedStorage.isShared { SharedConfigBanner().listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)) }
+                    }
                     NavigationLink(value: AppRouter.SettingsPage.privacy) {
                         IconRow(systemName: "lock", color: .gray, title: L("隐私", "Privacy", "プライバシー"))
                     }
@@ -233,12 +235,14 @@ struct ModelSettingsView: View {
                     .buttonStyle(PrimaryButtonStyle())
                     .disabled(!store.settings.isConfigured || store.test == .running)
                     testResult
+                    if SharedStorage.usesClipboardConfig {
                     Button(importResult == false ? L("剪贴板里没有 Enclave 配置", "No Enclave settings on the clipboard", "クリップボードに Enclave の設定がありません") : importResult == true ? L("已导入", "Imported", "読み込みました") : L("从剪贴板导入配置", "Import settings from clipboard", "クリップボードから設定を読み込む")) {
                         importConfig()
                     }
                     .font(.footnote)
                     .foregroundStyle(importResult == false ? Color.orange : AppColor.purple)
                     .padding(.top, 4)
+                    }
                 }
                 .buttonStyle(.plain)
                 .listRowInsets(EdgeInsets())
