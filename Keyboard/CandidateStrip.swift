@@ -9,7 +9,7 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     /// 滑到已取到的最后几个候选附近：再往后取。
     var onNearEnd: (() -> Void)?
 
-    private var labels: [UILabel] = []
+    private var labels: [CandidateLabel] = []
     private var words: [String] = []
     private var pressed: Int?
     private let dot = CALayer()
@@ -37,9 +37,11 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         if newWords != words {
             words = newWords
             while labels.count < words.count {
-                let label = UILabel()
+                let label = CandidateLabel()
                 label.font = Self.font
                 label.textAlignment = .center
+                label.index = labels.count
+                label.onActivate = { [weak self] index in self?.onSelect?(index) }
                 addSubview(label)
                 labels.append(label)
             }
@@ -113,6 +115,20 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         if pressed != nil && isDragging { setPressed(nil) }
         if contentOffset.x + bounds.width > contentSize.width - 60 { onNearEnd?() }
+    }
+}
+
+/// 一个候选词。VoiceOver 和 UI 测试按按钮读出、点按它。
+private final class CandidateLabel: UILabel {
+    var index = 0
+    var onActivate: ((Int) -> Void)?
+
+    override var isAccessibilityElement: Bool { get { !isHidden } set {} }
+    override var accessibilityTraits: UIAccessibilityTraits { get { .button } set {} }
+
+    override func accessibilityActivate() -> Bool {
+        onActivate?(index)
+        return true
     }
 }
 
