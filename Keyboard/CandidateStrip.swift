@@ -24,6 +24,14 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         alwaysBounceHorizontal = true
         delaysContentTouches = false
         delegate = self
+        // iOS 26 默认给滚动视图边缘加一层渐隐模糊，候选栏这么矮会整条糊掉（和 SwiftUI 那边的 hidingScrollEdgeEffect 一样关掉）。
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            for effect in [topEdgeEffect, bottomEdgeEffect, leftEdgeEffect, rightEdgeEffect] {
+                effect.isHidden = true
+            }
+        }
+        #endif
         dot.bounds = CGRect(x: 0, y: 0, width: 5, height: 5)
         dot.cornerRadius = 2.5
         dot.backgroundColor = UIColor(Brand.commonWordDot).cgColor
