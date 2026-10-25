@@ -21,12 +21,15 @@ protocol InputEngine: AnyObject {
     var rawInput: String { get }
     /// 整段换掉原始输入，用于九宫格在拼音列里选拼音。
     func replaceInput(_ raw: String)
+    /// 候选只先取了第一屏；滑到头或展开整页时再往后取。
+    func loadMoreCandidates()
 }
 
 extension InputEngine {
     var isComposing: Bool { !composition.isEmpty }
     var rawInput: String { "" }
     func replaceInput(_ raw: String) {}
+    func loadMoreCandidates() {}
 }
 
 /// 字母原样上屏，用于英文模式，也是接入拼音之前的默认引擎。

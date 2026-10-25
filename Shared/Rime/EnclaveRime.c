@@ -128,10 +128,14 @@ char *enclave_rime_get_input(uint64_t session) {
 }
 
 size_t enclave_rime_get_candidates(uint64_t session, char **out, size_t limit) {
+  return enclave_rime_get_candidates_from(session, out, 0, limit);
+}
+
+size_t enclave_rime_get_candidates_from(uint64_t session, char **out, size_t start, size_t limit) {
   RimeApi *api = rime_get_api();
   RimeCandidateListIterator iterator = {0};
   size_t count = 0;
-  if (!api->candidate_list_begin(session, &iterator)) return 0;
+  if (!api->candidate_list_from_index(session, &iterator, (int)start)) return 0;
   while (count < limit && api->candidate_list_next(&iterator)) {
     out[count++] = strdup(iterator.candidate.text ? iterator.candidate.text : "");
   }

@@ -58,8 +58,12 @@ final class KeyboardModel: ObservableObject {
     /// 拼音词库是否可用（主 App 部署过，并且打开了完全访问）。
     @Published var pinyinReady = false
     var lastShiftTap = Date.distantPast
-    /// 正被按住的键，用来画按下状态和气泡。
-    @Published var pressedKeys: Set<String> = []
+    /// 正被按住的键，用来画按下状态和气泡。单独放在 keyPresses 里：按下、松开只重画按键和气泡，不牵动整个键盘。
+    let keyPresses = KeyPresses()
+    var pressedKeys: Set<String> {
+        get { keyPresses.pressed }
+        set { if keyPresses.pressed != newValue { keyPresses.pressed = newValue } }
+    }
     /// 长按空格进入的光标移动模式，按键上的字会隐藏。
     @Published var trackpadActive = false
     /// 候选词展开成整页。
@@ -106,6 +110,8 @@ final class KeyboardModel: ObservableObject {
 
     init(controller: UIInputViewController) {
         self.controller = controller
+        QueuedEngine.shared.resultsReady = { [weak self] in self?.applyEngineResults() }
+        QueuedEngine.shared.willSync = { [weak self] in self?.applyEngineResults(wait: true) }
     }
 
     var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
@@ -198,7 +204,7 @@ final class KeyboardModel: ObservableObject {
 
     private func applyCommonWords(_ words: [CommonWord]) {
         commonWordTexts = Set(words.map(\.text))
-        RimeEngine.shared.updatePhrases(CommonWordStore.phraseEntries(words))
+        QueuedEngine.shared.updatePhrases(CommonWordStore.phraseEntries(words))
     }
 
     // MARK: - 执行

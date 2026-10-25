@@ -81,6 +81,16 @@ enum KeyLayout {
     static let letterRows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map { $0.map(String.init) }
     private static let digits = "1234567890".map(String.init)
 
+    private static var lastBuild: (state: State, size: CGSize, result: KeyLayoutResult)?
+
+    /// 状态和尺寸都没变时直接用上次排好的：打拼音时每个键都会让按键区重算一遍。
+    static func cachedBuild(_ state: State, size: CGSize) -> KeyLayoutResult {
+        if let cached = lastBuild, cached.state == state, cached.size == size { return cached.result }
+        let result = build(state, size: size)
+        lastBuild = (state, size, result)
+        return result
+    }
+
     static func build(_ state: State, size: CGSize) -> KeyLayoutResult {
         if state.layer == .letters && state.nineKey {
             return nineKey(state, size: size)

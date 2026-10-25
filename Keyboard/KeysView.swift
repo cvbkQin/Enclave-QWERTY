@@ -7,7 +7,8 @@ struct KeysView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let layout = KeyLayout.build(model.layoutState, size: geo.size)
+            let layout = KeyLayout.cachedBuild(model.layoutState, size: geo.size)
+            let context = model.keyCapContext
             ZStack(alignment: .topLeading) {
                 if let panel = model.keysPanel {
                     Group {
@@ -19,7 +20,7 @@ struct KeysView: View {
                         .frame(width: geo.size.width, height: geo.size.height)
                 } else {
                     ForEach(layout.keys) { key in
-                        KeyCapView(model: model, key: key)
+                        KeyCapCell(presses: model.keyPresses, context: context, key: key)
                             .frame(width: key.visual.width, height: key.visual.height)
                             .offset(x: key.visual.minX, y: key.visual.minY)
                     }
@@ -33,12 +34,10 @@ struct KeysView: View {
                     }
                     // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选时也不显示）。
                     if !model.nineGrid {
-                        ForEach(layout.keys.filter {
-                            model.pressedKeys.contains($0.id) && $0.kind.typesCharacter && model.alternates?.key.id != $0.id
-                        }) { key in
-                            KeyPopup(model: model, key: key, containerWidth: geo.size.width)
-                        }
-                        .allowsHitTesting(false)
+                        KeyPopupLayer(presses: model.keyPresses, keys: layout.keys, hiddenKey: model.alternates?.key.id,
+                                      uppercase: model.shift != .off, containerWidth: geo.size.width)
+                            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                            .allowsHitTesting(false)
                     }
                     if let popup = model.alternates {
                         AlternatesView(popup: popup)
@@ -56,22 +55,79 @@ struct KeysView: View {
     }
 }
 
-/// 一个按键的外观。
-struct KeyCapView: View {
-    @ObservedObject var model: KeyboardModel
+/// 正被按住的键。和 KeyboardModel 分开：按下、松开只让按键和气泡重画。
+final class KeyPresses: ObservableObject {
+    @Published var pressed: Set<String> = []
+}
+
+/// 画键帽要用到的键盘状态。只有这些值变了才重画键帽，打拼音时候选、拼写变化不牵动按键。
+struct KeyCapContext: Equatable {
+    var shift: KeyboardModel.ShiftState
+    var layer: KeyboardModel.KeyLayer
+    var composing: Bool
+    var nineGrid: Bool
+    var showsNineKey: Bool
+    var chineseMode: Bool
+    var digitsMore: Bool
+    var trackpadActive: Bool
+    var spaceTitle: String
+    var returnLook: KeyboardModel.ReturnLook
+}
+
+extension KeyboardModel {
+    var keyCapContext: KeyCapContext {
+        KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
+                      chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
+                      spaceTitle: spaceTitle, returnLook: returnLook)
+    }
+}
+
+/// 一个键位：盯着按下状态，键帽本身只在自己按下、松开或 context 变了时重画。
+struct KeyCapCell: View {
+    @ObservedObject var presses: KeyPresses
+    let context: KeyCapContext
     let key: KeySpec
 
     var body: some View {
-        let pressed = model.pressedKeys.contains(key.id)
+        KeyCapView(context: context, key: key, pressed: presses.pressed.contains(key.id))
+            .equatable()
+    }
+}
+
+/// 按下字符键时的放大气泡（九宫格不显示）。
+struct KeyPopupLayer: View {
+    @ObservedObject var presses: KeyPresses
+    let keys: [KeySpec]
+    /// 弹出长按备选的那个键不显示气泡。
+    let hiddenKey: String?
+    let uppercase: Bool
+    let containerWidth: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(keys.filter { presses.pressed.contains($0.id) && $0.kind.typesCharacter && $0.id != hiddenKey }) { key in
+                KeyPopup(key: key, uppercase: uppercase, containerWidth: containerWidth)
+            }
+        }
+    }
+}
+
+/// 一个按键的外观。
+struct KeyCapView: View, Equatable {
+    let context: KeyCapContext
+    let key: KeySpec
+    let pressed: Bool
+
+    var body: some View {
         KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY) {
             label
                 .foregroundStyle(foreground)
-                .opacity(model.trackpadActive ? 0 : 1)
+                .opacity(context.trackpadActive ? 0 : 1)
         }
     }
 
     private var returnLook: KeyboardModel.ReturnLook? {
-        if case .returnKey = key.kind { return model.returnLook }
+        if case .returnKey = key.kind { return context.returnLook }
         return nil
     }
 
@@ -82,7 +138,7 @@ struct KeyCapView: View {
         if let look = returnLook {
             return look.solid ? Brand.purple.opacity(pressed ? 0.75 : 1) : Brand.returnSoftFill.opacity(pressed ? 0.7 : 1)
         }
-        let showsPopup = key.kind.typesCharacter && !model.nineGrid
+        let showsPopup = key.kind.typesCharacter && !context.nineGrid
         return pressed && !showsPopup ? KeyStyle.pressedKey : KeyStyle.charKey
     }
 
@@ -95,11 +151,11 @@ struct KeyCapView: View {
     private var label: some View {
         switch key.kind {
         case .letter(let letter):
-            Text(model.shift == .off ? letter : letter.uppercased())
+            Text(context.shift == .off ? letter : letter.uppercased())
                 .font(KeyStyle.letterFont)
                 .offset(y: -1)
         case .symbol(let symbol):
-            if model.layer == .digits {
+            if context.layer == .digits {
                 Text(symbol).font(.system(size: 24))
             } else if let mark = ChinesePunctMark.Kind(rawValue: symbol) {
                 ChinesePunctMark(kind: mark)
@@ -111,7 +167,7 @@ struct KeyCapView: View {
         case .digitPunct:
             Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
         case .digitsMore:
-            if model.digitsMore {
+            if context.digitsMore {
                 Text("返回").font(.system(size: 16, weight: .semibold)).foregroundStyle(Brand.deepPurple)
             } else {
                 Text("更多").font(KeyStyle.nineKeyFont)
@@ -119,7 +175,7 @@ struct KeyCapView: View {
         case .nine(let digit):
             if digit == "'" {
                 // 打拼音时是分词键，平时连按切换标点。
-                if model.isComposing {
+                if context.composing {
                     Text("分词").font(KeyStyle.functionFont)
                 } else {
                     PunctuationLabel()
@@ -130,14 +186,14 @@ struct KeyCapView: View {
                     .tracking(1)
             }
         case .shift:
-            Image(systemName: model.shift == .locked ? "capslock.fill" : (model.shift == .on ? "shift.fill" : "shift"))
+            Image(systemName: context.shift == .locked ? "capslock.fill" : (context.shift == .on ? "shift.fill" : "shift"))
                 .font(KeyStyle.iconFont)
         case .delete:
             Image(systemName: "delete.left").font(KeyStyle.iconFont)
         case .space:
             spaceLabel
         case .returnKey:
-            let look = model.returnLook
+            let look = context.returnLook
             if let title = look.title {
                 Text(title).font(.system(size: 17, weight: look.bold ? .semibold : .regular))
             } else {
@@ -146,12 +202,12 @@ struct KeyCapView: View {
         case .toggleChinese:
             // 九宫格只用于中文，永远是「中」加深。
             // 字号跟着键所在的排法走：数字符号页是全键盘那种底栏，即使从九宫格进来也用全键盘的字号。
-            ToggleLabel(chinese: model.showsNineKey || model.chineseMode,
-                        size: model.nineGrid ? KeyboardMetrics.nineToggleFontSize : KeyboardMetrics.toggleFontSize)
+            ToggleLabel(chinese: context.showsNineKey || context.chineseMode,
+                        size: context.nineGrid ? KeyboardMetrics.nineToggleFontSize : KeyboardMetrics.toggleFontSize)
         case .globe:
             Image(systemName: "globe").font(KeyStyle.iconFont)
         case .emoticon:
-            if model.isComposing {
+            if context.composing {
                 Text("重输").font(KeyStyle.functionFont)
             } else {
                 // 「^^」字形偏上，往下挪一点视觉上才居中。
@@ -162,7 +218,7 @@ struct KeyCapView: View {
         case .quickWords:
             Text("常用").font(KeyStyle.nineKeyFont).tracking(1)
         case .layer(let target):
-            if model.nineGrid {
+            if context.nineGrid {
                 if key.id == "symbols" {
                     SymbolsKeyLabel()
                 } else {
@@ -176,9 +232,9 @@ struct KeyCapView: View {
 
     /// 空格键：中文「空格」两字之间留宽字距（九宫格 3pt、全键盘 4pt），英文「space」。
     private var spaceLabel: some View {
-        let title = model.spaceTitle
+        let title = context.spaceTitle
         return Text(title).font(KeyStyle.functionFont)
-            .tracking(title == "空格" ? (model.showsNineKey ? 3 : 4) : 0)
+            .tracking(title == "空格" ? (context.showsNineKey ? 3 : 4) : 0)
     }
 
     private func layerTitle(_ target: KeyboardModel.KeyLayer) -> String {
@@ -186,7 +242,7 @@ struct KeyCapView: View {
         case .numbers: return "123"
         case .symbols: return "#+="
         case .digits: return "123"
-        case .letters: return model.chineseMode || model.showsNineKey ? "拼音" : "ABC"
+        case .letters: return context.chineseMode || context.showsNineKey ? "拼音" : "ABC"
         }
     }
 }
@@ -351,8 +407,8 @@ struct CenteredGlyph: View {
 
 /// 按下字符键时键上方的放大气泡，形状和系统键盘一样：上面一个大圆角块，下面连着按键本身。
 struct KeyPopup: View {
-    @ObservedObject var model: KeyboardModel
     let key: KeySpec
+    let uppercase: Bool
     let containerWidth: CGFloat
 
     var body: some View {
@@ -377,7 +433,7 @@ struct KeyPopup: View {
 
     private var text: String {
         switch key.kind {
-        case .letter(let letter): return model.shift == .off ? letter : letter.uppercased()
+        case .letter(let letter): return uppercase ? letter.uppercased() : letter
         case .symbol(let symbol): return symbol
         default: return ""
         }
@@ -438,6 +494,8 @@ struct CandidateGrid: View {
             }
             .frame(maxWidth: .infinity)
             .hidingScrollEdgeEffect()
+            // 平时只取了第一屏候选，展开整页时补全。
+            .onAppear { model.loadMoreCandidates() }
             VStack(spacing: 0) {
                 FunctionKey(systemImage: "chevron.up") { model.candidatesExpanded = false }
                     .frame(height: KeyboardMetrics.slotHeight)
