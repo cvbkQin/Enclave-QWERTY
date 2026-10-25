@@ -81,7 +81,7 @@ AI 润色功能所使用的模型服务由您自行选择和配置。您与该�
 
 ## 七、未成年人保护
 
-本应用不面向 14 周岁以下的未成年人。未成年人应在监护人的指导下使用本应用。
+本应用不面向 13 周岁以下的未成年人。未成年人应在监护人的指导下使用本应用。
 
 ## 八、本政策的更新
 
@@ -157,7 +157,7 @@ The App contains no third-party analytics, advertising or crash-reporting SDKs. 
 
 ## 7. Children
 
-The App is not directed at children under 14. Minors should use the App under the guidance of a parent or guardian.
+The App is not directed at children under 13. Minors should use the App under the guidance of a parent or guardian.
 
 ## 8. Changes to This Policy
 
@@ -231,7 +231,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 ## 7. 未成年の方
 
-本アプリは 14 歳未満の方を対象としていません。未成年の方は保護者の指導のもとでご利用ください。
+本アプリは 13 歳未満の方を対象としていません。未成年の方は保護者の指導のもとでご利用ください。
 
 ## 8. 本ポリシーの変更
 
