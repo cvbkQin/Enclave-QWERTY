@@ -22,6 +22,22 @@ CN_DICTS = {
 # 单字表里词频很低的生僻字（多是扩展区汉字，不少字体显示不出来）不要。
 MIN_RARE_CHAR_WEIGHT = 10
 
+# 万象单字表里有些同音字的词频几乎一样（「在」4510k、「再」4444k），去掉声调后谁排第一全看学到了什么：
+# 选过一次「再」以后，zai 就一直先出「再」。按常见语料把明显该在前面的字拉开：
+# 排错的那个字降到正确首字的六成左右，同音的其他字顺序不变。
+# 口语里两个都常用的（把/吧、带/代、改/该、拉/啦、数/书、次/此、原/元）不动。
+WEIGHT_OVERRIDES = {
+    ("zi", "再", "zai"): 900000,
+    ("zi", "载", "zai"): 500000,
+    ("zi", "灾", "zai"): 300000,
+    ("zi", "以", "yi"): 366000,
+    ("zi", "打", "da"): 204000,
+    ("zi", "搞", "gao"): 121000,
+    ("zi", "加", "jia"): 62000,
+    ("zi", "挺", "ting"): 75000,
+    ("zi", "按", "an"): 90000,
+}
+
 TONES = str.maketrans({
     "ü": "v", "ǖ": "v", "ǘ": "v", "ǚ": "v", "ǜ": "v",
 })
@@ -84,7 +100,7 @@ def main():
             if (text, code) in seen:
                 continue
             seen.add((text, code))
-            rows.append((text, code, weight))
+            rows.append((text, code, WEIGHT_OVERRIDES.get((name, text, code), weight)))
         write_dict(cn / f"{name}.dict.yaml", name, rows)
         print(f"  {name}: {len(rows)} 条")
         total += len(rows)
