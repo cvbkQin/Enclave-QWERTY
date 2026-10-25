@@ -48,6 +48,7 @@ enum KeyboardMetrics {
         switch gate {
         case .fullAccess: return 188
         case .consent(_, let previous): return previous == nil ? 178 : 196
+        case .quotaUsed: return 178
         }
     }
 

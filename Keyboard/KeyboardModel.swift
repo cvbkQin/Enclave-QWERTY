@@ -25,6 +25,8 @@ final class KeyboardModel: ObservableObject {
         case fullAccess
         /// previous：上次同意的是另一个地址，确认卡上划掉显示。
         case consent(endpoint: String, previous: String?)
+        /// 试用已结束，今天的免费次数用完了。
+        case quotaUsed
     }
     /// 同意后接着做的那一步（润色或再润）。
     private var afterConsent: (() -> Void)?
@@ -113,6 +115,8 @@ final class KeyboardModel: ObservableObject {
 
     /// 没开完全访问或没配置 API：✨ 置灰，卡片位置显示检查清单。
     var aiBlocked: Bool { !debugUnblocked && (!hasFullAccess || !settings.isConfigured) }
+    /// 试用结束且今天的免费次数用完：润色按钮置灰带锁，点了出提示卡。
+    var aiQuotaUsed: Bool { !debugUnblocked && !AIAccess.current.allowsAI }
     /// 模拟器截图用：没配 API 也显示结果卡片。
     var debugUnblocked = false
 
@@ -238,6 +242,10 @@ final class KeyboardModel: ObservableObject {
     func passGate(then action: @escaping () -> Void) -> Bool {
         if !hasFullAccess && !debugUnblocked {
             gate = .fullAccess
+            return false
+        }
+        if !debugUnblocked && !AIAccess.current.allowsAI {
+            gate = .quotaUsed
             return false
         }
         guard settings.isConfigured, let endpoint = ConsentStore.endpoint(of: settings.baseURL),
@@ -412,6 +420,8 @@ final class KeyboardModel: ObservableObject {
                     self.errorMessage = "模型没有返回内容。"
                     self.endQuickMode(.failed)
                 } else {
+                    // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
+                    AIAccess.recordUse()
                     var updated = pending
                     updated.append(result)
                     if updated.mode == .write {

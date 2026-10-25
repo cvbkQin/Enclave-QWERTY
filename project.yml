@@ -81,6 +81,9 @@ targets:
           NSAllowsLocalNetworking: true
     dependencies:
       - target: EnclaveKeyboard
+    # 模拟器里测购买用本地的 StoreKit 配置，不连 App Store；Archive 不受影响。
+    scheme:
+      storeKitConfiguration: Configs/Enclave.storekit
   EnclaveKeyboard:
     type: app-extension
     platform: iOS

@@ -31,6 +31,10 @@ struct EnclaveApp: App {
                 .environmentObject(router)
                 .environmentObject(store)
                 .task { RimeDeployer.shared.deployIfNeeded() }
+                .task { await UnlockStore.shared.refresh() }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                    Task { await UnlockStore.shared.refresh() }
+                }
                 .onOpenURL { url in
                     // enclave://playground 直接打开「试一试」并弹出键盘，方便在模拟器里截图测试。
                     guard url.scheme == "enclave" else { return }
@@ -45,6 +49,8 @@ struct EnclaveApp: App {
                             }
                         }
                     case "privacy-policy": router.openSettings(.privacy)
+                    // 键盘提示卡「去解锁」。
+                    case "unlock": router.openSettings(.unlock)
                     case "common-words":
                         router.tab = .home
                         router.homePath = NavigationPath([AppRouter.HomePage.commonWords])
@@ -85,7 +91,7 @@ final class AppRouter: ObservableObject {
     enum Tab: Hashable { case home, styles, model, settings }
 
     enum SettingsPage: String, Hashable {
-        case keyboard, fuzzy, pinyin, guide, playground, privacy, about
+        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock
     }
 
     /// 首页里的二级页：键盘、常用词、场景实验室和其中一个场景。

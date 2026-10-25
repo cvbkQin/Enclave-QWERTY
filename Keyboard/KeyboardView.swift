@@ -207,8 +207,8 @@ struct PolishButton: View {
                 }
             }
             .overlay(alignment: .topLeading) {
-                // 没开完全访问：右上角一个小锁（P01）。
-                if !model.hasFullAccess {
+                // 没开完全访问、试用结束后今天的次数用完：右上角一个小锁（P01）。
+                if !model.hasFullAccess || model.aiQuotaUsed {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.white)
@@ -227,7 +227,7 @@ struct PolishButton: View {
     }
 
     private var fill: Color {
-        return model.aiBlocked && !model.isRunning ? Brand.purple.opacity(0.35) : Brand.purple
+        return (model.aiBlocked || model.aiQuotaUsed) && !model.isRunning ? Brand.purple.opacity(0.35) : Brand.purple
     }
 }
 
@@ -568,6 +568,7 @@ struct GateCard: View {
             switch gate {
             case .fullAccess: fullAccess
             case .consent(let endpoint, let previous): consent(endpoint, previous: previous)
+            case .quotaUsed: quotaUsed
             }
         }
         .padding(12)
@@ -609,6 +610,48 @@ struct GateCard: View {
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 4)
             GateButton(title: "知道了", primary: true) { model.dismissGate() }
+        }
+    }
+
+    /// 试用结束后今天的免费次数用完：打字照常，明天再有，或去 App 里解锁。
+    @ViewBuilder
+    private var quotaUsed: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Brand.deepPurple)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Brand.returnSoftFill))
+            Text("今天的 \(AIAccess.dailyFreeUses) 次用完了").font(.system(size: 14, weight: .semibold))
+        }
+        Text("14 天试用已结束，明天还能用 \(AIAccess.dailyFreeUses) 次。一次买断后不限次数，打字一直免费。")
+            .font(.system(size: 13))
+            .foregroundStyle(Brand.cardBody)
+            .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 3) {
+            Text("在 App 里解锁").font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            (Text("打开 Enclave").foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
+                + Text("设置").foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
+                + Text("Enclave AI").fontWeight(.semibold).foregroundColor(Brand.deepPurple))
+                .font(.system(size: 13))
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
+        Spacer(minLength: 0)
+        HStack(spacing: 8) {
+            Text("买过了？在 App 里点恢复购买")
+                .font(.system(size: 12))
+                .foregroundStyle(Brand.disabledText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            GateButton(title: "知道了", primary: false) { model.dismissGate() }
+            GateButton(title: "去解锁", primary: true) {
+                model.dismissGate()
+                model.openContainingApp("enclave://unlock")
+            }
         }
     }
 

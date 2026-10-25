@@ -1,0 +1,38 @@
+{
+  "identifier" : "6A4E1C2B",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "6739000001",
+      "localizations" : [
+        {
+          "description" : "Unlimited AI polish with your own model",
+          "displayName" : "Enclave AI",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.gengyunqin.enclave.unlock",
+      "referenceName" : "Enclave AI Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6739000000",
+    "_developerTeamID" : "YLTP3M3JB2",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

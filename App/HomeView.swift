@@ -45,6 +45,50 @@ struct HomeView: View {
     }
 }
 
+/// 首页试用最后几天的橙色提醒条（U7）。
+private struct TrialBanner: View {
+    @EnvironmentObject private var router: AppRouter
+    @ObservedObject private var unlock = UnlockStore.shared
+
+    var body: some View {
+        if case .trial(let days, _) = unlock.access, unlock.access.isEndingSoon {
+            HStack(spacing: 12) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color(hex: 0xC93400))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("试用还剩 \(days) 天", "\(days) days left in your free trial", "無料体験は残り \(days) 日"))
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(L("到期后 AI 每天限 \(AIAccess.dailyFreeUses) 次，打字免费",
+                           "After that, AI is limited to \(AIAccess.dailyFreeUses) a day. Typing stays free",
+                           "終了後の AI は 1 日 \(AIAccess.dailyFreeUses) 回まで。入力は無料です"))
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                Button { router.openSettings(.unlock) } label: {
+                    Text(L("\(unlock.displayPrice) 解锁", "Unlock \(unlock.displayPrice)", "\(unlock.displayPrice)で購入"))
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .background(Capsule().fill(Color(hex: 0xFF8A00)))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(uiColor: UIColor { trait in
+                trait.userInterfaceStyle == .dark
+                    ? UIColor(red: 1, green: 0.54, blue: 0, alpha: 0.16)
+                    : UIColor(red: 1, green: 0xF4 / 255, blue: 0xE5 / 255, alpha: 1)
+            })))
+        }
+    }
+}
+
 /// 准备好以后的首页：就绪卡片、当前配置四宫格、小技巧。
 private struct Dashboard: View {
     @EnvironmentObject private var store: AppStore
@@ -54,6 +98,7 @@ private struct Dashboard: View {
     var body: some View {
         if !SharedStorage.isShared { SharedConfigBanner() }
         hero
+        TrialBanner()
         sectionTitle("当前配置")
         ModelRow(model: store.settings.model, status: modelStatus) { router.openModel() }
         HStack(spacing: 12) {

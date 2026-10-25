@@ -1,6 +1,53 @@
 import SwiftUI
 import UIKit
 
+/// 设置顶部「Enclave AI」行（U5/U6）：渐变星星图标，右边按试用状态变色。
+struct EnclaveAIRow: View {
+    @ObservedObject private var unlock = UnlockStore.shared
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(
+                    LinearGradient(colors: [Color(hex: 0x4F46E5), Color(hex: 0x7C3AED)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Enclave AI").font(.system(size: 16, weight: .semibold))
+                Text(subtitle).font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            Text(status.text).font(.system(size: 14, weight: .medium)).foregroundStyle(status.color).lineLimit(1)
+        }
+        .frame(minHeight: 58)
+    }
+
+    private var subtitle: String {
+        switch unlock.access {
+        case .trial(_, let ends):
+            return L("\(Loc.monthDay(ends)) 结束", "Ends \(Loc.monthDay(ends))", "\(Loc.monthDay(ends))に終了")
+        case .expired:
+            return L("今天已用 \(AIAccess.usesToday) / \(AIAccess.dailyFreeUses) 次",
+                     "\(AIAccess.usesToday) of \(AIAccess.dailyFreeUses) used today",
+                     "今日 \(AIAccess.usesToday) / \(AIAccess.dailyFreeUses) 回使用")
+        case .unlocked:
+            return L("一次买断 · 不限次数", "One-time purchase · No limits", "買い切り・回数制限なし")
+        }
+    }
+
+    private var status: (text: String, color: Color) {
+        switch unlock.access {
+        case .trial(let days, _):
+            return (L("试用剩余 \(days) 天", "\(days) days left", "残り \(days) 日"),
+                    Color(hex: unlock.access.isEndingSoon ? 0xC93400 : 0x5B4BE8))
+        case .expired: return (L("试用已结束", "Trial ended", "無料体験が終了"), Color(hex: 0xD70015))
+        case .unlocked: return (L("已解锁", "Unlocked", "購入済み"), Color(hex: 0x248A3D))
+        }
+    }
+}
+
 /// 设置：拼音词库；开启键盘指南、场景实验室；共享配置、隐私、关于。
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
@@ -10,6 +57,9 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack(path: $router.settingsPath) {
             List {
+                Section {
+                    NavigationLink(value: AppRouter.SettingsPage.unlock) { EnclaveAIRow() }
+                }
                 // 键盘和常用词从首页进。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.pinyin) {
@@ -53,6 +103,7 @@ struct SettingsView: View {
                 case .playground: LabView()
                 case .privacy: PrivacyView()
                 case .about: AboutView()
+                case .unlock: UnlockView()
                 }
             }
         }
