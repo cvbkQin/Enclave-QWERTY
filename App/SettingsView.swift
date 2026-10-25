@@ -165,6 +165,13 @@ struct ModelSettingsView: View {
     @EnvironmentObject private var store: AppStore
     @State private var provider: Provider = .custom
     @State private var importResult: Bool?
+    /// 测试连接成功、这个地址还没同意过时弹出的确认（P05）。
+    @State private var consentEndpoint: ConsentPrompt?
+
+    private struct ConsentPrompt: Identifiable {
+        let endpoint: String
+        var id: String { endpoint }
+    }
 
     var body: some View {
         Form {
@@ -253,6 +260,20 @@ struct ModelSettingsView: View {
         }
         .navigationTitle(L("模型接口", "Model API", "モデル API"))
         .onAppear { provider = Provider.detect(store.settings.baseURL) }
+        .onChange(of: store.test) { test in
+            guard case .success = test, let endpoint = ConsentStore.endpoint(of: store.settings.baseURL),
+                  !ConsentStore.isConsented(endpoint) else { return }
+            consentEndpoint = ConsentPrompt(endpoint: endpoint)
+        }
+        .sheet(item: $consentEndpoint) { prompt in
+            ConsentSheet(provider: Provider.detect(store.settings.baseURL).title, endpoint: prompt.endpoint) {
+                ConsentStore.grant(prompt.endpoint)
+                consentEndpoint = nil
+            } later: {
+                consentEndpoint = nil
+            }
+            .presentationDetents([.large])
+        }
     }
 
     @ViewBuilder
@@ -317,6 +338,11 @@ struct KeyboardSettingsView: View {
 
     var body: some View {
         Form {
+            if KeyboardStatus.fullAccess == false {
+                NotSyncedBanner()
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            }
             Section {
                 HStack(spacing: 12) {
                     ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
@@ -421,6 +447,7 @@ struct FuzzyPinyinView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
+                NotSyncedBanner()
                 header(L("快速选择", "Presets", "プリセット"))
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
@@ -611,5 +638,87 @@ struct LanguageView: View {
         }
         .navigationTitle(L("语言", "Language", "言語"))
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+
+/// 保存接口时的确认（P05）：「同意」记下这个地址，键盘里第一次润色就不再问；「暂不」什么都不记。
+private struct ConsentSheet: View {
+    let provider: String
+    let endpoint: String
+    let agree: () -> Void
+    let later: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(Color(hex: 0x5B4BE8))
+                    .padding(.top, 28)
+                Text(L("允许把文字发送到这个接口？", "Allow sending text to this API?", "この API に文章を送信しますか？"))
+                    .font(.system(size: 20, weight: .bold))
+                    .multilineTextAlignment(.center)
+                VStack(spacing: 0) {
+                    row(L("服务商", "Provider", "サービス"), provider)
+                    Divider().padding(.leading, 14)
+                    row(L("地址", "Address", "アドレス"), endpoint, mono: true)
+                }
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.secondarySystemBackground)))
+                VStack(alignment: .leading, spacing: 14) {
+                    point("text.alignleft", L("发送什么", "What's sent", "送るもの"),
+                          L("只在你点「润色」或「再润」时，发送输入框里的文字（选中时只发选中的部分）和你写的要求。",
+                            "Only when you tap Polish or Rewrite: the text in the field (just the selection, if any) and your prompt.",
+                            "「整える」か「別の案」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。"))
+                    point("arrow.up.forward", L("发到哪里", "Where it goes", "送り先"),
+                          L("直接发到上面这个地址，由服务商按它的隐私政策处理。", "Straight to the address above, handled under the provider's privacy policy.",
+                            "上のアドレスに直接送られ、サービスのプライバシーポリシーに従って処理されます。"))
+                    point("lock.shield", L("Enclave 不经手", "Enclave never sees it", "Enclave は関与しません"),
+                          L("Enclave 没有自己的服务器，不收集、不保存你的文字。", "Enclave has no servers and doesn't collect or keep your text.",
+                            "Enclave はサーバーを持たず、文章を収集・保存しません。"))
+                }
+                Button(action: agree) {
+                    Text(L("同意", "Allow", "同意する"))
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0x5B4BE8)))
+                }
+                .buttonStyle(.plain)
+                Button(L("暂不", "Not now", "今はしない"), action: later)
+                    .font(.system(size: 16))
+                Text(L("可以随时在「设置 › 隐私」撤回", "You can withdraw anytime in Settings › Privacy", "「設定 › プライバシー」でいつでも撤回できます"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 20)
+        }
+    }
+
+    private func row(_ label: String, _ value: String, mono: Bool = false) -> some View {
+        HStack {
+            Text(label).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).font(mono ? .system(.subheadline, design: .monospaced) : .subheadline).lineLimit(1).truncationMode(.middle)
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+    }
+
+    private func point(_ icon: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(hex: 0x4A3BD6))
+                .frame(width: 30, height: 30)
+                .background(Circle().fill(Color(hex: 0xECEAFD)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 15, weight: .semibold))
+                Text(detail).font(.system(size: 13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }

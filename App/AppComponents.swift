@@ -133,3 +133,35 @@ struct SharedConfigBanner: View {
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.orange.opacity(0.12)))
     }
 }
+
+/// 键盘没开完全访问时，App 里改的设置读不到（P10）：「键盘」「模糊拼音」页顶部的黄色提示条。
+struct NotSyncedBanner: View {
+    var body: some View {
+        if KeyboardStatus.fullAccess == false {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(Color(hex: 0xFF9500)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L("这些设置还没同步到键盘", "These settings aren't on the keyboard yet", "この設定はまだキーボードに反映されていません"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(hex: 0x3A2E10))
+                    Text(L("键盘没开「允许完全访问」，读不到 App 里的设置，目前用默认值。拼音布局可以在键盘上长按「中/英」切换。",
+                           "Allow Full Access is off, so the keyboard can't read the app's settings and uses defaults. Touch and hold 中/英 on the keyboard to switch the pinyin layout.",
+                           "「フルアクセスを許可」がオフのため、キーボードはアプリの設定を読めず初期設定で動いています。ピンインの配列はキーボードの「中/英」を長押しで切り替えられます。"))
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(Color(hex: 0x6B5A2E))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(L("去开启", "Turn On", "オンにする")) { AppSettings.open() }
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .padding(.top, 2)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(hex: 0xFFF4D6)))
+        }
+    }
+}

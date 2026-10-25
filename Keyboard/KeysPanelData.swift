@@ -30,6 +30,39 @@ struct AlternatesPopup: Equatable {
     }
 }
 
+/// 长按「中/英」的拼音布局菜单（P11）：宽 168，小标题 + 「九宫格」「全键盘」两项，手指滑到哪项选哪项。
+struct LayoutMenuPopup: Equatable {
+    let key: KeySpec
+    let containerWidth: CGFloat
+    var selected: KeyboardLayout?
+
+    static let width: CGFloat = 168
+    static let titleHeight: CGFloat = 26
+    static let rowHeight: CGFloat = 36
+    static let padding: CGFloat = 6
+    static let options: [KeyboardLayout] = [.nineKey, .qwerty]
+    static var height: CGFloat { padding * 2 + titleHeight + rowHeight * CGFloat(options.count) }
+
+    var frame: CGRect {
+        let x = min(max(key.cap.minX, 4), max(containerWidth - Self.width - 4, 0))
+        return CGRect(x: x, y: max(key.cap.minY - Self.height - 6, 0), width: Self.width, height: Self.height)
+    }
+
+    func rowFrame(_ index: Int) -> CGRect {
+        CGRect(x: frame.minX + Self.padding, y: frame.minY + Self.padding + Self.titleHeight + CGFloat(index) * Self.rowHeight,
+               width: Self.width - Self.padding * 2, height: Self.rowHeight)
+    }
+
+    /// 手指在哪一项上；离菜单太远（横向超出、或回到键上）时不选。
+    func option(at point: CGPoint) -> KeyboardLayout? {
+        for (index, option) in Self.options.enumerated() {
+            let row = rowFrame(index).insetBy(dx: -12, dy: 0)
+            if row.contains(point) { return option }
+        }
+        return nil
+    }
+}
+
 /// 九宫格长按弹出的十字，和原生一样：中间是按下的键，四周最多四个选项，手指滑到哪格选哪格，滑回中间松手取消。
 struct CrossPopup: Equatable {
     enum Direction: CaseIterable { case left, up, right, down }

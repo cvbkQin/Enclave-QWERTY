@@ -308,7 +308,22 @@ extension KeyboardModel {
         return true
     }
 
+    /// 长按「中/英」：弹出拼音布局菜单，先选中当前的布局。
+    func showLayoutMenu(for key: KeySpec, containerWidth: CGFloat) {
+        layoutMenu = LayoutMenuPopup(key: key, containerWidth: containerWidth, selected: settings.keyboardLayout)
+        keyFeedback(for: .space)
+    }
+
     func moveAlternates(to point: CGPoint) {
+        if var menu = layoutMenu {
+            let option = menu.option(at: point)
+            if option != menu.selected {
+                menu.selected = option
+                layoutMenu = menu
+                if option != nil { keyFeedback(for: .space) }
+            }
+            return
+        }
         if var popup = cross {
             let direction = popup.direction(at: point)
             if direction != popup.selected {
@@ -328,6 +343,15 @@ extension KeyboardModel {
 
     /// 松手：十字滑回中间算取消。
     func commitAlternate() {
+        if let menu = layoutMenu {
+            layoutMenu = nil
+            // 布局存在键盘这边，开了完全访问时和 App 里的设置是同一份，以最后一次改的为准。
+            if let layout = menu.selected, layout != settings.keyboardLayout {
+                if !chineseMode { toggleChinese() }
+                setLayout(layout)
+            }
+            return
+        }
         let text: String
         if let popup = cross {
             cross = nil

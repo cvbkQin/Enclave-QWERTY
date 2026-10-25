@@ -46,6 +46,9 @@ struct KeysView: View {
                     if let popup = model.cross {
                         CrossView(model: model, popup: popup)
                     }
+                    if let menu = model.layoutMenu {
+                        LayoutMenuView(menu: menu)
+                    }
                 }
             }
         }
@@ -442,5 +445,49 @@ struct CandidateGrid: View {
             }
             .frame(width: 64)
         }
+    }
+}
+
+
+/// 长按「中/英」的拼音布局菜单（P11）：白底圆角 12、柔和投影；选中项淡紫底深紫字加勾；按住的键描紫边。
+struct LayoutMenuView: View {
+    let menu: LayoutMenuPopup
+
+    var body: some View {
+        let frame = menu.frame
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255), lineWidth: 2)
+                .frame(width: menu.key.cap.width, height: menu.key.cap.height)
+                .offset(x: menu.key.cap.minX, y: menu.key.cap.minY)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(L("拼音布局", "Pinyin layout", "ピンインの配列"))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
+                    .padding(.leading, 10)
+                    .frame(height: LayoutMenuPopup.titleHeight, alignment: .center)
+                ForEach(LayoutMenuPopup.options, id: \.self) { option in
+                    let selected = menu.selected == option
+                    HStack {
+                        Text(option == .nineKey ? L("九宫格", "10-key", "10キー") : L("全键盘", "QWERTY", "QWERTY"))
+                            .font(.system(size: 15, weight: selected ? .semibold : .regular))
+                        Spacer()
+                        if selected { Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)) }
+                    }
+                    .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
+                    .padding(.horizontal, 10)
+                    .frame(height: LayoutMenuPopup.rowHeight)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(selected ? Brand.returnSoftFill : Color.clear))
+                }
+            }
+            .padding(LayoutMenuPopup.padding)
+            .frame(width: frame.width, height: frame.height, alignment: .topLeading)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Brand.panelFill)
+                .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.18), radius: 12, y: 8))
+            .offset(x: frame.minX, y: frame.minY)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
     }
 }

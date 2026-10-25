@@ -94,6 +94,17 @@ final class KeyTouchView: UIView {
                         self.model?.setTrackpad(true)
                     }
                 }
+            case .toggleChinese:
+                // 长按「中/英」弹出拼音布局菜单（P11）；短按照常切中英。
+                state.timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self, weak state] _ in
+                    Task { @MainActor in
+                        guard let self, let state, !state.fired,
+                              self.tracking.values.contains(where: { $0 === state }) else { return }
+                        self.model?.showLayoutMenu(for: state.key, containerWidth: self.bounds.width)
+                        state.alternates = true
+                        state.fired = true
+                    }
+                }
             default:
                 if key.kind.typesCharacter { scheduleAlternates(state) }
             }
@@ -181,6 +192,7 @@ final class KeyTouchView: UIView {
             if state.alternates {
                 model.alternates = nil
                 model.cross = nil
+                model.layoutMenu = nil
             }
             model.keyReleased(state.key.id)
         }

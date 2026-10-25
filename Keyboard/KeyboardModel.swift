@@ -70,6 +70,8 @@ final class KeyboardModel: ObservableObject {
     @Published var alternates: AlternatesPopup?
     /// 九宫格长按的十字弹层。
     @Published var cross: CrossPopup?
+    /// 长按「中/英」弹出的拼音布局菜单（P11）。
+    @Published var layoutMenu: LayoutMenuPopup?
     /// 对方输入框有没有字、回车键是什么类型，决定发送键的颜色和文字。
     @Published var hostHasText = false
     @Published var hostReturnKey: UIReturnKeyType = .default
