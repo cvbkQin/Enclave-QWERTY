@@ -35,10 +35,9 @@ final class UnlockStore: ObservableObject {
         }
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
+        // 启动参数只在截图时给；不给时保留解锁页「测试」块里选的状态。
         if let i = args.firstIndex(of: "-aiAccess"), args.indices.contains(i + 1) {
             AIAccess.setDebug(args[i + 1])
-        } else {
-            AIAccess.setDebug(nil)
         }
         isTestBuild = true
         #endif
