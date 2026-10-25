@@ -87,7 +87,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
-        model.releaseEngineMemory()
+        model.noteMemoryWarning()
     }
 
     override func viewWillLayoutSubviews() {

@@ -424,7 +424,7 @@ extension KeyboardModel {
     }
 
     #if DEBUG
-    /// 模拟器测内存（debug 选项 memtest）：打一组整句，记下首选、耗时和内存，再模拟内存警告释放引擎，
+    /// 模拟器测内存（debug 选项 memtest）：打一组整句，记下首选、耗时和内存，
     /// 结果写到共享目录 Library/Diagnostics/memtest-gram.json（有整句模型）或 memtest-plain.json。
     func runMemoryTest() {
         let sentences = [
@@ -450,14 +450,6 @@ extension KeyboardModel {
         report["sentences"] = results
         report["peakMB"] = peak
         report["afterTypingMB"] = TypingStats.footprintMB() ?? -1
-        releaseEngineMemory()
-        report["afterReleaseMB"] = TypingStats.footprintMB() ?? -1
-        // 释放后再打一句：确认引擎能重新启动，记下这一下要多久。
-        let restart = CACurrentMediaTime()
-        for letter in sentences[0] { _ = engine.input(String(letter)) }
-        report["restartFirst"] = engine.candidates.first ?? ""
-        report["restartMs"] = (CACurrentMediaTime() - restart) * 1000
-        engine.reset()
         syncEngine()
         guard let group = SharedStorage.appGroupID.flatMap({ FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }),
               let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]) else { return }
@@ -467,12 +459,10 @@ extension KeyboardModel {
     }
     #endif
 
-    /// 系统内存警告：关掉拼音引擎省内存，下一个按键时在后台重新启动。正在拼的内容会丢掉，总比键盘被系统杀掉好。
-    func releaseEngineMemory() {
+    /// 系统内存警告：只记下次数。试过关掉 Rime 引擎，实测只省 0.2–0.4MB（词典和整句模型是文件映射，本来就不算进占用），
+    /// 还要丢掉正在拼的内容，不值得。
+    func noteMemoryWarning() {
         TypingStats.noteMemoryWarning()
-        guard engine === QueuedEngine.shared else { return }
-        QueuedEngine.shared.release()
-        syncEngine()
     }
 
     /// 九宫格「重输」：清掉正在拼的内容。

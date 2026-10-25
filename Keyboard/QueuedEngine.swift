@@ -101,9 +101,6 @@ final class QueuedEngine: InputEngine {
         queue.async { [inner] in inner.updatePhrases(entries) }
     }
 
-    /// 内存警告：先处理完排着的键，再关掉引擎（正在拼的内容会清掉）。
-    func release() { run { $0.release() } }
-
     // MARK: - 同步（先处理完排着的键）
 
     func input(_ letter: String) -> String? { run { $0.input(letter) } }

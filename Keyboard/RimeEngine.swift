@@ -98,16 +98,6 @@ final class RimeEngine: InputEngine {
         return true
     }
 
-    /// 系统内存紧张时整个关掉引擎，释放词典和整句模型；下一个按键时 prepare() 重新启动。
-    func release() {
-        guard loadedVersion != nil else { return }
-        enclave_rime_finalize()
-        session = 0
-        loadedVersion = nil
-        composition = ""
-        candidates = []
-    }
-
     /// 新会话先拼一个字母再清掉：词典和方案在这时读进内存，用户的第一个键就不用等。
     private func warmUp() {
         enclave_rime_process_key(session, 0x6e, 0) // n
