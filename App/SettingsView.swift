@@ -119,6 +119,8 @@ struct SettingsView: View {
                 case .about: AboutView()
                 case .unlock: UnlockView()
                 case .language: LanguageView()
+                case .privacyPolicy: PrivacyPolicyView()
+                case .licenses: LicensesView()
                 }
             }
         }
@@ -572,39 +574,6 @@ struct PinyinView: View {
 }
 
 // MARK: - 隐私、关于
-
-struct PrivacyView: View {
-    var body: some View {
-        Form {
-            Section {
-                Text(L("打字和拼音候选全部在手机上完成，不联网。", "Typing and pinyin candidates happen entirely on your iPhone, offline.", "入力とピンインの候補はすべて iPhone 上で処理され、通信しません。"))
-                Text(L("只有点「✨ 润色」或「再润」时，输入框里的文字和你写的要求才会发给你自己配置的模型接口，Enclave 没有自己的服务器。", "Only when you tap ✨ Polish or Rewrite are the text in the field and your prompt sent to the model API you set up. Enclave has no servers of its own.", "「✨ 整える」か「別の案」をタップしたときだけ、入力欄の文章と指示が自分で設定したモデル API に送られます。Enclave は独自のサーバーを持ちません。"))
-                Text(L("API Key 只存在本机钥匙串里。", "Your API key stays in this iPhone's keychain.", "API キーはこの iPhone のキーチェーンにだけ保存されます。"))
-                Text(L("「允许完全访问」只用来联网调用模型、按键震动，以及和 App 共享设置。", "Allow Full Access is used only to reach your model, for haptics, and to share settings with the app.", "「フルアクセスを許可」は、モデルとの通信、触覚、アプリとの設定共有にだけ使います。"))
-            }
-            .font(.subheadline)
-        }
-        .navigationTitle(L("隐私", "Privacy", "プライバシー"))
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct AboutView: View {
-    static var version: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                HStack { Text(L("版本", "Version", "バージョン")); Spacer(); Text(Self.version).foregroundStyle(.secondary) }
-            }
-            LicensesSection()
-        }
-        .navigationTitle(L("关于 Enclave", "About Enclave", "Enclave について"))
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
 
 /// 语言（L2）：跟随 iPhone / 简体中文 / English / 日本語，选完马上生效；下面一组说明会改哪些。
 struct LanguageView: View {

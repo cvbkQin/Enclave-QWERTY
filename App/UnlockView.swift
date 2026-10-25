@@ -382,7 +382,7 @@ private struct PurchaseBar: View {
                 Text(L("通过 Apple ID 付款 · 同一 Apple ID 的设备都能用", "Paid with your Apple Account · Works on all your devices",
                        "Apple アカウントで支払い・同じアカウントの端末で使えます"))
                 Text("·")
-                Button(L("隐私政策", "Privacy Policy", "プライバシーポリシー")) { AppRouter.shared.settingsPath.append(.privacy) }
+                Button(L("隐私政策", "Privacy Policy", "プライバシーポリシー")) { AppRouter.shared.settingsPath.append(.privacyPolicy) }
                 Text("·")
                 Link(L("用户协议", "Terms of Use", "利用規約"), destination: LegalLinks.terms)
             }

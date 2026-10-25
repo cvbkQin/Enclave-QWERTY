@@ -48,7 +48,9 @@ struct EnclaveApp: App {
                                 UIApplication.shared.open(settings)
                             }
                         }
-                    case "privacy-policy": router.openSettings(.privacy)
+                    case "privacy-policy":
+                        router.settingsPath = [.privacy, .privacyPolicy]
+                        router.tab = .settings
                     // 键盘提示卡「去解锁」。
                     case "unlock": router.openSettings(.unlock)
                     case "common-words":
@@ -98,7 +100,7 @@ final class AppRouter: ObservableObject {
     enum Tab: Hashable { case home, styles, model, settings }
 
     enum SettingsPage: String, Hashable {
-        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language
+        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language, privacyPolicy, licenses
     }
 
     /// 首页里的二级页：键盘、常用词、场景实验室和其中一个场景。
