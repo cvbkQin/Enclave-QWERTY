@@ -49,25 +49,19 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
                 label.font = Self.font
                 label.textAlignment = .center
                 label.index = labels.count
+                label.isHidden = true
                 label.onActivate = { [weak self] index in self?.onSelect?(index) }
                 addSubview(label)
                 labels.append(label)
             }
-            for (index, label) in labels.enumerated() {
-                label.isHidden = index >= words.count
-                if index < words.count { label.text = words[index] }
-            }
+            // 前面几个词没变的话（往后多取了候选）不用重填。
+            filled = continued ? filled : 0
             pressed = nil
             if !continued { contentOffset = .zero }
             setNeedsLayout()
         }
-        for (index, label) in labels.enumerated() where index < words.count {
-            // 没变就不设：设一次就要重画这个词。
-            let color = index == 0 ? firstColor : .label
-            if label.textColor != color { label.textColor = color }
-            let alpha: CGFloat = index == pressed ? 0.45 : 1
-            if label.alpha != alpha { label.alpha = alpha }
-        }
+        self.firstColor = firstColor
+        for index in 0..<min(filled, words.count) { style(index) }
         if firstIsCommon, let first = labels.first, !words.isEmpty {
             if dot.superlayer == nil { first.layer.addSublayer(dot) }
         } else {
@@ -75,33 +69,85 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         }
     }
 
-    /// 上次排版时的候选和高度：滚动时 layoutSubviews 每帧都会调，没变就不重新量字宽、摆位置。
+    private var firstColor: UIColor = .label
+    /// 前面这么多个候选已经填好了字。快打时每个键都换一组候选，一次只填看得见的（加上往后一屏），
+    /// 后面的滑过去时再填：给 60 个词设字、排字是候选栏最慢的地方。
+    private var filled = 0
+
+    /// 没变就不设：设一次就要重画这个词。
+    private func style(_ index: Int) {
+        let label = labels[index]
+        let color = index == 0 ? firstColor : .label
+        if label.textColor != color { label.textColor = color }
+        let alpha: CGFloat = index == pressed ? 0.45 : 1
+        if label.alpha != alpha { label.alpha = alpha }
+    }
+
+    /// 词宽：都是汉字时按字数乘一个字宽算，不用每次让 CoreText 排一遍；有字母、符号的才量，量过的记下来。
+    private static var widthCache: [String: CGFloat] = [:]
+    private static let hanWidth = ("中" as NSString).size(withAttributes: [.font: font]).width
+
+    private static func width(of word: String) -> CGFloat {
+        if word.unicodeScalars.allSatisfy({ (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }) {
+            return ceil(hanWidth * CGFloat(word.unicodeScalars.count)) + padding * 2
+        }
+        if let cached = widthCache[word] { return cached }
+        if widthCache.count > 500 { widthCache.removeAll() }
+        let width = ceil((word as NSString).size(withAttributes: [.font: font]).width) + padding * 2
+        widthCache[word] = width
+        return width
+    }
+
+    /// 上次排版时的候选和高度：滚动时 layoutSubviews 每帧都会调，没变就不重新算字宽、摆位置。
     private var laidOut: (words: [String], height: CGFloat)?
+    private var frames: [CGRect] = []
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if let laidOut, laidOut.words == words, laidOut.height == bounds.height { return }
-        laidOut = (words, bounds.height)
-        var x = Self.leading
-        for (index, label) in labels.enumerated() where index < words.count {
-            let width = ceil((words[index] as NSString).size(withAttributes: [.font: Self.font]).width) + Self.padding * 2
-            label.frame = CGRect(x: x, y: 0, width: width, height: bounds.height)
-            x += width
+        let changed = laidOut == nil || laidOut!.words != words || laidOut!.height != bounds.height
+        if changed {
+            laidOut = (words, bounds.height)
+            var x = Self.leading
+            frames = words.map { word in
+                let width = Self.width(of: word)
+                defer { x += width }
+                return CGRect(x: x, y: 0, width: width, height: bounds.height)
+            }
+            for (index, label) in labels.enumerated() where index < filled && index < words.count {
+                label.frame = frames[index]
+            }
+            if let first = frames.first {
+                // 和原来一样：首选右上角，文字右边再往外 5pt。
+                let textWidth = first.width - Self.padding * 2
+                dot.position = CGPoint(x: Self.padding + textWidth + 5, y: first.midY - 10)
+            }
+            contentSize = CGSize(width: x, height: bounds.height)
         }
-        if let first = labels.first, !words.isEmpty {
-            // 和原来一样：首选右上角，文字右边再往外 5pt。
-            let textWidth = first.bounds.width - Self.padding * 2
-            dot.position = CGPoint(x: Self.padding + textWidth + 5, y: first.bounds.midY - 10)
+        fill(upTo: contentOffset.x + bounds.width * 2)
+        if changed {
+            // 这次没填到的（包括上一组多出来的）先藏起来，免得滑过去看到上一组的词。
+            for label in labels.dropFirst(filled) where !label.isHidden { label.isHidden = true }
         }
-        contentSize = CGSize(width: x, height: bounds.height)
+    }
+
+    /// 把右边到 maxX 为止的候选填上字。
+    private func fill(upTo maxX: CGFloat) {
+        while filled < words.count, filled < frames.count, frames[filled].minX < maxX {
+            let label = labels[filled]
+            if label.text != words[filled] { label.text = words[filled] }
+            label.frame = frames[filled]
+            label.isHidden = false
+            style(filled)
+            filled += 1
+        }
     }
 
     /// 手指落点对应的候选：在哪个词的范围里就是哪个，落在两头外面取最近的。
     private func index(at point: CGPoint) -> Int? {
-        let visible = labels.prefix(words.count)
+        let visible = frames.prefix(filled)
         guard !visible.isEmpty else { return nil }
-        if let hit = visible.firstIndex(where: { $0.frame.minX <= point.x && point.x < $0.frame.maxX }) { return hit }
-        return point.x < (visible.first?.frame.minX ?? 0) ? 0 : visible.count - 1
+        if let hit = visible.firstIndex(where: { $0.minX <= point.x && point.x < $0.maxX }) { return hit }
+        return point.x < (visible.first?.minX ?? 0) ? 0 : visible.count - 1
     }
 
     private func setPressed(_ index: Int?) {

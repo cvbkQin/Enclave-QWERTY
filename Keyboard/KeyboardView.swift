@@ -38,13 +38,18 @@ struct KeyboardView: View {
                     .padding(.horizontal, inset)
                     .padding(.top, KeyboardMetrics.panelTop)
             }
-            Group {
-                if model.isComposing {
-                    candidateBar
-                } else if model.target == .card {
-                    cardEditHint
-                } else {
-                    aiBar
+            ZStack {
+                // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
+                candidateBar
+                    .opacity(model.isComposing ? 1 : 0)
+                    .allowsHitTesting(model.isComposing)
+                    .accessibilityHidden(!model.isComposing)
+                if !model.isComposing {
+                    if model.target == .card {
+                        cardEditHint
+                    } else {
+                        aiBar
+                    }
                 }
             }
             .frame(height: KeyboardMetrics.topRow)
