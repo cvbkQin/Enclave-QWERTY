@@ -735,14 +735,12 @@ private struct LatencyScale: View {
                 .frame(height: 16)
             }
             .frame(height: 16)
-            GeometryReader { geo in
-                ZStack(alignment: .topLeading) {
-                    marker(L("一般 \(Int(typical))", "Typ \(Int(typical))", "通常 \(Int(typical))"), typical, geo.size.width)
-                    marker(L("较慢 10% \(Int(slow))", "Slow 10% \(Int(slow))", "遅い10% \(Int(slow))"), slow, geo.size.width)
-                    marker(L("最慢 \(Int(slowest))", "Max \(Int(slowest))", "最大 \(Int(slowest))"), slowest, geo.size.width)
-                }
+            // 三个值常挤在一起，标签不贴着刻度，排成一行写在下面。
+            HStack(spacing: 12) {
+                legend(L("一般", "Typical", "通常"), typical)
+                legend(L("较慢 10%", "Slow 10%", "遅い10%"), slow)
+                legend(L("最慢", "Slowest", "最大"), slowest)
             }
-            .frame(height: 14)
         }
     }
 
@@ -750,13 +748,13 @@ private struct LatencyScale: View {
         CGFloat(min(max(value / maxValue, 0), 1)) * width
     }
 
-    /// 文字居中在刻度上，两头不出界。
-    private func marker(_ text: String, _ value: Double, _ width: CGFloat) -> some View {
-        Text(text)
-            .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize()
-            .alignmentGuide(.leading) { d in
-                -min(max(position(value, width) - d.width / 2, 0), width - d.width)
-            }
+    private func legend(_ title: String, _ value: Double) -> some View {
+        HStack(spacing: 4) {
+            Text(title).foregroundStyle(.secondary)
+            Text(String(format: "%.0f ms", value)).fontWeight(.semibold).monospacedDigit()
+        }
+        .font(.caption)
+        .lineLimit(1)
     }
 }
 
