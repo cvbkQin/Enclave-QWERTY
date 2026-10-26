@@ -107,8 +107,14 @@ struct SettingsView: View {
                     Button {
                         if router.privacyAgreed { router.setupGuide = .intro } else { router.settingsPath.append(.privacy) }
                     } label: {
-                        DashRow(icon: "sparkles", color: DashColor.ai, title: L("AI 设置引导", "AI setup guide", "AI 設定ガイド"))
-                            .contentShape(Rectangle())
+                        HStack(spacing: 8) {
+                            DashRow(icon: "sparkles", color: DashColor.ai, title: L("AI 设置引导", "AI setup guide", "AI 設定ガイド"))
+                            // 和旁边的 NavigationLink 一样带个箭头。
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13.5, weight: .semibold))
+                                .foregroundStyle(Color(.tertiaryLabel))
+                        }
+                        .contentShape(Rectangle())
                     }
                     .foregroundStyle(.primary)
                     NavigationLink(value: AppRouter.SettingsPage.playground) {
