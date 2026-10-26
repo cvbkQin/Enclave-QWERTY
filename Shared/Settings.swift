@@ -77,6 +77,8 @@ struct EnclaveSettings: Codable, Equatable {
     var keyHaptics: Bool = true
     /// 按键声音（手机静音时不响）。
     var keySound: Bool = true
+    /// 英文输入时句首自动大写，和系统键盘一样。
+    var autoCapitalize: Bool = true
     /// 润色时结果卡片的流光和星星动画；系统打开「减弱动态效果」时不播。
     var polishAnimation: Bool = true
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
@@ -85,7 +87,7 @@ struct EnclaveSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
-        case keyboardLayout, keyHaptics, keySound, polishAnimation, fuzzyPinyin, appearance
+        case keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
     }
 
     var isConfigured: Bool {
@@ -118,6 +120,7 @@ extension EnclaveSettings {
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
+        autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize
         polishAnimation = try c.decodeIfPresent(Bool.self, forKey: .polishAnimation) ?? polishAnimation
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
