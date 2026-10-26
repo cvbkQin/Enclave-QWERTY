@@ -62,6 +62,7 @@ struct TypingTestView: View {
     @State private var modelInstalled = GrammarModel.isActive
     @State private var history = TypingTestRecord.load()
     @State private var confirmClear = false
+    @State private var expanded: UUID?
     @FocusState private var focused: Bool
 
     private var target: [Character] { Array(article.text) }
@@ -104,7 +105,8 @@ struct TypingTestView: View {
                     }
                 progressRow
                 if finished { results }
-                if !history.isEmpty { historyView }
+                if history.count > 1 { historyChart }
+                if !history.isEmpty { historyList }
             }
             .padding(16)
         }
@@ -184,96 +186,129 @@ struct TypingTestView: View {
         }
     }
 
+    /// 这次结果（PB9）：大数字是速度，和上一轮比快了还是慢了；下面三格是准确率、一般延迟、键盘内存。
     private var results: some View {
         let elapsed = elapsedSeconds(now: finishedAt ?? Date())
-        return VStack(alignment: .leading, spacing: 0) {
-            Text(L("结果", "Results", "結果")).font(.headline).padding(.bottom, 10)
-            resultRow(L("速度", "Speed", "速さ"), L("\(speed(elapsed)) 字/分", "\(speed(elapsed)) chars/min", "\(speed(elapsed)) 字/分"))
-            resultRow(L("准确率", "Accuracy", "正確さ"), typedChars.isEmpty ? "–" : String(format: "%.0f%%", Double(correctCount) / Double(typedChars.count) * 100))
-            resultRow(L("整句模型", "Sentence model", "文章モデル"), modelInstalled ? L("已开", "On", "オン") : L("未开", "Off", "オフ"))
-            if let stats {
-                Divider().padding(.vertical, 8)
-                resultRow(L("按键到候选：一般", "Key to candidates: typical", "キー→候補：通常"), Self.ms(stats.medianTotal))
-                resultRow(L("较慢的 10%", "Slowest 10%", "遅い 10%"), Self.ms(stats.slowTotal))
-                resultRow(L("最慢", "Slowest", "最も遅い"), Self.ms(stats.slowestTotal))
-                if let memory = stats.memoryWithModel ?? stats.memory {
-                    resultRow(L("键盘内存 一般 / 最高", "Keyboard memory typical / peak", "メモリ 通常 / 最大"),
-                              String(format: "%.0f / %.0f MB", memory.median, memory.peak))
+        let current = speed(elapsed)
+        let previous = history.first { $0.date != startedAt }
+        let memory = stats?.memoryWithModel ?? stats?.memory
+        return DashCard {
+            DashCardHeader(icon: "keyboard", title: L("这次结果", "This run", "今回の結果"), color: DashColor.input,
+                           note: "《\(article.title)》· " + SettingsStore.load().keyboardLayout.shortTitle)
+            HStack(alignment: .firstTextBaseline) {
+                DashBigNumber(value: "\(current)", unit: L("字 / 分钟", "chars / min", "字 / 分"))
+                Spacer()
+                if let previous, previous.speed != current {
+                    let diff = current - previous.speed
+                    Text(diff > 0 ? L("比上次快 \(diff)", "\(diff) faster than last", "前回より \(diff) 速い")
+                                  : L("比上次慢 \(-diff)", "\(-diff) slower than last", "前回より \(-diff) 遅い"))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(diff > 0 ? DashColor.ok : Color.orange)
                 }
-                resultRow(L("内存警告", "Memory warnings", "メモリ警告"), "\(stats.memoryWarnings)")
-            } else {
+            }
+            HStack(alignment: .top) {
+                TypingSmallStat(value: typedChars.isEmpty ? "–" : String(format: "%.0f%%", Double(correctCount) / Double(typedChars.count) * 100),
+                                label: L("准确率", "Accuracy", "正確さ"))
+                TypingSmallStat(value: stats.map { Self.ms($0.medianTotal) } ?? "–", label: L("一般延迟", "Typical lag", "通常の遅延"))
+                TypingSmallStat(value: memory.map { String(format: "%.0f MB", $0.median) } ?? "–", label: L("键盘内存", "Keyboard memory", "キーボードメモリ"))
+            }
+            if stats == nil {
                 Text(L("键盘没有记下按键数据：要在系统设置里给 Enclave 键盘开「允许完全访问」。",
                        "The keyboard didn't record key data. Turn on Allow Full Access for Enclave in Settings.",
                        "キーボードの記録がありません。設定で Enclave の「フルアクセスを許可」をオンにしてください。"))
-                    .font(.footnote).foregroundStyle(.secondary).padding(.top, 8)
+                    .font(.footnote).foregroundStyle(.secondary)
             }
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
     }
 
-    /// 以前每一轮的结果，最新的在上面。
-    private var historyView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(L("历史记录", "History", "履歴")).font(.headline)
-                Spacer()
-                Button(L("清空", "Clear", "消去")) { confirmClear = true }.font(.subheadline)
-            }
-            .padding(.bottom, 6)
-            ForEach(Array(history.enumerated()), id: \.element.id) { index, record in
-                if index > 0 { Divider() }
-                historyRow(record).padding(.vertical, 8)
-            }
+    /// 历史曲线：最近 10 轮的速度，旧的在左。
+    private var historyChart: some View {
+        let recent = Array(history.prefix(10).reversed())
+        return DashCard {
+            DashCardHeader(icon: "keyboard", title: L("历史", "History", "履歴"), color: DashColor.input,
+                           note: L("最近 \(recent.count) 次 · 字/分钟", "Last \(recent.count) · chars/min", "直近 \(recent.count) 回 · 字/分"))
+            SpeedLine(values: recent.map { Double($0.speed) })
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+    }
+
+    /// 以前每一轮的结果，最新的在上面；点一行展开键盘记下的数据。
+    private var historyList: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            DashCard(padding: 0) {
+                VStack(spacing: 0) {
+                    ForEach(Array(history.enumerated()), id: \.element.id) { index, record in
+                        if index > 0 { Divider().padding(.leading, 16) }
+                        historyRow(record)
+                    }
+                }
+            }
+            Button(L("清空记录", "Clear history", "履歴を消去")) { confirmClear = true }
+                .font(.footnote.weight(.semibold))
+                .padding(.trailing, 4)
+        }
     }
 
     private func historyRow(_ record: TypingTestRecord) -> some View {
-        let model = record.model ? L("模型开", "Model on", "モデルオン") : L("模型关", "Model off", "モデルオフ")
-        var numbers = [L("\(record.speed) 字/分", "\(record.speed) chars/min", "\(record.speed) 字/分")]
-        if let accuracy = record.accuracy { numbers.append(String(format: "%.0f%%", accuracy * 100)) }
-        var keyboard: [String] = []
+        let open = expanded == record.id
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) { expanded = open ? nil : record.id }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text("《\(record.article)》").font(.body)
+                            if record.model { DashTag(text: L("整句", "Sentence", "文章"), color: DashColor.ai) }
+                        }
+                        Text(record.date.formatted(.dateTime.month().day().hour().minute()) + " · " + record.layout.shortTitle)
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("\(record.speed)").font(.system(size: 17, weight: .semibold, design: .rounded)).monospacedDigit()
+                        if let accuracy = record.accuracy {
+                            Text(L("准确 \(Int(accuracy * 100))%", "\(Int(accuracy * 100))% right", "正確 \(Int(accuracy * 100))%"))
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if open {
+                    Text(details(record).joined(separator: "\n"))
+                        .font(.footnote).foregroundStyle(.secondary).monospacedDigit()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 展开后看的：用时、键盘延迟、引擎、内存、校准。
+    private func details(_ record: TypingTestRecord) -> [String] {
+        var lines = [L("\(record.chars) 字 · 用时 \(Int(record.seconds)) 秒", "\(record.chars) chars · \(Int(record.seconds)) s", "\(record.chars) 字 · \(Int(record.seconds)) 秒")]
         if let median = record.medianTotal, let slow = record.slowTotal, let slowest = record.slowestTotal {
-            keyboard.append(L("按键 \(Self.ms(median)) / \(Self.ms(slow)) / 最慢 \(Self.ms(slowest))",
-                              "Keys \(Self.ms(median)) / \(Self.ms(slow)) / max \(Self.ms(slowest))",
-                              "キー \(Self.ms(median)) / \(Self.ms(slow)) / 最大 \(Self.ms(slowest))"))
+            lines.append(L("按键 一般 \(Self.ms(median)) · 较慢 10% \(Self.ms(slow)) · 最慢 \(Self.ms(slowest))",
+                           "Keys typical \(Self.ms(median)) · slow 10% \(Self.ms(slow)) · max \(Self.ms(slowest))",
+                           "キー 通常 \(Self.ms(median)) · 遅い10% \(Self.ms(slow)) · 最大 \(Self.ms(slowest))"))
         }
-        if let engine = record.medianEngine { keyboard.append(L("引擎 \(Self.ms(engine))", "Engine \(Self.ms(engine))", "エンジン \(Self.ms(engine))")) }
+        if let engine = record.medianEngine { lines.append(L("其中拼音引擎 \(Self.ms(engine))", "Pinyin engine \(Self.ms(engine))", "うちエンジン \(Self.ms(engine))")) }
         if let median = record.memoryMedian, let peak = record.memoryPeak {
-            keyboard.append(String(format: "%.0f / %.0f MB", median, peak))
-        }
-        if let warnings = record.memoryWarnings, warnings > 0 {
-            keyboard.append(L("内存警告 \(warnings)", "\(warnings) memory warnings", "メモリ警告 \(warnings)"))
-        }
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(record.date.formatted(date: .abbreviated, time: .shortened))
-                Spacer()
-                Text(([record.article, record.layout.shortTitle, model] + calibration(record)).joined(separator: " · "))
+            var memory = L("键盘内存 一般 / 最高 ", "Memory typical / peak ", "メモリ 通常 / 最大 ") + String(format: "%.0f / %.0f MB", median, peak)
+            if let warnings = record.memoryWarnings, warnings > 0 {
+                memory += L(" · 内存警告 \(warnings)", " · \(warnings) warnings", " · 警告 \(warnings)")
             }
-            .font(.caption).foregroundStyle(.secondary)
-            Text(numbers.joined(separator: " · ")).font(.subheadline.weight(.semibold)).monospacedDigit()
-            if !keyboard.isEmpty {
-                Text(keyboard.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).monospacedDigit()
-            }
+            lines.append(memory)
         }
+        lines.append(record.model ? L("整句模型开", "Sentence model on", "文章モデルオン") : L("整句模型关", "Sentence model off", "文章モデルオフ"))
+        lines += calibration(record)
+        return lines
     }
 
     private func calibration(_ record: TypingTestRecord) -> [String] {
         guard let keys = record.calibratedKeys else { return [] }
-        return [keys > 0 ? L("校准 \(keys) 键", "\(keys) keys tuned", "調整 \(keys) キー") : L("未校准", "Not tuned", "未調整")]
-    }
-
-    private func resultRow(_ title: String, _ value: String) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(value).fontWeight(.semibold).monospacedDigit()
-        }
-        .font(.subheadline)
-        .padding(.vertical, 4)
+        return [keys > 0 ? L("手指校准 \(keys) 个键", "\(keys) keys tuned", "調整 \(keys) キー") : L("未校准", "Not tuned", "未調整")]
     }
 
     private func choose(_ id: Int) {
@@ -330,5 +365,44 @@ struct TypingTestView: View {
 
     private static func ms(_ value: Double) -> String {
         String(format: "%.0f ms", value)
+    }
+}
+
+/// 速度折线：蓝线加圆点，上下各留 6pt；只有一个点时画一条灰线。
+private struct SpeedLine: View {
+    var values: [Double]
+
+    var body: some View {
+        GeometryReader { geo in
+            let points = Self.points(values, in: geo.size)
+            ZStack {
+                if points.count > 1 {
+                    Path { path in
+                        path.move(to: points[0])
+                        points.dropFirst().forEach { path.addLine(to: $0) }
+                    }
+                    .stroke(DashColor.input, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    ForEach(points.indices, id: \.self) { index in
+                        Circle().fill(DashColor.input).frame(width: 6, height: 6).position(points[index])
+                    }
+                } else {
+                    Capsule().fill(DashColor.empty).frame(height: 2)
+                }
+            }
+        }
+        .frame(height: 70)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(values.map { String(Int($0)) }.joined(separator: ", "))
+    }
+
+    private static func points(_ values: [Double], in size: CGSize) -> [CGPoint] {
+        guard values.count > 1 else { return [] }
+        let low = values.min() ?? 0, high = values.max() ?? 1
+        let span = max(high - low, 1)
+        let step = (size.width - 6) / CGFloat(values.count - 1)
+        return values.enumerated().map { index, value in
+            // 越快越靠上。
+            CGPoint(x: 3 + CGFloat(index) * step, y: 6 + (size.height - 12) * CGFloat(1 - (value - low) / span))
+        }
     }
 }
