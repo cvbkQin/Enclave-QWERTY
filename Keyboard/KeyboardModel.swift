@@ -25,6 +25,8 @@ final class KeyboardModel: ObservableObject {
         case fullAccess
         /// 选了「仅使用基础功能」或撤回了隐私政策同意（CP7）：AI 不发请求。
         case privacy
+        /// 还没填自己的 API Key（OB9）：引导去 App 首页跟着教程设置。
+        case noKey
         /// previous：上次同意的是另一个地址，确认卡上划掉显示。
         case consent(endpoint: String, previous: String?)
         /// 试用已结束，今天的免费次数用完了。
@@ -309,7 +311,7 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    /// 能不能现在发给模型；不能时弹出对应的提示卡，返回 false。接口还没配置时交给原来的流程提示。
+    /// 能不能现在发给模型；不能时弹出对应的提示卡，返回 false。
     func passGate(then action: @escaping () -> Void) -> Bool {
         if !hasFullAccess && !debugUnblocked {
             gate = .fullAccess
@@ -317,6 +319,10 @@ final class KeyboardModel: ObservableObject {
         }
         if !PrivacyConsent.isAgreed {
             gate = .privacy
+            return false
+        }
+        if !settings.isConfigured && !debugUnblocked {
+            gate = .noKey
             return false
         }
         if !debugUnblocked && !AIAccess.current.allowsAI {

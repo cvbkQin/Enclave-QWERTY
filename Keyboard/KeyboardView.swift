@@ -653,6 +653,7 @@ struct GateCard: View {
             switch gate {
             case .fullAccess: fullAccess
             case .privacy: privacy
+            case .noKey: noKey
             case .consent(let endpoint, let previous): consent(endpoint, previous: previous)
             case .quotaUsed: quotaUsed
             }
@@ -715,6 +716,36 @@ struct GateCard: View {
                 Text(L("打开「飞地输入法」App，在「设置 › 隐私」里点「阅读并同意」。拼音输入不受影响。",
                        "Open the Enclave app and tap Read and Agree in Settings › Privacy. Pinyin input still works.",
                        "Enclave アプリの「設定 › プライバシー」で「読んで同意する」をタップしてください。ピンイン入力はそのまま使えます。"))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Brand.cardBody)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { model.dismissGate() }
+    }
+
+    /// 还没填 API Key 时点 ✨ /「执行」（OB9）：不发请求，引导去 App 首页跟着教程设置。点卡片或开始打字就收起。
+    private var noKey: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "sparkle")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color(red: 1, green: 0xE9 / 255, blue: 0xA8 / 255))
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(LinearGradient(
+                    colors: [Color(red: 0x8A / 255, green: 0x7B / 255, blue: 1), Brand.purple],
+                    startPoint: .topLeading, endPoint: .bottomTrailing)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("AI 要先填你自己的 API Key", "Add your own API key to use AI", "AI を使うには自分の API キーが必要です"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(L("打开「飞地输入法」App，首页点「跟着教程设置」，大约 3 分钟。拼音输入不受影响。",
+                       "Open the Enclave app and tap Follow the Guide on Home. About 3 minutes. Pinyin input still works.",
+                       "Enclave アプリのホームで「ガイドで設定」をタップ。約 3 分です。ピンイン入力はそのまま使えます。"))
                     .font(.system(size: 12.5))
                     .foregroundStyle(Brand.cardBody)
                     .lineLimit(2)
