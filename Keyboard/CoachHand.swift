@@ -96,7 +96,9 @@ private struct CoachHandLayer: View {
 
     /// 飞：先放大到 1.12、转 -8°，沿往上拱的弧线过去，落下恢复。
     private func flying(progress raw: Double, from: CGRect, to: CGRect) -> some View {
-        let p: CGFloat = CGFloat(raw < 0.5 ? 2 * raw * raw : 1 - (2 - 2 * raw) * (2 - 2 * raw) / 2)
+        let r = CGFloat(raw)
+        let q: CGFloat = 2 - 2 * r
+        let p: CGFloat = r < 0.5 ? 2 * r * r : 1 - q * q / 2
         let start = CGPoint(x: from.midX, y: from.midY + 4)
         let end = CGPoint(x: to.midX, y: to.midY + 4)
         let control = CGPoint(x: (start.x + end.x) / 2, y: min(start.y, end.y) - 50)
