@@ -163,6 +163,12 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var trialReminder = false { didSet { heightMayChange?() } }
     var showsTrialReminder: Bool { trialReminder && gate == nil && !aiExpanded && !styleMenuOpen }
 
+    /// 场景实验室「一键应用」后的小手指引导（见 KeyboardModel+Coach）。
+    @Published var coach: Coach?
+    var coachTask: Task<Void, Never>?
+    /// 引导往下走了一步：10 秒没动的计时重新开始。
+    var coachTouched = false
+
     func dismissTrialReminder() {
         trialReminder = false
     }
@@ -184,6 +190,7 @@ final class KeyboardModel: ObservableObject {
         refreshHostState()
         selectEngine()
         refreshCommonWords()
+        if let mark = LabCoachMark.take() { startCoach(mark) }
     }
 
     /// 常用词交给拼音引擎：App 里加的和导入的，加上系统「文本替换」和通讯录人名（开了完全访问才读得到）。
@@ -621,6 +628,7 @@ final class KeyboardModel: ObservableObject {
     #endif
 
     func showVersion(offset: Int) {
+        endCoach()
         if target == .card { finishCardEdit() }
         guard var session else { return }
         let index = session.currentIndex + offset
@@ -711,6 +719,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 用当前版本替换输入框内容（有选中时只替换选中部分）。
     func replace() {
+        endCoach()
         guard let text = session?.current, let proxy else { return }
         let field = readField()
         if field.isSelection {
@@ -724,12 +733,14 @@ final class KeyboardModel: ObservableObject {
 
     /// 在光标处插入当前版本。
     func insert() {
+        endCoach()
         guard let text = session?.current, let proxy else { return }
         proxy.insertText(text)
         recordEdit(inserted: text, original: "", use: .inserted)
     }
 
     func undo() {
+        endCoach()
         guard let edit = undoStack.popLast(), let proxy else { return }
         swap(edit.inserted, for: edit.original, in: proxy)
         redoStack.append(edit)
@@ -738,6 +749,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     func redo() {
+        endCoach()
         guard let edit = redoStack.popLast(), let proxy else { return }
         swap(edit.original, for: edit.inserted, in: proxy)
         undoStack.append(edit)

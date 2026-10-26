@@ -59,6 +59,8 @@ struct KeyboardView: View {
         }
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        // 场景实验室「一键应用」后的小手指，画在键盘里面。
+        .coachHandOverlay(model)
         .clipped()
     }
 
@@ -85,7 +87,10 @@ struct KeyboardView: View {
 
     private var aiBar: some View {
         HStack(spacing: 6) {
-            PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) { model.setAIExpanded(!model.aiExpanded) }
+            PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) {
+                model.endCoach()
+                model.setAIExpanded(!model.aiExpanded)
+            }
             PolishButton(model: model)
             // 风格按钮优先完整显示，地方不够时失败提示换成短的。
             StyleChip(model: model).layoutPriority(1)
@@ -147,6 +152,7 @@ struct KeyboardView: View {
                         systemImage: replaced ? "checkmark" : "arrow.left.arrow.right",
                         kind: replaced ? .done : .primary) { model.replace() }
                 .disabled(!model.hasResult || replaced)
+                .coachTarget(.replace, active: model.coachDisplay?.target == .replace)
             PanelButton(title: inserted ? L("已插入", "Inserted", "挿入済み") : L("插入", "Insert", "挿入"),
                         systemImage: inserted ? "checkmark" : "text.insert",
                         kind: inserted ? .done : .outlined) { model.insert() }
@@ -263,6 +269,7 @@ struct PolishButton: View {
         }
         .buttonStyle(KeyPressStyle())
         .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行当前提示词", "Run prompt", "プロンプトを実行"))
+        .coachTarget(.sparkle, active: model.coachDisplay?.target == .sparkle)
         .onChange(of: model.finished) { finished in
             if finished?.origin == .polish { doneAt = finished?.at }
         }
@@ -619,6 +626,7 @@ struct MenuPolishButton: View {
         }
         .buttonStyle(KeyPressStyle())
         .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行", "Run", "実行"))
+        .coachTarget(.run, active: model.coachDisplay?.target == .run)
         .onChange(of: model.finished) { finished in
             if finished?.origin == .rerun { doneAt = finished?.at }
         }
@@ -1297,6 +1305,7 @@ struct ResultCard: View {
                 .padding(.vertical, 5)
             if let session = model.session, session.versions.count > 1, !model.isRunning {
                 pager(index: session.currentIndex, count: session.versions.count)
+                    .coachTarget(.versions, active: model.coachDisplay?.target == .versions)
                     .contentShape(Rectangle())
                     // 优先于 ▲▼ 按钮：手指在按钮里滑一下松开，按钮也会算一次点击，就翻了两页。
                     .highPriorityGesture(swipeToTurn)

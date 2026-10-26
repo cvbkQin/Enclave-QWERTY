@@ -203,6 +203,8 @@ extension KeyboardModel {
     func keyPressed(_ key: KeySpec, feedback: Bool = true) {
         // 开始打字就把提示卡收起来。
         if gate != nil { dismissGate() }
+        // 开始打字，小手指引导就结束。
+        endCoach()
         pressedKeys.insert(key.id)
         if feedback { keyFeedback(for: key.kind) }
     }
@@ -556,6 +558,7 @@ extension KeyboardModel {
     /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
         guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
+        coachTapped(.sparkle)
         if target == .card { finishCardEdit() }
         guard !aiExpanded else {
             start(from: .polish) { execute() }
@@ -583,6 +586,7 @@ extension KeyboardModel {
 
     /// 点「正式▾」：打开或关上风格浮层（只有这里能收起）。打开时光标进要求框，回车键变「执行」；关上回到原输入框。
     func toggleStyleMenu() {
+        endCoach()
         if target == .card { finishCardEdit() }
         finishComposition()
         styleMenuOpen.toggle()
@@ -593,6 +597,7 @@ extension KeyboardModel {
     /// 面板收起时是快速模式，润完直接替换输入框（AI 栏上流光）；展开时进结果卡片，等替换或插入。
     func menuPolishTapped() {
         guard passGate(then: { [weak self] in self?.menuPolishTapped() }) else { return }
+        coachTapped(.run)
         if target == .card { finishCardEdit() }
         finishComposition()
         guard !aiExpanded else {
@@ -610,6 +615,7 @@ extension KeyboardModel {
 
     /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
     func toggleInstructionEditing() {
+        endCoach()
         // 同一时间只有一处接收打字：正在改卡片就先保存，焦点给要求框。
         if target == .card { finishCardEdit() }
         finishComposition()

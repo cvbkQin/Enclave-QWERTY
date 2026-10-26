@@ -407,6 +407,9 @@ struct SceneView: View {
             store.settings.selectedStyleID = style.id
         }
         SharedStorage.defaults.set(preset.instruction, forKey: SettingsStore.instructionKey)
+        // 键盘弹出来时展开面板，在要点的按钮上放小手指（不自动执行）。
+        let flow: LabCoachMark.Flow = scene.id == 9 ? .proofread : (preset.instruction.isEmpty ? .sparkle : .run)
+        LabCoachMark.write(scene: scene.id, flow: flow)
         applied = true
         // 键盘只在出现时读设置：收起再弹出来。
         focused = false
