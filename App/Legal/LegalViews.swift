@@ -170,7 +170,7 @@ struct PrivacyPolicyView: View {
         switch language {
         case .en: return "Enclave Privacy Policy"
         case .ja: return "Enclave プライバシーポリシー"
-        case .zh, .system: return "Enclave 隐私政策"
+        case .zh, .system: return "飞地输入法隐私政策"
         }
     }
 
