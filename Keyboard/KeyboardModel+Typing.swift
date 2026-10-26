@@ -887,3 +887,16 @@ extension KeyboardModel {
         if word.count >= 2 { EnglishPredictor.learn(String(word)) }
     }
 }
+
+private extension StringProtocol {
+    /// 末尾连续满足条件的那一段（标准库只有 prefix(while:)）。
+    func suffix(while predicate: (Character) -> Bool) -> SubSequence {
+        var start = endIndex
+        while start > startIndex {
+            let previous = index(before: start)
+            guard predicate(self[previous]) else { break }
+            start = previous
+        }
+        return self[start...]
+    }
+}
