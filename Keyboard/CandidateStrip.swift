@@ -211,9 +211,10 @@ struct CandidateStrip: UIViewRepresentable {
     }
 
     func updateUIView(_ view: CandidateStripView, context: Context) {
-        // 没在打拼音时显示联想：都用普通颜色，不标常用词。
+        // 没在打拼音时显示联想：不标常用词；开了「空格连续联想」时第一个也变色，和打字时一样提示按空格上屏的是它。
         guard model.isComposing else {
-            view.update(words: model.predictions, firstColor: .label, firstIsCommon: false)
+            view.update(words: model.predictions, firstColor: Predictor.spaceChains ? UIColor(Brand.purpleText) : .label,
+                        firstIsCommon: false)
             return
         }
         let words = Array(model.candidates.prefix(60))
