@@ -101,10 +101,17 @@ final class KeyTouchView: UIView {
             case .globe:
                 model.controller?.handleInputModeList(from: self, with: event ?? UIEvent())
                 state.fired = true
-            case .shift, .layer:
+            case .shift:
                 // 系统键盘按下就切换，方便接着滑到别的键上。
                 model.perform(key.kind)
                 state.fired = true
+            case .layer:
+                model.perform(key.kind)
+                state.fired = true
+                // 切页后新页面上同名的键不在原处（九宫格从数字符号页按「拼音」回来，左上角的「123」也叫 layer）：
+                // 手指底下已经不是它了，不再画按下，免得那个键亮一下。
+                let next = KeyLayout.cachedBuild(model.layoutState, size: bounds.size)
+                if next.keys.first(where: { $0.id == key.id })?.frame != key.frame { model.keyReleased(key.id) }
             case .delete:
                 TouchCalibration.undo()
                 model.perform(.delete)

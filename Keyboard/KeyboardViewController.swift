@@ -80,6 +80,8 @@ final class KeyboardViewController: UIInputViewController {
         model.applyInputLanguage()
         model.applyDebugState()
         TouchCalibration.reload()
+        // 震动发生器提前建好、预热：不然第一次按键时才创建，第一个键会顿一下。
+        if model.settings.keyHaptics && model.hasFullAccess { model.haptic.prepare() }
         Predictor.prepare()
         if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
     }
