@@ -165,6 +165,18 @@ extension KeyboardModel {
     }
 
     func perform(_ kind: KeyKind) {
+        if showsPredictions {
+            switch kind {
+            // 有联想时：删除只收起联想，不删字；开了「空格连续联想」时空格上屏第一个联想词。
+            case .delete:
+                dismissPredictions()
+                return
+            case .space where Predictor.spaceChains:
+                selectPrediction(0)
+                return
+            default: break
+            }
+        }
         // 按了别的键：联想收起（打字母时候选栏换成拼音候选）。
         dismissPredictions()
         switch kind {

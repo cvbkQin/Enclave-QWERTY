@@ -10,6 +10,13 @@ enum Predictor {
     private static let queue = DispatchQueue(label: "enclave.predictor", qos: .utility)
     private static let lock = NSLock()
 
+    /// 有联想时按空格上屏第一个联想词（一直按空格就一直往下接）；关掉时空格收起联想、打一个空格。
+    static var spaceChains: Bool {
+        get { SharedStorage.defaults.object(forKey: spaceChainKey) as? Bool ?? true }
+        set { SharedStorage.defaults.set(newValue, forKey: spaceChainKey) }
+    }
+    private static let spaceChainKey = "prediction.spaceChain"
+
     static var isEnabled: Bool {
         get { SharedStorage.defaults.object(forKey: enabledKey) as? Bool ?? true }
         set { SharedStorage.defaults.set(newValue, forKey: enabledKey) }
