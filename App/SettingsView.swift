@@ -451,23 +451,29 @@ struct KeyboardSettingsView: View {
 
     var body: some View {
         Form {
+            // B 卡片放在 Section 的 header 里，分组的大圆角裁不到，四角完整（见 dashFormCard）。
             if KeyboardStatus.fullAccess == false {
-                NotSyncedBanner()
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+                Section {
+                } header: {
+                    NotSyncedBanner().dashFormCard()
+                }
             }
             Section {
-                HStack(spacing: 12) {
-                    ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
-                        LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout) {
-                            store.settings.keyboardLayout = layout
+            } header: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("中文布局", "Chinese layout", "中国語の配列"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 16)
+                    HStack(spacing: 12) {
+                        ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
+                            LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout) {
+                                store.settings.keyboardLayout = layout
+                            }
                         }
                     }
                 }
-                // 卡片放在普通行里，离分组的大圆角远一点，描边不会被裁。
-                .padding(.vertical, 6)
-            } header: {
-                Text(L("中文布局", "Chinese layout", "中国語の配列"))
+                .dashFormCard()
             } footer: {
                 Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
             }
@@ -528,9 +534,8 @@ private struct LayoutCard: View {
                 }
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(selected ? AppColor.softFill.opacity(0.5) : Color(.systemGroupedBackground)))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(selected ? AppColor.purple : Color.clear, lineWidth: 2))
         }
         .buttonStyle(.plain)

@@ -9,8 +9,10 @@ struct TouchCalibrationSection: View {
     @State private var confirmReset = false
 
     var body: some View {
+        // 整张卡放在 Section 的 header 里，四角是卡片自己的 16 圆角，不被分组裁掉。
         Section {
-            VStack(alignment: .leading, spacing: 10) {
+        } header: {
+            DashCard {
                 DashCardHeader(icon: "keyboard", title: L("按键判定", "Key detection", "キーの判定"), color: DashColor.input,
                                note: L("只记落点，不记内容", "Tap spots only, never text", "位置だけ、内容は記録しない"))
                 DashBigNumber(value: summary.samples.formatted(),
@@ -20,13 +22,15 @@ struct TouchCalibrationSection: View {
                        "Darker means more learned. Taps you delete don't count, and nothing leaves this iPhone.",
                        "色が濃いほどよく学習しています。削除した入力は数えず、データは端末の外に出ません。"))
                     .font(.footnote).foregroundStyle(.secondary)
+                Divider().padding(.vertical, 2)
+                Toggle(L("按手指习惯校准", "Learn how I tap", "タップの癖に合わせる"), isOn: Binding(
+                    get: { enabled },
+                    set: { enabled = $0; TouchCalibration.isEnabled = $0 }))
+                Button(L("重置校准", "Reset", "リセット"), role: .destructive) { confirmReset = true }
+                    .foregroundStyle(summary.samples == 0 ? Color.secondary : Color.red)
+                    .disabled(summary.samples == 0)
             }
-            .padding(.vertical, 6)
-            Toggle(L("按手指习惯校准", "Learn how I tap", "タップの癖に合わせる"), isOn: Binding(
-                get: { enabled },
-                set: { enabled = $0; TouchCalibration.isEnabled = $0 }))
-            Button(L("重置校准", "Reset", "リセット"), role: .destructive) { confirmReset = true }
-                .disabled(summary.samples == 0)
+            .dashFormCard()
         }
         .onAppear(perform: refresh)
         .confirmationDialog(L("重置手指习惯？", "Reset what was learned?", "学習内容をリセットしますか？"), isPresented: $confirmReset, titleVisibility: .visible) {
