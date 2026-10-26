@@ -39,7 +39,14 @@ final class UnlockStore: ObservableObject {
     }
 
     /// 价格用 StoreKit 给的本地化价格；还没拿到时显示美元档位。
-    var displayPrice: String { product?.displayPrice ?? "US$2.99" }
+    /// StoreKit 给的本地价格（中国区 ¥18）；商品还没加载出来时为 nil，按钮只写「解锁」，不写死美元价。
+    var displayPrice: String? { product?.displayPrice }
+
+    /// 「¥18 解锁」，没拿到价格时只写「解锁」。
+    var unlockTitle: String {
+        guard let price = displayPrice else { return L("解锁", "Unlock", "購入") }
+        return L("\(price) 解锁", "Unlock \(price)", "\(price) で購入")
+    }
 
     /// App 启动和回到前台时调用：读首次下载日、买过没有，更新键盘能看到的记录。
     func refresh() async {

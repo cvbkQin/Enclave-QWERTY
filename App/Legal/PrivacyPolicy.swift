@@ -270,4 +270,6 @@ enum LegalInfo {
     /// 中文政策（大陆备案版）里写中文姓名。
     static let developerZh = "秦耕耘"
     static let email = "cvbk.qin@gmail.com"
+    /// ICP 备案号，例如「沪ICP备XXXXXXXX号-1A」。拿到之前留空，关于页那一行不显示。
+    static let icpNumber = ""
 }

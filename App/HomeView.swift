@@ -73,7 +73,7 @@ private struct TrialBanner: View {
                 }
                 Spacer(minLength: 4)
                 Button { router.openSettings(.unlock) } label: {
-                    Text(L("\(unlock.displayPrice) 解锁", "Unlock \(unlock.displayPrice)", "\(unlock.displayPrice)で購入"))
+                    Text(unlock.unlockTitle)
                         .font(.system(size: 13.5, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)

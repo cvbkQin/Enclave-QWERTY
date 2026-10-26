@@ -35,6 +35,11 @@ enum DailyStats {
         pending = [:]
     }
 
+    static func clear() {
+        pending = [:]
+        SharedStorage.defaults.removeObject(forKey: key)
+    }
+
     /// App 里读：最近 days 天这个计数的每天数值（没有记录的天为 0），最早的在前。
     static func series(_ counter: String, days: Int = 7) -> [(day: String, value: Int)] {
         let all = (SharedStorage.defaults.dictionary(forKey: key) as? [String: [String: Int]]) ?? [:]

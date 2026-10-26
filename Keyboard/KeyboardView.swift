@@ -19,7 +19,7 @@ struct KeyboardView: View {
             } else if model.aiExpanded {
                 VStack(spacing: KeyboardMetrics.panelSpacing) {
                     ResultCard(model: model)
-                        .frame(height: model.cardTall ? KeyboardMetrics.expandedCardHeight : KeyboardMetrics.cardHeight)
+                        .frame(height: KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel))
                     actionRow
                         .frame(height: KeyboardMetrics.actionRow)
                 }
@@ -93,7 +93,14 @@ struct KeyboardView: View {
             }
             PolishButton(model: model)
             // 风格按钮优先完整显示，地方不够时失败提示换成短的。
-            StyleChip(model: model).layoutPriority(1)
+            // 快速模式替换成功后 3 秒，这个位置换成「AI 生成 · 已替换」（CP9），点它展开看结果。
+            if model.quickStatus == .done, !model.aiExpanded {
+                ReplacedPill { model.setAIExpanded(true) }
+                    .layoutPriority(1)
+                    .transition(.opacity)
+            } else {
+                StyleChip(model: model).layoutPriority(1)
+            }
             if model.quickStatus == .failed, !model.aiExpanded {
                 QuickRetryLabel(model: model)
             }
@@ -645,6 +652,7 @@ struct GateCard: View {
         VStack(alignment: .leading, spacing: 8) {
             switch gate {
             case .fullAccess: fullAccess
+            case .privacy: privacy
             case .consent(let endpoint, let previous): consent(endpoint, previous: previous)
             case .quotaUsed: quotaUsed
             }
@@ -691,6 +699,34 @@ struct GateCard: View {
         }
     }
 
+    /// 仅基础功能时点 ✨ /「执行」（CP7）：不发请求，说明去 App 里同意。点卡片或开始打字就收起。
+    private var privacy: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "lock")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Brand.deepPurple)
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.returnSoftFill))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("用 AI 之前，先同意隐私政策", "Agree to the Privacy Policy to use AI", "AI を使う前にプライバシーポリシーに同意してください"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(L("打开「飞地输入法」App，在「设置 › 隐私」里点「阅读并同意」。拼音输入不受影响。",
+                       "Open the Enclave app and tap Read and Agree in Settings › Privacy. Pinyin input still works.",
+                       "Enclave アプリの「設定 › プライバシー」で「読んで同意する」をタップしてください。ピンイン入力はそのまま使えます。"))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Brand.cardBody)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { model.dismissGate() }
+    }
+
     /// 试用结束后今天的免费次数用完（K2）：打字照常，明天 0 点恢复，或去 App 里买断。
     @ViewBuilder
     private var quotaUsed: some View {
@@ -716,7 +752,7 @@ struct GateCard: View {
                 + Text(" › ").foregroundColor(Brand.pathSeparator)
                 + Text(L("设置", "Settings", "設定")).foregroundColor(Brand.cardBody)
                 + Text(" › ").foregroundColor(Brand.pathSeparator)
-                + Text("Enclave AI").fontWeight(.semibold).foregroundColor(Brand.deepPurple))
+                + Text("AI").fontWeight(.semibold).foregroundColor(Brand.deepPurple))
                 .font(.system(size: 13))
         }
         .padding(.vertical, 9)
@@ -1287,9 +1323,15 @@ struct ResultCard: View {
 
     private func resultView(faded: Bool) -> some View {
         HStack(alignment: .top, spacing: 2) {
+            VStack(alignment: .leading, spacing: 0) {
+            // 左上角「AI 生成」（CP8），只在界面上标，不往正文里插任何标记。
+            AIGeneratedTag()
+                .padding(.leading, 10)
+                .padding(.top, 8)
             resultText(faded: faded)
                 .padding(.leading, 10)
-                .padding(.vertical, 8)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
                 .contentShape(Rectangle())
                 // 不展开时上下滑翻版本（展开时文字区要留给滚动）；长按复制。
                 // 滑动放在主手势、长按放在同时识别，onLongPressGesture 会把拖动吞掉。
@@ -1299,9 +1341,10 @@ struct ResultCard: View {
                 .simultaneousGesture(SpatialTapGesture().onEnded { value in
                     guard model.hasResult, let text = model.session?.current else { return }
                     // 减掉文字区的内边距；展开卡片滚动过时按未滚动估算，进入后可以再点一次调整。
-                    let point = CGPoint(x: value.location.x - 10, y: value.location.y - 8)
+                    let point = CGPoint(x: value.location.x - 10, y: value.location.y - 4)
                     model.beginCardEdit(caret: CardTextHit.index(at: point, in: text, width: textWidth))
                 })
+            }
             iconColumn(faded: faded)
                 .padding(.vertical, 5)
             if let session = model.session, session.versions.count > 1, !model.isRunning {
@@ -1660,3 +1703,41 @@ extension View {
     }
 }
 
+
+/// 结果卡片左上角的「AI 生成」标签（CP8）：高 18、圆角 5，灰底灰字，前面一颗四角星。
+struct AIGeneratedTag: View {
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "sparkle").font(.system(size: 9, weight: .semibold))
+            Text(L("AI 生成", "AI-generated", "AI 生成")).font(.system(size: 10.5, weight: .semibold))
+        }
+        .foregroundStyle(Brand.aiTagText)
+        .padding(.horizontal, 6)
+        .frame(height: 18)
+        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Brand.aiTagFill))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// 快速模式替换后 AI 栏上的浅紫胶囊（CP9）：高 28、圆角 14，紫色四角星 +「AI 生成 · 已替换」。
+struct ReplacedPill: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "sparkle").font(.system(size: 11, weight: .semibold))
+                Text(L("AI 生成 · 已替换", "AI-generated · Replaced", "AI 生成・置き換え済み"))
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(Brand.replacedPillText)
+            .padding(.horizontal, 11)
+            .frame(height: 28)
+            .background(Capsule().fill(Brand.replacedPillFill))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(L("展开看结果", "Shows the result", "結果を表示"))
+    }
+}

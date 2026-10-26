@@ -36,6 +36,12 @@ enum KeyboardMetrics {
     /// 结果卡片：默认两行，展开到五行，再多就在卡片里滚动。
     static let cardHeight: CGFloat = 60
     static let expandedCardHeight: CGFloat = 120
+    /// 「AI 生成」标签（CP8）占的高度。
+    static let aiLabelHeight: CGFloat = 22
+
+    static func cardHeight(tall: Bool, aiLabel: Bool) -> CGFloat {
+        (tall ? expandedCardHeight : cardHeight) + (aiLabel ? aiLabelHeight : 0)
+    }
     static let actionRow: CGFloat = 34
     /// 「正式▾」浮层：风格行 + 要求行，底下一个小尖角指向按钮。
     static let menuHeight: CGFloat = 94
@@ -58,6 +64,7 @@ enum KeyboardMetrics {
     static func gateHeight(_ gate: KeyboardModel.AIGate) -> CGFloat {
         switch gate {
         case .fullAccess: return 188
+        case .privacy: return 76
         case .consent(_, let previous): return previous == nil ? 178 : 196
         case .quotaUsed: return 196
         }
@@ -66,12 +73,12 @@ enum KeyboardMetrics {
     /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加一块。
     /// 提示卡出现时只留它一块，不和结果卡片、风格菜单叠在一起。
     static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool, gate: KeyboardModel.AIGate? = nil,
-                       reminder: Bool = false, requestLines: Int = 1) -> CGFloat {
+                       reminder: Bool = false, requestLines: Int = 1, aiLabel: Bool = false) -> CGFloat {
         var height = topRow + keysHeight
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
-            height += panelTop + (cardExpanded ? expandedCardHeight : cardHeight) + panelSpacing + actionRow
+            height += panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel) + panelSpacing + actionRow
         }
         if menuOpen {
             height += menuHeight(requestLines: requestLines) + panelSpacing + (expanded ? 0 : panelTop)
@@ -170,6 +177,20 @@ enum Brand {
     static let chipDividerOn = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1)
         : UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1) })
+    /// 「AI 生成」标签（CP8）：底 #F2F2F7 / 深色 #3A3A3C，字 #6B6B73 / 深色 #AEAEB2。
+    static let aiTagFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+        : UIColor(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255, alpha: 1) })
+    static let aiTagText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1)
+        : UIColor(red: 0x6B / 255, green: 0x6B / 255, blue: 0x73 / 255, alpha: 1) })
+    /// 快速模式替换后的「AI 生成 · 已替换」胶囊（CP9）：底 #ECEAFD、字 #4A3BD6；深色用紫 28% 底、#B4A9FF 字。
+    static let replacedPillFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x7C / 255, green: 0x6C / 255, blue: 0xF6 / 255, alpha: 0.28)
+        : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
+    static let replacedPillText = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)
+        : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
     /// 收起、有新结果时展开键的图标：#4A3BD6，深色键上看不清，深色用 #B4A9FF。
     static let newResultIcon = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)

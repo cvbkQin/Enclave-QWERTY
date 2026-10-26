@@ -3,84 +3,101 @@ import UIKit
 
 // MARK: - 设置 › 隐私（P06）
 
-/// 打字不联网的说明，已同意的接口和撤回，本机记录的清除，权限状态，最后进隐私政策。
+/// 隐私政策（离线全文）、同意情况和撤回 / 阅读并同意（CP4、CP5），已同意的接口地址，本机记录的清除。
 struct PrivacyView: View {
+    @EnvironmentObject private var router: AppRouter
     @State private var consent = ConsentStore.consented
     @State private var confirm: ClearTarget?
-    @State private var cleared: ClearTarget?
+    @State private var cleared: Set<ClearTarget> = []
+    @State private var confirmsRevoke = false
 
     private enum ClearTarget: Identifiable {
-        case history, learning
+        case history, learning, stats
         var id: Self { self }
     }
 
     var body: some View {
         List {
             Section {
-                HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(.green)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L("打字不联网", "Typing stays offline", "入力は通信しません")).font(.headline)
-                        Text(L("拼音和候选都在手机上算。只有你点「润色」或「再润」时，才把文字发给你自己配置的接口，飞地输入法没有自己的服务器。",
-                               "Pinyin and candidates are worked out on your iPhone. Text is sent only when you tap Polish or Rewrite, straight to the API you set up. Enclave has no servers.",
-                               "ピンインと候補は iPhone 上で処理します。「整える」か「別の案」をタップしたときだけ、自分で設定した API に文章を送ります。Enclave はサーバーを持ちません。"))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                NavigationLink(value: AppRouter.SettingsPage.privacyPolicy) {
+                    Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー"))
                 }
-                .padding(.vertical, 4)
+            } footer: {
+                Text(L("完整文本放在 App 里，不联网也能看。", "The full text is in the app, so you can read it offline.", "全文はアプリ内にあり、オフラインでも読めます。"))
             }
 
-            Section(L("AI 发送", "AI sending", "AI の送信")) {
-                if let consent {
+            Section(L("隐私政策同意情况", "Privacy Policy consent", "プライバシーポリシーへの同意")) {
+                HStack {
+                    Text(L("状态", "Status", "状態"))
+                    Spacer()
+                    Text(router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意 · 仅基础功能", "Not agreed · Basic only", "未同意・基本機能のみ"))
+                        .foregroundStyle(.secondary)
+                }
+                if router.privacyAgreed {
+                    HStack {
+                        Text(L("同意的版本", "Version", "同意した版"))
+                        Spacer()
+                        Text(agreedVersionText).foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if router.privacyAgreed {
+                Section {
+                    Button(L("撤回同意", "Withdraw Consent", "同意を撤回"), role: .destructive) { confirmsRevoke = true }
+                        .foregroundStyle(Color(hex: 0xFF3B30))
+                } footer: {
+                    Text(L("撤回后只能用基础拼音输入，AI 功能关闭；设置、常用词和接口都留着，重新同意就能接着用。",
+                           "After withdrawing, only basic pinyin input works and AI is off. Your settings, words and API stay, so you can pick up again by agreeing.",
+                           "撤回すると基本のピンイン入力だけになり、AI 機能はオフになります。設定・単語・API はそのまま残り、再び同意すれば続けて使えます。"))
+                }
+            } else {
+                Section {
+                    Button { router.showsPrivacyWelcome = true } label: {
+                        Text(L("阅读并同意", "Read and Agree", "読んで同意する")).fontWeight(.semibold).foregroundStyle(AppColor.purple)
+                    }
+                } footer: {
+                    Text(L("同意后可以使用 AI 润色。", "Agree to use AI features.", "同意すると AI 機能が使えます。"))
+                }
+            }
+
+            // 按接口地址的发送确认（键盘里首次发送前那张卡），隐私政策写了可以在这里撤回。
+            if let consent {
+                Section(L("AI 发送", "AI sending", "AI の送信")) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("已同意发送到", "Allowed to send to", "送信を許可した API"))
                         Text("\(consent.endpoint) · \(Loc.fullDate(consent.date))")
                             .font(.footnote.monospaced())
                             .foregroundStyle(.secondary)
                     }
-                    Button(L("撤回同意", "Withdraw consent", "同意を撤回"), role: .destructive) {
+                    Button(L("撤回这个地址", "Withdraw for this address", "このアドレスへの許可を撤回"), role: .destructive) {
                         ConsentStore.revoke()
                         self.consent = nil
                     }
                     .foregroundStyle(Color(hex: 0xFF3B30))
-                } else {
-                    Text(L("还没有同意过", "Not allowed yet", "まだ許可していません")).foregroundStyle(.secondary)
                 }
             }
 
             Section {
-                clearRow(L("润色历史", "Polish history", "整えた履歴"), target: .history)
-                clearRow(L("拼音学习记录", "Pinyin learning", "ピンインの学習データ"), target: .learning)
+                clearRow(L("清除使用统计", "Clear Usage Stats", "利用統計を消去"), target: .stats)
+                clearRow(L("清除 AI 历史", "Clear AI History", "AI の履歴を消去"), target: .history)
+                clearRow(L("清除拼音学习记录", "Clear Pinyin Learning", "ピンインの学習データを消去"), target: .learning)
             } header: {
-                Text(L("保存在这台手机上", "Stored on this iPhone", "この iPhone に保存"))
+                Text(L("本地数据", "Data on this iPhone", "この iPhone のデータ"))
             } footer: {
-                Text(L("API Key 只存在本机钥匙串里。", "Your API key stays in this iPhone's keychain.", "API キーはこの iPhone のキーチェーンにだけ保存されます。"))
-            }
-
-            Section(L("权限", "Permissions", "権限")) {
-                NavigationLink(value: AppRouter.SettingsPage.guide) {
-                    HStack {
-                        Text(L("允许完全访问", "Allow Full Access", "フルアクセスを許可"))
-                        Spacer()
-                        Text(KeyboardStatus.fullAccess == true ? L("已开启", "On", "オン") : L("未开启", "Off", "オフ"))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            Section {
-                NavigationLink(value: AppRouter.SettingsPage.privacyPolicy) {
-                    Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー"))
-                }
+                Text(L("统计只存在这台手机上，留 30 天，不上传。删除 App 会清除全部数据。",
+                       "Stats stay on this iPhone for 30 days and are never uploaded. Deleting the app removes all data.",
+                       "統計はこの iPhone にだけ 30 日間保存され、送信されません。アプリを削除するとすべて消えます。"))
             }
         }
         .navigationTitle(L("隐私", "Privacy", "プライバシー"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { consent = ConsentStore.consented }
+        .confirmationDialog(L("撤回同意？", "Withdraw consent?", "同意を撤回しますか？"), isPresented: $confirmsRevoke, titleVisibility: .visible) {
+            Button(L("撤回同意", "Withdraw Consent", "同意を撤回"), role: .destructive) { router.revokePrivacy() }
+        } message: {
+            Text(L("AI 功能会关闭，拼音输入不受影响。", "AI features turn off. Pinyin input keeps working.", "AI 機能はオフになります。ピンイン入力はそのまま使えます。"))
+        }
         .alert(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
             Button(L("清除", "Clear", "消去"), role: .destructive) {
@@ -88,34 +105,45 @@ struct PrivacyView: View {
                 switch target {
                 case .history: SessionStore.save(nil)
                 case .learning: RimeStore.clearLearning()
+                case .stats: UsageStats.clearStats()
                 }
-                cleared = target
+                cleared.insert(target)
             }
         }
+    }
+
+    /// 「第 1 版 · 10月26日」。
+    private var agreedVersionText: String {
+        let version = PrivacyConsent.agreedVersion
+        let date = PrivacyConsent.agreedDate.map { " · " + Loc.monthDay($0) } ?? ""
+        return L("第 \(version) 版", "Version \(version)", "第 \(version) 版") + date
     }
 
     private var confirmTitle: String {
         switch confirm {
-        case .history: return L("清除润色历史？", "Clear polish history?", "整えた履歴を消去しますか？")
+        case .history: return L("清除 AI 历史？", "Clear AI history?", "AI の履歴を消去しますか？")
         case .learning: return L("清除拼音学习记录？候选会回到默认的顺序。", "Clear pinyin learning? Candidates go back to the default order.",
                                  "ピンインの学習データを消去しますか？候補は初期の順番に戻ります。")
+        case .stats: return L("清除使用统计？首页的次数和图表会从零开始。", "Clear usage stats? The counts and charts on Home start over.",
+                              "利用統計を消去しますか？ホームの回数とグラフはゼロからになります。")
         case nil: return ""
         }
     }
 
+    /// 红字整行按钮（CP4），清除后换成灰色「已清除」。
     private func clearRow(_ title: String, target: ClearTarget) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            if cleared == target {
-                Label(L("已清除", "Cleared", "消去しました"), systemImage: "checkmark")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else {
-                Button(L("清除", "Clear", "消去")) { confirm = target }
-                    .foregroundStyle(Color(hex: 0xFF3B30))
+        Button { confirm = target } label: {
+            HStack {
+                Text(title).foregroundStyle(cleared.contains(target) ? Color.secondary : Color(hex: 0xFF3B30))
+                Spacer()
+                if cleared.contains(target) {
+                    Label(L("已清除", "Cleared", "消去しました"), systemImage: "checkmark")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
+        .disabled(cleared.contains(target))
     }
 }
 
@@ -228,17 +256,21 @@ struct AboutView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
 
+    static var build: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+    }
+
     var body: some View {
         List {
             Section {
                 VStack(spacing: 8) {
                     Image("AboutIcon")
                         .resizable()
-                        .frame(width: 76, height: 76)
-                        .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
-                    Text(L("飞地输入法", "Enclave", "Enclave")).font(.title3.bold())
-                    Text(L("版本 \(Self.version)", "Version \(Self.version)", "バージョン \(Self.version)"))
-                        .font(.footnote)
+                        .frame(width: 72, height: 72)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    Text(L("飞地输入法", "Enclave", "Enclave")).font(.system(size: 20, weight: .bold))
+                    Text(L("版本 \(Self.version)（\(Self.build)）", "Version \(Self.version) (\(Self.build))", "バージョン \(Self.version)（\(Self.build)）"))
+                        .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -278,6 +310,19 @@ struct AboutView: View {
                 Text(L("致谢", "Acknowledgements", "謝辞"))
             } footer: {
                 Text(OpenSource.wanxiangAttribution)
+            }
+            // ICP 备案号（CP6）：号码下来之前整组不显示。
+            if !LegalInfo.icpNumber.isEmpty {
+                Section {
+                    Link(destination: LegalLinks.icp) {
+                        HStack {
+                            Text(L("ICP备案号", "ICP filing", "ICP 届出番号")).foregroundStyle(.primary)
+                            Spacer()
+                            Text(LegalInfo.icpNumber).font(.system(size: 15)).foregroundStyle(AppColor.purple)
+                            Image(systemName: "arrow.up.right").font(.footnote).foregroundStyle(AppColor.purple)
+                        }
+                    }
+                }
             }
         }
         .navigationTitle(L("关于飞地输入法", "About Enclave", "Enclave について"))

@@ -282,6 +282,11 @@ struct LabView: View {
             DashCardHeader(icon: "hand.tap", title: L("两种用法", "Two ways to use it", "2 つの使い方"), color: DashColor.ai)
             modeRow([.quick], L("面板收起，点一下直接改好输入框", "Panel closed. One tap rewrites the text in place", "パネルを閉じたまま、ワンタップで入力欄を書き換え"))
             modeRow([.replace, .insert], L("展开看结果，满意再替换或插入", "Open the result, then replace or insert it", "結果を開いて確認し、置き換えか挿入"))
+            // AI 生成内容提示（大陆上架合规第 3 项）。
+            Text(L("润色结果由你配置的大模型生成，请自行核对。", "Results come from the model you set up. Please check them.", "結果は設定したモデルが生成します。内容をご確認ください。"))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

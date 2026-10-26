@@ -75,6 +75,12 @@ struct RootView: View {
 
     var body: some View {
         tabs
+            // 首次打开先看隐私说明（CP1），不能下滑关掉。
+            .fullScreenCover(isPresented: $router.showsPrivacyWelcome) {
+                PrivacyWelcomeView()
+                    .environmentObject(router)
+                    .environment(\.locale, Loc.locale)
+            }
             // 语言变了整棵视图按新语言重画；页面路径存在 router 里，不会回到首页。
             .id(router.language)
             .environment(\.locale, Loc.locale)
@@ -128,11 +134,44 @@ final class AppRouter: ObservableObject {
     }
     @Published var settingsPath: [SettingsPage] = []
     @Published var homePath = NavigationPath()
+    /// 隐私政策同意情况（CP1–CP5）：首次打开整页说明，设置 › 隐私里「阅读并同意」也打开它。
+    @Published var privacyAgreed = PrivacyConsent.isAgreed
+    @Published var showsPrivacyWelcome = PrivacyConsent.needsPrompt
+
+    func agreePrivacy() {
+        PrivacyConsent.agree()
+        privacyAgreed = true
+        showsPrivacyWelcome = false
+    }
+
+    func useBasicOnly() {
+        PrivacyConsent.useBasicOnly()
+        privacyAgreed = false
+        showsPrivacyWelcome = false
+    }
+
+    func revokePrivacy() {
+        PrivacyConsent.revoke()
+        privacyAgreed = false
+    }
 
     init() {
         // 截图用：-playground 打开第一个场景；-homePage commonWords / keyboardWords / lab / keyboard 打开首页的二级页；
         // -appPage model 打开设置里的某一页；-appTab styles 切标签。
         let args = ProcessInfo.processInfo.arguments
+        #if DEBUG
+        // 模拟器测试：-privacy agree / basic / reset 直接设好隐私政策同意情况。
+        if let i = args.firstIndex(of: "-privacy"), args.indices.contains(i + 1) {
+            switch args[i + 1] {
+            case "agree": PrivacyConsent.agree()
+            case "basic": PrivacyConsent.useBasicOnly()
+            case "reset": PrivacyConsent.resetForTesting()
+            default: break
+            }
+            privacyAgreed = PrivacyConsent.isAgreed
+            showsPrivacyWelcome = PrivacyConsent.needsPrompt
+        }
+        #endif
         if args.contains("-playground") { homePath = NavigationPath([HomePage.lab, HomePage.scene(0)]) }
         if let i = args.firstIndex(of: "-homePage"), args.indices.contains(i + 1) {
             let page: HomePage? = ["keyboard": .keyboard, "commonWords": .commonWords, "keyboardWords": .keyboardWords, "lab": .lab][args[i + 1]]

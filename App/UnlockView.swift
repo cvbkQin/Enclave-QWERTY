@@ -353,7 +353,9 @@ private struct PurchaseBar: View {
         VStack(spacing: 8) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(unlock.displayPrice).font(.system(size: 24, weight: .bold))
+                    if let price = unlock.displayPrice {
+                        Text(price).font(.system(size: 24, weight: .bold))
+                    }
                     Text(L("一次买断 · 没有订阅 · 不按次收费", "One-time · No subscription", "買い切り・サブスクなし"))
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
@@ -403,6 +405,7 @@ private struct PurchaseBar: View {
 /// 用户协议用 Apple 的标准 EULA；隐私政策在 App 里的「隐私」页。
 enum LegalLinks {
     static let terms = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+    static let icp = URL(string: "https://beian.miit.gov.cn/")!
 }
 
 extension UnlockStore.Message {

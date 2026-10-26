@@ -8,12 +8,13 @@ struct EnclaveAICard: View {
 
     var body: some View {
         DashCard {
-            DashCardHeader(icon: "sparkles", title: "Enclave AI", color: DashColor.ai, note: state)
+            // 备案口径是开发者不提供模型服务，卡片标题只写「AI」。
+            DashCardHeader(icon: "sparkles", title: "AI", color: DashColor.ai, note: state)
             HStack(alignment: .center) {
                 big
                 Spacer(minLength: 8)
                 if !unlocked {
-                    Text(L("\(unlock.displayPrice) 解锁", "Unlock \(unlock.displayPrice)", "\(unlock.displayPrice) で購入"))
+                    Text(unlock.unlockTitle)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 14)
@@ -114,7 +115,8 @@ struct SettingsView: View {
                     if !SharedStorage.isShared { SharedConfigBanner().listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)) }
                     }
                     NavigationLink(value: AppRouter.SettingsPage.privacy) {
-                        DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"))
+                        DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
+                                value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.about) {
                         DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.version)

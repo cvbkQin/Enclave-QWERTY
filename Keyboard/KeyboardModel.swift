@@ -4,9 +4,9 @@ import UIKit
 @MainActor
 final class KeyboardModel: ObservableObject {
     @Published private(set) var settings = EnclaveSettings()
-    @Published private(set) var session: EditSession?
+    @Published private(set) var session: EditSession? { didSet { aiLabelMayChange() } }
     @Published private(set) var streamingText = ""
-    @Published private(set) var isRunning = false
+    @Published private(set) var isRunning = false { didSet { aiLabelMayChange() } }
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
     /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
@@ -23,6 +23,8 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var gate: AIGate? { didSet { heightMayChange?() } }
     enum AIGate: Equatable {
         case fullAccess
+        /// 选了「仅使用基础功能」或撤回了隐私政策同意（CP7）：AI 不发请求。
+        case privacy
         /// previous：上次同意的是另一个地址，确认卡上划掉显示。
         case consent(endpoint: String, previous: String?)
         /// 试用已结束，今天的免费次数用完了。
@@ -30,7 +32,7 @@ final class KeyboardModel: ObservableObject {
     }
     /// 同意后接着做的那一步（润色或再润）。
     private var afterConsent: (() -> Void)?
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? { didSet { aiLabelMayChange() } }
     @Published var notice: String?
     @Published var hasFullAccess = true
     @Published var needsGlobeKey = true
@@ -150,12 +152,25 @@ final class KeyboardModel: ObservableObject {
     /// 在卡片里改结果时也用五行高度，改长了也看得全。
     var cardTall: Bool { cardExpanded || aiBlocked || target == .card }
 
+    /// 结果卡片左上角的「AI 生成」标签（CP8）：有结果或正在生成时显示，卡片跟着高 22。和 ResultCard 的 look 对应。
+    var showsAILabel: Bool {
+        (isRunning || session?.current != nil) && errorMessage == nil && !aiBlocked && target != .card
+    }
+    private var lastAILabel = false
+
+    private func aiLabelMayChange() {
+        let now = showsAILabel
+        guard now != lastAILabel else { return }
+        lastAILabel = now
+        heightMayChange?()
+    }
+
     /// 控制器在这里同步改高度，和 SwiftUI 的新布局落在同一帧。
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
         KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen, gate: gate,
-                               reminder: showsTrialReminder, requestLines: requestLines)
+                               reminder: showsTrialReminder, requestLines: requestLines, aiLabel: showsAILabel)
     }
 
     /// 提示词面板里要求框现在显示几行（1–3），由要求框按宽度折行后告诉这里，键盘跟着变高。
@@ -296,6 +311,10 @@ final class KeyboardModel: ObservableObject {
     func passGate(then action: @escaping () -> Void) -> Bool {
         if !hasFullAccess && !debugUnblocked {
             gate = .fullAccess
+            return false
+        }
+        if !PrivacyConsent.isAgreed {
+            gate = .privacy
             return false
         }
         if !debugUnblocked && !AIAccess.current.allowsAI {
@@ -537,7 +556,7 @@ final class KeyboardModel: ObservableObject {
         unseenResult = false
     }
 
-    /// 快速模式结束：替换成功显示「✓ 已润色」1.5 秒；出错留在 AI 栏上「润色失败，点重试」；
+    /// 快速模式结束：替换成功后提示词按钮的位置显示「AI 生成 · 已替换」3 秒（CP9）；出错留在 AI 栏上「润色失败，点重试」；
     /// 输入框中途被改过就不替换，展开面板给人看结果。
     func endQuickMode(_ outcome: QuickOutcome) {
         guard quickSource != nil else { return }
@@ -549,8 +568,9 @@ final class KeyboardModel: ObservableObject {
             quickStatus = .done
             if !aiExpanded { unseenResult = true }
             Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                if self?.quickStatus == .done { self?.quickStatus = nil }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard let self, self.quickStatus == .done else { return }
+                withAnimation(.easeOut(duration: 0.25)) { self.quickStatus = nil }
             }
         case .failed:
             endCoach()

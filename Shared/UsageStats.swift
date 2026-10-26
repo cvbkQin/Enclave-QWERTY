@@ -49,6 +49,12 @@ enum UsageStats {
 
     // MARK: 常用词上屏（键盘里）
 
+    /// 设置 › 隐私「清除使用统计」：按天计数和最近 10 次请求的耗时。
+    static func clearStats() {
+        DailyStats.clear()
+        SharedStorage.defaults.removeObject(forKey: recentKey)
+    }
+
     static func wordCommitted(_ text: String) {
         DailyStats.add("word.commit")
         DailyStats.add(wordKey(text))
