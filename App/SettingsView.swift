@@ -541,6 +541,15 @@ struct KeyboardSettingsView: View {
                 }
                 PredictionToggle()
             }
+            Section(L("英文", "English", "英語")) {
+                Toggle(isOn: $store.settings.autoCapitalize) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("句首自动大写", "Auto-capitalization", "文頭を自動で大文字に"))
+                        Text(L("句子开头的第一个字母自动大写", "Capitalizes the first letter of each sentence", "文の最初の文字を自動で大文字にします"))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
             TouchCalibrationSection(layout: store.settings.keyboardLayout)
             Section(L("按键反馈", "Key feedback", "キーのフィードバック")) {
                 Toggle(L("按键震动", "Haptics", "触覚"), isOn: $store.settings.keyHaptics)

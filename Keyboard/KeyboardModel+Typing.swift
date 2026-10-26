@@ -670,9 +670,9 @@ extension KeyboardModel {
         hasMarkedText = false
     }
 
-    /// 英文模式在句首自动大写，和系统一样。
+    /// 英文模式在句首自动大写，和系统一样；设置里关掉时不动 shift。
     func updateAutoShift() {
-        guard !chineseMode, target == .host, layer == .letters, shift != .locked else { return }
+        guard settings.autoCapitalize, !chineseMode, target == .host, layer == .letters, shift != .locked else { return }
         let before = proxy?.documentContextBeforeInput ?? ""
         let trimmed = before.trimmingCharacters(in: .whitespaces)
         let sentenceStart = trimmed.isEmpty || before.hasSuffix("\n")
