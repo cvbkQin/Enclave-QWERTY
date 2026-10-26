@@ -21,6 +21,23 @@ struct StylePreset: Codable, Identifiable, Hashable {
     }
 }
 
+/// 键盘主要用哪种语言：中文（默认）、英文为主（每次弹出先是英文，中英键照常切）、只用英文（没有中英键）。
+enum InputLanguage: String, Codable, CaseIterable, Identifiable {
+    case chinese
+    case englishFirst
+    case englishOnly
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .chinese: return L("中文", "Chinese", "中文")
+        case .englishFirst: return L("英文为主", "English first", "英語中心")
+        case .englishOnly: return L("只用英文", "English only", "英語のみ")
+        }
+    }
+}
+
 enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     /// 全键盘，26 个字母键。
     case qwerty
@@ -72,6 +89,7 @@ struct EnclaveSettings: Codable, Equatable {
     var selectedStyleID: UUID?
 
     // 键盘
+    var inputLanguage: InputLanguage = .chinese
     var keyboardLayout: KeyboardLayout = .qwerty
     /// 按键震动（需要打开完全访问）。
     var keyHaptics: Bool = true
@@ -87,7 +105,7 @@ struct EnclaveSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
-        case keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
+        case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
     }
 
     var isConfigured: Bool {
@@ -117,6 +135,7 @@ extension EnclaveSettings {
             styles = StylePreset.defaults
             selectedStyleID = nil
         }
+        inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound

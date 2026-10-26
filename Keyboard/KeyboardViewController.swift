@@ -67,6 +67,8 @@ final class KeyboardViewController: UIInputViewController {
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
         model.refreshHostState()
+        // 挪了光标，英文补全按新位置重算。
+        if !model.chineseMode { model.updateEnglishSuggestions() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -75,9 +77,11 @@ final class KeyboardViewController: UIInputViewController {
         // 每次弹出都按输入框类型重新选一次页（数字框直接出数字键盘）。
         model.hostKeyboardType = nil
         model.reload()
+        model.applyInputLanguage()
         model.applyDebugState()
         TouchCalibration.reload()
         Predictor.prepare()
+        if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -89,6 +93,7 @@ final class KeyboardViewController: UIInputViewController {
         TypingStats.flush()
         TouchCalibration.flush()
         model.dismissPredictions()
+        EnglishPredictor.flush()
         DailyStats.flush()
     }
 

@@ -55,6 +55,10 @@ final class KeyboardModel: ObservableObject {
     @Published var digitsMore = false
     @Published var shift: ShiftState = .off
     @Published var chineseMode = true
+    /// 英文补全：点补全词时先删掉光标前这么多个字母（正在打的半个词）；联想下一个词时为 0。
+    var predictionReplaces = 0
+    /// 上次弹出时用的「主要语言」，用来判断设置是不是刚改过。
+    var appliedLanguage: InputLanguage?
     @Published var aiExpanded = false {
         didSet {
             if aiExpanded { unseenResult = false }
