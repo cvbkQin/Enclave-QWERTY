@@ -214,6 +214,9 @@ enum Provider: CaseIterable, Identifiable {
 
 struct ModelSettingsView: View {
     @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var router: AppRouter
+    /// 没同意隐私政策时点「测试」：和键盘里的锁卡片一样，先去同意。
+    @State private var needsPrivacy = false
     @State private var provider: Provider = .custom
     @State private var importResult: Bool?
     @State private var recent: [UsageStats.Request] = []
@@ -301,6 +304,12 @@ struct ModelSettingsView: View {
         }
         .navigationTitle(L("接口", "API", "API"))
         .tabRootPage()
+        .alert(L("用 AI 之前，先同意隐私政策", "Agree to the Privacy Policy to use AI", "AI を使う前にプライバシーポリシーに同意してください"), isPresented: $needsPrivacy) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+            Button(L("阅读并同意", "Read and Agree", "読んで同意する")) { router.showsPrivacyWelcome = true }
+        } message: {
+            Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
+        }
         .onAppear {
             provider = Provider.detect(store.settings.baseURL)
             recent = UsageStats.polishRecent
@@ -346,7 +355,11 @@ struct ModelSettingsView: View {
                 }
                 Spacer(minLength: 8)
                 Button {
-                    Task { await store.runTest() }
+                    if router.privacyAgreed {
+                        Task { await store.runTest() }
+                    } else {
+                        needsPrivacy = true
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         if store.test == .running { ProgressView().controlSize(.small) }

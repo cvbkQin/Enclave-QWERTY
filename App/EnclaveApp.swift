@@ -250,6 +250,8 @@ final class AppStore: ObservableObject {
     private var testKey: String { "test.ok.\(settings.baseURL)|\(settings.model)" }
 
     func runTest() async {
+        // 没同意隐私政策前不发任何网络请求（测试会把 API Key 发到外部地址），入口处会先提示。
+        guard PrivacyConsent.isAgreed else { return }
         test = .running
         let start = Date()
         let client = LLMClient(settings: settings, apiKey: apiKey)

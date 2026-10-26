@@ -3,7 +3,7 @@ import Foundation
 /// 隐私政策全文（P07），中英日三份；中文是中国大陆备案版（beian/隐私政策-中国大陆版.md，版本 1）；App 里的隐私政策页和仓库里的 PRIVACY.md 用同一份文字。
 /// 开发者名称和联系邮箱在 LegalInfo 里改。
 enum PrivacyPolicy {
-    static let effectiveDate = DateComponents(calendar: .current, year: 2026, month: 10, day: 25).date ?? Date()
+    static let effectiveDate = DateComponents(calendar: .current, year: 2026, month: 10, day: 26).date ?? Date()
 
     static func text(_ language: AppLanguage) -> String {
         let raw: String
