@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 import UIKit
 
@@ -75,7 +76,7 @@ struct SettingsView: View {
                 Section {
                 } header: {
                     VStack(spacing: 12) {
-                        TabTitle(caption: "Enclave \(AboutView.version)", title: L("设置", "Settings", "設定"))
+                        TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.version)", title: L("设置", "Settings", "設定"))
                         // 整张卡可点，不要列表行的箭头。
                         Button { router.settingsPath.append(.unlock) } label: { EnclaveAICard() }
                             .buttonStyle(.plain)
@@ -94,7 +95,7 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                 } footer: {
-                    Text(L("只改 Enclave App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
+                    Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
                 }
                 // 键盘、拼音词库和常用词从首页进。
                 Section {
@@ -116,7 +117,7 @@ struct SettingsView: View {
                         DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.about) {
-                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于 Enclave", "About Enclave", "Enclave について"), value: AboutView.version)
+                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.version)
                     }
                 }
             }
@@ -159,8 +160,14 @@ enum ProviderName {
 }
 
 /// 常用服务商，选了自动填地址和模型。
+/// 中国大陆店面不列 OpenAI（没有在国内备案），换成已备案的通义千问；其他地区不变。
 enum Provider: CaseIterable, Identifiable {
-    case deepseek, openai, ollama, custom
+    case deepseek, openai, qwen, ollama, custom
+
+    /// 服务商卡片按这个顺序排，2×2。
+    static var shown: [Provider] {
+        Storefront.isMainlandChina ? [.deepseek, .qwen, .ollama, .custom] : [.deepseek, .openai, .ollama, .custom]
+    }
 
     var id: Self { self }
 
@@ -168,6 +175,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return "DeepSeek"
         case .openai: return "OpenAI"
+        case .qwen: return L("通义千问", "Qwen", "Qwen")
         case .ollama: return "Ollama"
         case .custom: return L("自定义", "Custom", "カスタム")
         }
@@ -177,6 +185,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return "api.deepseek.com"
         case .openai: return "api.openai.com"
+        case .qwen: return "dashscope.aliyuncs.com"
         case .ollama: return L("局域网的电脑", "A computer on your network", "ローカルネットのPC")
         case .custom: return "vLLM、LM Studio"
         }
@@ -186,6 +195,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-chat")
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
+        case .qwen: return ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
         }
@@ -194,6 +204,7 @@ enum Provider: CaseIterable, Identifiable {
     static func detect(_ baseURL: String) -> Provider {
         if baseURL.contains("api.deepseek.com") { return .deepseek }
         if baseURL.contains("api.openai.com") { return .openai }
+        if baseURL.contains("dashscope.aliyuncs.com") { return .qwen }
         if baseURL.contains(":11434") { return .ollama }
         return .custom
     }
@@ -230,7 +241,7 @@ struct ModelSettingsView: View {
                         .foregroundStyle(.secondary)
                         .padding(.leading, 16)
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                        ForEach(Provider.allCases) { item in
+                        ForEach(Provider.shown) { item in
                             ProviderCard(provider: item, selected: provider == item) { choose(item) }
                         }
                     }
@@ -278,7 +289,7 @@ struct ModelSettingsView: View {
             }
             if SharedStorage.usesClipboardConfig {
                 Section {
-                    Button(importResult == false ? L("剪贴板里没有 Enclave 配置", "No Enclave settings on the clipboard", "クリップボードに Enclave の設定がありません") : importResult == true ? L("已导入", "Imported", "読み込みました") : L("从剪贴板导入配置", "Import settings from clipboard", "クリップボードから設定を読み込む")) {
+                    Button(importResult == false ? L("剪贴板里没有飞地输入法配置", "No Enclave settings on the clipboard", "クリップボードに Enclave の設定がありません") : importResult == true ? L("已导入", "Imported", "読み込みました") : L("从剪贴板导入配置", "Import settings from clipboard", "クリップボードから設定を読み込む")) {
                         importConfig()
                     }
                     .font(.footnote)
@@ -820,7 +831,7 @@ struct PinyinView: View {
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     DashBigNumber(value: "0", unit: L("个按键", "keys", "キー"))
-                    Text(L("用 Enclave 键盘打几个拼音，这里就有数据了。键盘要开「允许完全访问」才记得下。", "Type some pinyin with the Enclave keyboard and your stats show up here. The keyboard needs Allow Full Access to record them.", "Enclave キーボードでピンインを入力すると、ここに記録が表示されます。「フルアクセスを許可」が必要です。"))
+                    Text(L("用飞地输入法打几个拼音，这里就有数据了。键盘要开「允许完全访问」才记得下。", "Type some pinyin with the Enclave keyboard and your stats show up here. The keyboard needs Allow Full Access to record them.", "Enclave キーボードでピンインを入力すると、ここに記録が表示されます。「フルアクセスを許可」が必要です。"))
                         .font(.system(size: 13)).foregroundStyle(.secondary)
                 }
             }
@@ -951,8 +962,8 @@ private struct ConsentSheet: View {
                     point("arrow.up.forward", L("发到哪里", "Where it goes", "送り先"),
                           L("直接发到上面这个地址，由服务商按它的隐私政策处理。", "Straight to the address above, handled under the provider's privacy policy.",
                             "上のアドレスに直接送られ、サービスのプライバシーポリシーに従って処理されます。"))
-                    point("lock.shield", L("Enclave 不经手", "Enclave never sees it", "Enclave は関与しません"),
-                          L("Enclave 没有自己的服务器，不收集、不保存你的文字。", "Enclave has no servers and doesn't collect or keep your text.",
+                    point("lock.shield", L("飞地输入法不经手", "Enclave never sees it", "Enclave は関与しません"),
+                          L("飞地输入法没有自己的服务器，不收集、不保存你的文字。", "Enclave has no servers and doesn't collect or keep your text.",
                             "Enclave はサーバーを持たず、文章を収集・保存しません。"))
                 }
                 Button(action: agree) {

@@ -133,7 +133,7 @@ enum OpenSource {
 
     /// 关于页「致谢」组下方的署名。
     static var wanxiangAttribution: String {
-        L("拼音词库基于 amzxyz 的「万象拼音」（github.com/amzxyz/rime_wanxiang），按 CC BY 4.0 许可使用。Enclave 去掉了拼音声调，并按词频删减了词条。可选下载的整句模型是 amzxyz 的「万象语法模型」（github.com/amzxyz/rime-wanxiang-data），按 CC BY 4.0 许可原样使用。",
+        L("拼音词库基于 amzxyz 的「万象拼音」（github.com/amzxyz/rime_wanxiang），按 CC BY 4.0 许可使用。飞地输入法去掉了拼音声调，并按词频删减了词条。可选下载的整句模型是 amzxyz 的「万象语法模型」（github.com/amzxyz/rime-wanxiang-data），按 CC BY 4.0 许可原样使用。",
           "The pinyin dictionary is based on Wanxiang Pinyin by amzxyz (github.com/amzxyz/rime_wanxiang), used under CC BY 4.0. Enclave removed tone marks and trimmed entries by frequency. The optional sentence model is the Wanxiang grammar model by amzxyz (github.com/amzxyz/rime-wanxiang-data), used unmodified under CC BY 4.0.",
           "ピンイン辞書は amzxyz 氏の「万象ピンイン」（github.com/amzxyz/rime_wanxiang）を CC BY 4.0 のもとで使用しています。Enclave では声調を除き、頻度に応じて語を削っています。オプションの文章モデルは amzxyz 氏の「万象文法モデル」（github.com/amzxyz/rime-wanxiang-data）を CC BY 4.0 のもとでそのまま使用しています。")
     }

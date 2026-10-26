@@ -23,7 +23,7 @@ struct PrivacyView: View {
                         .foregroundStyle(.green)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L("打字不联网", "Typing stays offline", "入力は通信しません")).font(.headline)
-                        Text(L("拼音和候选都在手机上算。只有你点「润色」或「再润」时，才把文字发给你自己配置的接口，Enclave 没有自己的服务器。",
+                        Text(L("拼音和候选都在手机上算。只有你点「润色」或「再润」时，才把文字发给你自己配置的接口，飞地输入法没有自己的服务器。",
                                "Pinyin and candidates are worked out on your iPhone. Text is sent only when you tap Polish or Rewrite, straight to the API you set up. Enclave has no servers.",
                                "ピンインと候補は iPhone 上で処理します。「整える」か「別の案」をタップしたときだけ、自分で設定した API に文章を送ります。Enclave はサーバーを持ちません。"))
                             .font(.subheadline)
@@ -236,7 +236,7 @@ struct AboutView: View {
                         .resizable()
                         .frame(width: 76, height: 76)
                         .clipShape(RoundedRectangle(cornerRadius: 17, style: .continuous))
-                    Text("Enclave").font(.title3.bold())
+                    Text(L("飞地输入法", "Enclave", "Enclave")).font(.title3.bold())
                     Text(L("版本 \(Self.version)", "Version \(Self.version)", "バージョン \(Self.version)"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -280,7 +280,7 @@ struct AboutView: View {
                 Text(OpenSource.wanxiangAttribution)
             }
         }
-        .navigationTitle(L("关于 Enclave", "About Enclave", "Enclave について"))
+        .navigationTitle(L("关于飞地输入法", "About Enclave", "Enclave について"))
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -309,7 +309,7 @@ struct LicensesView: View {
                            "クリエイティブ・コモンズ 表示 4.0 国際（CC BY 4.0）"))
                     info(L("改动", "Changes", "変更点"),
                          L("去掉了拼音声调，并按词频删减了词条。", "Tone marks removed and entries trimmed by frequency.", "声調を除き、頻度に応じて語を削っています。"))
-                    Text(L("原作品按现状提供，不附带任何担保；改动由 Enclave 做出，与原作者无关。",
+                    Text(L("原作品按现状提供，不附带任何担保；改动由飞地输入法做出，与原作者无关。",
                            "The original work is provided as is, without warranty of any kind. Changes were made by Enclave and are not endorsed by the original author.",
                            "原著作物は現状のまま提供され、いかなる保証もありません。変更は Enclave によるもので、原作者とは関係ありません。"))
                         .font(.footnote)

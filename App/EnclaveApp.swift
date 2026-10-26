@@ -36,6 +36,7 @@ struct EnclaveApp: App {
                 .environmentObject(store)
                 .task { RimeDeployer.shared.deployIfNeeded() }
                 .task { await UnlockStore.shared.refresh() }
+                .task { await Storefront.refreshCountry() }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                     Task { await UnlockStore.shared.refresh() }
                 }

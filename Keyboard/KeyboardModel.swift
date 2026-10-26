@@ -413,7 +413,7 @@ final class KeyboardModel: ObservableObject {
         errorMessage = nil
         notice = nil
         guard hasFullAccess else {
-            errorMessage = L("需要在 设置 › 通用 › 键盘 › 键盘 › Enclave 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › Enclave to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › Enclave で「フルアクセスを許可」をオンにしてください。")
+            errorMessage = L("需要在 设置 › 通用 › 键盘 › 键盘 › 飞地输入法 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › Enclave to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › Enclave で「フルアクセスを許可」をオンにしてください。")
             return false
         }
         guard settings.isConfigured else {
@@ -847,7 +847,7 @@ final class KeyboardModel: ObservableObject {
 
     func importConfigFromPasteboard() {
         guard let string = UIPasteboard.general.string, SettingsStore.importString(string) else {
-            errorMessage = L("剪贴板里没有 Enclave 配置。先在 App 里点「复制配置」。", "No Enclave settings on the clipboard. Tap Copy settings in the app first.", "クリップボードに Enclave の設定がありません。先にアプリで「設定をコピー」をタップしてください。")
+            errorMessage = L("剪贴板里没有飞地输入法配置。先在 App 里点「复制配置」。", "No Enclave settings on the clipboard. Tap Copy settings in the app first.", "クリップボードに Enclave の設定がありません。先にアプリで「設定をコピー」をタップしてください。")
             return
         }
         // 配置里有 API key，导入后马上清掉剪贴板。

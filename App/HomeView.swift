@@ -308,12 +308,12 @@ struct OnboardingSteps: View {
                 .foregroundStyle(.secondary)
             ProgressView(value: Double(3 - remaining), total: 3).tint(AppColor.purple)
             if !SharedStorage.isShared { SharedConfigBanner() }
-            StepCard(number: 1, title: L("添加 Enclave 键盘", "Add the Enclave keyboard", "Enclave キーボードを追加"), done: done[0], current: current == 0) {
-                Text(L("打开系统设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选 Enclave。", "Open Settings › General › Keyboard › Keyboards › Add New Keyboard, then choose Enclave.", "設定 › 一般 › キーボード › キーボード › 新しいキーボードを追加 で Enclave を選びます。"))
+            StepCard(number: 1, title: L("添加飞地输入法", "Add the Enclave keyboard", "Enclave キーボードを追加"), done: done[0], current: current == 0) {
+                Text(L("打开系统设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选飞地输入法。", "Open Settings › General › Keyboard › Keyboards › Add New Keyboard, then choose Enclave.", "設定 › 一般 › キーボード › キーボード › 新しいキーボードを追加 で Enclave を選びます。"))
             }
             StepCard(number: 2, title: L("允许完全访问", "Allow Full Access", "フルアクセスを許可"), done: done[1], current: current == 1) {
-                Text(L("键盘要联网才能调用你的模型。进入 Enclave 设置 › 键盘，打开「允许完全访问」。", "The keyboard needs network access to reach your model. Go to Enclave settings › Keyboards and turn on Allow Full Access.", "モデルを使うにはキーボードの通信が必要です。Enclave の設定 › キーボード で「フルアクセスを許可」をオンにします。"))
-                Button(L("打开 Enclave 设置", "Open Enclave Settings", "Enclave の設定を開く")) { AppSettings.open() }
+                Text(L("键盘要联网才能调用你的模型。进入飞地输入法设置 › 键盘，打开「允许完全访问」。", "The keyboard needs network access to reach your model. Go to Enclave settings › Keyboards and turn on Allow Full Access.", "モデルを使うにはキーボードの通信が必要です。Enclave の設定 › キーボード で「フルアクセスを許可」をオンにします。"))
+                Button(L("打开飞地输入法设置", "Open Enclave Settings", "Enclave の設定を開く")) { AppSettings.open() }
                     .buttonStyle(StepButtonStyle(prominent: current == 1))
                 Text(Readiness.fullAccess == false ? L("键盘上次出现时完全访问还没打开。", "Full Access was still off the last time the keyboard appeared.", "前回キーボードを表示したとき、フルアクセスはオフでした。") : L("用一次键盘后，这里会自动打勾。", "This gets checked after you use the keyboard once.", "キーボードを一度使うと、自動でチェックが付きます。"))
                     .font(.caption)

@@ -81,7 +81,7 @@ struct TypingTestView: View {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(L("压力测试", "Stress test", "負荷テスト")).font(.title.bold())
-                    Text(L("切到 Enclave 键盘，照着下面的文章连续打。打完点「完成」，看速度、卡顿和键盘内存。",
+                    Text(L("切到飞地输入法，照着下面的文章连续打。打完点「完成」，看速度、卡顿和键盘内存。",
                            "Switch to the Enclave keyboard and type the passage below. Tap Done to see speed, lag and keyboard memory.",
                            "Enclave キーボードに切り替えて、下の文章を入力します。「完了」で速さ、遅延、メモリを確認できます。"))
                         .font(.subheadline).foregroundStyle(.secondary)
@@ -213,7 +213,7 @@ struct TypingTestView: View {
                 TypingSmallStat(value: memory.map { String(format: "%.0f MB", $0.median) } ?? "–", label: L("键盘内存", "Keyboard memory", "キーボードメモリ"))
             }
             if stats == nil {
-                Text(L("键盘没有记下按键数据：要在系统设置里给 Enclave 键盘开「允许完全访问」。",
+                Text(L("键盘没有记下按键数据：要在系统设置里给飞地输入法开「允许完全访问」。",
                        "The keyboard didn't record key data. Turn on Allow Full Access for Enclave in Settings.",
                        "キーボードの記録がありません。設定で Enclave の「フルアクセスを許可」をオンにしてください。"))
                     .font(.footnote).foregroundStyle(.secondary)

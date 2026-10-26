@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 /// Enclave AI 解锁页：试用中（U1）、试用结束（U2）、已解锁（U3）。
@@ -57,7 +58,7 @@ struct UnlockView: View {
                                       "キーボードは設定した API に直接テキストを送ります"))
             VStack(spacing: 12) {
                 HStack(spacing: 6) {
-                    FlowNode(icon: "keyboard", title: L("Enclave 键盘", "Enclave keyboard", "Enclave キーボード"),
+                    FlowNode(icon: "keyboard", title: L("飞地输入法", "Enclave keyboard", "Enclave キーボード"),
                              subtitle: L("你的手机", "Your iPhone", "あなたの iPhone"))
                     VStack(spacing: 4) {
                         Text(L("直连 HTTPS", "Direct HTTPS", "HTTPS で直接"))
@@ -79,7 +80,7 @@ struct UnlockView: View {
                     FlowNode(icon: "server.rack", title: L("你的模型接口", "Your model API", "あなたのモデル API"),
                              subtitle: L("api.你的服务商", "api.your-provider", "api.ご利用のサービス"))
                 }
-                Text(L("中间没有 Enclave 服务器", "No Enclave server in between", "間に Enclave のサーバーはありません"))
+                Text(L("中间没有飞地输入法服务器", "No Enclave server in between", "間に Enclave のサーバーはありません"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
@@ -99,11 +100,11 @@ struct UnlockView: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
             PointCard(icon: "lock.shield", color: Color(hex: 0x34C759),
                       title: L("文字不经过我们", "Your text skips us", "文章は Enclave を通りません"),
-                      detail: L("Enclave 没有服务器，不收集、不保存你写的东西", "Enclave has no servers. Nothing you write is collected or stored",
+                      detail: L("飞地输入法没有服务器，不收集、不保存你写的东西", "Enclave has no servers. Nothing you write is collected or stored",
                                 "Enclave にはサーバーがなく、書いた内容を収集・保存しません"))
             PointCard(icon: "yensign.circle", color: Color(hex: 0xFF9500),
                       title: L("用多少付多少", "Pay only for what you use", "使った分だけ"),
-                      detail: L("模型费用直接付给服务商，Enclave 不加价、不抽成", "Model fees go straight to your provider, with no markup",
+                      detail: L("模型费用直接付给服务商，飞地输入法不加价、不抽成", "Model fees go straight to your provider, with no markup",
                                 "モデル料金はサービスに直接支払い、上乗せや手数料はありません"))
             PointCard(icon: "desktopcomputer", color: Color(hex: 0x007AFF),
                       title: L("本地模型也行", "Local models work too", "ローカルモデルも OK"),
@@ -470,7 +471,8 @@ private struct Line: Shape {
 }
 
 private struct ProviderChips: View {
-    private let names = ["DeepSeek", "OpenAI", L("通义千问", "Qwen", "Qwen"), "Kimi",
+    /// 中国大陆店面不列 OpenAI，换成智谱。
+    private let names = ["DeepSeek", Storefront.isMainlandChina ? L("智谱", "Zhipu", "Zhipu") : "OpenAI", L("通义千问", "Qwen", "Qwen"), "Kimi",
                          L("Ollama 本地", "Ollama (local)", "Ollama（ローカル）"), "LM Studio"]
 
     var body: some View {

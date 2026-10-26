@@ -16,7 +16,7 @@ enum LLMError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notConfigured: return L("还没有配置 API，请先打开 Enclave App 填写。", "No API set up yet. Open the Enclave app to add one.", "API が未設定です。Enclave アプリで設定してください。")
+        case .notConfigured: return L("还没有配置 API，请先打开飞地输入法 App 填写。", "No API set up yet. Open the Enclave app to add one.", "API が未設定です。Enclave アプリで設定してください。")
         case .badURL(let url): return L("API 地址不正确：\(url)", "Invalid API URL: \(url)", "API の URL が正しくありません：\(url)")
         case .http(let code, let body): return L("请求失败（HTTP \(code)）：\(body)", "Request failed (HTTP \(code)): \(body)", "リクエストに失敗しました（HTTP \(code)）：\(body)")
         }

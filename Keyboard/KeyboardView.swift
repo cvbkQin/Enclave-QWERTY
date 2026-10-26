@@ -681,7 +681,7 @@ struct GateCard: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
         Spacer(minLength: 0)
         HStack(spacing: 8) {
-            Text(L("也可以打开 Enclave App 按指引开启", "Or open the Enclave app for a guide", "Enclave アプリの案内からも設定できます"))
+            Text(L("也可以打开飞地输入法 App 按指引开启", "Or open the Enclave app for a guide", "Enclave アプリの案内からも設定できます"))
                 .font(.system(size: 12))
                 .foregroundStyle(Brand.disabledText)
                 .lineLimit(1)
@@ -704,7 +704,7 @@ struct GateCard: View {
             Text(L("今天的 \(uses) 次用完了", "You’ve used today’s \(uses) free uses", "今日の無料分（\(uses) 回）を使い切りました"))
                 .font(.system(size: 14, weight: .semibold))
         }
-        Text(L("试用结束后每天可以免费用 \(uses) 次，明天 0 点恢复。在 Enclave App 里一次买断，就不限次数。打字、拼音、常用词一直免费。",
+        Text(L("试用结束后每天可以免费用 \(uses) 次，明天 0 点恢复。在飞地输入法 App 里一次买断，就不限次数。打字、拼音、常用词一直免费。",
                "After the trial you get \(uses) free uses a day, reset at midnight. Unlock once in the Enclave app for unlimited use. Typing, pinyin and My Words are always free.",
                "無料体験のあとも 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。Enclave アプリで購入すると回数無制限に。入力・ピンイン・ユーザ辞書はずっと無料です。"))
             .font(.system(size: 13))
@@ -712,7 +712,7 @@ struct GateCard: View {
             .fixedSize(horizontal: false, vertical: true)
         VStack(alignment: .leading, spacing: 3) {
             Text(L("在 App 里解锁", "Unlock in the app", "アプリで購入")).font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
-            (Text(L("打开 Enclave", "Open Enclave", "Enclave を開く")).foregroundColor(Brand.cardBody)
+            (Text(L("打开飞地输入法", "Open Enclave", "Enclave を開く")).foregroundColor(Brand.cardBody)
                 + Text(" › ").foregroundColor(Brand.pathSeparator)
                 + Text(L("设置", "Settings", "設定")).foregroundColor(Brand.cardBody)
                 + Text(" › ").foregroundColor(Brand.pathSeparator)
@@ -767,7 +767,7 @@ struct GateCard: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Brand.panelLabel.opacity(0.7))
         }
-        Text(L("只在你点「✨」或「执行」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；Enclave 没有自己的服务器，也不保存你的文字。", "Sent only when you tap ✨ or Run: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. Enclave has no servers and doesn't keep your text.", "「✨」か「実行」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。Enclave はサーバーを持たず、文章を保存しません。"))
+        Text(L("只在你点「✨」或「执行」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；飞地输入法没有自己的服务器，也不保存你的文字。", "Sent only when you tap ✨ or Run: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. Enclave has no servers and doesn't keep your text.", "「✨」か「実行」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。Enclave はサーバーを持たず、文章を保存しません。"))
             .font(.system(size: 12))
             .foregroundStyle(Brand.cardNote)
             .fixedSize(horizontal: false, vertical: true)

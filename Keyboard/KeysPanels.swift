@@ -172,7 +172,7 @@ struct QuickWordsPanel: View {
         VStack(spacing: 5) {
             Text(L("还没有键盘常用语", "No keyboard phrases yet", "キーボードの定型文はまだありません"))
                 .font(.system(size: 15, weight: .semibold))
-            Text(L("在 Enclave App 首页的「键盘常用语」里添加", "Add them in Enclave under Home › Keyboard Phrases.",
+            Text(L("在飞地输入法 App 首页的「键盘常用语」里添加", "Add them in Enclave under Home › Keyboard Phrases.",
                    "Enclave のホーム「キーボードの定型文」で追加できます。"))
                 .font(.system(size: 12.5))
                 .foregroundStyle(Color.secondary)
