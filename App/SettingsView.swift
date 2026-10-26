@@ -511,47 +511,56 @@ struct KeyboardSettingsView: View {
                     NotSyncedBanner().dashFormCard()
                 }
             }
-            Section {
-                Picker(L("主要语言", "Main language", "メインの言語"), selection: $store.settings.inputLanguage) {
-                    ForEach(InputLanguage.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
-            } header: {
-                Text(L("主要语言", "Main language", "メインの言語"))
-            } footer: {
-                Text(languageFooter)
-            }
+            // 主要语言（EM1/EM2）：小标题 + 白卡里的三段选择，脚注随选项变。
             Section {
             } header: {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(L("中文布局", "Chinese layout", "中国語の配列"))
+                    Text(L("主要语言", "Primary language", "主な言語"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.leading, 16)
-                    HStack(spacing: 12) {
-                        ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
-                            LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout) {
-                                store.settings.keyboardLayout = layout
-                            }
-                        }
+                    Picker(L("主要语言", "Primary language", "主な言語"), selection: $store.settings.inputLanguage) {
+                        ForEach(InputLanguage.allCases) { Text($0.title).tag($0) }
                     }
+                    .pickerStyle(.segmented)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
                 }
                 .dashFormCard()
             } footer: {
-                Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
+                Text(languageFooter)
             }
-            Section(L("拼音", "Pinyin", "ピンイン")) {
-                NavigationLink(value: AppRouter.SettingsPage.fuzzy) {
-                    HStack {
-                        Text(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
-                        Spacer()
-                        Text(store.settings.fuzzyPinyin.isEmpty ? L("未开启", "Off", "オフ") : L("已开 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) on", "\(store.settings.fuzzyPinyin.count) 組オン"))
+            if store.settings.inputLanguage != .englishOnly {
+                Section {
+                } header: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L("中文布局", "Chinese layout", "中国語の配列"))
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
+                            .padding(.leading, 16)
+                        HStack(spacing: 12) {
+                            ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
+                                LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout) {
+                                    store.settings.keyboardLayout = layout
+                                }
+                            }
+                        }
                     }
+                    .dashFormCard()
+                } footer: {
+                    Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
                 }
-                PredictionToggle()
+                Section(L("拼音", "Pinyin", "ピンイン")) {
+                    NavigationLink(value: AppRouter.SettingsPage.fuzzy) {
+                        HStack {
+                            Text(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
+                            Spacer()
+                            Text(store.settings.fuzzyPinyin.isEmpty ? L("未开启", "Off", "オフ") : L("已开 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) on", "\(store.settings.fuzzyPinyin.count) 組オン"))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    PredictionToggle()
+                }
             }
             Section(L("英文", "English", "英語")) {
                 Toggle(isOn: $store.settings.autoCapitalize) {
@@ -562,7 +571,7 @@ struct KeyboardSettingsView: View {
                     }
                 }
             }
-            TouchCalibrationSection(layout: store.settings.keyboardLayout)
+            TouchCalibrationSection(layout: store.settings.inputLanguage == .englishOnly ? .qwerty : store.settings.keyboardLayout)
             Section(L("按键反馈", "Key feedback", "キーのフィードバック")) {
                 Toggle(L("按键震动", "Haptics", "触覚"), isOn: $store.settings.keyHaptics)
                 Toggle(isOn: $store.settings.keySound) {
@@ -588,9 +597,9 @@ struct KeyboardSettingsView: View {
 
     private var languageFooter: String {
         switch store.settings.inputLanguage {
-        case .chinese: return L("键盘弹出时保持上次的中英状态。", "The keyboard keeps whichever language you used last.", "前回使った言語のままで開きます。")
-        case .englishFirst: return L("键盘每次弹出先是英文，按中/英键照常切到中文。", "The keyboard opens in English each time; the 中/英 key still switches to Chinese.", "毎回英語で開き、中/英 キーで中国語に切り替えられます。")
-        case .englishOnly: return L("只有英文全键盘，中/英键换成逗号，长按出 ' ? !。", "QWERTY in English only. The 中/英 key becomes a comma; hold it for ' ? !", "英語の QWERTY のみ。中/英 キーはカンマになり、長押しで ' ? ! が出ます。")
+        case .chinese: return L("打开键盘先是拼音，按「中/英」切到英文。", "The keyboard opens in pinyin. Tap 中/英 for English.", "キーボードはピンインで開きます。「中/英」で英語に切り替えます。")
+        case .englishFirst: return L("打开键盘先是英文，按「中/英」切到拼音。", "The keyboard opens in English. Tap 中/英 for pinyin.", "キーボードは英語で開きます。「中/英」でピンインに切り替えます。")
+        case .englishOnly: return L("只有英文全键盘，不打拼音。「中/英」键换成逗号，长按出 ' ? !", "English QWERTY only, no pinyin. The 中/英 key becomes a comma; hold it for ' ? !", "英語の QWERTY のみで、ピンインは使いません。「中/英」キーはカンマになり、長押しで ' ? ! が出ます。")
         }
     }
 }

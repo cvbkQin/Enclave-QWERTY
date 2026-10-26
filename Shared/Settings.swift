@@ -31,8 +31,8 @@ enum InputLanguage: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .chinese: return L("中文", "Chinese", "中国語")
-        case .englishFirst: return L("英文为主", "Mostly English", "英語中心")
+        case .chinese: return L("中文", "Chinese", "中文")
+        case .englishFirst: return L("英文为主", "English first", "英語中心")
         case .englishOnly: return L("只用英文", "English only", "英語のみ")
         }
     }
