@@ -161,8 +161,9 @@ enum SettingsStore {
 
     static func load() -> EnclaveSettings {
         guard let data = SharedStorage.defaults.data(forKey: settingsKey),
-              let settings = try? JSONDecoder().decode(EnclaveSettings.self, from: data)
+              var settings = try? JSONDecoder().decode(EnclaveSettings.self, from: data)
         else { return EnclaveSettings() }
+        settings.migrateRetiredModels()
         return settings
     }
 
@@ -203,5 +204,17 @@ enum SettingsStore {
         save(payload.settings)
         apiKey = payload.apiKey
         return true
+    }
+}
+
+extension EnclaveSettings {
+    /// DeepSeek 的旧模型名 deepseek-chat / deepseek-reasoner 在 2026-07-24 停用，现在官方只有
+    /// deepseek-flash 和 deepseek-v4-pro。还存着旧名的，读设置时换成 deepseek-flash（地址不变）。
+    static let retiredDeepSeekModels: Set<String> = ["deepseek-chat", "deepseek-reasoner", "deepseek-v4-flash"]
+
+    mutating func migrateRetiredModels() {
+        guard baseURL.contains("api.deepseek.com"),
+              Self.retiredDeepSeekModels.contains(model.trimmingCharacters(in: .whitespaces).lowercased()) else { return }
+        model = "deepseek-flash"
     }
 }
