@@ -128,8 +128,25 @@ extension KeyboardModel {
     func selectCandidate(_ index: Int) {
         // 选了候选：前面打的拼音键都没按错，算进手指习惯。
         TouchCalibration.confirm()
-        if let text = engine.select(index) { commit(text) }
+        let text = engine.select(index)
+        if let text { commit(text) }
         syncEngine()
+        if let text, !isComposing, chineseMode { predictions = Predictor.next(after: text) }
+    }
+
+    /// 候选栏里有联想时显示候选栏（没在打拼音）。
+    var showsPredictions: Bool { !predictions.isEmpty && !isComposing }
+
+    /// 点了联想词：上屏，再接着联想它后面的词。
+    func selectPrediction(_ index: Int) {
+        guard predictions.indices.contains(index) else { return }
+        let word = predictions[index]
+        commit(word)
+        predictions = Predictor.next(after: word)
+    }
+
+    func dismissPredictions() {
+        if !predictions.isEmpty { predictions = [] }
     }
 
     // MARK: - 按键触摸（由 KeyTouchView 调用）
@@ -140,6 +157,8 @@ extension KeyboardModel {
     }
 
     func perform(_ kind: KeyKind) {
+        // 按了别的键：联想收起（打字母时候选栏换成拼音候选）。
+        dismissPredictions()
         switch kind {
         case .letter(let letter): typeLetter(letter)
         case .symbol(let symbol): typeSymbol(symbol)

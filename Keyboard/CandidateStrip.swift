@@ -202,14 +202,20 @@ struct CandidateStrip: UIViewRepresentable {
     func makeUIView(context: Context) -> CandidateStripView {
         let view = CandidateStripView()
         view.onSelect = { [weak model] index in
-            model?.keyFeedback(for: .space)
-            model?.selectCandidate(index)
+            guard let model else { return }
+            model.keyFeedback(for: .space)
+            if model.isComposing { model.selectCandidate(index) } else { model.selectPrediction(index) }
         }
         view.onNearEnd = { [weak model] in model?.loadMoreCandidates() }
         return view
     }
 
     func updateUIView(_ view: CandidateStripView, context: Context) {
+        // 没在打拼音时显示联想：都用普通颜色，不标常用词。
+        guard model.isComposing else {
+            view.update(words: model.predictions, firstColor: .label, firstIsCommon: false)
+            return
+        }
         let words = Array(model.candidates.prefix(60))
         view.update(words: words, firstColor: UIColor(Brand.purpleText),
                     firstIsCommon: words.first.map { model.commonWordTexts.contains($0) } ?? false)

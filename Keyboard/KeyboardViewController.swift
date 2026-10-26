@@ -77,6 +77,7 @@ final class KeyboardViewController: UIInputViewController {
         model.reload()
         model.applyDebugState()
         TouchCalibration.reload()
+        Predictor.prepare()
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -87,6 +88,7 @@ final class KeyboardViewController: UIInputViewController {
         model.trackpadActive = false
         TypingStats.flush()
         TouchCalibration.flush()
+        model.dismissPredictions()
     }
 
     override func didReceiveMemoryWarning() {
