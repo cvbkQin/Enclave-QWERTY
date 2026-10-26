@@ -142,6 +142,23 @@ enum Brand {
         ? darkSelectedText : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
     static let menuStroke = Color(UIColor { $0.userInterfaceStyle == .dark
         ? .clear : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
+    /// AI 栏展开键（方案 B）展开时：浅紫底 #ECEAFD + #8B7CF6 内描边、紫色图标；深色沿用选择器打开时的配色。
+    static let toggleOpenFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? darkSelectedFill : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
+    static let toggleOpenStroke = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? .clear : UIColor(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255, alpha: 1) })
+    static let toggleOpenIcon = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? darkSelectedText : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
+    /// 收起时有没看过的新结果：右上角的紫点 #7C3AED，外圈描一圈键盘底色。
+    static let newResultDot = Color(red: 0x7C / 255, green: 0x3A / 255, blue: 0xED / 255)
+    static let keyboardBack = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x2B / 255, green: 0x2B / 255, blue: 0x2D / 255, alpha: 1)
+        : UIColor(red: 0xD1 / 255, green: 0xD3 / 255, blue: 0xD9 / 255, alpha: 1) })
+    /// 选择器名字和 ▾ 之间的竖线：平时 #D1D1D6（深色 #48484A），打开或「按要求」时 #B4A9FF。
+    static let chipDivider = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x48 / 255, green: 0x48 / 255, blue: 0x4A / 255, alpha: 1)
+        : UIColor(red: 0xD1 / 255, green: 0xD1 / 255, blue: 0xD6 / 255, alpha: 1) })
+    static let chipDividerOn = Color(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255)
     /// 「正式▾」浮层（清爽紫）：纯白底，深色模式用系统深灰。
     static let panelFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x2C / 255, green: 0x2C / 255, blue: 0x2E / 255, alpha: 1) : .white })

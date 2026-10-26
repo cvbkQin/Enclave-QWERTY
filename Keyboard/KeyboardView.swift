@@ -85,7 +85,7 @@ struct KeyboardView: View {
 
     private var aiBar: some View {
         HStack(spacing: 6) {
-            PanelToggleButton(expanded: model.aiExpanded) { model.setAIExpanded(!model.aiExpanded) }
+            PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) { model.setAIExpanded(!model.aiExpanded) }
             PolishButton(model: model)
             // 风格按钮优先完整显示，地方不够时失败提示换成短的。
             StyleChip(model: model).layoutPriority(1)
@@ -157,20 +157,42 @@ struct KeyboardView: View {
 
 // MARK: - AI 栏的按钮
 
-/// 展开/收起 AI 面板，AI 栏最左边的圆钮。
+/// 展开/收起 AI 面板（结果卡片 + 替换 / 插入），AI 栏最左边 44×34 的面板图标胶囊（方案 B）。
+/// 收起时有没看过的新结果：图标变紫、右上角紫点；展开时浅紫底紫描边，和选择器打开时一样。
 struct PanelToggleButton: View {
     var expanded: Bool
+    var hasNew: Bool
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: expanded ? "chevron.down" : "chevron.up")
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: KeyboardMetrics.chipHeight, height: KeyboardMetrics.chipHeight)
-                .foregroundStyle(Color.primary)
-                .background(Circle().fill(KeyStyle.charKey))
+            Image(systemName: "rectangle.tophalf.inset.filled")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(expanded ? Brand.toggleOpenIcon : (hasNew ? Brand.deepPurple : Color.primary))
+                .frame(width: 44, height: KeyboardMetrics.chipHeight)
+                .background(Capsule().fill(expanded ? Brand.toggleOpenFill : KeyStyle.charKey))
+                .overlay(Capsule().strokeBorder(Brand.toggleOpenStroke, lineWidth: expanded ? 1.5 : 0))
+                .overlay(alignment: .topTrailing) {
+                    if hasNew {
+                        Circle().fill(Brand.newResultDot)
+                            .frame(width: 10, height: 10)
+                            .padding(2)
+                            .background(Circle().fill(Brand.keyboardBack))
+                            .offset(x: 3, y: -3)
+                    }
+                }
+                // 点按区上下各扩 5pt，至少 44×44。
+                .padding(.vertical, 5)
+                .contentShape(Rectangle())
+                .padding(.vertical, -5)
         }
         .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var accessibilityText: String {
+        let base = expanded ? L("收起结果", "Hide result", "結果を隠す") : L("展开结果", "Show result", "結果を表示")
+        return hasNew ? base + L("，有新结果", ", new result", "、新しい結果あり") : base
     }
 }
 
@@ -400,13 +422,21 @@ struct StyleChip: View {
         let locked = !model.hasFullAccess
         let highlighted = !locked && (model.styleMenuOpen || !model.instruction.isEmpty)
         Button { locked ? model.showFullAccessTip() : model.toggleStyleMenu() } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: 0) {
                 Text(title).lineLimit(1).truncationMode(.tail)
+                // 名字和 ▾ 之间的竖线，只是视觉上分开，整颗还是一个按钮；线和箭头不参与截断。
+                Rectangle()
+                    .fill(highlighted ? Brand.chipDividerOn : Brand.chipDivider)
+                    .frame(width: 1, height: 16)
+                    .padding(.horizontal, 8)
+                    .layoutPriority(1)
                 Image(systemName: model.styleMenuOpen ? "chevron.up" : "chevron.down")
                     .font(.system(size: 9, weight: .bold))
+                    .layoutPriority(1)
             }
             .font(.system(size: 14, weight: highlighted ? .semibold : .regular))
-            .padding(.horizontal, 12)
+            .padding(.leading, 12)
+            .padding(.trailing, 10)
             .frame(minWidth: 72, maxWidth: 140)
             .fixedSize(horizontal: true, vertical: false)
             .frame(height: KeyboardMetrics.chipHeight)

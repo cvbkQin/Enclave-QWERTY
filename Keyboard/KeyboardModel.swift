@@ -51,7 +51,15 @@ final class KeyboardModel: ObservableObject {
     @Published var digitsMore = false
     @Published var shift: ShiftState = .off
     @Published var chineseMode = true
-    @Published var aiExpanded = false { didSet { heightMayChange?() } }
+    @Published var aiExpanded = false {
+        didSet {
+            if aiExpanded { unseenResult = false }
+            heightMayChange?()
+        }
+    }
+    /// 收起时生成了结果（快速模式替换成功）还没展开看过：展开键变紫、右上角加紫点。
+    @Published private(set) var unseenResult = false
+    var showsNewResult: Bool { unseenResult && !aiExpanded && hasResult }
     @Published var composition = ""
     @Published var candidates: [String] = []
     /// 联想：上屏后候选栏接着显示的下一个词，按别的键就收起。
@@ -508,6 +516,7 @@ final class KeyboardModel: ObservableObject {
     func beginQuickMode(source: String) {
         quickSource = source
         quickStatus = .running
+        unseenResult = false
     }
 
     /// 快速模式结束：替换成功显示「✓ 已润色」1.5 秒；出错留在 AI 栏上「润色失败，点重试」；
@@ -518,6 +527,7 @@ final class KeyboardModel: ObservableObject {
         switch outcome {
         case .replaced:
             quickStatus = .done
+            if !aiExpanded { unseenResult = true }
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 if self?.quickStatus == .done { self?.quickStatus = nil }
@@ -557,6 +567,11 @@ final class KeyboardModel: ObservableObject {
     /// 截图用：收起状态下 AI 栏上的快速模式（-keyboardDebug quick:running|done|failed）。
     func loadDebugQuick(_ status: QuickStatus) {
         quickStatus = status
+        // 完成时带一份结果，看展开键的「有新结果」紫点。
+        if status == .done {
+            if session == nil { loadDebugVersions() }
+            unseenResult = true
+        }
         if status == .running {
             isRunning = true
             runOrigin = .polish
