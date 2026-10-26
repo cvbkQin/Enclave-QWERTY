@@ -73,9 +73,13 @@ struct SettingsView: View {
         NavigationStack(path: $router.settingsPath) {
             List {
                 Section {
-                    NavigationLink(value: AppRouter.SettingsPage.unlock) { EnclaveAICard() }
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
+                    // 整张卡可点，但不要列表行的箭头：真正的链接藏在卡片下面。
+                    ZStack {
+                        NavigationLink(value: AppRouter.SettingsPage.unlock) { EmptyView() }.opacity(0)
+                        EnclaveAICard()
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 }
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.language) {
@@ -308,7 +312,9 @@ struct ModelSettingsView: View {
             }
             HStack(alignment: .firstTextBaseline) {
                 if let seconds = lastSeconds {
-                    DashBigNumber(value: String(format: "%.1f", seconds), unit: L("秒 · 最近一次", "s · last request", "秒・直近"))
+                    DashBigNumber(value: String(format: "%.1f", seconds),
+                                  unit: lastFailed ? L("秒 · 最近一次失败", "s · last request failed", "秒・直近は失敗") : L("秒 · 最近一次", "s · last request", "秒・直近"))
+                        .foregroundStyle(lastFailed ? Color.secondary : Color.primary)
                 } else {
                     DashBigNumber(value: "–", unit: L("还没有请求", "No requests yet", "リクエストなし"))
                 }
@@ -349,6 +355,13 @@ struct ModelSettingsView: View {
         case false?: return (L("连不上", "Can't connect", "接続できません"), .red)
         case nil: return (L("还没测试", "Not tested", "未テスト"), DashColor.system)
         }
+    }
+
+    /// 最近一次（测试或请求）失败：大数字变灰，单位写「失败」。
+    private var lastFailed: Bool {
+        if case .failure = store.test { return true }
+        if case .success = store.test { return false }
+        return recent.last.map { !$0.ok } ?? false
     }
 
     private var lastSeconds: Double? {

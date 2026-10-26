@@ -14,7 +14,9 @@ struct StylePreset: Codable, Identifiable, Hashable {
         case "口语": return L("口语", "Casual", "カジュアル")
         case "简短": return L("简短", "Concise", "簡潔に")
         case "结构": return L("结构", "Bullets", "箇条書き")
-        default: return name
+        default:
+            // 名字清空了也要能认出来：键盘面板里不能出现空的标签。
+            return name.trimmingCharacters(in: .whitespaces).isEmpty ? L("未命名", "Untitled", "名前なし") : name
         }
     }
 }
