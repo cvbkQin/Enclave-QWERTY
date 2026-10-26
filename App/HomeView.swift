@@ -12,7 +12,8 @@ struct HomeView: View {
         NavigationStack(path: $router.homePath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    if Readiness.remainingSteps(apiConfigured: store.settings.isConfigured) == 0 {
+                    // 键盘两步做完就进摘要；接口没填由摘要顶上的「AI 还没连上」卡片（OB8）引导。
+                    if Readiness.remainingSteps(apiConfigured: true) == 0 {
                         TabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
                                  title: L("摘要", "Summary", "概要"))
                             .padding(.top, 8)
@@ -332,8 +333,17 @@ struct OnboardingSteps: View {
                 Text(SharedStorage.usesClipboardConfig
                      ? L("填 API 地址和 Key，或者从剪贴板导入配置。", "Enter the API URL and key, or import settings from the clipboard.", "API の URL とキーを入力するか、クリップボードから設定を読み込みます。")
                      : L("填 API 地址和 Key。", "Enter the API URL and key.", "API の URL とキーを入力します。"))
-                Button(L("去配置", "Set up", "設定する")) { router.openModel() }
-                    .buttonStyle(StepButtonStyle(prominent: current == 2))
+                if router.privacyAgreed {
+                    HStack(spacing: 10) {
+                        Button(L("跟着教程设置", "Follow the Guide", "ガイドに沿って設定")) { router.setupGuide = .provider }
+                            .buttonStyle(StepButtonStyle(prominent: current == 2))
+                        Button(L("已有 Key", "I Have a Key", "キーを持っている")) { router.openModel() }
+                            .buttonStyle(StepButtonStyle(prominent: false))
+                    }
+                } else {
+                    Button(L("去配置", "Set up", "設定する")) { router.openModel() }
+                        .buttonStyle(StepButtonStyle(prominent: current == 2))
+                }
             }
             DeployCard()
         }

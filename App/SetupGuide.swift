@@ -393,6 +393,15 @@ private struct GuideKeyStep: View {
     }
 
     private func paste() {
+        #if DEBUG
+        // 模拟器里点不到系统的粘贴授权框：-guideKey <值> 直接当作剪贴板内容。
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-guideKey"), args.indices.contains(i + 1) {
+            store.apiKey = args[i + 1]
+            Task { await store.runTest() }
+            return
+        }
+        #endif
         guard let text = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
         store.apiKey = text
         Task { await store.runTest() }

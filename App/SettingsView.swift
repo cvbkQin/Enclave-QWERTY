@@ -346,7 +346,8 @@ struct ModelSettingsView: View {
                 Spacer(minLength: 8)
             }
             HStack(alignment: .firstTextBaseline) {
-                if let seconds = lastSeconds {
+                // 没配置时旧的请求记录不算数，不显示。
+                if store.settings.isConfigured, let seconds = lastSeconds {
                     DashBigNumber(value: String(format: "%.1f", seconds),
                                   unit: lastFailed ? L("秒 · 最近一次失败", "s · last request failed", "秒・直近は失敗") : L("秒 · 最近一次", "s · last request", "秒・直近"))
                         .foregroundStyle(lastFailed ? Color.secondary : Color.primary)
@@ -374,8 +375,10 @@ struct ModelSettingsView: View {
                 .buttonStyle(.plain)
                 .disabled(!store.settings.isConfigured || store.test == .running)
             }
-            DashSparkline(values: recent.map { Double($0.ms) }, color: recent.allSatisfy(\.ok) ? DashColor.ok : .orange)
-            Text(recentSummary).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+            if store.settings.isConfigured {
+                DashSparkline(values: recent.map { Double($0.ms) }, color: recent.allSatisfy(\.ok) ? DashColor.ok : .orange)
+                Text(recentSummary).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+            }
         }
     }
 
