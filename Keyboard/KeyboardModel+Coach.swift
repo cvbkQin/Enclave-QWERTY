@@ -65,7 +65,8 @@ extension KeyboardModel {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 guard let self, self.coach != nil, !Task.isCancelled else { return }
-                if self.isRunning || self.coachTouched {
+                // 等 AI 生成、或者在看「润色前确认一下」之类的提示卡时，都不算没动。
+                if self.isRunning || self.coachTouched || self.gate != nil {
                     idleSince = Date()
                     self.coachTouched = false
                 }

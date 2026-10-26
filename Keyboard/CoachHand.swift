@@ -52,11 +52,9 @@ private struct CoachHandLayer: View {
             Group {
                 if reduceMotion {
                     // 减弱动态效果：不点、不出水波、不飞，下一步直接淡入到下一颗按钮旁边。
-                    CoachHandShape.hand(flipped: flipped(rect))
-                        .position(handCenter(tip: CGPoint(x: rect.midX, y: rect.midY + 6), flipped: flipped(rect)))
+                    resting(rect)
                         .opacity(display.dimmed ? 0.3 : 1)
-                        .id(display.target)
-                        .transition(.opacity.animation(.easeOut(duration: 0.2)))
+                        .animation(.easeOut(duration: 0.2), value: display.dimmed)
                 } else {
                     TimelineView(.animation) { context in
                         hand(at: context.date, rect: rect, dimmed: display.dimmed)
@@ -86,42 +84,67 @@ private struct CoachHandLayer: View {
 
     @ViewBuilder
     private func hand(at date: Date, rect: CGRect, dimmed: Bool) -> some View {
-        let center = CGPoint(x: rect.midX, y: rect.midY)
         if let flight, date.timeIntervalSince(flight.start) < Self.flightDuration {
-            // 飞：先放大到 1.12、转 -8°，沿往上拱的弧线过去，落下恢复。
-            let raw = date.timeIntervalSince(flight.start) / Self.flightDuration
-            let p = raw < 0.5 ? 2 * raw * raw : 1 - pow(-2 * raw + 2, 2) / 2
-            let from = CGPoint(x: flight.from.midX, y: flight.from.midY + 4)
-            let to = CGPoint(x: center.x, y: center.y + 4)
-            let control = CGPoint(x: (from.x + to.x) / 2, y: min(from.y, to.y) - 50)
-            let tip = CGPoint(x: (1 - p) * (1 - p) * from.x + 2 * (1 - p) * p * control.x + p * p * to.x,
-                              y: (1 - p) * (1 - p) * from.y + 2 * (1 - p) * p * control.y + p * p * to.y)
-            let lift = sin(.pi * p)
-            let flip = p < 0.5 ? flipped(flight.from) : flipped(rect)
-            CoachHandShape.hand(flipped: flip, scale: 1 + 0.12 * lift, angle: -8 * lift)
-                .position(handCenter(tip: tip, flipped: flip))
+            flying(progress: date.timeIntervalSince(flight.start) / Self.flightDuration, from: flight.from, to: rect)
         } else if dimmed {
             // 等 AI 生成：变淡停在原地，不点、不出水波。
-            CoachHandShape.hand(flipped: flipped(rect))
-                .position(handCenter(tip: CGPoint(x: center.x, y: center.y + 4), flipped: flipped(rect)))
-                .opacity(0.3)
+            resting(rect).opacity(0.3)
         } else {
-            let elapsed = max(0, date.timeIntervalSince(settledAt))
-            let t = elapsed.truncatingRemainder(dividingBy: Self.period) / Self.period
-            // 指尖在中心下方 4pt 落下，抬到上方 3pt 再落下，ease-in-out。
-            let offset = 4 - 7 * (1 - cos(2 * .pi * t)) / 2
-            let ripple = 1 - pow(1 - t, 2)
-            ZStack {
-                Circle()
-                    .fill(Color(red: 139 / 255, green: 124 / 255, blue: 246 / 255).opacity(0.16))
-                    .overlay(Circle().strokeBorder(Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255), lineWidth: 2.5))
-                    .frame(width: 12 + 44 * ripple, height: 12 + 44 * ripple)
-                    .opacity(1 - t)
-                    .position(center)
-                CoachHandShape.hand(flipped: flipped(rect))
-                    .position(handCenter(tip: CGPoint(x: center.x, y: center.y + offset), flipped: flipped(rect)))
-            }
+            tapping(rect, phase: Self.phase(since: settledAt, at: date))
         }
+    }
+
+    /// 飞：先放大到 1.12、转 -8°，沿往上拱的弧线过去，落下恢复。
+    private func flying(progress raw: Double, from: CGRect, to: CGRect) -> some View {
+        let p: CGFloat = CGFloat(raw < 0.5 ? 2 * raw * raw : 1 - (2 - 2 * raw) * (2 - 2 * raw) / 2)
+        let start = CGPoint(x: from.midX, y: from.midY + 4)
+        let end = CGPoint(x: to.midX, y: to.midY + 4)
+        let control = CGPoint(x: (start.x + end.x) / 2, y: min(start.y, end.y) - 50)
+        let tip = Self.bezier(start, control, end, p)
+        let lift: CGFloat = sin(CGFloat.pi * p)
+        let flip: Bool = p < 0.5 ? flipped(from) : flipped(to)
+        return CoachHandShape.hand(flipped: flip, scale: 1 + 0.12 * lift, angle: Double(-8 * lift))
+            .position(handCenter(tip: tip, flipped: flip))
+    }
+
+    private func resting(_ rect: CGRect) -> some View {
+        let flip = flipped(rect)
+        return CoachHandShape.hand(flipped: flip)
+            .position(handCenter(tip: CGPoint(x: rect.midX, y: rect.midY + 4), flipped: flip))
+    }
+
+    /// 上下点：指尖在中心下方 4pt 落下，抬到上方 3pt 再落下（ease-in-out）；每次落下扩出一圈水波。
+    private func tapping(_ rect: CGRect, phase t: CGFloat) -> some View {
+        let offset: CGFloat = 4 - 7 * (1 - cos(2 * CGFloat.pi * t)) / 2
+        let ripple: CGFloat = 1 - (1 - t) * (1 - t)
+        let diameter: CGFloat = 12 + 44 * ripple
+        let flip = flipped(rect)
+        let tip = CGPoint(x: rect.midX, y: rect.midY + offset)
+        return ZStack {
+            Circle()
+                .fill(Self.rippleColor.opacity(0.16))
+                .overlay(Circle().strokeBorder(Self.rippleColor, lineWidth: 2.5))
+                .frame(width: diameter, height: diameter)
+                .opacity(Double(1 - t))
+                .position(x: rect.midX, y: rect.midY)
+            CoachHandShape.hand(flipped: flip)
+                .position(handCenter(tip: tip, flipped: flip))
+        }
+    }
+
+    private static let rippleColor = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
+
+    /// 1.4 秒一拍里走到哪儿了（0–1）。
+    private static func phase(since start: Date, at date: Date) -> CGFloat {
+        let elapsed = max(0, date.timeIntervalSince(start))
+        return CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period)
+    }
+
+    private static func bezier(_ a: CGPoint, _ c: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
+        let u: CGFloat = 1 - t
+        let x: CGFloat = u * u * a.x + 2 * u * t * c.x + t * t * b.x
+        let y: CGFloat = u * u * a.y + 2 * u * t * c.y + t * t * b.y
+        return CGPoint(x: x, y: y)
     }
 
     /// 手的框放在哪儿，指尖才落在 tip 上。
