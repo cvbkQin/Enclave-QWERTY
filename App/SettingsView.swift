@@ -195,7 +195,7 @@ enum Provider: CaseIterable, Identifiable {
 
     var preset: (baseURL: String, model: String)? {
         switch self {
-        case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-chat")
+        case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-flash")
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
         case .qwen: return ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
@@ -255,7 +255,7 @@ struct ModelSettingsView: View {
             }
             Section {
                 LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
-                LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.model, placeholder: "deepseek-chat")
+                LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.model, placeholder: "deepseek-flash")
                 HStack {
                     Text("API Key")
                     SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: $store.apiKey)
@@ -332,7 +332,7 @@ struct ModelSettingsView: View {
     }
 
     /// 顶部状态卡（PB2）：连接状态、最近一次耗时、「测试」，最近 10 次请求的小曲线。
-    /// 标题上的灰字：「DeepSeek · deepseek-chat」，没配好时「还没设置」。
+    /// 标题上的灰字：「DeepSeek · deepseek-flash」，没配好时「还没设置」。
     private var apiCaption: String {
         guard store.settings.isConfigured else { return L("还没设置", "Not set up", "未設定") }
         return ProviderName.of(store.settings.baseURL) + " · " + store.settings.model
