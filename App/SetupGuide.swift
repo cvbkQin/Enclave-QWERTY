@@ -383,6 +383,13 @@ private struct GuideKeyStep: View {
             }
             if store.test != .idle { result }
         }
+        // 直接跳到这一步（比如 -setupGuide deepseek）时还没套 DeepSeek 预设，补上。
+        .onAppear {
+            if store.settings.baseURL.isEmpty, let preset = Provider.deepseek.preset {
+                store.settings.baseURL = preset.baseURL
+                store.settings.model = preset.model
+            }
+        }
     }
 
     /// sk-7f3a••••••••c21e
