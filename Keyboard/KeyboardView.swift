@@ -41,10 +41,10 @@ struct KeyboardView: View {
             ZStack {
                 // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
                 candidateBar
-                    .opacity(model.isComposing ? 1 : 0)
-                    .allowsHitTesting(model.isComposing)
-                    .accessibilityHidden(!model.isComposing)
-                if !model.isComposing {
+                    .opacity(showsCandidateBar ? 1 : 0)
+                    .allowsHitTesting(showsCandidateBar)
+                    .accessibilityHidden(!showsCandidateBar)
+                if !showsCandidateBar {
                     if model.target == .card {
                         cardEditHint
                     } else {
@@ -98,16 +98,23 @@ struct KeyboardView: View {
         .padding(.horizontal, inset)
     }
 
-    /// 打拼音时的候选栏，右边的箭头展开整页候选。
+    /// 打拼音、或者上屏后有联想时显示候选栏。
+    private var showsCandidateBar: Bool { model.isComposing || model.showsPredictions }
+
+    /// 打拼音时的候选栏，右边的箭头展开整页候选；显示联想时箭头换成关闭。
     private var candidateBar: some View {
-        HStack(spacing: 0) {
+        let predicting = !model.isComposing
+        return HStack(spacing: 0) {
             // 点击判定在 UIKit 里做，见 CandidateStrip。
             CandidateStrip(model: model)
             Divider().frame(height: 22)
-            Button { model.candidatesExpanded.toggle() } label: {
-                Image(systemName: model.candidatesExpanded ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(Color.primary)
+            Button {
+                if predicting { model.dismissPredictions() } else { model.candidatesExpanded.toggle() }
+            } label: {
+                Image(systemName: predicting ? "xmark" : (model.candidatesExpanded ? "chevron.up" : "chevron.down"))
+                    // 联想时的关闭键小一号、灰色：联想只是建议，关闭键不和字抢眼（UI 稿 KP1）。
+                    .font(.system(size: predicting ? 15 : 17, weight: predicting ? .medium : .regular))
+                    .foregroundStyle(predicting ? Color.secondary : Color.primary)
                     // 放宽到 54pt，靠右边缘也好按。
                     .frame(width: 54)
                     .frame(maxHeight: .infinity)

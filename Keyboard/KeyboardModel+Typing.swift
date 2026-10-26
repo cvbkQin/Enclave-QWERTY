@@ -128,8 +128,33 @@ extension KeyboardModel {
     func selectCandidate(_ index: Int) {
         // 选了候选：前面打的拼音键都没按错，算进手指习惯。
         TouchCalibration.confirm()
-        if let text = engine.select(index) { commit(text) }
+        let text = engine.select(index)
+        if let text { commit(text) }
         syncEngine()
+        if let text, !isComposing, chineseMode { showPredictions(after: text) }
+    }
+
+    private func showPredictions(after text: String) {
+        predictions = Predictor.next(after: text)
+        if !predictions.isEmpty { DailyStats.add("prediction.shown") }
+    }
+
+    /// 候选栏里有联想时显示候选栏（没在打拼音）。
+    var showsPredictions: Bool { !predictions.isEmpty && !isComposing }
+
+    /// 点了联想词：上屏，再接着联想它后面的词。
+    func selectPrediction(_ index: Int) {
+        guard predictions.indices.contains(index) else { return }
+        let word = predictions[index]
+        commit(word)
+        // 点联想词省掉的字数（首页「联想帮你少打了 N 个字」）。
+        DailyStats.add("prediction.tapped")
+        DailyStats.add("prediction.chars", word.count)
+        showPredictions(after: word)
+    }
+
+    func dismissPredictions() {
+        if !predictions.isEmpty { predictions = [] }
     }
 
     // MARK: - 按键触摸（由 KeyTouchView 调用）
@@ -140,6 +165,20 @@ extension KeyboardModel {
     }
 
     func perform(_ kind: KeyKind) {
+        if showsPredictions {
+            switch kind {
+            // 有联想时：删除只收起联想，不删字；开了「空格连续联想」时空格上屏第一个联想词。
+            case .delete:
+                dismissPredictions()
+                return
+            case .space where Predictor.spaceChains:
+                selectPrediction(0)
+                return
+            default: break
+            }
+        }
+        // 按了别的键：联想收起（打字母时候选栏换成拼音候选）。
+        dismissPredictions()
         switch kind {
         case .letter(let letter): typeLetter(letter)
         case .symbol(let symbol): typeSymbol(symbol)

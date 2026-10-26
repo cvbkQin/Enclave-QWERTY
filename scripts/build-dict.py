@@ -80,6 +80,43 @@ def write_dict(path: Path, name: str, rows):
             out.write(f"{text}\t{code}\t{weight}\n")
 
 
+# 联想（上屏后接着出下一个词）：从万象基础词库的长词里拆出「前一个词 → 后一个词」。
+# 比如「今天早上」拆成「今天 → 早上」，长词的词频加到这一对上。每个词留最常见的几个。
+PREDICT_MIN_WORD = 200
+PREDICT_MIN_TOTAL = 1000
+PREDICT_KEEP = 6
+
+
+def write_predict(path: Path, out: Path):
+    words = {}
+    for text, _, weight in entries(path):
+        if is_basic_cjk(text):
+            words[text] = max(words.get(text, 0), weight)
+    pairs = {}
+    for text, weight in words.items():
+        n = len(text)
+        if n < 4 or n > 8:
+            continue
+        # 左边取最长的词（「我想起了」是「我想起|了」，不拆成「我想|起了」），右边至少两个字。
+        left = next((i for i in range(n - 1, 1, -1) if words.get(text[:i], 0) >= PREDICT_MIN_WORD), None)
+        if not left or n - left < 2:
+            continue
+        head, tail = text[:left], text[left:]
+        if tail == head or words.get(tail, 0) < PREDICT_MIN_WORD:
+            continue
+        nexts = pairs.setdefault(head, {})
+        nexts[tail] = nexts.get(tail, 0) + weight
+    count = 0
+    with out.open("w", encoding="utf-8") as f:
+        for head in sorted(pairs):
+            top = sorted(pairs[head].items(), key=lambda kv: -kv[1])[:PREDICT_KEEP]
+            if sum(w for _, w in top) < PREDICT_MIN_TOTAL:
+                continue
+            f.write(head + "\t" + " ".join(t for t, _ in top) + "\n")
+            count += 1
+    print(f"  联想: {count} 个词")
+
+
 def main():
     source, output = Path(sys.argv[1]), Path(sys.argv[2])
     cn = output / "cn_dicts"
@@ -104,6 +141,8 @@ def main():
         write_dict(cn / f"{name}.dict.yaml", name, rows)
         print(f"  {name}: {len(rows)} 条")
         total += len(rows)
+
+    write_predict(source / "dicts" / "jichu.dict.yaml", output / "predict.tsv")
 
     # 英文单词：编码统一成小写字母，打 hello 能出 Hello。
     rows, seen = [], set()

@@ -375,6 +375,7 @@ struct KeyboardSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                PredictionToggle()
             }
             TouchCalibrationSection()
             Section(L("按键反馈", "Key feedback", "キーのフィードバック")) {

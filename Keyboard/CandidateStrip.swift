@@ -202,14 +202,21 @@ struct CandidateStrip: UIViewRepresentable {
     func makeUIView(context: Context) -> CandidateStripView {
         let view = CandidateStripView()
         view.onSelect = { [weak model] index in
-            model?.keyFeedback(for: .space)
-            model?.selectCandidate(index)
+            guard let model else { return }
+            model.keyFeedback(for: .space)
+            if model.isComposing { model.selectCandidate(index) } else { model.selectPrediction(index) }
         }
         view.onNearEnd = { [weak model] in model?.loadMoreCandidates() }
         return view
     }
 
     func updateUIView(_ view: CandidateStripView, context: Context) {
+        // 没在打拼音时显示联想：不标常用词；开了「空格连续联想」时第一个也变色，和打字时一样提示按空格上屏的是它。
+        guard model.isComposing else {
+            view.update(words: model.predictions, firstColor: Predictor.spaceChains ? UIColor(Brand.purpleText) : .label,
+                        firstIsCommon: false)
+            return
+        }
         let words = Array(model.candidates.prefix(60))
         view.update(words: words, firstColor: UIColor(Brand.purpleText),
                     firstIsCommon: words.first.map { model.commonWordTexts.contains($0) } ?? false)
