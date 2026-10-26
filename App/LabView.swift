@@ -407,8 +407,6 @@ struct SceneView: View {
             store.settings.selectedStyleID = style.id
         }
         SharedStorage.defaults.set(preset.instruction, forKey: SettingsStore.instructionKey)
-        // 原文被改过的话也恢复成这个场景的预填文字，照着步骤做结果才对得上。
-        text = scene.text
         applied = true
         // 键盘只在出现时读设置：收起再弹出来。
         focused = false
