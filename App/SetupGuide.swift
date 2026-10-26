@@ -955,7 +955,7 @@ struct SetupWizardView: View {
     private static let green = Color(hex: 0x2BB673)
 
     var body: some View {
-        let done = [Readiness.keyboardAdded, Readiness.fullAccess == true, store.settings.isConfigured]
+        let done = [Readiness.keyboardAdded, Readiness.fullAccess == true, aiReady]
         let remaining = done.filter { !$0 }.count
         let current = done.firstIndex(of: false)
         ScrollView {
@@ -985,9 +985,17 @@ struct SetupWizardView: View {
                     stepDivider
                     stepRow(2, done: done[2], current: current == 2,
                             title: L("连上 AI", "Connect AI", "AI を接続"),
-                            detail: done[2] ? aiSummary
-                                : L("填你自己的 API Key，跟着教程大约 3 分钟。", "Add your own API key. About 3 minutes with the guide.", "自分の API キーを入れます。ガイドに沿って約 3 分。")) {
-                        if done[2] {
+                            detail: done[2] || testFailed ? aiSummary
+                                : L("填你自己的 API Key，跟着教程大约 3 分钟。", "Add your own API key. About 3 minutes with the guide.", "自分の API キーを入れます。ガイドに沿って約 3 分。"),
+                            warns: testFailed) {
+                        if testFailed {
+                            HStack(spacing: 8) {
+                                pill(store.test == .running ? L("测试中…", "Testing…", "テスト中…") : L("重新测试", "Test Again", "再テスト"),
+                                     prominent: current == 2) { Task { await store.runTest() } }
+                                    .disabled(store.test == .running)
+                                pill(L("重新设置 AI", "Set Up AI Again", "AI を設定し直す"), prominent: false) { openGuide() }
+                            }
+                        } else if done[2] {
                             pill(L("重新设置 AI", "Set Up AI Again", "AI を設定し直す"), prominent: false) { openGuide() }
                         } else {
                             HStack(spacing: 8) {
@@ -1027,6 +1035,10 @@ struct SetupWizardView: View {
     }
 
     private var fullAccessOff: Bool { Readiness.fullAccess == false }
+
+    /// 配好了就算完成；只有测过并且失败才算没完成（和首页「AI 还没连上」卡一致）。
+    private var aiReady: Bool { store.settings.isConfigured && store.lastTestOK != false }
+    private var testFailed: Bool { store.settings.isConfigured && store.lastTestOK == false }
 
     private var stepDivider: some View {
         Rectangle().fill(GuideColor.divider).frame(height: 1).padding(.horizontal, 18)

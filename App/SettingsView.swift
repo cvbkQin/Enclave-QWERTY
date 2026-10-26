@@ -101,7 +101,8 @@ struct SettingsView: View {
                 // 键盘、拼音词库和常用词从首页进。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
-                        let left = Readiness.remainingSteps(apiConfigured: store.settings.isConfigured)
+                        // 测过并且失败时 AI 这一步不算完成，和设置向导页一致。
+                        let left = Readiness.remainingSteps(apiConfigured: store.settings.isConfigured && store.lastTestOK != false)
                         HStack(spacing: 12) {
                             DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("设置向导", "Setup guide", "設定ガイド"))
                             Text(left == 0 ? L("已完成", "Done", "完了") : L("还差 \(left) 步", "\(left) left", "あと \(left) ステップ"))
