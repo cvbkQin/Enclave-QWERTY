@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Enclave keyboard Support</title>
+<meta name="description" content="Support for Enclave keyboard.">
+<style>
+:root{--bg:#f7f7fa;--fg:#1c1c24;--muted:#5f6170;--line:#e1e2e8;--accent:#6b4fd8;--card:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#121218;--fg:#e9e9f0;--muted:#a0a2b0;--line:#2b2c36;--accent:#a996ff;--card:#1b1b23}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans","Noto Sans CJK SC",sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:40px 20px 80px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:28px}
+header a.brand{font-weight:700;font-size:18px;color:var(--fg);text-decoration:none}
+nav.lang{display:flex;gap:6px}
+nav.lang a{padding:3px 12px;border:1px solid var(--line);border-radius:999px;color:var(--fg);text-decoration:none;font-size:14px}
+nav.lang a:hover{border-color:var(--accent)}
+h1{font-size:28px;line-height:1.3;margin:0 0 6px}
+h2{font-size:20px;margin:32px 0 8px}
+h3{font-size:17px;margin:20px 0 6px}
+p,li{color:var(--fg)}
+.meta{color:var(--muted);font-size:14px}
+a{color:var(--accent)}
+section.lang{padding-top:8px;border-top:1px solid var(--line);margin-top:40px}
+section.lang:first-of-type{border-top:0;margin-top:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:16px 0}
+footer{margin-top:56px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
+</style>
+</head>
+<body><div class="wrap">
+<header><a class="brand" href="index.html">Enclave keyboard</a>
+<nav class="lang"><a href="#zh">中文</a><a href="#en">English</a><a href="#ja">日本語</a></nav></header>
+<section class="lang" id="zh" lang="zh-Hans"><h1>Enclave keyboard 支持</h1><p class="meta">Enclave 是一款中文拼音输入法，AI 功能使用你自己配置的模型接口。</p>
+<h2>添加键盘</h2><p>打开 iPhone 的“设置 › 通用 › 键盘 › 键盘 › 添加新键盘”，选择 Enclave。打字时长按或轻点地球键切换到 Enclave。</p>
+<h2>为什么要“允许完全访问”</h2><p>不开完全访问也能正常打拼音。只有 AI 润色需要它：用来把你选中的文字发送到你配置的模型接口、按键振动，以及读取和 App 共享的设置。开启方法：设置 › 通用 › 键盘 › 键盘 › Enclave › 允许完全访问。</p>
+<h2>配置模型接口</h2><p>打开 Enclave App，进入“模型接口”，选择服务商或“自定义”，填入 API 地址（一般以 /v1 结尾）、模型名和 API Key。支持 OpenAI 兼容格式的接口，也可以连接你自己运行的 Ollama、vLLM、LM Studio 等。API Key 只保存在本机钥匙串。</p>
+<h2>什么时候会发送文字</h2><p>只在你点“润色”或“再润”时发送。第一次发送前，以及更换接口地址后，键盘会告诉你要发到哪里并征得你的同意。打字和拼音候选都在手机上完成，不联网。</p>
+<h2>试用与购买</h2><p>新安装有 14 天免费试用，AI 功能不限次数。试用结束后每天可免费使用 10 次，也可以在 App 里一次买断，不限次数。打字和拼音永久免费。换手机或重装后，在 App 的购买页点“恢复购买”即可。</p>
+<h2>润色失败怎么办</h2><p>先确认已开启完全访问、网络正常；再检查 API 地址、模型名和 API Key 是否正确，以及服务商账户是否有余额。连接局域网里的模型时，手机和电脑需要在同一个网络。</p>
+<div class="card"><strong>联系我们</strong><br>有问题或建议，请发邮件到 <a href="mailto:cvbk.qin@gmail.com">cvbk.qin@gmail.com</a><br><a href="privacy.html#zh">隐私政策</a></div></section>
+<section class="lang" id="en" lang="en"><h1>Enclave keyboard Support</h1><p class="meta">Enclave is a Chinese Pinyin keyboard whose AI features use a model API you configure yourself.</p>
+<h2>Add the keyboard</h2><p>Open Settings › General › Keyboard › Keyboards › Add New Keyboard and choose Enclave. Use the globe key to switch to it while typing.</p>
+<h2>Why Full Access?</h2><p>Pinyin typing works without Full Access. Only AI Polish needs it: to send your text to the model API you configured, for key haptics, and to read settings shared with the app. To turn it on: Settings › General › Keyboard › Keyboards › Enclave › Allow Full Access.</p>
+<h2>Set up your model API</h2><p>In the Enclave app, open the API tab (Model API), pick a provider or Custom, and enter the API URL (usually ending in /v1), model name and API key. Any OpenAI-compatible API works, as do self-hosted servers such as Ollama, vLLM or LM Studio. Your API key is stored only in the iOS Keychain.</p>
+<h2>When is text sent?</h2><p>Only when you tap Polish or Rewrite. Before the first send, and after you change the API address, the keyboard shows where the text will go and asks for your consent. Typing and candidates stay on your iPhone.</p>
+<h2>Trial and purchase</h2><p>New installs get a 14-day free trial with unlimited AI use. After that, AI features are free 10 times a day, or unlimited with a one-time purchase in the app. Typing and Pinyin are always free. After reinstalling or on a new iPhone, tap Restore Purchases in the app.</p>
+<h2>Polish failed?</h2><p>Check that Full Access is on and you are online, then check the API URL, model name and API key, and that your provider account has credit. For a model on your local network, your iPhone and computer must be on the same network.</p>
+<div class="card"><strong>Contact</strong><br>Questions or feedback: <a href="mailto:cvbk.qin@gmail.com">cvbk.qin@gmail.com</a><br><a href="privacy.html#en">Privacy Policy</a></div></section>
+<section class="lang" id="ja" lang="ja"><h1>Enclave keyboard サポート</h1><p class="meta">Enclave は中国語ピンイン入力キーボードです。AI 機能には自分で設定したモデル API を使います。※日本語の入力には対応していません。</p>
+<h2>キーボードを追加する</h2><p>「設定 › 一般 › キーボード › キーボード › 新しいキーボードを追加」で Enclave を選びます。入力中は地球儀キーで切り替えます。</p>
+<h2>フルアクセスが必要な理由</h2><p>フルアクセスがオフでもピンイン入力はできます。必要なのは AI 機能だけで、設定したモデル API への送信、キーの触覚フィードバック、アプリと共有する設定の読み込みに使います。オンにするには「設定 › 一般 › キーボード › キーボード › Enclave › フルアクセスを許可」。</p>
+<h2>モデル API を設定する</h2><p>Enclave アプリの「モデル API」でサービスまたは「カスタム」を選び、API の URL（通常 /v1 で終わる）、モデル名、API キーを入力します。OpenAI 互換 API のほか、Ollama・vLLM・LM Studio などのセルフホストにも対応。API キーは端末のキーチェーンにのみ保存されます。</p>
+<h2>文字が送信されるのはいつ？</h2><p>「整える」「別の案」をタップしたときだけです。初回と接続先を変えたあとは、送信先を表示して同意を確認します。入力と変換候補は iPhone 内で完結します。</p>
+<h2>無料体験と購入</h2><p>新規インストールから 14 日間は AI 機能を回数無制限で無料体験できます。その後は 1 日 10 回まで無料、アプリ内の買い切りで無制限になります。文字入力とピンインはずっと無料です。再インストールや機種変更後は、アプリの「購入を復元」をタップしてください。</p>
+<h2>うまく動かないとき</h2><p>フルアクセスとネットワーク接続を確認し、API の URL・モデル名・API キー、サービスの残高を確認してください。ローカルネットワーク上のモデルを使う場合は、iPhone とパソコンを同じネットワークに接続してください。</p>
+<div class="card"><strong>お問い合わせ</strong><br>ご質問・ご意見はメールで：<a href="mailto:cvbk.qin@gmail.com">cvbk.qin@gmail.com</a><br><a href="privacy.html#ja">プライバシーポリシー</a></div></section>
+
+<footer>© 2026 Gengyun Qin · <a href="index.html">Support</a> · <a href="privacy.html">Privacy Policy</a> · <a href="mailto:cvbk.qin@gmail.com">cvbk.qin@gmail.com</a></footer>
+</div></body></html>
