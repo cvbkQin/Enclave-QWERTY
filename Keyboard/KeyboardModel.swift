@@ -146,7 +146,14 @@ final class KeyboardModel: ObservableObject {
     /// 没开完全访问或没配置 API：✨ 置灰，卡片位置显示检查清单。
     var aiBlocked: Bool { !debugUnblocked && (!hasFullAccess || !settings.isConfigured) }
     /// 试用结束且今天的免费次数用完：润色按钮置灰带锁，点了出提示卡。
-    var aiQuotaUsed: Bool { !debugUnblocked && !AIAccess.current.allowsAI }
+    var aiQuotaUsed: Bool { !debugUnblocked && aiUsesLeft == 0 }
+    /// 试用结束后今天还剩几次（试用中、已解锁时为 nil）。润色按钮每次重画都要看，
+    /// 每次现算要读好几次共享存储、算日历，打字时每个键都会重画几遍，所以弹出时和用掉一次后各算一次存着。
+    private(set) var aiUsesLeft: Int?
+
+    func refreshAIAccess() {
+        if case .expired = AIAccess.current { aiUsesLeft = AIAccess.usesLeftToday } else { aiUsesLeft = nil }
+    }
     /// 模拟器截图用：没配 API 也显示结果卡片。
     var debugUnblocked = false
     #if DEBUG
@@ -206,6 +213,7 @@ final class KeyboardModel: ObservableObject {
         hasFullAccess = controller?.hasFullAccess ?? false
         // 没开完全访问时读不到 App 里选的语言，跟随 iPhone。
         Loc.followSystemOnly = !hasFullAccess
+        refreshAIAccess()
         if KeyboardStatus.fullAccess != hasFullAccess { KeyboardStatus.fullAccess = hasFullAccess }
         KeyboardStatus.keyboardSeen = true
         if hasFullAccess && settings.isConfigured && AIAccess.reminderDueToday {
@@ -240,20 +248,36 @@ final class KeyboardModel: ObservableObject {
                 let hanzi = CommonWordStore.containsHanzi(entry.userInput)
                 guard !isName || hanzi, seen.insert(entry.userInput + "\t" + entry.documentText).inserted else { continue }
                 words.append(CommonWord(text: entry.documentText,
-                                        pinyin: hanzi ? CommonWordStore.pinyin(of: entry.userInput) : "",
+                                        pinyin: hanzi ? ContactPinyin.of(entry.userInput) : "",
                                         shortcut: hanzi ? "" : entry.userInput,
                                         source: isName ? .contact : .textReplacement))
             }
             DispatchQueue.main.async {
-                CommonWordStore.lexicon = words
+                // 快照没变就不重写（每次弹出都会读一遍，通讯录多时编码、写共享存储都不便宜）。
+                let signature = words.map { "\($0.text)\t\($0.pinyin)\t\($0.shortcut)\t\($0.source.rawValue)" }
+                if signature != self.lastLexiconSignature {
+                    self.lastLexiconSignature = signature
+                    CommonWordStore.lexicon = words
+                }
                 self.applyCommonWords(CommonWordStore.active(lexicon: words))
             }
         }
     }
 
+    /// 上次写进快照的系统词、上次交给引擎的短语表（都按内容比）。
+    private var lastLexiconSignature: [String]?
+    private var lastPhraseSignature: [String]?
+
     private func applyCommonWords(_ words: [CommonWord]) {
-        commonWordTexts = Set(words.map(\.text))
-        QueuedEngine.shared.updatePhrases(CommonWordStore.phraseEntries(words))
+        let texts = Set(words.map(\.text))
+        if texts != commonWordTexts { commonWordTexts = texts }
+        let entries = CommonWordStore.phraseEntries(words)
+        // 没变就不交给引擎：重写短语表要排在 Rime 队列上读文件比对，弹出后的第一个键得等它。
+        // 带上词库版本和用哪份词库：App 重新部署、开关完全访问后短语表要写到新的用户目录里。
+        let signature = ["\(hasFullAccess)", RimeStore.deployedVersion ?? ""] + entries.map { $0.text + "\t" + $0.code }
+        guard signature != lastPhraseSignature else { return }
+        lastPhraseSignature = signature
+        QueuedEngine.shared.updatePhrases(entries)
     }
 
     // MARK: - 执行
@@ -515,6 +539,7 @@ final class KeyboardModel: ObservableObject {
                     record(ok: true)
                     // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
                     AIAccess.recordUse()
+                    self.refreshAIAccess()
                     var updated = pending
                     updated.append(result)
                     if updated.mode == .write {
@@ -896,4 +921,22 @@ private struct FieldEdit {
     var inserted: String
     var original: String
     var use: KeyboardModel.ResultUse
+}
+
+/// 通讯录人名转拼音（CFStringTransform 很慢）每次弹出都要做一遍，记下来。读通讯录的回调不一定在主线程，用锁保护。
+private enum ContactPinyin {
+    private static var cache: [String: String] = [:]
+    private static let lock = NSLock()
+
+    static func of(_ name: String) -> String {
+        lock.lock()
+        let cached = cache[name]
+        lock.unlock()
+        if let cached { return cached }
+        let pinyin = CommonWordStore.pinyin(of: name)
+        lock.lock()
+        cache[name] = pinyin
+        lock.unlock()
+        return pinyin
+    }
 }

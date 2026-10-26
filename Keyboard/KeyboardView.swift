@@ -279,14 +279,22 @@ struct PolishButton: View {
         .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行当前提示词", "Run prompt", "プロンプトを実行"))
         .coachTarget(.sparkle, active: model.coachDisplay?.target == .sparkle)
         .onChange(of: model.finished) { finished in
-            if finished?.origin == .polish { doneAt = finished?.at }
+            if finished?.origin == .polish { flashDone(at: finished?.at) }
+        }
+    }
+
+    /// 完成时星星闪金 1.2 秒，之后清掉：doneAt 一直留着的话，星星里的 TimelineView 会一直按屏幕刷新率重画，打字时也在耗电、抢主线程。
+    private func flashDone(at date: Date?) {
+        doneAt = date
+        guard let date else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+            if doneAt == date { doneAt = nil }
         }
     }
 
     /// 试用结束、今天还有次数时的剩余次数；试用中、已购买、用完时为 nil。
     private var freeUsesLeft: Int? {
-        guard model.hasFullAccess, !model.debugUnblocked, case .expired = AIAccess.current else { return nil }
-        let left = AIAccess.usesLeftToday
+        guard model.hasFullAccess, !model.debugUnblocked, let left = model.aiUsesLeft else { return nil }
         return left > 0 ? left : nil
     }
 
@@ -636,7 +644,16 @@ struct MenuPolishButton: View {
         .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行", "Run", "実行"))
         .coachTarget(.run, active: model.coachDisplay?.target == .run)
         .onChange(of: model.finished) { finished in
-            if finished?.origin == .rerun { doneAt = finished?.at }
+            if finished?.origin == .rerun { flashDone(at: finished?.at) }
+        }
+    }
+
+    /// 同「润色」按钮：闪金完就清掉，免得星星一直重画。
+    private func flashDone(at date: Date?) {
+        doneAt = date
+        guard let date else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+            if doneAt == date { doneAt = nil }
         }
     }
 }

@@ -9,7 +9,8 @@ enum EnglishPredictor {
     private struct Entry {
         let key: String
         let word: String
-        let weight: Int32
+        /// log(词频 + 1)，读词表时算好：短前缀（打第一个字母）一次要排几千个词，每个键现算对数太慢。
+        let logWeight: Double
     }
 
     private static var entries: [Entry] = []
@@ -47,22 +48,34 @@ enum EnglishPredictor {
         guard !key.isEmpty else { return [] }
         lock.lock()
         defer { lock.unlock() }
-        var scored: [(word: String, score: Double)] = []
+        // 只留分数最高的 limit 个：打第一个字母时前缀能对上好几千个词，不用全排一遍。
+        var top: [(word: String, score: Double)] = []
+        func offer(_ word: String, _ score: Double) {
+            guard top.count < limit || score > top[top.count - 1].score else { return }
+            // 同分的排在先来的后面，和原来整体排序的结果一样。
+            let at = top.firstIndex { $0.score < score } ?? top.count
+            top.insert((word, score), at: at)
+            if top.count > limit { top.removeLast() }
+        }
         var seen = Set<String>()
-        let range = matches(key)
-        for index in range {
+        let typed = prefix.lowercased()
+        for index in matches(key) {
             let entry = entries[index]
-            let lower = entry.word.lowercased()
-            guard lower != prefix.lowercased(), seen.insert(lower).inserted else { continue }
-            scored.append((entry.word, score(Double(entry.weight), learned[lower] ?? 0)))
+            // 大多数词本来就是小写、没撇号，和 key 一样，不用再转一遍小写。
+            let lower = entry.word == entry.key ? entry.key : entry.word.lowercased()
+            guard lower != typed, seen.insert(lower).inserted else { continue }
+            offer(entry.word, entry.logWeight + boost(learned[lower] ?? 0))
         }
         // 词表里没有、但自己打过至少两次的词。
-        for (word, count) in learned where count >= 2 && !seen.contains(word) {
+        // 每个键都要扫一遍（最多 3000 个），首字母对不上的先跳过，不用逐个去撇号、建新字符串。
+        let firstByte = key.utf8.first
+        for (word, count) in learned where count >= 2 && word.utf8.first(where: { $0 != 0x27 }) == firstByte
+            && !seen.contains(word) {
             let wordKey = word.filter { $0 != "'" }
-            guard wordKey.hasPrefix(key), word != prefix.lowercased() else { continue }
-            scored.append((word, score(0, count)))
+            guard wordKey.hasPrefix(key), word != typed else { continue }
+            offer(word, boost(count))
         }
-        return scored.sorted { $0.score > $1.score }.prefix(limit).map { cased($0.word, like: prefix) }
+        return top.map { cased($0.word, like: prefix) }
     }
 
     /// 刚打完的词后面常跟什么。
@@ -98,9 +111,9 @@ enum EnglishPredictor {
 
     // MARK: - 内部
 
-    /// 词频差好几个数量级，取对数；自己用过的词每次加一截。
-    private static func score(_ weight: Double, _ count: Int) -> Double {
-        log(weight + 1) + Double(min(count, 20)) * 1.5
+    /// 词频差好几个数量级，取对数（读词表时算好，见 Entry.logWeight）；自己用过的词每次加一截。
+    private static func boost(_ count: Int) -> Double {
+        Double(min(count, 20)) * 1.5
     }
 
     /// 二分找出 key 开头的那一段。
@@ -134,7 +147,7 @@ enum EnglishPredictor {
         for line in text.split(separator: "\n") {
             let parts = line.split(separator: "\t")
             guard parts.count == 3, let weight = Int32(parts[2]) else { continue }
-            result.append(Entry(key: String(parts[0]), word: String(parts[1]), weight: weight))
+            result.append(Entry(key: String(parts[0]), word: String(parts[1]), logWeight: log(Double(weight) + 1)))
         }
         return result
     }

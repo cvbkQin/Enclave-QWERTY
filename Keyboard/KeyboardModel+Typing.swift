@@ -567,6 +567,8 @@ extension KeyboardModel {
             #if DEBUG
             KeyboardProbe.run(fullAccess: useShared, pinyinReady: ok, source: source)
             #endif
+            // 联想数据等拼音引擎启动完再读：冷启动时两边一起读词库，抢 CPU 和磁盘，键盘出来得慢。
+            if ok { Predictor.prepare() }
             guard let self, !ok, self.pinyinReady else { return }
             // 词库其实读不出来：退回直接打字母。
             self.pinyinReady = false
@@ -681,9 +683,12 @@ extension KeyboardModel {
     }
 
     func syncEngine() {
-        composition = engine.composition
-        candidates = engine.candidates
-        if candidates.isEmpty { candidatesExpanded = false }
+        // 没变的不设：@Published 设一次就让整个键盘重画一遍。
+        let newComposition = engine.composition
+        if newComposition != composition { composition = newComposition }
+        let newCandidates = engine.candidates
+        if newCandidates != candidates { candidates = newCandidates }
+        if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
         if target == .host && isComposing {
             proxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
@@ -707,7 +712,9 @@ extension KeyboardModel {
         let trimmed = before.trimmingCharacters(in: .whitespaces)
         let sentenceStart = trimmed.isEmpty || before.hasSuffix("\n")
             || (before.hasSuffix(" ") && [".", "?", "!"].contains(trimmed.last.map(String.init) ?? ""))
-        shift = sentenceStart ? .on : .off
+        let wanted: ShiftState = sentenceStart ? .on : .off
+        // 没变就不设（同 syncEngine），英文打字时每个键都会走到这里。
+        if shift != wanted { shift = wanted }
     }
 }
 
