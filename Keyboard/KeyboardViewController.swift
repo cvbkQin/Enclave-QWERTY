@@ -11,9 +11,9 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         let host = UIHostingController(rootView: KeyboardView(model: model))
-        // 不能完全透明：完全透明的地方系统不把触摸交给键盘（键之间的缝、候选词之间、箭头四周点了没反应），
-        // 几乎透明就算键盘的，再由触摸层判给最近的键。看起来和透明一样。
-        host.view.backgroundColor = UIColor(white: 0, alpha: 0.001)
+        // 铺一层不透明的键盘底色，不再几乎透明：在 Chrome 里从系统键盘（英文、日文等）切回来时，
+        // 系统键盘的按键会残留在我们下面，透明的话从键缝里透出来。不透明也保证键缝能接到触摸。
+        host.view.backgroundColor = Brand.keyboardBackUI
         // 键盘区域不需要安全区留白，否则预览区内容会被额外内边距推开。
         if #available(iOS 16.4, *) {
             host.safeAreaRegions = []
