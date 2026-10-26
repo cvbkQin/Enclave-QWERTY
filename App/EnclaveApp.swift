@@ -118,7 +118,7 @@ final class AppRouter: ObservableObject {
     }
 
     /// 首页里的二级页：键盘、常用词（全部 / 键盘标签）、场景实验室和其中一个场景。
-    enum HomePage: Hashable { case keyboard, commonWords, keyboardWords, lab, scene(Int) }
+    enum HomePage: Hashable { case keyboard, pinyin, commonWords, keyboardWords, lab, scene(Int) }
 
     @Published var tab: Tab = .home
     /// 界面语言，改了马上存进 App Group，整个界面按新语言重画（导航位置保留）。

@@ -224,7 +224,35 @@ struct DashTag: View {
     }
 }
 
+/// 四个标签页共用的自绘标题（PH1–PH4）：上面一行 13pt semibold 灰字，下面 34pt bold 大标题。
+/// 导航栏隐藏，左边距和顶部位置四页一样。
+struct TabTitle: View {
+    var caption: String
+    var title: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(caption).font(.footnote.weight(.semibold)).foregroundStyle(DashColor.system).lineLimit(1)
+            Text(title).font(.largeTitle.bold()).foregroundStyle(.primary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
 extension View {
+    /// 标签页的根页面：隐藏导航栏（标题自己画），列表顶部只留和首页一样的 8pt。
+    @ViewBuilder
+    func tabRootPage() -> some View {
+        if #available(iOS 17.0, *) {
+            self.toolbar(.hidden, for: .navigationBar)
+                .contentMargins(.top, 8, for: .scrollContent)
+        } else {
+            self.toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
     /// 把 B 卡片放进 Form / List 的分组页：用作 Section 的 header（header 不会被系统按分组大圆角裁掉），
     /// 去掉 header 的缩进、大写和灰色小字，左右和其他分组对齐，卡片自己的 16 圆角和描边完整。
     /// 不要放成列表行：iOS 会按分组圆角（iOS 26 上约 26pt）裁这一行，外角和描边会被切。

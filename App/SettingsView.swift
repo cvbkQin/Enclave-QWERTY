@@ -74,10 +74,13 @@ struct SettingsView: View {
             List {
                 Section {
                 } header: {
-                    // 整张卡可点，不要列表行的箭头。
-                    Button { router.settingsPath.append(.unlock) } label: { EnclaveAICard() }
-                        .buttonStyle(.plain)
-                        .dashFormCard()
+                    VStack(spacing: 12) {
+                        TabTitle(caption: "Enclave \(AboutView.version)", title: L("设置", "Settings", "設定"))
+                        // 整张卡可点，不要列表行的箭头。
+                        Button { router.settingsPath.append(.unlock) } label: { EnclaveAICard() }
+                            .buttonStyle(.plain)
+                    }
+                    .dashFormCard()
                 }
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.language) {
@@ -93,12 +96,7 @@ struct SettingsView: View {
                 } footer: {
                     Text(L("只改 Enclave App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
                 }
-                // 键盘和常用词从首页进。
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.pinyin) {
-                        DashRow(icon: "character.book.closed", color: DashColor.input, title: L("拼音词库", "Pinyin dictionary", "ピンイン辞書"), value: L("万象拼音", "Wanxiang Pinyin", "万象ピンイン"))
-                    }
-                }
+                // 键盘、拼音词库和常用词从首页进。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
                         DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
@@ -123,6 +121,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle(L("设置", "Settings", "設定"))
+            .tabRootPage()
             .navigationDestination(for: AppRouter.SettingsPage.self) { page in
                 switch page {
                 case .keyboard: KeyboardSettingsView()
@@ -217,7 +216,11 @@ struct ModelSettingsView: View {
         Form {
             Section {
             } header: {
-                statusCard.dashFormCard()
+                VStack(spacing: 12) {
+                    TabTitle(caption: apiCaption, title: L("接口", "API", "API"))
+                    statusCard
+                }
+                .dashFormCard()
             }
             Section {
             } header: {
@@ -284,6 +287,7 @@ struct ModelSettingsView: View {
             }
         }
         .navigationTitle(L("接口", "API", "API"))
+        .tabRootPage()
         .onAppear {
             provider = Provider.detect(store.settings.baseURL)
             recent = UsageStats.polishRecent
@@ -306,6 +310,12 @@ struct ModelSettingsView: View {
     }
 
     /// 顶部状态卡（PB2）：连接状态、最近一次耗时、「测试」，最近 10 次请求的小曲线。
+    /// 标题上的灰字：「DeepSeek · deepseek-chat」，没配好时「还没设置」。
+    private var apiCaption: String {
+        guard store.settings.isConfigured else { return L("还没设置", "Not set up", "未設定") }
+        return ProviderName.of(store.settings.baseURL) + " · " + store.settings.model
+    }
+
     private var statusCard: some View {
         DashCard {
             HStack(spacing: 6) {

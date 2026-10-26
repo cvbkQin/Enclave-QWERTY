@@ -18,12 +18,18 @@ struct StylesView: View {
     @State private var confirmReset = false
     /// 每条提示词本周执行的次数，进页面时读一次。
     @State private var weekCounts: [UUID: Int] = [:]
+    /// 「编辑」在「全部提示词」分组标题右边（PH2），自己管编辑状态。
+    @State private var editMode = EditMode.inactive
 
     var body: some View {
         List {
             Section {
                 HowItWorksCard(name: settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える"))
                     .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
+            } header: {
+                TabTitle(caption: caption, title: L("提示词", "Prompts", "プロンプト"))
+                    .padding(.bottom, 4)
+                    .dashFormCard()
             }
             Section {
                 ForEach($settings.styles) { $style in
@@ -51,7 +57,16 @@ struct StylesView: View {
                 .onDelete { settings.styles.remove(atOffsets: $0) }
                 .onMove { settings.styles.move(fromOffsets: $0, toOffset: $1) }
             } header: {
-                Text(L("全部提示词", "All prompts", "すべてのプロンプト"))
+                HStack {
+                    Text(L("全部提示词", "All prompts", "すべてのプロンプト"))
+                    Spacer()
+                    Button(editMode.isEditing ? L("完成", "Done", "完了") : L("编辑", "Edit", "編集")) {
+                        withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+                    }
+                    .font(.system(size: 15, weight: editMode.isEditing ? .semibold : .regular))
+                    .foregroundStyle(DashColor.ai)
+                    .textCase(nil)
+                }
             } footer: {
                 Text(L("顺序就是键盘「\(settings.selectedStyle?.displayName ?? "润色") ▾」里的顺序。次数是本周的。",
                        "This is the order in the keyboard's \(settings.selectedStyle?.displayName ?? "Polish") ▾ menu. Counts are for this week.",
@@ -80,11 +95,19 @@ struct StylesView: View {
                 settings.selectedStyleID = nil
             }
         }
+        .environment(\.editMode, $editMode)
         .navigationTitle(L("提示词", "Prompts", "プロンプト"))
-        .toolbar { EditButton() }
+        .tabRootPage()
         .onAppear {
             weekCounts = Dictionary(uniqueKeysWithValues: settings.styles.map { ($0.id, UsageStats.week("polish.style.\($0.id.uuidString)")) })
         }
+    }
+
+    /// 标题上的灰字：「5 条 · 默认「润色」」。
+    private var caption: String {
+        let name = settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
+        let count = settings.styles.count
+        return L("\(count) 条 · 默认「\(name)」", "\(count) prompts · Default: \(name)", "\(count) 件 · デフォルト「\(name)」")
     }
 
     /// 一句说明：自带的 5 条用固定的说明，自己加的显示提示词内容。

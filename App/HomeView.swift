@@ -13,19 +13,17 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     if Readiness.remainingSteps(apiConfigured: store.settings.isConfigured) == 0 {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(Date.now, format: .dateTime.month().day().weekday(.wide))
-                                .font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-                            Text(L("摘要", "Summary", "概要")).font(.largeTitle.bold())
-                        }
-                        .padding(.top, 8)
+                        TabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
+                                 title: L("摘要", "Summary", "概要"))
+                            .padding(.top, 8)
                         Dashboard()
                     } else {
                         Text(L("欢迎使用", "Welcome", "ようこそ")).font(.largeTitle.bold()).padding(.top, 8)
                         OnboardingSteps()
                     }
                 }
-                .padding(.horizontal, 16)
+                // 左右 20，和提示词、接口、设置三页的分组卡片对齐。
+                .padding(.horizontal, 20)
                 .padding(.bottom, 24)
                 .id(refresh)
             }
@@ -36,6 +34,7 @@ struct HomeView: View {
             .navigationDestination(for: AppRouter.HomePage.self) { page in
                 switch page {
                 case .keyboard: KeyboardSettingsView()
+                case .pinyin: PinyinView()
                 case .commonWords: CommonWordsView()
                 case .keyboardWords: KeyboardPhrasesView()
                 case .lab: LabView()
@@ -95,25 +94,28 @@ private struct TrialBanner: View {
     }
 }
 
-/// 首页（PB1，B 数据仪表盘）：AI 今天执行了几次和 7 天柱状图、联想省下的字，2×2 的接口 / 键盘 / 常用词 / 键盘常用语，最后是场景实验室入口。
+/// 首页（PB1 + PH1，B 数据仪表盘）：AI 今天执行了几次和 7 天柱状图，接口一整行，2×2 的键盘 / 拼音词库 / 常用词 / 键盘常用语，最后是场景实验室入口。
 private struct Dashboard: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
     @StateObject private var words = CommonWordsModel()
     @StateObject private var phrases = KeyboardPhrasesModel()
+    @ObservedObject private var deployer = RimeDeployer.shared
+    @ObservedObject private var grammar = GrammarDownloader.shared
     @State private var stats = AIStats.load()
+    @State private var lastRequest = UsageStats.polishRecent.last
 
     var body: some View {
         if !SharedStorage.isShared { SharedConfigBanner() }
         TrialBanner()
         summaryCard
+        apiCard
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-            GridCard(icon: "cpu", title: L("接口", "API", "API"), color: DashColor.ai,
-                     value: store.settings.isConfigured ? ProviderName.of(store.settings.baseURL) : L("未配置", "Not set up", "未設定"),
-                     detail: modelStatus.text, dot: modelStatus.color) { router.openModel() }
             GridCard(icon: "keyboard", title: L("键盘", "Keyboard", "キーボード"), color: DashColor.input,
                      value: store.settings.keyboardLayout.shortTitle,
                      detail: store.settings.fuzzyPinyin.isEmpty ? L("模糊拼音未开", "Fuzzy pinyin off", "あいまい入力オフ") : L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "Fuzzy pinyin: \(store.settings.fuzzyPinyin.count)", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組")) { router.openHome(.keyboard) }
+            GridCard(icon: "book.closed", title: L("拼音词库", "Pinyin", "ピンイン辞書"), color: DashColor.input,
+                     value: L("万象拼音", "Wanxiang", "万象ピンイン"), detail: pinyinStatus.text, dot: pinyinStatus.dot) { router.openHome(.pinyin) }
             GridCard(icon: "text.book.closed", title: L("常用词", "My Words", "ユーザ辞書"), color: DashColor.input,
                      value: "\(words.all.count)", detail: wordsDetail) { router.openHome(.commonWords) }
             GridCard(icon: "star.fill", title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), color: DashColor.phrase,
@@ -125,10 +127,11 @@ private struct Dashboard: View {
                 words.reload()
                 phrases.reload()
                 stats = AIStats.load()
+                lastRequest = UsageStats.polishRecent.last
             }
     }
 
-    /// 摘要卡：今天所有提示词的执行次数（不只「润色」那条）、7 天柱状图、本周合计和平均耗时、联想省下的字。
+    /// 摘要卡：今天所有提示词的执行次数（不只「润色」那条）、7 天柱状图、本周合计和平均耗时。
     private var summaryCard: some View {
         DashCard {
             DashCardHeader(icon: "sparkles", title: "AI", color: DashColor.ai)
@@ -148,17 +151,58 @@ private struct Dashboard: View {
             if stats.week == 0 {
                 Text(DashText.emptyStats).font(.footnote).foregroundStyle(.secondary)
             }
-            Divider()
-            HStack(spacing: 6) {
-                Image(systemName: "keyboard").foregroundStyle(DashColor.input)
-                Text(L("联想帮你少打了 \(stats.predictionChars) 个字", "Suggestions saved you \(stats.predictionChars) characters", "予測で \(stats.predictionChars) 文字の入力を省略"))
-                Spacer(minLength: 8)
-                Text(L("本周", "This week", "今週")).foregroundStyle(.secondary)
-            }
-            .font(.footnote)
         }
     }
 
+    /// 接口一整行：左上「接口」、右上连接状态，大字服务商，后面灰字「模型 · 最近一次 0.8 秒」。
+    private var apiCard: some View {
+        Button { router.openModel() } label: {
+            DashCard {
+                HStack(spacing: 6) {
+                    DashCardHeader(icon: "cpu", title: L("接口", "API", "API"), color: DashColor.ai)
+                    HStack(spacing: 4) {
+                        if let dot = modelStatus.dot { Circle().fill(dot).frame(width: 6, height: 6) }
+                        Text(modelStatus.text)
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(modelStatus.dot ?? DashColor.system)
+                    .lineLimit(1)
+                    .fixedSize()
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(store.settings.isConfigured ? ProviderName.of(store.settings.baseURL) : L("还没设置", "Not set up", "未設定"))
+                        .font(.system(size: 22, weight: .bold)).lineLimit(1).fixedSize()
+                    if store.settings.isConfigured {
+                        Text(apiDetail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var apiDetail: String {
+        var parts = [store.settings.model]
+        if let lastRequest, lastRequest.ok {
+            let seconds = String(format: "%.1f", Double(lastRequest.ms) / 1000)
+            parts.append(L("最近一次 \(seconds) 秒", "Last \(seconds) s", "前回 \(seconds) 秒"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 拼音词库格子的状态：已就绪绿点、需要重新部署橙点、部署中灰字；开了整句模型后面加「· 整句模型」。
+    private var pinyinStatus: (text: String, dot: Color?) {
+        let grammarTag = GrammarModel.isActive ? L(" · 整句模型", " · Sentence model", "・文章モデル") : ""
+        switch deployer.state {
+        case .deploying: return (L("部署中…", "Installing…", "インストール中…"), nil)
+        case .failed: return (L("部署失败", "Install failed", "インストール失敗"), .red)
+        default:
+            return deployer.needsDeploy
+                ? (L("需要重新部署", "Needs reinstall", "再インストールが必要"), .orange)
+                : (L("已就绪", "Ready", "準備完了") + grammarTag, DashColor.ok)
+        }
+    }
     private var labEntry: some View {
         Button { router.openHome(.lab) } label: {
             HStack(spacing: 12) {
@@ -177,18 +221,20 @@ private struct Dashboard: View {
         .buttonStyle(.plain)
     }
 
-    /// 测试过才知道连不连得上；没测过显示「还没测试」。
-    private var modelStatus: (text: String, color: Color) {
-        guard store.settings.isConfigured else { return (L("点进去配置", "Tap to set up", "タップして設定"), DashColor.system) }
+    /// 测试过才知道连不连得上；没配好写灰字「未设置」，没测过写灰字「还没测试」。
+    private var modelStatus: (text: String, dot: Color?) {
+        guard store.settings.isConfigured else { return (L("未设置", "Not set up", "未設定"), nil) }
+        let ok = (L("连接正常", "Connected", "接続済み"), Optional(DashColor.ok))
+        let failed = (L("连接失败", "Connection failed", "接続失敗"), Optional(Color.red))
         switch store.test {
-        case .success: return (L("连接正常", "Connected", "接続済み"), DashColor.ok)
-        case .failure: return (L("连不上", "Can't connect", "接続できません"), .red)
+        case .success: return ok
+        case .failure: return failed
         case .running: return (L("正在测试", "Testing", "テスト中"), .orange)
         case .idle:
             switch store.lastTestOK {
-            case true?: return (L("连接正常", "Connected", "接続済み"), DashColor.ok)
-            case false?: return (L("连不上", "Can't connect", "接続できません"), .red)
-            case nil: return (L("还没测试", "Not tested", "未テスト"), DashColor.system)
+            case true?: return ok
+            case false?: return failed
+            case nil: return (L("还没测试", "Not tested", "未テスト"), nil)
             }
         }
     }
@@ -206,7 +252,6 @@ struct AIStats {
     var today: Int { days.last ?? 0 }
     var week: Int { days.reduce(0, +) }
     var weekMs: Int
-    var predictionChars: Int
 
     /// 平均耗时，一位小数；本周没成功过时为 nil。
     var averageSeconds: String? {
@@ -215,8 +260,7 @@ struct AIStats {
 
     static func load() -> AIStats {
         AIStats(days: DailyStats.series("polish.done", days: 7).map(\.value),
-                weekMs: UsageStats.week("polish.ms"),
-                predictionChars: UsageStats.week("prediction.chars"))
+                weekMs: UsageStats.week("polish.ms"))
     }
 }
 
