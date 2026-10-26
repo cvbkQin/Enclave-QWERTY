@@ -479,7 +479,7 @@ struct KeyboardSettingsView: View {
                 }
                 PredictionToggle()
             }
-            TouchCalibrationSection()
+            TouchCalibrationSection(layout: store.settings.keyboardLayout)
             Section(L("按键反馈", "Key feedback", "キーのフィードバック")) {
                 Toggle(L("按键震动", "Haptics", "触覚"), isOn: $store.settings.keyHaptics)
                 Toggle(isOn: $store.settings.keySound) {
@@ -661,139 +661,47 @@ struct PinyinView: View {
     @State private var confirmDeleteGrammar = false
 
     var body: some View {
-        Form {
-            Section {
-                HStack(spacing: 14) {
-                    RowIcon(systemName: "character.book.closed", color: .orange, size: 44)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(L("万象拼音", "Wanxiang Pinyin", "万象ピンイン")).font(.headline)
-                        Text(detail).font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    if deployer.state == .deploying {
-                        ProgressView()
-                    } else {
-                        let status = PinyinStatus.current(deployer)
-                        Text(status.text).font(.subheadline.weight(.semibold)).foregroundStyle(status.color)
-                    }
-                }
-                .padding(.vertical, 6)
-                if case .failed(let message) = deployer.state {
-                    Text(message).font(.footnote).foregroundStyle(.red)
-                }
-                if !store.settings.fuzzyPinyin.isEmpty {
-                    HStack {
-                        Text(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
-                        Spacer()
-                        Text(L("已开 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) on", "\(store.settings.fuzzyPinyin.count) 組オン")).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Section {
-                Button(deployer.state == .deploying ? L("正在部署…", "Installing…", "インストール中…") : L("重新部署词库", "Reinstall dictionary", "辞書を再インストール")) { deployer.deploy() }
-                    .disabled(deployer.state == .deploying)
-            } footer: {
-                Text(L("词库在本机编译，第一次打开 App 时自动部署，大约一分钟，期间不要退出 App。词库出错或更新后再点重新部署。键盘需要打开「允许完全访问」才能读到词库。", "The dictionary is built on this iPhone the first time you open the app, in about a minute. Keep the app open meanwhile. Reinstall if it has problems or after an update. The keyboard needs Allow Full Access to read it.", "辞書は初回起動時にこの iPhone 上で作成されます（約 1 分）。その間アプリを閉じないでください。不具合や更新のあとは再インストールしてください。キーボードが辞書を読むには「フルアクセスを許可」が必要です。"))
-            }
-            grammarSection
-            if let stats = typingStats {
-                Section {
-                    LabeledContent(L("一般", "Typical", "通常"), value: Self.milliseconds(stats.medianTotal))
-                    LabeledContent(L("较慢的 10%", "Slowest 10%", "遅い 10%"), value: Self.milliseconds(stats.slowTotal))
-                    LabeledContent(L("最慢", "Slowest", "最も遅い"), value: Self.milliseconds(stats.slowestTotal))
-                    LabeledContent(L("其中拼音引擎", "Of which pinyin engine", "うちピンインエンジン"), value: Self.milliseconds(stats.medianEngine))
-                    if let memory = stats.memory {
-                        LabeledContent(L("键盘内存", "Keyboard memory", "キーボードのメモリ"), value: Self.megabytes(memory))
-                    }
-                    if let memory = stats.memoryWithModel {
-                        LabeledContent(L("键盘内存（整句模型）", "Keyboard memory (sentence model)", "キーボードのメモリ（文章モデル）"), value: Self.megabytes(memory))
-                    }
-                    if stats.memoryWarnings > 0 {
-                        LabeledContent(L("内存警告", "Memory warnings", "メモリ警告"), value: "\(stats.memoryWarnings)")
-                    }
-                    Button(L("清空记录", "Clear", "記録を消去")) {
-                        TypingStats.clear()
-                        typingStats = nil
-                    }
-                } header: {
-                    Text(L("打字速度", "Typing speed", "入力の速さ"))
-                } footer: {
-                    Text(L("最近 \(stats.count) 个拼音按键，从按下到候选出来用的时间。一般在 30 毫秒以内就感觉不到卡。键盘内存是一般 / 最高，键盘扩展能用的内存有限，太高会被系统关掉。", "The last \(stats.count) pinyin keys, from tap to candidates shown. Under about 30 ms feels instant. Keyboard memory is typical / peak; keyboards get limited memory and are closed by the system if they use too much.", "直近 \(stats.count) 回のピンイン入力で、タップから候補が出るまでの時間です。30 ミリ秒以内ならほぼ遅れを感じません。キーボードのメモリは通常 / 最大です。使いすぎるとシステムに閉じられます。"))
-                }
-            }
+        DashPage {
+            dictionaryCard
+            grammarCard
+            speedCard
         }
         .navigationTitle(L("拼音词库", "Pinyin dictionary", "ピンイン辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: deployer.state) {
             size = await Task.detached { RimeDeployer.diskSize() }.value
         }
-        .onAppear { typingStats = TypingStats.summary }
-    }
-
-    /// 整句模型：下载后整句首选更准。
-    private var grammarSection: some View {
-        Section {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(L("整句模型", "Sentence model", "文章モデル"))
-                    Text(grammarDetail).font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if case .downloading = grammar.state {
-                    Button(L("取消", "Cancel", "キャンセル")) { grammar.cancel() }
-                } else if grammar.installed {
-                    Button(L("删除", "Delete", "削除"), role: .destructive) { confirmDeleteGrammar = true }
-                        .disabled(deployer.state == .deploying)
-                } else {
-                    Button(L("下载", "Download", "ダウンロード")) { grammar.download() }
-                        .disabled(deployer.state == .deploying)
-                }
-            }
-            if case .downloading(let received, let expected) = grammar.state {
-                ProgressView(value: Double(received), total: Double(max(expected, 1)))
-            }
-            if grammar.installed {
-                // 关掉时模型留着，随时再打开，方便对比。切换后重新部署词库。
-                Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
-                       isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
-                    .disabled(deployer.state == .deploying)
-            }
-            if case .failed(let message) = grammar.state {
-                Text(message).font(.footnote).foregroundStyle(.red)
-            }
-        } footer: {
-            Text(L("万象语法模型，CC BY 4.0。按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。约 380MB，从万象的 GitHub 下载，下载时不要退出 App；下完会自动重新部署词库。",
-                   "Wanxiang grammar model, CC BY 4.0. It picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. About 380 MB, downloaded from Wanxiang's GitHub; keep the app open meanwhile. The dictionary is reinstalled afterwards.",
-                   "万象文法モデル（CC BY 4.0）。語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。約 380 MB、万象の GitHub からダウンロードします。完了まで App を閉じないでください。終わると辞書を再インストールします。"))
+        .onAppear {
+            typingStats = TypingStats.summary
+            grammar.refresh()
         }
         .confirmationDialog(L("删除整句模型？", "Delete the sentence model?", "文章モデルを削除しますか？"), isPresented: $confirmDeleteGrammar, titleVisibility: .visible) {
             Button(L("删除", "Delete", "削除"), role: .destructive) { grammar.delete() }
         }
-        .onAppear { grammar.refresh() }
     }
 
-    private var grammarDetail: String {
-        switch grammar.state {
-        case .downloading(let received, let expected):
-            return ByteCountFormatter.string(fromByteCount: received, countStyle: .file) + " / "
-                + ByteCountFormatter.string(fromByteCount: expected, countStyle: .file)
-        default:
-            if grammar.installed {
-                let size = GrammarModel.installedSize.map { " · " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? ""
-                let status = grammar.enabled ? L("已安装", "Installed", "インストール済み") : L("已安装 · 已关闭", "Installed · Off", "インストール済み · オフ")
-                return status + size
+    // MARK: - 万象拼音
+
+    private var dictionaryCard: some View {
+        let status = PinyinStatus.current(deployer)
+        return DashCard {
+            DashCardHeader(icon: "character.book.closed", title: L("万象拼音", "Wanxiang Pinyin", "万象ピンイン"), color: DashColor.input)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("● " + status.text).font(.system(size: 15, weight: .semibold)).foregroundStyle(status.color)
+                Text(L("在本机编译，键盘要开「允许完全访问」才能读到。", "Built on this iPhone. The keyboard needs Allow Full Access to read it.", "この iPhone 上で作成します。キーボードが読むには「フルアクセスを許可」が必要です。"))
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                Text(detail).font(.system(size: 13)).foregroundStyle(.secondary)
+                if case .failed(let message) = deployer.state {
+                    Text(message).font(.system(size: 13)).foregroundStyle(.red)
+                }
+                HStack(spacing: 8) {
+                    Button(deployer.state == .deploying ? L("正在部署…", "Installing…", "インストール中…") : L("重新部署词库", "Reinstall dictionary", "辞書を再インストール")) { deployer.deploy() }
+                        .font(.system(size: 15, weight: .semibold))
+                        .disabled(deployer.state == .deploying)
+                    if deployer.state == .deploying { ProgressView() }
+                }
             }
-            return L("未下载 · 约 380MB", "Not downloaded · about 380 MB", "未ダウンロード · 約 380 MB")
         }
-    }
-
-    /// 「一般 / 最高」。
-    private static func megabytes(_ memory: TypingStats.Memory) -> String {
-        String(format: "%.0f / %.0f MB", memory.median, memory.peak)
-    }
-
-    private static func milliseconds(_ value: Double) -> String {
-        String(format: "%.0f ms", value)
     }
 
     private var detail: String {
@@ -804,7 +712,151 @@ struct PinyinView: View {
         if let size, size > 0 {
             parts.append(L("约 ", "About ", "約 ") + ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
         }
+        if !store.settings.fuzzyPinyin.isEmpty {
+            parts.append(L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) fuzzy pairs", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組"))
+        }
         return parts.isEmpty ? L("万象拼音词库，CC BY 4.0", "Wanxiang Pinyin, CC BY 4.0", "万象ピンイン、CC BY 4.0") : parts.joined(separator: " · ")
+    }
+
+    // MARK: - 整句模型
+
+    /// 下载后整句首选更准。下载中大数字是进度，下完是大小。
+    private var grammarCard: some View {
+        DashCard {
+            DashCardHeader(icon: "sparkles", title: L("整句模型", "Sentence model", "文章モデル"), color: DashColor.input, note: "CC BY 4.0")
+            VStack(alignment: .leading, spacing: 10) {
+                switch grammar.state {
+                case .downloading(let received, let expected):
+                    DashBigNumber(value: "\(Int(Double(received) / Double(max(expected, 1)) * 100))",
+                                    unit: L("% · 正在下载", "% · Downloading", "% · ダウンロード中"))
+                    ProgressView(value: Double(received), total: Double(max(expected, 1)))
+                    Button(L("取消", "Cancel", "キャンセル")) { grammar.cancel() }
+                        .font(.system(size: 15, weight: .semibold))
+                default:
+                    if grammar.installed {
+                        DashBigNumber(value: GrammarModel.installedSize.map { "\($0 / 1_000_000)" } ?? "–",
+                                        unit: grammar.enabled ? L("MB · 已下载", "MB · Downloaded", "MB · ダウンロード済み") : L("MB · 已下载 · 已关闭", "MB · Downloaded · Off", "MB · ダウンロード済み · オフ"))
+                        // 关掉时模型留着，随时再打开，方便对比。切换后重新部署词库。
+                        Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
+                               isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
+                            .tint(AppColor.purple)
+                            .disabled(deployer.state == .deploying)
+                        Text(L("长句一次打对的更多，键盘内存会多用一些。", "Whole sentences come out right more often; the keyboard uses a little more memory.", "長い文が一度で正しく出やすくなります。キーボードのメモリ使用は少し増えます。"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                        Button(L("删除模型", "Delete model", "モデルを削除"), role: .destructive) { confirmDeleteGrammar = true }
+                            .font(.system(size: 13, weight: .semibold))
+                            .disabled(deployer.state == .deploying)
+                    } else {
+                        DashBigNumber(value: "380", unit: L("MB · 未下载", "MB · Not downloaded", "MB · 未ダウンロード"))
+                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。从万象的 GitHub 下载，下载时不要退出 App。",
+                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from Wanxiang's GitHub; keep the app open meanwhile.",
+                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。万象の GitHub からダウンロードします。完了まで App を閉じないでください。"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                        Button(L("下载", "Download", "ダウンロード")) { grammar.download() }
+                            .font(.system(size: 15, weight: .semibold))
+                            .disabled(deployer.state == .deploying)
+                    }
+                }
+                if case .failed(let message) = grammar.state {
+                    Text(message).font(.system(size: 13)).foregroundStyle(.red)
+                }
+            }
+        }
+    }
+
+    // MARK: - 打字速度
+
+    private var speedCard: some View {
+        DashCard {
+            DashCardHeader(icon: "keyboard", title: L("打字速度", "Typing speed", "入力の速さ"), color: DashColor.input,
+                           note: typingStats.map { L("最近 \($0.count) 个按键", "Last \($0.count) keys", "直近 \($0.count) キー") })
+            if let stats = typingStats {
+                VStack(alignment: .leading, spacing: 12) {
+                    let smooth = stats.medianTotal <= 30
+                    HStack(alignment: .firstTextBaseline) {
+                        DashBigNumber(value: String(format: "%.0f", stats.medianTotal), unit: L("毫秒 · 一般", "ms · typical", "ミリ秒 · 通常"))
+                        Spacer()
+                        Text(smooth ? L("感觉不到卡", "Feels instant", "遅れを感じない") : L("有点卡", "A bit slow", "少し遅い"))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(smooth ? DashColor.ok : Color.orange)
+                    }
+                    LatencyScale(typical: stats.medianTotal, slow: stats.slowTotal, slowest: stats.slowestTotal)
+                    HStack(alignment: .top) {
+                        TypingSmallStat(value: Self.milliseconds(stats.medianEngine), label: L("其中拼音引擎", "Pinyin engine", "うちエンジン"))
+                        if let memory = stats.memoryWithModel ?? stats.memory {
+                            TypingSmallStat(value: String(format: "%.0f/%.0f", memory.median, memory.peak),
+                                            label: L("内存 MB 一般/最高", "Memory MB typ/peak", "メモリ MB 通常/最大"))
+                        }
+                        TypingSmallStat(value: "\(stats.memoryWarnings)", label: L("内存警告", "Memory warnings", "メモリ警告"))
+                    }
+                    HStack(spacing: 4) {
+                        Text(L("从手指离开按键到候选出来。30 毫秒以内基本感觉不到。", "From lifting your finger to candidates shown. Under 30 ms feels instant.", "指を離してから候補が出るまで。30 ミリ秒以内ならほぼ感じません。"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                        Button(L("清空记录", "Clear", "記録を消去")) {
+                            TypingStats.clear()
+                            typingStats = nil
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                    }
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    DashBigNumber(value: "0", unit: L("个按键", "keys", "キー"))
+                    Text(L("用 Enclave 键盘打几个拼音，这里就有数据了。键盘要开「允许完全访问」才记得下。", "Type some pinyin with the Enclave keyboard and your stats show up here. The keyboard needs Allow Full Access to record them.", "Enclave キーボードでピンインを入力すると、ここに記録が表示されます。「フルアクセスを許可」が必要です。"))
+                        .font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private static func milliseconds(_ value: Double) -> String {
+        String(format: "%.0f ms", value)
+    }
+}
+
+/// 从绿到红的刻度条，标出一般、较慢 10%、最慢三个位置。刻度到 100ms，更慢的贴着最右边。
+private struct LatencyScale: View {
+    var typical: Double
+    var slow: Double
+    var slowest: Double
+    private let maxValue = 100.0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            GeometryReader { geo in
+                let width = geo.size.width
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(LinearGradient(colors: [DashColor.ok, .yellow, Color.orange, .red], startPoint: .leading, endPoint: .trailing))
+                        .frame(height: 8)
+                    ForEach(0..<3, id: \.self) { index in
+                        Rectangle().fill(Color.primary).frame(width: 2, height: 16)
+                            .offset(x: position([typical, slow, slowest][index], width) - 1)
+                    }
+                }
+                .frame(height: 16)
+            }
+            .frame(height: 16)
+            // 三个值常挤在一起，标签不贴着刻度，排成一行写在下面。
+            HStack(spacing: 12) {
+                legend(L("一般", "Typical", "通常"), typical)
+                legend(L("较慢 10%", "Slow 10%", "遅い10%"), slow)
+                legend(L("最慢", "Slowest", "最大"), slowest)
+            }
+        }
+    }
+
+    private func position(_ value: Double, _ width: CGFloat) -> CGFloat {
+        CGFloat(min(max(value / maxValue, 0), 1)) * width
+    }
+
+    private func legend(_ title: String, _ value: Double) -> some View {
+        HStack(spacing: 4) {
+            Text(title).foregroundStyle(.secondary)
+            Text(String(format: "%.0f ms", value)).fontWeight(.semibold).monospacedDigit()
+        }
+        .font(.caption)
+        .lineLimit(1)
     }
 }
 
