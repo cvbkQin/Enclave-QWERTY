@@ -103,6 +103,14 @@ struct SettingsView: View {
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
                         DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
                     }
+                    // 重新走一遍首次设置引导，已有的 Key 不动。
+                    Button {
+                        if router.privacyAgreed { router.setupGuide = .intro } else { router.settingsPath.append(.privacy) }
+                    } label: {
+                        DashRow(icon: "sparkles", color: DashColor.ai, title: L("AI 设置引导", "AI setup guide", "AI 設定ガイド"))
+                            .contentShape(Rectangle())
+                    }
+                    .foregroundStyle(.primary)
                     NavigationLink(value: AppRouter.SettingsPage.playground) {
                         DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
                                 value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
