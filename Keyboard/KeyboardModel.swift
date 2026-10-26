@@ -437,6 +437,12 @@ final class KeyboardModel: ObservableObject {
         let client = LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
         isRunning = true
         streamingText = ""
+        let started = Date()
+        let styleID = settings.selectedStyle?.id
+        // 仪表盘的统计：耗时按毫秒记。
+        func record(ok: Bool) {
+            UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID)
+        }
         task = Task { [weak self] in
             var raw = ""
             do {
@@ -449,7 +455,9 @@ final class KeyboardModel: ObservableObject {
                 if result.isEmpty {
                     self.errorMessage = L("模型没有返回内容。", "The model returned nothing.", "モデルから応答がありませんでした。")
                     self.endQuickMode(.failed)
+                    record(ok: false)
                 } else {
+                    record(ok: true)
                     // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
                     AIAccess.recordUse()
                     var updated = pending
@@ -470,6 +478,7 @@ final class KeyboardModel: ObservableObject {
                 }
             } catch {
                 if !Task.isCancelled {
+                    record(ok: false)
                     self?.errorMessage = error.localizedDescription
                     self?.endQuickMode(.failed)
                 }

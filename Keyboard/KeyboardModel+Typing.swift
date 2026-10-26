@@ -130,6 +130,7 @@ extension KeyboardModel {
         TouchCalibration.confirm()
         let text = engine.select(index)
         if let text { commit(text) }
+        if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
         if let text, !isComposing, chineseMode { showPredictions(after: text) }
     }
