@@ -51,6 +51,8 @@ struct StylesView: View {
                                 .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                         }
                         .padding(.vertical, 2)
+                        // 分隔线都从名字左边开始，不要有的通栏。
+                        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     }
                 }
                 .onDelete { settings.styles.remove(atOffsets: $0) }

@@ -1036,25 +1036,24 @@ struct RequestField: View {
                       caret: caretIndex, caretLine: caretLine, limit: limit, first: first)
     }
 
-    /// 按字宽贪心折行；英文尽量在空格后断开。宽度还不知道时整段算一行。
+    /// 贪心折行；英文尽量在空格后断开。宽度还不知道时整段算一行。
+    /// 每加一个字量一次整行的宽度（逐字相加会比实际排版窄，中文标点尤其明显，行尾就被截成「…」）。
     static func wrap(_ chars: [Character], width: CGFloat) -> [Range<Int>] {
         guard width > 20, !chars.isEmpty else { return [0..<chars.count] }
         var lines: [Range<Int>] = []
-        var start = 0, used: CGFloat = 0, lastSpace: Int?
+        var start = 0, lastSpace: Int?
         var index = 0
         while index < chars.count {
-            let w = Self.width(String(chars[index]))
-            if used + w > width, index > start {
+            // 光标图片 2pt 加一点余量。
+            if index > start, Self.width(String(chars[start...index])) + 4 > width {
                 var breakAt = index
                 if let space = lastSpace, space > start, chars[index] != " " { breakAt = space + 1 }
                 lines.append(start..<breakAt)
                 start = breakAt
-                used = chars[start..<index].reduce(0) { $0 + Self.width(String($1)) }
                 lastSpace = nil
                 continue
             }
             if chars[index] == " " { lastSpace = index }
-            used += w
             index += 1
         }
         lines.append(start..<chars.count)
@@ -1079,10 +1078,18 @@ struct RequestField: View {
                 ForEach(layout.first..<(layout.first + layout.shown), id: \.self) { line in
                     let last = line == layout.first + layout.shown - 1
                     let range = last && layout.truncates ? layout.lines[line].lowerBound..<layout.chars.count : layout.lines[line]
-                    lineText(range, line: line, layout: layout, caretOpacity: caretOpacity)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(height: Self.lineHeight)
+                    if last && layout.truncates {
+                        lineText(range, line: line, layout: layout, caretOpacity: caretOpacity)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(height: Self.lineHeight)
+                    } else {
+                        // 折行已经按宽度算好，这里不许再截断：宽一点点也整行画出来。
+                        lineText(range, line: line, layout: layout, caretOpacity: caretOpacity)
+                            .lineLimit(1)
+                            .fixedSize()
+                            .frame(height: Self.lineHeight)
+                    }
                 }
             }
         }
