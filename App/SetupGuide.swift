@@ -485,6 +485,7 @@ extension AppStore.TestState {
 // MARK: - 示意图：浅紫展台里一个假的 Safari 页面（不放真实截图）
 
 private struct GuideIllustration: View {
+    @Environment(\.colorScheme) private var colorScheme
     let step: Int
 
     var body: some View {
@@ -508,8 +509,11 @@ private struct GuideIllustration: View {
         .padding(.horizontal, 16)
         .padding(.top, 16)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(
-            LinearGradient(colors: [Color(hex: 0xEAE6FF), Color(hex: 0xF4F2FF), Color(hex: 0xFBFAFF)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing).opacity(0.9)))
+            colorScheme == .dark
+                ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x2A2160), Color(hex: 0x1C1C1E)],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing))
+                : AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xEAE6FF), Color(hex: 0xF4F2FF), Color(hex: 0xFBFAFF)],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing).opacity(0.9))))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .accessibilityHidden(true)
     }
@@ -836,7 +840,10 @@ private struct GuideProviderCard: View {
                 .frame(width: 22, height: 22)
             }
             .padding(14)
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(GuideColor.card))
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(GuideColor.card)
+                .shadow(color: Color(hex: 0x14121F).opacity(0.04), radius: 1, y: 1)
+                .shadow(color: Color(hex: 0x3C28A0).opacity(0.07), radius: 14, y: 10)
+                .shadow(color: Color(hex: 0x5B4BE8).opacity(selected ? 0.16 : 0), radius: 14, y: 10))
             .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(selected ? GuideColor.purple : .clear, lineWidth: 2))
         }
         .buttonStyle(.plain)

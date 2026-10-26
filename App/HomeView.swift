@@ -458,7 +458,7 @@ struct AISetupCard: View {
                 .font(.system(size: 19, weight: .bold)).foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
             Text(SetupGuide.showsPrice ? "跟着教程大约 3 分钟 · 1 元可调用约 500 次" : L("跟着教程大约 3 分钟", "About 3 minutes with the guide", "ガイドに沿って約 3 分"))
-                .font(.system(size: 13)).foregroundStyle(.white.opacity(0.75))
+                .font(.system(size: 13)).foregroundStyle(Color(hex: 0xCFC8FF))
             HStack(spacing: 8) {
                 Button { router.setupGuide = .provider } label: {
                     Text(L("跟着教程设置", "Follow the Guide", "ガイドで設定"))
@@ -479,6 +479,7 @@ struct AISetupCard: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(
-            LinearGradient(colors: [Color(hex: 0x2A2160), Color(hex: 0x4A3BD6)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            LinearGradient(colors: [Color(hex: 0x2A2160), Color(hex: 0x4A3BD6)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .shadow(color: Color(hex: 0x4A3BD6).opacity(0.28), radius: 14, y: 12))
     }
 }
