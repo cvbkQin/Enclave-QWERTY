@@ -112,8 +112,9 @@ struct KeyboardView: View {
                 if predicting { model.dismissPredictions() } else { model.candidatesExpanded.toggle() }
             } label: {
                 Image(systemName: predicting ? "xmark" : (model.candidatesExpanded ? "chevron.up" : "chevron.down"))
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(Color.primary)
+                    // 联想时的关闭键小一号、灰色：联想只是建议，关闭键不和字抢眼（UI 稿 KP1）。
+                    .font(.system(size: predicting ? 15 : 17, weight: predicting ? .medium : .regular))
+                    .foregroundStyle(predicting ? Color.secondary : Color.primary)
                     // 放宽到 54pt，靠右边缘也好按。
                     .frame(width: 54)
                     .frame(maxHeight: .infinity)
