@@ -404,6 +404,8 @@ final class KeyboardModel: ObservableObject {
 
     func dismissGate() {
         afterConsent = nil
+        // 看完提示卡回来，小手指引导的 10 秒重新算。
+        if coach != nil { coachTouched = true }
         if gate != nil { gate = nil }
     }
 

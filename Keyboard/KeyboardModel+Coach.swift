@@ -52,6 +52,9 @@ extension KeyboardModel {
     /// 小手 0.2 秒淡出，这一轮引导结束。
     func endCoach() {
         guard coach != nil else { return }
+        #if DEBUG
+        NSLog("EnclaveCoach end: %@", Thread.callStackSymbols.prefix(6).joined(separator: " | "))
+        #endif
         coachTask?.cancel()
         coachTask = nil
         withAnimation(.easeOut(duration: 0.2)) { coach = nil }
