@@ -1,6 +1,6 @@
 import SwiftUI
 
-// 场景实验室「一键应用」后的小手指（NH1–NH6）：只有小手和水波，没有文字气泡。
+// 使用指引「一键应用」后的小手指（NH1–NH6）：只有小手和水波，没有文字气泡。
 
 /// 要指的按钮把自己的位置报上来。
 struct CoachFramesKey: PreferenceKey {
@@ -74,9 +74,8 @@ private struct CoachHandLayer: View {
         }
     }
 
-    /// ▲▼ 只在有好几版时才有；只有一版时指「替换」。
     private func targetRect(_ target: KeyboardModel.CoachTarget) -> CGRect? {
-        frames[target] ?? (target == .versions ? frames[.replace] : nil)
+        frames[target]
     }
 
     /// 目标在键盘右半边：整只手左右翻过来，手掌挂在左下方，免得被右边切掉。

@@ -59,7 +59,7 @@ struct KeyboardView: View {
         }
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        // 场景实验室「一键应用」后的小手指，画在键盘里面。
+        // 使用指引「一键应用」后的小手指，画在键盘里面。
         .coachHandOverlay(model)
         .clipped()
     }
@@ -157,6 +157,7 @@ struct KeyboardView: View {
                         systemImage: inserted ? "checkmark" : "text.insert",
                         kind: inserted ? .done : .outlined) { model.insert() }
                 .disabled(!model.hasResult || inserted)
+                .coachTarget(.insert, active: model.coachDisplay?.target == .insert)
         }
     }
 }

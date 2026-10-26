@@ -56,7 +56,7 @@ enum UsageStats {
 
     static func wordKey(_ text: String) -> String { "word.text.\(text)" }
 
-    // MARK: 场景实验室（App 里）
+    // MARK: 使用指引（App 里）
 
     /// 试过的场景 id。
     static var labTried: Set<String> {

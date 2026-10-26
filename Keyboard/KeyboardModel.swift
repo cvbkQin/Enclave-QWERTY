@@ -167,7 +167,7 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var trialReminder = false { didSet { heightMayChange?() } }
     var showsTrialReminder: Bool { trialReminder && gate == nil && !aiExpanded && !styleMenuOpen }
 
-    /// 场景实验室「一键应用」后的小手指引导（见 KeyboardModel+Coach）。
+    /// 使用指引「一键应用」后的小手指引导（见 KeyboardModel+Coach）。
     @Published var coach: Coach?
     var coachTask: Task<Void, Never>?
     /// 引导往下走了一步：10 秒没动的计时重新开始。
@@ -544,6 +544,8 @@ final class KeyboardModel: ObservableObject {
         quickSource = nil
         switch outcome {
         case .replaced:
+            // 快速模式的小手：替换成功或失败后淡出。
+            endCoach()
             quickStatus = .done
             if !aiExpanded { unseenResult = true }
             Task { [weak self] in
@@ -551,8 +553,10 @@ final class KeyboardModel: ObservableObject {
                 if self?.quickStatus == .done { self?.quickStatus = nil }
             }
         case .failed:
+            endCoach()
             quickStatus = .failed
         case .changed:
+            endCoach()
             quickStatus = nil
             aiExpanded = true
         }
@@ -576,16 +580,24 @@ final class KeyboardModel: ObservableObject {
         session = debug
     }
 
-    /// 截图用：小手指引导时点 ✨ /「执行」不真的请求，2 秒后出三个假版本。
+    /// 截图用：小手指引导时点 ✨ /「执行」不真的请求，2 秒后出三个假版本；收起时当作快速模式替换成功。
     func fakeCoachRun() {
         session = nil
         isRunning = true
+        let quick = !aiExpanded
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard let self else { return }
             self.loadDebugVersions()
             self.isRunning = false
+            if quick { self.endCoach() }
         }
+    }
+
+    func debugCoach(_ steps: [LabCoachMark.Step], expanded: Bool, menuOpen: Bool) {
+        debugUnblocked = true
+        debugFakeRun = true
+        startCoach(LabCoachMark(scene: 0, steps: steps, expanded: expanded, menuOpen: menuOpen))
     }
 
     /// 模拟器截图用：停在生成中，看流光动画。
@@ -646,7 +658,7 @@ final class KeyboardModel: ObservableObject {
     #endif
 
     func showVersion(offset: Int) {
-        endCoach()
+        coachTapped(.versions)
         if target == .card { finishCardEdit() }
         guard var session else { return }
         let index = session.currentIndex + offset

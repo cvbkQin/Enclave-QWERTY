@@ -63,7 +63,7 @@ struct EnclaveAICard: View {
     }
 }
 
-/// 设置（PB3）：Enclave AI 卡；语言、日间 / 夜间、拼音词库；开启键盘指南、场景实验室；隐私、关于。
+/// 设置（PB3）：Enclave AI 卡；语言、日间 / 夜间、拼音词库；开启键盘指南、使用指引；隐私、关于。
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -102,7 +102,7 @@ struct SettingsView: View {
                         DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.playground) {
-                        DashRow(icon: "flask", color: DashColor.ai, title: L("场景实验室", "Playground", "お試しラボ"),
+                        DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
                                 value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
                     }
                 }

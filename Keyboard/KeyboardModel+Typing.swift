@@ -765,11 +765,14 @@ extension KeyboardModel {
             case "quickWords": keysPanel = .quickWords
             case "undo": loadDebugUndo()
             case "memtest": runMemoryTest()
-            case "coach:sparkle", "coach:run", "coach:proofread":
-                debugUnblocked = true
-                debugFakeRun = true
-                let flow = LabCoachMark.Flow(rawValue: String(option.dropFirst("coach:".count))) ?? .sparkle
-                startCoach(LabCoachMark(scene: 0, flow: flow, at: Date()))
+            // 小手指引导：quick / quickrun 是快速模式（收起），其余展开。
+            case "coach:quick": debugCoach([.sparkle], expanded: false, menuOpen: false)
+            case "coach:quickrun": debugCoach([.run], expanded: false, menuOpen: true)
+            case "coach:sparkle": debugCoach([.sparkle, .replace], expanded: true, menuOpen: false)
+            case "coach:run": debugCoach([.run, .replace], expanded: true, menuOpen: true)
+            case "coach:versions": debugCoach([.run, .versions, .replace], expanded: true, menuOpen: true)
+            case "coach:proofread": debugCoach([.sparkle, .versions, .replace], expanded: true, menuOpen: false)
+            case "coach:insert": debugCoach([.run, .insert], expanded: true, menuOpen: true)
             #endif
             default: break
             }

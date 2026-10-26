@@ -94,7 +94,7 @@ private struct TrialBanner: View {
     }
 }
 
-/// 首页（PB1 + PH1，B 数据仪表盘）：AI 今天执行了几次和 7 天柱状图，接口一整行，2×2 的键盘 / 拼音词库 / 常用词 / 键盘常用语，最后是场景实验室入口。
+/// 首页（PB1 + PH1，B 数据仪表盘）：AI 今天执行了几次和 7 天柱状图，接口一整行，2×2 的键盘 / 拼音词库 / 常用词 / 键盘常用语，最后是使用指引入口。
 private struct Dashboard: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -208,8 +208,8 @@ private struct Dashboard: View {
             HStack(spacing: 12) {
                 Image(systemName: "flask").font(.system(size: 20, weight: .medium))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L("场景实验室", "Playground", "お試しラボ")).font(.headline)
-                    Text(L("\(LabScene.all.count) 个场景，试试 ✨ 的效果", "\(LabScene.all.count) scenes to try ✨ on", "\(LabScene.all.count) 個のシーンで ✨ を試す")).font(.footnote).opacity(0.85)
+                    Text(L("使用指引", "Guide", "使い方ガイド")).font(.headline)
+                    Text(L("\(LabScene.all.count) 个场景，学会快速、替换和插入", "\(LabScene.all.count) scenes: Quick, Replace and Insert", "\(LabScene.all.count) 個のシーンでクイック・置き換え・挿入")).font(.footnote).opacity(0.85)
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.subheadline.weight(.semibold))

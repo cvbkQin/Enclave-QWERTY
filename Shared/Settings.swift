@@ -156,7 +156,7 @@ extension StylePreset {
 enum SettingsStore {
     private static let settingsKey = "settings.v1"
     private static let apiKeyAccount = "apiKey"
-    /// 键盘「要求」框里的字。场景实验室「一键应用」从 App 里写进来，键盘下次出现时读到。
+    /// 键盘「要求」框里的字。使用指引「一键应用」从 App 里写进来，键盘下次出现时读到。
     static let instructionKey = "instruction.v1"
 
     static func load() -> EnclaveSettings {

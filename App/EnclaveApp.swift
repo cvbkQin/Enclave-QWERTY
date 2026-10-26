@@ -117,7 +117,7 @@ final class AppRouter: ObservableObject {
         case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language, privacyPolicy, licenses
     }
 
-    /// 首页里的二级页：键盘、常用词（全部 / 键盘标签）、场景实验室和其中一个场景。
+    /// 首页里的二级页：键盘、常用词（全部 / 键盘标签）、使用指引和其中一个场景。
     enum HomePage: Hashable { case keyboard, pinyin, commonWords, keyboardWords, lab, scene(Int) }
 
     @Published var tab: Tab = .home
@@ -149,7 +149,7 @@ final class AppRouter: ObservableObject {
         }
     }
 
-    /// enclave://playground：打开场景实验室的第一个场景，进去自动弹键盘。
+    /// enclave://playground：打开使用指引的第一个场景，进去自动弹键盘。
     func openPlayground() {
         tab = .home
         homePath = NavigationPath([HomePage.lab, HomePage.scene(0)])
