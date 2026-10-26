@@ -39,6 +39,15 @@ enum KeyboardMetrics {
     static let actionRow: CGFloat = 34
     /// 「正式▾」浮层：风格行 + 要求行，底下一个小尖角指向按钮。
     static let menuHeight: CGFloat = 94
+    /// 要求框（NQ1–NQ3）：14pt，行高 19，写长了自动换行，最多 3 行；一行时还是 32 高。
+    static let requestLineHeight: CGFloat = 19
+    static func requestFieldHeight(lines: Int) -> CGFloat {
+        lines <= 1 ? 32 : 16 + requestLineHeight * CGFloat(min(lines, 3))
+    }
+    /// 要求框变高时面板跟着加高。
+    static func menuHeight(requestLines: Int) -> CGFloat {
+        menuHeight + requestFieldHeight(lines: requestLines) - requestFieldHeight(lines: 1)
+    }
     /// 试用最后 3 天的提示条（K3）。
     static let trialReminderHeight: CGFloat = 34
     static let panelSpacing: CGFloat = 5
@@ -57,7 +66,7 @@ enum KeyboardMetrics {
     /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加一块。
     /// 提示卡出现时只留它一块，不和结果卡片、风格菜单叠在一起。
     static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool, gate: KeyboardModel.AIGate? = nil,
-                       reminder: Bool = false) -> CGFloat {
+                       reminder: Bool = false, requestLines: Int = 1) -> CGFloat {
         var height = topRow + keysHeight
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
@@ -65,7 +74,7 @@ enum KeyboardMetrics {
             height += panelTop + (cardExpanded ? expandedCardHeight : cardHeight) + panelSpacing + actionRow
         }
         if menuOpen {
-            height += menuHeight + panelSpacing + (expanded ? 0 : panelTop)
+            height += menuHeight(requestLines: requestLines) + panelSpacing + (expanded ? 0 : panelTop)
         }
         return height
     }

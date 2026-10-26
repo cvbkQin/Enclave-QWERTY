@@ -28,7 +28,7 @@ struct KeyboardView: View {
             }
             if model.gate == nil, model.styleMenuOpen {
                 StyleMenu(model: model)
-                    .frame(height: KeyboardMetrics.menuHeight)
+                    .frame(height: KeyboardMetrics.menuHeight(requestLines: model.requestLines))
                     .padding(.horizontal, inset)
                     .padding(.top, model.aiExpanded ? KeyboardMetrics.panelSpacing : KeyboardMetrics.panelTop)
             }
@@ -552,12 +552,16 @@ struct StyleMenu: View {
                 .hidingScrollEdgeEffect()
             }
             .frame(height: 32)
-            HStack(spacing: 8) {
+            // 要求框写长了往下变高：「要求」对齐第一行，「执行」贴着框的底部。
+            HStack(alignment: .top, spacing: 8) {
                 rowLabel(L("要求", "Prompt", "指示"))
+                    .frame(height: 32)
                 RequestField(model: model)
                 MenuPolishButton(model: model)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 1)
             }
-            .frame(height: 32)
+            .frame(height: KeyboardMetrics.requestFieldHeight(lines: model.requestLines))
         }
         .padding(.horizontal, 10)
         .padding(.top, 8)
@@ -921,12 +925,13 @@ struct RequestField: View {
     @ObservedObject var model: KeyboardModel
     /// 最后一次打字的时间：打字时光标常亮，停下 0.5 秒后才开始闪。
     @State private var lastTyped = Date()
-    /// 文字区在框里的位置，点按和长按拖动时换算成第几个字。
+    /// 文字区在框里的位置，点按和长按拖动时换算成第几行、第几个字。
     @State private var textFrame = CGRect.zero
     /// 这次按下的时间；按住超过 0.3 秒就进入拖动光标，否则松手算点一下。
     @State private var pressStart: Date?
 
     private static let font = UIFont.systemFont(ofSize: 14)
+    private static let lineHeight = KeyboardMetrics.requestLineHeight
 
     static let caret: UIImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 17)).image { _ in
         UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 2, height: 17), cornerRadius: 1).fill()
@@ -939,51 +944,47 @@ struct RequestField: View {
     var body: some View {
         let editing = model.target == .instruction
         let text = model.instruction
+        let layout = self.layout
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        HStack(spacing: 5) {
+        HStack(alignment: .top, spacing: 5) {
             Image(systemName: "pencil").font(.system(size: 13, weight: .medium))
                 .foregroundStyle(editing || !text.isEmpty ? Brand.purpleText : Brand.fieldPlaceholder)
+                .frame(height: Self.lineHeight)
             Group {
                 if editing {
                     TimelineView(.animation(minimumInterval: 1 / 30)) { context in
-                        let opacity = caretOpacity(at: context.date)
-                        content(text: text, caretOpacity: opacity)
-                            .truncationMode(.tail)
-                            .overlay(alignment: .leading) {
-                                if text.isEmpty && model.composition.isEmpty {
-                                    Image(uiImage: Self.caret).foregroundStyle(Brand.fieldActiveLine.opacity(opacity))
-                                        .offset(x: -2)
-                                }
-                            }
+                        lines(layout, caretOpacity: caretOpacity(at: context.date))
                     }
                 } else {
-                    content(text: text, caretOpacity: nil)
-                        .truncationMode(.head)
+                    lines(layout, caretOpacity: nil)
                 }
             }
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .background(GeometryReader { geometry in
                 Color.clear
                     .onAppear { textFrame = geometry.frame(in: .named("requestField")) }
                     .onChange(of: geometry.frame(in: .named("requestField"))) { textFrame = $0 }
             })
+            .overlay(alignment: .trailing) {
+                if layout.scrolls { scrollBar(layout) }
+            }
             if !text.isEmpty {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(width: 16, height: 16)
                     .background(Circle().fill(Brand.fieldClear))
-                    // 点击区放大到 44pt 宽、整框高。
-                    .frame(width: 44, height: 32, alignment: .trailing)
+                    // 贴在框的右上；点击区放大到 44pt 宽。
+                    .frame(width: 44, height: Self.lineHeight, alignment: .trailing)
                     .contentShape(Rectangle())
                     .onTapGesture { model.setInstruction("") }
             }
         }
         .font(.system(size: 14))
         .padding(.horizontal, 8)
+        .padding(.vertical, (KeyboardMetrics.requestFieldHeight(lines: layout.shown) - Self.lineHeight * CGFloat(layout.shown)) / 2)
         .frame(maxWidth: .infinity)
-        .frame(height: 32)
+        .frame(height: KeyboardMetrics.requestFieldHeight(lines: layout.shown))
         .background {
             shape.fill(editing ? Brand.fieldActiveFill : Brand.tagFill)
             shape.strokeBorder(editing ? Brand.fieldActiveLine : Brand.tagFill, lineWidth: 1.5)
@@ -992,10 +993,149 @@ struct RequestField: View {
         .contentShape(Rectangle())
         .coordinateSpace(name: "requestField")
         .gesture(press)
+        .onAppear { model.requestLines = layout.shown }
+        .onChange(of: layout.shown) { model.requestLines = $0 }
         .onChange(of: model.instruction) { _ in lastTyped = Date() }
         .onChange(of: model.composition) { _ in lastTyped = Date() }
         .onChange(of: editing) { _ in lastTyped = Date() }
     }
+
+    // MARK: 折行
+
+    /// 框里要显示的东西：文字（拼音插在光标处）按宽度折好的行，光标在第几个字、第几行，从第几行开始显示。
+    struct Layout {
+        var chars: [Character]
+        var lines: [Range<Int>]
+        /// 拼音在 chars 里的范围，光标在它后面。
+        var composing: Range<Int>
+        var caret: Int
+        var caretLine: Int
+        /// 最多显示几行：编辑时 3 行，不编辑时 2 行。
+        var limit: Int
+        var first: Int
+        var shown: Int { max(1, min(lines.count, limit)) }
+        /// 编辑时超过 3 行：框里上下滚，右边画细滚动条。
+        var scrolls: Bool { limit == 3 && lines.count > 3 }
+        /// 不编辑、超过 2 行：第 2 行后面接上剩下的字，由 Text 在尾部加省略号。
+        var truncates: Bool { limit == 2 && lines.count > 2 }
+    }
+
+    private var layout: Layout {
+        let editing = model.target == .instruction
+        let text = Array(model.instruction)
+        let composing = editing ? Array(model.composition) : []
+        let caret = min(model.instructionCaret, text.count)
+        let chars = Array(text[..<caret]) + composing + Array(text[caret...])
+        let caretIndex = caret + composing.count
+        let lines = Self.wrap(chars, width: textFrame.width - 4)
+        let caretLine = lines.lastIndex { $0.lowerBound <= caretIndex } ?? 0
+        let limit = editing ? 3 : 2
+        // 光标那一行尽量放在中间，总之始终露出来。
+        let first = editing && lines.count > limit ? min(max(caretLine - 1, 0), lines.count - limit) : 0
+        return Layout(chars: chars, lines: lines, composing: caret..<(caret + composing.count),
+                      caret: caretIndex, caretLine: caretLine, limit: limit, first: first)
+    }
+
+    /// 按字宽贪心折行；英文尽量在空格后断开。宽度还不知道时整段算一行。
+    static func wrap(_ chars: [Character], width: CGFloat) -> [Range<Int>] {
+        guard width > 20, !chars.isEmpty else { return [0..<chars.count] }
+        var lines: [Range<Int>] = []
+        var start = 0, used: CGFloat = 0, lastSpace: Int?
+        var index = 0
+        while index < chars.count {
+            let w = Self.width(String(chars[index]))
+            if used + w > width, index > start {
+                var breakAt = index
+                if let space = lastSpace, space > start, chars[index] != " " { breakAt = space + 1 }
+                lines.append(start..<breakAt)
+                start = breakAt
+                used = chars[start..<index].reduce(0) { $0 + Self.width(String($1)) }
+                lastSpace = nil
+                continue
+            }
+            if chars[index] == " " { lastSpace = index }
+            used += w
+            index += 1
+        }
+        lines.append(start..<chars.count)
+        return lines
+    }
+
+    /// 显示的几行。没写字时是占位字，光标叠在它左边。
+    @ViewBuilder
+    private func lines(_ layout: Layout, caretOpacity: Double?) -> some View {
+        if layout.chars.isEmpty {
+            Text(placeholder).foregroundColor(Brand.fieldPlaceholder)
+                .lineLimit(1)
+                .frame(height: Self.lineHeight)
+                .overlay(alignment: .leading) {
+                    if let caretOpacity {
+                        Image(uiImage: Self.caret).foregroundStyle(Brand.fieldActiveLine.opacity(caretOpacity))
+                            .offset(x: -2)
+                    }
+                }
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(layout.first..<(layout.first + layout.shown), id: \.self) { line in
+                    let last = line == layout.first + layout.shown - 1
+                    let range = last && layout.truncates ? layout.lines[line].lowerBound..<layout.chars.count : layout.lines[line]
+                    lineText(range, line: line, layout: layout, caretOpacity: caretOpacity)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(height: Self.lineHeight)
+                }
+            }
+        }
+    }
+
+    /// 一行：拼音带下划线，光标插在这一行里。
+    private func lineText(_ range: Range<Int>, line: Int, layout: Layout, caretOpacity: Double?) -> Text {
+        var result = Text("")
+        var run = ""
+        var runComposing = false
+        func flush() {
+            guard !run.isEmpty else { return }
+            result = result + (runComposing
+                ? Text(run).foregroundColor(Brand.fieldText).underline(color: Brand.fieldActiveLine)
+                : Text(run).foregroundColor(Brand.fieldText))
+            run = ""
+        }
+        let caretHere = caretOpacity != nil && line == layout.caretLine
+        for index in range {
+            if caretHere && index == layout.caret {
+                flush()
+                result = result + caretText(caretOpacity ?? 1)
+            }
+            let composing = layout.composing.contains(index)
+            if composing != runComposing { flush(); runComposing = composing }
+            run.append(layout.chars[index])
+        }
+        flush()
+        if caretHere && layout.caret == range.upperBound { result = result + caretText(caretOpacity ?? 1) }
+        return result
+    }
+
+    private func caretText(_ opacity: Double) -> Text {
+        Text(Image(uiImage: Self.caret)).foregroundColor(Brand.fieldActiveLine.opacity(opacity)).baselineOffset(-3)
+    }
+
+    /// 右边 3pt 的细滚动条：底 #F2F2F7，滑块 #C7C7CC，按显示的是第几行到第几行画。
+    private func scrollBar(_ layout: Layout) -> some View {
+        GeometryReader { geometry in
+            let total = CGFloat(layout.lines.count)
+            let height = geometry.size.height
+            ZStack(alignment: .top) {
+                Capsule().fill(Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255))
+                Capsule().fill(Color(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255))
+                    .frame(height: height * CGFloat(layout.shown) / total)
+                    .offset(y: height * CGFloat(layout.first) / total)
+            }
+        }
+        .frame(width: 3)
+        .offset(x: 4)
+    }
+
+    // MARK: 点按
 
     /// 点一下：激活且有字时把光标放到点的位置，其他时候切换激活。
     /// 按住 0.3 秒后拖动：光标跟着手指走（没激活时先激活）。用一个手势自己计时，点按和长按不会互相吃掉。
@@ -1006,13 +1146,13 @@ struct RequestField: View {
                 if pressStart == nil { pressStart = start }
                 guard Date().timeIntervalSince(start) > 0.3 else { return }
                 if model.target != .instruction { model.toggleInstructionEditing() }
-                if !model.isComposing { placeCaret(atX: value.location.x) }
+                if !model.isComposing { placeCaret(at: value.location) }
             }
             .onEnded { value in
                 let held = Date().timeIntervalSince(pressStart ?? Date()) > 0.3
                 pressStart = nil
                 if model.target == .instruction, !model.instruction.isEmpty, !model.isComposing {
-                    placeCaret(atX: value.location.x)
+                    placeCaret(at: value.location)
                 } else if !(held && model.target == .instruction) {
                     // 长按已经激活了就不再切回去。
                     model.toggleInstructionEditing()
@@ -1020,52 +1160,24 @@ struct RequestField: View {
             }
     }
 
-    /// 文字、拼音、光标排成一行；光标透明度为 nil 时不画。没写字时光标在占位字前面。
-    private func content(text: String, caretOpacity: Double?) -> Text {
-        let composing = model.target == .instruction ? model.composition : ""
-        if text.isEmpty && composing.isEmpty {
-            // 光标叠在占位字左边，不占宽度，激活前后占位字不挪位置。
-            return Text(placeholder).foregroundColor(Brand.fieldPlaceholder)
-        }
-        guard let caretOpacity else { return Text(text).foregroundColor(Brand.fieldText) }
-        let caret = Text(Image(uiImage: Self.caret)).foregroundColor(Brand.fieldActiveLine.opacity(caretOpacity))
-            .baselineOffset(-3)
-        let window = visibleWindow(text: text, composing: composing)
-        return Text(window.before).foregroundColor(Brand.fieldText)
-            + Text(composing).foregroundColor(Brand.fieldText).underline(color: Brand.fieldActiveLine)
-            + caret
-            + Text(window.after).foregroundColor(Brand.fieldText)
-    }
-
-    /// 光标前面的字太长放不下时，从前面去掉一些、补一个「…」，让光标一直看得见；后面的字放不下时由 Text 在尾部截断。
-    private func visibleWindow(text: String, composing: String) -> (before: String, after: String, dropped: Int) {
-        let caret = min(model.instructionCaret, text.count)
-        let split = text.index(text.startIndex, offsetBy: caret)
-        var before = Substring(text[..<split])
-        let after = String(text[split...])
-        // 后面还要留出尾部截断的「…」和一个字的位置，不然光标会被截进尾部的「…」里。
-        let room = textFrame.width - 2 - Self.width(composing) - Self.width("…") - (after.isEmpty ? 0 : Self.width("字")) - 6
-        guard room > 0, Self.width(String(before)) > room else { return (String(before), after, 0) }
-        var dropped = 0
-        while !before.isEmpty, Self.width("…" + before) > room {
-            before = before.dropFirst()
-            dropped += 1
-        }
-        return ("…" + before, after, dropped)
-    }
-
-    /// 点到的位置换算成第几个字：落在哪个字的左半边光标就放在它前面，右半边放在后面。
-    private func placeCaret(atX x: CGFloat) {
-        let text = model.instruction
-        let window = visibleWindow(text: text, composing: "")
-        let local = x - textFrame.minX
-        var offset: CGFloat = window.dropped > 0 ? Self.width("…") : 0
-        var position = window.dropped
-        for character in text.dropFirst(window.dropped) {
-            let width = Self.width(String(character))
+    /// 点到的位置换算成第几行、第几个字：落在哪个字的左半边光标就放在它前面，右半边放在后面。
+    private func placeCaret(at point: CGPoint) {
+        let layout = self.layout
+        guard !layout.lines.isEmpty else { return }
+        let row = min(max(Int((point.y - textFrame.minY) / Self.lineHeight), 0), layout.shown - 1)
+        let range = layout.lines[layout.first + row]
+        let local = point.x - textFrame.minX
+        var offset: CGFloat = 0
+        var position = range.lowerBound
+        for index in range {
+            let width = Self.width(String(layout.chars[index]))
             if local < offset + width / 2 { break }
             offset += width
             position += 1
+        }
+        // 折行处的空格之后再往右点，光标停在这一行的末尾（下一行开头之前）。
+        if position == range.upperBound, range.upperBound < layout.chars.count, layout.chars[range.upperBound - 1] == " " {
+            position -= 1
         }
         model.moveInstructionCaret(by: position - model.instructionCaret)
         lastTyped = Date()

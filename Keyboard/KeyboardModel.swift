@@ -151,7 +151,12 @@ final class KeyboardModel: ObservableObject {
 
     var keyboardHeight: CGFloat {
         KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen, gate: gate,
-                               reminder: showsTrialReminder)
+                               reminder: showsTrialReminder, requestLines: requestLines)
+    }
+
+    /// 提示词面板里要求框现在显示几行（1–3），由要求框按宽度折行后告诉这里，键盘跟着变高。
+    @Published var requestLines = 1 {
+        didSet { if requestLines != oldValue { heightMayChange?() } }
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
