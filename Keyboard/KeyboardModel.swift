@@ -54,6 +54,8 @@ final class KeyboardModel: ObservableObject {
     @Published var aiExpanded = false { didSet { heightMayChange?() } }
     @Published var composition = ""
     @Published var candidates: [String] = []
+    /// 联想：上屏后候选栏接着显示的下一个词，按别的键就收起。
+    @Published var predictions: [String] = []
     var engine: InputEngine = DirectEngine()
     /// 拼音词库是否可用（主 App 部署过，并且打开了完全访问）。
     @Published var pinyinReady = false
