@@ -48,7 +48,7 @@ private struct CoachHandLayer: View {
     private static let flightDuration = 0.6
 
     var body: some View {
-        if let display = model.coachDisplay, let rect = rect(for: display.target) {
+        if let display = model.coachDisplay, let rect = targetRect(display.target) {
             Group {
                 if reduceMotion {
                     // 减弱动态效果：不点、不出水波、不飞，下一步直接淡入到下一颗按钮旁边。
@@ -69,7 +69,7 @@ private struct CoachHandLayer: View {
                 settledAt = Date()
             }
             .onChange(of: display.target) { target in
-                if let shownTarget, let from = self.rect(for: shownTarget) { flight = (from, Date()) }
+                if let shownTarget, let from = targetRect(shownTarget) { flight = (from, Date()) }
                 shownTarget = target
                 settledAt = Date().addingTimeInterval(Self.flightDuration)
             }
@@ -77,7 +77,7 @@ private struct CoachHandLayer: View {
     }
 
     /// ▲▼ 只在有好几版时才有；只有一版时指「替换」。
-    private func rect(for target: KeyboardModel.CoachTarget) -> CGRect? {
+    private func targetRect(_ target: KeyboardModel.CoachTarget) -> CGRect? {
         frames[target] ?? (target == .versions ? frames[.replace] : nil)
     }
 
