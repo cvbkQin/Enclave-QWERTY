@@ -649,7 +649,7 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - 要求栏
 
-    private static let instructionKey = "instruction.v1"
+    private static let instructionKey = SettingsStore.instructionKey
 
     /// 整段换掉（清空、填入建议），光标放到最后。
     func setInstruction(_ text: String) {

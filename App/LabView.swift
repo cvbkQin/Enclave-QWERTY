@@ -35,6 +35,13 @@ struct LabScene: Identifiable {
     let situation: String
     let text: String
     let steps: [String]
+    /// 「一键应用」要设成的状态：选哪条提示词（按内置名字认，nil 不改）、「要求」框里填什么。都为 nil 的场景不显示按钮。
+    var preset: Preset? = nil
+
+    struct Preset {
+        var style: String?
+        var instruction: String
+    }
 
     /// 场景文字跟着界面语言；练习用的原文保持中文（拼音键盘练的就是中文）。
     /// 步骤里的 {style} 换成当前提示词的名字。
@@ -45,29 +52,33 @@ struct LabScene: Identifiable {
                               "上司に資料の確認を頼まれました。簡潔でわかりやすく返したいときに。"),
                  text: "那个文件我看了一下大概没啥问题就是第三页有个数好像不太对你再看看",
                  steps: [L("点 ✨", "Tap ✨", "✨ をタップ"),
-                         L("看结果卡片，满意就点「替换」", "Check the result card and tap Replace if you like it", "結果カードを見て、よければ「置き換え」をタップ")]),
+                         L("看结果卡片，满意就点「替换」", "Check the result card and tap Replace if you like it", "結果カードを見て、よければ「置き換え」をタップ")],
+                 preset: Preset(style: "自动", instruction: "")),
         LabScene(id: 1, category: .work, title: L("委婉拒绝", "Say no politely", "やんわり断る"), icon: "checkmark.shield",
                  tag: L("按要求改", "Custom changes", "指示して直す"),
                  situation: L("同事催进度，但这周确实做不完。", "A coworker is pushing for progress, but you really can't finish this week.",
                               "同僚に進捗を急かされたけれど、今週中には終わらないときに。"),
                  text: "周五前给不了，下周一吧",
                  steps: [L("点「{style} ▾」，在「要求」里写「语气委婉一点」", "Tap {style} ▾ and type \"softer\" in Prompt", "「{style} ▾」をタップし、「指示」に「やわらかく」と入力"),
-                         L("按键盘上的紫色「执行」", "Tap the purple Go key", "キーボードの紫の「実行」をタップ")]),
+                         L("点「执行」", "Tap Run", "「実行」をタップ")],
+                 preset: Preset(style: "自动", instruction: L("语气委婉一点", "softer", "やわらかく"))),
         LabScene(id: 2, category: .work, title: L("请假申请", "Ask for a day off", "休暇の申請"), icon: "calendar",
                  tag: L("帮我写", "Help me write", "下書きを作成"),
                  situation: L("什么都不用打，让 AI 起草一段请假理由。", "Type nothing and let AI draft a reason for a day off.",
                               "何も入力せずに、AI に休暇の理由を下書きしてもらいます。"),
                  text: "",
                  steps: [L("输入框留空，点「{style} ▾」", "Leave the field empty and tap {style} ▾", "入力欄を空のまま「{style} ▾」をタップ"),
-                         L("在「要求」里写「请假一天的理由，给领导」，按「执行」", "In Prompt, type \"reason for a day off, to my manager\" and tap Go",
-                           "「指示」に「上司宛て、1 日休む理由」と入力して「実行」")]),
+                         L("在「要求」里写「请假一天的理由，给领导」，点「执行」", "In Prompt, type \"reason for a day off, to my manager\" and tap Run",
+                           "「指示」に「上司宛て、1 日休む理由」と入力して「実行」")],
+                 preset: Preset(style: "自动", instruction: L("请假一天的理由，给领导", "reason for a day off, to my manager", "上司宛て、1 日休む理由"))),
         LabScene(id: 3, category: .client, title: L("安抚客户", "Calm a customer", "お客様へのお詫び"), icon: "headphones",
                  tag: L("润色 · 正式", "Polish · Formal", "整える · 丁寧"),
                  situation: L("客户催发货，你想道歉并给出明确时间。", "A customer is chasing a delivery. You want to apologize and give a clear time.",
                               "発送を急かすお客様に、お詫びとはっきりした日時を伝えたいときに。"),
                  text: "不好意思啊 仓库那边最近爆单了 明天肯定给你发出去 别退款了哈",
                  steps: [L("提示词选「正式」，点 ✨", "Choose the Formal prompt and tap ✨", "プロンプトで「丁寧」を選び、✨ をタップ"),
-                         L("不满意点「再润」换一版", "Not happy? Tap Rewrite for another version", "気に入らなければ「別の案」で別の案を出します")]),
+                         L("不满意就点「正式 ▾」里的「执行」再来一版", "Not happy? Tap Run in the Formal ▾ panel for another version", "気に入らなければ「丁寧 ▾」の「実行」で別の案を出します")],
+                 preset: Preset(style: "正式", instruction: "")),
         LabScene(id: 4, category: .social, title: L("朋友圈文案", "Social post", "SNS の投稿"), icon: "camera",
                  tag: L("按要求改", "Custom changes", "指示して直す"),
                  situation: L("爬山回来，想发一条有点文艺感的朋友圈。", "Back from a hike and want to post something a little poetic.",
@@ -75,27 +86,31 @@ struct LabScene: Identifiable {
                  text: "今天去爬山了 累死 但是山顶的风景真的绝了 值",
                  steps: [L("点「{style} ▾」，在「要求」里写「写成朋友圈文案，文艺一点」", "Tap {style} ▾ and type \"social post, a bit poetic\" in Prompt",
                            "「{style} ▾」をタップし、「指示」に「SNS 投稿風に、少し情緒的に」と入力"),
-                         L("按「执行」", "Tap Go", "「実行」をタップ")]),
+                         L("点「执行」", "Tap Run", "「実行」をタップ")],
+                 preset: Preset(style: "自动", instruction: L("写成朋友圈文案，文艺一点", "social post, a bit poetic", "SNS 投稿風に、少し情緒的に"))),
         LabScene(id: 5, category: .social, title: L("和好道歉", "Make up with a friend", "仲直りのお詫び"), icon: "heart",
                  tag: L("按要求改", "Custom changes", "指示して直す"),
                  situation: L("昨天和朋友吵了两句，想真诚地道个歉。", "You argued with a friend yesterday and want to apologize sincerely.",
                               "昨日友達と言い合いになり、素直に謝りたいときに。"),
                  text: "昨天是我说话太冲了 不是故意的 别生气了",
                  steps: [L("在「要求」里写「真诚一点，别太肉麻」", "In Prompt, type \"sincere, not too sappy\"", "「指示」に「誠実に、でも大げさにしない」と入力"),
-                         L("按「执行」，用 ▲▼ 翻看几版", "Tap Go and flip through versions with ▲▼", "「実行」をタップし、▲▼ で案を見比べます")]),
+                         L("点「执行」，用 ▲▼ 翻看几版", "Tap Run and flip through versions with ▲▼", "「実行」をタップし、▲▼ で案を見比べます")],
+                 preset: Preset(style: "自动", instruction: L("真诚一点，别太肉麻", "sincere, not too sappy", "誠実に、でも大げさにしない"))),
         LabScene(id: 6, category: .life, title: L("闲置转卖", "Sell something used", "不用品の出品"), icon: "tag",
                  tag: L("帮我写", "Help me write", "下書きを作成"),
                  situation: L("把一台闲置 iPad 挂到二手平台。", "List a spare iPad on a secondhand marketplace.", "使っていない iPad をフリマに出品します。"),
                  text: "九成新 iPad 买了没怎么用 2000 出 不刀",
                  steps: [L("在「要求」里写「写成闲鱼商品描述，分点列出」", "In Prompt, type \"marketplace listing, as bullets\"", "「指示」に「フリマの商品説明に、箇条書きで」と入力"),
-                         L("按「执行」", "Tap Go", "「実行」をタップ")]),
+                         L("点「执行」", "Tap Run", "「実行」をタップ")],
+                 preset: Preset(style: "自动", instruction: L("写成闲鱼商品描述，分点列出", "marketplace listing, as bullets", "フリマの商品説明に、箇条書きで"))),
         LabScene(id: 7, category: .language, title: L("英文邮件", "Email in English", "英語のメール"), icon: "globe",
                  tag: L("翻译", "Translate", "翻訳"),
                  situation: L("约外国同事改会议时间，直接用中文写。", "Ask a coworker abroad to move a meeting, writing in Chinese.",
                               "海外の同僚に会議の変更をお願いします。中国語のまま書きます。"),
                  text: "麻烦帮我确认一下下周二的会议时间，如果你不方便的话可以改到周三下午",
                  steps: [L("在「要求」里写「翻成英文邮件」", "In Prompt, type \"English email\"", "「指示」に「英語のメールに」と入力"),
-                         L("按「执行」，点「替换」", "Tap Go, then Replace", "「実行」をタップし、「置き換え」")]),
+                         L("点「执行」，再点「替换」", "Tap Run, then Replace", "「実行」をタップし、「置き換え」")],
+                 preset: Preset(style: "自动", instruction: L("翻成英文邮件", "English email", "英語のメールに"))),
         LabScene(id: 8, category: .language, title: L("中英混打", "Mix Chinese and English", "中国語と英語を混ぜる"), icon: "keyboard",
                  tag: L("输入", "Typing", "入力"),
                  situation: L("技术群里聊天，中文里夹着英文词。", "Chatting with engineers, with English words in Chinese.", "技術チャットで、中国語に英単語を混ぜて書きます。"),
@@ -109,7 +124,8 @@ struct LabScene: Identifiable {
                  text: "我们这次的活动非常成功，参加的人数比预计的多了一倍。大家的反溃都很好，特别是互动环节，很多人表示下次还要来。不过也有一些问题，比如签到太慢，饮料不够，下次需要提前准被。",
                  steps: [L("点 ✨", "Tap ✨", "✨ をタップ"),
                          L("用卡片右边的 ▲▼ 翻看几版，长按卡片复制", "Flip versions with ▲▼ on the card, touch and hold to copy",
-                           "カード右の ▲▼ で案を見比べ、長押しでコピー")]),
+                           "カード右の ▲▼ で案を見比べ、長押しでコピー")],
+                 preset: Preset(style: "自动", instruction: "")),
     ] }
 }
 
@@ -264,6 +280,8 @@ struct SceneView: View {
     @State private var index: Int
     @State private var text: String
     @FocusState private var focused: Bool
+    /// 点过「一键应用」：按钮变成绿色「已应用」，换场景时复原。
+    @State private var applied = false
 
     init(index: Int) {
         _index = State(initialValue: index)
@@ -298,7 +316,11 @@ struct SceneView: View {
                     .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(AppColor.purple, lineWidth: focused ? 2 : 0))
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(L("试试这样做", "Try this", "試してみましょう")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                    HStack {
+                        Text(L("试试这样做", "Try this", "試してみましょう")).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        if let preset = scene.preset { applyButton(preset) }
+                    }
                     ForEach(Array(scene.steps.enumerated()), id: \.offset) { number, step in
                         HStack(alignment: .top, spacing: 8) {
                             Text("\(number + 1)")
@@ -360,5 +382,39 @@ struct SceneView: View {
         guard LabScene.all.indices.contains(next) else { return }
         index = next
         text = LabScene.all[next].text
+        applied = false
+    }
+
+    /// 「一键应用」：选好这个场景要用的提示词、把要求填进键盘的「要求」框，再把键盘收起重开，让它读到新状态。
+    private func applyButton(_ preset: LabScene.Preset) -> some View {
+        Button {
+            apply(preset)
+        } label: {
+            Label(applied ? L("已应用", "Applied", "適用済み") : L("一键应用", "Apply", "ワンタップで適用"),
+                  systemImage: applied ? "checkmark" : "wand.and.stars")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(applied ? DashColor.ok : DashColor.ai)
+                .padding(.horizontal, 12)
+                .frame(height: 30)
+                .background(Capsule().fill((applied ? DashColor.ok : DashColor.ai).opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(L("选好提示词并填好要求", "Picks the prompt and fills in the request", "プロンプトを選び、指示を入力します"))
+    }
+
+    private func apply(_ preset: LabScene.Preset) {
+        if let name = preset.style, let style = store.settings.styles.first(where: { $0.name == name }) {
+            store.settings.selectedStyleID = style.id
+        }
+        SharedStorage.defaults.set(preset.instruction, forKey: SettingsStore.instructionKey)
+        // 原文被改过的话也恢复成这个场景的预填文字，照着步骤做结果才对得上。
+        text = scene.text
+        applied = true
+        // 键盘只在出现时读设置：收起再弹出来。
+        focused = false
+        Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            focused = true
+        }
     }
 }
