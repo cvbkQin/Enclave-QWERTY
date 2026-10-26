@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 键盘主体。
-/// AI 栏永远紧贴按键上方，收起和展开是同一条：[展开/收起] [✨ 润色] [正式▾] … [撤销|重做]；打拼音时这一行换成候选。
+/// AI 栏永远紧贴按键上方，收起和展开是同一条：[展开/收起] [✨] [润色▾] … [撤销|重做]；打拼音时这一行换成候选。
 /// 展开时 AI 栏上面是结果卡片和动作行（替换、插入）；打开「正式▾」时 AI 栏上面再加风格浮层。
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
@@ -167,8 +167,8 @@ struct PanelToggleButton: View {
     }
 }
 
-/// 「✨ 润色」：收起和展开都是这一个按钮，尺寸、文字和颜色一直不变；生成中再点一下就取消。
-/// 收起时（快速模式）动画只在按钮里：流光描边、白色扫光、星星闪、小闪光，完成时星星闪一下金色。
+/// 「✨」主按钮（D1）：只放图标，58×34 渐变胶囊，按当前提示词改输入框里的话；收起和展开都是这一颗。
+/// 生成中同位置变成深灰底白色方块「停止」，再点一下取消；流光描边、闪光照旧放在这颗按钮上。
 struct PolishButton: View {
     @ObservedObject var model: KeyboardModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -184,12 +184,13 @@ struct PolishButton: View {
         Button {
             model.isRunning ? model.stop() : model.sparkleTapped()
         } label: {
-            HStack(spacing: 5) {
-                PolishStars(size: 15, running: quickRunning, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
-                Text(L("润色", "Polish", "整える"))
+            Group {
+                if model.isRunning {
+                    RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(Color.white).frame(width: 12, height: 12)
+                } else {
+                    PolishStars(size: 20, running: false, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
+                }
             }
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(.white)
             .frame(width: KeyboardMetrics.polishButtonWidth, height: KeyboardMetrics.chipHeight)
             .background(shape.fill(fill))
             .overlay {
@@ -206,7 +207,7 @@ struct PolishButton: View {
                         .frame(width: 18, height: 18)
                         .background(Circle().fill(Brand.lockFill))
                         .overlay(Circle().strokeBorder(Brand.lockRing, lineWidth: 2))
-                        .offset(x: 72, y: -4)
+                        .offset(x: KeyboardMetrics.polishButtonWidth - 12, y: -4)
                         .accessibilityLabel(model.aiQuotaUsed
                             ? L("今天的免费次数用完了", "No free uses left today", "今日の無料分は終了")
                             : L("需要允许完全访问", "Needs Allow Full Access", "フルアクセスの許可が必要"))
@@ -226,9 +227,13 @@ struct PolishButton: View {
                         .accessibilityLabel(L("今天还剩 \(left) 次", "\(left) free uses left today", "今日あと \(left) 回"))
                 }
             }
+            // 点按区上下各扩 5pt，至少 58×44。
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+            .padding(.vertical, -5)
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel(model.isRunning ? L("正在润色，轻点取消", "Polishing. Tap to cancel", "整えています。タップでキャンセル") : L("润色", "Polish", "整える"))
+        .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行当前提示词", "Run prompt", "プロンプトを実行"))
         .onChange(of: model.finished) { finished in
             if finished?.origin == .polish { doneAt = finished?.at }
         }
@@ -241,8 +246,10 @@ struct PolishButton: View {
         return left > 0 ? left : nil
     }
 
-    private var fill: Color {
-        return (model.aiBlocked || model.aiQuotaUsed) && !model.isRunning ? Brand.purple.opacity(0.35) : Brand.purple
+    private var fill: AnyShapeStyle {
+        if model.isRunning { return AnyShapeStyle(Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)) }
+        let gradient = LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]], startPoint: .leading, endPoint: .trailing)
+        return (model.aiBlocked || model.aiQuotaUsed) ? AnyShapeStyle(gradient.opacity(0.35)) : AnyShapeStyle(gradient)
     }
 }
 
@@ -378,7 +385,7 @@ struct PolishStars: View {
     }
 }
 
-/// 「正式▾」：显示当前风格，有要求时写「正式 · 有要求」并描紫边；点开风格浮层。
+/// 「润色▾」：显示当前提示词的名字，写了要求时显示「按要求」并描紫边；点开提示词面板。宽 72–140，超出截断。
 struct StyleChip: View {
     @ObservedObject var model: KeyboardModel
 
@@ -387,12 +394,14 @@ struct StyleChip: View {
         let highlighted = !locked && (model.styleMenuOpen || !model.instruction.isEmpty)
         Button { locked ? model.showFullAccessTip() : model.toggleStyleMenu() } label: {
             HStack(spacing: 3) {
-                Text(title).lineLimit(1)
+                Text(title).lineLimit(1).truncationMode(.tail)
                 Image(systemName: model.styleMenuOpen ? "chevron.up" : "chevron.down")
                     .font(.system(size: 9, weight: .bold))
             }
             .font(.system(size: 14, weight: highlighted ? .semibold : .regular))
             .padding(.horizontal, 12)
+            .frame(minWidth: 72, maxWidth: 140)
+            .fixedSize(horizontal: true, vertical: false)
             .frame(height: KeyboardMetrics.chipHeight)
             .foregroundStyle(highlighted ? Brand.menuText : Color.primary)
             .background(Capsule().fill(highlighted ? Brand.menuFill : KeyStyle.charKey))
@@ -403,8 +412,8 @@ struct StyleChip: View {
     }
 
     private var title: String {
-        let name = model.settings.selectedStyle?.displayName ?? L("风格", "Style", "文体")
-        return model.instruction.isEmpty ? name : L("\(name) · 有要求", "\(name) · Prompt", "\(name) · 指示あり")
+        guard model.instruction.isEmpty else { return L("按要求", "Custom", "指示あり") }
+        return model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
     }
 }
 
@@ -482,18 +491,18 @@ struct PanelButton: View {
 
 // MARK: - 「正式▾」浮层
 
-/// 淡紫浮层，尖角指向「正式▾」：上面一行选风格，下面一行写要求和「润色」。
-/// 点风格只切换，不马上改；点「润色」或回车「执行」才开始，浮层不收起，再点「正式▾」才收。
+/// 提示词面板，尖角指向「润色▾」：上面一行选提示词，下面一行写要求和「执行」。
+/// 点提示词只切换，不马上改；点「执行」或回车「执行」才开始，面板不收起，再点「润色▾」才收。
 struct StyleMenu: View {
     @ObservedObject var model: KeyboardModel
 
-    /// 尖角对准「正式▾」：展开键 + 间距 + 润色键 + 间距，再往右到按钮中间附近。
+    /// 尖角对准「润色▾」：展开键 + 间距 + ✨ 键 + 间距，再往右到按钮中间附近。
     private let arrowX: CGFloat = KeyboardMetrics.chipHeight + 6 + KeyboardMetrics.polishButtonWidth + 6 + 34
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                rowLabel(L("风格", "Style", "文体"))
+                rowLabel(L("提示词", "Prompts", "プロンプト"))
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 2) {
                         ForEach(model.settings.styles) { style in
@@ -533,7 +542,7 @@ struct StyleMenu: View {
     }
 }
 
-/// 浮层里的「再润」：和「润色」同款实心胶囊，换成紫到粉的渐变区分开；按选好的风格和要求开始改，生成中样子不变，再点一下取消。
+/// 面板里的「执行」：实心胶囊，紫到粉的渐变；按选好的提示词和要求开始改，生成中样子不变，再点一下取消。
 /// 面板收起时直接替换输入框，展开时进结果卡片。
 struct MenuPolishButton: View {
     @ObservedObject var model: KeyboardModel
@@ -550,7 +559,7 @@ struct MenuPolishButton: View {
         } label: {
             HStack(spacing: 4) {
                 PolishStars(size: 13, running: running, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
-                Text(L("再润", "Rewrite", "別の案")).lineLimit(1).fixedSize()
+                Text(L("执行", "Run", "実行")).lineLimit(1).fixedSize()
             }
             .font(.system(size: 14, weight: .semibold))
             .foregroundStyle(Color.white)
@@ -568,7 +577,7 @@ struct MenuPolishButton: View {
             .opacity(model.aiBlocked && !model.isRunning ? 0.4 : 1)
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel(model.isRunning ? L("正在润色，轻点取消", "Polishing. Tap to cancel", "整えています。タップでキャンセル") : L("再润", "Rewrite", "別の案"))
+        .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行", "Run", "実行"))
         .onChange(of: model.finished) { finished in
             if finished?.origin == .rerun { doneAt = finished?.at }
         }
@@ -708,7 +717,7 @@ struct GateCard: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Brand.panelLabel.opacity(0.7))
         }
-        Text(L("只在你点「润色」或「再润」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；Enclave 没有自己的服务器，也不保存你的文字。", "Sent only when you tap Polish or Rewrite: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. Enclave has no servers and doesn't keep your text.", "「整える」か「別の案」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。Enclave はサーバーを持たず、文章を保存しません。"))
+        Text(L("只在你点「✨」或「执行」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；Enclave 没有自己的服务器，也不保存你的文字。", "Sent only when you tap ✨ or Run: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. Enclave has no servers and doesn't keep your text.", "「✨」か「実行」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。Enclave はサーバーを持たず、文章を保存しません。"))
             .font(.system(size: 12))
             .foregroundStyle(Brand.cardNote)
             .fixedSize(horizontal: false, vertical: true)
@@ -887,8 +896,7 @@ struct RequestField: View {
     }.withRenderingMode(.alwaysTemplate)
 
     private var placeholder: String {
-        guard let style = model.settings.selectedStyle, !style.prompt.isEmpty else { return L("写要求，比如：语气委婉一点", "Describe your change, e.g. softer", "変更内容を入力（例：やわらかく）") }
-        return L("按\(style.displayName)语气，还想怎么改？", "\(style.displayName). Describe any other changes", "\(style.displayName)に。ほかに変えたい点は？")
+        L("写任何要求：翻成日语、改成朋友圈语气…", "Ask for anything: translate, make it casual…", "何でも指示できます：英語に、やわらかく…")
     }
 
     var body: some View {
@@ -1331,6 +1339,9 @@ struct ResultCard: View {
 
     // MARK: 提示、出错、检查清单
 
+    /// 提示卡里提到的选择器名字：当前提示词，默认是「润色」。
+    private var chipName: String { model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える") }
+
     private func hintView(_ notice: String?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             if let notice {
@@ -1338,9 +1349,9 @@ struct ResultCard: View {
             } else {
                 HStack(spacing: 4) {
                     SparkleMark(size: 11, color: Brand.purpleText)
-                    Text(L("点「润色」整理输入框里的话", "Tap Polish to tidy up what you typed", "「整える」で入力した文章を整えます")).font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purpleText)
+                    Text(L("点 ✨，按当前提示词改输入框里的话", "Tap ✨ to run the current prompt on your text", "✨ で、いまのプロンプトを入力欄の文章に使います")).font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purpleText)
                 }
-                Text(L("选中一段只改选中的部分；点「\(model.settings.selectedStyle?.displayName ?? L("风格", "Style", "文体"))▾」换风格或写要求；输入框为空时写要求，它会帮你写。", "Select a part to change only that part. Tap \(model.settings.selectedStyle?.displayName ?? "Style") ▾ to switch styles or add a prompt. With an empty field, a prompt writes a draft for you.", "選択した部分だけを直せます。「\(model.settings.selectedStyle?.displayName ?? "文体")▾」で文体の変更や指示の入力。入力欄が空なら、指示どおりに下書きを作成します。"))
+                Text(L("点「\(chipName)▾」换一条提示词，或者直接写任何要求：翻成日语、改成朋友圈语气……", "Tap \(chipName) ▾ to switch prompts, or ask for anything: translate it, make it casual…", "「\(chipName) ▾」でプロンプトを切り替えるか、何でも指示できます：英語に、やわらかく……"))
                     .font(.system(size: 11.5))
                     .foregroundStyle(Color.secondary)
             }

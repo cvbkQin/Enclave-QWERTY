@@ -32,7 +32,7 @@ enum KeyboardMetrics {
     static let topRow: CGFloat = 44
     /// AI 栏里按钮的高度；✨ 润色按钮 84×34。
     static let chipHeight: CGFloat = 34
-    static let polishButtonWidth: CGFloat = 84
+    static let polishButtonWidth: CGFloat = 58
     /// 结果卡片：默认两行，展开到五行，再多就在卡片里滚动。
     static let cardHeight: CGFloat = 60
     static let expandedCardHeight: CGFloat = 120

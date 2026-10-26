@@ -6,9 +6,10 @@ struct StylePreset: Codable, Identifiable, Hashable {
     var prompt: String
 
     /// 界面上显示的名字：自带的 5 个风格按界面语言翻译，用户自己起的名字原样显示。提示词不翻。
+    /// 默认那条（名字「自动」、提示词为空）显示成「润色」，键盘上平时看到的是「✨」+「润色▾」。
     var displayName: String {
         switch name {
-        case "自动": return L("自动", "Auto", "おまかせ")
+        case "自动": return L("润色", "Polish", "整える")
         case "正式": return L("正式", "Formal", "丁寧")
         case "口语": return L("口语", "Casual", "カジュアル")
         case "简短": return L("简短", "Concise", "簡潔に")
