@@ -407,7 +407,7 @@ private struct GuideKeyStep: View {
             store.apiKey = args[i + 1]
             // sk-fake-success：不联网，直接显示成功卡片，方便截图。
             if args[i + 1] == "sk-fake-success" {
-                store.test = .success("你好", 0.8)
+                store.fakeTestSuccess()
             } else {
                 Task { await store.runTest() }
             }

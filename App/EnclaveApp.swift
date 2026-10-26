@@ -285,6 +285,14 @@ final class AppStore: ObservableObject {
 
     private var testKey: String { "test.ok.\(settings.baseURL)|\(settings.model)" }
 
+    #if DEBUG
+    /// 截图用：不联网，直接当作测试成功。
+    func fakeTestSuccess() {
+        testFailure = nil
+        test = .success("你好", 0.8)
+    }
+    #endif
+
     func runTest() async {
         // 没同意隐私政策前不发任何网络请求（测试会把 API Key 发到外部地址），入口处会先提示。
         guard PrivacyConsent.isAgreed else { return }
