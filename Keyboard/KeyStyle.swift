@@ -154,11 +154,17 @@ enum Brand {
     static let keyboardBack = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x2B / 255, green: 0x2B / 255, blue: 0x2D / 255, alpha: 1)
         : UIColor(red: 0xD1 / 255, green: 0xD3 / 255, blue: 0xD9 / 255, alpha: 1) })
-    /// 选择器名字和 ▾ 之间的竖线：平时 #D1D1D6（深色 #48484A），打开或「按要求」时 #B4A9FF。
+    /// 选择器名字和 ▾ 之间的竖线：平时 #D1D1D6（深色 #6E6E73），打开或「按要求」时 #B4A9FF（深色是浅灰底，用 #C7C7CC）。
     static let chipDivider = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0x48 / 255, green: 0x48 / 255, blue: 0x4A / 255, alpha: 1)
+        ? UIColor(red: 0x6E / 255, green: 0x6E / 255, blue: 0x73 / 255, alpha: 1)
         : UIColor(red: 0xD1 / 255, green: 0xD1 / 255, blue: 0xD6 / 255, alpha: 1) })
-    static let chipDividerOn = Color(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255)
+    static let chipDividerOn = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1)
+        : UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1) })
+    /// 收起、有新结果时展开键的图标：#4A3BD6，深色键上看不清，深色用 #B4A9FF。
+    static let newResultIcon = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)
+        : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
     /// 「正式▾」浮层（清爽紫）：纯白底，深色模式用系统深灰。
     static let panelFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x2C / 255, green: 0x2C / 255, blue: 0x2E / 255, alpha: 1) : .white })

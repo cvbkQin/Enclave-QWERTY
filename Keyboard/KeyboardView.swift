@@ -168,7 +168,7 @@ struct PanelToggleButton: View {
         Button(action: action) {
             Image(systemName: "rectangle.tophalf.inset.filled")
                 .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(expanded ? Brand.toggleOpenIcon : (hasNew ? Brand.deepPurple : Color.primary))
+                .foregroundStyle(expanded ? Brand.toggleOpenIcon : (hasNew ? Brand.newResultIcon : Color.primary))
                 .frame(width: 44, height: KeyboardMetrics.chipHeight)
                 .background(Capsule().fill(expanded ? Brand.toggleOpenFill : KeyStyle.charKey))
                 .overlay(Capsule().strokeBorder(Brand.toggleOpenStroke, lineWidth: expanded ? 1.5 : 0))
