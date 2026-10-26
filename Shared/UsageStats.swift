@@ -18,11 +18,16 @@ enum UsageStats {
         } else {
             DailyStats.add("polish.failed")
         }
+        recordRequest(ms: ms, ok: ok)
+        // 请求不多，每次都写，App 马上能看到。
+        DailyStats.flush()
+    }
+
+    /// 只进最近 10 次（接口页「测试」也算一次请求），不计入执行次数。
+    static func recordRequest(ms: Int, ok: Bool) {
         var recent = polishRecent
         recent.append(Request(ms: ms, ok: ok, at: Date()))
         polishRecent = Array(recent.suffix(recentLimit))
-        // 请求不多，每次都写，App 马上能看到。
-        DailyStats.flush()
     }
 
     struct Request: Codable {

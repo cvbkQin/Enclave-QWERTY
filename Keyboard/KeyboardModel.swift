@@ -237,7 +237,7 @@ final class KeyboardModel: ObservableObject {
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
-            notice = L("先在输入框里写点什么，或者点「\(settings.selectedStyle?.displayName ?? "风格")▾」写一个要求让它帮你写。", "Type something first, or tap \(settings.selectedStyle?.displayName ?? "Style") ▾ and add a prompt to have it written for you.", "先に何か入力するか、「\(settings.selectedStyle?.displayName ?? "文体")▾」で指示を書くと下書きを作成します。")
+            notice = L("先在输入框里写点什么，或者点「\(settings.selectedStyle?.displayName ?? "润色")▾」写一个要求让它帮你写。", "Type something first, or tap \(settings.selectedStyle?.displayName ?? "Polish") ▾ and add a prompt to have it written for you.", "先に何か入力するか、「\(settings.selectedStyle?.displayName ?? "整える")▾」で指示を書くと下書きを作成します。")
 
         case (false, true):
             // 润色：总是润输入框里现在的文字（可能是替换后又手改过的），结果接在这次会话后面，翻页还能找回之前的版本。

@@ -11,9 +11,14 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $router.homePath) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
                     if Readiness.remainingSteps(apiConfigured: store.settings.isConfigured) == 0 {
-                        Text("Enclave").font(.largeTitle.bold()).padding(.top, 8)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Date.now, format: .dateTime.month().day().weekday(.wide))
+                                .font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                            Text(L("摘要", "Summary", "概要")).font(.largeTitle.bold())
+                        }
+                        .padding(.top, 8)
                         Dashboard()
                     } else {
                         Text(L("欢迎使用", "Welcome", "ようこそ")).font(.largeTitle.bold()).padding(.top, 8)
@@ -90,83 +95,100 @@ private struct TrialBanner: View {
     }
 }
 
-/// 准备好以后的首页：就绪卡片、当前配置四宫格、小技巧。
+/// 首页（PB1，B 数据仪表盘）：AI 今天执行了几次和 7 天柱状图、联想省下的字，2×2 的接口 / 键盘 / 常用词 / 键盘常用语，最后是场景实验室入口。
 private struct Dashboard: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
     @StateObject private var words = CommonWordsModel()
     @StateObject private var phrases = KeyboardPhrasesModel()
+    @State private var stats = AIStats.load()
 
     var body: some View {
         if !SharedStorage.isShared { SharedConfigBanner() }
-        hero
         TrialBanner()
-        sectionTitle(L("当前配置", "Current setup", "現在の設定"))
-        ModelRow(model: store.settings.model, status: modelStatus) { router.openModel() }
-        HStack(spacing: 12) {
-            ConfigCard(icon: "keyboard", color: .blue, label: L("键盘", "Keyboard", "キーボード"), value: store.settings.keyboardLayout.shortTitle,
-                       detail: L("布局、模糊拼音、震动", "Layout, fuzzy pinyin, haptics", "配列、あいまい入力、触覚"), dot: nil) { router.openHome(.keyboard) }
-            ConfigCard(icon: "text.book.closed", color: .green, label: L("常用词", "My Words", "ユーザ辞書"), value: L("\(words.all.count) 个", "\(words.all.count)", "\(words.all.count) 語"),
-                       detail: wordsDetail, dot: nil) { router.openHome(.commonWords) }
+        summaryCard
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            GridCard(icon: "cpu", title: L("接口", "API", "API"), color: DashColor.ai,
+                     value: store.settings.isConfigured ? ProviderName.of(store.settings.baseURL) : L("未配置", "Not set up", "未設定"),
+                     detail: modelStatus.text, dot: modelStatus.color) { router.openModel() }
+            GridCard(icon: "keyboard", title: L("键盘", "Keyboard", "キーボード"), color: DashColor.input,
+                     value: store.settings.keyboardLayout.shortTitle,
+                     detail: store.settings.fuzzyPinyin.isEmpty ? L("模糊拼音未开", "Fuzzy pinyin off", "あいまい入力オフ") : L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "Fuzzy pinyin: \(store.settings.fuzzyPinyin.count)", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組")) { router.openHome(.keyboard) }
+            GridCard(icon: "text.book.closed", title: L("常用词", "My Words", "ユーザ辞書"), color: DashColor.input,
+                     value: "\(words.all.count)", detail: wordsDetail) { router.openHome(.commonWords) }
+            GridCard(icon: "star.fill", title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), color: DashColor.phrase,
+                     value: "\(phrases.phrases.count)",
+                     detail: phrases.phrases.isEmpty ? L("还没有，点进去添加", "None yet. Tap to add", "まだありません。タップして追加") : phrases.phrases.prefix(2).joined(separator: " · ")) { router.openHome(.keyboardWords) }
         }
-        KeyboardWordsRow(words: phrases.phrases) { router.openHome(.keyboardWords) }
+        labEntry
             .onAppear {
                 words.reload()
                 phrases.reload()
+                stats = AIStats.load()
             }
-        sectionTitle(L("小技巧", "Tips", "ヒント"))
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L("· 选中一段文字再点润色，只改选中的部分", "· Select some text before tapping Polish to change only that part", "· 文章の一部を選択してから「整える」で、その部分だけ直せます"))
-            Text(L("· 点「\(store.settings.selectedStyle?.displayName ?? "风格")▾」写要求，比如「更委婉」「翻成英文」", "· Tap \(store.settings.selectedStyle?.displayName ?? "Style") ▾ to add a prompt, like \"softer\" or \"in English\"", "· 「\(store.settings.selectedStyle?.displayName ?? "文体")▾」で指示を入力（例：「やわらかく」「英語に」）"))
-            Text(L("· 长按结果卡片可以复制", "· Touch and hold the result card to copy", "· 結果カードを長押しでコピー"))
-        }
-        .font(.subheadline)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
     }
 
-    private var hero: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L("准备就绪", "Ready", "準備完了")).font(.caption).opacity(0.8)
-                Text(L("键盘可以用了", "Your keyboard is ready", "キーボードが使えます")).font(.title2.bold())
-                Text(L("在任意输入框切到 Enclave，写完点「✨ 润色」。", "Switch to Enclave in any text field, then tap ✨ Polish when you're done.", "入力欄で Enclave に切り替え、書き終えたら「✨ 整える」をタップ。"))
-                    .font(.footnote).opacity(0.85)
-                    .padding(.trailing, 70)
-                Button {
-                    router.openHome(.lab)
-                } label: {
-                    Label(L("场景实验室", "Playground", "お試しラボ"), systemImage: "flask")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppColor.purple)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(.white))
+    /// 摘要卡：今天所有提示词的执行次数（不只「润色」那条）、7 天柱状图、本周合计和平均耗时、联想省下的字。
+    private var summaryCard: some View {
+        DashCard {
+            DashCardHeader(icon: "sparkles", title: "AI", color: DashColor.ai)
+            HStack(alignment: .firstTextBaseline) {
+                DashBigNumber(value: "\(stats.today)", unit: L("次 · 今天", "today", "回・今日"))
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(L("本周 \(stats.week) 次", "\(stats.week) this week", "今週 \(stats.week) 回"))
+                    if let average = stats.averageSeconds {
+                        Text(L("平均 \(average) 秒", "Avg \(average) s", "平均 \(average) 秒"))
+                    }
                 }
-                .padding(.top, 8)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "sparkles")
-                .font(.system(size: 44, weight: .light))
-                .foregroundStyle(AppColor.gold)
+            DashBarChart(values: stats.days, labels: DashBarChart.weekdayLabels())
+            if stats.week == 0 {
+                Text(DashText.emptyStats).font(.footnote).foregroundStyle(.secondary)
+            }
+            Divider()
+            HStack(spacing: 6) {
+                Image(systemName: "keyboard").foregroundStyle(DashColor.input)
+                Text(L("联想帮你少打了 \(stats.predictionChars) 个字", "Suggestions saved you \(stats.predictionChars) characters", "予測で \(stats.predictionChars) 文字の入力を省略"))
+                Spacer(minLength: 8)
+                Text(L("本周", "This week", "今週")).foregroundStyle(.secondary)
+            }
+            .font(.footnote)
         }
-        .foregroundStyle(.white)
-        .padding(18)
-        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(AppColor.heroGradient))
+    }
+
+    private var labEntry: some View {
+        Button { router.openHome(.lab) } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "flask").font(.system(size: 20, weight: .medium))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("场景实验室", "Playground", "お試しラボ")).font(.headline)
+                    Text(L("\(LabScene.all.count) 个场景，试试 ✨ 的效果", "\(LabScene.all.count) scenes to try ✨ on", "\(LabScene.all.count) 個のシーンで ✨ を試す")).font(.footnote).opacity(0.85)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(AppColor.heroGradient))
+        }
+        .buttonStyle(.plain)
     }
 
     /// 测试过才知道连不连得上；没测过显示「还没测试」。
     private var modelStatus: (text: String, color: Color) {
+        guard store.settings.isConfigured else { return (L("点进去配置", "Tap to set up", "タップして設定"), DashColor.system) }
         switch store.test {
-        case .success: return (L("连接正常", "Connected", "接続済み"), .green)
+        case .success: return (L("连接正常", "Connected", "接続済み"), DashColor.ok)
         case .failure: return (L("连不上", "Can't connect", "接続できません"), .red)
         case .running: return (L("正在测试", "Testing", "テスト中"), .orange)
         case .idle:
             switch store.lastTestOK {
-            case true?: return (L("连接正常", "Connected", "接続済み"), .green)
+            case true?: return (L("连接正常", "Connected", "接続済み"), DashColor.ok)
             case false?: return (L("连不上", "Can't connect", "接続できません"), .red)
-            case nil: return (L("还没测试", "Not tested", "未テスト"), Color.secondary.opacity(0.6))
+            case nil: return (L("还没测试", "Not tested", "未テスト"), DashColor.system)
             }
         }
     }
@@ -176,81 +198,33 @@ private struct Dashboard: View {
         if manual + imported == 0 { return words.all.isEmpty ? L("还没有，点进去添加", "None yet. Tap to add", "まだありません。タップして追加") : L("来自系统文本替换", "From Text Replacements", "iPhone のユーザ辞書から") }
         return L("手动 \(manual) · 导入 \(imported)", "Added \(manual) · Imported \(imported)", "手動 \(manual)・読み込み \(imported)")
     }
+}
 
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text).font(.footnote).foregroundStyle(.secondary).padding(.leading, 4).padding(.bottom, -6)
+/// 首页摘要卡要的数：都从 DailyStats 读。
+struct AIStats {
+    var days: [Int]
+    var today: Int { days.last ?? 0 }
+    var week: Int { days.reduce(0, +) }
+    var weekMs: Int
+    var predictionChars: Int
+
+    /// 平均耗时，一位小数；本周没成功过时为 nil。
+    var averageSeconds: String? {
+        week > 0 ? String(format: "%.1f", Double(weekMs) / Double(week) / 1000) : nil
+    }
+
+    static func load() -> AIStats {
+        AIStats(days: DailyStats.series("polish.done", days: 7).map(\.value),
+                weekMs: UsageStats.week("polish.ms"),
+                predictionChars: UsageStats.week("prediction.chars"))
     }
 }
 
-/// 首页「接口」整行：模型名和连接状态，点进「接口」标签。
-private struct ModelRow: View {
-    var model: String
-    var status: (text: String, color: Color)
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                RowIcon(systemName: "cpu", color: AppColor.purple, size: 34)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L("接口", "API", "API")).font(.caption).foregroundStyle(.secondary)
-                    Text(model.isEmpty ? L("未配置", "Not set up", "未設定") : model).font(.system(size: 17, weight: .semibold)).lineLimit(1)
-                }
-                Spacer()
-                HStack(spacing: 5) {
-                    Circle().fill(status.color).frame(width: 7, height: 7)
-                    Text(status.text).font(.footnote.weight(.semibold)).foregroundStyle(status.color)
-                }
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-            }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// 首页「键盘常用语」整行（W11）：橙色星标、条数，右边预览前两条，点进键盘常用语页。
-private struct KeyboardWordsRow: View {
-    var words: [String]
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                RowIcon(systemName: "star.fill", color: AppColor.keyboardStar, size: 26)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(L("键盘常用语", "Keyboard Phrases", "キーボードの定型文")).font(.system(size: 13)).foregroundStyle(.secondary)
-                    Text(L("\(words.count) 条", "\(words.count)", "\(words.count) 件")).font(.system(size: 17, weight: .bold))
-                }
-                .fixedSize()
-                Spacer(minLength: 8)
-                HStack(spacing: 6) {
-                    ForEach(words.prefix(2), id: \.self) { word in
-                        Text(word)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .frame(maxWidth: 84)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(.systemGray6)))
-                    }
-                }
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-            }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// 首页的一张卡片，点了跳到对应页面。
-private struct ConfigCard: View {
+/// 2×2 的小卡：卡片头、一行大字、一行灰字（可带状态点），点了跳到对应页面。
+private struct GridCard: View {
     var icon: String
+    var title: String
     var color: Color
-    var label: String
     var value: String
     var detail: String
     var dot: Color?
@@ -258,23 +232,17 @@ private struct ConfigCard: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .top) {
-                    RowIcon(systemName: icon, color: color, size: 26)
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
-                }
-                .padding(.bottom, 6)
-                Text(label).font(.caption).foregroundStyle(.secondary)
-                Text(value.isEmpty ? L("未配置", "Not set up", "未設定") : value).font(.headline).lineLimit(1).foregroundStyle(.primary)
-                HStack(spacing: 4) {
-                    if let dot { Circle().fill(dot).frame(width: 6, height: 6) }
-                    Text(detail).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            DashCard {
+                DashCardHeader(icon: icon, title: title, color: color)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(value).font(.system(size: 22, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+                    HStack(spacing: 4) {
+                        if let dot { Circle().fill(dot).frame(width: 6, height: 6) }
+                        Text(detail).font(.caption).foregroundStyle(dot.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary)).lineLimit(1)
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+            .frame(maxHeight: .infinity, alignment: .top)
         }
         .buttonStyle(.plain)
     }
