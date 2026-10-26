@@ -168,9 +168,11 @@ enum Brand {
         ? darkSelectedText : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
     /// 收起时有没看过的新结果：右上角的紫点 #7C3AED，外圈描一圈键盘底色。
     static let newResultDot = Color(red: 0x7C / 255, green: 0x3A / 255, blue: 0xED / 255)
-    static let keyboardBack = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0x2B / 255, green: 0x2B / 255, blue: 0x2D / 255, alpha: 1)
-        : UIColor(red: 0xD1 / 255, green: 0xD3 / 255, blue: 0xD9 / 255, alpha: 1) })
+    /// 键盘底色，对齐系统底栏（地球键那一行）：浅色 #E0E1E8，深色 #222223。
+    static let keyboardBackUI = UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x22 / 255, green: 0x22 / 255, blue: 0x23 / 255, alpha: 1)
+        : UIColor(red: 0xE0 / 255, green: 0xE1 / 255, blue: 0xE8 / 255, alpha: 1) }
+    static let keyboardBack = Color(keyboardBackUI)
     /// 选择器名字和 ▾ 之间的竖线：平时 #D1D1D6（深色 #6E6E73），打开或「按要求」时 #B4A9FF（深色是浅灰底，用 #C7C7CC）。
     static let chipDivider = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x6E / 255, green: 0x6E / 255, blue: 0x73 / 255, alpha: 1)
