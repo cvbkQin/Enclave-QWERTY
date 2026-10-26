@@ -558,6 +558,9 @@ extension KeyboardModel {
     /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
         guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
+        #if DEBUG
+        if debugFakeRun { coachTapped(.sparkle); fakeCoachRun(); return }
+        #endif
         coachTapped(.sparkle)
         if target == .card { finishCardEdit() }
         guard !aiExpanded else {
@@ -597,6 +600,9 @@ extension KeyboardModel {
     /// 面板收起时是快速模式，润完直接替换输入框（AI 栏上流光）；展开时进结果卡片，等替换或插入。
     func menuPolishTapped() {
         guard passGate(then: { [weak self] in self?.menuPolishTapped() }) else { return }
+        #if DEBUG
+        if debugFakeRun { coachTapped(.run); fakeCoachRun(); return }
+        #endif
         coachTapped(.run)
         if target == .card { finishCardEdit() }
         finishComposition()
@@ -759,6 +765,11 @@ extension KeyboardModel {
             case "quickWords": keysPanel = .quickWords
             case "undo": loadDebugUndo()
             case "memtest": runMemoryTest()
+            case "coach:sparkle", "coach:run", "coach:proofread":
+                debugUnblocked = true
+                debugFakeRun = true
+                let flow = LabCoachMark.Flow(rawValue: String(option.dropFirst("coach:".count))) ?? .sparkle
+                startCoach(LabCoachMark(scene: 0, flow: flow, at: Date()))
             #endif
             default: break
             }

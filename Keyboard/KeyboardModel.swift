@@ -141,6 +141,10 @@ final class KeyboardModel: ObservableObject {
     var aiQuotaUsed: Bool { !debugUnblocked && !AIAccess.current.allowsAI }
     /// 模拟器截图用：没配 API 也显示结果卡片。
     var debugUnblocked = false
+    #if DEBUG
+    /// 截图用（-keyboardDebug coach:…）：点 ✨ /「执行」不真的请求，2 秒后出三个假版本，看小手飞到下一步。
+    var debugFakeRun = false
+    #endif
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
     /// 在卡片里改结果时也用五行高度，改长了也看得全。
@@ -568,6 +572,18 @@ final class KeyboardModel: ObservableObject {
         debug.append("明天开会我去不了啦，家里有点事～帮我跟老板说下哈，不好意思！")
         debug.currentIndex = 1
         session = debug
+    }
+
+    /// 截图用：小手指引导时点 ✨ /「执行」不真的请求，2 秒后出三个假版本。
+    func fakeCoachRun() {
+        session = nil
+        isRunning = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard let self else { return }
+            self.loadDebugVersions()
+            self.isRunning = false
+        }
     }
 
     /// 模拟器截图用：停在生成中，看流光动画。
