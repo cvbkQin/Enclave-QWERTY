@@ -605,12 +605,14 @@ final class KeyboardModel: ObservableObject {
         session = nil
         isRunning = true
         let quick = !aiExpanded
+        if quick { beginQuickMode(source: "") }
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard let self else { return }
             self.loadDebugVersions()
             self.isRunning = false
-            if quick { self.endCoach() }
+            // 快速模式和真的一样走完：小手淡出，AI 栏显示「AI 生成 · 已替换」3 秒。
+            if quick { self.endQuickMode(.replaced) }
         }
     }
 

@@ -34,7 +34,8 @@ struct UnlockView: View {
         .overlay(alignment: .bottom) {
             if !unlocked { PurchaseBar(unlock: unlock) }
         }
-        .navigationTitle("Enclave AI")
+        // 备案口径是开发者不提供模型服务：只写「AI」，和设置页的卡片一致。
+        .navigationTitle("AI")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -275,7 +276,7 @@ struct UnlockHeroCard: View {
                 .foregroundStyle(.white)
                 .frame(width: 48, height: 48)
                 .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.16)))
-            Text("ENCLAVE AI")
+            Text("AI")
                 .font(.system(size: 12, weight: .semibold))
                 .kerning(1.5)
                 .foregroundStyle(Color(hex: 0xB9B2FF))
@@ -423,8 +424,8 @@ extension UnlockStore.Message {
         switch self {
         case .unlocked: return L("AI 功能不再限次数。", "AI features no longer have a daily limit.", "AI 機能の回数制限がなくなりました。")
         case .pending: return L("批准后会自动解锁。", "It unlocks automatically once approved.", "承認されると自動で使えるようになります。")
-        case .notFound: return L("这个 Apple ID 还没有买过 Enclave AI。", "This Apple Account hasn't bought Enclave AI.",
-                                 "この Apple アカウントでは Enclave AI を購入していません。")
+        case .notFound: return L("这个 Apple ID 还没有买过 AI 解锁。", "This Apple Account hasn't unlocked AI.",
+                                 "この Apple アカウントでは AI を購入していません。")
         case .offline: return L("没有扣款，稍后再试。", "You weren't charged. Try again later.", "料金は請求されていません。後でもう一度お試しください。")
         case .failed(let reason): return reason
         }

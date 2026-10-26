@@ -385,7 +385,7 @@ private struct SceneCard: View {
                     .lineLimit(1)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
-                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color(.systemGray6)))
+                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color(.tertiarySystemFill)))
             }
             .padding(.top, 2)
         }

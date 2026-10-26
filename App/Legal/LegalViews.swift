@@ -93,7 +93,8 @@ struct PrivacyView: View {
         .navigationTitle(L("隐私", "Privacy", "プライバシー"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { consent = ConsentStore.consented }
-        .confirmationDialog(L("撤回同意？", "Withdraw consent?", "同意を撤回しますか？"), isPresented: $confirmsRevoke, titleVisibility: .visible) {
+        .alert(L("撤回同意？", "Withdraw consent?", "同意を撤回しますか？"), isPresented: $confirmsRevoke) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
             Button(L("撤回同意", "Withdraw Consent", "同意を撤回"), role: .destructive) { router.revokePrivacy() }
         } message: {
             Text(L("AI 功能会关闭，拼音输入不受影响。", "AI features turn off. Pinyin input keeps working.", "AI 機能はオフになります。ピンイン入力はそのまま使えます。"))
