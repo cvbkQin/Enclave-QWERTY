@@ -405,7 +405,12 @@ private struct GuideKeyStep: View {
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-guideKey"), args.indices.contains(i + 1) {
             store.apiKey = args[i + 1]
-            Task { await store.runTest() }
+            // sk-fake-success：不联网，直接显示成功卡片，方便截图。
+            if args[i + 1] == "sk-fake-success" {
+                store.test = .success("你好", 0.8)
+            } else {
+                Task { await store.runTest() }
+            }
             return
         }
         #endif
