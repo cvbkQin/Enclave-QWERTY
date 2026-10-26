@@ -768,7 +768,7 @@ struct PinyinView: View {
             englishCard
             speedCard
         }
-        .navigationTitle(L("拼音词库", "Pinyin dictionary", "ピンイン辞書"))
+        .navigationTitle(L("词库", "Dictionaries", "辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: deployer.state) {
             size = await Task.detached { RimeDeployer.diskSize() }.value
