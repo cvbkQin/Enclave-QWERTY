@@ -89,6 +89,7 @@ final class KeyboardViewController: UIInputViewController {
         TypingStats.flush()
         TouchCalibration.flush()
         model.dismissPredictions()
+        DailyStats.flush()
     }
 
     override func didReceiveMemoryWarning() {

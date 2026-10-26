@@ -8,7 +8,7 @@ struct PredictionToggle: View {
         Toggle(isOn: Binding(get: { enabled }, set: { enabled = $0; Predictor.isEnabled = $0 })) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(L("联想", "Next-word suggestions", "予測変換"))
-                Text(L("选完字后接着给出常跟在后面的词", "Suggests words that often come next after you pick a word", "確定した語のあとに続きやすい語を表示します"))
+                Text(L("上屏后接着推荐下一个词", "Suggests words that often come next after you pick a word", "確定した語のあとに続きやすい語を表示します"))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

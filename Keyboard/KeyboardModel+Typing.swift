@@ -131,7 +131,12 @@ extension KeyboardModel {
         let text = engine.select(index)
         if let text { commit(text) }
         syncEngine()
-        if let text, !isComposing, chineseMode { predictions = Predictor.next(after: text) }
+        if let text, !isComposing, chineseMode { showPredictions(after: text) }
+    }
+
+    private func showPredictions(after text: String) {
+        predictions = Predictor.next(after: text)
+        if !predictions.isEmpty { DailyStats.add("prediction.shown") }
     }
 
     /// 候选栏里有联想时显示候选栏（没在打拼音）。
@@ -142,7 +147,10 @@ extension KeyboardModel {
         guard predictions.indices.contains(index) else { return }
         let word = predictions[index]
         commit(word)
-        predictions = Predictor.next(after: word)
+        // 点联想词省掉的字数（首页「联想帮你少打了 N 个字」）。
+        DailyStats.add("prediction.tapped")
+        DailyStats.add("prediction.chars", word.count)
+        showPredictions(after: word)
     }
 
     func dismissPredictions() {
