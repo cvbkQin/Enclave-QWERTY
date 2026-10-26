@@ -403,7 +403,7 @@ private struct StepButtonStyle: ButtonStyle {
 }
 
 /// 拼音词库部署进度。编译没有真实进度，按大约一分钟估一条进度条。
-private struct DeployCard: View {
+struct DeployCard: View {
     @ObservedObject private var deployer = RimeDeployer.shared
 
     var body: some View {

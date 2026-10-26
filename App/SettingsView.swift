@@ -101,22 +101,14 @@ struct SettingsView: View {
                 // 键盘、拼音词库和常用词从首页进。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
-                        DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
-                    }
-                    // 重新走一遍首次设置引导，已有的 Key 不动。
-                    Button {
-                        if router.privacyAgreed { router.setupGuide = .intro } else { router.settingsPath.append(.privacy) }
-                    } label: {
-                        HStack(spacing: 8) {
-                            DashRow(icon: "sparkles", color: DashColor.ai, title: L("AI 设置引导", "AI setup guide", "AI 設定ガイド"))
-                            // 和旁边的 NavigationLink 一样带个箭头。
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13.5, weight: .semibold))
-                                .foregroundStyle(Color(.tertiaryLabel))
+                        let left = Readiness.remainingSteps(apiConfigured: store.settings.isConfigured)
+                        HStack(spacing: 12) {
+                            DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("设置向导", "Setup guide", "設定ガイド"))
+                            Text(left == 0 ? L("已完成", "Done", "完了") : L("还差 \(left) 步", "\(left) left", "あと \(left) ステップ"))
+                                .foregroundStyle(left == 0 ? Color.secondary : Color(hex: 0xD97706))
+                                .lineLimit(1)
                         }
-                        .contentShape(Rectangle())
                     }
-                    .foregroundStyle(.primary)
                     NavigationLink(value: AppRouter.SettingsPage.playground) {
                         DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
                                 value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
@@ -144,13 +136,7 @@ struct SettingsView: View {
                 case .keyboard: KeyboardSettingsView()
                 case .fuzzy: FuzzyPinyinView()
                 case .pinyin: PinyinView()
-                case .guide:
-                    ScrollView {
-                        OnboardingSteps().padding(16)
-                    }
-                    .background(Color(.systemGroupedBackground))
-                    .navigationTitle(L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
-                    .navigationBarTitleDisplayMode(.inline)
+                case .guide: SetupWizardView()
                 case .playground: LabView()
                 case .privacy: PrivacyView()
                 case .about: AboutView()
