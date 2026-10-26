@@ -16,7 +16,8 @@ for item in "$@"; do
 done
 
 # 只认 Enclave-<版本号> 开头的条目，按版本号排序，删掉最旧的。
-old=$(ls -1 "$DEST" | grep -E '^Enclave-[0-9]+\.[0-9]+' | sort -V | head -n -$KEEP || true)
+# macOS 的 head 不支持负数，用 awk 去掉最后 KEEP 行。
+old=$(ls -1 "$DEST" | grep -E '^Enclave-[0-9]+\.[0-9]+' | sort -V | awk -v keep=$KEEP '{ line[NR] = $0 } END { for (i = 1; i <= NR - keep; i++) print line[i] }' || true)
 for name in $old; do
     rm -rf "${DEST:?}/$name"
     echo "已删除旧版本：$name"
