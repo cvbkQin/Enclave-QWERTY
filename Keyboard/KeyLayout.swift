@@ -74,6 +74,8 @@ enum KeyLayout {
         var nineKey: Bool
         var chineseMode: Bool
         var needsGlobeKey: Bool
+        /// 只用英文：底栏中/英键的位置换成逗号键，宽度不变。
+        var englishOnly = false
         var composing = false
         var digitsMore = false
     }
@@ -175,7 +177,7 @@ enum KeyLayout {
             add("emoji", .emoji, x: x, row: 3, width: side)
             x += side
         }
-        add("chinese", .toggleChinese, x: x, row: 3, width: toggle)
+        add(state.englishOnly ? "comma" : "chinese", state.englishOnly ? .symbol(",") : .toggleChinese, x: x, row: 3, width: toggle)
         x += toggle
         add("space", .space, x: x, row: 3, width: size.width - returnWidth - x)
         add("return", .returnKey, x: size.width - returnWidth, row: 3, width: returnWidth)
@@ -313,6 +315,9 @@ enum KeyLayout {
             if let index = letterRows[0].firstIndex(of: letter) { options.append(digits[index]) }
             options += accents[letter] ?? []
             return options.isEmpty ? nil : [letter] + options
+        case .symbol(","):
+            // 只用英文时底栏的逗号键：长按出常用英文标点。
+            return [",", "'", "?", "!"]
         default:
             return nil
         }

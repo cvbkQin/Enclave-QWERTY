@@ -162,6 +162,7 @@ extension KeyboardModel {
 
     var layoutState: KeyLayout.State {
         KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
+                        englishOnly: settings.inputLanguage == .englishOnly,
                         composing: isComposing, digitsMore: digitsMore)
     }
 
@@ -285,6 +286,8 @@ extension KeyboardModel {
     }
 
     func toggleChinese() {
+        // 只用英文时没有中文；九宫格布局菜单之类的入口也不切过去。
+        if !chineseMode && settings.inputLanguage == .englishOnly { return }
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         chineseMode.toggle()
@@ -292,6 +295,19 @@ extension KeyboardModel {
         if layer == .digits { switchLayer(.letters) }
         selectEngine()
         if chineseMode { shift = .off } else { updateAutoShift() }
+    }
+
+    /// 键盘弹出时按「主要语言」定中英：英文为主、只用英文每次都从英文开始；
+    /// 中文保持上次的状态，只在刚从英文设置改回中文时切回中文。
+    func applyInputLanguage() {
+        let language = settings.inputLanguage
+        defer { appliedLanguage = language }
+        switch language {
+        case .englishFirst, .englishOnly:
+            if chineseMode { toggleChinese() }
+        case .chinese:
+            if appliedLanguage != nil, appliedLanguage != .chinese, !chineseMode { toggleChinese() }
+        }
     }
 
     /// 九宫格只用于中文拼音；英文模式和拼音不可用时用全键盘。

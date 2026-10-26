@@ -495,6 +495,18 @@ struct KeyboardSettingsView: View {
                 }
             }
             Section {
+                Picker(L("主要语言", "Main language", "メインの言語"), selection: $store.settings.inputLanguage) {
+                    ForEach(InputLanguage.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+            } header: {
+                Text(L("主要语言", "Main language", "メインの言語"))
+            } footer: {
+                Text(languageFooter)
+            }
+            Section {
             } header: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L("中文布局", "Chinese layout", "中国語の配列"))
@@ -555,6 +567,14 @@ struct KeyboardSettingsView: View {
         .tint(AppColor.purple)
         .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var languageFooter: String {
+        switch store.settings.inputLanguage {
+        case .chinese: return L("键盘弹出时保持上次的中英状态。", "The keyboard keeps whichever language you used last.", "前回使った言語のままで開きます。")
+        case .englishFirst: return L("键盘每次弹出先是英文，按中/英键照常切到中文。", "The keyboard opens in English each time; the 中/英 key still switches to Chinese.", "毎回英語で開き、中/英 キーで中国語に切り替えられます。")
+        case .englishOnly: return L("只有英文全键盘，中/英键换成逗号，长按出 ' ? !。", "QWERTY in English only. The 中/英 key becomes a comma; hold it for ' ? !", "英語の QWERTY のみ。中/英 キーはカンマになり、長押しで ' ? ! が出ます。")
+        }
     }
 }
 

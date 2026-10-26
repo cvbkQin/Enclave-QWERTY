@@ -53,6 +53,8 @@ final class KeyboardModel: ObservableObject {
     @Published var digitsMore = false
     @Published var shift: ShiftState = .off
     @Published var chineseMode = true
+    /// 上次弹出时用的「主要语言」，用来判断设置是不是刚改过。
+    var appliedLanguage: InputLanguage?
     @Published var aiExpanded = false {
         didSet {
             if aiExpanded { unseenResult = false }

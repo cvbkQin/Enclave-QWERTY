@@ -75,6 +75,7 @@ final class KeyboardViewController: UIInputViewController {
         // 每次弹出都按输入框类型重新选一次页（数字框直接出数字键盘）。
         model.hostKeyboardType = nil
         model.reload()
+        model.applyInputLanguage()
         model.applyDebugState()
         TouchCalibration.reload()
         Predictor.prepare()
