@@ -67,6 +67,8 @@ final class KeyboardViewController: UIInputViewController {
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
         model.refreshHostState()
+        // 挪了光标，英文补全按新位置重算。
+        if !model.chineseMode { model.updateEnglishSuggestions() }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -79,6 +81,7 @@ final class KeyboardViewController: UIInputViewController {
         model.applyDebugState()
         TouchCalibration.reload()
         Predictor.prepare()
+        if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -90,6 +93,7 @@ final class KeyboardViewController: UIInputViewController {
         TypingStats.flush()
         TouchCalibration.flush()
         model.dismissPredictions()
+        EnglishPredictor.flush()
         DailyStats.flush()
     }
 

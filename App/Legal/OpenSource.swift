@@ -133,8 +133,8 @@ enum OpenSource {
 
     /// 关于页「致谢」组下方的署名。
     static var wanxiangAttribution: String {
-        L("拼音词库基于 amzxyz 的「万象拼音」（github.com/amzxyz/rime_wanxiang），按 CC BY 4.0 许可使用。飞地输入法去掉了拼音声调，并按词频删减了词条。可选下载的整句模型是 amzxyz 的「万象语法模型」（github.com/amzxyz/rime-wanxiang-data），按 CC BY 4.0 许可原样使用。",
-          "The pinyin dictionary is based on Wanxiang Pinyin by amzxyz (github.com/amzxyz/rime_wanxiang), used under CC BY 4.0. Enclave removed tone marks and trimmed entries by frequency. The optional sentence model is the Wanxiang grammar model by amzxyz (github.com/amzxyz/rime-wanxiang-data), used unmodified under CC BY 4.0.",
-          "ピンイン辞書は amzxyz 氏の「万象ピンイン」（github.com/amzxyz/rime_wanxiang）を CC BY 4.0 のもとで使用しています。Enclave では声調を除き、頻度に応じて語を削っています。オプションの文章モデルは amzxyz 氏の「万象文法モデル」（github.com/amzxyz/rime-wanxiang-data）を CC BY 4.0 のもとでそのまま使用しています。")
+        L("拼音词库基于 amzxyz 的「万象拼音」（github.com/amzxyz/rime_wanxiang），按 CC BY 4.0 许可使用。飞地输入法去掉了拼音声调，并按词频删减了词条。可选下载的整句模型是 amzxyz 的「万象语法模型」（github.com/amzxyz/rime-wanxiang-data），按 CC BY 4.0 许可原样使用。英文单词补全用的是万象拼音的英文词库；英文下一个词联想来自 Tatoeba 英文例句（tatoeba.org）的相邻词统计，按 CC BY 2.0 FR 许可使用，只用了统计结果，没有收录例句原文。",
+          "The pinyin dictionary is based on Wanxiang Pinyin by amzxyz (github.com/amzxyz/rime_wanxiang), used under CC BY 4.0. Enclave removed tone marks and trimmed entries by frequency. The optional sentence model is the Wanxiang grammar model by amzxyz (github.com/amzxyz/rime-wanxiang-data), used unmodified under CC BY 4.0. English word completion uses the Wanxiang Pinyin English word list. English next-word suggestions come from word-pair counts in Tatoeba English sentences (tatoeba.org), used under CC BY 2.0 FR; only the counts are included, not the sentences.",
+          "ピンイン辞書は amzxyz 氏の「万象ピンイン」（github.com/amzxyz/rime_wanxiang）を CC BY 4.0 のもとで使用しています。Enclave では声調を除き、頻度に応じて語を削っています。オプションの文章モデルは amzxyz 氏の「万象文法モデル」（github.com/amzxyz/rime-wanxiang-data）を CC BY 4.0 のもとでそのまま使用しています。英単語の補完には万象ピンインの英語辞書を、英語の次の単語の予測には Tatoeba の英語例文（tatoeba.org）の隣接語の統計を CC BY 2.0 FR のもとで使用しています（統計のみで、例文そのものは含みません）。")
     }
 }

@@ -146,6 +146,7 @@ extension KeyboardModel {
     /// 点了联想词：上屏，再接着联想它后面的词。
     func selectPrediction(_ index: Int) {
         guard predictions.indices.contains(index) else { return }
+        if !chineseMode { return selectEnglishSuggestion(index) }
         let word = predictions[index]
         commit(word)
         // 点联想词省掉的字数（首页「联想帮你少打了 N 个字」）。
@@ -167,6 +168,14 @@ extension KeyboardModel {
     }
 
     func perform(_ kind: KeyKind) {
+        // 英文的补全和联想每按一个键重新算（删除照常删字，空格照常打空格）。
+        if !chineseMode {
+            learnCurrentEnglishWord(before: kind)
+            performKey(kind)
+            // 切回中文时英文的候选不留。
+            if chineseMode { dismissPredictions() } else { updateEnglishSuggestions() }
+            return
+        }
         if showsPredictions {
             switch kind {
             // 有联想时：删除只收起联想，不删字；开了「空格连续联想」时空格上屏第一个联想词。
@@ -181,6 +190,11 @@ extension KeyboardModel {
         }
         // 按了别的键：联想收起（打字母时候选栏换成拼音候选）。
         dismissPredictions()
+        performKey(kind)
+        if !chineseMode { updateEnglishSuggestions() }
+    }
+
+    private func performKey(_ kind: KeyKind) {
         switch kind {
         case .letter(let letter): typeLetter(letter)
         case .symbol(let symbol): typeSymbol(symbol)
@@ -814,5 +828,62 @@ extension KeyboardModel {
             if parts.count > 2 { cross?.selected = directions[parts[2]] }
         }
         #endif
+    }
+}
+
+// MARK: - 英文补全和联想
+
+extension KeyboardModel {
+    /// 光标前正在打的英文单词（字母和撇号）。
+    private var currentEnglishWord: Substring {
+        let before = proxy?.documentContextBeforeInput ?? ""
+        return before.suffix { $0.isASCII && ($0.isLetter || $0 == "'") }
+    }
+
+    /// 英文状态下：正在打一个词时给补全；刚打完一个词加空格时给它后面常跟的词。
+    func updateEnglishSuggestions() {
+        guard !chineseMode, target == .host, layer == .letters, Predictor.isEnabled,
+              hostKeyboardType != .URL, hostKeyboardType != .emailAddress else {
+            predictionReplaces = 0
+            dismissPredictions()
+            return
+        }
+        EnglishPredictor.prepare()
+        let before = proxy?.documentContextBeforeInput ?? ""
+        let word = before.suffix { $0.isASCII && ($0.isLetter || $0 == "'") }
+        var words: [String] = []
+        var replaces = 0
+        if !word.isEmpty {
+            words = EnglishPredictor.complete(String(word))
+            replaces = word.count
+        } else if before.hasSuffix(" ") {
+            let previous = before.dropLast().suffix { $0.isASCII && ($0.isLetter || $0 == "'") }
+            if !previous.isEmpty { words = EnglishPredictor.next(after: String(previous)) }
+        }
+        predictionReplaces = replaces
+        if words != predictions { predictions = words }
+    }
+
+    /// 点了英文补全或联想：换掉正在打的半个词，补上空格，接着联想下一个词。
+    func selectEnglishSuggestion(_ index: Int) {
+        let word = predictions[index]
+        for _ in 0..<predictionReplaces { proxy?.deleteBackward() }
+        commit(word + " ")
+        EnglishPredictor.learn(word)
+        DailyStats.add("prediction.tapped")
+        DailyStats.add("prediction.chars", max(word.count - predictionReplaces, 0))
+        predictionReplaces = 0
+        updateEnglishSuggestions()
+    }
+
+    /// 打完一个词（按了空格、标点、换行）：记住这个词，下次补全排前面。
+    func learnCurrentEnglishWord(before kind: KeyKind) {
+        switch kind {
+        case .space, .symbol, .returnKey: break
+        default: return
+        }
+        guard target == .host else { return }
+        let word = currentEnglishWord
+        if word.count >= 2 { EnglishPredictor.learn(String(word)) }
     }
 }
