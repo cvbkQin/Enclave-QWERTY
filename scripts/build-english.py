@@ -16,6 +16,11 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parent.parent / "Keyboard" / "English"
 MIN_WEIGHT = 5
+# 聊天里常用、但书面语词频偏低的词：补全时至少排到这个词频（「Hel」先出 Hello）。
+CHAT_WORDS = ["hello", "hi", "hey", "thanks", "thank", "okay", "ok", "yes", "yeah", "sure", "please", "sorry",
+              "bye", "lol", "btw", "omg", "awesome", "cool", "nice", "great", "tomorrow", "tonight", "today",
+              "morning", "night", "love", "miss", "happy", "birthday", "congrats", "congratulations", "weekend"]
+CHAT_WEIGHT = 120000
 WORD = re.compile(r"^[A-Za-z][A-Za-z']*$")
 
 
@@ -39,13 +44,30 @@ def words(path):
 def boost_from_sentences(table, sentences):
     """万象的英文词频来自书面语，缩写（don't、I'm）和「a」几乎是 0。用例句里的次数按「the」的比例换算补上。"""
     counts = collections.Counter()
+    # 句中（不在句首）出现的次数和其中大写开头的次数：大多数时候大写的是人名地名（Tom、Mary's）。
+    middle, capital = collections.Counter(), collections.Counter()
     with open(sentences, encoding="utf-8") as f:
         for line in f:
-            for token in TOKEN.findall(line.rstrip("\n").split("\t")[-1]):
-                counts[token.lower()] += 1
+            for index, token in enumerate(TOKEN.findall(line.rstrip("\n").split("\t")[-1])):
+                lower = token.lower()
+                counts[lower] += 1
+                if index > 0:
+                    middle[lower] += 1
+                    if token[0].isupper():
+                        capital[lower] += 1
+    names = {lower for lower, n in middle.items()
+             if n >= 20 and capital[lower] > n / 2 and lower != "i" and not lower.startswith("i'")}
     scale = table["the"][1] / max(counts["the"], 1)
     for lower, count in counts.items():
-        if not WORD.match(lower) or ("'" not in lower and lower not in ("a", "i")):
+        if not WORD.match(lower):
+            continue
+        # 普通小写词：例句里的次数比书面语高时取高的（口语词）；人名（Tom、Mary）不动。
+        if lower in names:
+            continue
+        if "'" not in lower and lower not in ("a", "i"):
+            text, old = table.get(lower, (None, 0))
+            if text == lower:
+                table[lower] = (text, max(old, int(count * scale * 0.5)))
             continue
         weight = int(count * scale)
         text, old = table.get(lower, (None, 0))
@@ -54,6 +76,7 @@ def boost_from_sentences(table, sentences):
                 continue
             text = "I" + lower[1:] if lower == "i" or lower.startswith("i'") else lower
         table[lower] = (text, max(old, weight))
+    return names
 
 
 def write_words(table):
@@ -73,8 +96,9 @@ def write_words(table):
 TOKEN = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?|[^\sA-Za-z']")
 
 
-def write_next(table, sentences):
-    known = {lower: text for lower, (text, weight) in table.items() if weight >= MIN_WEIGHT}
+def write_next(table, sentences, names):
+    # 人名不做联想的词头，也不推荐。
+    known = {lower: text for lower, (text, weight) in table.items() if weight >= MIN_WEIGHT and lower not in names}
     pairs = collections.defaultdict(collections.Counter)
     heads = collections.Counter()
     with open(sentences, encoding="utf-8") as f:
@@ -92,7 +116,9 @@ def write_next(table, sentences):
         for head in sorted(pairs):
             if heads[head] < 20:
                 continue
-            top = [(w, n) for w, n in pairs[head].most_common(8) if n >= 3][:6]
+            # 后面跟的人名（Tom、Mary 在例句里特别多）不推荐；I、I'm 这类照留。
+            top = [(w, n) for w, n in pairs[head].most_common(12)
+                   if n >= 3 and (known[w] == known[w].lower() or known[w].startswith("I"))][:6]
             if not top:
                 continue
             # 「I」等专有写法照词表；其余小写，键盘按句首再改大写。
@@ -104,11 +130,16 @@ def write_next(table, sentences):
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     table = words(sys.argv[1])
+    names = set()
     if len(sys.argv) > 2:
-        boost_from_sentences(table, sys.argv[2])
+        names = boost_from_sentences(table, sys.argv[2])
+        print(f"人名（不提权、不联想）: {len(names)} 个，比如 {', '.join(sorted(names)[:12])}")
+    for word in CHAT_WORDS:
+        text, old = table.get(word, (word, 0))
+        table[word] = (text, max(old, CHAT_WEIGHT))
     write_words(table)
     if len(sys.argv) > 2:
-        write_next(table, sys.argv[2])
+        write_next(table, sys.argv[2], names)
 
 
 if __name__ == "__main__":

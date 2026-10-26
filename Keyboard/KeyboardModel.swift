@@ -704,6 +704,8 @@ final class KeyboardModel: ObservableObject {
     /// 输入框的文字变了（系统通知）：和当前结果对不上就把卡片变灰。
     func fieldDidChange() {
         refreshHostState()
+        // 对方 App 清空或改了输入框（比如发送后）：重新判断句首大写。
+        if !isComposing { updateAutoShift() }
         guard let session, session.current != nil, !isRunning else { return }
         let stale = !session.belongs(to: CommandParser.parse(readField().text).content)
         if stale != resultStale { resultStale = stale }

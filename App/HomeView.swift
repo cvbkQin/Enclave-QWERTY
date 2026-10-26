@@ -118,8 +118,9 @@ private struct Dashboard: View {
                      detail: store.settings.fuzzyPinyin.isEmpty ? L("模糊拼音未开", "Fuzzy pinyin off", "あいまい入力オフ") : L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "Fuzzy pinyin: \(store.settings.fuzzyPinyin.count)", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組")) { router.openHome(.keyboard) }
             // 词库：拼音（万象，要部署）和英文（内置）两份，圆点看拼音的状态。
             GridCard(icon: "book.closed", title: L("词库", "Dictionaries", "辞書"), color: DashColor.input,
-                     value: L("拼音 · 英文", "Pinyin · English", "ピンイン · 英語"),
-                     detail: pinyinStatus.text + " · " + (Predictor.englishEnabled ? L("英文已开", "English on", "英語オン") : L("英文已关", "English off", "英語オフ")),
+                     // 英文关掉时只写「拼音」；下一行只放拼音状态，窄屏上放得下。
+                     value: Predictor.englishEnabled ? L("拼音 · 英文", "Pinyin · English", "ピンイン · 英語") : L("拼音", "Pinyin", "ピンイン"),
+                     detail: pinyinStatus.text,
                      dot: pinyinStatus.dot) { router.openHome(.pinyin) }
             GridCard(icon: "text.book.closed", title: L("常用词", "My Words", "ユーザ辞書"), color: DashColor.input,
                      value: "\(words.all.count)", detail: wordsDetail) { router.openHome(.commonWords) }
