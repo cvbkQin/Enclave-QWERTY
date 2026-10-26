@@ -108,9 +108,11 @@ struct TypingTestView: View {
                 if history.count > 1 { historyChart }
                 if !history.isEmpty { historyList }
             }
-            .padding(16)
+            // 左右和 DashPage 一样 20。
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(DashColor.page)
         .navigationTitle(L("压力测试", "Stress test", "負荷テスト"))
         // 底部标签栏会盖住结果卡片。
         .toolbar(.hidden, for: .tabBar)
