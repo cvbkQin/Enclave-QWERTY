@@ -16,6 +16,11 @@ from pathlib import Path
 
 OUT = Path(__file__).resolve().parent.parent / "Keyboard" / "English"
 MIN_WEIGHT = 5
+# 聊天里常用、但书面语词频偏低的词：补全时至少排到这个词频（「Hel」先出 Hello）。
+CHAT_WORDS = ["hello", "hi", "hey", "thanks", "thank", "okay", "ok", "yes", "yeah", "sure", "please", "sorry",
+              "bye", "lol", "btw", "omg", "awesome", "cool", "nice", "great", "tomorrow", "tonight", "today",
+              "morning", "night", "love", "miss", "happy", "birthday", "congrats", "congratulations", "weekend"]
+CHAT_WEIGHT = 120000
 WORD = re.compile(r"^[A-Za-z][A-Za-z']*$")
 
 
@@ -45,7 +50,13 @@ def boost_from_sentences(table, sentences):
                 counts[token.lower()] += 1
     scale = table["the"][1] / max(counts["the"], 1)
     for lower, count in counts.items():
-        if not WORD.match(lower) or ("'" not in lower and lower not in ("a", "i")):
+        if not WORD.match(lower):
+            continue
+        # 普通小写词：例句里的次数比书面语高时取高的（口语词）；人名（Tom、Mary）不动。
+        if "'" not in lower and lower not in ("a", "i"):
+            text, old = table.get(lower, (None, 0))
+            if text == lower:
+                table[lower] = (text, max(old, int(count * scale * 0.5)))
             continue
         weight = int(count * scale)
         text, old = table.get(lower, (None, 0))
@@ -92,7 +103,9 @@ def write_next(table, sentences):
         for head in sorted(pairs):
             if heads[head] < 20:
                 continue
-            top = [(w, n) for w, n in pairs[head].most_common(8) if n >= 3][:6]
+            # 后面跟的人名（Tom、Mary 在例句里特别多）不推荐；I、I'm 这类照留。
+            top = [(w, n) for w, n in pairs[head].most_common(12)
+                   if n >= 3 and (known[w] == known[w].lower() or known[w].startswith("I"))][:6]
             if not top:
                 continue
             # 「I」等专有写法照词表；其余小写，键盘按句首再改大写。
@@ -106,6 +119,9 @@ def main():
     table = words(sys.argv[1])
     if len(sys.argv) > 2:
         boost_from_sentences(table, sys.argv[2])
+    for word in CHAT_WORDS:
+        text, old = table.get(word, (word, 0))
+        table[word] = (text, max(old, CHAT_WEIGHT))
     write_words(table)
     if len(sys.argv) > 2:
         write_next(table, sys.argv[2])
