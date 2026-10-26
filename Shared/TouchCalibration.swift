@@ -116,4 +116,11 @@ enum TouchCalibration {
         let all = load().values
         return (Int(all.reduce(0) { $0 + $1.count }), all.filter { $0.count >= Double(minSamples) }.count)
     }
+
+    /// App 里的格子图：每个键学了几次（最多 window 次），键 id 同 observe。
+    static var counts: [String: Double] {
+        load().mapValues(\.count)
+    }
+
+    static var fullCount: Double { window }
 }
