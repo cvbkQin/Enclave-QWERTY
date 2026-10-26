@@ -1,60 +1,69 @@
 import SwiftUI
 import UIKit
 
-/// 设置顶部「Enclave AI」行（U5/U6）：渐变星星图标，右边按试用状态变色。
-struct EnclaveAIRow: View {
+/// 设置顶部的 Enclave AI 卡（PB3）：试用剩几天和进度格、解锁按钮、一句说明。点整张卡进解锁页。
+struct EnclaveAICard: View {
     @ObservedObject private var unlock = UnlockStore.shared
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(
-                    LinearGradient(colors: [Color(hex: 0x4F46E5), Color(hex: 0x7C3AED)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Enclave AI").font(.system(size: 16, weight: .semibold))
-                Text(subtitle).font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1)
+        DashCard {
+            DashCardHeader(icon: "sparkles", title: "Enclave AI", color: DashColor.ai, note: state)
+            HStack(alignment: .center) {
+                big
+                Spacer(minLength: 8)
+                if !unlocked {
+                    Text(L("\(unlock.displayPrice) 解锁", "Unlock \(unlock.displayPrice)", "\(unlock.displayPrice) で購入"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .frame(height: 32)
+                        .background(Capsule().fill(DashColor.ai))
+                }
             }
-            Spacer(minLength: 4)
-            Text(status.text).font(.system(size: 14, weight: .medium)).foregroundStyle(status.color).lineLimit(1)
+            if case .trial(let days, _) = unlock.access {
+                // 14 天试用画成 7 格，一格两天。
+                DashSegments(total: 7, done: Int((Double(days) / 2).rounded(.up)))
+            }
+            Text(detail).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
-        .frame(minHeight: 58)
     }
 
-    private var subtitle: String {
+    private var unlocked: Bool {
+        if case .unlocked = unlock.access { return true }
+        return false
+    }
+
+    private var state: String {
+        switch unlock.access {
+        case .trial: return L("试用中", "Trial", "無料体験中")
+        case .expired: return L("试用已结束", "Trial ended", "無料体験終了")
+        case .unlocked: return L("已解锁", "Unlocked", "購入済み")
+        }
+    }
+
+    @ViewBuilder
+    private var big: some View {
+        switch unlock.access {
+        case .trial(let days, _): DashBigNumber(value: "\(days)", unit: L("天 · 试用剩余", "days left", "日・残り"))
+        case .expired: DashBigNumber(value: "\(AIAccess.usesLeftToday)", unit: L("次 · 今天还剩", "left today", "回・今日の残り"))
+        case .unlocked: DashBigNumber(value: "∞", unit: L("不限次数", "No limits", "回数無制限"))
+        }
+    }
+
+    private var detail: String {
+        let uses = AIAccess.dailyFreeUses
         switch unlock.access {
         case .trial(_, let ends):
-            return L("\(Loc.monthDay(ends)) 结束", "Ends \(Loc.monthDay(ends))", "\(Loc.monthDay(ends))に終了")
+            return L("\(Loc.monthDay(ends))结束，之后每天免费 \(uses) 次。一次买断，不限次数。", "Ends \(Loc.monthDay(ends)), then \(uses) free a day. One-time purchase, no limits.", "\(Loc.monthDay(ends))に終了し、その後は 1 日 \(uses) 回無料。買い切りで回数無制限。")
         case .expired:
-            let uses = AIAccess.dailyFreeUses
-            return AIAccess.usesLeftToday > 0
-                ? L("试用已结束 · 每天免费 \(uses) 次", "Trial ended · \(uses) free a day", "無料体験終了 · 1 日 \(uses) 回無料")
-                : L("明天 0 点恢复 \(uses) 次 · 解锁不限次数", "\(uses) more at midnight · unlock for unlimited",
-                    "0 時に \(uses) 回に戻ります · 購入で無制限")
+            return L("每天免费 \(uses) 次，明天 0 点恢复。一次买断，不限次数。", "\(uses) free a day, reset at midnight. One-time purchase, no limits.", "1 日 \(uses) 回無料、0 時にリセット。買い切りで回数無制限。")
         case .unlocked:
-            return L("一次买断 · 不限次数", "One-time purchase · No limits", "買い切り・回数制限なし")
-        }
-    }
-
-    private var status: (text: String, color: Color) {
-        switch unlock.access {
-        case .trial(let days, _):
-            return (L("试用剩余 \(days) 天", "\(days) days left", "残り \(days) 日"),
-                    Color(hex: unlock.access.isEndingSoon ? 0xC93400 : 0x5B4BE8))
-        case .expired:
-            let left = AIAccess.usesLeftToday
-            return left > 0
-                ? (L("今天剩 \(left) 次", "\(left) left today", "今日あと \(left) 回"), Color(hex: 0xC93400))
-                : (L("今天已用完", "None left today", "今日の分は終了"), Color(hex: 0xD70015))
-        case .unlocked: return (L("已解锁", "Unlocked", "購入済み"), Color(hex: 0x248A3D))
+            return L("一次买断，不限次数。谢谢支持。", "One-time purchase, no limits. Thank you.", "買い切りで回数無制限。ありがとうございます。")
         }
     }
 }
 
-/// 设置：拼音词库；开启键盘指南、场景实验室；共享配置、隐私、关于。
+/// 设置（PB3）：Enclave AI 卡；语言、日间 / 夜间、拼音词库；开启键盘指南、场景实验室；隐私、关于。
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -64,17 +73,23 @@ struct SettingsView: View {
         NavigationStack(path: $router.settingsPath) {
             List {
                 Section {
-                    NavigationLink(value: AppRouter.SettingsPage.unlock) { EnclaveAIRow() }
+                    // 整张卡可点，但不要列表行的箭头：真正的链接藏在卡片下面。
+                    ZStack {
+                        NavigationLink(value: AppRouter.SettingsPage.unlock) { EmptyView() }.opacity(0)
+                        EnclaveAICard()
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 }
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.language) {
-                        IconRow(systemName: "globe", color: Color(hex: 0x007AFF), title: L("语言", "Language", "言語"),
-                                value: router.language == .system ? nil : router.language.nativeName)
+                        DashRow(icon: "globe", color: DashColor.input, title: L("语言", "Language", "言語"),
+                                value: router.language == .system ? L("跟随 iPhone", "iPhone", "iPhone に従う") : router.language.nativeName)
                     }
                     Picker(selection: $store.settings.appearance) {
                         ForEach(Appearance.allCases) { Text($0.title).tag($0) }
                     } label: {
-                        IconRow(systemName: "circle.lefthalf.filled", color: Color(hex: 0x5856D6), title: L("日间 / 夜间", "Appearance", "外観"))
+                        DashRow(icon: "circle.lefthalf.filled", color: DashColor.input, title: L("日间 / 夜间", "Appearance", "外観"))
                     }
                     .pickerStyle(.menu)
                 } footer: {
@@ -83,29 +98,29 @@ struct SettingsView: View {
                 // 键盘和常用词从首页进。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.pinyin) {
-                        IconRow(systemName: "character.book.closed", color: .orange, title: L("拼音词库", "Pinyin dictionary", "ピンイン辞書"), value: L("万象拼音", "Wanxiang Pinyin", "万象ピンイン"))
+                        DashRow(icon: "character.book.closed", color: DashColor.input, title: L("拼音词库", "Pinyin dictionary", "ピンイン辞書"), value: L("万象拼音", "Wanxiang Pinyin", "万象ピンイン"))
                     }
                 }
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
-                        IconRow(systemName: "questionmark", color: .green, title: L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
+                        DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.playground) {
-                        IconRow(systemName: "flask", color: Color(red: 0.69, green: 0.32, blue: 0.87), title: L("场景实验室", "Playground", "お試しラボ"),
-                                value: L("\(LabScene.all.count) 个场景", "\(LabScene.all.count) scenes", "\(LabScene.all.count) 個のシーン"))
+                        DashRow(icon: "flask", color: DashColor.ai, title: L("场景实验室", "Playground", "お試しラボ"),
+                                value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
                     }
                 }
                 Section {
                     if SharedStorage.usesClipboardConfig {
-                    IconRow(systemName: "link", color: .gray, title: L("App 与键盘共享配置", "Shared with keyboard", "キーボードと設定を共有"),
+                    DashRow(icon: "link", color: DashColor.system, title: L("App 与键盘共享配置", "Shared with keyboard", "キーボードと設定を共有"),
                             value: SharedStorage.isShared ? L("已开启", "On", "オン") : L("不可用", "Unavailable", "利用不可"))
                     if !SharedStorage.isShared { SharedConfigBanner().listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)) }
                     }
                     NavigationLink(value: AppRouter.SettingsPage.privacy) {
-                        IconRow(systemName: "lock", color: .gray, title: L("隐私", "Privacy", "プライバシー"))
+                        DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.about) {
-                        IconRow(systemName: "info", color: .gray, title: L("关于 Enclave", "About Enclave", "Enclave について"), value: AboutView.version)
+                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于 Enclave", "About Enclave", "Enclave について"), value: AboutView.version)
                     }
                 }
             }
@@ -137,8 +152,17 @@ struct SettingsView: View {
 
 // MARK: - 模型接口
 
+/// 首页「接口」小卡上的服务商名字：认得出的写服务商，自定义的写地址里的主机名。
+enum ProviderName {
+    static func of(_ baseURL: String) -> String {
+        let provider = Provider.detect(baseURL)
+        guard provider == .custom else { return provider.title }
+        return URL(string: baseURL)?.host ?? provider.title
+    }
+}
+
 /// 常用服务商，选了自动填地址和模型。
-private enum Provider: CaseIterable, Identifiable {
+enum Provider: CaseIterable, Identifiable {
     case deepseek, openai, ollama, custom
 
     var id: Self { self }
@@ -149,6 +173,15 @@ private enum Provider: CaseIterable, Identifiable {
         case .openai: return "OpenAI"
         case .ollama: return "Ollama"
         case .custom: return L("自定义", "Custom", "カスタム")
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .deepseek: return "api.deepseek.com"
+        case .openai: return "api.openai.com"
+        case .ollama: return L("局域网的电脑", "A computer on your network", "ローカルネットのPC")
+        case .custom: return "vLLM、LM Studio"
         }
     }
 
@@ -173,6 +206,7 @@ struct ModelSettingsView: View {
     @EnvironmentObject private var store: AppStore
     @State private var provider: Provider = .custom
     @State private var importResult: Bool?
+    @State private var recent: [UsageStats.Request] = []
     /// 测试连接成功、这个地址还没同意过时弹出的确认（P05）。
     @State private var consentEndpoint: ConsentPrompt?
 
@@ -183,18 +217,15 @@ struct ModelSettingsView: View {
 
     var body: some View {
         Form {
+            Section {
+                statusCard
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            }
             Section(L("服务商", "Provider", "サービス")) {
-                HStack(spacing: 8) {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                     ForEach(Provider.allCases) { item in
-                        Button { choose(item) } label: {
-                            Text(item.title)
-                                .font(.subheadline.weight(provider == item ? .semibold : .regular))
-                                .foregroundStyle(provider == item ? Color.white : Color.primary)
-                                .padding(.horizontal, 12)
-                                .frame(height: 32)
-                                .background(Capsule().fill(provider == item ? AppColor.purple : Color(.secondarySystemGroupedBackground)))
-                        }
-                        .buttonStyle(.plain)
+                        ProviderCard(provider: item, selected: provider == item) { choose(item) }
                     }
                 }
                 .listRowInsets(EdgeInsets())
@@ -239,35 +270,22 @@ struct ModelSettingsView: View {
             } footer: {
                 Text(L("温度越低越稳定，润色建议 0.2–0.5。", "Lower is steadier. 0.2–0.5 works well for polishing.", "低いほど安定します。整えるには 0.2〜0.5 がおすすめです。"))
             }
-            Section {
-                VStack(spacing: 10) {
-                    Button {
-                        Task { await store.runTest() }
-                    } label: {
-                        HStack(spacing: 8) {
-                            if store.test == .running { ProgressView().tint(.white) }
-                            Text(store.test == .running ? L("正在测试…", "Testing…", "テスト中…") : L("测试连接", "Test connection", "接続をテスト"))
-                        }
-                    }
-                    .buttonStyle(PrimaryButtonStyle())
-                    .disabled(!store.settings.isConfigured || store.test == .running)
-                    testResult
-                    if SharedStorage.usesClipboardConfig {
+            if SharedStorage.usesClipboardConfig {
+                Section {
                     Button(importResult == false ? L("剪贴板里没有 Enclave 配置", "No Enclave settings on the clipboard", "クリップボードに Enclave の設定がありません") : importResult == true ? L("已导入", "Imported", "読み込みました") : L("从剪贴板导入配置", "Import settings from clipboard", "クリップボードから設定を読み込む")) {
                         importConfig()
                     }
                     .font(.footnote)
                     .foregroundStyle(importResult == false ? Color.orange : AppColor.purple)
-                    .padding(.top, 4)
-                    }
                 }
-                .buttonStyle(.plain)
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
             }
         }
-        .navigationTitle(L("模型接口", "Model API", "モデル API"))
-        .onAppear { provider = Provider.detect(store.settings.baseURL) }
+        .navigationTitle(L("接口", "API", "API"))
+        .onAppear {
+            provider = Provider.detect(store.settings.baseURL)
+            recent = UsageStats.polishRecent
+        }
+        .onChange(of: store.test) { _ in recent = UsageStats.polishRecent }
         .onChange(of: store.test) { test in
             guard case .success = test, let endpoint = ConsentStore.endpoint(of: store.settings.baseURL),
                   !ConsentStore.isConsented(endpoint) else { return }
@@ -284,22 +302,81 @@ struct ModelSettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private var testResult: some View {
-        switch store.test {
-        case .success(_, let seconds):
-            Label(L("连接成功，用时 \(String(format: "%.1f", seconds)) 秒", "Connected in \(String(format: "%.1f", seconds)) s", "接続できました（\(String(format: "%.1f", seconds)) 秒）"), systemImage: "checkmark")
-                .font(.footnote)
-                .foregroundStyle(.green)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        case .failure(let message):
-            Label(message, systemImage: "xmark")
-                .font(.footnote)
-                .foregroundStyle(.red)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        default:
-            EmptyView()
+    /// 顶部状态卡（PB2）：连接状态、最近一次耗时、「测试」，最近 10 次请求的小曲线。
+    private var statusCard: some View {
+        DashCard {
+            HStack(spacing: 6) {
+                Circle().fill(status.color).frame(width: 7, height: 7)
+                Text(status.text).font(.subheadline.weight(.semibold)).foregroundStyle(status.color).lineLimit(2)
+                Spacer(minLength: 8)
+            }
+            HStack(alignment: .firstTextBaseline) {
+                if let seconds = lastSeconds {
+                    DashBigNumber(value: String(format: "%.1f", seconds),
+                                  unit: lastFailed ? L("秒 · 最近一次失败", "s · last request failed", "秒・直近は失敗") : L("秒 · 最近一次", "s · last request", "秒・直近"))
+                        .foregroundStyle(lastFailed ? Color.secondary : Color.primary)
+                } else {
+                    DashBigNumber(value: "–", unit: L("还没有请求", "No requests yet", "リクエストなし"))
+                }
+                Spacer(minLength: 8)
+                Button {
+                    Task { await store.runTest() }
+                } label: {
+                    HStack(spacing: 6) {
+                        if store.test == .running { ProgressView().controlSize(.small) }
+                        Text(L("测试", "Test", "テスト"))
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DashColor.ai)
+                    .padding(.horizontal, 14)
+                    .frame(height: 32)
+                    .background(Capsule().fill(DashColor.ai.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .disabled(!store.settings.isConfigured || store.test == .running)
+            }
+            DashSparkline(values: recent.map { Double($0.ms) }, color: recent.allSatisfy(\.ok) ? DashColor.ok : .orange)
+            Text(recentSummary).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
         }
+    }
+
+    /// 测试刚失败时显示错误；否则看最近一次请求，再不然看上次测试。
+    private var status: (text: String, color: Color) {
+        guard store.settings.isConfigured else { return (L("还没配置，先选服务商、填地址", "Not set up. Pick a provider and fill in the URL", "未設定です。サービスを選んで URL を入力してください"), DashColor.system) }
+        switch store.test {
+        case .running: return (L("正在测试…", "Testing…", "テスト中…"), .orange)
+        case .failure(let message): return (message, .red)
+        case .success: return (L("已连接", "Connected", "接続済み"), DashColor.ok)
+        case .idle: break
+        }
+        if let last = recent.last { return last.ok ? (L("已连接", "Connected", "接続済み"), DashColor.ok) : (L("最近一次请求失败", "Last request failed", "直近のリクエストは失敗"), .red) }
+        switch store.lastTestOK {
+        case true?: return (L("已连接", "Connected", "接続済み"), DashColor.ok)
+        case false?: return (L("连不上", "Can't connect", "接続できません"), .red)
+        case nil: return (L("还没测试", "Not tested", "未テスト"), DashColor.system)
+        }
+    }
+
+    /// 最近一次（测试或请求）失败：大数字变灰，单位写「失败」。
+    private var lastFailed: Bool {
+        if case .failure = store.test { return true }
+        if case .success = store.test { return false }
+        return recent.last.map { !$0.ok } ?? false
+    }
+
+    private var lastSeconds: Double? {
+        if case .success(_, let seconds) = store.test { return seconds }
+        return recent.last.map { Double($0.ms) / 1000 }
+    }
+
+    private var recentSummary: String {
+        let model = store.settings.model
+        guard !recent.isEmpty else { return L("点「测试」或在键盘上点 ✨，这里会画出最近 10 次请求的耗时。", "Tap Test or ✨ on the keyboard to chart your last 10 requests.", "「テスト」かキーボードの ✨ で、直近 10 回のリクエスト時間がここに表示されます。") }
+        let failed = recent.filter { !$0.ok }.count
+        let head = failed == 0
+            ? L("最近 \(recent.count) 次请求都成功", "Last \(recent.count) requests succeeded", "直近 \(recent.count) 回すべて成功")
+            : L("最近 \(recent.count) 次请求有 \(failed) 次失败", "\(failed) of the last \(recent.count) requests failed", "直近 \(recent.count) 回中 \(failed) 回失敗")
+        return model.isEmpty ? head : head + " · " + model
     }
 
     private func choose(_ item: Provider) {
@@ -318,6 +395,31 @@ struct ModelSettingsView: View {
         store.reload()
         provider = Provider.detect(store.settings.baseURL)
         importResult = true
+    }
+}
+
+/// 服务商卡片：名字和地址，选中的描紫边、右上打勾。
+private struct ProviderCard: View {
+    var provider: Provider
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(provider.title).font(.body.weight(.semibold))
+                    Spacer(minLength: 4)
+                    if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(DashColor.ai) }
+                }
+                Text(provider.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DashColor.card))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(DashColor.ai, lineWidth: selected ? 2 : 0))
+        }
+        .buttonStyle(.plain)
     }
 }
 

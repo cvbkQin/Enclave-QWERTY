@@ -111,8 +111,8 @@ struct UnlockView: View {
                                 "Ollama や LM Studio を自分のパソコンで動かせば、文章は外に出ません"))
             PointCard(icon: "arrow.triangle.2.circlepath", color: Color(hex: 0x7C3AED),
                       title: L("随时换模型", "Switch models anytime", "いつでもモデルを変更"),
-                      detail: L("只改地址和 Key，风格和要求照常用", "Just change the URL and key. Styles and prompts keep working",
-                                "URL とキーを変えるだけ。文体や指示はそのまま使えます"))
+                      detail: L("只改地址和 Key，提示词和要求照常用", "Just change the URL and key. Your prompts keep working",
+                                "URL とキーを変えるだけで、プロンプトはそのまま使えます"))
         }
     }
 

@@ -237,7 +237,7 @@ final class KeyboardModel: ObservableObject {
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
-            notice = L("先在输入框里写点什么，或者点「\(settings.selectedStyle?.displayName ?? "风格")▾」写一个要求让它帮你写。", "Type something first, or tap \(settings.selectedStyle?.displayName ?? "Style") ▾ and add a prompt to have it written for you.", "先に何か入力するか、「\(settings.selectedStyle?.displayName ?? "文体")▾」で指示を書くと下書きを作成します。")
+            notice = L("先在输入框里写点什么，或者点「\(settings.selectedStyle?.displayName ?? "润色")▾」写一个要求让它帮你写。", "Type something first, or tap \(settings.selectedStyle?.displayName ?? "Polish") ▾ and add a prompt to have it written for you.", "先に何か入力するか、「\(settings.selectedStyle?.displayName ?? "整える")▾」で指示を書くと下書きを作成します。")
 
         case (false, true):
             // 润色：总是润输入框里现在的文字（可能是替换后又手改过的），结果接在这次会话后面，翻页还能找回之前的版本。
@@ -437,6 +437,12 @@ final class KeyboardModel: ObservableObject {
         let client = LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
         isRunning = true
         streamingText = ""
+        let started = Date()
+        let styleID = settings.selectedStyle?.id
+        // 仪表盘的统计：耗时按毫秒记。
+        func record(ok: Bool) {
+            UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID)
+        }
         task = Task { [weak self] in
             var raw = ""
             do {
@@ -449,7 +455,9 @@ final class KeyboardModel: ObservableObject {
                 if result.isEmpty {
                     self.errorMessage = L("模型没有返回内容。", "The model returned nothing.", "モデルから応答がありませんでした。")
                     self.endQuickMode(.failed)
+                    record(ok: false)
                 } else {
+                    record(ok: true)
                     // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
                     AIAccess.recordUse()
                     var updated = pending
@@ -470,6 +478,7 @@ final class KeyboardModel: ObservableObject {
                 }
             } catch {
                 if !Task.isCancelled {
+                    record(ok: false)
                     self?.errorMessage = error.localizedDescription
                     self?.endQuickMode(.failed)
                 }

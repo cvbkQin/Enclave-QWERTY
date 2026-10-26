@@ -37,14 +37,14 @@ struct LabScene: Identifiable {
     let steps: [String]
 
     /// 场景文字跟着界面语言；练习用的原文保持中文（拼音键盘练的就是中文）。
-    /// 步骤里的 {style} 换成当前风格名。
+    /// 步骤里的 {style} 换成当前提示词的名字。
     static var all: [LabScene] { [
         LabScene(id: 0, category: .work, title: L("回复领导", "Reply to your manager", "上司への返信"), icon: "briefcase",
                  tag: L("润色", "Polish", "整える"),
                  situation: L("领导让你看一份文件，你想回得清楚又不啰嗦。", "Your manager asked you to review a file. You want a clear, brief reply.",
                               "上司に資料の確認を頼まれました。簡潔でわかりやすく返したいときに。"),
                  text: "那个文件我看了一下大概没啥问题就是第三页有个数好像不太对你再看看",
-                 steps: [L("点「✨ 润色」", "Tap ✨ Polish", "「✨ 整える」をタップ"),
+                 steps: [L("点 ✨", "Tap ✨", "✨ をタップ"),
                          L("看结果卡片，满意就点「替换」", "Check the result card and tap Replace if you like it", "結果カードを見て、よければ「置き換え」をタップ")]),
         LabScene(id: 1, category: .work, title: L("委婉拒绝", "Say no politely", "やんわり断る"), icon: "checkmark.shield",
                  tag: L("按要求改", "Custom changes", "指示して直す"),
@@ -66,7 +66,7 @@ struct LabScene: Identifiable {
                  situation: L("客户催发货，你想道歉并给出明确时间。", "A customer is chasing a delivery. You want to apologize and give a clear time.",
                               "発送を急かすお客様に、お詫びとはっきりした日時を伝えたいときに。"),
                  text: "不好意思啊 仓库那边最近爆单了 明天肯定给你发出去 别退款了哈",
-                 steps: [L("风格选「正式」，点「✨ 润色」", "Choose the Formal style and tap ✨ Polish", "文体で「丁寧」を選び、「✨ 整える」をタップ"),
+                 steps: [L("提示词选「正式」，点 ✨", "Choose the Formal prompt and tap ✨", "プロンプトで「丁寧」を選び、✨ をタップ"),
                          L("不满意点「再润」换一版", "Not happy? Tap Rewrite for another version", "気に入らなければ「別の案」で別の案を出します")]),
         LabScene(id: 4, category: .social, title: L("朋友圈文案", "Social post", "SNS の投稿"), icon: "camera",
                  tag: L("按要求改", "Custom changes", "指示して直す"),
@@ -107,7 +107,7 @@ struct LabScene: Identifiable {
                  situation: L("活动总结里有几个错别字，帮你一次找出来。", "An event recap has a few typos. Find them all at once.",
                               "イベントの報告に誤字がいくつか。まとめて見つけます。"),
                  text: "我们这次的活动非常成功，参加的人数比预计的多了一倍。大家的反溃都很好，特别是互动环节，很多人表示下次还要来。不过也有一些问题，比如签到太慢，饮料不够，下次需要提前准被。",
-                 steps: [L("点「✨ 润色」", "Tap ✨ Polish", "「✨ 整える」をタップ"),
+                 steps: [L("点 ✨", "Tap ✨", "✨ をタップ"),
                          L("用卡片右边的 ▲▼ 翻看几版，长按卡片复制", "Flip versions with ▲▼ on the card, touch and hold to copy",
                            "カード右の ▲▼ で案を見比べ、長押しでコピー")]),
     ] }
@@ -120,88 +120,109 @@ extension Color {
     }
 }
 
-/// 场景列表：分类筛选 + 两列卡片。
+/// 场景实验室（PB6）：试过几个和进度格、下一个推荐、压力测试上次结果，场景按分类分组，试过的打绿勾。
 struct LabView: View {
-    @State private var category: LabScene.Category?
+    @State private var tried = UsageStats.labTried
+    @State private var lastTest = TypingTestRecord.load().first
 
-    private var scenes: [LabScene] {
-        LabScene.all.filter { category == nil || $0.category == category }
-    }
+    private var next: LabScene? { LabScene.all.first { !tried.contains(String($0.id)) } }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(L("\(LabScene.all.count) 个真实场景", "\(LabScene.all.count) real-life scenes", "\(LabScene.all.count) 個のシーン")).font(.title.bold())
-                    Text(L("挑一个点进去，切到 Enclave 跟着做一遍。", "Pick one, switch to Enclave and follow along.", "1 つ選んで Enclave に切り替え、手順どおりに試してみましょう。")).font(.subheadline).foregroundStyle(.secondary)
-                }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        filterChip(nil, title: L("全部", "All", "すべて"), count: LabScene.all.count)
-                        ForEach(LabScene.Category.allCases, id: \.self) { item in
-                            filterChip(item, title: item.name, count: LabScene.all.filter { $0.category == item }.count)
+        DashPage {
+            progressCard
+            stressCard
+            ForEach(LabScene.Category.allCases, id: \.self) { category in
+                let scenes = LabScene.all.filter { $0.category == category }
+                if !scenes.isEmpty {
+                    Text(category.name).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                        .padding(.leading, 4).padding(.top, 4)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
+                        ForEach(scenes) { scene in
+                            NavigationLink {
+                                SceneView(index: scene.id)
+                            } label: {
+                                SceneCard(scene: scene, tried: tried.contains(String(scene.id)))
+                            }
+                            .buttonStyle(.plain)
                         }
-                    }
-                }
-                NavigationLink {
-                    TypingTestView()
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "speedometer")
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(AppColor.purple)
-                            .frame(width: 38, height: 38)
-                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(AppColor.softFill))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L("压力测试", "Stress test", "負荷テスト")).font(.system(size: 15.5, weight: .semibold))
-                            Text(L("照着文章连续打字，看速度、卡顿和键盘内存", "Type a passage nonstop and see speed, lag and keyboard memory", "文章を続けて入力し、速さ・遅延・メモリを確認"))
-                                .font(.system(size: 12)).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                    }
-                    .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
-                }
-                .buttonStyle(.plain)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
-                    ForEach(scenes) { scene in
-                        NavigationLink {
-                            SceneView(index: scene.id)
-                        } label: {
-                            SceneCard(scene: scene)
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
             }
-            .padding(16)
         }
-        .background(Color(.systemGroupedBackground))
         .navigationTitle(L("场景实验室", "Playground", "お試しラボ"))
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            tried = UsageStats.labTried
+            lastTest = TypingTestRecord.load().first
+        }
     }
 
-    private func filterChip(_ item: LabScene.Category?, title: String, count: Int) -> some View {
-        let selected = category == item
-        return Button { category = item } label: {
-            HStack(spacing: 4) {
-                Text(title).fontWeight(.semibold)
-                Text("\(count)").opacity(0.6)
+    private var progressCard: some View {
+        DashCard {
+            DashCardHeader(icon: "flask", title: L("场景实验室", "Playground", "お試しラボ"), color: DashColor.ai)
+            HStack(alignment: .firstTextBaseline) {
+                DashBigNumber(value: "\(LabScene.triedCount(tried))",
+                              unit: L("/ \(LabScene.all.count) 个场景试过", "of \(LabScene.all.count) tried", "/ \(LabScene.all.count) 試した"))
+                Spacer(minLength: 8)
+                if let next {
+                    NavigationLink {
+                        SceneView(index: next.id)
+                    } label: {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(L("下一个推荐", "Up next", "次のおすすめ")).font(.caption).foregroundStyle(.secondary)
+                            Text(next.title).font(.footnote.weight(.semibold)).foregroundStyle(DashColor.ai)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .font(.subheadline)
-            // 选中时反色：浅色模式黑底白字，深色模式白底黑字，字始终看得清。
-            .foregroundStyle(selected ? Color(.systemBackground) : Color.primary)
-            .padding(.horizontal, 14)
-            .frame(height: 34)
-            .background(Capsule().fill(selected ? Color.primary : Color(.secondarySystemGroupedBackground)))
+            DashSegments(total: LabScene.all.count, done: LabScene.triedCount(tried))
+        }
+    }
+
+    private var stressCard: some View {
+        NavigationLink {
+            TypingTestView()
+        } label: {
+            DashCard {
+                DashCardHeader(icon: "speedometer", title: L("压力测试", "Stress test", "負荷テスト"), color: DashColor.input,
+                               note: lastTest.map { L("上次 \(Loc.monthDay($0.date))", "Last \(Loc.monthDay($0.date))", "前回 \(Loc.monthDay($0.date))") })
+                if let lastTest {
+                    HStack(alignment: .top) {
+                        stat("\(lastTest.speed)", L("字 / 分钟", "chars/min", "字／分"))
+                        stat(lastTest.slowTotal.map { "\(Int($0.rounded())) ms" } ?? "–", L("较慢的 10% 按键", "slowest 10% of keys", "遅い 10% のキー"))
+                        stat(lastTest.memoryPeak.map { "\(Int($0)) MB" } ?? "–", L("键盘内存", "keyboard memory", "キーボードのメモリ"))
+                    }
+                } else {
+                    Text(L("照着文章连续打字，看速度、卡顿和键盘内存", "Type a passage nonstop and see speed, lag and keyboard memory", "文章を続けて入力し、速さ・遅延・メモリを確認"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
         }
         .buttonStyle(.plain)
     }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.system(size: 22, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+            Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension LabScene {
+    /// 试过的场景数，设置页「试过 N/10」也用。
+    static func triedCount(_ tried: Set<String> = UsageStats.labTried) -> Int {
+        all.filter { tried.contains(String($0.id)) }.count
+    }
+
+    static var triedCount: Int { triedCount() }
 }
 
 private struct SceneCard: View {
     let scene: LabScene
+    var tried = false
 
     var body: some View {
         let colors = scene.category.colors
@@ -213,7 +234,10 @@ private struct SceneCard: View {
                     .frame(width: 34, height: 34)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(colors.fill))
                 Spacer()
-                Text(scene.category.name).font(.caption.weight(.semibold)).foregroundStyle(colors.text)
+                if tried {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 18)).foregroundStyle(DashColor.ok)
+                        .accessibilityLabel(L("试过", "Tried", "試した"))
+                }
             }
             .padding(.bottom, 4)
             Text(scene.title).font(.system(size: 15.5, weight: .semibold))
@@ -282,9 +306,9 @@ struct SceneView: View {
                                 .foregroundStyle(AppColor.purple)
                                 .frame(width: 20, height: 20)
                                 .background(Circle().fill(AppColor.softFill))
-                            // 风格按钮上显示的是当前风格名，提示里跟着写。
+                            // ✨ 旁边显示的是当前提示词的名字，提示里跟着写。
                             Text(step.replacingOccurrences(of: "{style}",
-                                                           with: store.settings.selectedStyle?.displayName ?? L("正式", "Formal", "丁寧")))
+                                                           with: store.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")))
                                 .font(.subheadline)
                         }
                     }
@@ -314,6 +338,8 @@ struct SceneView: View {
         .navigationTitle(L("场景实验室", "Playground", "お試しラボ"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: index) {
+            // 点进来就算试过这个场景（场景实验室列表打绿勾、进度 N / 10）。
+            UsageStats.markLabTried(String(index))
             try? await Task.sleep(nanoseconds: 600_000_000)
             focused = true
         }

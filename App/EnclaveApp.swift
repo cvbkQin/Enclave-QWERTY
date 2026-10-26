@@ -67,7 +67,7 @@ struct EnclaveApp: App {
     }
 }
 
-/// 底部三个标签：首页、风格、设置。
+/// 底部四个标签：首页、提示词、接口、设置。
 struct RootView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
@@ -94,7 +94,7 @@ struct RootView: View {
                 .tabItem { Label(L("首页", "Home", "ホーム"), systemImage: "house") }
                 .tag(AppRouter.Tab.home)
             StylesTab()
-                .tabItem { Label(L("风格", "Styles", "文体"), systemImage: "sparkles") }
+                .tabItem { Label(L("提示词", "Prompts", "プロンプト"), systemImage: "sparkles") }
                 .tag(AppRouter.Tab.styles)
             NavigationStack { ModelSettingsView() }
                 .tabItem { Label(L("接口", "API", "API"), systemImage: "cpu") }
@@ -223,10 +223,10 @@ final class AppStore: ObservableObject {
         } catch {
             test = .failure(error.localizedDescription)
         }
-        if case .success = test {
-            SharedStorage.defaults.set(true, forKey: testKey)
-        } else {
-            SharedStorage.defaults.set(false, forKey: testKey)
-        }
+        var ok = false
+        if case .success = test { ok = true }
+        SharedStorage.defaults.set(ok, forKey: testKey)
+        // 测试也算一次请求，接口页的小曲线里有它。
+        UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok)
     }
 }

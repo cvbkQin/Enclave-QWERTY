@@ -84,6 +84,9 @@ struct CommonWordsView: View {
     @State private var readOnly: CommonWord?
     @State private var importing = false
     @State private var preview: ImportPreview?
+    /// 每个词本周上屏的次数和本周合计，进页面时读一次。
+    @State private var weekCounts: [String: Int] = [:]
+    @State private var weekTotal = 0
 
     private var query: (text: String, code: String) {
         let text = search.trimmingCharacters(in: .whitespaces).lowercased()
@@ -114,8 +117,16 @@ struct CommonWordsView: View {
                 }
                 .listRowBackground(Color.orange.opacity(0.12))
             }
+            if query.text.isEmpty {
+                Section {
+                    weekCard
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+            }
             allSections
         }
+        .onAppear(perform: loadCounts)
         // 分段控件放在列表外面、紧贴搜索框下面，不和列表的分区间距叠在一起。
         .safeAreaInset(edge: .top, spacing: 0) {
             filterBar
@@ -177,6 +188,39 @@ struct CommonWordsView: View {
         .pickerStyle(.segmented)
     }
 
+    private func loadCounts() {
+        var counts: [String: Int] = [:]
+        for word in model.all where counts[word.text] == nil {
+            counts[word.text] = UsageStats.week(UsageStats.wordKey(word.text))
+        }
+        weekCounts = counts
+        weekTotal = UsageStats.week("word.commit")
+    }
+
+    /// 本周上屏（PB5）：合计、用到了几个词，前 3 名带名次和次数。
+    private var weekCard: some View {
+        let top = weekCounts.filter { $0.value > 0 }.sorted { $0.value > $1.value || ($0.value == $1.value && $0.key < $1.key) }
+        return DashCard {
+            DashCardHeader(icon: "text.book.closed", title: L("本周上屏", "This week", "今週の入力"), color: DashColor.input)
+            DashBigNumber(value: "\(weekTotal)", unit: L("次 · \(model.all.count) 个词里用到 \(top.count) 个", "uses · \(top.count) of \(model.all.count) words", "回・\(model.all.count) 語中 \(top.count) 語"))
+            if top.isEmpty {
+                Text(L("打拼音时选了常用词，这里就会记下次数。", "Pick one of your words while typing pinyin and it's counted here.", "ピンイン入力で登録した語を選ぶと、ここに回数が記録されます。"))
+                    .font(.footnote).foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(Array(top.prefix(3).enumerated()), id: \.offset) { rank, item in
+                        HStack(spacing: 10) {
+                            Text("\(rank + 1)").font(.subheadline).foregroundStyle(.secondary).frame(width: 16, alignment: .leading)
+                            Text(item.key).font(.subheadline).lineLimit(1)
+                            Spacer(minLength: 8)
+                            Text(L("\(item.value) 次", "\(item.value)×", "\(item.value) 回")).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private func edit(_ word: CommonWord) {
         if word.isReadOnly { readOnly = word } else { editing = word }
     }
@@ -193,7 +237,7 @@ struct CommonWordsView: View {
             }
             ForEach(shown) { word in
                 Button { edit(word) } label: {
-                    WordRow(word: word)
+                    WordRow(word: word, weekCount: weekCounts[word.text] ?? 0)
                 }
                 .buttonStyle(.plain)
                 .swipeActions {
@@ -238,6 +282,7 @@ struct CommonWordsView: View {
 /// 列表里的一行：词、拼音和简码、右边来源标签。
 private struct WordRow: View {
     let word: CommonWord
+    var weekCount = 0
 
     var body: some View {
         HStack(spacing: 10) {
@@ -253,6 +298,9 @@ private struct WordRow: View {
                 }
             }
             Spacer(minLength: 8)
+            if weekCount > 0 {
+                Text(L("\(weekCount) 次", "\(weekCount)×", "\(weekCount) 回")).font(.footnote).foregroundStyle(.secondary).monospacedDigit()
+            }
             SourceTag(source: word.source)
         }
         .contentShape(Rectangle())
