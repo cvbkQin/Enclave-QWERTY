@@ -18,8 +18,6 @@ struct StylesView: View {
     @State private var confirmReset = false
     /// 每条提示词本周执行的次数，进页面时读一次。
     @State private var weekCounts: [UUID: Int] = [:]
-    /// 「编辑」在「全部提示词」分组标题右边（PH2），自己管编辑状态。
-    @State private var editMode = EditMode.inactive
 
     var body: some View {
         List {
@@ -28,7 +26,8 @@ struct StylesView: View {
                     .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
             } header: {
                 TabTitle(caption: caption, title: L("提示词", "Prompts", "プロンプト"))
-                    .padding(.bottom, 4)
+                    // 标题到第一张卡片和首页一样约 18pt。
+                    .padding(.bottom, 11)
                     .dashFormCard()
             }
             Section {
@@ -60,12 +59,12 @@ struct StylesView: View {
                 HStack {
                     Text(L("全部提示词", "All prompts", "すべてのプロンプト"))
                     Spacer()
-                    Button(editMode.isEditing ? L("完成", "Done", "完了") : L("编辑", "Edit", "編集")) {
-                        withAnimation { editMode = editMode.isEditing ? .inactive : .active }
-                    }
-                    .font(.system(size: 15, weight: editMode.isEditing ? .semibold : .regular))
-                    .foregroundStyle(DashColor.ai)
-                    .textCase(nil)
+                    // 系统的编辑按钮（PH2 挪到分组标题右边）：自己管 editMode 时拖过一次后再拖、点 ⊖ 都没反应。
+                    EditButton()
+                        .font(.system(size: 15))
+                        .tint(DashColor.ai)
+                        .environment(\.locale, Loc.locale)
+                        .textCase(nil)
                 }
             } footer: {
                 Text(L("顺序就是键盘「\(settings.selectedStyle?.displayName ?? "润色") ▾」里的顺序。次数是本周的。",
@@ -95,7 +94,6 @@ struct StylesView: View {
                 settings.selectedStyleID = nil
             }
         }
-        .environment(\.editMode, $editMode)
         .navigationTitle(L("提示词", "Prompts", "プロンプト"))
         .tabRootPage()
         .onAppear {

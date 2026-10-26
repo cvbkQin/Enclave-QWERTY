@@ -265,14 +265,14 @@ extension View {
     }
 }
 
-/// 卡片之间 12、左右 16 的页面骨架，底色 #F2F2F7 / #000。
+/// 卡片之间 12、左右 20 的页面骨架（和列表页的分组、首页卡片对齐），底色 #F2F2F7 / #000。
 struct DashPage<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) { content }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 24)
         }
         .background(DashColor.page)
