@@ -119,9 +119,8 @@ struct CommonWordsView: View {
             }
             if query.text.isEmpty {
                 Section {
-                    weekCard
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
+                } header: {
+                    weekCard.dashFormCard()
                 }
             }
             allSections

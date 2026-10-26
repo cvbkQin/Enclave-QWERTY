@@ -224,6 +224,19 @@ struct DashTag: View {
     }
 }
 
+extension View {
+    /// 把 B 卡片放进 Form / List 的分组页：用作 Section 的 header（header 不会被系统按分组大圆角裁掉），
+    /// 去掉 header 的缩进、大写和灰色小字，左右和其他分组对齐，卡片自己的 16 圆角和描边完整。
+    /// 不要放成列表行：iOS 会按分组圆角（iOS 26 上约 26pt）裁这一行，外角和描边会被切。
+    func dashFormCard() -> some View {
+        self
+            .textCase(nil)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .listRowInsets(EdgeInsets())
+    }
+}
+
 /// 卡片之间 12、左右 16 的页面骨架，底色 #F2F2F7 / #000。
 struct DashPage<Content: View>: View {
     @ViewBuilder var content: Content

@@ -79,11 +79,8 @@ struct KeyboardPhrasesView: View {
             }
             if !model.phrases.isEmpty {
                 Section {
-                    KeyboardWordsPreview(texts: model.phrases)
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
                 } header: {
-                    Text(L("键盘里的样子", "On the keyboard", "キーボードでの表示"))
+                    PreviewHeader(texts: model.phrases)
                 } footer: {
                     Text(L("一行四格：短词一格，邮箱这类两格，地址和长句占一整行。", "Four per row: short words take one cell, emails two, addresses and sentences a full row.", "1 行 4 マス：短い語は 1 マス、メールアドレスなどは 2 マス、住所や長い文は 1 行。"))
                 }
@@ -137,10 +134,9 @@ private struct PhraseEditor: View {
                     Text(L("中文、英文、数字都可以，不用填拼音。", "Any text works. No pinyin needed.", "どんな文字でも登録できます。ピンインは不要です。"))
                 }
                 if !trimmed.isEmpty {
-                    Section(L("键盘里的样子", "On the keyboard", "キーボードでの表示")) {
-                        KeyboardWordsPreview(texts: [trimmed])
-                            .listRowInsets(EdgeInsets())
-                            .listRowBackground(Color.clear)
+                    Section {
+                    } header: {
+                        PreviewHeader(texts: [trimmed])
                     }
                 }
                 if original != nil {
@@ -208,6 +204,22 @@ private struct KeyboardWordsPreview: View {
             trait.userInterfaceStyle == .dark ? UIColor(white: 0.18, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1)
         })))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// 「键盘里的样子」标题加预览，放在 Section 的 header 里，预览的圆角不会被分组圆角裁掉。
+private struct PreviewHeader: View {
+    var texts: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L("键盘里的样子", "On the keyboard", "キーボードでの表示"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 16)
+            KeyboardWordsPreview(texts: texts)
+        }
+        .dashFormCard()
     }
 }
 

@@ -73,13 +73,11 @@ struct SettingsView: View {
         NavigationStack(path: $router.settingsPath) {
             List {
                 Section {
-                    // 整张卡可点，但不要列表行的箭头：真正的链接藏在卡片下面。
-                    ZStack {
-                        NavigationLink(value: AppRouter.SettingsPage.unlock) { EmptyView() }.opacity(0)
-                        EnclaveAICard()
-                    }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+                } header: {
+                    // 整张卡可点，不要列表行的箭头。
+                    Button { router.settingsPath.append(.unlock) } label: { EnclaveAICard() }
+                        .buttonStyle(.plain)
+                        .dashFormCard()
                 }
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.language) {
@@ -218,18 +216,23 @@ struct ModelSettingsView: View {
     var body: some View {
         Form {
             Section {
-                statusCard
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+            } header: {
+                statusCard.dashFormCard()
             }
-            Section(L("服务商", "Provider", "サービス")) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(Provider.allCases) { item in
-                        ProviderCard(provider: item, selected: provider == item) { choose(item) }
+            Section {
+            } header: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("服务商", "Provider", "サービス"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 16)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                        ForEach(Provider.allCases) { item in
+                            ProviderCard(provider: item, selected: provider == item) { choose(item) }
+                        }
                     }
                 }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
+                .dashFormCard()
             }
             Section {
                 LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
@@ -416,8 +419,8 @@ private struct ProviderCard: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DashColor.card))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(DashColor.ai, lineWidth: selected ? 2 : 0))
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(DashColor.ai, lineWidth: selected ? 2 : 0))
         }
         .buttonStyle(.plain)
     }
