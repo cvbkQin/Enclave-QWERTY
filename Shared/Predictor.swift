@@ -17,6 +17,13 @@ enum Predictor {
     }
     private static let spaceChainKey = "prediction.spaceChain"
 
+    /// 英文单词补全和下一个词联想（数据随键盘内置，不用下载）。
+    static var englishEnabled: Bool {
+        get { SharedStorage.defaults.object(forKey: englishKey) as? Bool ?? true }
+        set { SharedStorage.defaults.set(newValue, forKey: englishKey) }
+    }
+    private static let englishKey = "prediction.english"
+
     static var isEnabled: Bool {
         get { SharedStorage.defaults.object(forKey: enabledKey) as? Bool ?? true }
         set { SharedStorage.defaults.set(newValue, forKey: enabledKey) }

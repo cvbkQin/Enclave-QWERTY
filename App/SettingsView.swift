@@ -563,6 +563,7 @@ struct KeyboardSettingsView: View {
                 }
             }
             Section(L("英文", "English", "英語")) {
+                EnglishSuggestionsToggle()
                 Toggle(isOn: $store.settings.autoCapitalize) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("句首自动大写", "Auto-capitalization", "文頭を自動で大文字に"))
@@ -758,11 +759,13 @@ struct PinyinView: View {
     @State private var typingStats: TypingStats.Summary?
     @ObservedObject private var grammar = GrammarDownloader.shared
     @State private var confirmDeleteGrammar = false
+    @State private var englishEnabled = Predictor.englishEnabled
 
     var body: some View {
         DashPage {
             dictionaryCard
             grammarCard
+            englishCard
             speedCard
         }
         .navigationTitle(L("拼音词库", "Pinyin dictionary", "ピンイン辞書"))
@@ -773,6 +776,7 @@ struct PinyinView: View {
         .onAppear {
             typingStats = TypingStats.summary
             grammar.refresh()
+            englishEnabled = Predictor.englishEnabled
         }
         .confirmationDialog(L("删除整句模型？", "Delete the sentence model?", "文章モデルを削除しますか？"), isPresented: $confirmDeleteGrammar, titleVisibility: .visible) {
             Button(L("删除", "Delete", "削除"), role: .destructive) { grammar.delete() }
@@ -860,6 +864,23 @@ struct PinyinView: View {
                     Text(message).font(.system(size: 13)).foregroundStyle(.red)
                 }
             }
+        }
+    }
+
+    // MARK: - 英文词库
+
+    /// 英文单词表和联想数据随键盘内置，不用下载，这里只能开关。
+    private var englishCard: some View {
+        DashCard {
+            DashCardHeader(icon: "textformat.abc", title: L("英文词库", "English words", "英語辞書"), color: DashColor.input, note: L("已内置", "Built in", "内蔵"))
+            DashBigNumber(value: L("6 万", "60k", "6 万"), unit: L("个单词 · 1.6 MB", "words · 1.6 MB", "語 · 1.6 MB"))
+            Toggle(L("英文补全和联想", "English suggestions", "英語の候補と予測"),
+                   isOn: Binding(get: { englishEnabled }, set: { englishEnabled = $0; Predictor.englishEnabled = $0 }))
+                .tint(AppColor.purple)
+            Text(L("英文状态下打字时补全单词（tomo → tomorrow），打完一个词接着推荐下一个。单词表来自万象拼音（CC BY 4.0），词组搭配来自 Tatoeba 例句（CC BY 2.0 FR）。",
+                   "Completes words as you type in English (tomo → tomorrow) and suggests the next word. Word list from Wanxiang Pinyin (CC BY 4.0); word pairs from Tatoeba sentences (CC BY 2.0 FR).",
+                   "英語入力中に単語を補完し（tomo → tomorrow）、次の単語を予測します。単語リストは万象ピンイン（CC BY 4.0）、語のつながりは Tatoeba の例文（CC BY 2.0 FR）から。"))
+                .font(.system(size: 13)).foregroundStyle(.secondary)
         }
     }
 

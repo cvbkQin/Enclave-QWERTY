@@ -842,7 +842,7 @@ extension KeyboardModel {
 
     /// 英文状态下：正在打一个词时给补全；刚打完一个词加空格时给它后面常跟的词。
     func updateEnglishSuggestions() {
-        guard !chineseMode, target == .host, layer == .letters, Predictor.isEnabled,
+        guard !chineseMode, target == .host, layer == .letters, Predictor.englishEnabled,
               hostKeyboardType != .URL, hostKeyboardType != .emailAddress else {
             predictionReplaces = 0
             dismissPredictions()

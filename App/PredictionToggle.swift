@@ -28,3 +28,19 @@ struct PredictionToggle: View {
         }
     }
 }
+
+/// 键盘设置「英文」里的单词补全和联想开关（和拼音词库页「英文词库」卡里的是同一个）。
+struct EnglishSuggestionsToggle: View {
+    @State private var enabled = Predictor.englishEnabled
+
+    var body: some View {
+        Toggle(isOn: Binding(get: { enabled }, set: { enabled = $0; Predictor.englishEnabled = $0 })) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("单词补全和联想", "Word suggestions", "単語の候補と予測"))
+                Text(L("打字时补全单词，打完一个词接着推荐下一个", "Completes words as you type and suggests the next one", "入力中に単語を補完し、次の単語を予測します"))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { enabled = Predictor.englishEnabled }
+    }
+}
