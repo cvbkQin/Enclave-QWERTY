@@ -1,8 +1,8 @@
 import StoreKit
 import SwiftUI
 
-/// Enclave AI 解锁页：试用中（U1）、试用结束（U2）、已解锁（U3）。
-/// 入口：设置顶部「Enclave AI」行、首页最后几天的提醒条、键盘提示卡里的「去解锁」（enclave://unlock）。
+/// AI 解锁页：试用中（U1）、试用结束（U2）、已解锁（U3）。
+/// 入口：设置顶部「AI」卡片、首页最后几天的提醒条、键盘提示卡里的「去解锁」（enclave://unlock）。
 struct UnlockView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter

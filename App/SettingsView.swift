@@ -2,7 +2,7 @@ import StoreKit
 import SwiftUI
 import UIKit
 
-/// 设置顶部的 Enclave AI 卡（PB3）：试用剩几天和进度格、解锁按钮、一句说明。点整张卡进解锁页。
+/// 设置顶部的 AI 卡（PB3）：试用剩几天和进度格、解锁按钮、一句说明。点整张卡进解锁页。
 struct EnclaveAICard: View {
     @ObservedObject private var unlock = UnlockStore.shared
 
@@ -65,7 +65,7 @@ struct EnclaveAICard: View {
     }
 }
 
-/// 设置（PB3）：Enclave AI 卡；语言、日间 / 夜间、拼音词库；开启键盘指南、使用指引；隐私、关于。
+/// 设置（PB3）：AI 卡；语言、日间 / 夜间、拼音词库；开启键盘指南、使用指引；隐私、关于。
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
