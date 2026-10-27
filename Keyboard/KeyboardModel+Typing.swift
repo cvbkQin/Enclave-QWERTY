@@ -135,6 +135,16 @@ extension KeyboardModel {
         if let text, !isComposing, chineseMode { showPredictions(after: text) }
     }
 
+    /// 候选长按「删除」（P1，界面等稿）：只删拼音学到的词，词库自带的词 librime 只会降回原位。
+    /// 返回 false 表示没删掉。
+    @discardableResult
+    func deleteLearnedCandidate(_ index: Int) -> Bool {
+        guard chineseMode, engine.candidates.indices.contains(index) else { return false }
+        let deleted = engine.deleteCandidate(index)
+        syncEngine()
+        return deleted
+    }
+
     private func showPredictions(after text: String) {
         predictions = Predictor.next(after: text)
         if !predictions.isEmpty { DailyStats.add("prediction.shown") }

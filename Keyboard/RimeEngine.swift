@@ -140,6 +140,13 @@ final class RimeEngine: InputEngine {
         return refresh()
     }
 
+    func deleteCandidate(_ index: Int) -> Bool {
+        guard session != 0, index >= 0 else { return false }
+        let deleted = enclave_rime_delete_candidate(session, index)
+        _ = refresh()
+        return deleted
+    }
+
     func commitComposition() -> String? {
         guard session != 0 else { return nil }
         // 九宫格的原始输入是数字，回车时上屏拼写栏里的拼音。

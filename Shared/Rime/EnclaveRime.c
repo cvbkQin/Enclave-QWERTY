@@ -146,3 +146,9 @@ size_t enclave_rime_get_candidates_from(uint64_t session, char **out, size_t sta
 bool enclave_rime_select_candidate(uint64_t session, size_t index) {
   return rime_get_api()->select_candidate(session, index);
 }
+
+bool enclave_rime_delete_candidate(uint64_t session, size_t index) {
+  RimeApi *api = rime_get_api();
+  if (!RIME_API_AVAILABLE(api, delete_candidate)) return false;
+  return api->delete_candidate(session, index);
+}

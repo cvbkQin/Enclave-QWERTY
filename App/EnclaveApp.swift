@@ -393,7 +393,7 @@ final class AppStore: ObservableObject {
         let client = LLMClient(settings: settings.forAnswers, apiKey: answerApiKey)
         var raw = ""
         do {
-            for try await piece in client.stream([.user("只回复两个字：你好")]) { raw += piece }
+            for try await piece in client.stream([.user("只回复两个字：你好")], retries: 0) { raw += piece }
             answerTest = ModelOutput.clean(raw).isEmpty
                 ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success("", Date().timeIntervalSince(start))
@@ -415,7 +415,7 @@ final class AppStore: ObservableObject {
         let client = LLMClient(settings: settings, apiKey: apiKey)
         var raw = ""
         do {
-            for try await piece in client.stream([.user("只回复两个字：你好")]) {
+            for try await piece in client.stream([.user("只回复两个字：你好")], retries: 0) {
                 raw += piece
             }
             let reply = ModelOutput.clean(raw)
@@ -426,6 +426,7 @@ final class AppStore: ObservableObject {
             switch error {
             case LLMError.http(let code, _) where code == 401 || code == 403: testFailure = .unauthorized
             case LLMError.http(402, _): testFailure = .noBalance
+            case LLMError.timeout: testFailure = .network
             case is URLError: testFailure = .network
             default: testFailure = .other
             }

@@ -75,6 +75,10 @@ final class KeyboardModel: ObservableObject {
     /// 同意后接着做的那一步（润色或再润）。
     private var afterConsent: (() -> Void)?
     @Published var errorMessage: String? { didSet { aiLabelMayChange() } }
+    /// 最近一次 AI 请求失败的分类（P1）：界面按它决定「重试 / 去设置」；errorMessage 是一句话原因 + 服务端原文。
+    @Published var failure: LLMFailure?
+    /// 8 秒还没出字：卡片第一行后面加「模型响应较慢」和「取消」（界面等稿）。出字或结束时清掉。
+    @Published var responseSlow = false
     @Published var notice: String?
     @Published var hasFullAccess = true
     @Published var needsGlobeKey = true
@@ -605,6 +609,7 @@ final class KeyboardModel: ObservableObject {
             : LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
         var mayHandOff = answerClient != nil && ask != nil && ask?.forced != .answer
         isRunning = true
+        failure = nil
         streamingText = ""
         askRunning = ask != nil
         if askKind != nil { askKind = nil }
@@ -629,9 +634,17 @@ final class KeyboardModel: ObservableObject {
                     raw = ""
                     var wantsSearch = false
                     var handOff = false
+                    // 每一轮请求都重新等：8 秒还没出字就标「响应较慢」。
+                    let slowWatch = Task {
+                        try await Task.sleep(nanoseconds: 8_000_000_000)
+                        self?.responseSlow = true
+                    }
+                    defer { slowWatch.cancel() }
                     for try await piece in client.stream(messages) {
                         raw += piece
+                        slowWatch.cancel()
                         guard let self else { continue }
+                        if self.responseSlow { self.responseSlow = false }
                         if self.askSearching, !ModelOutput.clean(raw).isEmpty { self.askSearching = false }
                         if maySearch {
                             let probe = Prompts.searchProbe(ModelOutput.clean(raw), final: false)
@@ -739,11 +752,14 @@ final class KeyboardModel: ObservableObject {
             } catch {
                 if !Task.isCancelled {
                     record(ok: false)
-                    self?.errorMessage = error.localizedDescription
+                    let described = LLMFailure.describe(error)
+                    self?.failure = LLMFailure.of(error)
+                    self?.errorMessage = described.detail.map { described.message + "\n" + $0 } ?? described.message
                     self?.endQuickMode(.failed)
                 }
             }
             self?.isRunning = false
+            self?.responseSlow = false
             self?.runOrigin = nil
             self?.askRunning = false
             if self?.askSearching == true { self?.askSearching = false }
