@@ -513,6 +513,15 @@ struct ModelSettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
+                HStack(spacing: 10) {
+                    Button(L("测试问答接口", "Test Ask provider", "質問用の接続先をテスト")) {
+                        if PrivacyConsent.isAgreed { Task { await store.runAnswerTest() } } else { needsPrivacy = true }
+                    }
+                    .foregroundStyle(AppColor.purple)
+                    .disabled(!store.settings.usesAnswerEndpoint || store.answerTest == .running)
+                    Spacer(minLength: 8)
+                    answerTestResult
+                }
             }
         } header: {
             Text(L("问答接口", "Answers", "回答用 API"))
@@ -520,6 +529,23 @@ struct ModelSettingsView: View {
             Text(store.settings.separateAnswer
                  ? L("润色和识意改写用上面的接口，识意判断是问答时改用这里的接口回答。第一次用这个地址前，键盘上会再确认一次。", "Polish and Ask rewrites use the API above. When Ask turns out to be a question, this API answers it. The keyboard asks you to confirm this address before first use.", "整えると質問での書き換えは上の API、質問への回答はこちらの API を使います。初めて使う前にキーボードで送信先を確認します。")
                  : L("润色要快，问答可以想久一点、联网：打开后识意问答可以用另一家服务商或另一个模型（比如 Kimi K3）。", "Polish should be fast; answers can think longer or search the web. Turn this on to answer Ask questions with another provider or model, such as Kimi K3.", "整えるは速さ重視、回答はじっくり考えたりウェブ検索したりできます。オンにすると、質問への回答に別のサービスやモデル（Kimi K3 など）を使えます。"))
+        }
+    }
+
+    /// 「测试问答接口」右边的结果：成功绿点「连接正常 · 0.8 秒」，失败红字原因。
+    @ViewBuilder
+    private var answerTestResult: some View {
+        switch store.answerTest {
+        case .idle: EmptyView()
+        case .running: ProgressView()
+        case .success(_, let seconds):
+            HStack(spacing: 5) {
+                Circle().fill(DashColor.ok).frame(width: 7, height: 7)
+                Text(L("连接正常 · \(String(format: "%.1f", seconds)) 秒", "Connected · \(String(format: "%.1f", seconds)) s", "接続 OK・\(String(format: "%.1f", seconds)) 秒"))
+                    .font(.footnote).foregroundStyle(DashColor.ok)
+            }
+        case .failure(let message):
+            Text(message).font(.footnote).foregroundStyle(.red).lineLimit(2).multilineTextAlignment(.trailing)
         }
     }
 

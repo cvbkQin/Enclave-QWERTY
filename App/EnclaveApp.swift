@@ -278,6 +278,7 @@ final class AppStore: ObservableObject {
         didSet {
             guard settings != oldValue else { return }
             SettingsStore.save(settings)
+            if settings.answerBaseURL != oldValue.answerBaseURL || settings.answerModel != oldValue.answerModel { answerTest = .idle }
             if settings.baseURL != oldValue.baseURL || settings.model != oldValue.model { test = .idle }
         }
     }
@@ -293,6 +294,7 @@ final class AppStore: ObservableObject {
         didSet {
             guard answerApiKey != oldValue else { return }
             SettingsStore.answerApiKey = answerApiKey
+            answerTest = .idle
         }
     }
     @Published private(set) var test: TestState = .idle
@@ -327,6 +329,25 @@ final class AppStore: ObservableObject {
         test = .success("你好", 0.8)
     }
     #endif
+
+    /// 问答接口的测试（接口页「测试问答接口」）。只显示在按钮旁边，不算进顶部状态卡和首页。
+    @Published private(set) var answerTest: TestState = .idle
+
+    func runAnswerTest() async {
+        guard PrivacyConsent.isAgreed, settings.usesAnswerEndpoint else { return }
+        answerTest = .running
+        let start = Date()
+        let client = LLMClient(settings: settings.forAnswers, apiKey: answerApiKey)
+        var raw = ""
+        do {
+            for try await piece in client.stream([.user("只回复两个字：你好")]) { raw += piece }
+            answerTest = ModelOutput.clean(raw).isEmpty
+                ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
+                : .success("", Date().timeIntervalSince(start))
+        } catch {
+            answerTest = .failure(error.localizedDescription)
+        }
+    }
 
     func runTest() async {
         // 没同意隐私政策前不发任何网络请求（测试会把 API Key 发到外部地址），入口处会先提示。
