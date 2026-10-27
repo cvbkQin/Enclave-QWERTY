@@ -4,7 +4,8 @@ import SwiftUI
 /// 主功能（设置 › 键盘里选，默认替换）的图标和字固定在上下正中间，点一下就是它；另一个按设置的滑动方式换过去：
 /// 滚轮——另一个在边上露半截，按住往那边滑像拨号盘一样跟着转，过 16pt 换过去、底色变、轻震，松手执行再弹回；
 /// 弹出——主功能下面一个 ▾，往下划过 16pt 正下方浮出另一个按钮，松手时它被按下一下再执行。
-/// 没滑够 16pt 松手是取消。生成中 45% 透明、点了没反应；在卡片里改结果时它是「完成」。
+/// 没滑够 16pt 松手是取消。生成中 45% 透明、点了没反应；在卡片里改结果时它是「✓ 完成修改」，不能滑。
+/// 用过的那个显示「✓ 已替换 / ✓ 已插入」淡紫底、不能再点（露半截的提示也用 #4A3BD6），另一个照样能滑出来；两个都用过就不再换。
 struct ResultKey: View {
     @ObservedObject var model: KeyboardModel
     /// 滚轮往设置的方向滚了多远，0 是原位；滚满一格是 step。
@@ -43,7 +44,7 @@ struct ResultKey: View {
         return ZStack {
             shape.fill(fill(shown))
             if editing {
-                face(title: L("完成", "Done", "完了"), systemImage: "checkmark", color: .white)
+                face(title: L("完成修改", "Done", "完了"), systemImage: "checkmark", color: .white)
             } else if usesWheel {
                 wheel(height: height, color: foreground(shown))
             } else {
@@ -176,7 +177,7 @@ struct ResultKey: View {
                 if !moved, hypot(dx, dy) > Self.tapSlop { moved = true }
                 guard !editing else { return }
                 // 另一个已经用过了就不往那边换。
-                let canSwitch = model.resultUse != use(other)
+                let canSwitch = !used(other)
                 if usesWheel {
                     let pull = wheelUp ? -dy : dy
                     if pull > Self.flickDistance, canSwitch {
@@ -238,7 +239,7 @@ struct ResultKey: View {
     }
 
     private func perform(_ action: ResultKeyAction) {
-        guard model.hasResult, model.resultUse != use(action) else { return }
+        guard model.hasResult, !used(action) else { return }
         switch action {
         case .replace: model.replace()
         case .insert: model.insert()
@@ -251,7 +252,7 @@ struct ResultKey: View {
         action == .replace ? .replaced : .inserted
     }
 
-    private func used(_ action: ResultKeyAction) -> Bool { model.resultUse == use(action) }
+    private func used(_ action: ResultKeyAction) -> Bool { model.resultUses.contains(use(action)) }
 
     private func face(_ action: ResultKeyAction, color: Color) -> some View {
         let done = used(action)
@@ -271,9 +272,11 @@ struct ResultKey: View {
         .padding(.horizontal, 4)
     }
 
-    /// 替换紫色、插入青蓝；用过的那个淡紫底；还没有结果时灰底。
+    /// 替换紫色、插入青蓝；用过的那个淡紫底 #ECEAFD、字 #4A3BD6；还没有结果时灰底。
     private func fill(_ action: ResultKeyAction) -> AnyShapeStyle {
-        if editing { return AnyShapeStyle(gradient(.replace)) }
+        // 完成修改：润色渐变。
+        if editing { return AnyShapeStyle(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
+                                                         startPoint: .topLeading, endPoint: .bottomTrailing)) }
         if !model.hasResult && !model.isRunning { return AnyShapeStyle(Brand.disabledFill) }
         if used(action) { return AnyShapeStyle(Brand.returnSoftFill) }
         return AnyShapeStyle(gradient(action))

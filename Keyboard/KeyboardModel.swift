@@ -36,6 +36,8 @@ final class KeyboardModel: ObservableObject {
     var lastAsk: LastAsk?
     /// 当前结果已经替换或插入过：卡片变灰，按钮显示「✓ 已替换」。
     @Published private(set) var resultUse: ResultUse?
+    /// 当前这一版替换、插入过哪几种（结果卡左边的键：两个都用过就都显示「✓ 已…」）。翻版本、出新结果时清空。
+    @Published private(set) var resultUses: Set<ResultUse> = []
     /// 输入框又改过，当前结果和输入对不上：卡片同样变灰。
     @Published private(set) var resultStale = false
     /// 点「润色」「再润」时先要过的一关：没开完全访问出提示卡，还没同意过当前接口地址出确认卡。
@@ -448,6 +450,7 @@ final class KeyboardModel: ObservableObject {
         session.append(cardDraft, edited: true)
         self.session = session
         resultUse = nil
+        resultUses = []
         resultStale = false
         SessionStore.save(session)
     }
@@ -572,6 +575,7 @@ final class KeyboardModel: ObservableObject {
                     self.session = updated
                     self.finished = Finished(origin: self.runOrigin ?? .polish, at: Date())
                     self.resultUse = nil
+                    self.resultUses = []
                     self.resultStale = false
                     SessionStore.save(updated)
                     if let source = self.quickSource {
@@ -743,6 +747,7 @@ final class KeyboardModel: ObservableObject {
         session.currentIndex = index
         self.session = session
         resultUse = nil
+        resultUses = []
         SessionStore.save(session)
     }
 
@@ -867,6 +872,7 @@ final class KeyboardModel: ObservableObject {
         swap(edit.inserted, for: edit.original, in: proxy)
         redoStack.append(edit)
         resultUse = nil
+        resultUses.remove(edit.use)
         updateUndoState()
     }
 
@@ -876,6 +882,7 @@ final class KeyboardModel: ObservableObject {
         swap(edit.original, for: edit.inserted, in: proxy)
         undoStack.append(edit)
         resultUse = edit.use
+        resultUses.insert(edit.use)
         updateUndoState()
     }
 
@@ -900,6 +907,7 @@ final class KeyboardModel: ObservableObject {
     private func recordEdit(inserted: String, original: String, use: ResultUse) {
         markAskUsed()
         resultUse = use
+        resultUses.insert(use)
         resultStale = false
         undoStack.append(FieldEdit(inserted: inserted, original: original, use: use))
         redoStack.removeAll()

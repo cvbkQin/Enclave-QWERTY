@@ -95,14 +95,17 @@ struct KeyboardView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
-            // 「完成」在结果卡左边的键上，取消放这里。
-            Button(L("取消", "Cancel", "キャンセル")) { model.cancelCardEdit() }
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Brand.cardBody)
-                .padding(.horizontal, 12)
-                .frame(height: KeyboardMetrics.chipHeight)
-                .background(Capsule().fill(KeyStyle.charKey))
-                .buttonStyle(KeyPressStyle())
+            // 「✓ 完成修改」在结果卡左边的键上；取消放在撤销|重做的位置，一样 76×34。
+            Button { model.cancelCardEdit() } label: {
+                Text(L("取消修改", "Cancel", "キャンセル"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(Brand.cardBody)
+                    .frame(width: 76, height: KeyboardMetrics.chipHeight)
+                    .background(Capsule().fill(KeyStyle.charKey))
+            }
+            .buttonStyle(KeyPressStyle())
         }
         .padding(.horizontal, inset)
     }
