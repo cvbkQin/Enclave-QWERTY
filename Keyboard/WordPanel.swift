@@ -44,43 +44,17 @@ struct WordToken: Identifiable, Equatable {
     }
 }
 
-/// 长按结果卡打开的分词面板（BB1–BB4）：盖住按键区，直角框里是提示行、词块、底栏。
-/// 点一下选中，按住横着划连续选（划过的浅紫描边，松手变选中），划回来取消；竖着划是滚动。
+/// 长按结果卡打开的分词面板（BB1–BB5）：盖住按键区，直角框里是提示行、词块、底栏。
+/// 词块区是 UIKit 自己滚动（WordGridView），划选和点选也在那边判定，SwiftUI 这里只管选了哪些。
 struct WordPanel: View {
     @ObservedObject var model: KeyboardModel
     @State private var tokens: [WordToken] = []
     @State private var selected: Set<Int> = []
-    /// 正在横着划：起点那块决定是选还是取消，划过的块 id。
-    @State private var sweep: (adding: Bool, ids: Set<Int>)?
-    @State private var sweepStart: Int?
-    @State private var frames: [Int: CGRect] = [:]
-    @State private var scrolled = false
-
-    private static let space = "wordPanel"
 
     var body: some View {
         VStack(spacing: 8) {
             hintRow
-            ScrollView(.vertical, showsIndicators: true) {
-                VStack(spacing: 0) {
-                    GeometryReader { geo in
-                        Color.clear.preference(key: WordScrollOffset.self, value: geo.frame(in: .named(Self.space + "scroll")).minY)
-                    }
-                    .frame(height: 0)
-                    WordFlow(spacing: 6, lineSpacing: 7) {
-                        ForEach(tokens) { token in chip(token) }
-                    }
-                    .coordinateSpace(name: Self.space)
-                    .onPreferenceChange(WordFrames.self) { frames = $0 }
-                    .simultaneousGesture(sweepGesture)
-                    .padding(.bottom, 14)
-                }
-            }
-            .coordinateSpace(name: Self.space + "scroll")
-            .flashingIndicatorsOnAppear()
-            .onPreferenceChange(WordScrollOffset.self) { scrolled = $0 < -1 }
-            .overlay(alignment: .top) { fade(top: true).opacity(scrolled ? 1 : 0) }
-            .overlay(alignment: .bottom) { fade(top: false) }
+            WordGrid(tokens: tokens, selected: $selected, haptics: model.settings.keyHaptics && model.hasFullAccess)
             bottomBar
         }
         .padding(8)
@@ -101,71 +75,6 @@ struct WordPanel: View {
         .foregroundStyle(Color.secondary)
         .lineLimit(1)
         .minimumScaleFactor(0.8)
-    }
-
-    private func fade(top: Bool) -> some View {
-        LinearGradient(colors: [Brand.wordPanelFill, Brand.wordPanelFill.opacity(0)],
-                       startPoint: top ? .top : .bottom, endPoint: top ? .bottom : .top)
-            .frame(height: top ? 18 : 22)
-            .allowsHitTesting(false)
-    }
-
-    private func isOn(_ id: Int) -> Bool {
-        if let sweep, sweep.ids.contains(id) { return sweep.adding }
-        return selected.contains(id)
-    }
-
-    private func chip(_ token: WordToken) -> some View {
-        let on = isOn(token.id)
-        let swept = sweep?.ids.contains(token.id) == true && !selected.contains(token.id) && sweep?.adding == true
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        return Text(token.text)
-            .font(.system(size: 18))
-            .foregroundStyle(on ? Color.white : (token.punctuation ? Color.secondary : Color.primary))
-            .lineLimit(1)
-            .padding(.horizontal, token.punctuation ? 7 : 11)
-            .frame(minWidth: token.punctuation ? 26 : 36)
-            .frame(height: 36)
-            .background(shape.fill(on && !swept ? Brand.purple : KeyStyle.charKey))
-            .overlay(shape.strokeBorder(Brand.rowStroke, lineWidth: swept ? 1.5 : 0))
-            .overlay(swept ? shape.fill(Brand.rowStroke.opacity(0.15)) : nil)
-            .background(GeometryReader { geo in
-                Color.clear.preference(key: WordFrames.self, value: [token.id: geo.frame(in: .named(Self.space))])
-            })
-            .onTapGesture { toggle(token.id) }
-            .accessibilityAddTraits(on ? [.isButton, .isSelected] : .isButton)
-    }
-
-    private func toggle(_ id: Int) {
-        if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
-        model.keyFeedback(for: .space)
-    }
-
-    private func token(at point: CGPoint) -> Int? {
-        frames.first { $0.value.insetBy(dx: -3, dy: -3).contains(point) }?.key
-    }
-
-    /// 横着划连续选：从起点那块到手指所在那块（按原文顺序），划回来就缩回去；竖着划交给滚动。
-    private var sweepGesture: some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .named(Self.space))
-            .onChanged { value in
-                if sweep == nil {
-                    guard abs(value.translation.width) > abs(value.translation.height),
-                          let start = token(at: value.startLocation) else { return }
-                    sweepStart = start
-                    sweep = (!selected.contains(start), [start])
-                }
-                guard let start = sweepStart, let current = token(at: value.location) else { return }
-                let ids = Set(min(start, current)...max(start, current))
-                if ids != sweep?.ids { sweep?.ids = ids }
-            }
-            .onEnded { _ in
-                if let sweep {
-                    if sweep.adding { selected.formUnion(sweep.ids) } else { selected.subtract(sweep.ids) }
-                }
-                sweep = nil
-                sweepStart = nil
-            }
     }
 
     private var chosenText: String {
@@ -189,13 +98,13 @@ struct WordPanel: View {
                     selected = all ? [] : Set(tokens.map(\.id))
                 }
                 barButton("", icon: "xmark", fill: AnyShapeStyle(KeyStyle.charKey), text: .primary, width: unit, enabled: true) {
-                    model.closePanel()
+                    model.closeWordPanel()
                 }
                 .accessibilityLabel(L("关闭", "Close", "閉じる"))
             }
             .frame(maxWidth: .infinity)
         }
-        .frame(height: 40)
+        .frame(height: 34)
     }
 
     private func barButton(_ title: String, icon: String? = nil, fill: AnyShapeStyle, text: Color, width: CGFloat,
@@ -203,13 +112,13 @@ struct WordPanel: View {
         Button(action: action) {
             Group {
                 if let icon {
-                    Image(systemName: icon).font(.system(size: 16, weight: .semibold))
+                    Image(systemName: icon).font(.system(size: 14, weight: .semibold))
                 } else {
-                    Text(title).font(.system(size: 16, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
                 }
             }
             .foregroundStyle(text)
-            .frame(width: width, height: 40)
+            .frame(width: width, height: 34)
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(fill))
         }
         .buttonStyle(KeyPressStyle())
@@ -218,70 +127,313 @@ struct WordPanel: View {
     }
 }
 
-private struct WordFrames: PreferenceKey {
-    static var defaultValue: [Int: CGRect] = [:]
-    static func reduce(value: inout [Int: CGRect], nextValue: () -> [Int: CGRect]) {
-        value.merge(nextValue()) { $1 }
+/// 词块区：系统滚动 + 只在横着划时才开始的划选手势（BB5）。
+private struct WordGrid: UIViewRepresentable {
+    let tokens: [WordToken]
+    @Binding var selected: Set<Int>
+    let haptics: Bool
+
+    func makeUIView(context: Context) -> WordGridView {
+        let view = WordGridView()
+        view.onChange = { selected = $0 }
+        return view
+    }
+
+    func updateUIView(_ view: WordGridView, context: Context) {
+        view.onChange = { selected = $0 }
+        view.haptics = haptics
+        view.update(tokens: tokens, selected: selected)
     }
 }
 
-private struct WordScrollOffset: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
+/// 词块排成流式多行，自己滚动。
+/// - 手指走过 10pt 按方向定：|dy| ≥ 0.6|dx| 交给系统滚动（按下的词不变色）；更平才进划选。
+/// - 划选：从起点词按阅读顺序一路选到手指下的词，能跨行；起点原来没选就加选，选了就取消选；靠近上下边 32pt 自动滚；每变一个词轻震。
+/// - 点选：10pt 内抬起算一下，抬起时变色（0.12 秒过渡），不缩放、不改大小。按下时只轻微变暗。
+final class WordGridView: UIScrollView {
+    var onChange: ((Set<Int>) -> Void)?
+    var haptics = false
 
-/// 词块从左往右排，排满换行。
-private struct WordFlow: Layout {
-    var spacing: CGFloat
-    var lineSpacing: CGFloat
+    private var tokens: [WordToken] = []
+    private var selected: Set<Int> = []
+    private var chips: [UILabel] = []
+    private var frames: [CGRect] = []
+    private var laidOutWidth: CGFloat = -1
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? .infinity
-        let rows = arrange(width: width, subviews: subviews)
-        let height = rows.last.map { $0.y + $0.height } ?? 0
-        return CGSize(width: proposal.width ?? rows.map(\.width).max() ?? 0, height: height)
-    }
+    private static let font = UIFont.systemFont(ofSize: 14)
+    private static let chipHeight: CGFloat = 30
+    private static let gap: CGFloat = 5
+    private static let lineGap: CGFloat = 6
+    private static let fadeTop: CGFloat = 18
+    private static let fadeBottom: CGFloat = 22
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        for row in arrange(width: bounds.width, subviews: subviews) {
-            for (index, x) in row.items {
-                let size = subviews[index].sizeThatFits(.unspecified)
-                let fitted = min(size.width, bounds.width)
-                subviews[index].place(at: CGPoint(x: bounds.minX + x, y: bounds.minY + row.y),
-                                      proposal: ProposedViewSize(width: fitted, height: size.height))
-            }
+    /// 划选：起点、是加选还是取消选、划之前的选中、上次手指所在的词。
+    private var sweep: (start: Int, adding: Bool, base: Set<Int>, last: Int)?
+    private var sweepPoint: CGPoint?
+    private var autoScroll: CADisplayLink?
+    private let feedback = UISelectionFeedbackGenerator()
+    private var pressed: Int?
+    private let fadeMask = CAGradientLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        alwaysBounceVertical = true
+        delaysContentTouches = false
+        showsHorizontalScrollIndicator = false
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            for effect in [topEdgeEffect, bottomEdgeEffect, leftEdgeEffect, rightEdgeEffect] { effect.isHidden = true }
         }
+        #endif
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSweep(_:)))
+        sweepGate.view = self
+        pan.delegate = sweepGate
+        pan.maximumNumberOfTouches = 1
+        addGestureRecognizer(pan)
+        // 滚动等划选先表态：划选只在横着划时开始，竖着划它不开始，滚动接着走。
+        panGestureRecognizer.require(toFail: pan)
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(handleTap(_:))))
+        // 上下渐隐：底部一直有（提示下面还有），滚下来后顶部也有。
+        fadeMask.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
+        layer.mask = fadeMask
     }
 
-    private struct Row { var items: [(Int, CGFloat)] = []; var y: CGFloat = 0; var width: CGFloat = 0; var height: CGFloat = 0 }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
-        var rows: [Row] = []
-        var row = Row()
-        for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
-            let w = min(size.width, width)
-            if !row.items.isEmpty && row.width + spacing + w > width {
-                rows.append(row)
-                row = Row(y: row.y + row.height + lineSpacing)
+    func update(tokens newTokens: [WordToken], selected newSelected: Set<Int>) {
+        if newTokens != tokens {
+            tokens = newTokens
+            chips.forEach { $0.removeFromSuperview() }
+            chips = tokens.map { token in
+                let label = UILabel()
+                label.text = token.text
+                label.font = Self.font
+                label.textAlignment = .center
+                label.layer.cornerRadius = 7
+                label.layer.cornerCurve = .continuous
+                label.layer.masksToBounds = true
+                label.isAccessibilityElement = true
+                label.accessibilityTraits = .button
+                addSubview(label)
+                return label
             }
-            row.items.append((index, row.items.isEmpty ? 0 : row.width + spacing))
-            row.width = row.items.count == 1 ? w : row.width + spacing + w
-            row.height = max(row.height, size.height)
+            laidOutWidth = -1
+            setNeedsLayout()
         }
-        if !row.items.isEmpty { rows.append(row) }
-        return rows
+        // 划选进行中以这里自己的状态为准，SwiftUI 回传的旧值不覆盖。
+        guard sweep == nil, newSelected != selected else { return }
+        let changed = selected.symmetricDifference(newSelected)
+        selected = newSelected
+        for index in changed where index < chips.count { style(index, animated: true) }
     }
-}
 
-private extension View {
-    /// 打开面板时内容超出一屏就先闪一下滚动条（iOS 17 起才有）。
-    @ViewBuilder
-    func flashingIndicatorsOnAppear() -> some View {
-        if #available(iOS 17.0, *) {
-            scrollIndicatorsFlash(onAppear: true)
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fadeMask.frame = CGRect(origin: contentOffset, size: bounds.size)
+        let h = max(bounds.height, 1)
+        let top = contentOffset.y > 1 ? Self.fadeTop / h : 0
+        fadeMask.colors = [UIColor.black.withAlphaComponent(top > 0 ? 0 : 1).cgColor, UIColor.black.cgColor,
+                           UIColor.black.cgColor, UIColor.black.withAlphaComponent(contentSize.height > bounds.height + 1 ? 0 : 1).cgColor]
+        fadeMask.locations = [0, NSNumber(value: Double(top)), NSNumber(value: Double(1 - Self.fadeBottom / h)), 1]
+        CATransaction.commit()
+        guard bounds.width != laidOutWidth else { return }
+        laidOutWidth = bounds.width
+        var x: CGFloat = 0, y: CGFloat = 0
+        frames = tokens.map { token in
+            let padding: CGFloat = token.punctuation ? 5 : 8
+            let text = ceil((token.text as NSString).size(withAttributes: [.font: Self.font]).width)
+            let width = min(max(text + padding * 2, token.punctuation ? 22 : 30), bounds.width)
+            if x > 0 && x + width > bounds.width {
+                x = 0
+                y += Self.chipHeight + Self.lineGap
+            }
+            defer { x += width + Self.gap }
+            return CGRect(x: x, y: y, width: width, height: Self.chipHeight)
+        }
+        for (index, chip) in chips.enumerated() {
+            chip.frame = frames[index]
+            style(index, animated: false)
+        }
+        contentSize = CGSize(width: bounds.width, height: (frames.last?.maxY ?? 0) + Self.fadeBottom)
+        if contentSize.height > bounds.height { flashScrollIndicators() }
+    }
+
+    private func style(_ index: Int, animated: Bool) {
+        let chip = chips[index], token = tokens[index]
+        let on = selected.contains(index)
+        let apply = {
+            var fill = on ? UIColor(Brand.purple) : UIColor(KeyStyle.charKey)
+            if index == self.pressed && !on {
+                fill = fill.blended(with: self.traitCollection.userInterfaceStyle == .dark
+                    ? UIColor.white.withAlphaComponent(0.08) : UIColor.black.withAlphaComponent(0.06))
+            }
+            chip.backgroundColor = fill
+            chip.textColor = on ? .white : (token.punctuation ? .secondaryLabel : .label)
+        }
+        chip.accessibilityTraits = on ? [.button, .selected] : .button
+        if animated {
+            UIView.transition(with: chip, duration: 0.12, options: [.transitionCrossDissolve, .allowUserInteraction], animations: apply)
         } else {
-            self
+            apply()
         }
+    }
+
+    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+        super.traitCollectionDidChange(previous)
+        for index in chips.indices { style(index, animated: false) }
+    }
+
+    // MARK: 按下变暗、点选
+
+    private func index(at point: CGPoint) -> Int? {
+        frames.firstIndex { $0.insetBy(dx: -2.5, dy: -3).contains(point) }
+    }
+
+    private func setPressed(_ index: Int?) {
+        let old = pressed
+        pressed = index
+        for i in [old, index].compactMap({ $0 }) where i < chips.count { style(i, animated: false) }
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesBegan(touches, with: event)
+        if let touch = touches.first, !isDecelerating { setPressed(index(at: touch.location(in: self))) }
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesMoved(touches, with: event)
+        if isDragging, pressed != nil { setPressed(nil) }
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesEnded(touches, with: event)
+        setPressed(nil)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesCancelled(touches, with: event)
+        setPressed(nil)
+    }
+
+    @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
+        guard let index = index(at: recognizer.location(in: self)) else { return }
+        setPressed(nil)
+        if selected.contains(index) { selected.remove(index) } else { selected.insert(index) }
+        style(index, animated: true)
+        if haptics { feedback.selectionChanged() }
+        onChange?(selected)
+    }
+
+    // MARK: 划选
+
+    private let sweepGate = SweepGate()
+
+    /// 划选手势能不能开始：手指走过约 10pt 时看方向，|dy| ≥ 0.6|dx| 偏竖就不开始（交给滚动），起点要在词上。
+    fileprivate func sweepShouldBegin(_ pan: UIPanGestureRecognizer) -> Bool {
+        let t = pan.translation(in: self)
+        guard abs(t.y) < 0.6 * abs(t.x) else { return false }
+        let point = pan.location(in: self)
+        return index(at: CGPoint(x: point.x - t.x, y: point.y - t.y)) != nil || index(at: point) != nil
+    }
+
+    @objc private func handleSweep(_ pan: UIPanGestureRecognizer) {
+        let point = pan.location(in: self)
+        switch pan.state {
+        case .began:
+            setPressed(nil)
+            let t = pan.translation(in: self)
+            let origin = CGPoint(x: point.x - t.x, y: point.y - t.y)
+            guard let start = index(at: origin) ?? index(at: point) else { return }
+            sweep = (start, !selected.contains(start), selected, start)
+            if haptics { feedback.prepare() }
+            extendSweep(to: point)
+            startAutoScroll()
+        case .changed:
+            sweepPoint = point
+            extendSweep(to: point)
+        default:
+            stopAutoScroll()
+            sweep = nil
+            sweepPoint = nil
+            onChange?(selected)
+        }
+        sweepPoint = point
+    }
+
+    /// 手指下的词：落在两个词之间时取同一行左边那个，行外取最近的一行。
+    private func nearestIndex(to point: CGPoint) -> Int? {
+        guard !frames.isEmpty else { return nil }
+        if let hit = index(at: point) { return hit }
+        let rowY = frames.map(\.midY).min { abs($0 - point.y) < abs($1 - point.y) } ?? 0
+        let row = frames.indices.filter { frames[$0].midY == rowY }
+        return row.last { frames[$0].minX <= point.x } ?? row.first
+    }
+
+    private func extendSweep(to point: CGPoint) {
+        guard var current = sweep, let target = nearestIndex(to: point) else { return }
+        guard target != current.last else { return }
+        current.last = target
+        sweep = current
+        let range = Set(min(current.start, target)...max(current.start, target))
+        let next = current.adding ? current.base.union(range) : current.base.subtracting(range)
+        let changed = selected.symmetricDifference(next)
+        guard !changed.isEmpty else { return }
+        selected = next
+        for index in changed { style(index, animated: false) }
+        if haptics { feedback.selectionChanged() }
+        onChange?(selected)
+    }
+
+    private func startAutoScroll() {
+        guard autoScroll == nil else { return }
+        let link = CADisplayLink(target: self, selector: #selector(autoScrollTick))
+        link.add(to: .main, forMode: .common)
+        autoScroll = link
+    }
+
+    private func stopAutoScroll() {
+        autoScroll?.invalidate()
+        autoScroll = nil
+    }
+
+    /// 手指在面板上下边 32pt 以内：越靠边滚得越快。
+    @objc private func autoScrollTick() {
+        guard let point = sweepPoint else { return }
+        let y = point.y - contentOffset.y
+        let edge: CGFloat = 32
+        var speed: CGFloat = 0
+        if y < edge { speed = -(edge - y) / edge * 8 } else if y > bounds.height - edge { speed = (y - (bounds.height - edge)) / edge * 8 }
+        guard speed != 0 else { return }
+        let maxY = max(contentSize.height - bounds.height, 0)
+        let newY = min(max(contentOffset.y + speed, 0), maxY)
+        guard newY != contentOffset.y else { return }
+        let delta = newY - contentOffset.y
+        contentOffset.y = newY
+        sweepPoint = CGPoint(x: point.x, y: point.y + delta)
+        extendSweep(to: sweepPoint!)
+    }
+}
+
+/// 划选手势的代理：滚动视图自己已经是它自带 pan 的代理，划选另用一个小对象判断。
+private final class SweepGate: NSObject, UIGestureRecognizerDelegate {
+    weak var view: WordGridView?
+
+    func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        guard let pan = recognizer as? UIPanGestureRecognizer, let view else { return false }
+        return view.sweepShouldBegin(pan)
+    }
+}
+
+private extension UIColor {
+    /// 在自己上面叠一层半透明色。
+    func blended(with overlay: UIColor) -> UIColor {
+        var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+        var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+        getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        overlay.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        return UIColor(red: r1 * (1 - a2) + r2 * a2, green: g1 * (1 - a2) + g2 * a2, blue: b1 * (1 - a2) + b2 * a2, alpha: a1)
     }
 }

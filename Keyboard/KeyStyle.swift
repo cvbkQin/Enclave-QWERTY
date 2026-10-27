@@ -74,11 +74,17 @@ enum KeyboardMetrics {
 
     /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片（替换 / 插入键在卡片左边，不占高度），展开提示词 / 识意时再加一行。
     /// 提示卡出现时只留它一块，不和结果卡片、展开的一行叠在一起。
+    /// 自由编辑（FE3）：编辑框占满整行，高 = 结果卡 + 间距 6 + 识意框 42（收起时 108），识意框收起。
+    static let freeEditExtra: CGFloat = 48
+    /// 分词面板打开时比按键区高 40（BB 修订：266→306），结果卡同时固定 2 行。
+    static let wordPanelExtra: CGFloat = 40
+
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
-                       reminder: Bool = false, aiLabel: Bool = false) -> CGFloat {
-        var height = topRow + keysHeight
+                       reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false) -> CGFloat {
+        var height = topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
+        if expanded && freeEdit { return height + panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel) + freeEditExtra }
         if expanded {
             height += panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel)
         }

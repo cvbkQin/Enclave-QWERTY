@@ -18,17 +18,28 @@ struct KeyboardView: View {
                     .padding(.top, KeyboardMetrics.panelTop)
             } else if model.aiExpanded {
                 // 替换 / 插入键在结果卡左边，和卡片一样高；弹出方式的另一个按钮浮在下面一行上，所以这一块叠在最上层。
+                // 自由编辑时左边的键收起，编辑框占满整行、连识意框那块一起用（FE3）。
+                let freeEdit = model.target == .card
                 HStack(spacing: KeyboardMetrics.resultKeyGap) {
-                    ResultKey(model: model)
-                        .frame(width: KeyboardMetrics.resultKeyWidth)
+                    if !freeEdit {
+                        ResultKey(model: model)
+                            .frame(width: KeyboardMetrics.resultKeyWidth)
+                    }
                     ResultCard(model: model)
                 }
-                .frame(height: KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel))
+                .frame(height: freeEdit
+                       ? KeyboardMetrics.cardHeight(tall: model.freeEditTall, aiLabel: model.showsAILabel) + KeyboardMetrics.freeEditExtra
+                       : KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel))
+                .overlay(alignment: .top) {
+                    if model.freeEditToast {
+                        FreeEditToast().offset(y: -2).transition(.opacity).allowsHitTesting(false)
+                    }
+                }
                 .padding(.horizontal, inset)
                 .padding(.top, KeyboardMetrics.panelTop)
                 .zIndex(2)
             }
-            if model.gate == nil, let row = model.aiRow {
+            if model.gate == nil, let row = model.aiRow, model.target != .card {
                 // 尖角对准下面那颗按钮右侧的箭头：中心距按钮右边 15.5pt。
                 AIRowPanel(model: model, row: row, arrowX: (chipEdges[row] ?? 0) - inset - 15.5)
                     .frame(height: KeyboardMetrics.aiRowHeight)
@@ -115,29 +126,36 @@ struct KeyboardView: View {
     // MARK: - AI 栏
 
     /// 在卡片里改结果时 AI 栏换成提示。
+    /// 自由编辑中（FE3）：左边「✎ 正在修改 AI 结果」，右边「取消修改」「✓ 完成修改」，完成在最右。
     private var cardEditHint: some View {
         HStack(spacing: 8) {
-            Label(L("正在修改结果", "Editing result", "結果を編集中"), systemImage: "pencil")
+            Label(L("正在修改 AI 结果", "Editing AI result", "AI の結果を編集中"), systemImage: "pencil")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Brand.deepPurple)
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background(Capsule().fill(Brand.returnSoftFill))
-            Text(L("打字进卡片，按住空格左右滑动移光标", "Typing goes into the card. Touch and hold space and slide to move the cursor", "カードに入力します。スペースを長押ししてスライドでカーソル移動"))
-                .font(.system(size: 13))
-                .foregroundStyle(Brand.cardNote)
+                .foregroundStyle(Brand.modeRewriteText)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(Capsule().fill(Brand.modeRewriteFill))
             Spacer(minLength: 0)
-            // 「✓ 完成修改」在结果卡左边的键上；取消放在撤销|重做的位置，一样 76×34。
             Button { model.cancelCardEdit() } label: {
                 Text(L("取消修改", "Cancel", "キャンセル"))
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                    .foregroundStyle(Brand.cardBody)
-                    .frame(width: 76, height: KeyboardMetrics.chipHeight)
+                    .foregroundStyle(Color.primary)
+                    .frame(width: 84, height: KeyboardMetrics.chipHeight)
                     .background(Capsule().fill(KeyStyle.charKey))
+            }
+            .buttonStyle(KeyPressStyle())
+            Button { model.finishCardEdit() } label: {
+                Label(L("完成修改", "Done", "完了"), systemImage: "checkmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(.white)
+                    .frame(width: 104, height: KeyboardMetrics.chipHeight)
+                    .background(Capsule().fill(LinearGradient(colors: Brand.gradient, startPoint: .leading, endPoint: .trailing)))
             }
             .buttonStyle(KeyPressStyle())
         }
@@ -1096,7 +1114,7 @@ struct ResultCard: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background {
             // 修改中：外面一圈 4pt 淡紫光。
-            if case .editing = look { shape.inset(by: -4).fill(Brand.tagSelectedText.opacity(0.14)) }
+            if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
             shape.fill(KeyStyle.charKey)
             if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
         }
@@ -1139,6 +1157,9 @@ struct ResultCard: View {
     // MARK: 结果
 
     /// 识意的结果（和识意生成中）：结果卡最左边是模式控件（SW4），代替正文开头的「AI 生成」标签；润色的结果照旧用标签。
+    /// 自由编辑框描边：当前模式的颜色（问答天蓝，其余紫）。
+    private var editStroke: Color { model.session?.currentIsAnswer == true ? Brand.answerBorder : Brand.tagSelectedText }
+
     private var showsModeSwitch: Bool {
         model.isRunning ? model.askRunning : model.session?.currentIsAsk == true
     }
@@ -1196,12 +1217,12 @@ struct ResultCard: View {
                 .gesture(swipeToTurn, including: model.cardTall || !model.isRunning ? .subviews : .all)
                 // 长按打开分词面板（BB1），复制全文用右边的小复制按钮。
                 .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.openWordPanel() })
-                // 点文字进入修改，光标放在点的位置。
-                .simultaneousGesture(SpatialTapGesture().onEnded { value in
+                // 连点 3 下进自由编辑（FE1），光标放在第三下点的位置；点一下、两下都不进。
+                .simultaneousGesture(SpatialTapGesture(count: 3).onEnded { value in
                     guard model.hasResult, let text = model.session?.current else { return }
                     // 减掉文字区的内边距；展开卡片滚动过时按未滚动估算，进入后可以再点一次调整。
                     let point = CGPoint(x: value.location.x - textLeading, y: value.location.y - (model.isRunning ? 4 : 8))
-                    model.beginCardEdit(caret: CardTextHit.index(at: point, in: text, width: textWidth))
+                    model.beginFreeEdit(caret: CardTextHit.index(at: point, in: text, width: textWidth))
                 })
             }
             }
@@ -1370,16 +1391,9 @@ struct ResultCard: View {
                     if model.cardCaret >= model.cardDraft.count { reader.scrollTo("end", anchor: .bottom) }
                 }
             }
-            .padding(.leading, 10)
+            .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            iconColumn(faded: false)
-                .padding(.vertical, 5)
-            // 和显示时一样留出翻页那一列，换行位置不变，点哪儿光标就落在哪儿。
-            if let session = model.session, session.versions.count > 1 {
-                Color.clear.frame(width: 28)
-            }
         }
-        .padding(.trailing, 4)
     }
 
     private var editText: some View {
@@ -1404,17 +1418,9 @@ struct ResultCard: View {
                 SparkleMark(size: 15, color: Brand.purpleText, animating: animating)
                     .frame(width: 24, height: 18)
                     .background(Capsule().fill(Brand.softFill))
-            } else {
-                // 修改结果：平时紫色，显示的是改过的一版时变灰（还能再点进去改），修改中带浅紫底。
-                let editing = model.target == .card
-                let tint = editing || !(model.session?.currentIsEdited ?? false) ? Brand.tagSelectedText : Brand.pathSeparator
-                iconButton("pencil", tint: faded && !editing ? .secondary : tint) {
-                    editing ? model.finishCardEdit() : model.beginCardEdit()
-                }
-                .background(Capsule().fill(editing ? Brand.softFill : Color.clear))
-                .disabled(!model.hasResult)
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            // 编辑笔去掉了（FE1）：图标列只剩复制、展开，上下两端对齐；连点 3 下正文进自由编辑。
             iconButton(model.copied ? "doc.on.doc.fill" : "doc.on.doc", tint: model.copied ? Brand.purpleText : .secondary) {
                 model.copy()
             }
@@ -1426,7 +1432,8 @@ struct ResultCard: View {
             }
             // 横屏结果卡固定 2 行，不能展开。
             .opacity(model.landscape ? 0 : 1)
-            .disabled(model.landscape)
+            // 分词面板开着时结果卡固定 2 行。
+            .disabled(model.landscape || model.keysPanel == .words)
         }
         .frame(width: 24)
     }
@@ -1533,7 +1540,7 @@ struct ResultCard: View {
         case .partial:
             shape.strokeBorder(Brand.rowStroke, lineWidth: 1.5)
         case .editing:
-            shape.strokeBorder(Brand.tagSelectedText, lineWidth: 2)
+            shape.strokeBorder(editStroke, lineWidth: 2)
         case .search:
             shape.strokeBorder(Brand.answerBorder, lineWidth: 1.5)
         case .checklist, .hint:
@@ -1868,6 +1875,19 @@ enum AIGeneratedTag {
         let image = rendered.withBaselineOffset(fromBottom: below)
         images[key] = image
         return image
+    }
+}
+
+/// 进自由编辑时结果卡上方浮出的深色小胶囊（FE2）：32 高、圆角 16，1.5 秒后淡掉。
+struct FreeEditToast: View {
+    var body: some View {
+        Label(L("已开启自由编辑", "Free editing on", "自由編集をオン"), systemImage: "pencil")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Brand.candidateMenuText)
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(Capsule().fill(Brand.candidateMenuFill))
+            .shadow(color: .black.opacity(0.22), radius: 9, y: 6)
     }
 }
 

@@ -153,9 +153,13 @@ final class KeyboardModel: ObservableObject {
     @Published var candidateUndo: CandidateUndo?
     var candidateUndoTimer: DispatchWorkItem?
     /// 盖在按键区上的面板：表情、颜文字、常用词。
-    @Published var keysPanel: KeysPanel?
+    @Published var keysPanel: KeysPanel? { didSet { if (keysPanel == .words) != (oldValue == .words) { heightMayChange?() } } }
     /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
     @Published var wordPanelText = ""
+    @Published var wordPanelFading = false
+    /// 刚进自由编辑时的小胶囊。
+    @Published var freeEditToast = false
+    var freeEditToastTimer: DispatchWorkItem?
     /// 长按按键弹出的备选条。
     @Published var alternates: AlternatesPopup?
     /// 九宫格长按的十字弹层。
@@ -250,7 +254,11 @@ final class KeyboardModel: ObservableObject {
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
     /// 在卡片里改结果时也用五行高度，改长了也看得全。
-    var cardTall: Bool { !landscape && (cardExpanded || aiBlocked || target == .card || failureDetailShown) }
+    /// 自由编辑框按进入前是 2 行还是 4 行算高度（108 或 148）。
+    var freeEditTall: Bool { !landscape && cardExpanded }
+
+    /// 分词面板开着时结果卡固定 2 行，关掉后回到原来的 2 行或 4 行（cardExpanded 不动）。
+    var cardTall: Bool { !landscape && keysPanel != .words && (cardExpanded || aiBlocked || target == .card || failureDetailShown) }
 
     /// 横屏简版（LS1–LS3）：控制器按屏幕方向设，尺寸见 KeyboardMetrics.landscape。
     @Published private(set) var landscape = false
@@ -279,8 +287,9 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, rowOpen: aiRow != nil, gate: gate,
-                               reminder: showsTrialReminder, aiLabel: showsAILabel)
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: aiRow != nil, gate: gate,
+                               reminder: showsTrialReminder, aiLabel: showsAILabel,
+                               freeEdit: target == .card, wordPanel: keysPanel == .words)
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
@@ -551,7 +560,22 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - 在卡片里改结果
 
-    /// 进入修改：点文字时光标放在点的位置，点铅笔放到末尾。只在面板展开、有结果时能改。
+    /// 连点 3 下结果卡正文进自由编辑（FE1、FE2）：光标放在第三下点的位置，上方浮出「已开启自由编辑」1.5 秒。
+    func beginFreeEdit(caret: Int) {
+        guard target != .card else { return }
+        beginCardEdit(caret: caret)
+        guard target == .card else { return }
+        keyFeedback(for: .space)
+        withAnimation(.easeOut(duration: 0.15)) { freeEditToast = true }
+        freeEditToastTimer?.cancel()
+        let timer = DispatchWorkItem { [weak self] in
+            withAnimation(.easeIn(duration: 0.25)) { self?.freeEditToast = false }
+        }
+        freeEditToastTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: timer)
+    }
+
+    /// 进入修改：光标放在给的位置，没给就放到末尾。只在面板展开、有结果时能改。
     func beginCardEdit(caret: Int? = nil) {
         guard aiExpanded, hasResult, let text = session?.current else { return }
         if target != .card {
@@ -1163,21 +1187,41 @@ final class KeyboardModel: ObservableObject {
         openPanel(.words)
     }
 
-    /// 分词面板的「插入」：在光标处插入选中的词，插完关面板。
+    /// 分词面板的「插入」：直接把字放进输入框，面板淡出。不动结果卡左边的键（不出用过的小绿勾动画）。
     func insertWords(_ text: String) {
         guard !text.isEmpty, let proxy else { return }
+        markAskUsed()
         proxy.insertText(text)
-        recordEdit(inserted: text, original: "", use: .inserted)
-        closePanel()
+        keyFeedback(for: .space)
+        closeWordPanel()
     }
 
-    /// 分词面板的「复制」：复制选中的词，复制完关面板。
+    /// 分词面板的「复制」：复制选中的词，右边复制图标照旧提示一下，面板淡出。
     func copyWords(_ text: String) {
         guard !text.isEmpty else { return }
         markAskUsed()
         UIPasteboard.general.string = text
         keyFeedback(for: .space)
-        closePanel()
+        withAnimation(.easeOut(duration: 0.15)) { copied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            withAnimation(.easeIn(duration: 0.2)) { self?.copied = false }
+        }
+        closeWordPanel()
+    }
+
+    /// 分词面板 0.15 秒淡出，淡完再收起、键盘高度和结果卡回到打开前。
+    func closeWordPanel() {
+        guard keysPanel == .words, !wordPanelFading else { return }
+        withAnimation(.easeOut(duration: 0.15)) { wordPanelFading = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                if self.keysPanel == .words { self.closePanel() }
+                self.wordPanelFading = false
+            }
+        }
     }
 
     /// 卡片上的复制图标：复制当前版本。

@@ -14,7 +14,7 @@ struct KeysView: View {
                     Group {
                         switch panel {
                         case .quickWords: QuickWordsPanel(model: model)
-                        case .words: WordPanel(model: model)
+                        case .words: WordPanel(model: model).opacity(model.wordPanelFading ? 0 : 1)
                         case .emoji, .kaomoji: SymbolPanel(model: model)
                         }
                     }
