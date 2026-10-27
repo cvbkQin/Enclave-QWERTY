@@ -353,7 +353,7 @@ struct PolishButton: View {
         if let mode {
             HStack(spacing: 3) {
                 PolishStars(size: starSize, running: false, glowing: glowing, doneAt: doneAt)
-                Text(mode == .rewrite ? L("改写", "Edit", "書換") : L("问答", "Ask", "質問"))
+                Text(mode == .rewrite ? L("改写", "Edit", "修正") : L("问答", "Q&A", "質問"))
                     .font(.system(size: 13.5, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
