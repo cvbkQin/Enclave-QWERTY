@@ -182,8 +182,9 @@ enum Provider: CaseIterable, Identifiable {
         let found = shown.first { provider in
             if provider == .ollama { return baseURL.contains(":11434") }
             guard let preset = provider.preset else { return false }
-            // Kimi 国内、国际两个地址都算（国际站的 Key 只能连 .ai）。
-            let urls = provider == .kimi ? [Provider.kimiChina, Provider.kimiGlobal] : [preset.baseURL]
+            // Kimi、千问的国内、国际两个地址都算（两边的 Key 不通用）。
+            let urls = provider == .kimi ? [Provider.kimiChina, Provider.kimiGlobal]
+                : provider == .qwen ? [Provider.qwenChina, Provider.qwenGlobal] : [preset.baseURL]
             return urls.contains(trimmed(baseURL)) && trimmed(model) == preset.model
         }
         return found
@@ -207,7 +208,7 @@ enum Provider: CaseIterable, Identifiable {
         case .deepseek: return "api.deepseek.com"
         case .openai: return "api.openai.com"
         case .kimi: return Storefront.isMainlandChina ? "api.moonshot.cn" : "api.moonshot.ai"
-        case .qwen: return "dashscope.aliyuncs.com"
+        case .qwen: return Storefront.isMainlandChina ? "dashscope.aliyuncs.com" : "dashscope-intl.aliyuncs.com"
         case .ollama: return L("局域网的电脑", "A computer on your network", "ローカルネットのPC")
         case .custom: return "vLLM、LM Studio"
         }
@@ -216,13 +217,16 @@ enum Provider: CaseIterable, Identifiable {
     /// Kimi 国内站（platform.moonshot.cn）和国际站（platform.moonshot.ai）的 Key 不通用：大陆店面填 .cn，其他地区填 .ai。
     static let kimiChina = "https://api.moonshot.cn/v1"
     static let kimiGlobal = "https://api.moonshot.ai/v1"
+    /// 千问（阿里云百炼）同样分国内站和国际站（新加坡）。
+    static let qwenChina = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    static let qwenGlobal = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 
     var preset: (baseURL: String, model: String)? {
         switch self {
         case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-flash")
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
         case .kimi: return (Storefront.isMainlandChina ? Self.kimiChina : Self.kimiGlobal, "moonshot-v1-8k")
-        case .qwen: return ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus")
+        case .qwen: return (Storefront.isMainlandChina ? Self.qwenChina : Self.qwenGlobal, "qwen-plus")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
         }
@@ -232,7 +236,7 @@ enum Provider: CaseIterable, Identifiable {
         if baseURL.contains("api.deepseek.com") { return .deepseek }
         if baseURL.contains("api.openai.com") { return .openai }
         if baseURL.contains("api.moonshot.cn") || baseURL.contains("api.moonshot.ai") { return .kimi }
-        if baseURL.contains("dashscope.aliyuncs.com") { return .qwen }
+        if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
         if baseURL.contains(":11434") { return .ollama }
         return .custom
     }
