@@ -222,7 +222,6 @@ final class KeyboardModel: ObservableObject {
         }
         refreshHostState()
         selectEngine()
-        refreshCommonWords()
         if let mark = LabCoachMark.take() { startCoach(mark) }
     }
 

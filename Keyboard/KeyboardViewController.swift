@@ -73,6 +73,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        // 先定下有没有地球键，免得键盘滑出来的途中按键再换一次排法。
+        updateGlobeKey()
         model.dropStaleSessionOnAppear()
         // 每次弹出都按输入框类型重新选一次页（数字框直接出数字键盘）。
         model.hostKeyboardType = nil
@@ -83,6 +85,23 @@ final class KeyboardViewController: UIInputViewController {
         // 震动发生器提前建好、预热：不然第一次按键时才创建，第一个键会顿一下。
         if model.settings.keyHaptics && model.hasFullAccess { model.haptic.prepare() }
         if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
+        // 高度和内容在滑出来之前就定好：reload 可能改了高度（比如试用提醒条），这里同步改掉，不等下一轮；
+        // 再让 SwiftUI 先排一遍，系统做弹出动画时画的就是完整的键盘，AI 栏不会等滑出来以后才冒出来。
+        updateHeight()
+        view.layoutIfNeeded()
+        #if DEBUG
+        NSLog("EnclaveHeight willAppear: view %.1f, target %.1f", view.bounds.height, model.keyboardHeight)
+        #endif
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        #if DEBUG
+        NSLog("EnclaveHeight didAppear: view %.1f, target %.1f", view.bounds.height, model.keyboardHeight)
+        #endif
+        // 常用词要读系统文本替换和通讯录、可能重写词库里的短语表，不影响键盘长什么样，放到弹出以后再做，
+        // 不占弹出前的那一段主线程。
+        model.refreshCommonWords()
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -105,7 +124,14 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
-        model.needsGlobeKey = needsInputModeSwitchKey
+        updateGlobeKey()
+    }
+
+    /// 只在变了的时候设：needsGlobeKey 是 @Published，设一次（哪怕值一样）整个键盘就重画一遍、高度也要重算，
+    /// 而每次布局都会走到这里，弹出动画途中会连着重画好多次，看起来就是卡。
+    private func updateGlobeKey() {
+        let needs = needsInputModeSwitchKey
+        if model.needsGlobeKey != needs { model.needsGlobeKey = needs }
     }
 }
 
