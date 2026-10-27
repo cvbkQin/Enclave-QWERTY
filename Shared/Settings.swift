@@ -134,7 +134,7 @@ struct EnclaveSettings: Codable, Equatable {
     var resultKeyPrimary: ResultKeyAction = .replace
     var resultKeySwipe: ResultKeySwipe = .wheel
     var resultKeyWheelUp: Bool = true
-    /// 处理长文本：关着（默认）时 AI 只读光标前 200 字左右的整句，打开后读系统给键盘的全部文字。
+    /// 处理长文本：关着（默认）时 AI 只读光标前 100 字左右的整句，打开后 200 字左右。
     var longText: Bool = false
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []

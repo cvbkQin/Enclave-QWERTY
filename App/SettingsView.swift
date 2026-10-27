@@ -468,7 +468,6 @@ struct ModelSettingsView: View {
             return
         }
         store.reload()
-        provider = Provider.detect(store.settings.baseURL)
         importResult = true
     }
 }
@@ -520,6 +519,8 @@ private struct LabeledField: View {
 
 struct KeyboardSettingsView: View {
     @EnvironmentObject private var store: AppStore
+    /// 打开「处理长文本」前的二次确认。
+    @State private var confirmLongText = false
 
     var body: some View {
         Form {
@@ -649,19 +650,29 @@ struct KeyboardSettingsView: View {
                          "ポップアップ：ボタンの下に ▾ があり、下にスライドするともう一方のボタンが真下に出ます（読点キーと同じ）。指を離すと実行します。"))
             }
             Section {
-                Toggle(isOn: $store.settings.longText) {
+                // 打开要再确认一次：长文本处理慢、更容易改错，替换的范围也更大。
+                Toggle(isOn: Binding(get: { store.settings.longText },
+                                     set: { on in if on { confirmLongText = true } else { store.settings.longText = false } })) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("处理长文本", "Process long text", "長い文章も処理"))
-                        Text(L("关着时 AI 只读光标前约 200 字", "When off, AI reads about 200 characters before the cursor", "オフのとき AI はカーソル前の約 200 字だけを読みます"))
+                        Text(L("关着时 AI 只读光标前约 100 字", "When off, AI reads about 100 characters before the cursor", "オフのとき AI はカーソル前の約 100 字だけを読みます"))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             } header: {
                 Text(L("AI 读取范围", "What AI reads", "AI が読む範囲"))
             } footer: {
-                Text(L("没选中文字时，AI 默认只处理光标前 200 字左右，按完整的句子或段落截取；输入框里的字不到 200 时全部处理。打开后读键盘能拿到的全部文字（系统通常只给光标附近几百字）。不管开不开，替换都只换送去处理的那一段，其余文字不动。要处理整段，先全选再点 ✨。",
-                       "With nothing selected, AI handles about 200 characters before the cursor, cut at whole sentences or paragraphs; shorter text is handled in full. Turn this on to read everything the keyboard can see (iOS usually gives a few hundred characters around the cursor). Either way, Replace only changes the part that was sent; the rest stays as it is. To handle a whole passage, select it first, then tap ✨.",
-                       "何も選択していないとき、AI はカーソル前の約 200 字を文や段落の切れ目で区切って処理します。200 字未満なら全体を処理します。オンにするとキーボードが取得できる文章をすべて読みます（iOS は通常カーソル付近の数百字だけを渡します）。どちらの場合も「置き換え」は送った部分だけを変え、残りはそのままです。全体を処理するには先に全選択してから ✨ をタップします。"))
+                Text(L("没选中文字时，AI 默认只处理光标前 100 字左右，按完整的句子或段落截取；不到 100 字时全部处理。打开后放宽到 200 字左右。⚠️ 文字越长，生成越慢、越容易改错，替换的范围也越大，替换前请看一遍结果。不管开不开，替换都只换送去处理的那一段，其余文字不动；要处理整段，先全选再点 ✨。",
+                       "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences or paragraphs; shorter text is handled in full. Turn this on to allow about 200. ⚠️ Longer text is slower, more likely to be changed by mistake, and Replace changes more at once, so check the result first. Either way, Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",
+                       "何も選択していないとき、AI はカーソル前の約 100 字を文や段落の切れ目で区切って処理します。100 字未満なら全体を処理します。オンにすると約 200 字まで広がります。⚠️ 長いほど時間がかかり、誤って書き換えられやすく、置き換える範囲も広くなります。置き換える前に結果を確認してください。どちらの場合も「置き換え」は送った部分だけを変えます。全体を処理するには先に全選択してから ✨ をタップします。"))
+            }
+            .alert(L("打开「处理长文本」？", "Turn on Process long text?", "「長い文章も処理」をオンにしますか？"), isPresented: $confirmLongText) {
+                Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+                Button(L("打开", "Turn On", "オンにする")) { store.settings.longText = true }
+            } message: {
+                Text(L("AI 每次会读光标前约 200 字。文字越长，生成越慢、越容易改错，替换的范围也越大。替换前请先看一遍结果，不对可以撤销。",
+                       "AI will read about 200 characters before the cursor. Longer text is slower, more likely to be changed by mistake, and Replace changes more at once. Check the result before replacing; you can undo.",
+                       "AI はカーソル前の約 200 字を読みます。長いほど時間がかかり、誤って書き換えられやすく、置き換える範囲も広くなります。置き換える前に結果を確認してください。取り消しもできます。"))
             }
             Section(L("动画", "Animation", "アニメーション")) {
                 Toggle(isOn: $store.settings.polishAnimation) {
