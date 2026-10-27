@@ -471,7 +471,7 @@ struct PolishButton: View {
 /// 白色实心镜片的放大镜，镜片里一颗紫粉渐变四角星，右上、左上两颗小黄星。
 struct AskIcon: View {
     /// 和 ✨ 同款的四角星，24×24 画布里的路径。
-    private static func star(_ path: inout Path, center: CGPoint, scale k: CGFloat) {
+    fileprivate static func star(_ path: inout Path, center: CGPoint, scale k: CGFloat) {
         func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: center.x + (x - 12) * k, y: center.y + (y - 12) * k) }
         path.move(to: p(12, 3))
         path.addCurve(to: p(21, 12), control1: p(12.8, 8.5), control2: p(15.5, 11.2))
@@ -481,23 +481,43 @@ struct AskIcon: View {
         path.closeSubpath()
     }
 
+    /// 在 24×24 画布上的一颗星，按实际大小缩放。
+    private struct Star: Shape {
+        var center: CGPoint
+        var scale: CGFloat
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            AskIcon.star(&path, center: center, scale: scale)
+            return path.applying(CGAffineTransform(scaleX: rect.width / 24, y: rect.height / 24))
+        }
+    }
+
+    /// 放大镜手柄。
+    private struct Handle: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: CGPoint(x: 15.41, y: 16.01))
+            path.addLine(to: CGPoint(x: 19.41, y: 20.01))
+            return path.applying(CGAffineTransform(scaleX: rect.width / 24, y: rect.height / 24))
+        }
+    }
+
+    // 不用 Canvas：Canvas 在一些第三方 App 里整块画不出来（见 KeysView 键帽的说明），这里只用 Shape。
     var body: some View {
-        Canvas { context, size in
-            context.scaleBy(x: size.width / 24, y: size.height / 24)
-            // 镜片：半径 6.8 的白圆加 2pt 白描边。
-            context.fill(Path(ellipseIn: CGRect(x: 10 - 7.8, y: 10.6 - 7.8, width: 15.6, height: 15.6)), with: .color(.white))
-            var handle = Path()
-            handle.move(to: CGPoint(x: 15.41, y: 16.01))
-            handle.addLine(to: CGPoint(x: 19.41, y: 20.01))
-            context.stroke(handle, with: .color(.white), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-            var lens = Path()
-            Self.star(&lens, center: CGPoint(x: 10, y: 10.6), scale: 0.44)
-            context.fill(lens, with: .linearGradient(Gradient(colors: Brand.askAutoColors),
-                                                     startPoint: CGPoint(x: 6, y: 6.6), endPoint: CGPoint(x: 14, y: 14.6)))
-            var sparks = Path()
-            Self.star(&sparks, center: CGPoint(x: 20, y: 3.4), scale: 0.26)
-            Self.star(&sparks, center: CGPoint(x: 2.6, y: 3.2), scale: 0.17)
-            context.fill(sparks, with: .color(Brand.gold))
+        GeometryReader { geo in
+            let k = geo.size.width / 24
+            ZStack(alignment: .topLeading) {
+                // 镜片：半径 6.8 的白圆加 2pt 白描边。
+                Circle().fill(Color.white)
+                    .frame(width: 15.6 * k, height: 15.6 * k)
+                    .offset(x: (10 - 7.8) * k, y: (10.6 - 7.8) * k)
+                Handle().stroke(Color.white, style: StrokeStyle(lineWidth: 3 * k, lineCap: .round))
+                Star(center: CGPoint(x: 10, y: 10.6), scale: 0.44)
+                    .fill(LinearGradient(colors: Brand.askAutoColors, startPoint: UnitPoint(x: 6 / 24, y: 6.6 / 24),
+                                         endPoint: UnitPoint(x: 14 / 24, y: 14.6 / 24)))
+                Star(center: CGPoint(x: 20, y: 3.4), scale: 0.26).fill(Brand.gold)
+                Star(center: CGPoint(x: 2.6, y: 3.2), scale: 0.17).fill(Brand.gold)
+            }
         }
         .accessibilityHidden(true)
     }
