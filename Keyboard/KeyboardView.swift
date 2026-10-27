@@ -1136,8 +1136,8 @@ struct ResultCard: View {
             decline = L("直接回答", "Answer anyway", "そのまま回答")
             accept = L("去开启", "Turn on", "オンにする")
         } else if firstTime {
-            title = L("第一次用 \(name) 联网", "Search the web?", "ウェブで検索しますか？")
-            detail = L("约 ¥0.01 一次 · 允许后不再问", "Sends to \(name) search", "\(name) の検索に送信")
+            title = L("第一次用 \(name) 联网", "Use \(name) web search?", "\(name) のウェブ検索を使いますか？")
+            detail = L("约 ¥0.01 一次 · 允许后不再问", "First time only · won't ask again once allowed", "初回のみ確認 · 許可すると次から聞きません")
             decline = L("拒绝", "Don't allow", "許可しない")
             accept = L("允许", "Allow", "許可")
         } else {
@@ -1158,9 +1158,11 @@ struct ResultCard: View {
                             }
                         }
                         .foregroundStyle(Brand.answerText)
-                    Text(title).font(.system(size: 15, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.75)
+                    // 标题不截断（太长就缩小一点），副标题放不下截断加省略号。
+                    Text(title).font(.system(size: 15, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.7)
                 }
-                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+                .layoutPriority(1)
+                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
             }
             Spacer(minLength: 4)
             Button { model.resolveSearchPrompt(allow: false) } label: {
