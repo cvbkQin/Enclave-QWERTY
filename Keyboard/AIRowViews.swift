@@ -14,7 +14,9 @@ struct RowChip: View {
         let open = !locked && model.aiRow == row
         Button { locked ? model.showFullAccessTip() : model.toggleRow(row) } label: {
             HStack(spacing: 0) {
+                // 提示词名太长时截断，整颗按内容宽度，不往两边撑。
                 Text(title).lineLimit(1).truncationMode(.tail)
+                    .frame(maxWidth: row == .prompts ? 70 : nil)
                 // 只是视觉上分开，整颗还是一个按钮；线和箭头不参与截断。
                 Rectangle()
                     .fill(open ? Brand.rowStroke : Brand.chipLine)
@@ -42,8 +44,7 @@ struct RowChip: View {
             .padding(.vertical, -5)
         }
         .buttonStyle(KeyPressStyle())
-        .frame(maxWidth: row == .prompts ? 128 : nil)
-        .fixedSize(horizontal: row == .ask, vertical: false)
+        .fixedSize(horizontal: true, vertical: false)
         .accessibilityLabel(title)
         .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
     }
