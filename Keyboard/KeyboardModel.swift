@@ -255,32 +255,35 @@ final class KeyboardModel: ObservableObject {
             return
         }
         controller.requestSupplementaryLexicon { lexicon in
-            var seen = Set<String>()
-            var words: [CommonWord] = []
-            for entry in lexicon.entries {
-                // 文本替换：输入码是缩写（yx → 邮箱）；人名：输入码就是名字本身，中文名按拼音打。
-                let isName = entry.userInput == entry.documentText
-                let hanzi = CommonWordStore.containsHanzi(entry.userInput)
-                guard !isName || hanzi, seen.insert(entry.userInput + "\t" + entry.documentText).inserted else { continue }
-                words.append(CommonWord(text: entry.documentText,
-                                        pinyin: hanzi ? ContactPinyin.of(entry.userInput) : "",
-                                        shortcut: hanzi ? "" : entry.userInput,
-                                        source: isName ? .contact : .textReplacement))
-            }
-            DispatchQueue.main.async {
-                // 快照没变就不重写（每次弹出都会读一遍，通讯录多时编码、写共享存储都不便宜）。
-                let signature = words.map { "\($0.text)\t\($0.pinyin)\t\($0.shortcut)\t\($0.source.rawValue)" }
-                if signature != self.lastLexiconSignature {
-                    self.lastLexiconSignature = signature
-                    CommonWordStore.lexicon = words
+            let raw = lexicon.entries.map { (input: $0.userInput, text: $0.documentText) }
+            // 转拼音（每个中文名一次 CFStringTransform）、比对和重写快照都放到后台：冷启动时缓存是空的，
+            // 通讯录一多，原来在主线程上要算好一阵，正好压在键盘刚弹出、用户开始打字的时候。
+            DispatchQueue.global(qos: .utility).async {
+                var seen = Set<String>()
+                var words: [CommonWord] = []
+                for entry in raw {
+                    // 文本替换：输入码是缩写（yx → 邮箱）；人名：输入码就是名字本身，中文名按拼音打。
+                    let isName = entry.input == entry.text
+                    let hanzi = CommonWordStore.containsHanzi(entry.input)
+                    guard !isName || hanzi, seen.insert(entry.input + "\t" + entry.text).inserted else { continue }
+                    words.append(CommonWord(text: entry.text,
+                                            pinyin: hanzi ? ContactPinyin.of(entry.input) : "",
+                                            shortcut: hanzi ? "" : entry.input,
+                                            source: isName ? .contact : .textReplacement))
                 }
-                self.applyCommonWords(CommonWordStore.active(lexicon: words))
+                // 快照没变就不重写（每次弹出都会读一遍，通讯录多时编码、写共享存储都不便宜）。
+                // CommonWord 每次都带新的 id，按内容比。
+                func signature(_ list: [CommonWord]) -> [String] {
+                    list.map { "\($0.text)\t\($0.pinyin)\t\($0.shortcut)\t\($0.source.rawValue)" }
+                }
+                if signature(CommonWordStore.lexicon) != signature(words) { CommonWordStore.lexicon = words }
+                let active = CommonWordStore.active(lexicon: words)
+                DispatchQueue.main.async { [weak self] in self?.applyCommonWords(active) }
             }
         }
     }
 
-    /// 上次写进快照的系统词、上次交给引擎的短语表（都按内容比）。
-    private var lastLexiconSignature: [String]?
+    /// 上次交给引擎的短语表（按内容比）。
     private var lastPhraseSignature: [String]?
 
     private func applyCommonWords(_ words: [CommonWord]) {

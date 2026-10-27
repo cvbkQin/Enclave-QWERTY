@@ -100,6 +100,7 @@ final class KeyboardViewController: UIInputViewController {
         heightLog("didAppear")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.heightLog("settled") }
         #endif
+        TypingStats.noteLaunchAppeared()
         // 常用词要读系统文本替换和通讯录、可能重写词库里的短语表，不影响键盘长什么样，放到弹出以后再做，
         // 不占弹出前的那一段主线程。
         model.refreshCommonWords()

@@ -534,9 +534,8 @@ extension KeyboardModel {
     }
     #endif
 
-    /// 系统内存警告：只记下次数。试过关掉 Rime 引擎，实测只省 0.2–0.4MB（词典和整句模型是文件映射，本来就不算进占用），
-    /// 还要丢掉正在拼的内容，不值得。
-    /// 内存紧时先放掉眼下用不上的那份联想表（各几 MB），少被系统杀掉，下次弹出就少一次冷启动。
+    /// 系统内存警告：记下次数，放掉眼下用不上的那份联想表（各几 MB），少被系统杀掉，下次弹出就少一次冷启动。
+    /// 不关 Rime 引擎：试过，实测只省 0.2–0.4MB（词典和整句模型是文件映射，本来就不算进占用），还要丢掉正在拼的内容。
     func noteMemoryWarning() {
         TypingStats.noteMemoryWarning()
         if chineseMode { EnglishPredictor.unload() } else { Predictor.unload() }
@@ -570,7 +569,10 @@ extension KeyboardModel {
             KeyboardProbe.run(fullAccess: useShared, pinyinReady: ok, source: source)
             #endif
             // 联想数据等拼音引擎启动完再读：冷启动时两边一起读词库，抢 CPU 和磁盘，键盘出来得慢。
-            if ok { Predictor.prepare() }
+            if ok {
+                TypingStats.noteLaunchEngineReady()
+                Predictor.prepare()
+            }
             guard let self, !ok, self.pinyinReady else { return }
             // 词库其实读不出来：退回直接打字母。
             self.pinyinReady = false
