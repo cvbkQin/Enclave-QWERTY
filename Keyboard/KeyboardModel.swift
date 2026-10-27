@@ -189,6 +189,14 @@ final class KeyboardModel: ObservableObject {
     /// 截图用（-keyboardDebug key:…）：结果卡左边的键停在滑过 16pt 换过去（rolled）或弹出另一个（popped）的样子。
     var debugResultKeyPose: String?
 
+    /// 截图用：直接显示某张提示卡（quotaUsed：次数用完）。
+    func debugShowGate(_ gate: AIGate) { self.gate = gate }
+
+    /// 截图用：结果卡上的部分替换提示、顶上的打不开 App 提示，一直显示。
+    func debugShowNotes(partial: Bool) {
+        if partial { partialReplace = true } else { openAppFailed = true }
+    }
+
     /// 截图用：不经过 App 改结果卡左边那颗键的设置。
     func debugResultKey(primary: ResultKeyAction? = nil, swipe: ResultKeySwipe? = nil, wheelUp: Bool? = nil) {
         if let primary { settings.resultKeyPrimary = primary }

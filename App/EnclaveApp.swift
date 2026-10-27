@@ -28,6 +28,17 @@ struct EnclaveApp: App {
             PromptsDebug.scene = args[index + 1]
             AppRouter.shared.tab = .styles
         }
+        // -storefront CHN：按中国大陆店面显示（接口页服务商）。
+        if let index = args.firstIndex(of: "-storefront"), args.indices.contains(index + 1) {
+            Storefront.debugOverride(args[index + 1])
+        }
+        // -appPage keyboard / pinyin / api：直接打开设置 › 键盘、词库页或接口页。
+        if let index = args.firstIndex(of: "-appPage"), args.indices.contains(index + 1) {
+            switch args[index + 1] {
+            case "api": AppRouter.shared.tab = .model
+            case let page: if let page = AppRouter.SettingsPage(rawValue: page) { AppRouter.shared.openSettings(page) }
+            }
+        }
         // -keyboardWords "张三丰,me@example.com" 写进键盘常用语。
         if let index = args.firstIndex(of: "-keyboardWords"), args.indices.contains(index + 1) {
             CommonWordStore.keyboardTexts = args[index + 1].split(separator: ",").map(String.init)

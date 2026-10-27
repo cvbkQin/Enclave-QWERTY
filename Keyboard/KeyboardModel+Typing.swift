@@ -763,6 +763,10 @@ extension KeyboardModel {
             case "key:down": debugResultKey(swipe: .wheel, wheelUp: false)
             case "key:pop": debugResultKey(swipe: .pop)
             case "key:rolled", "key:popped": debugResultKeyPose = String(option.dropFirst(4))
+            // 截图用：替换后「只替换了读到的一段」、拉起 App 失败的提示，停住不消失。
+            case "partialReplace": aiExpanded = true; debugUnblocked = true; loadDebugVersions(); debugShowNotes(partial: true)
+            case "openAppFailed": debugShowNotes(partial: false)
+            case "quotaUsed": debugShowGate(.quotaUsed)
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)

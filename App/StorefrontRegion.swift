@@ -10,7 +10,19 @@ extension Storefront {
         UserDefaults.standard.string(forKey: countryKey) == "CHN"
     }
 
+    #if DEBUG
+    /// 截图用（-storefront CHN）：固定成某个店面，启动时不再去读真的。
+    static func debugOverride(_ code: String) {
+        UserDefaults.standard.set(code, forKey: countryKey)
+        debugLocked = true
+    }
+    private(set) static var debugLocked = false
+    #endif
+
     static func refreshCountry() async {
+        #if DEBUG
+        if debugLocked { return }
+        #endif
         guard let code = await Storefront.current?.countryCode else { return }
         UserDefaults.standard.set(code, forKey: countryKey)
     }
