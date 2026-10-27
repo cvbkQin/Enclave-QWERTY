@@ -92,15 +92,20 @@ struct StylesView: View {
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(preset.displayName).font(.body).foregroundStyle(.primary)
-                                    Text(Self.summary(preset)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                                    Text(preset.displayName).font(.body).foregroundStyle(Color.primary)
+                                    Text(Self.summary(preset)).font(.footnote).foregroundStyle(Color.secondary).lineLimit(1)
                                 }
                                 Spacer(minLength: 8)
                                 Label(L("加回", "Restore", "戻す"), systemImage: "arrow.uturn.backward")
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(DashColor.ai)
                             }
+                            .contentShape(Rectangle())
+                            // 分隔线从名字左边开始，和「全部提示词」一样。
+                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
                         }
+                        // 只有「↶ 加回」是紫色，名字和说明跟上面的列表一样黑、灰。
+                        .buttonStyle(.plain)
                     }
                 } header: {
                     Text(L("删掉的预设", "Deleted presets", "削除したプリセット"))
@@ -336,9 +341,10 @@ private struct StyleEditor: View {
     // MARK: AI 优化
 
     /// 提示词框下面一行：「✨ AI 优化」，生成中显示转圈，出错写一行红字。
-    @ViewBuilder
     private var optimizeButton: some View {
         let empty = style.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // 按钮和下面的说明 / 红字放在同一行里上下排，中间不要分隔线。
+        return VStack(alignment: .leading, spacing: 4) {
         Button {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             if optimizer.running {
@@ -360,6 +366,7 @@ private struct StyleEditor: View {
             .foregroundStyle(empty && !optimizer.running ? Color.secondary : AppColor.deepPurple)
         }
         .disabled(empty && !optimizer.running)
+        .buttonStyle(.borderless)
         if empty && !optimizer.running {
             Text(L("先写几个字，AI 再帮你改清楚", "Write a few words first, then AI can sharpen it", "数文字書いてから AI で整えられます"))
                 .font(.system(size: 13))
@@ -367,6 +374,7 @@ private struct StyleEditor: View {
         }
         if let error = optimizer.error {
             Text(error).font(.footnote).foregroundStyle(.red)
+        }
         }
     }
 
@@ -379,6 +387,7 @@ private struct StyleEditor: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(AppColor.chipSelectedFill))
+                .listRowSeparator(.hidden)
             HStack(spacing: 12) {
                 Button(L("用这一版", "Use this", "これを使う")) {
                     style.prompt = result.prompt
@@ -389,6 +398,7 @@ private struct StyleEditor: View {
                     .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
             }
+            .listRowSeparator(.hidden)
             if !result.suggestions.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L("还可以加上", "You could also add", "追加するなら"))
@@ -400,6 +410,7 @@ private struct StyleEditor: View {
                                                     set: { optimizer.result?.prompt = $0 }))
                 }
                 .padding(.vertical, 4)
+                .listRowSeparator(.hidden)
             }
         } header: {
             HStack(spacing: 4) {
