@@ -662,9 +662,10 @@ struct KeyboardSettingsView: View {
             } header: {
                 Text(L("AI 读取范围", "What AI reads", "AI が読む範囲"))
             } footer: {
-                Text(L("没选中文字时，AI 默认只处理光标前 100 字左右，按完整的句子或段落截取；不到 100 字时全部处理。打开后放宽到 200 字左右。⚠️ 文字越长，生成越慢、越容易改错，替换的范围也越大，替换前请看一遍结果。不管开不开，替换都只换送去处理的那一段，其余文字不动；要处理整段，先全选再点 ✨。",
-                       "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences or paragraphs; shorter text is handled in full. Turn this on to allow about 200. ⚠️ Longer text is slower, more likely to be changed by mistake, and Replace changes more at once, so check the result first. Either way, Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",
-                       "何も選択していないとき、AI はカーソル前の約 100 字を文や段落の切れ目で区切って処理します。100 字未満なら全体を処理します。オンにすると約 200 字まで広がります。⚠️ 長いほど時間がかかり、誤って書き換えられやすく、置き換える範囲も広くなります。置き換える前に結果を確認してください。どちらの場合も「置き換え」は送った部分だけを変えます。全体を処理するには先に全選択してから ✨ をタップします。"))
+                Text(L("没选中文字时，AI 只处理光标前约 100 字，按整句截取；打开后约 200 字。文字越长越慢、越容易改错，替换前请看一遍结果。替换只换送去处理的那一段，其余不动；要处理整段，先全选再点 ✨。",
+                       "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences; about 200 when on. Longer text is slower and easier to get wrong, so check the result first. Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",
+                       "何も選択していないとき、AI はカーソル前の約 100 字を文単位で処理します。オンで約 200 字。長いほど遅く、誤りやすいので、置き換える前に結果を確認してください。置き換えは送った部分だけで、残りはそのままです。全体は全選択してから ✨ をタップします。"))
+
             }
             .alert(L("打开「处理长文本」？", "Turn on Process long text?", "「長い文章も処理」をオンにしますか？"), isPresented: $confirmLongText) {
                 Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
@@ -963,6 +964,8 @@ struct PinyinView: View {
     @State private var confirmDeleteGrammar = false
     /// 整句模型的下载地址，空着就用默认的 GitHub 地址。
     @State private var grammarURL = GrammarModel.customDownloadURL ?? ""
+    /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
+    @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
     @State private var englishEnabled = Predictor.englishEnabled
 
     var body: some View {
@@ -1073,7 +1076,24 @@ struct PinyinView: View {
     }
 
     /// 下载地址：GitHub 在大陆常常很慢或打不开，可以换成镜像或自己的服务器。改了地址旧进度作废。
+    @ViewBuilder
     private var grammarURLField: some View {
+        if showsGrammarURL || isGrammarFailed {
+            grammarURLEditor
+        } else {
+            Button(L("下载太慢？换个下载地址", "Slow? Use another download address", "遅いときは別のアドレスへ")) { showsGrammarURL = true }
+                .font(.system(size: 13))
+                .foregroundStyle(AppColor.purple)
+                .buttonStyle(.plain)
+        }
+    }
+
+    private var isGrammarFailed: Bool {
+        if case .failed = grammar.state { return true }
+        return false
+    }
+
+    private var grammarURLEditor: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(L("下载地址", "Download address", "ダウンロード元")).font(.system(size: 13, weight: .semibold))
             TextField(GrammarModel.defaultDownloadURL.absoluteString, text: $grammarURL)
