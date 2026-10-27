@@ -136,9 +136,10 @@ struct EnclaveSettings: Codable, Equatable {
     var resultKeyWheelUp: Bool = true
     /// 处理长文本：关着（默认）时 AI 只读光标前 100 字左右的整句，打开后 200 字左右。
     var longText: Bool = false
-    /// 识意问答联网（仅 Kimi）：模型说要查最新信息时，先用 Kimi 的搜索接口搜一次再回答，搜索由 Kimi 另外按次计费。
-    /// 没选过时为 nil：App 启动后按店面定下来（中国大陆默认关，其他地区默认开）；键盘读到 nil 当关。
-    var webSearch: Bool?
+    /// 识意问答联网（问答接口是千问、Kimi、智谱时）：模型说要查最新信息时怎么办。开：直接联网；每次询问：回答框里先问一次；
+    /// 禁止：提示去开启。没选过时为 nil：App 启动后按店面定下来（中国大陆默认禁止，其他地区默认开）；键盘读到 nil 当禁止。
+    /// 0.87 存的是布尔 webSearch，读的时候换过来。
+    var webSearchMode: WebSearchMode?
     /// 问答用另一个接口：润色和识意改写走上面的接口（要快），识意问答走这一个（可以想久一点、联网）。
     /// 关着或没填好时问答也走润色的接口。API Key 单独存在钥匙串（SettingsStore.answerApiKey）。
     var separateAnswer: Bool = false
@@ -151,8 +152,10 @@ struct EnclaveSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
         case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
-        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearch, separateAnswer, answerBaseURL, answerModel
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
     }
+
+    private enum LegacyKeys: String, CodingKey { case webSearch }
 
     var isConfigured: Bool {
         !baseURL.trimmingCharacters(in: .whitespaces).isEmpty
@@ -197,7 +200,10 @@ extension EnclaveSettings {
         resultKeySwipe = (try? c.decodeIfPresent(ResultKeySwipe.self, forKey: .resultKeySwipe)) ?? resultKeySwipe
         resultKeyWheelUp = try c.decodeIfPresent(Bool.self, forKey: .resultKeyWheelUp) ?? resultKeyWheelUp
         longText = try c.decodeIfPresent(Bool.self, forKey: .longText) ?? longText
-        webSearch = try c.decodeIfPresent(Bool.self, forKey: .webSearch)
+        webSearchMode = try? c.decodeIfPresent(WebSearchMode.self, forKey: .webSearchMode)
+        if webSearchMode == nil, let legacy = try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .webSearch) {
+            webSearchMode = legacy ? .on : .off
+        }
         separateAnswer = try c.decodeIfPresent(Bool.self, forKey: .separateAnswer) ?? separateAnswer
         answerBaseURL = try c.decodeIfPresent(String.self, forKey: .answerBaseURL) ?? answerBaseURL
         answerModel = try c.decodeIfPresent(String.self, forKey: .answerModel) ?? answerModel
@@ -324,8 +330,15 @@ extension EnclaveSettings {
 extension EnclaveSettings {
     /// 连的是 Kimi（api.moonshot.cn / .ai）。
     var isKimi: Bool { baseURL.contains("moonshot.") }
-    /// 识意问答可以联网：问答走的接口是 Kimi，而且开着「问答联网」。
-    var canWebSearch: Bool { forAnswers.isKimi && webSearch == true }
+    /// 这个接口能联网的话是哪一家：Kimi、千问（阿里云百炼）、智谱。别的服务商没有可用的联网接口，返回 nil。
+    var searchProvider: SearchProvider? {
+        if isKimi { return .kimi }
+        if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
+        if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
+        return nil
+    }
+    /// 识意问答联网用哪一家：问答走的接口能联网就有（三档里选了禁止也有，要联网时提示去开启）。
+    var answerSearch: SearchProvider? { forAnswers.searchProvider }
 
     /// 问答真的走另一个接口：开着、地址和模型都填了。
     var usesAnswerEndpoint: Bool {
@@ -339,7 +352,41 @@ extension EnclaveSettings {
         var copy = self
         copy.baseURL = answerBaseURL
         copy.model = answerModel
-        if copy.usesFixedTemperature { copy.maxTokens = max(copy.maxTokens, 4096) }
+        // Kimi K3、智谱 GLM 会先思考，思考也算在最大输出里。
+        if copy.usesFixedTemperature || copy.searchProvider == .glm { copy.maxTokens = max(copy.maxTokens, 4096) }
         return copy
     }
+}
+
+/// 识意问答联网的三档。
+enum WebSearchMode: String, Codable, CaseIterable, Identifiable {
+    case on, ask, off
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .on: return L("开", "On", "オン")
+        case .ask: return L("每次询问", "Ask each time", "毎回確認")
+        case .off: return L("禁止", "Off", "オフ")
+        }
+    }
+}
+
+/// 识意问答联网用哪一家的方式。
+/// 三家都是模型先判断：第一行写「联网」才算要联网（三档在这一步起作用）。允许之后：
+/// Kimi：键盘拿问题原文调 Kimi 的搜索接口（/tools/search），再带上资料问一次。
+/// 千问（enable_search + forced_search）、智谱（web_search 工具）：服务商自带联网，只带问题原文再问一次，搜索词由服务商根据问题生成。
+enum SearchProvider: String {
+    case kimi, qwen, glm
+
+    var name: String {
+        switch self {
+        case .kimi: return "Kimi"
+        case .qwen: return L("通义千问", "Qwen", "Qwen")
+        case .glm: return L("智谱", "Zhipu GLM", "Zhipu GLM")
+        }
+    }
+
+    /// 服务商自带联网（一次请求里搜完答完），不用键盘另外去搜。
+    var builtin: Bool { self != .kimi }
 }

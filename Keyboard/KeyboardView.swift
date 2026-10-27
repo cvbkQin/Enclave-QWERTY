@@ -883,12 +883,6 @@ struct GateCard: View {
             .font(.system(size: 12))
             .foregroundStyle(Brand.cardNote)
             .fixedSize(horizontal: false, vertical: true)
-        if model.settings.canWebSearch && !WebSearch.isConsented {
-            Text(L("联网问答会调用 Kimi 搜索：问题会发给 Kimi 的搜索接口，每次约 0.01 元从你的 Kimi 账户扣。", "Web search in Ask uses Kimi search: your question goes to Kimi's search API, about ¥0.01 per search from your Kimi account.", "質問のウェブ検索は Kimi 検索を使います。質問が Kimi の検索 API に送られ、1 回約 0.01 元が Kimi アカウントから引かれます。"))
-                .font(.system(size: 12))
-                .foregroundStyle(Brand.cardNote)
-                .fixedSize(horizontal: false, vertical: true)
-        }
         Spacer(minLength: 0)
         HStack(spacing: 8) {
             Button { model.openContainingApp("enclave://privacy-policy") } label: {

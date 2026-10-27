@@ -23,10 +23,26 @@ struct WebSearch {
     var settings: EnclaveSettings
     var apiKey: String?
 
-    /// 键盘第一次联网问答前在确认卡上说明过「联网问答会调用 Kimi 搜索」，并且点了同意。
-    private static let consentKey = "webSearch.consented"
-    static var isConsented: Bool { SharedStorage.defaults.bool(forKey: consentKey) }
-    static func grantConsent() { SharedStorage.defaults.set(true, forKey: consentKey) }
+    /// 键盘第一次用某一家联网问答前，在确认卡上说明过发给谁、怎么收费，并且点了同意。按服务商分开记，换了一家再确认一次。
+    /// 0.87 只有 Kimi，记在 "webSearch.consented"（布尔），算 Kimi 同意过。
+    private static let legacyKey = "webSearch.consented"
+    private static func key(_ provider: SearchProvider) -> String { "webSearch.consented.\(provider.rawValue)" }
+    static func isConsented(_ provider: SearchProvider) -> Bool {
+        SharedStorage.defaults.bool(forKey: key(provider)) || (provider == .kimi && SharedStorage.defaults.bool(forKey: legacyKey))
+    }
+    static func grantConsent(_ provider: SearchProvider) { SharedStorage.defaults.set(true, forKey: key(provider)) }
+
+    /// 确认卡上那一行：发什么、发给谁、谁收费。
+    static func consentNote(_ provider: SearchProvider) -> String {
+        switch provider {
+        case .kimi:
+            return L("联网问答会调用 Kimi 搜索：问题会发给 Kimi 的搜索接口，每次约 0.01 元从你的 Kimi 账户扣。", "Web search in Ask uses Kimi search: your question goes to Kimi's search API, about ¥0.01 per search from your Kimi account.", "質問のウェブ検索は Kimi 検索を使います。質問が Kimi の検索 API に送られ、1 回約 0.01 元が Kimi アカウントから引かれます。")
+        case .qwen:
+            return L("联网会调用通义千问的搜索：只把你的问题发给千问，由阿里云根据问题生成搜索词去搜，按次计费，从你的阿里云百炼账户扣。", "Web search uses Qwen search: only your question is sent to Qwen, and Alibaba Cloud searches with terms based on it, billed per search to your Model Studio account.", "ウェブ検索には Qwen の検索を使います。質問だけを Qwen に送り、Alibaba Cloud が質問から検索語を作って検索します。回数ごとに Model Studio アカウントに課金されます。")
+        case .glm:
+            return L("联网会调用智谱的搜索：只把你的问题发给智谱，由智谱根据问题生成搜索词去搜，每次约 0.01 元，从你的智谱账户扣。", "Web search uses Zhipu search: only your question is sent to Zhipu, which searches with terms based on it, about ¥0.01 per search from your Zhipu account.", "ウェブ検索には Zhipu の検索を使います。質問だけを Zhipu に送り、Zhipu が質問から検索語を作って検索します。1 回約 0.01 元が Zhipu アカウントから引かれます。")
+        }
+    }
 
     func endpoint() throws -> URL {
         var base = settings.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)

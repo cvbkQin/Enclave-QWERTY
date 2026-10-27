@@ -166,25 +166,28 @@ enum ProviderName {
 /// 所有地区都列 DeepSeek、Kimi、通义千问，加上跑在自己电脑上的 Ollama（0.86 起，原来只有中国大陆店面这样）；
 /// 没有「自定义」卡片，自己改了地址或模型就四个都不选中，算自定义。OpenAI 和自定义只留着认旧设置的地址。
 enum Provider: CaseIterable, Identifiable {
-    case deepseek, openai, kimi, qwen, ollama, custom
+    case deepseek, openai, kimi, qwen, glm, ollama, custom
 
     /// 服务商卡片按这个顺序排，2×2。
     static let shown: [Provider] = [.deepseek, .kimi, .qwen, .ollama]
+    /// 问答页的服务商：前三家能联网（千问、Kimi、智谱），DeepSeek 不能联网。都是国内已备案的服务商。
+    static let answerShown: [Provider] = [.qwen, .kimi, .glm, .deepseek]
 
     /// 现在填的地址和模型对得上哪个预设：地址和模型都和预设一样才算；Ollama 只认 11434 端口（IP 本来就要改）。
-    /// 对不上时返回 nil（四个都不选中）。
-    static func matching(baseURL: String, model: String) -> Provider? {
+    /// 对不上时返回 nil（四个都不选中）。answer：按问答页的预设比（Kimi 问答用 K3）。
+    static func matching(baseURL: String, model: String, answer: Bool = false) -> Provider? {
         func trimmed(_ text: String) -> String {
             var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
             while text.hasSuffix("/") { text.removeLast() }
             return text
         }
-        let found = shown.first { provider in
+        let found = (answer ? answerShown : shown).first { provider in
             if provider == .ollama { return baseURL.contains(":11434") }
-            guard let preset = provider.preset else { return false }
-            // Kimi、千问的国内、国际两个地址都算（两边的 Key 不通用）。
+            guard let preset = answer ? provider.answerPreset : provider.preset else { return false }
+            // Kimi、千问、智谱的国内、国际两个地址都算（两边的 Key 不通用）。
             let urls = provider == .kimi ? [Provider.kimiChina, Provider.kimiGlobal]
-                : provider == .qwen ? [Provider.qwenChina, Provider.qwenGlobal] : [preset.baseURL]
+                : provider == .qwen ? [Provider.qwenChina, Provider.qwenGlobal]
+                : provider == .glm ? [Provider.glmChina, Provider.glmGlobal] : [preset.baseURL]
             return urls.contains(trimmed(baseURL)) && trimmed(model) == preset.model
         }
         return found
@@ -198,6 +201,7 @@ enum Provider: CaseIterable, Identifiable {
         case .openai: return "OpenAI"
         case .kimi: return "Kimi"
         case .qwen: return L("通义千问", "Qwen", "Qwen")
+        case .glm: return L("智谱 GLM", "Zhipu GLM", "Zhipu GLM")
         case .ollama: return "Ollama"
         case .custom: return L("自定义", "Custom", "カスタム")
         }
@@ -209,6 +213,7 @@ enum Provider: CaseIterable, Identifiable {
         case .openai: return "api.openai.com"
         case .kimi: return Storefront.isMainlandChina ? "api.moonshot.cn" : "api.moonshot.ai"
         case .qwen: return Storefront.isMainlandChina ? "dashscope.aliyuncs.com" : "dashscope-intl.aliyuncs.com"
+        case .glm: return Storefront.isMainlandChina ? "open.bigmodel.cn" : "api.z.ai"
         case .ollama: return L("局域网的电脑", "A computer on your network", "ローカルネットのPC")
         case .custom: return "vLLM、LM Studio"
         }
@@ -222,6 +227,9 @@ enum Provider: CaseIterable, Identifiable {
     /// 千问（阿里云百炼）同样分国内站和国际站（新加坡）。
     static let qwenChina = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     static let qwenGlobal = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    /// 智谱：国内开放平台（open.bigmodel.cn）和国际站 Z.ai。
+    static let glmChina = "https://open.bigmodel.cn/api/paas/v4"
+    static let glmGlobal = "https://api.z.ai/api/paas/v4"
 
     var preset: (baseURL: String, model: String)? {
         switch self {
@@ -229,19 +237,27 @@ enum Provider: CaseIterable, Identifiable {
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
         case .kimi: return (Storefront.isMainlandChina ? Self.kimiChina : Self.kimiGlobal, "kimi-k3.1-pro-highspeed")
         case .qwen: return (Storefront.isMainlandChina ? Self.qwenChina : Self.qwenGlobal, "qwen-plus")
+        case .glm: return (Storefront.isMainlandChina ? Self.glmChina : Self.glmGlobal, "glm-5.3")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
         }
     }
 
-    /// 选这个服务商时最大输出填多少。
-    var maxTokens: Int { self == .kimi ? 4096 : EnclaveSettings().maxTokens }
+    /// 问答页的预设：Kimi 用 K3（润色的预设是更快的高速版），别的和润色一样。千问 qwen-plus 支持联网。
+    var answerPreset: (baseURL: String, model: String)? {
+        guard let preset else { return nil }
+        return self == .kimi ? (preset.baseURL, Self.kimiAnswerModel) : preset
+    }
+
+    /// 选这个服务商时最大输出填多少（Kimi K3、智谱会先思考，思考也算在里面）。
+    var maxTokens: Int { self == .kimi || self == .glm ? 4096 : EnclaveSettings().maxTokens }
 
     static func detect(_ baseURL: String) -> Provider {
         if baseURL.contains("api.deepseek.com") { return .deepseek }
         if baseURL.contains("api.openai.com") { return .openai }
         if baseURL.contains("api.moonshot.cn") || baseURL.contains("api.moonshot.ai") { return .kimi }
         if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
+        if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
         if baseURL.contains(":11434") { return .ollama }
         return .custom
     }
@@ -256,6 +272,10 @@ struct ModelSettingsView: View {
     @State private var recent: [UsageStats.Request] = []
     /// 大陆店面打开「识意问答联网」前的说明。
     @State private var confirmWebSearch = false
+    /// 接口页分两页：润色和改写一个接口，问答一个接口。
+    @State private var page: APIPage = .main
+
+    private enum APIPage { case main, answer }
     /// 测试连接成功、这个地址还没同意过时弹出的确认（P05）。
     @State private var consentEndpoint: ConsentPrompt?
 
@@ -269,11 +289,68 @@ struct ModelSettingsView: View {
             Section {
             } header: {
                 VStack(spacing: 12) {
-                    TabTitle(caption: apiCaption, title: L("接口", "API", "API"))
-                    statusCard
+                    TabTitle(caption: page == .main ? apiCaption : answerCaption, title: L("接口", "API", "API"))
+                    Picker("", selection: $page) {
+                        Text(L("润色和改写", "Polish & Rewrite", "整える・書き換え")).tag(APIPage.main)
+                        Text(L("问答", "Answers", "回答")).tag(APIPage.answer)
+                    }
+                    .pickerStyle(.segmented)
+                    if page == .main { statusCard } else { answerStatusCard }
                 }
                 .dashFormCard()
             }
+            if page == .main {
+                mainSections
+            } else {
+                answerSections
+            }
+            if SharedStorage.usesClipboardConfig {
+                Section {
+                    Button(importResult == false ? L("剪贴板里没有飞地输入法配置", "No Enclave settings on the clipboard", "クリップボードに Enclave の設定がありません") : importResult == true ? L("已导入", "Imported", "読み込みました") : L("从剪贴板导入配置", "Import settings from clipboard", "クリップボードから設定を読み込む")) {
+                        importConfig()
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(importResult == false ? Color.orange : AppColor.purple)
+                }
+            }
+        }
+        .navigationTitle(L("接口", "API", "API"))
+        .alert(L("打开识意问答联网？", "Turn on web search in Ask?", "質問でウェブ検索をオンにしますか？"), isPresented: $confirmWebSearch) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+            Button(L("打开", "Turn On", "オンにする")) { store.settings.webSearchMode = .on }
+        } message: {
+            if let provider = store.settings.forAnswers.searchProvider { Text(WebSearch.consentNote(provider)) }
+        }
+        .tabRootPage()
+        .alert(L("用 AI 之前，先同意隐私政策", "Agree to the Privacy Policy to use AI", "AI を使う前にプライバシーポリシーに同意してください"), isPresented: $needsPrivacy) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+            Button(L("阅读并同意", "Read and Agree", "読んで同意する")) { router.showsPrivacyWelcome = true }
+        } message: {
+            Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
+        }
+        .onAppear {
+            recent = UsageStats.polishRecent
+        }
+        .onChange(of: store.test) { _ in recent = UsageStats.polishRecent }
+        .onChange(of: store.test) { test in
+            guard case .success = test, let endpoint = ConsentStore.endpoint(of: store.settings.baseURL),
+                  !ConsentStore.isConsented(endpoint) else { return }
+            consentEndpoint = ConsentPrompt(endpoint: endpoint)
+        }
+        .sheet(item: $consentEndpoint) { prompt in
+            ConsentSheet(provider: Provider.detect(store.settings.baseURL).title, endpoint: prompt.endpoint) {
+                ConsentStore.grant(prompt.endpoint)
+                consentEndpoint = nil
+            } later: {
+                consentEndpoint = nil
+            }
+            .presentationDetents([.large])
+        }
+    }
+
+    /// 「润色和改写」页：服务商、连接、生成参数。润色、识意的改写和判断都走这个接口。
+    @ViewBuilder
+    private var mainSections: some View {
             Section {
             } header: {
                 VStack(alignment: .leading, spacing: 8) {
@@ -343,62 +420,6 @@ struct ModelSettingsView: View {
             } footer: {
                 Text(L("温度越低越稳定，润色建议 0.2–0.5。", "Lower is steadier. 0.2–0.5 works well for polishing.", "低いほど安定します。整えるには 0.2〜0.5 がおすすめです。"))
             }
-            answerSection
-            if store.settings.forAnswers.isKimi {
-                Section {
-                    Toggle(L("识意问答联网", "Web search in Ask", "質問でウェブ検索"), isOn: Binding(
-                        get: { store.settings.webSearch ?? false },
-                        set: { on in
-                            // 大陆店面默认关，打开时先说清楚问题发给谁、谁收费。
-                            if on, Storefront.isMainlandChina { confirmWebSearch = true } else { store.settings.webSearch = on }
-                        }))
-                        .tint(AppColor.purple)
-                } footer: {
-                    Text(L("仅 Kimi。问天气、新闻、价格这类要最新信息的问题时，先用 Kimi 搜一下再回答，回答最后列出来源网站。只在需要时才搜，每次搜索由 Kimi 另外计费（约 ¥0.01）；问题会发给 Kimi 的搜索接口。改写照常由模型处理，不调用 Kimi 联网搜索。", "Kimi only. For questions that need current info, like weather, news or prices, Kimi searches the web first and lists its sources. It searches only when needed; each search is billed separately by Kimi. Your question is sent to Kimi's search API. Rewrites are still handled by the model but never call Kimi web search.", "Kimi のみ。天気・ニュース・価格など最新情報が必要な質問では、先に Kimi で検索してから答え、出典サイトを示します。必要なときだけ検索し、検索ごとに Kimi が別途課金します。質問は Kimi の検索 API に送られます。書き換えは通常どおりモデルが処理し、Kimi のウェブ検索は使いません。"))
-                }
-            }
-            if SharedStorage.usesClipboardConfig {
-                Section {
-                    Button(importResult == false ? L("剪贴板里没有飞地输入法配置", "No Enclave settings on the clipboard", "クリップボードに Enclave の設定がありません") : importResult == true ? L("已导入", "Imported", "読み込みました") : L("从剪贴板导入配置", "Import settings from clipboard", "クリップボードから設定を読み込む")) {
-                        importConfig()
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(importResult == false ? Color.orange : AppColor.purple)
-                }
-            }
-        }
-        .navigationTitle(L("接口", "API", "API"))
-        .alert(L("打开识意问答联网？", "Turn on web search in Ask?", "質問でウェブ検索をオンにしますか？"), isPresented: $confirmWebSearch) {
-            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
-            Button(L("打开", "Turn On", "オンにする")) { store.settings.webSearch = true }
-        } message: {
-            Text(L("问题会发给 Kimi 搜索，每次约 0.01 元从你的 Kimi 账户扣。", "Your question is sent to Kimi search, about ¥0.01 per search from your Kimi account.", "質問は Kimi 検索に送られ、1 回約 0.01 元が Kimi アカウントから引かれます。"))
-        }
-        .tabRootPage()
-        .alert(L("用 AI 之前，先同意隐私政策", "Agree to the Privacy Policy to use AI", "AI を使う前にプライバシーポリシーに同意してください"), isPresented: $needsPrivacy) {
-            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
-            Button(L("阅读并同意", "Read and Agree", "読んで同意する")) { router.showsPrivacyWelcome = true }
-        } message: {
-            Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
-        }
-        .onAppear {
-            recent = UsageStats.polishRecent
-        }
-        .onChange(of: store.test) { _ in recent = UsageStats.polishRecent }
-        .onChange(of: store.test) { test in
-            guard case .success = test, let endpoint = ConsentStore.endpoint(of: store.settings.baseURL),
-                  !ConsentStore.isConsented(endpoint) else { return }
-            consentEndpoint = ConsentPrompt(endpoint: endpoint)
-        }
-        .sheet(item: $consentEndpoint) { prompt in
-            ConsentSheet(provider: Provider.detect(store.settings.baseURL).title, endpoint: prompt.endpoint) {
-                ConsentStore.grant(prompt.endpoint)
-                consentEndpoint = nil
-            } later: {
-                consentEndpoint = nil
-            }
-            .presentationDetents([.large])
-        }
     }
 
     /// 顶部状态卡（PB2）：连接状态、最近一次耗时、「测试」，最近 10 次请求的小曲线。
@@ -491,21 +512,43 @@ struct ModelSettingsView: View {
         return model.isEmpty ? head : head + " · " + model
     }
 
-    /// 问答接口（PB5）：润色、识意改写走上面的接口要快；识意问答可以单独用另一家、另一个模型（比如 Kimi K3 + 联网）。
+    /// 「问答」页：识意判断是问答（或指定问答）时用的接口，和联网。
+    /// 润色、识意改写要快，走「润色和改写」页的接口；问答可以单独用另一家、另一个模型，能联网的有千问、Kimi、智谱。
     @ViewBuilder
-    private var answerSection: some View {
+    private var answerSections: some View {
         Section {
-            Toggle(L("问答用另一个接口", "Use another API for Ask answers", "質問の回答に別の API を使う"), isOn: $store.settings.separateAnswer)
+            Toggle(L("单独设置问答接口", "Separate API for answers", "回答に別の API を使う"), isOn: $store.settings.separateAnswer)
                 .tint(AppColor.purple)
-            if store.settings.separateAnswer {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                    ForEach(Provider.shown) { item in
-                        ProviderCard(provider: item, selected: selectedAnswerProvider == item) { chooseAnswer(item) }
+        } footer: {
+            Text(store.settings.separateAnswer
+                 ? L("识意判断是问答时用这里的接口回答，润色和改写照旧用另一页的接口。第一次用这个地址前，键盘上会再确认一次。", "When Ask turns out to be a question, this API answers it. Polish and rewrites keep using the other page's API. The keyboard asks you to confirm this address before first use.", "質問だと判断されたときはこの API で答えます。整えると書き換えは引き続きもう一方の API を使います。初めて使う前にキーボードで送信先を確認します。")
+                 : L("关着时问答也用「润色和改写」的接口。打开后可以给问答换一家服务商或更强的模型，比如能联网的千问、Kimi、智谱。", "When off, answers use the Polish & Rewrite API. Turn on to answer with another provider or a stronger model, such as Qwen, Kimi or Zhipu, which can search the web.", "オフのときは回答も「整える・書き換え」の API を使います。オンにすると、ウェブ検索できる Qwen・Kimi・Zhipu など、別のサービスや強いモデルで答えられます。"))
+        }
+        if store.settings.separateAnswer {
+            Section {
+            } header: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("服务商", "Provider", "サービス"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 16)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                        ForEach(Provider.answerShown) { item in
+                            ProviderCard(provider: item, selected: selectedAnswerProvider == item) { chooseAnswer(item) }
+                        }
                     }
                 }
-                .padding(.vertical, 4)
-                LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.answerBaseURL, placeholder: "https://api.moonshot.cn/v1", keyboard: .URL)
-                LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.answerModel, placeholder: "kimi-k3.1-pro")
+                .dashFormCard()
+            } footer: {
+                if Storefront.isMainlandChina {
+                    Text("通义千问（阿里云）、Kimi（北京月之暗面科技有限公司）、智谱 GLM（北京智谱华章科技股份有限公司）、DeepSeek（杭州深度求索人工智能基础技术研究有限公司）均已完成生成式人工智能服务备案。前三家支持联网。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
+                } else {
+                    Text(L("千问、Kimi、智谱支持联网，DeepSeek 不支持。", "Qwen, Kimi and Zhipu can search the web; DeepSeek can't.", "Qwen・Kimi・Zhipu はウェブ検索に対応、DeepSeek は非対応です。"))
+                }
+            }
+            Section {
+                LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.answerBaseURL, placeholder: Provider.qwen.preset?.baseURL ?? "", keyboard: .URL)
+                LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.answerModel, placeholder: "qwen-plus")
                 HStack {
                     Text("API Key")
                     SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: $store.answerApiKey)
@@ -513,52 +556,118 @@ struct ModelSettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 }
-                HStack(spacing: 10) {
-                    Button(L("测试问答接口", "Test Ask provider", "質問用の接続先をテスト")) {
-                        if PrivacyConsent.isAgreed { Task { await store.runAnswerTest() } } else { needsPrivacy = true }
-                    }
-                    .foregroundStyle(AppColor.purple)
-                    .disabled(!store.settings.usesAnswerEndpoint || store.answerTest == .running)
-                    Spacer(minLength: 8)
-                    answerTestResult
-                }
+            } header: {
+                Text(L("连接", "Connection", "接続"))
+            } footer: {
+                Text(L("选一个服务商会自动填好地址和模型，也可以自己改。API Key 只存在本机钥匙串里。", "Pick a provider to fill in the URL and model, or edit them yourself. Your API key stays in this iPhone's keychain.", "サービスを選ぶと URL とモデルが入力されます。自分で書き換えることもできます。API キーはこの iPhone のキーチェーンにだけ保存されます。"))
             }
-        } header: {
-            Text(L("问答接口", "Answers", "回答用 API"))
+        }
+        webSearchSection
+    }
+
+    /// 识意问答联网：问答接口是千问、Kimi、智谱时能开；别的服务商开关变灰，说明哪几家能联网。
+    private var webSearchSection: some View {
+        let provider = store.settings.forAnswers.searchProvider
+        return Section {
+            // 界面等设计稿，先用分段选择：开 / 每次询问 / 禁止。
+            Picker(L("识意问答联网", "Web search in Ask", "質問でウェブ検索"), selection: Binding(
+                get: { store.settings.webSearchMode ?? .off },
+                set: { mode in
+                    // 大陆店面默认禁止，选「开」时先说清楚发给谁、怎么收费。
+                    if mode == .on, Storefront.isMainlandChina { confirmWebSearch = true } else { store.settings.webSearchMode = mode }
+                })) {
+                ForEach(WebSearchMode.allCases) { Text($0.title).tag($0) }
+            }
+            .disabled(provider == nil)
         } footer: {
-            Text(store.settings.separateAnswer
-                 ? L("润色和识意改写用上面的接口，识意判断是问答时改用这里的接口回答。第一次用这个地址前，键盘上会再确认一次。", "Polish and Ask rewrites use the API above. When Ask turns out to be a question, this API answers it. The keyboard asks you to confirm this address before first use.", "整えると質問での書き換えは上の API、質問への回答はこちらの API を使います。初めて使う前にキーボードで送信先を確認します。")
-                 : L("润色要快，问答可以想久一点、联网：打开后识意问答可以用另一家服务商或另一个模型（比如 Kimi K3）。", "Polish should be fast; answers can think longer or search the web. Turn this on to answer Ask questions with another provider or model, such as Kimi K3.", "整えるは速さ重視、回答はじっくり考えたりウェブ検索したりできます。オンにすると、質問への回答に別のサービスやモデル（Kimi K3 など）を使えます。"))
+            Text(webSearchFooter(provider))
         }
     }
 
-    /// 「测试问答接口」右边的结果：成功绿点「连接正常 · 0.8 秒」，失败红字原因。
-    @ViewBuilder
-    private var answerTestResult: some View {
-        switch store.answerTest {
-        case .idle: EmptyView()
-        case .running: ProgressView()
-        case .success(_, let seconds):
-            HStack(spacing: 5) {
-                Circle().fill(DashColor.ok).frame(width: 7, height: 7)
-                Text(L("连接正常 · \(String(format: "%.1f", seconds)) 秒", "Connected · \(String(format: "%.1f", seconds)) s", "接続 OK・\(String(format: "%.1f", seconds)) 秒"))
-                    .font(.footnote).foregroundStyle(DashColor.ok)
-            }
-        case .failure(let message):
-            Text(message).font(.footnote).foregroundStyle(.red).lineLimit(2).multilineTextAlignment(.trailing)
+    private func webSearchFooter(_ provider: SearchProvider?) -> String {
+        let common = L("只在问答时联网，改写不调用联网搜索。", "Only answers search the web; rewrites never call web search.", "検索するのは回答のときだけで、書き換えではウェブ検索を使いません。")
+        switch provider {
+        case nil:
+            return L("现在的问答接口不支持联网。千问、Kimi、智谱支持，可以在上面单独设置问答接口。", "The current answers API can't search the web. Qwen, Kimi and Zhipu can; set a separate answers API above.", "今の回答用 API はウェブ検索に対応していません。Qwen・Kimi・Zhipu が対応しているので、上で回答用 API を設定できます。")
+        case .kimi?:
+            return L("Kimi：模型觉得要最新信息（天气、新闻、价格等）时，键盘用你的问题原文调 Kimi 搜索接口，再根据结果回答，最后列出来源网站。每次搜索约 ¥0.01，从你的 Kimi 账户扣。", "Kimi: when the model needs current info (weather, news, prices…), the keyboard sends your question as-is to Kimi's search API, then answers from the results and lists its sources. About ¥0.01 per search, billed to your Kimi account.", "Kimi：最新情報（天気・ニュース・価格など）が必要なとき、キーボードが質問をそのまま Kimi の検索 API に送り、結果をもとに答えて出典サイトを示します。1 回約 0.01 元が Kimi アカウントから引かれます。") + common
+        case .qwen?:
+            return L("通义千问：由千问自己判断要不要搜、搜什么，回答最后列出来源网站。搜索按次另外计费，从你的阿里云百炼账户扣。", "Qwen: Qwen decides whether and what to search, and lists its sources. Searches are billed separately to your Model Studio account.", "Qwen：検索するか、何を検索するかは Qwen が判断し、出典サイトを示します。検索は回数ごとに Model Studio アカウントに別途課金されます。") + common
+        case .glm?:
+            return L("智谱：由智谱自己判断要不要搜、搜什么，回答最后列出来源网站。每次搜索约 ¥0.01，从你的智谱账户扣。", "Zhipu: Zhipu decides whether and what to search, and lists its sources. About ¥0.01 per search, billed to your Zhipu account.", "Zhipu：検索するか、何を検索するかは Zhipu が判断し、出典サイトを示します。1 回約 0.01 元が Zhipu アカウントから引かれます。") + common
         }
+    }
+
+    /// 标题上的灰字：问答实际走哪家、哪个模型。
+    private var answerCaption: String {
+        let answers = store.settings.forAnswers
+        guard answers.isConfigured else { return L("还没设置", "Not set up", "未設定") }
+        return ProviderName.of(answers.baseURL) + " · " + answers.model
+    }
+
+    /// 问答页顶部的卡：问答走哪个接口、联网开没开；单独设了接口时带「测试」。
+    private var answerStatusCard: some View {
+        DashCard {
+            HStack(spacing: 6) {
+                Circle().fill(answerStatus.color).frame(width: 7, height: 7)
+                Text(answerStatus.text).font(.subheadline.weight(.semibold)).foregroundStyle(answerStatus.color).lineLimit(2)
+                Spacer(minLength: 8)
+            }
+            HStack(alignment: .firstTextBaseline) {
+                Text(answerSearchState).font(.footnote).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if store.settings.separateAnswer {
+                    Button {
+                        if router.privacyAgreed { Task { await store.runAnswerTest() } } else { needsPrivacy = true }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if store.answerTest == .running { ProgressView().controlSize(.small) }
+                            Text(L("测试", "Test", "テスト"))
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(DashColor.ai)
+                        .padding(.horizontal, 14)
+                        .frame(height: 32)
+                        .background(Capsule().fill(DashColor.ai.opacity(0.12)))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!store.settings.usesAnswerEndpoint || store.answerTest == .running)
+                }
+            }
+        }
+    }
+
+    private var answerStatus: (text: String, color: Color) {
+        guard store.settings.separateAnswer else {
+            return (L("和润色、改写用同一个接口", "Same API as Polish & Rewrite", "整える・書き換えと同じ API"), DashColor.system)
+        }
+        guard store.settings.usesAnswerEndpoint else {
+            return (L("还没配置，先选服务商、填地址", "Not set up. Pick a provider and fill in the URL", "未設定です。サービスを選んで URL を入力してください"), DashColor.system)
+        }
+        switch store.answerTest {
+        case .running: return (L("正在测试…", "Testing…", "テスト中…"), .orange)
+        case .failure(let message): return (message, .red)
+        case .success(_, let seconds):
+            return (L("已连接 · \(String(format: "%.1f", seconds)) 秒", "Connected · \(String(format: "%.1f", seconds)) s", "接続済み・\(String(format: "%.1f", seconds)) 秒"), DashColor.ok)
+        case .idle: return (L("还没测试", "Not tested", "未テスト"), DashColor.system)
+        }
+    }
+
+    private var answerSearchState: String {
+        guard let provider = store.settings.forAnswers.searchProvider else {
+            return L("联网：这家不支持", "Web search: not supported", "ウェブ検索：非対応")
+        }
+        return L("联网：\((store.settings.webSearchMode ?? .off).title) · \(provider.name)", "Web search: \((store.settings.webSearchMode ?? .off).title) · \(provider.name)", "ウェブ検索：\((store.settings.webSearchMode ?? .off).title)・\(provider.name)")
     }
 
     private var selectedAnswerProvider: Provider? {
-        Provider.matching(baseURL: store.settings.answerBaseURL, model: store.settings.answerModel)
-            ?? (store.settings.answerModel == Provider.kimiAnswerModel && Provider.detect(store.settings.answerBaseURL) == .kimi ? .kimi : nil)
+        Provider.matching(baseURL: store.settings.answerBaseURL, model: store.settings.answerModel, answer: true)
     }
 
     private func chooseAnswer(_ item: Provider) {
-        guard item != selectedAnswerProvider, let preset = item.preset else { return }
+        guard item != selectedAnswerProvider, let preset = item.answerPreset else { return }
         store.settings.answerBaseURL = preset.baseURL
-        // Kimi 问答用 K3（润色的预设是更快的高速版）。
-        store.settings.answerModel = item == .kimi ? Provider.kimiAnswerModel : preset.model
+        store.settings.answerModel = preset.model
     }
 
     /// 卡片选中哪个跟着地址和模型走：自己改过就不选中预设。

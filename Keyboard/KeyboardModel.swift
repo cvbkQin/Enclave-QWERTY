@@ -36,6 +36,15 @@ final class KeyboardModel: ObservableObject {
     @Published var askKind: AskMode?
     /// 识意问答正在联网搜索（Kimi）。卡片上的流光小字写「正在联网搜索…」。
     @Published var askSearching = false
+    /// 模型说要联网、还没允许时，回答框换成这张选择框（见 searchAllowed）。
+    @Published var searchPrompt: SearchPrompt?
+    private var searchReply: CheckedContinuation<Bool, Never>?
+
+    struct SearchPrompt: Equatable {
+        var provider: SearchProvider
+        /// 三档选了禁止：提示去 App 里开启，或者不联网直接回答。
+        var disabled: Bool
+    }
     /// 上一次「识意」的结果：同一句换了方式重做时顶掉它（没替换、插入、复制过的话）。
     struct LastAsk {
         var question: String
@@ -252,6 +261,7 @@ final class KeyboardModel: ObservableObject {
 
     func reload() {
         settings = SettingsStore.load()
+        refreshSearchPrompt()
         session = SessionStore.load()
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         instructionCaret = instruction.count
@@ -405,12 +415,11 @@ final class KeyboardModel: ObservableObject {
         return false
     }
 
-    /// 识意可能问答时：问答单独用另一个接口的，那个地址也要先同意；第一次联网问答，地址同意过也再出一次确认卡，
-    /// 卡上多一行「联网问答会调用 Kimi 搜索」。都同意过返回 true。
-    func passAnswerConsent(search: Bool, then action: @escaping () -> Void) -> Bool {
-        guard let endpoint = ConsentStore.endpoint(of: settings.forAnswers.baseURL) else { return true }
-        let needsEndpoint = settings.usesAnswerEndpoint && !ConsentStore.isConsented(endpoint)
-        guard needsEndpoint || (search && !WebSearch.isConsented) else { return true }
+    /// 识意可能问答时：问答单独用另一个接口的，那个地址也要先同意。都同意过返回 true。
+    /// 联网不在这里问：模型说要联网时才在回答框里问（searchPrompt）。
+    func passAnswerConsent(then action: @escaping () -> Void) -> Bool {
+        guard let endpoint = ConsentStore.endpoint(of: settings.forAnswers.baseURL),
+              settings.usesAnswerEndpoint, !ConsentStore.isConsented(endpoint) else { return true }
         gate = .consent(endpoint: endpoint, previous: nil)
         afterConsent = action
         return false
@@ -420,10 +429,38 @@ final class KeyboardModel: ObservableObject {
     func acceptConsent() {
         guard case .consent(let endpoint, _) = gate else { return }
         ConsentStore.grant(endpoint)
-        if settings.canWebSearch { WebSearch.grantConsent() }
         let action = afterConsent
         dismissGate()
         action?()
+    }
+
+    /// 模型说要联网：开着、这一家同意过就直接联；否则回答框换成选择框，等用户点。
+    /// 开着但第一次用这一家时点允许，记下同意，以后不再问；每次询问只算这一次。
+    func searchAllowed(_ provider: SearchProvider) async -> Bool {
+        let mode = settings.webSearchMode ?? .off
+        if mode == .on && WebSearch.isConsented(provider) { return true }
+        resolveSearchPrompt(allow: false)
+        return await withCheckedContinuation { reply in
+            searchReply = reply
+            searchPrompt = SearchPrompt(provider: provider, disabled: mode == .off)
+        }
+    }
+
+    /// 选择框上的「允许 / 拒绝」（禁止时的「直接回答」算拒绝）；点停止也走这里。
+    func resolveSearchPrompt(allow: Bool) {
+        let prompt = searchPrompt
+        let reply = searchReply
+        searchPrompt = nil
+        searchReply = nil
+        let allowed = allow && prompt?.disabled == false
+        if allowed, let prompt, settings.webSearchMode == .on { WebSearch.grantConsent(prompt.provider) }
+        reply?.resume(returning: allowed)
+    }
+
+    /// 回到键盘时重新读了设置：在 App 里把禁止改成了开或每次询问，选择框跟着变成「允许 / 拒绝」。
+    private func refreshSearchPrompt() {
+        guard let prompt = searchPrompt, prompt.disabled, (settings.webSearchMode ?? .off) != .off else { return }
+        searchPrompt = SearchPrompt(provider: prompt.provider, disabled: false)
     }
 
     /// 风格按钮在没开完全访问时也只出提示卡。
@@ -556,8 +593,8 @@ final class KeyboardModel: ObservableObject {
         var fallbackAnswer: Bool
         /// 输入框原文（联网后再问一次要用）。
         var context: String = ""
-        /// 这次可以联网（Kimi 且开着「问答联网」，不是指定改写）。
-        var search: Bool = false
+        /// 问答接口能联网时是哪一家（不是指定改写）。联不联网看三档，模型说要联网时再定。
+        var search: SearchProvider?
     }
 
     func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil) {
@@ -575,7 +612,8 @@ final class KeyboardModel: ObservableObject {
         let styleID = settings.selectedStyle?.id
         // 仪表盘的统计：耗时按毫秒记。
         // 最后是问答接口回答的（单独设了问答接口）：不进接口页的小曲线，那里只看主接口。
-        var answeredByAnswerAPI = ask?.forced == .answer && answerClient != nil
+        let separateAnswer = settings.usesAnswerEndpoint
+        var answeredByAnswerAPI = ask?.forced == .answer && separateAnswer
         func record(ok: Bool) {
             UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID,
                                     mainAPI: !answeredByAnswerAPI)
@@ -584,8 +622,8 @@ final class KeyboardModel: ObservableObject {
             var raw = ""
             var shownAt = Date.distantPast
             var messages = messages
-            // 模型第一行写「联网：搜索词」时停下这一轮，搜完带上资料再问一次（只搜一次）。
-            var maySearch = ask?.search == true
+            // 模型第一行写「联网」时停下这一轮，按三档决定联不联网，再问一次（只联网一次）。
+            var maySearch = ask?.search != nil
             do {
                 while true {
                     raw = ""
@@ -625,16 +663,29 @@ final class KeyboardModel: ObservableObject {
                     if handOff, let ask, let answerClient {
                         mayHandOff = false
                         client = answerClient
-                        answeredByAnswerAPI = true
+                        answeredByAnswerAPI = separateAnswer
                         messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, search: maySearch)
                         continue
                     }
-                    guard wantsSearch, let ask, let self else { break }
+                    guard wantsSearch, let ask, let provider = ask.search, let self else { break }
                     maySearch = false
                     // 联网之后的回答也交给问答模型。
-                    if let answerClient { client = answerClient; mayHandOff = false; answeredByAnswerAPI = true }
-                    // 联网的一定是问答：展开抽屉，流光小字写「正在联网搜索…」。
+                    if let answerClient { client = answerClient; mayHandOff = false; answeredByAnswerAPI = separateAnswer }
+                    // 联网的一定是问答：展开抽屉。三档：开且这一家同意过就直接联网，否则回答框里先问（禁止时提示去开启）。
                     self.askDecided(.answer)
+                    guard await self.searchAllowed(provider) else {
+                        try Task.checkCancellation()
+                        messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, offline: true)
+                        continue
+                    }
+                    try Task.checkCancellation()
+                    if provider.builtin {
+                        // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。
+                        client = LLMClient(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings), webSearch: true)
+                        messages = Prompts.ask(ask.question, context: "", forceAnswer: true, builtinSearch: true)
+                        continue
+                    }
+                    // Kimi：流光小字写「正在联网搜索…」，键盘拿问题原文去搜。
                     self.askSearching = true
                     let search = WebSearch(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings))
                     let results: String
@@ -708,6 +759,7 @@ final class KeyboardModel: ObservableObject {
     func stop() {
         task?.cancel()
         task = nil
+        resolveSearchPrompt(allow: false)
         isRunning = false
         runOrigin = nil
         askRunning = false

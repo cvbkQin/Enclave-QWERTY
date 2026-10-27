@@ -60,8 +60,8 @@ struct EnclaveApp: App {
                 .task { await UnlockStore.shared.refresh() }
                 .task {
                     await Storefront.refreshCountry()
-                    // 识意问答联网没选过：按店面定下来，中国大陆默认关，其他地区默认开。
-                    if store.settings.webSearch == nil { store.settings.webSearch = !Storefront.isMainlandChina }
+                    // 识意问答联网没选过：按店面定下来，中国大陆默认禁止，其他地区默认开。
+                    if store.settings.webSearchMode == nil { store.settings.webSearchMode = Storefront.isMainlandChina ? .off : .on }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                     Task { await UnlockStore.shared.refresh() }
@@ -305,6 +305,44 @@ final class AppStore: ObservableObject {
 
     enum TestState: Equatable {
         case idle, running, success(String, TimeInterval), failure(String)
+    }
+
+    /// 已存方案（接口页「保存」）。
+    @Published private(set) var savedAPIs = SavedAPIStore.all
+
+    /// 把这一页现在填的地址、模型、Key 存成方案。answer：问答页。
+    func saveAPI(name: String? = nil, answer: Bool) {
+        if answer {
+            SavedAPIStore.save(name: name, baseURL: settings.answerBaseURL, model: settings.answerModel, apiKey: answerApiKey)
+        } else {
+            SavedAPIStore.save(name: name, baseURL: settings.baseURL, model: settings.model, apiKey: apiKey)
+        }
+        savedAPIs = SavedAPIStore.all
+    }
+
+    /// 点方案：恢复到这一页的地址、模型和 Key。问答页恢复时顺便打开「单独设置问答接口」。
+    func applySavedAPI(_ saved: SavedAPI, answer: Bool) {
+        let key = saved.apiKey ?? ""
+        if answer {
+            settings.separateAnswer = true
+            settings.answerBaseURL = saved.baseURL
+            settings.answerModel = saved.model
+            answerApiKey = key
+        } else {
+            settings.baseURL = saved.baseURL
+            settings.model = saved.model
+            apiKey = key
+        }
+    }
+
+    func renameSavedAPI(_ id: UUID, to name: String) {
+        SavedAPIStore.rename(id, to: name)
+        savedAPIs = SavedAPIStore.all
+    }
+
+    func deleteSavedAPI(_ id: UUID) {
+        SavedAPIStore.delete(id)
+        savedAPIs = SavedAPIStore.all
     }
 
     /// 从剪贴板导入后重新读一遍。

@@ -53,13 +53,18 @@ enum PrivacyPolicy {
 
 本应用预设的模型服务仅为方便填写，您可以自由选择其他服务。我们建议您选择依法完成备案的模型服务。
 
-### （三）识意问答联网（仅在使用 Kimi 接口时可用）
+### （三）识意问答联网（仅在问答接口为千问、Kimi 或智谱时可用）
 
-“联网问答”在中国大陆默认关闭，其他地区默认开启，您可以随时在“接口”页关闭。当您在接口设置中选择 Kimi 并**主动开启**“联网问答”后，您在键盘里提出的问题会由键盘使用**您自己填写的 Kimi API 密钥**，直接发送至 Kimi（北京月之暗面科技有限公司）的联网搜索接口，用于检索公开网页信息并生成回答。发送的内容仅为您输入的问题本身，不包含输入框中的其他文字、通讯录或其他个人信息，且不经过我们的服务器。
+您可以在“接口”页的“问答”中单独设置识意问答使用的接口。“识意问答联网”分为“开”“每次询问”“禁止”三档，中国大陆默认“禁止”，其他地区默认“开”，您可以随时在“问答”页更改。中国大陆地区预设的问答服务商均为已完成生成式人工智能服务备案的境内服务商。联网只在识意问答时使用，改写不调用联网搜索。是否需要联网由模型根据问题先行判断；需要联网时，选“开”且已同意过该服务商的会直接联网，选“每次询问”或首次使用该服务商时会先在回答框中征得您的同意，选“禁止”时不会联网，仅提示您可前往开启。各服务商的方式和发送内容如下：
 
-联网搜索按次计费，费用由 Kimi 从**您的 Kimi 账户**扣除（目前约每次 0.01 元，以 Kimi 官方价格为准），我们不收取任何费用。
+1. **Kimi（北京月之暗面科技有限公司）：** 模型判断需要最新信息时，键盘使用**您自己填写的 Kimi API 密钥**，将**您输入的问题本身**（原文，不包含输入框中的其他文字、通讯录或其他个人信息）直接发送至 Kimi 的联网搜索接口，再把搜索结果连同问题发给模型生成回答。
+2. **通义千问（阿里云）、智谱 GLM（北京智谱华章科技股份有限公司）：** 联网由服务商自带的搜索功能完成。键盘另发一次开启联网的问答请求，其中**仅包含您输入的问题本身**（不包含输入框中的其他文字、通讯录或其他个人信息），由服务商根据问题生成搜索词、检索公开网页信息并生成回答。
 
-您可以随时在“接口”页关闭“联网问答”，关闭后问题只发送给模型本身，不再触发联网搜索。回答同样以“AI 生成”标签提示，内容可能不准确或过时，请您自行核对。
+以上请求均使用**您自己填写的 API 密钥**直接发送给对应服务商，不经过我们的服务器。征得同意时，键盘会提示内容将发送给哪家服务商及收费方式。
+
+联网搜索按次计费，费用由对应服务商从**您在该服务商的账户**扣除（Kimi、智谱目前约每次 0.01 元，千问按阿里云百炼的价格，均以官方价格为准），我们不收取任何费用。
+
+选择“禁止”或在回答框中拒绝联网时，问题只发送给模型本身，不会联网搜索。回答同样以“AI 生成”标签提示，内容可能不准确或过时，请您自行核对。
 
 ### （四）试用与购买
 
@@ -98,7 +103,7 @@ enum PrivacyPolicy {
 
 1. 本应用**未集成任何第三方统计、广告、推送或崩溃报告 SDK**。本应用使用的开源输入引擎 Rime 在本地运行，不联网。
 2. AI 功能所使用的模型服务由您自行选择和配置，您与该服务提供方之间的数据处理关系受其服务条款和隐私政策约束。
-3. 如您开启识意问答联网，您的问题会发送给 Kimi 的联网搜索接口，适用 Kimi 的服务条款和隐私政策。
+3. 如您开启识意问答联网，联网搜索由您选择的问答服务商（千问、Kimi 或智谱）完成，适用该服务商的服务条款和隐私政策。
 4. 购买由 Apple 的 App Store 处理，适用 Apple 的隐私政策。
 
 ## 六、您的权利
@@ -153,13 +158,18 @@ This information is processed by the model service provider you have chosen, und
 
 Before the first transmission, and whenever you change the endpoint address, the App shows you where the text will be sent and asks for your separate consent. Nothing is sent without your consent.
 
-### Web Search in Ask (Kimi only)
+### Web Search in Ask (Qwen, Kimi or Zhipu answers API only)
 
-Web search in Ask is off by default in mainland China and on by default in other regions; you can turn it off at any time on the API page. When it is on and you use Kimi, a question you ask in the keyboard that needs current information is sent by the keyboard, using **the Kimi API key you entered**, directly to Kimi's web search API (Beijing Moonshot AI Technology Co., Ltd.) to search public web pages and produce an answer. Only the question itself is sent. It does not include other text in the input field, your contacts or any other personal information, and it does not pass through our servers.
+On the API page, under Answers, you can set a separate API for Ask answers. Web search in Ask has three settings: On, Ask each time and Off. It is Off by default in mainland China and On in other regions, and you can change it at any time on the Answers page. In mainland China, the preset answer providers are all domestic providers that have completed generative AI service filing. Web search is used only for answers; rewrites never call web search. The model first decides from the question whether it needs the web. If it does: with On, and once you have agreed for that provider, it searches; with Ask each time, or the first time you use a provider, the keyboard asks for your consent in the answer box first; with Off, nothing is searched and the keyboard only tells you where to turn it on. How each provider searches and what is sent:
 
-Each search is billed by Kimi to **your Kimi account** (currently about ¥0.01 per search; see Kimi's official pricing). We charge nothing.
+1. **Kimi (Beijing Moonshot AI Technology Co., Ltd.):** When the model needs current information, the keyboard uses **the Kimi API key you entered** to send **only your question itself**, as typed (no other text in the input field, no contacts or other personal information), directly to Kimi's web search API, then sends the results with the question to the model to produce an answer.
+2. **Qwen (Alibaba Cloud) and Zhipu GLM (Beijing Zhipu Huazhang Technology Co., Ltd.):** Search is built into the provider's service. The keyboard sends a separate answer request with search turned on that contains **only your question itself** (no other text in the input field, no contacts or other personal information). The provider generates search terms from the question, searches public web pages and produces an answer.
 
-When web search is off, your question goes only to the model. Answers are marked "AI-generated" and may be inaccurate or out of date, so please check them yourself.
+All of these requests go directly to the provider using **the API key you entered** and do not pass through our servers. When asking for consent, the keyboard tells you which provider will receive the content and how it is billed.
+
+Each search is billed by the provider to **your account with that provider** (Kimi and Zhipu currently about ¥0.01 per search, Qwen per Alibaba Cloud Model Studio pricing; see each provider's official pricing). We charge nothing.
+
+When web search is Off, or you decline it in the answer box, your question goes only to the model. Answers are marked "AI-generated" and may be inaccurate or out of date, so please check them yourself.
 
 ### Free Trial and Purchase
 
@@ -185,7 +195,7 @@ You can clear the polish history and the input learning data under Settings › 
 
 ## 5. Third-Party Services
 
-The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, your question is sent to Kimi's web search API under Kimi's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy.
+The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi or Zhipu) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy.
 
 ## 6. Your Rights
 
@@ -235,13 +245,18 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 初回の送信前、および API の URL を変更したときは、送信先を表示したうえで個別に同意をいただきます。同意なく内容を送信することはありません。
 
-### 質問のウェブ検索（Kimi のみ）
+### 質問のウェブ検索（回答用 API が Qwen・Kimi・Zhipu のときのみ）
 
-「質問でウェブ検索」は中国大陸では初期設定でオフ、その他の地域ではオンです。API ページでいつでもオフにできます。オンで Kimi を使っている場合、キーボードで最新の情報が必要な質問をすると、キーボードが**お客様が入力した Kimi の API キー**を使い、その質問を Kimi（北京月之暗面科技有限公司）のウェブ検索 API へ直接送信し、公開されているウェブページを検索して回答を作ります。送信するのは質問そのものだけで、入力欄のほかの文章、連絡先、その他の個人情報は含まず、当方のサーバーも経由しません。
+API ページの「回答」で、質問への回答に使う API を別に設定できます。「質問でウェブ検索」には「オン」「毎回確認」「オフ」の 3 段階があり、中国大陸では初期設定で「オフ」、その他の地域では「オン」です。「回答」ページでいつでも変更できます。中国大陸でプリセットしている回答用サービスは、すべて生成 AI サービスの届出を済ませた国内のサービスです。検索するのは回答のときだけで、書き換えではウェブ検索を使いません。検索が必要かどうかは、まず質問をもとにモデルが判断します。必要な場合、「オン」でそのサービスに同意済みなら検索し、「毎回確認」またはそのサービスを初めて使うときは回答欄で先に同意を求め、「オフ」では検索せず、オンにできる場所をお知らせするだけです。サービスごとの方法と送信内容は次のとおりです。
 
-検索は 1 回ごとに Kimi が**お客様の Kimi アカウント**に課金します（現在 1 回約 0.01 元。Kimi の公式料金をご確認ください）。当方が料金を受け取ることはありません。
+1. **Kimi（北京月之暗面科技有限公司）：** 最新の情報が必要とモデルが判断したとき、キーボードが**お客様が入力した Kimi の API キー**を使い、**入力した質問そのもの**（原文のみ。入力欄のほかの文章、連絡先、その他の個人情報は含みません）を Kimi のウェブ検索 API へ直接送り、検索結果を質問とともにモデルに送って回答を作ります。
+2. **Qwen（Alibaba Cloud）・Zhipu GLM（北京智譜華章科技股份有限公司）：** 検索はサービス側の機能で行います。キーボードは検索をオンにした回答リクエストを別に送り、その中身は**入力した質問そのものだけ**です（入力欄のほかの文章、連絡先、その他の個人情報は含みません）。サービス側が質問から検索語を作り、公開されているウェブページを検索して回答を作ります。
 
-オフの場合、質問はモデルにのみ送られます。回答には「AI 生成」と表示され、不正確または古い可能性があるため、ご自身でご確認ください。
+いずれも**お客様が入力した API キー**で各サービスに直接送信し、当方のサーバーは経由しません。同意を求める際は、送信先のサービスと課金方法をキーボードで示します。
+
+検索は 1 回ごとに各サービスが**お客様のそのサービスのアカウント**に課金します（Kimi・Zhipu は現在 1 回約 0.01 元、Qwen は Alibaba Cloud Model Studio の料金。各サービスの公式料金をご確認ください）。当方が料金を受け取ることはありません。
+
+「オフ」のとき、または回答欄で検索を断ったときは、質問はモデルにのみ送られます。回答には「AI 生成」と表示され、不正確または古い可能性があるため、ご自身でご確認ください。
 
 ### 無料体験と購入
 
@@ -267,7 +282,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 ## 5. 第三者のサービス
 
-本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、質問は Kimi のウェブ検索 API に送られ、Kimi の利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。
+本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。
 
 ## 6. お客様の権利
 

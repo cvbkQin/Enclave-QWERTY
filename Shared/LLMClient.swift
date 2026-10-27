@@ -27,6 +27,9 @@ enum LLMError: LocalizedError {
 struct LLMClient {
     var settings: EnclaveSettings
     var apiKey: String?
+    /// 打开服务商自带的联网（千问 enable_search、智谱 web_search 工具）。
+    /// 只在模型说了要联网、并且允许之后的那次问答请求上打开；Kimi 和别的服务商不发这些字段。
+    var webSearch = false
 
     func endpoint() throws -> URL {
         var base = settings.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -47,6 +50,25 @@ struct LLMClient {
         var max_tokens: Int
         /// Kimi K3 一直会先思考，默认想得最久（max）；键盘里要快，发 low。别的服务商不发。
         var reasoning_effort: String?
+        /// 千问（阿里云百炼）联网。模型已经判断过要联网，forced_search 让它一定搜。
+        var enable_search: Bool?
+        var search_options: SearchOptions?
+        /// 智谱联网：内置的 web_search 工具。
+        var tools: [Tool]?
+    }
+
+    private struct SearchOptions: Encodable { var forced_search = true }
+
+    private struct Tool: Encodable {
+        struct WebSearch: Encodable {
+            var enable = true
+            /// 基础版搜索引擎，约 ¥0.01/次。
+            var search_engine = "search_std"
+            var search_result = true
+            var count = 5
+        }
+        var type = "web_search"
+        var web_search = WebSearch()
     }
 
     /// 按服务商调整参数：Kimi（api.moonshot.cn / .ai）的 kimi-k 系列不发温度，K3 再加 reasoning_effort: low。
@@ -89,7 +111,10 @@ struct LLMClient {
                         stream: true,
                         temperature: kimiModel == nil ? settings.temperature : nil,
                         max_tokens: settings.maxTokens,
-                        reasoning_effort: kimiModel?.hasPrefix("kimi-k3") == true ? "low" : nil
+                        reasoning_effort: kimiModel?.hasPrefix("kimi-k3") == true ? "low" : nil,
+                        enable_search: webSearch && settings.searchProvider == .qwen ? true : nil,
+                        search_options: webSearch && settings.searchProvider == .qwen ? SearchOptions() : nil,
+                        tools: webSearch && settings.searchProvider == .glm ? [Tool()] : nil
                     ))
 
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
