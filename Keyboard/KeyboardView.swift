@@ -110,8 +110,9 @@ struct KeyboardView: View {
                     .layoutPriority(1)
                     .transition(.opacity)
             } else {
-                RowChip(model: model, row: .prompts)
+                // 识意是主要功能，紧挨 ✨；提示词选好后一般不常换，放后面。
                 RowChip(model: model, row: .ask).layoutPriority(1)
+                RowChip(model: model, row: .prompts)
             }
             if model.quickStatus == .failed, !model.aiExpanded {
                 QuickRetryLabel(model: model)
