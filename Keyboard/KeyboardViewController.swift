@@ -7,6 +7,15 @@ final class KeyboardViewController: UIInputViewController {
     private var heightConstraint: NSLayoutConstraint?
     private var cancellables = Set<AnyCancellable>()
 
+    /// 根视图自己报高度（intrinsicContentSize）：冷启动第一次弹出时，系统还没按我们的高度约束排版，
+    /// 先按它的默认高度（224）把键盘放出来，下一帧才改成 260，润色条这一行跟着冒出来、输入框往上跳。
+    /// 系统按 allowsSelfSizing 量高度时会先问根视图的固有高度，一开始就告诉它。
+    override func loadView() {
+        let root = KeyboardRootView(frame: .zero, inputViewStyle: .keyboard)
+        root.allowsSelfSizing = true
+        root.height = model.keyboardHeight
+        view = root
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -51,6 +60,7 @@ final class KeyboardViewController: UIInputViewController {
         let target = model.keyboardHeight
         guard let heightConstraint, heightConstraint.constant != target else { return }
         UIView.performWithoutAnimation {
+            (view as? KeyboardRootView)?.height = target
             heightConstraint.constant = target
             view.setNeedsLayout()
             view.superview?.setNeedsLayout()
@@ -132,6 +142,17 @@ final class KeyboardViewController: UIInputViewController {
     private func updateGlobeKey() {
         let needs = needsInputModeSwitchKey
         if model.needsGlobeKey != needs { model.needsGlobeKey = needs }
+    }
+}
+
+/// 键盘根视图：固有高度就是键盘现在该有的高度，见 KeyboardViewController.loadView。
+final class KeyboardRootView: UIInputView {
+    var height: CGFloat = 0 {
+        didSet { if height != oldValue { invalidateIntrinsicContentSize() } }
+    }
+
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: height)
     }
 }
 
