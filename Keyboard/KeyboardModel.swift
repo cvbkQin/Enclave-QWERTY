@@ -22,7 +22,8 @@ final class KeyboardModel: ObservableObject {
     /// 结果卡片展开到五行。
     @Published var cardExpanded = false { didSet { heightMayChange?() } }
     /// AI 栏上方展开的一行：「润色 ▴」的提示词标签，或「识意 ▾」的输入框（QA2、QA14）。两者互斥。
-    enum AIRow { case prompts, ask }
+    /// AI 栏两颗风格键点开的一排：改写风格、问答风格（MG5）。展开时换掉识意框，收起时浮在 AI 栏上面。
+    enum AIRow { case prompts, answerStyles }
     @Published var aiRow: AIRow? { didSet { if aiRow != oldValue { heightMayChange?() } } }
     /// 「识意」框重新展开时整段全选：直接打字就覆盖，删除键清空。
     @Published var askSelected = false
@@ -122,9 +123,24 @@ final class KeyboardModel: ObservableObject {
     var predictionReplaces = 0
     /// 上次弹出时用的「主要语言」，用来判断设置是不是刚改过。
     var appliedLanguage: InputLanguage?
+    /// 抽屉：回答卡和识意框一整块（MG2），一次开收。展开时打字进识意框。
     @Published var aiExpanded = false {
         didSet {
             if aiExpanded { unseenResult = false }
+            if aiExpanded != oldValue {
+                if aiRow != nil { aiRow = nil }
+                // 换打字的地方之前，正在拼的先上屏到原来的地方。
+                if target != .card, isComposing { finishComposition() }
+                if aiExpanded, target == .host {
+                    moveInstructionCaret(by: instruction.count)
+                    // 识意框里本来有字：展开时全选，直接打字就覆盖。
+                    if askSelected == instruction.isEmpty { askSelected = !instruction.isEmpty }
+                    target = .instruction
+                } else if !aiExpanded, target == .instruction {
+                    if askSelected { askSelected = false }
+                    target = .host
+                }
+            }
             heightMayChange?()
         }
     }
@@ -814,6 +830,8 @@ final class KeyboardModel: ObservableObject {
                     record(ok: false)
                 } else {
                     record(ok: true)
+                    // 问答页每条问答风格的本周次数。
+                    if split?.answer == true, let id = answerStyle?.id { DailyStats.add("answer.style.\(id.uuidString)"); DailyStats.flush() }
                     // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
                     AIAccess.recordUse()
                     self.refreshAIAccess()
@@ -1083,8 +1101,15 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
+    /// 换风格只换下一次用的那条，不重新调用接口；展开时选完换回识意框（MG5）。
     func selectStyle(_ style: StylePreset) {
         updateSettings { $0.selectedStyleID = style.id }
+        if aiExpanded, aiRow != nil { aiRow = nil }
+    }
+
+    func selectAnswerStyle(_ style: StylePreset) {
+        updateSettings { $0.selectedAnswerStyleID = style.id }
+        if aiExpanded, aiRow != nil { aiRow = nil }
     }
 
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {
@@ -1103,6 +1128,8 @@ final class KeyboardModel: ObservableObject {
     }
 
     func insertInInstruction(_ text: String) {
+        // 风格一排开着时一打字就换回识意框。
+        if aiRow != nil { aiRow = nil }
         // 全选着：打的字直接盖掉原来的。
         if askSelected {
             setInstruction(text)

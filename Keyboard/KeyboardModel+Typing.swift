@@ -858,7 +858,8 @@ extension KeyboardModel {
             case "digitsMore": layer = .digits; digitsMore = true
             case "english": if chineseMode { toggleChinese() }
             case "prompts": aiRow = .prompts
-            case "instruction", "menu": aiRow = .ask; target = .instruction
+            case "instruction", "menu": aiExpanded = true
+            case "answerStyles": aiExpanded = true; aiRow = .answerStyles
             case "cardExpanded": aiExpanded = true; cardExpanded = true
             #if DEBUG
             case "versions": aiExpanded = true; debugUnblocked = true; loadDebugVersions()

@@ -4,32 +4,20 @@ import SwiftUI
 /// 识意展开时 ✨ 按框里的话执行：模型先判断是改写还是问答，问答展开抽屉看回答，改写跟着快速模式走。
 extension KeyboardModel {
     /// 不在卡片里改字时打字去哪：识意展开着就进识意框，否则进对方的输入框。
-    var restingTarget: InputTarget { aiRow == .ask ? .instruction : .host }
+    var restingTarget: InputTarget { aiExpanded ? .instruction : .host }
 
-    /// 点「润色 ▴」「识意 ▾」：开这一行（另一行自动收起），再点自己收起。
+    /// 点 AI 栏的风格键：展开时整块下半格换成这一种的风格一排，收起时浮在 AI 栏上面；再点自己换回来。
     func toggleRow(_ row: AIRow) {
         endCoach()
         if target == .card { finishCardEdit() }
         finishComposition()
-        let next: AIRow? = aiRow == row ? nil : row
-        aiRow = next
-        if next == .ask { moveInstructionCaret(by: instruction.count) }
-        // 识意框里本来有字：展开时全选，直接打字就覆盖。
-        let select = next == .ask && !instruction.isEmpty
-        if askSelected != select { askSelected = select }
-        let newTarget = restingTarget
-        if target != newTarget { target = newTarget }
+        aiRow = aiRow == row ? nil : row
     }
 
-    /// 识意框右端的 ×：只收起，框里的字留着。
-    func closeAskRow() {
-        guard aiRow == .ask else { return }
-        toggleRow(.ask)
-    }
-
-    /// 点识意框：打字回到框里，取消全选。
+    /// 点识意框：打字回到框里，取消全选；开着的风格一排收回去。
     func focusAsk() {
         if target == .card { finishCardEdit() }
+        if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
         if target != .instruction { target = .instruction }
     }
@@ -172,8 +160,7 @@ extension KeyboardModel {
 
     func loadDebugAsk(_ option: String) {
         debugUnblocked = true
-        aiRow = .ask
-        target = .instruction
+        aiExpanded = true
         switch option {
         case "ask": setInstruction(Self.debugQuestion)
         case "askEmpty": setInstruction("")

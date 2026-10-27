@@ -34,9 +34,9 @@ extension KeyboardModel {
         if target == .card { finishCardEdit() }
         finishComposition()
         clearQuickStatus()
-        aiExpanded = mark.expanded
-        // 有要求的场景打开「识意」，要求已经在框里。
-        aiRow = mark.menuOpen ? .ask : nil
+        // 有要求的场景打开抽屉，要求已经在识意框里。
+        aiExpanded = mark.expanded || mark.menuOpen
+        aiRow = nil
         if askSelected { askSelected = false }
         target = restingTarget
         coach = Coach(steps: mark.steps)

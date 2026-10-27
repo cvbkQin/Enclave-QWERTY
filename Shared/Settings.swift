@@ -244,11 +244,12 @@ extension StylePreset {
     ]
 
     /// 问答风格的默认四条（规格「问答风格与联网提示词」第 1 节）。提示词空着时按「简短直接，几句话说清楚」回答。
+    /// id 固定：旧设置里没有这一组时，App 和键盘各自读出来的默认四条是同一批，次数统计对得上。
     static let answerDefaults: [StylePreset] = [
-        StylePreset(name: "直击要害", prompt: "先给结论，直击要害，言简意赅。一般不超过三句，不铺垫、不重复问题、不加客套和免责声明。"),
-        StylePreset(name: "详细", prompt: "先给结论，再用几句话解释原因和要点，必要时举一个例子。"),
-        StylePreset(name: "列要点", prompt: "用「1.」「2.」分点回答，每点一句，最多五点。"),
-        StylePreset(name: "通俗", prompt: "像跟朋友解释一样，用大白话，少用术语，术语要顺带解释。"),
+        StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000001")!, name: "直击要害", prompt: "先给结论，直击要害，言简意赅。一般不超过三句，不铺垫、不重复问题、不加客套和免责声明。"),
+        StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000002")!, name: "详细", prompt: "先给结论，再用几句话解释原因和要点，必要时举一个例子。"),
+        StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000003")!, name: "列要点", prompt: "用「1.」「2.」分点回答，每点一句，最多五点。"),
+        StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000004")!, name: "通俗", prompt: "像跟朋友解释一样，用大白话，少用术语，术语要顺带解释。"),
     ]
 
     /// 以前各版的默认风格，用户没改过时升级成新的默认列表。

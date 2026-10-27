@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// 键盘主体。
-/// AI 栏永远紧贴按键上方，收起和展开是同一条：[抽屉] [✨] [润色 ▴] [识意 ▾] … [撤销|重做]；打拼音时这一行换成候选。
-/// 展开抽屉时 AI 栏上面是结果卡片，左边一颗替换 / 插入键；「润色 ▴」「识意 ▾」各自往上展开一行，紧贴 AI 栏。
+/// AI 栏永远紧贴按键上方，收起和展开是同一条：[抽屉] [✨] [改写风格 ▾] [问答风格 ▾] … [撤销|重做]；打拼音时这一行换成候选。
+/// 展开抽屉时 AI 栏上面是回答卡和识意框一整块，左边一颗替换 / 插入键（MG2）；风格键在展开时换掉识意框，收着时往上浮起一行。
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
@@ -29,22 +29,31 @@ struct KeyboardView: View {
                 }
                 .frame(height: freeEdit
                        ? KeyboardMetrics.cardHeight(tall: model.freeEditTall, aiLabel: model.showsAILabel) + KeyboardMetrics.freeEditExtra
-                       : KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel))
+                       : KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel) + KeyboardMetrics.askBoxHeight)
                 .overlay(alignment: .top) {
                     if model.freeEditToast {
                         FreeEditToast().offset(y: -2).transition(.opacity).allowsHitTesting(false)
+                    }
+                }
+                // 风格一排开着：整块底边伸出小尖角，指着下面被点的那颗风格键（MG5）。
+                .overlay(alignment: .bottomLeading) {
+                    if !freeEdit, let row = model.aiRow, let x = chipEdges[row] {
+                        StyleNotch(answer: row == .answerStyles)
+                            .frame(width: 20, height: 9)
+                            .offset(x: x - inset - 10, y: 9 - 0.75)
+                            .allowsHitTesting(false)
                     }
                 }
                 .padding(.horizontal, inset)
                 .padding(.top, KeyboardMetrics.panelTop)
                 .zIndex(2)
             }
-            if model.gate == nil, let row = model.aiRow, model.target != .card {
-                // 尖角对准下面那颗按钮右侧的箭头：中心距按钮右边 15.5pt。
-                AIRowPanel(model: model, row: row, arrowX: (chipEdges[row] ?? 0) - inset - 15.5)
+            if model.gate == nil, !model.aiExpanded, let row = model.aiRow {
+                // 尖角对准下面那颗风格键的中线。
+                AIRowPanel(model: model, row: row, arrowX: (chipEdges[row] ?? 0) - inset)
                     .frame(height: KeyboardMetrics.aiRowHeight)
                     .padding(.horizontal, inset)
-                    .padding(.top, model.aiExpanded ? KeyboardMetrics.panelSpacing : KeyboardMetrics.panelTop)
+                    .padding(.top, KeyboardMetrics.panelTop)
                     .padding(.bottom, KeyboardMetrics.aiRowGap)
             }
             if model.showsTrialReminder {
@@ -120,7 +129,7 @@ struct KeyboardView: View {
         .clipped()
     }
 
-    /// 「润色 ▴」「识意 ▾」右边缘在键盘里的位置，展开那一行的尖角按它对齐。
+    /// 两颗风格键中线在键盘里的位置，尖角按它对齐。
     @State private var chipEdges: [KeyboardModel.AIRow: CGFloat] = [:]
 
     // MARK: - AI 栏
@@ -175,9 +184,9 @@ struct KeyboardView: View {
                     .layoutPriority(1)
                     .transition(.opacity)
             } else {
-                // 识意是主要功能，紧挨 ✨；提示词选好后一般不常换，放后面。
-                RowChip(model: model, row: .ask).layoutPriority(1)
-                RowChip(model: model, row: .prompts)
+                // 改写风格、问答风格（MG1）。
+                StyleKey(model: model, row: .prompts).layoutPriority(1)
+                StyleKey(model: model, row: .answerStyles)
             }
             if model.quickStatus == .failed, !model.aiExpanded {
                 QuickRetryLabel(model: model)
@@ -252,7 +261,36 @@ struct KeyboardView: View {
 
 // MARK: - AI 栏的按钮
 
-/// 展开/收起 AI 面板（结果卡片 + 替换 / 插入），AI 栏最左边 44×34 的面板图标胶囊（方案 B）。
+/// 风格一排开着时整块底边的小尖角：20×9，块的底色填充、模式色 1.5pt 描边，上边和块的底边接在一起不描。
+struct StyleNotch: View {
+    var answer: Bool
+
+    var body: some View {
+        let ring = answer ? Brand.answerBorder : Brand.rewriteRing
+        ZStack {
+            NotchShape(closed: true).fill(KeyStyle.charKey)
+            NotchShape(closed: false).stroke(ring, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+        }
+    }
+
+    private struct NotchShape: Shape {
+        var closed: Bool
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            let mid = rect.midX
+            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            path.addCurve(to: CGPoint(x: mid - 1.8, y: rect.maxY - 1),
+                          control1: CGPoint(x: rect.minX + 5, y: rect.minY), control2: CGPoint(x: mid - 3.4, y: rect.maxY - 3))
+            path.addQuadCurve(to: CGPoint(x: mid + 1.8, y: rect.maxY - 1), control: CGPoint(x: mid, y: rect.maxY + 0.8))
+            path.addCurve(to: CGPoint(x: rect.maxX, y: rect.minY),
+                          control1: CGPoint(x: mid + 3.4, y: rect.maxY - 3), control2: CGPoint(x: rect.maxX - 5, y: rect.minY))
+            if closed { path.closeSubpath() }
+            return path
+        }
+    }
+}
+
+/// 展开/收起 AI 面板（回答卡和识意框一整块 + 替换 / 插入），AI 栏最左边 44×34 的面板图标胶囊（方案 B）。
 /// 收起时有没看过的新结果：图标变紫、右上角紫点；展开时浅紫底紫描边，和选择器打开时一样。
 struct PanelToggleButton: View {
     var expanded: Bool
@@ -309,7 +347,8 @@ struct PolishButton: View {
     private var quickRunning: Bool { model.isRunning && model.runOrigin != nil }
     /// 关了发光动画或开了减弱动态效果：只留星星轻微闪动。
     private var fullMotion: Bool { model.settings.polishAnimation && !reduceMotion }
-    private var asking: Bool { model.aiRow == .ask }
+    /// 抽屉展开时 ✨ 是放大镜（识意）；收着时是快速润色（MG1、MG2）。
+    private var asking: Bool { model.aiExpanded }
 
     var body: some View {
         if asking {
@@ -333,9 +372,11 @@ struct PolishButton: View {
 
     private var askButton: some View {
         let mode = model.askButtonMode
-        let enabled = model.canAsk || model.isRunning
+        // 识意框空着也能点：按当前改写风格改输入框里的话，结果进回答卡（MG2）。
+        let enabled = !(model.aiBlocked || model.aiQuotaUsed) || model.isRunning
         let showsHold = holding || debugHold
-        return decorated(face(fill: AnyShapeStyle(Self.askGradient(mode)), ring: (model.askKind ?? mode) == .answer ? Brand.answerRing : PolishButtonGlow.rerunRing) {
+        return decorated(face(fill: AnyShapeStyle(Self.askGradient(mode)), nebula: mode == nil && !model.isRunning,
+                              ring: (model.askKind ?? mode) == .answer ? Brand.answerRing : Brand.nebulaRing) {
             Self.askLabel(mode, starSize: mode == nil ? 20 : 11, doneAt: fullMotion ? doneAt : nil, glowing: fullMotion)
         })
         .opacity(enabled ? 1 : 0.45)
@@ -389,13 +430,17 @@ struct PolishButton: View {
                 } else if model.canAsk {
                     // 按住不滑松手是自动；点一下按 ✨ 现在显示的方式（上次手动选的，字没改的话）。
                     model.askTapped(wasHolding ? choice : model.askButtonMode)
+                } else {
+                    model.sparkleTapped()
                 }
             })
         .accessibilityElement()
         .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル")
                             : L("执行识意，按住上滑改写、下滑问答", "Run Ask. Hold and slide up to edit, down for Q&A", "たずねるを実行。長押しで上にスライドすると修正、下で質問"))
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { model.isRunning ? model.stop() : model.askTapped(model.askButtonMode) }
+        .accessibilityAction {
+            if model.isRunning { model.stop() } else if model.canAsk { model.askTapped(model.askButtonMode) } else { model.sparkleTapped() }
+        }
         .accessibilityAction(named: L("改写", "Rewrite", "書き換え")) { model.askTapped(.rewrite) }
         .accessibilityAction(named: L("问答", "Answer", "回答")) { model.askTapped(.answer) }
         .coachTarget(.run, active: model.coachDisplay?.target == .run)
@@ -458,7 +503,8 @@ struct PolishButton: View {
     // MARK: 外观
 
     /// 58×34 的胶囊：生成中深灰底白色方块，流光描边按这次的颜色。
-    private func face<Label: View>(fill: AnyShapeStyle, ring: [Color], @ViewBuilder label: () -> Label) -> some View {
+    /// nebula：识意自动时的蓝紫星团底（MG2）。
+    private func face<Label: View>(fill: AnyShapeStyle, nebula: Bool = false, ring: [Color], @ViewBuilder label: () -> Label) -> some View {
         let shape = Capsule()
         return Group {
             if model.isRunning {
@@ -468,7 +514,13 @@ struct PolishButton: View {
             }
         }
         .frame(width: KeyboardMetrics.polishButtonWidth, height: KeyboardMetrics.chipHeight)
-        .background(shape.fill(model.isRunning ? AnyShapeStyle(Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)) : fill))
+        .background {
+            if nebula {
+                NebulaFill().clipShape(shape)
+            } else {
+                shape.fill(model.isRunning ? AnyShapeStyle(Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)) : fill)
+            }
+        }
         .overlay {
             if quickRunning && fullMotion {
                 PolishButtonGlow(ring: ring).clipShape(shape)
@@ -532,6 +584,51 @@ struct PolishButton: View {
     private var polishFill: AnyShapeStyle {
         let gradient = LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]], startPoint: .leading, endPoint: .trailing)
         return (model.aiBlocked || model.aiQuotaUsed) ? AnyShapeStyle(gradient.opacity(0.35)) : AnyShapeStyle(gradient)
+    }
+}
+
+/// 识意自动时 ✨ 的底：蓝紫星团（MG2–MG5），115° 线性底上叠四团椭圆光和三粒小白星，照稿子的 CSS 换成多层径向渐变。
+struct NebulaFill: View {
+    /// 椭圆光：横竖半径（占宽高的比例）、中心、颜色、渐隐到透明的位置。
+    private static let glows: [(rx: CGFloat, ry: CGFloat, x: CGFloat, y: CGFloat, color: UInt32, stop: CGFloat)] = [
+        (0.55, 0.80, 0.90, 0.70, 0xA855F7, 0.70),
+        (0.50, 0.70, 0.40, 0.88, 0x0EA5E9, 0.70),
+        (0.55, 0.80, 0.62, 0.18, 0x38BDF8, 0.68),
+        (0.60, 0.75, 0.18, 0.28, 0x8B5CF6, 0.70),
+    ]
+    /// 小白星：位置、透明度、半径。
+    private static let stars: [(x: CGFloat, y: CGFloat, alpha: Double, r: CGFloat)] = [
+        (0.74, 0.30, 0.85, 0.6), (0.22, 0.72, 0.70, 0.5), (0.88, 0.78, 0.60, 0.5),
+    ]
+
+    private static func color(_ hex: UInt32) -> Color {
+        Color(red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            ZStack(alignment: .topLeading) {
+                LinearGradient(stops: [.init(color: Self.color(0x5B21B6), location: 0), .init(color: Self.color(0x4338CA), location: 0.4),
+                                       .init(color: Self.color(0x1E40AF), location: 0.65), .init(color: Self.color(0x6D28D9), location: 1)],
+                               startPoint: UnitPoint(x: 0, y: 0.25), endPoint: UnitPoint(x: 1, y: 0.75))
+                ForEach(0..<Self.glows.count, id: \.self) { i in
+                    let g = Self.glows[i]
+                    EllipticalGradient(stops: [.init(color: Self.color(g.color), location: 0),
+                                               .init(color: Self.color(g.color).opacity(0), location: g.stop)],
+                                       center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
+                        .frame(width: 2 * g.rx * w, height: 2 * g.ry * h)
+                        .position(x: g.x * w, y: g.y * h)
+                }
+                ForEach(0..<Self.stars.count, id: \.self) { i in
+                    let star = Self.stars[i]
+                    Circle().fill(Color.white.opacity(star.alpha))
+                        .frame(width: 2 * star.r, height: 2 * star.r)
+                        .position(x: star.x * w, y: star.y * h)
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -1093,13 +1190,45 @@ struct ResultCard: View {
         return .hint(model.notice)
     }
 
-    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 12, style: .continuous) }
 
     /// 只在生成中播放；App 里关了动画或系统开了「减弱动态效果」就不播。
     private var animating: Bool { model.isRunning && model.searchPrompt == nil && model.settings.polishAnimation && !reduceMotion }
 
     var body: some View {
         let look = look
+        VStack(spacing: 0) {
+            content(look)
+            // 下半格是识意框（MG3）；自由编辑时整块变成编辑框。
+            if model.target != .card {
+                Rectangle().fill(Brand.blockHair).frame(height: 0.5)
+                lowerHalf.frame(height: KeyboardMetrics.askBoxHeight - 0.5)
+            }
+        }
+        .background {
+            // 修改中：外面一圈 4pt 淡紫光。
+            if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
+            shape.fill(KeyStyle.charKey)
+            if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
+        }
+        .overlay {
+            if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
+        }
+        .overlay { border(look).allowsHitTesting(false) }
+    }
+
+    /// 识意框，或者点了风格键时这一种的风格一排（MG5）。
+    @ViewBuilder
+    private var lowerHalf: some View {
+        if let row = model.aiRow {
+            StyleRow(model: model, row: row)
+        } else {
+            AskField(model: model)
+        }
+    }
+
+    /// 上半格：回答卡。
+    private func content(_ look: Look) -> some View {
         Group {
             switch look {
             case .checklist: checklist
@@ -1112,16 +1241,6 @@ struct ResultCard: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background {
-            // 修改中：外面一圈 4pt 淡紫光。
-            if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
-            shape.fill(KeyStyle.charKey)
-            if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
-        }
-        .overlay {
-            if animating { SweepBand().clipShape(shape) }
-        }
-        .overlay { border(look) }
         .overlay(alignment: .bottom) {
             if let note = model.replaceNote {
                 Text(note == .partial
@@ -1520,17 +1639,10 @@ struct ResultCard: View {
                 shape.strokeBorder((model.askKind == .answer ? Brand.answerBorder : Brand.purpleText).opacity(0.5), lineWidth: 1)
             }
         case .fresh:
-            // 识意的回答天蓝边、识意改写的一版紫边（QA5、QA6），按提示词润色的照旧渐变细边。
-            if model.session?.currentIsAnswer == true {
-                shape.strokeBorder(Brand.answerBorder, lineWidth: 1.5)
-            } else if model.session?.currentIsAsk == true {
-                shape.strokeBorder(Brand.rowStroke, lineWidth: 1.5)
-            } else {
-                shape.strokeBorder(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing),
-                                   lineWidth: 1.2)
-            }
+            // 整块描边跟着结果：问答天蓝，改写（润色也算）紫（MG3、MG4）。
+            shape.strokeBorder(resultRing, lineWidth: 1.5)
         case .faded:
-            shape.strokeBorder(Color.secondary.opacity(0.35), lineWidth: 0.8)
+            shape.strokeBorder(resultRing.opacity(0.45), lineWidth: 1.5)
         case .error:
             if model.failure != nil {
                 shape.strokeBorder(Brand.rowStroke, lineWidth: 1.5)
@@ -1544,30 +1656,26 @@ struct ResultCard: View {
         case .search:
             shape.strokeBorder(Brand.answerBorder, lineWidth: 1.5)
         case .checklist, .hint:
-            EmptyView()
+            shape.strokeBorder(Brand.rewriteRing, lineWidth: 1.5)
         }
     }
 
-    // MARK: 提示、出错、检查清单
+    private var resultRing: Color { model.session?.currentIsAnswer == true ? Brand.answerBorder : Brand.rewriteRing }
 
-    /// 提示卡里提到的选择器名字：当前提示词，默认是「润色」。
-    private var chipName: String { model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える") }
+    // MARK: 提示、出错、检查清单
 
     private func hintView(_ notice: String?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             if let notice {
                 Text(notice).font(.system(size: 13)).foregroundStyle(Color.primary)
             } else {
-                HStack(spacing: 4) {
-                    SparkleMark(size: 11, color: Brand.purpleText)
-                    Text(L("点 ✨，按当前提示词改输入框里的话", "Tap ✨ to run the current prompt on your text", "✨ で、いまのプロンプトを入力欄の文章に使います")).font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purpleText)
-                }
-                Text(L("点「\(chipName) ▾」换一条提示词；点「识意 ▾」问个问题，或说说想怎么改：翻成日语、改成朋友圈语气……", "Tap \(chipName) ▾ to switch prompts, or tap Ask ▾ to ask anything or say how to change it…", "「\(chipName) ▾」でプロンプトを切り替え、「たずねる ▾」で質問や直し方の指示ができます……"))
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Color.secondary)
+                // 还没结果（MG2）：灰字说明，结果出来后整块高度不变。
+                Text(L("点 ✨：自动判断是改这段话，还是回答问题；结果出现在这里", "Tap ✨: it works out whether to edit your text or answer your question. The result shows here", "✨ をタップ：文章を直すか質問に答えるかを自動で判断します。結果はここに表示されます"))
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(Brand.askPlaceholder)
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
 

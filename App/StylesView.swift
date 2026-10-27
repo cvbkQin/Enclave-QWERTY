@@ -18,27 +18,140 @@ enum PromptsDebug {
 }
 #endif
 
-/// 提示词（PR1，原「风格」）：顶部说明小卡、全部提示词（每行本周次数）、添加、恢复默认。
-/// 左滑删除，「编辑」拖动排序；这里的顺序就是键盘「润色▾」里的顺序。存储还是 StylePreset。
+/// 提示词（PR1，原「风格」）：顶上分段「改写 · 润色 | 问答」（QP0、QP1）。
+/// 改写那页：顶部说明小卡、全部提示词（每行本周次数）、添加、恢复默认；左滑删除，「编辑」拖动排序，顺序就是键盘紫色风格键里的顺序。
+/// 问答那页：联网倾向条、问答风格列表、添加。存储都是 StylePreset。
 struct StylesView: View {
     @Binding var settings: EnclaveSettings
+    /// 当前分段：rewrite / answer。键盘风格一排的「＋」打开对应那一页。
+    @AppStorage("promptsPage") private var page = "rewrite"
     @State private var confirmReset = false
     /// 每条提示词本周执行的次数，进页面时读一次。
     @State private var weekCounts: [UUID: Int] = [:]
+    @State private var answerCounts: [UUID: Int] = [:]
     /// 截图用：直接打开这一条的编辑页。
     @State private var debugEditing: UUID?
 
     var body: some View {
         List {
             Section {
-                HowItWorksCard(name: settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える"))
-                    .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
+                if page == "answer" {
+                    SearchTendencyCard(settings: $settings)
+                        .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14))
+                } else {
+                    HowItWorksCard(name: settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える"))
+                        .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
+                }
             } header: {
-                TabTitle(caption: caption, title: L("提示词", "Prompts", "プロンプト"))
-                    // 标题到第一张卡片和首页一样约 18pt。
-                    .padding(.bottom, 11)
-                    .dashFormCard()
+                VStack(alignment: .leading, spacing: 12) {
+                    TabTitle(caption: caption, title: L("提示词", "Prompts", "プロンプト"))
+                    Picker("", selection: $page) {
+                        Text(L("改写 · 润色", "Rewrite · Polish", "書き換え · 整える")).tag("rewrite")
+                        Text(L("问答", "Answers", "質問への回答")).tag("answer")
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(height: 34)
+                }
+                // 标题到第一张卡片和首页一样约 18pt。
+                .padding(.bottom, 11)
+                .dashFormCard()
+            } footer: {
+                if page == "answer" {
+                    Text(L("只管模型「想不想」联网；能不能联网仍看 设置 › 联网（开 / 每次询问 / 禁止）。概念解释、写作、翻译、计算、建议、闲聊在哪一档都不联网；改写从不联网。",
+                           "This only sets how keen the model is to search. Whether it can is still set in Settings › Web search (On / Ask each time / Off). Explanations, writing, translation, math, advice and chat never search at any level, and rewrites never do.",
+                           "モデルがどれだけ検索したがるかだけを決めます。検索できるかどうかは 設定 › ウェブ検索（オン / 毎回確認 / オフ）のままです。概念の説明・作文・翻訳・計算・アドバイス・雑談はどの段階でも検索せず、書き換えは検索しません。"))
+                }
             }
+            if page == "answer" {
+                answerSections
+            } else {
+                rewriteSections
+            }
+        }
+        .tint(DashColor.ai)
+        .confirmationDialog(L("恢复成默认的 5 条提示词？你改过和添加的会被删掉。", "Restore the 5 default prompts? Prompts you changed or added will be removed.", "デフォルトの 5 つのプロンプトに戻しますか？変更・追加したものは削除されます。"), isPresented: $confirmReset, titleVisibility: .visible) {
+            Button(L("恢复默认提示词", "Restore default prompts", "デフォルトのプロンプトに戻す"), role: .destructive) {
+                settings.styles = StylePreset.defaults
+                settings.selectedStyleID = nil
+            }
+        }
+        .navigationTitle(L("提示词", "Prompts", "プロンプト"))
+        .tabRootPage()
+        .onAppear {
+            weekCounts = Dictionary(uniqueKeysWithValues: settings.styles.map { ($0.id, UsageStats.week("polish.style.\($0.id.uuidString)")) })
+            answerCounts = Dictionary(uniqueKeysWithValues: settings.answerStyles.map { ($0.id, UsageStats.week("answer.style.\($0.id.uuidString)")) })
+            #if DEBUG
+            applyDebugScene()
+            #endif
+        }
+        .navigationDestination(isPresented: Binding(get: { debugEditing != nil }, set: { if !$0 { debugEditing = nil } })) {
+            if let index = settings.styles.firstIndex(where: { $0.id == debugEditing }) {
+                StyleEditor(style: $settings.styles[index], settings: $settings)
+            }
+        }
+    }
+
+    /// 问答那页（QP1）：问答风格列表、添加。
+    @ViewBuilder
+    private var answerSections: some View {
+        Section {
+            ForEach($settings.answerStyles) { $style in
+                NavigationLink {
+                    AnswerStyleEditor(style: $style, settings: $settings)
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(style.displayName).font(.body)
+                                if style.id == settings.selectedAnswerStyle?.id {
+                                    DashTag(text: L("默认", "Default", "デフォルト"), color: AnswerColor.text)
+                                }
+                            }
+                            Text(style.prompt.isEmpty ? Self.answerFallback : style.prompt)
+                                .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        Text(L("\(answerCounts[style.id] ?? 0) 次", "\(answerCounts[style.id] ?? 0)×", "\(answerCounts[style.id] ?? 0) 回"))
+                            .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    }
+                    .padding(.vertical, 2)
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                }
+            }
+            .onDelete { offsets in
+                guard settings.answerStyles.count > offsets.count else { return }
+                settings.answerStyles.remove(atOffsets: offsets)
+            }
+            .onMove { settings.answerStyles.move(fromOffsets: $0, toOffset: $1) }
+        } header: {
+            HStack {
+                Text(L("问答风格", "Answer styles", "回答スタイル"))
+                Spacer()
+                EditButton()
+                    .font(.system(size: 15))
+                    .tint(DashColor.ai)
+                    .environment(\.locale, Loc.locale)
+                    .textCase(nil)
+            }
+        } footer: {
+            Text(L("顺序就是键盘 AI 栏蓝色那颗里的顺序。次数是本周的。都能改名、改内容；内容空着就按「简短直接，几句话说清楚」回答。",
+                   "This is the order in the blue key on the keyboard's AI bar. Counts are for this week. Rename or rewrite any of them; an empty one answers briefly and directly.",
+                   "キーボードの AI バーの青いキーもこの順番です。回数は今週の分です。名前も内容も変えられます。内容が空なら「短く率直に」答えます。"))
+        }
+        Section {
+            Button {
+                settings.answerStyles.append(StylePreset(name: L("新问答风格", "New answer style", "新しい回答スタイル"), prompt: ""))
+            } label: {
+                Label(L("添加问答风格", "Add answer style", "回答スタイルを追加"), systemImage: "plus")
+            }
+        }
+    }
+
+    static let answerFallback = L("简短直接，几句话说清楚", "Brief and direct, in a few sentences", "短く率直に、数文で")
+
+    /// 改写那页（QP0）：原来的提示词列表。
+    @ViewBuilder
+    private var rewriteSections: some View {
             Section {
                 ForEach($settings.styles) { $style in
                     NavigationLink {
@@ -127,27 +240,6 @@ struct StylesView: View {
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
             }
-        }
-        .tint(DashColor.ai)
-        .confirmationDialog(L("恢复成默认的 5 条提示词？你改过和添加的会被删掉。", "Restore the 5 default prompts? Prompts you changed or added will be removed.", "デフォルトの 5 つのプロンプトに戻しますか？変更・追加したものは削除されます。"), isPresented: $confirmReset, titleVisibility: .visible) {
-            Button(L("恢复默认提示词", "Restore default prompts", "デフォルトのプロンプトに戻す"), role: .destructive) {
-                settings.styles = StylePreset.defaults
-                settings.selectedStyleID = nil
-            }
-        }
-        .navigationTitle(L("提示词", "Prompts", "プロンプト"))
-        .tabRootPage()
-        .onAppear {
-            weekCounts = Dictionary(uniqueKeysWithValues: settings.styles.map { ($0.id, UsageStats.week("polish.style.\($0.id.uuidString)")) })
-            #if DEBUG
-            applyDebugScene()
-            #endif
-        }
-        .navigationDestination(isPresented: Binding(get: { debugEditing != nil }, set: { if !$0 { debugEditing = nil } })) {
-            if let index = settings.styles.firstIndex(where: { $0.id == debugEditing }) {
-                StyleEditor(style: $settings.styles[index], settings: $settings)
-            }
-        }
     }
 
     #if DEBUG
@@ -179,10 +271,11 @@ struct StylesView: View {
         }
     }
 
-    /// 标题上的灰字：「5 条 · 默认「润色」」。
+    /// 标题上的灰字：「5 条 · 默认「润色」」；问答那页按问答风格算。
     private var caption: String {
-        let name = settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
-        let count = settings.styles.count
+        let answer = page == "answer"
+        let name = (answer ? settings.selectedAnswerStyle?.displayName : settings.selectedStyle?.displayName) ?? L("润色", "Polish", "整える")
+        let count = answer ? settings.answerStyles.count : settings.styles.count
         return L("\(count) 条 · 默认「\(name)」", "\(count) prompts · Default: \(name)", "\(count) 件 · デフォルト「\(name)」")
     }
 
@@ -524,5 +617,195 @@ final class PromptOptimizer: ObservableObject {
             }
         }
         return Result(prompt: body, suggestions: suggestions)
+    }
+}
+
+/// 问答那页的天蓝：字 #0284C7、浅底 #E0F2FE。
+enum AnswerColor {
+    static let text = Color(hex: 0x0284C7)
+    static let soft = Color(hex: 0xE0F2FE)
+}
+
+/// 联网倾向卡（QP1–QP4）：5 档的条，只能停在档上；下面说明框跟着档位换。设置 › 联网是「禁止」时整张变灰、不能拖。
+struct SearchTendencyCard: View {
+    @Binding var settings: EnclaveSettings
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var off: Bool { (settings.webSearchMode ?? .off) == .off }
+    private var level: Int { settings.tendency }
+
+    static let names = [L("不联网", "Never", "しない"), L("很少", "Rarely", "少なめ"), L("适中", "Balanced", "ふつう"),
+                        L("积极", "Often", "多め"), L("尽量查", "When unsure", "できるだけ")]
+
+    var body: some View {
+        let accent = off ? Color(.systemGray) : AnswerColor.text
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "globe")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 28, height: 28)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(off ? Color(.systemGray5) : AnswerColor.soft))
+                Text(L("联网倾向", "Web search tendency", "ウェブ検索の積極さ"))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(off ? .secondary : .primary)
+                Spacer(minLength: 8)
+                Text(Self.names[level] + (level == 2 ? L("（默认）", " (default)", "（デフォルト）") : ""))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            TendencySlider(level: Binding(get: { level }, set: { settings.searchTendency = $0 }), disabled: off)
+                .frame(height: 26)
+            HStack(spacing: 0) {
+                ForEach(0..<5, id: \.self) { i in
+                    Text(Self.names[i])
+                        .font(.system(size: 12, weight: i == level && !off ? .semibold : .regular))
+                        .foregroundStyle(i == level && !off ? AnswerColor.text : .secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            // 档名和条上的圆点对齐：两端各收进半个滑块。
+            .padding(.horizontal, -8)
+            Text(detail)
+                .font(.system(size: 13.5))
+                .foregroundStyle(level == 4 && !off ? Color(hex: 0x8A4B00) : .secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(level == 4 && !off ? Color(hex: 0xFFF4E0) : Color(.systemGray6)))
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var detail: String {
+        if off {
+            return L("联网设成了「禁止」，这根条不起作用。到 设置 › 联网 打开", "Web search is set to Off, so this has no effect. Turn it on in Settings › Web search.", "ウェブ検索が「オフ」なので、この設定は効きません。設定 › ウェブ検索 でオンにしてください")
+        }
+        switch level {
+        case 0: return L("直接回答，不去搜。想查时点回答旁边的「使用联网查询」", "Answers without searching. To look something up, tap Search the web next to the answer.", "検索せずに答えます。調べたいときは回答の横の「ウェブで調べる」をタップ")
+        case 1: return L("只有你说「查一下」，或问今天的天气、实时价格、汇率、比分时才联网", "Searches only when you ask it to, or for today's weather, live prices, exchange rates and scores.", "「調べて」と頼んだときや、今日の天気・リアルタイムの価格・為替・スコアを聞いたときだけ検索します")
+        case 3: return L("在「适中」基础上，产品、公司、人物、政策这类近一两年可能变过的现状也会去查", "On top of Balanced, also checks the current state of products, companies, people and policies that may have changed lately.", "「ふつう」に加えて、製品・会社・人物・制度など、ここ1〜2年で変わったかもしれない現状も調べます")
+        case 4: return L("在「积极」基础上，自己没把握的具体事实（数字、日期、时刻表、参数）也去查。事实类问题基本都会联网，费用会多一些。", "On top of Often, also checks specific facts it isn't sure of (numbers, dates, timetables, specs). Most factual questions will search, so it costs a bit more.", "「多め」に加えて、自信のない具体的な事実（数字・日付・時刻表・仕様）も調べます。事実を聞く質問はほぼ検索するので、費用が少し増えます。")
+        default: return L("答案取决于最近几天到几周会变的事（天气、行情、新闻、刚发布的产品）才联网；拿不准就直接回答", "Searches when the answer depends on things that change over days or weeks (weather, markets, news, new releases). If unsure, it just answers.", "答えが数日〜数週間で変わること（天気・相場・ニュース・新製品）によるときだけ検索します。迷ったらそのまま答えます")
+        }
+    }
+}
+
+/// 5 档的条：轨道 6 高 #E5E5EA，已选部分 #7DD3FC→#0284C7，档位 6pt 小圆点（已过白、未到 #C7C7CC），26pt 白色滑块带阴影。
+private struct TendencySlider: View {
+    @Binding var level: Int
+    var disabled: Bool
+
+    var body: some View {
+        GeometryReader { geo in
+            let inset: CGFloat = 13
+            let width = geo.size.width - inset * 2
+            let x = { (i: Int) in inset + width * CGFloat(i) / 4 }
+            let mid = geo.size.height / 2
+            ZStack(alignment: .topLeading) {
+                Capsule().fill(Color(hex: 0xE5E5EA))
+                    .frame(width: width, height: 6)
+                    .position(x: inset + width / 2, y: mid)
+                Capsule().fill(disabled ? AnyShapeStyle(Color(.systemGray3))
+                               : AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x7DD3FC), Color(hex: 0x0284C7)], startPoint: .leading, endPoint: .trailing)))
+                    .frame(width: max(x(level) - inset, 6), height: 6)
+                    .position(x: inset + max(x(level) - inset, 6) / 2, y: mid)
+                ForEach(0..<5, id: \.self) { i in
+                    Circle().fill(i <= level ? Color.white : Color(hex: 0xC7C7CC))
+                        .frame(width: 6, height: 6)
+                        .position(x: x(i), y: mid)
+                }
+                Circle().fill(Color.white)
+                    .frame(width: 26, height: 26)
+                    .shadow(color: .black.opacity(disabled ? 0.08 : 0.2), radius: 3, y: 1)
+                    .position(x: x(level), y: mid)
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { value in
+                guard !disabled else { return }
+                let step = Int(((value.location.x - inset) / width * 4).rounded())
+                let next = min(max(step, 0), 4)
+                if next != level {
+                    level = next
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
+            })
+        }
+        .opacity(disabled ? 0.6 : 1)
+        .accessibilityElement()
+        .accessibilityLabel(L("联网倾向", "Web search tendency", "ウェブ検索の積極さ"))
+        .accessibilityValue(SearchTendencyCard.names[level])
+        .accessibilityAdjustableAction { direction in
+            guard !disabled else { return }
+            switch direction {
+            case .increment: level = min(level + 1, 4)
+            case .decrement: level = max(level - 1, 0)
+            @unknown default: break
+            }
+        }
+    }
+}
+
+/// 编辑一条问答风格：名字、提示词（空着就按「简短直接，几句话说清楚」），设为默认、删除。
+private struct AnswerStyleEditor: View {
+    @Binding var style: StylePreset
+    @Binding var settings: EnclaveSettings
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var editingPrompt: Bool
+
+    private var builtIn: StylePreset? { StylePreset.answerDefaults.first { $0.name == style.name } }
+
+    var body: some View {
+        Form {
+            Section {
+                TextField(L("名称", "Name", "名前"), text: $style.name)
+            } header: {
+                Text(L("名称", "Name", "名前"))
+            } footer: {
+                Text(L("显示在键盘 AI 栏蓝色那颗上，四个字以内最好。", "Shown on the blue key in the keyboard's AI bar. Keep it short.", "キーボードの AI バーの青いキーに表示されます。短めがおすすめです。"))
+            }
+            Section {
+                TextEditor(text: $style.prompt)
+                    .focused($editingPrompt)
+                    .frame(minHeight: 120)
+                    .overlay(alignment: .topLeading) {
+                        if style.prompt.isEmpty {
+                            Text(StylesView.answerFallback)
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 8)
+                                .padding(.leading, 5)
+                                .allowsHitTesting(false)
+                        }
+                    }
+            } header: {
+                Text(L("怎么回答", "How to answer", "答え方"))
+            } footer: {
+                Text(L("每次问答都会带上，比如「先给结论，一般不超过三句」。空着就按「简短直接，几句话说清楚」回答。只管问答，改写不受影响。", "Sent with every question, e.g. \"lead with the answer, three sentences at most\". Empty means brief and direct. Rewrites aren't affected.", "質問のたびに送られます（例：「結論から、3文以内で」）。空なら短く率直に答えます。書き換えには影響しません。"))
+            }
+            Section {
+                if let builtIn {
+                    Button(L("恢复这条的默认内容", "Restore default text", "元の内容に戻す")) { style.prompt = builtIn.prompt }
+                        .disabled(style.prompt == builtIn.prompt)
+                }
+                Button(L("设为默认问答风格", "Set as default", "デフォルトにする")) { settings.selectedAnswerStyleID = style.id }
+                    .disabled(settings.selectedAnswerStyle?.id == style.id)
+                Button(L("删除这条问答风格", "Delete answer style", "この回答スタイルを削除"), role: .destructive) {
+                    let id = style.id
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        settings.answerStyles.removeAll { $0.id == id }
+                        if settings.selectedAnswerStyleID == id { settings.selectedAnswerStyleID = nil }
+                    }
+                }
+                .disabled(settings.answerStyles.count <= 1)
+            }
+        }
+        .navigationTitle(L("编辑问答风格", "Edit answer style", "回答スタイルを編集"))
+        .doneEditingButton(editingPrompt)
     }
 }

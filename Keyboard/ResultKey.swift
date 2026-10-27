@@ -68,7 +68,8 @@ struct ResultKey: View {
                     .allowsHitTesting(false)
             }
         }
-        .opacity(blocked ? 0.45 : 1)
+        // 生成中、还没结果时变淡不能点（MG2）。
+        .opacity(blocked || !enabled ? 0.45 : 1)
         .contentShape(Rectangle())
         .gesture(drag(step: step))
         .allowsHitTesting(!blocked && enabled)

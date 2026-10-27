@@ -72,10 +72,13 @@ enum KeyboardMetrics {
         }
     }
 
-    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片（替换 / 插入键在卡片左边，不占高度），展开提示词 / 识意时再加一行。
+    /// 键盘总高度：AI 栏 + 按键，展开时上面加回答卡和识意框一整块（替换 / 插入键在左边，不占高度）；
+    /// 收着时点风格键再加浮起的一行，展开时风格一排换掉识意框，不加高。
     /// 提示卡出现时只留它一块，不和结果卡片、展开的一行叠在一起。
-    /// 自由编辑（FE3）：编辑框占满整行，高 = 结果卡 + 间距 6 + 识意框 42（收起时 108），识意框收起。
-    static let freeEditExtra: CGFloat = 48
+    /// 识意框：回答卡下半格 40 高（MG3）。
+    static let askBoxHeight: CGFloat = 40
+    /// 自由编辑（FE3）：整块（含识意框）变成编辑框，高 = 整块高（2 行时 100），键盘总高不跳。
+    static let freeEditExtra: CGFloat = askBoxHeight
     /// 分词面板打开时比按键区高 40（BB 修订：266→306），结果卡同时固定 2 行。
     static let wordPanelExtra: CGFloat = 40
 
@@ -84,12 +87,11 @@ enum KeyboardMetrics {
         var height = topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
-        if expanded && freeEdit { return height + panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel) + freeEditExtra }
         if expanded {
-            height += panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel)
+            return height + panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel) + (freeEdit ? freeEditExtra : askBoxHeight)
         }
         if rowOpen {
-            height += (expanded ? panelSpacing : panelTop) + aiRowHeight + aiRowGap
+            height += panelTop + aiRowHeight + aiRowGap
         }
         return height
     }
@@ -304,10 +306,13 @@ enum Brand {
     static let askSelection = dynamic(0xD8D4F8, 0x5E56A0)
     static let askClearFill = dynamic(0xE2E2E7, 0x3A3A3C)
     static let askClearIcon = dynamic(0x6B6B73, 0xAEAEB2)
-    /// ✨ 在识意展开时的三种底：自动 #A855F7→#EC4899，改写 #4F46E5→#7C3AED，问答 #0284C7→#38BDF8。
-    static let askAutoColors = [Color(UIColor(red: 0xA8 / 255, green: 0x55 / 255, blue: 0xF7 / 255, alpha: 1)),
-                                Color(UIColor(red: 0xEC / 255, green: 0x48 / 255, blue: 0x99 / 255, alpha: 1))]
+    /// ✨ 在识意展开时的三种底：自动是蓝紫星团（NebulaFill），改写 #4F46E5→#7C3AED，问答 #0284C7→#38BDF8。
+    /// 放大镜里那颗星：#7C3AED → #38BDF8 → #8B5CF6（MG2）。
+    static let askAutoColors = [Color(UIColor(rgb(0x7C3AED))), Color(UIColor(rgb(0x38BDF8))), Color(UIColor(rgb(0x8B5CF6)))]
     static let askRewriteColors = [gradient[0], gradient[1]]
+    /// 识意自动生成中 ✨ 的流光描边：靛蓝、紫、天蓝（MG2 生成中外圈）。
+    static let nebulaRing = [Color(UIColor(rgb(0x6366F1))), Color(UIColor(rgb(0x8B5CF6))),
+                             Color(UIColor(rgb(0x0EA5E9))), Color(UIColor(rgb(0x38BDF8)))]
     static let askAnswerColors = [Color(UIColor(red: 0x02 / 255, green: 0x84 / 255, blue: 0xC7 / 255, alpha: 1)),
                                   Color(UIColor(red: 0x38 / 255, green: 0xBD / 255, blue: 0xF8 / 255, alpha: 1))]
     /// 问答结果卡的天蓝边 #38BDF8 / 深色 #7DD3FC；改写结果卡紫边 #8B7CF6。
@@ -317,6 +322,11 @@ enum Brand {
     static let modeRewriteText = dynamic(0x4A3BD6, 0xE4DFFF)
     static let modeAnswerFill = dynamic(0xE0F2FE, 0x0C4A6E)
     static let modeAnswerText = dynamic(0x0369A1, 0xBAE6FD)
+    /// 回答卡和识意框合成的一整块（MG3、MG4）：描边改写 #8B7CF6 / 深色 #9D92FF，问答 answerBorder；中间 0.5pt 细线。
+    static let rewriteRing = dynamic(0x8B7CF6, 0x9D92FF)
+    static let blockHair = dynamic(0xE2E2E7, 0x545458)
+    /// 风格键激活时边框上转的两小段亮光：浅色白，深色 #E0F2FE。
+    static let styleSpot = dynamic(0xFFFFFF, 0xE0F2FE)
     /// 分词面板（BB1）：直角框 1pt 描边 #C9C2F2 / 深色 #4A4380，底 #F1EFFB / 深色 #211F2E；划过的词块浅紫描边。
     static let wordPanelStroke = dynamic(0xC9C2F2, 0x4A4380)
     static let wordPanelFill = dynamic(0xF1EFFB, 0x211F2E)
