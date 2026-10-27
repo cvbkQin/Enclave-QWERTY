@@ -309,24 +309,24 @@ struct ModelSettingsView: View {
                     + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
             }
             Section {
-                Stepper(value: $store.settings.temperature, in: 0...1.5, step: 0.1) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Stepper(value: $store.settings.temperature, in: 0...1.5, step: 0.1) {
+                        HStack {
                             Text(L("温度", "Temperature", "温度"))
-                            if store.settings.usesFixedTemperature {
-                                Text(L("Kimi K 系列用固定温度，这里不生效", "Kimi K models use a fixed temperature; this setting is ignored", "Kimi K シリーズは温度が固定のため、この設定は使われません"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                            Spacer()
+                            Text(store.settings.temperature, format: .number.precision(.fractionLength(1)))
+                                .foregroundStyle(.secondary)
                         }
-                        Spacer()
-                        Text(store.settings.temperature, format: .number.precision(.fractionLength(1)))
-                            .foregroundStyle(.secondary)
+                    }
+                    // Kimi K 系列：温度变灰不能调，数值留着，换回别的模型恢复；下面的说明不跟着变淡。
+                    .disabled(store.settings.usesFixedTemperature)
+                    .opacity(store.settings.usesFixedTemperature ? 0.45 : 1)
+                    if store.settings.usesFixedTemperature {
+                        Text(L("Kimi K 系列用固定温度，这里不生效", "Kimi K models use a fixed temperature; this setting is ignored", "Kimi K シリーズは温度が固定のため、この設定は使われません"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
                     }
                 }
-                // Kimi K 系列：温度变灰不能调，数值留着，换回别的模型恢复。
-                .disabled(store.settings.usesFixedTemperature)
-                .opacity(store.settings.usesFixedTemperature ? 0.45 : 1)
                 Stepper(value: $store.settings.maxTokens, in: 256...8192, step: 256) {
                     HStack {
                         Text(L("最大输出", "Max output", "最大出力"))
