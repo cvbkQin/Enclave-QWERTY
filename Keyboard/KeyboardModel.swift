@@ -34,6 +34,8 @@ final class KeyboardModel: ObservableObject {
     /// 这次生成是「识意」发起的；askKind 是模型给出的判断，还没判断时为 nil。
     @Published var askRunning = false
     @Published var askKind: AskMode?
+    /// 识意问答正在联网搜索（Kimi）。卡片上的流光小字写「正在联网搜索…」。
+    @Published var askSearching = false
     /// 上一次「识意」的结果：同一句换了方式重做时顶掉它（没替换、插入、复制过的话）。
     struct LastAsk {
         var question: String
@@ -540,6 +542,10 @@ final class KeyboardModel: ObservableObject {
         var question: String
         var forced: AskMode?
         var fallbackAnswer: Bool
+        /// 输入框原文（联网后再问一次要用）。
+        var context: String = ""
+        /// 这次可以联网（Kimi 且开着「问答联网」，不是指定改写）。
+        var search: Bool = false
     }
 
     func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil) {
@@ -557,27 +563,58 @@ final class KeyboardModel: ObservableObject {
         task = Task { [weak self] in
             var raw = ""
             var shownAt = Date.distantPast
+            var messages = messages
+            // 模型第一行写「联网：搜索词」时停下这一轮，搜完带上资料再问一次（只搜一次）。
+            var maySearch = ask?.search == true
             do {
-                for try await piece in client.stream(messages) {
-                    raw += piece
-                    guard let self else { continue }
-                    // 每设一次 streamingText 整个键盘就重画一遍，模型一秒能吐几十段：
-                    // 面板收着（快速模式，看不到正文）就不设，展开时最多每 50 毫秒设一次。识意还没判断出方式时照常往下看。
-                    let now = Date()
-                    let show = self.aiExpanded && now.timeIntervalSince(shownAt) >= 0.05
-                    guard show || (ask != nil && self.askKind == nil) else { continue }
-                    let text = ModelOutput.clean(raw)
-                    if let ask {
-                        // 等第一行写出「改写 / 问答」再显示正文。
-                        guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
-                        self.askDecided(split.answer ? .answer : .rewrite)
-                        guard show || self.aiExpanded else { continue }
-                        shownAt = now
-                        self.streamingText = split.body
-                    } else {
-                        shownAt = now
-                        self.streamingText = text
+                while true {
+                    raw = ""
+                    var query: String?
+                    for try await piece in client.stream(messages) {
+                        raw += piece
+                        guard let self else { continue }
+                        if maySearch {
+                            let probe = Prompts.searchProbe(ModelOutput.clean(raw), final: false)
+                            if probe == .pending { continue }
+                            if case .search(let text) = probe { query = text; break }
+                        }
+                        // 每设一次 streamingText 整个键盘就重画一遍，模型一秒能吐几十段：
+                        // 面板收着（快速模式，看不到正文）就不设，展开时最多每 50 毫秒设一次。识意还没判断出方式时照常往下看。
+                        let now = Date()
+                        let show = self.aiExpanded && now.timeIntervalSince(shownAt) >= 0.05
+                        guard show || (ask != nil && self.askKind == nil) else { continue }
+                        let text = ModelOutput.clean(raw)
+                        if let ask {
+                            // 等第一行写出「改写 / 问答」再显示正文。
+                            guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
+                            self.askDecided(split.answer ? .answer : .rewrite)
+                            guard show || self.aiExpanded else { continue }
+                            shownAt = now
+                            self.streamingText = split.body
+                        } else {
+                            shownAt = now
+                            self.streamingText = text
+                        }
                     }
+                    if maySearch, query == nil, case .search(let text) = Prompts.searchProbe(ModelOutput.clean(raw), final: true) {
+                        query = text
+                    }
+                    guard let query, let ask, let self else { break }
+                    maySearch = false
+                    // 联网的一定是问答：展开抽屉，流光小字写「正在联网搜索…」。
+                    self.askDecided(.answer)
+                    self.askSearching = true
+                    let search = WebSearch(settings: self.settings, apiKey: SettingsStore.apiKey)
+                    let results: String
+                    do {
+                        results = WebSearch.digest(try await search.search(query))
+                    } catch {
+                        if Task.isCancelled { throw error }
+                        results = ""
+                    }
+                    self.askSearching = false
+                    messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true,
+                                           results: results.isEmpty ? L("（联网搜索失败或没有搜到，按已有知识回答，并说明可能不是最新信息。）", "(The web search failed or found nothing. Answer from what you know and say it may be out of date.)", "（検索に失敗したか結果がありません。手持ちの知識で答え、最新でない可能性を伝えてください。）") : results)
                 }
                 guard let self else { return }
                 let cleaned = ModelOutput.clean(raw)
@@ -624,6 +661,7 @@ final class KeyboardModel: ObservableObject {
             self?.isRunning = false
             self?.runOrigin = nil
             self?.askRunning = false
+            if self?.askSearching == true { self?.askSearching = false }
             if self?.askKind != nil { self?.askKind = nil }
         }
     }

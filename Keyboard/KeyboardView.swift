@@ -1123,6 +1123,7 @@ struct ResultCard: View {
 
     private var runningTitle: String {
         guard model.askRunning else { return L("AI 正在润色…", "AI is polishing…", "AI が整えています…") }
+        if model.askSearching { return L("正在联网搜索…", "Searching the web…", "ウェブを検索しています…") }
         switch model.askKind {
         case .answer: return L("AI 正在回答…", "AI is answering…", "AI が回答しています…")
         case .rewrite: return L("AI 正在改写…", "AI is rewriting…", "AI が書き換えています…")

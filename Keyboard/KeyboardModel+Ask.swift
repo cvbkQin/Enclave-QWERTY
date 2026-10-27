@@ -64,9 +64,11 @@ extension KeyboardModel {
         let pending = session ?? (context.isEmpty
             ? EditSession(mode: .write, original: question)
             : EditSession(mode: .polish, original: context))
+        let search = settings.canWebSearch && mode != .rewrite
         let request = AskRequest(question: question, forced: mode,
-                                 fallbackAnswer: mode.map { $0 == .answer } ?? context.isEmpty)
-        let messages = Prompts.ask(question, context: context, forceAnswer: mode.map { $0 == .answer })
+                                 fallbackAnswer: mode.map { $0 == .answer } ?? context.isEmpty,
+                                 context: context, search: search)
+        let messages = Prompts.ask(question, context: context, forceAnswer: mode.map { $0 == .answer }, search: search)
 
         // 抽屉先不展开：收起时按快速模式开始，判断是问答再展开（askDecided）。
         if !aiExpanded { beginQuickMode(source: readField().text) }

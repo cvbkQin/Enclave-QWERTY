@@ -339,6 +339,14 @@ struct ModelSettingsView: View {
             } footer: {
                 Text(L("温度越低越稳定，润色建议 0.2–0.5。", "Lower is steadier. 0.2–0.5 works well for polishing.", "低いほど安定します。整えるには 0.2〜0.5 がおすすめです。"))
             }
+            if store.settings.isKimi {
+                Section {
+                    Toggle(L("识意问答联网", "Web search in Ask", "質問でウェブ検索"), isOn: $store.settings.webSearch)
+                        .tint(AppColor.purple)
+                } footer: {
+                    Text(L("仅 Kimi。问天气、新闻、价格这类要最新信息的问题时，先用 Kimi 搜一下再回答，回答最后列出来源网站。只在需要时才搜，每次搜索由 Kimi 另外计费（约 ¥0.01）；问题会发给 Kimi 的搜索接口。改写不联网。", "Kimi only. For questions that need current info, like weather, news or prices, Kimi searches the web first and lists its sources. It searches only when needed; each search is billed separately by Kimi. Your question is sent to Kimi's search API. Rewrites never search.", "Kimi のみ。天気・ニュース・価格など最新情報が必要な質問では、先に Kimi で検索してから答え、出典サイトを示します。必要なときだけ検索し、検索ごとに Kimi が別途課金します。質問は Kimi の検索 API に送られます。書き換えでは検索しません。"))
+                }
+            }
             if SharedStorage.usesClipboardConfig {
                 Section {
                     Button(importResult == false ? L("剪贴板里没有飞地输入法配置", "No Enclave settings on the clipboard", "クリップボードに Enclave の設定がありません") : importResult == true ? L("已导入", "Imported", "読み込みました") : L("从剪贴板导入配置", "Import settings from clipboard", "クリップボードから設定を読み込む")) {

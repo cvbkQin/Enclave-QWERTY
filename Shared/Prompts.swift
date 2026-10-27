@@ -111,8 +111,11 @@ enum Prompts {
 
     /// 「识意」：一句话，可能是修改要求（或让它帮忙写），也可能是问题。输入框里的原文作为上下文，空就不带。
     /// 让模型第一行先写「改写」或「问答」，键盘据此决定直接替换还是展开卡片；forceAnswer 为 nil 时由模型判断。
-    static func ask(_ question: String, context: String, forceAnswer: Bool?) -> [ChatMessage] {
-        let system = """
+    /// search：可以联网（Kimi 且开着「问答联网」）。模型判断要查最新信息时第一行写「联网：搜索词」，键盘搜完带上 results 再问一次。
+    /// results：搜到的资料（WebSearch.digest）；有资料时按问答回答，末尾一行写来源。
+    static func ask(_ question: String, context: String, forceAnswer: Bool?,
+                    search: Bool = false, results: String? = nil) -> [ChatMessage] {
+        var system = """
         你是嵌在用户输入法里的助手。用户在聊天输入框里写了一段话（可能为空），又在键盘上的小框里对你说了一句话：可能是对这段话的修改要求（包括翻译、换语气、帮忙写一段），也可能是一个问题。
         先判断是哪种：
         - 改写：要你产出一段可以直接发出去的文字。
@@ -122,6 +125,21 @@ enum Prompts {
         问答的正文：简短直接，几句话说清楚。
         都要遵守：不用 Markdown 符号（#、**、- 列表等），需要分点时用「1.」「2.」；回答用用户说话的语言，中文一律用简体；不要编造原文没有的事实。
         """
+        let today = Self.today()
+        if let results {
+            system += """
+
+            今天是 \(today)。下面 <搜索资料> 是刚联网搜到的，这次按「问答」处理，根据资料回答；资料不够就直说，不要编。
+            正文最后单独一行写「来源：」，后面列用到的网站名，用「、」隔开，不写链接。
+            """
+        } else if search {
+            system += """
+
+            今天是 \(today)。你可以联网：如果是问答，而且要最新或实时的信息才能答准（天气、新闻、价格、汇率、比分、航班、近期的事等），\
+            第一行只写「联网：」加上要搜的词（写清地点和日期，比如「联网：新加坡 \(today) 天气」），不要写别的，搜到的资料会再发给你。
+            不需要最新信息就照常按上面的格式回答，不要写「联网」。改写永远不联网。
+            """
+        }
         var prompt = ""
         if !context.isEmpty {
             prompt += """
@@ -136,12 +154,38 @@ enum Prompts {
         \(question)
         </用户的话>
         """
+        if let results {
+            prompt += "\n\n<搜索资料>\n\(results)\n</搜索资料>\n\n这次按「问答」处理：第一行写「问答」，然后回答。"
+            return [.system(system), .user(prompt)]
+        }
         if let forceAnswer {
             prompt += forceAnswer
                 ? "\n\n这次按「问答」处理：第一行写「问答」，然后回答。"
                 : "\n\n这次按「改写」处理：第一行写「改写」，然后只输出改好的完整正文。"
         }
         return [.system(system), .user(prompt)]
+    }
+
+    enum SearchProbe: Equatable { case pending, search(String), no }
+
+    /// 识意输出开头是不是「联网：搜索词」。第一行还没写完、看不出来时 pending；final 时第一行写完了就算。
+    static func searchProbe(_ text: String, final: Bool) -> SearchProbe {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let marker = "联网"
+        guard trimmed.hasPrefix(marker) else {
+            return marker.hasPrefix(trimmed) && !final ? .pending : .no
+        }
+        guard let lineEnd = trimmed.firstIndex(of: "\n") ?? (final ? trimmed.endIndex : nil) else { return .pending }
+        let query = trimmed[trimmed.index(trimmed.startIndex, offsetBy: marker.count)..<lineEnd]
+            .trimmingCharacters(in: CharacterSet(charactersIn: ":： 「」\"").union(.whitespaces))
+        return query.isEmpty ? .no : .search(query)
+    }
+
+    private static func today() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
     }
 
     /// 拆出「识意」输出第一行的类型。还没写完第一行时返回 nil；final 时没写类型就当 fallback。
