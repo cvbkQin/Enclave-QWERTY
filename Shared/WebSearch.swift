@@ -71,13 +71,13 @@ struct WebSearch {
         return try JSONDecoder().decode(Response.self, from: data).search_results ?? []
     }
 
-    /// 交给模型的资料：每条标题、来源、日期、摘要，摘要截到 300 字，免得上下文太长。
+    /// 交给模型的资料：最多 3 条，每条标题、来源、日期、摘要，摘要截到 200 字，免得上下文太长、回答跟着啰嗦。
     static func digest(_ results: [Result]) -> String {
-        results.prefix(5).enumerated().map { index, item in
+        results.prefix(3).enumerated().map { index, item in
             var lines = ["[\(index + 1)] \(item.title ?? "")"]
             let source = [item.site_name, item.date].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
             if !source.isEmpty { lines.append(source) }
-            if let snippet = item.snippet, !snippet.isEmpty { lines.append(String(snippet.prefix(300))) }
+            if let snippet = item.snippet, !snippet.isEmpty { lines.append(String(snippet.prefix(200))) }
             return lines.joined(separator: "\n")
         }.joined(separator: "\n\n")
     }

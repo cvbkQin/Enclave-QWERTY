@@ -14,6 +14,10 @@ struct StylePreset: Codable, Identifiable, Hashable {
         case "口语": return L("口语", "Casual", "カジュアル")
         case "简短": return L("简短", "Concise", "簡潔に")
         case "结构": return L("结构", "Bullets", "箇条書き")
+        case "直击要害": return L("直击要害", "To the point", "要点だけ")
+        case "详细": return L("详细", "Detailed", "詳しく")
+        case "列要点": return L("列要点", "Key points", "要点を列挙")
+        case "通俗": return L("通俗", "Plain words", "やさしく")
         default:
             // 名字清空了也要能认出来：键盘面板里不能出现空的标签。
             return name.trimmingCharacters(in: .whitespaces).isEmpty ? L("未命名", "Untitled", "名前なし") : name
@@ -118,6 +122,11 @@ struct EnclaveSettings: Codable, Equatable {
     var maxTokens: Int = 1024
     var styles: [StylePreset] = StylePreset.defaults
     var selectedStyleID: UUID?
+    /// 问答风格（AI 栏蓝色那颗）：和改写的风格分开，一列名字 + 提示词，选中一条。旧版本没有，读的时候用默认四条。
+    var answerStyles: [StylePreset] = StylePreset.answerDefaults
+    var selectedAnswerStyleID: UUID?
+    /// 联网倾向 0–4（问答提示词页那根条）：只管模型想不想联网，能不能联网仍看 webSearchMode。nil 当 2（适中）。
+    var searchTendency: Int?
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -150,7 +159,7 @@ struct EnclaveSettings: Codable, Equatable {
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
-        case baseURL, model, temperature, maxTokens, styles, selectedStyleID
+        case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
     }
@@ -165,6 +174,13 @@ struct EnclaveSettings: Codable, Equatable {
     var selectedStyle: StylePreset? {
         styles.first { $0.id == selectedStyleID } ?? styles.first
     }
+
+    var selectedAnswerStyle: StylePreset? {
+        answerStyles.first { $0.id == selectedAnswerStyleID } ?? answerStyles.first
+    }
+
+    /// 联网倾向，0–4，没设过是 2。
+    var tendency: Int { min(max(searchTendency ?? 2, 0), 4) }
 }
 
 extension EnclaveSettings {
@@ -190,6 +206,9 @@ extension EnclaveSettings {
            let index = styles.firstIndex(where: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) == "自动" }) {
             styles[index].name = "润色"
         }
+        answerStyles = (try? c.decodeIfPresent([StylePreset].self, forKey: .answerStyles)) ?? answerStyles
+        selectedAnswerStyleID = try? c.decodeIfPresent(UUID.self, forKey: .selectedAnswerStyleID)
+        searchTendency = try? c.decodeIfPresent(Int.self, forKey: .searchTendency)
         inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
@@ -222,6 +241,14 @@ extension StylePreset {
         StylePreset(name: "口语", prompt: "风格：口语。像本人平时说话一样自然随意，句子简短；不加标题、不分点编号，不用书面套话。"),
         StylePreset(name: "简短", prompt: "风格：简短。只保留核心意思，删掉客套、铺垫和重复，能一句说清就只写一句。"),
         StylePreset(name: "结构", prompt: "风格：结构。提炼原文里的关键信息，删掉无关细节和铺垫，整理成「1.」「2.」「3.」编号要点，每点一行、一句话说清；要点较多且能归类时先分组，每组一行小标题，组内编号。即使原文很短也按要点列出。"),
+    ]
+
+    /// 问答风格的默认四条（规格「问答风格与联网提示词」第 1 节）。提示词空着时按「简短直接，几句话说清楚」回答。
+    static let answerDefaults: [StylePreset] = [
+        StylePreset(name: "直击要害", prompt: "先给结论，直击要害，言简意赅。一般不超过三句，不铺垫、不重复问题、不加客套和免责声明。"),
+        StylePreset(name: "详细", prompt: "先给结论，再用几句话解释原因和要点，必要时举一个例子。"),
+        StylePreset(name: "列要点", prompt: "用「1.」「2.」分点回答，每点一句，最多五点。"),
+        StylePreset(name: "通俗", prompt: "像跟朋友解释一样，用大白话，少用术语，术语要顺带解释。"),
     ]
 
     /// 以前各版的默认风格，用户没改过时升级成新的默认列表。

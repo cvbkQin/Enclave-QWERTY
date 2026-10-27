@@ -71,7 +71,8 @@ extension KeyboardModel {
         let request = AskRequest(question: question, forced: mode,
                                  fallbackAnswer: mode.map { $0 == .answer } ?? context.isEmpty,
                                  context: context, search: search)
-        let messages = Prompts.ask(question, context: context, forceAnswer: mode.map { $0 == .answer }, search: search != nil)
+        let messages = Prompts.ask(question, context: context, forceAnswer: mode.map { $0 == .answer }, search: search != nil,
+                                   answerStyle: settings.selectedAnswerStyle, tendency: settings.tendency)
 
         // 抽屉先不展开：收起时按快速模式开始，判断是问答再展开（askDecided）。
         if !aiExpanded { beginQuickMode(source: readField().text) }
@@ -135,8 +136,28 @@ extension KeyboardModel {
         let search = target == .answer ? settings.answerSearch : nil
         let request = AskRequest(question: source.question, forced: target, fallbackAnswer: target == .answer,
                                  context: source.context, search: search)
-        let messages = Prompts.ask(source.question, context: source.context, forceAnswer: target == .answer, search: search != nil)
+        let messages = Prompts.ask(source.question, context: source.context, forceAnswer: target == .answer, search: search != nil,
+                                   answerStyle: settings.selectedAnswerStyle, tendency: settings.tendency)
         start(from: .ask) { run(messages, pending: session, ask: request) }
+    }
+
+    /// 识意框右边「使用联网查询」能不能出现（MG6）：正在显示没联网的问答，问答接口能联网，三档不是禁止。
+    var canForceSearch: Bool {
+        guard !isRunning, let session, session.currentIsAnswer, session.currentSearchedBy == nil,
+              session.currentAskSource != nil, settings.answerSearch != nil else { return false }
+        return (settings.webSearchMode ?? .off) != .off
+    }
+
+    /// 点「使用联网查询」：同一个问题强制联网重问，结果替换这条回答（MG7）。
+    func forceWebSearch() {
+        guard canForceSearch, let session, let source = session.currentAskSource, let provider = settings.answerSearch else { return }
+        guard passGate(then: { [weak self] in self?.forceWebSearch() }) else { return }
+        reload()
+        guard checkCanAsk() else { return }
+        guard passAnswerConsent(then: { [weak self] in self?.forceWebSearch() }) else { return }
+        let request = AskRequest(question: source.question, forced: .answer, fallbackAnswer: true,
+                                 context: source.context, search: provider, forceSearch: true)
+        start(from: .ask) { run([], pending: session, ask: request) }
     }
 
     /// 替换、插入、复制过的那一版不会被顶掉。

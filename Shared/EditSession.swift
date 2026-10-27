@@ -19,6 +19,23 @@ struct EditSession: Codable, Equatable {
     var answerVersions: [Int]?
     /// 「识意」每一版是哪句话、带着什么原文问的（按版本序号存），结果卡左边「⇄ 切换」换方式重做时用。旧数据里没有。
     var askSources: [String: AskSource]?
+    /// 联网回答过的版本序号 → 服务商名字（「🌐 已联网 · Kimi」）。旧数据里没有。
+    var searchedVersions: [String: String]?
+
+    /// 正在显示的回答是联网查过的：哪一家。
+    var currentSearchedBy: String? { searchedVersions?[String(currentIndex)] }
+
+    /// 「使用联网查询」的结果替换正在显示的这条回答，不另开一页。
+    mutating func replaceCurrentAnswer(_ version: String, searchedBy provider: String) {
+        guard versions.indices.contains(currentIndex) else { return }
+        versions[currentIndex] = version
+        editedVersions?.removeAll { $0 == currentIndex }
+        searchedVersions = (searchedVersions ?? [:]).merging([String(currentIndex): provider]) { $1 }
+    }
+
+    mutating func markSearched(by provider: String) {
+        searchedVersions = (searchedVersions ?? [:]).merging([String(currentIndex): provider]) { $1 }
+    }
 
     struct AskSource: Codable, Equatable {
         var question: String
@@ -51,6 +68,7 @@ struct EditSession: Codable, Equatable {
             versions[last] = version
             editedVersions?.removeAll { $0 == last }
             answerVersions?.removeAll { $0 == last }
+            searchedVersions?[String(last)] = nil
             currentIndex = last
         } else {
             versions.append(version)

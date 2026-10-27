@@ -44,6 +44,8 @@ final class KeyboardModel: ObservableObject {
         var provider: SearchProvider
         /// 三档选了禁止：提示去 App 里开启，或者不联网直接回答。
         var disabled: Bool
+        /// 点「使用联网查询」时这一家第一次联网：只是同意卡，同意后记下来。
+        var forced = false
     }
     /// 上一次「识意」的结果：同一句换了方式重做时顶掉它（没替换、插入、复制过的话）。
     struct LastAsk {
@@ -488,13 +490,15 @@ final class KeyboardModel: ObservableObject {
 
     /// 模型说要联网：开着、这一家同意过就直接联；否则回答框换成选择框，等用户点。
     /// 开着但第一次用这一家时点允许，记下同意，以后不再问；每次询问只算这一次。
-    func searchAllowed(_ provider: SearchProvider) async -> Bool {
+    /// forced：点了「使用联网查询」，按钮本身就算这一次允许；这一家第一次联网时仍要先过同意卡。
+    func searchAllowed(_ provider: SearchProvider, forced: Bool = false) async -> Bool {
         let mode = settings.webSearchMode ?? .off
         if mode == .on && WebSearch.isConsented(provider) { return true }
+        if forced && mode != .off && WebSearch.isConsented(provider) { return true }
         resolveSearchPrompt(allow: false)
         return await withCheckedContinuation { reply in
             searchReply = reply
-            searchPrompt = SearchPrompt(provider: provider, disabled: mode == .off)
+            searchPrompt = SearchPrompt(provider: provider, disabled: mode == .off, forced: forced)
         }
     }
 
@@ -505,7 +509,7 @@ final class KeyboardModel: ObservableObject {
         searchPrompt = nil
         searchReply = nil
         let allowed = allow && prompt?.disabled == false
-        if allowed, let prompt, settings.webSearchMode == .on { WebSearch.grantConsent(prompt.provider) }
+        if allowed, let prompt, settings.webSearchMode == .on || prompt.forced { WebSearch.grantConsent(prompt.provider) }
         reply?.resume(returning: allowed)
     }
 
@@ -662,6 +666,8 @@ final class KeyboardModel: ObservableObject {
         var context: String = ""
         /// 问答接口能联网时是哪一家（不是指定改写）。联不联网看三档，模型说要联网时再定。
         var search: SearchProvider?
+        /// 「使用联网查询」：第一轮直接联网，结果替换正在显示的回答；搜索失败时保留原来的回答。
+        var forceSearch = false
     }
 
     func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil) {
@@ -679,6 +685,8 @@ final class KeyboardModel: ObservableObject {
         if askKind != nil { askKind = nil }
         let started = Date()
         let styleID = settings.selectedStyle?.id
+        let answerStyle = settings.selectedAnswerStyle
+        let tendency = settings.tendency
         // 仪表盘的统计：耗时按毫秒记。
         // 最后是问答接口回答的（单独设了问答接口）：不进接口页的小曲线，那里只看主接口。
         let separateAnswer = settings.usesAnswerEndpoint
@@ -693,6 +701,9 @@ final class KeyboardModel: ObservableObject {
             var messages = messages
             // 模型第一行写「联网」时停下这一轮，按三档决定联不联网，再问一次（只联网一次）。
             var maySearch = ask?.search != nil
+            // 点了「使用联网查询」：第一轮不问模型，直接去搜。
+            var forceNow = ask?.forceSearch == true && ask?.search != nil
+            var searchedBy: String?
             do {
                 while true {
                     raw = ""
@@ -704,6 +715,11 @@ final class KeyboardModel: ObservableObject {
                         self?.responseSlow = true
                     }
                     defer { slowWatch.cancel() }
+                    if forceNow {
+                        forceNow = false
+                        wantsSearch = true
+                        slowWatch.cancel()
+                    } else {
                     for try await piece in client.stream(messages) {
                         raw += piece
                         slowWatch.cancel()
@@ -735,6 +751,7 @@ final class KeyboardModel: ObservableObject {
                             self.streamingText = text
                         }
                     }
+                    }
                     if maySearch, !wantsSearch, Prompts.searchProbe(ModelOutput.clean(raw), final: true) == .search {
                         wantsSearch = true
                     }
@@ -742,7 +759,8 @@ final class KeyboardModel: ObservableObject {
                         mayHandOff = false
                         client = answerClient
                         answeredByAnswerAPI = separateAnswer
-                        messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, search: maySearch)
+                        messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, search: maySearch,
+                                               answerStyle: answerStyle, tendency: tendency)
                         continue
                     }
                     guard wantsSearch, let ask, let provider = ask.search, let self else { break }
@@ -751,17 +769,22 @@ final class KeyboardModel: ObservableObject {
                     if let answerClient { client = answerClient; mayHandOff = false; answeredByAnswerAPI = separateAnswer }
                     // 联网的一定是问答：展开抽屉。三档：开且这一家同意过就直接联网，否则回答框里先问（禁止时提示去开启）。
                     self.askDecided(.answer)
-                    guard await self.searchAllowed(provider) else {
+                    guard await self.searchAllowed(provider, forced: ask.forceSearch) else {
                         try Task.checkCancellation()
-                        messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, offline: true)
+                        // 点按钮联网又没同意：原来的回答不动。
+                        if ask.forceSearch { throw CancellationError() }
+                        messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, offline: true,
+                                               answerStyle: answerStyle)
                         continue
                     }
+                    searchedBy = provider.name
                     try Task.checkCancellation()
                     if provider.builtin {
                         // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。搜索在服务商那边，出字前流光小字写「正在用 … 联网搜索…」。
                         self.askSearching = true
                         client = LLMClient(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings), webSearch: true)
-                        messages = Prompts.ask(ask.question, context: "", forceAnswer: true, builtinSearch: true)
+                        messages = Prompts.ask(ask.question, context: "", forceAnswer: true, builtinSearch: true,
+                                               answerStyle: answerStyle)
                         continue
                     }
                     // Kimi：流光小字写「正在联网搜索…」，键盘拿问题原文去搜。
@@ -775,7 +798,9 @@ final class KeyboardModel: ObservableObject {
                         results = ""
                     }
                     self.askSearching = false
-                    messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true,
+                    if results.isEmpty && ask.forceSearch { throw ForcedSearchFailed() }
+                    if results.isEmpty { searchedBy = nil }
+                    messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, answerStyle: answerStyle,
                                            results: results.isEmpty ? L("（联网搜索失败或没有搜到，按已有知识回答，并说明可能不是最新信息。）", "(The web search failed or found nothing. Answer from what you know and say it may be out of date.)", "（検索に失敗したか結果がありません。手持ちの知識で答え、最新でない可能性を伝えてください。）") : results)
                 }
                 guard let self else { return }
@@ -793,8 +818,11 @@ final class KeyboardModel: ObservableObject {
                     AIAccess.recordUse()
                     self.refreshAIAccess()
                     var updated = pending
-                    if let ask, let kind = self.askKind {
+                    if let ask, ask.forceSearch, let searchedBy {
+                        updated.replaceCurrentAnswer(result, searchedBy: searchedBy)
+                    } else if let ask, let kind = self.askKind {
                         self.appendAsk(result, kind: kind, question: ask.question, context: ask.context, to: &updated)
+                        if let searchedBy, kind == .answer { updated.markSearched(by: searchedBy) }
                     } else {
                         updated.append(result)
                     }
@@ -812,6 +840,13 @@ final class KeyboardModel: ObservableObject {
                         if unchanged { self.replace() }
                         self.endQuickMode(unchanged ? .replaced : .changed)
                     }
+                }
+            } catch is CancellationError {
+                // 点「使用联网查询」后又拒绝了联网：什么都不改，原来的回答留着。
+            } catch is ForcedSearchFailed {
+                if !Task.isCancelled, let self {
+                    record(ok: false)
+                    self.errorMessage = L("联网搜索失败", "Web search failed", "ウェブ検索に失敗しました")
                 }
             } catch {
                 if !Task.isCancelled, let self {
@@ -841,6 +876,9 @@ final class KeyboardModel: ObservableObject {
             if self?.askKind != nil { self?.askKind = nil }
         }
     }
+
+    /// 「使用联网查询」搜不到东西：原来的回答保留，卡片提示「联网搜索失败」。
+    struct ForcedSearchFailed: Error {}
 
     func clearFailure() {
         failure = nil
