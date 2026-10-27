@@ -294,14 +294,14 @@ struct PolishButton: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: timer)
                 }
                 let dy = value.translation.height
-                // 按下后上下一滑（超过 17pt）立刻弹出并选中那一个，不用先等。
-                if !holding, canHold, abs(dy) > 17 {
+                // 和九宫格按住划（KeyTouchView.flickDistance）一样：手指离开按下点超过 16pt 立刻弹出并选中那一个，不用先等。
+                if !holding, canHold, hypot(value.translation.width, dy) > Self.flickDistance {
                     holdTimer?.cancel()
                     holdTimer = nil
                     showHold()
                 }
                 guard holding else { return }
-                let next: KeyboardModel.AskMode? = dy < -17 ? .rewrite : (dy > 17 ? .answer : nil)
+                let next: KeyboardModel.AskMode? = dy < -Self.flickDistance ? .rewrite : (dy > Self.flickDistance ? .answer : nil)
                 if next != pick {
                     pick = next
                     if next != nil { model.keyFeedback(for: .space) }
@@ -332,6 +332,9 @@ struct PolishButton: View {
         .coachTarget(.run, active: model.coachDisplay?.target == .run)
         .onChange(of: model.finished) { finished in flashDone(at: finished?.at) }
     }
+
+    /// 和九宫格按住划出方向的距离一样。
+    private static let flickDistance: CGFloat = 16
 
     private func showHold() {
         guard !holding else { return }
