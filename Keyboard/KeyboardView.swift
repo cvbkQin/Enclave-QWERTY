@@ -1049,9 +1049,9 @@ struct ResultCard: View {
         .overlay { border(look) }
         .overlay(alignment: .bottom) {
             if model.partialReplace {
-                Text(L("文字太长，只替换了光标附近读到的一段。整段处理请先全选再点 ✨",
-                       "The text is long, so only the part near the cursor was replaced. Select all first to work on the whole text.",
-                       "長い文章のため、カーソル付近の部分だけを置き換えました。全体を扱うには先に全選択してください。"))
+                Text(L("只替换了送去处理的那一段，其余文字没动。整段处理请先全选再点 ✨",
+                       "Only the part that was sent was replaced; the rest is unchanged. Select the whole text first to work on all of it.",
+                       "処理に送った部分だけを置き換え、残りはそのままです。全体を扱うには先に全選択してください。"))
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(2)
                     .multilineTextAlignment(.center)

@@ -648,6 +648,21 @@ struct KeyboardSettingsView: View {
                          "Pop-up: the button shows a ▾. Slide down and the other action pops up right below it, like the comma key. Let go to use it.",
                          "ポップアップ：ボタンの下に ▾ があり、下にスライドするともう一方のボタンが真下に出ます（読点キーと同じ）。指を離すと実行します。"))
             }
+            Section {
+                Toggle(isOn: $store.settings.longText) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("处理长文本", "Process long text", "長い文章も処理"))
+                        Text(L("关着时 AI 只读光标前约 200 字", "When off, AI reads about 200 characters before the cursor", "オフのとき AI はカーソル前の約 200 字だけを読みます"))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text(L("AI 读取范围", "What AI reads", "AI が読む範囲"))
+            } footer: {
+                Text(L("没选中文字时，AI 默认只处理光标前 200 字左右，按完整的句子或段落截取；输入框里的字不到 200 时全部处理。打开后读键盘能拿到的全部文字（系统通常只给光标附近几百字）。不管开不开，替换都只换送去处理的那一段，其余文字不动。要处理整段，先全选再点 ✨。",
+                       "With nothing selected, AI handles about 200 characters before the cursor, cut at whole sentences or paragraphs; shorter text is handled in full. Turn this on to read everything the keyboard can see (iOS usually gives a few hundred characters around the cursor). Either way, Replace only changes the part that was sent; the rest stays as it is. To handle a whole passage, select it first, then tap ✨.",
+                       "何も選択していないとき、AI はカーソル前の約 200 字を文や段落の切れ目で区切って処理します。200 字未満なら全体を処理します。オンにするとキーボードが取得できる文章をすべて読みます（iOS は通常カーソル付近の数百字だけを渡します）。どちらの場合も「置き換え」は送った部分だけを変え、残りはそのままです。全体を処理するには先に全選択してから ✨ をタップします。"))
+            }
             Section(L("动画", "Animation", "アニメーション")) {
                 Toggle(isOn: $store.settings.polishAnimation) {
                     VStack(alignment: .leading, spacing: 2) {

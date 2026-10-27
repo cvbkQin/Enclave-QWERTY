@@ -134,6 +134,8 @@ struct EnclaveSettings: Codable, Equatable {
     var resultKeyPrimary: ResultKeyAction = .replace
     var resultKeySwipe: ResultKeySwipe = .wheel
     var resultKeyWheelUp: Bool = true
+    /// 处理长文本：关着（默认）时 AI 只读光标前 200 字左右的整句，打开后读系统给键盘的全部文字。
+    var longText: Bool = false
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     var appearance: Appearance = .system
@@ -141,7 +143,7 @@ struct EnclaveSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
         case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
-        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText
     }
 
     var isConfigured: Bool {
@@ -184,6 +186,7 @@ extension EnclaveSettings {
         resultKeyPrimary = (try? c.decodeIfPresent(ResultKeyAction.self, forKey: .resultKeyPrimary)) ?? resultKeyPrimary
         resultKeySwipe = (try? c.decodeIfPresent(ResultKeySwipe.self, forKey: .resultKeySwipe)) ?? resultKeySwipe
         resultKeyWheelUp = try c.decodeIfPresent(Bool.self, forKey: .resultKeyWheelUp) ?? resultKeyWheelUp
+        longText = try c.decodeIfPresent(Bool.self, forKey: .longText) ?? longText
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }

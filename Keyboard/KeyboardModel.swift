@@ -854,12 +854,21 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - 写入输入框
 
+    /// AI 读输入框：有选中读选中的；没选中时读光标前后系统给的那段，
+    /// 「处理长文本」关着（默认）且超过 200 字时只读光标前按整句截出来的一段（见 FieldSpan）。
     func readField() -> (text: String, isSelection: Bool) {
         guard let proxy else { return ("", false) }
         if let selected = proxy.selectedText, !selected.isEmpty {
             return (selected, true)
         }
-        return ((proxy.documentContextBeforeInput ?? "") + (proxy.documentContextAfterInput ?? ""), false)
+        let span = fieldSpan(proxy)
+        return (span.text, false)
+    }
+
+    /// 这次处理输入框里的哪一段：光标前取 before 个字、光标后取 after 个字。替换时按这两个数删，读不到的字一个不动。
+    private func fieldSpan(_ proxy: UITextDocumentProxy) -> FieldSpan {
+        FieldSpan(before: proxy.documentContextBeforeInput ?? "", after: proxy.documentContextAfterInput ?? "",
+                  limited: !settings.longText)
     }
 
     /// 用当前版本替换输入框内容（有选中时只替换选中部分）。
@@ -948,16 +957,15 @@ final class KeyboardModel: ObservableObject {
     #endif
 
     /// iOS 没有「全选删除」接口：把光标移到末尾，再逐字删除。
-    /// 删掉读到的那段（光标前后各一段）。返回删完后两边是否还有字：系统对长文本只给光标附近的一段，
-    /// 读不到的部分不能跟着删，不然润色只看了一段、却把整段换掉，前后的字就丢了（撤销也找不回）。
+    /// 删掉这次读到的那段（FieldSpan）。返回删完后两边是否还有字：系统对长文本只给光标附近的一段，
+    /// 默认又只读光标前 200 字左右；没读到的部分不能跟着删，不然润色只看了一段、却把整段换掉，前后的字就丢了。
     @discardableResult
     private func clearField(_ proxy: UITextDocumentProxy) -> Bool {
-        let after = proxy.documentContextAfterInput ?? ""
-        let before = proxy.documentContextBeforeInput ?? ""
-        if !after.isEmpty {
-            proxy.adjustTextPosition(byCharacterOffset: after.count)
+        let span = fieldSpan(proxy)
+        if span.afterCount > 0 {
+            proxy.adjustTextPosition(byCharacterOffset: span.afterCount)
         }
-        for _ in 0..<(before.count + after.count) { proxy.deleteBackward() }
+        for _ in 0..<(span.beforeCount + span.afterCount) { proxy.deleteBackward() }
         let restBefore = proxy.documentContextBeforeInput ?? ""
         let restAfter = proxy.documentContextAfterInput ?? ""
         return !restBefore.isEmpty || !restAfter.isEmpty
