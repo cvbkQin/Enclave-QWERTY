@@ -33,11 +33,11 @@ enum KeyboardMetrics {
     /// AI 栏里按钮的高度；✨ 润色按钮 84×34。
     static let chipHeight: CGFloat = 34
     static let polishButtonWidth: CGFloat = 58
-    /// 结果卡片：默认两行，展开到五行，再多就在卡片里滚动。
+    /// 结果卡片：默认两行，展开到四行，再多就在卡片里滚动。
     static let cardHeight: CGFloat = 60
-    static let expandedCardHeight: CGFloat = 120
-    /// 「AI 生成」标签（CP8）占的高度。
-    static let aiLabelHeight: CGFloat = 22
+    static let expandedCardHeight: CGFloat = 100
+    /// 「AI 生成」标签（CP8）占的高度：标签已经放进正文第一行开头，不再单独占一行。
+    static let aiLabelHeight: CGFloat = 0
 
     static func cardHeight(tall: Bool, aiLabel: Bool) -> CGFloat {
         (tall ? expandedCardHeight : cardHeight) + (aiLabel ? aiLabelHeight : 0)

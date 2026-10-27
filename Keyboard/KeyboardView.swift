@@ -1152,12 +1152,14 @@ struct ResultCard: View {
         let text = tag + Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(runningColor)
         Group {
             if model.isRunning && model.displayText.isEmpty {
-                // 还没出字：两条灰条占位。
+                // 还没出字：灰条占位，两行高的卡片里一条，展开时两条。
                 VStack(alignment: .leading, spacing: 10) {
                     Capsule().fill(Brand.skeleton).frame(height: 12).frame(maxWidth: .infinity)
                         .padding(.trailing, 30)
-                    Capsule().fill(Brand.skeleton).frame(height: 12).frame(maxWidth: .infinity)
-                        .padding(.trailing, 110)
+                    if model.cardTall {
+                        Capsule().fill(Brand.skeleton).frame(height: 12).frame(maxWidth: .infinity)
+                            .padding(.trailing, 110)
+                    }
                 }
                 .padding(.top, 6)
             } else if model.cardTall {
@@ -1166,8 +1168,8 @@ struct ResultCard: View {
                 }
                 .hidingScrollEdgeEffect()
             } else {
-                // 生成中只放得下两行时显示最新的部分。
-                text.lineLimit(2).truncationMode(model.isRunning ? .head : .tail)
+                // 两行高：生成中第一行是「AI 正在…」，正文只露最新的一行；出结果后正文两行。
+                text.lineLimit(model.isRunning ? 1 : 2).truncationMode(model.isRunning ? .head : .tail)
             }
         }
         .font(.system(size: 15))
