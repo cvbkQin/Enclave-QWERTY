@@ -536,8 +536,10 @@ extension KeyboardModel {
 
     /// 系统内存警告：只记下次数。试过关掉 Rime 引擎，实测只省 0.2–0.4MB（词典和整句模型是文件映射，本来就不算进占用），
     /// 还要丢掉正在拼的内容，不值得。
+    /// 内存紧时先放掉眼下用不上的那份联想表（各几 MB），少被系统杀掉，下次弹出就少一次冷启动。
     func noteMemoryWarning() {
         TypingStats.noteMemoryWarning()
+        if chineseMode { EnglishPredictor.unload() } else { Predictor.unload() }
     }
 
     /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。

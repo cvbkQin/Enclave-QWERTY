@@ -31,7 +31,7 @@ enum EnglishPredictor {
         guard !done else { return }
         queue.async {
             let words = load("en_words").map(parseWords) ?? []
-            let table = load("en_next").map(parseNext) ?? [:]
+            let table = load("en_next").map { Predictor.parseTable($0, capacity: 15000) } ?? [:]
             let saved = SharedStorage.defaults.dictionary(forKey: learnedKey) as? [String: Int] ?? [:]
             lock.lock()
             entries = words
@@ -40,6 +40,15 @@ enum EnglishPredictor {
             loaded = true
             lock.unlock()
         }
+    }
+
+    /// 收到内存警告、又在打中文用不上时放掉词表（自己打过的词留着），切回英文时再读。
+    static func unload() {
+        lock.lock()
+        entries = []
+        next = [:]
+        loaded = false
+        lock.unlock()
     }
 
     /// 以 prefix 开头的词，最多 limit 个，常用的在前；不含和 prefix 一样的词。写法跟着 prefix 的大小写走。
@@ -135,29 +144,30 @@ enum EnglishPredictor {
         return word.prefix(1).uppercased() + word.dropFirst()
     }
 
-    private static func load(_ name: String) -> String? {
+    private static func load(_ name: String) -> Data? {
         let bundle = Bundle(for: BundleToken.self)
         guard let url = bundle.url(forResource: name, withExtension: "tsv") else { return nil }
-        return try? String(contentsOf: url, encoding: .utf8)
+        return try? Data(contentsOf: url, options: .mappedIfSafe)
     }
 
-    private static func parseWords(_ text: String) -> [Entry] {
+    /// 按字节切行、切列（见 Predictor.parseTable）；词频直接从数字字节算，不先建字符串。
+    private static func parseWords(_ data: Data) -> [Entry] {
         var result: [Entry] = []
         result.reserveCapacity(62000)
-        for line in text.split(separator: "\n") {
-            let parts = line.split(separator: "\t")
-            guard parts.count == 3, let weight = Int32(parts[2]) else { continue }
-            result.append(Entry(key: String(parts[0]), word: String(parts[1]), logWeight: log(Double(weight) + 1)))
-        }
-        return result
-    }
-
-    private static func parseNext(_ text: String) -> [String: [String]] {
-        var result: [String: [String]] = [:]
-        result.reserveCapacity(15000)
-        for line in text.split(separator: "\n") {
-            guard let tab = line.firstIndex(of: "\t") else { continue }
-            result[String(line[..<tab])] = line[line.index(after: tab)...].split(separator: " ").map(String.init)
+        data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            for line in raw.split(separator: 0x0A) {
+                let parts = line.split(separator: 0x09)
+                guard parts.count == 3, !parts[2].isEmpty else { continue }
+                var weight = 0
+                for byte in parts[2] {
+                    guard byte >= 0x30, byte <= 0x39 else { weight = -1; break }
+                    weight = weight * 10 + Int(byte - 0x30)
+                }
+                guard weight >= 0 else { continue }
+                result.append(Entry(key: String(decoding: parts[0], as: UTF8.self),
+                                    word: String(decoding: parts[1], as: UTF8.self),
+                                    logWeight: log(Double(weight) + 1)))
+            }
         }
         return result
     }
