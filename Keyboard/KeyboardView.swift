@@ -57,11 +57,25 @@ struct KeyboardView: View {
                 }
             }
             .frame(height: KeyboardMetrics.topRow)
+            // 长按候选的小气泡朝下，盖在按键上（键盘画不到候选栏上面）。
+            .overlay(alignment: .topLeading) {
+                if let menu = model.candidateMenu {
+                    GeometryReader { geo in
+                        CandidateMenuBubble(model: model, menu: menu, barWidth: geo.size.width)
+                    }
+                }
+            }
             // 按住 ✨ 弹出的「问答」盖在按键上面。
             .zIndex(1)
             KeysView(model: model)
                 .padding(.horizontal, KeyboardMetrics.sidePadding)
                 .layoutPriority(1)
+                // 气泡开着时点按键区别处只关气泡，不打字。
+                .overlay {
+                    if model.candidateMenu != nil {
+                        Color.black.opacity(0.001).onTapGesture { model.dismissCandidateMenu() }
+                    }
+                }
         }
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -155,12 +169,44 @@ struct KeyboardView: View {
     /// 打拼音、或者上屏后有联想时显示候选栏。
     private var showsCandidateBar: Bool { model.isComposing || model.showsPredictions }
 
+    /// 「✓ 已删除「xx」」+ 右边「撤销」胶囊。
+    private func candidateUndoBar(_ word: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Brand.success)
+            Text(L("已删除「\(word)」", "Deleted “\(word)”", "「\(word)」を削除しました"))
+                .font(.system(size: 15))
+                .foregroundStyle(Color.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 8)
+            Button { model.undoCandidateDelete() } label: {
+                Text(L("撤销", "Undo", "取り消す"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Brand.deepPurple)
+                    .padding(.horizontal, 14)
+                    .frame(height: 28)
+                    .background(Capsule().fill(Brand.returnSoftFill))
+            }
+            .buttonStyle(KeyPressStyle())
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .transition(.opacity)
+    }
+
     /// 打拼音时的候选栏，右边的箭头展开整页候选；显示联想时箭头换成关闭。
     private var candidateBar: some View {
         let predicting = !model.isComposing
         return HStack(spacing: 0) {
-            // 点击判定在 UIKit 里做，见 CandidateStrip。
-            CandidateStrip(model: model)
+            // 点击判定在 UIKit 里做，见 CandidateStrip。删了候选后 3 秒内换成撤销条（CL4）。
+            ZStack {
+                CandidateStrip(model: model)
+                    .opacity(model.candidateUndo == nil ? 1 : 0)
+                    .allowsHitTesting(model.candidateUndo == nil)
+                if let word = model.candidateUndo {
+                    candidateUndoBar(word)
+                }
+            }
             Divider().frame(height: 22)
             Button {
                 if predicting { model.dismissPredictions() } else { model.candidatesExpanded.toggle() }
@@ -1007,11 +1053,12 @@ struct ResultCard: View {
     /// 文字区宽度，点文字时换算成第几个字。
     @State private var textWidth: CGFloat = 200
 
-    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded, editing, search(KeyboardModel.SearchPrompt) }
+    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded, editing, search(KeyboardModel.SearchPrompt), partial }
 
     private var look: Look {
         if model.aiBlocked { return .checklist }
         if model.target == .card { return .editing }
+        if model.partialResult != nil, !model.isRunning { return .partial }
         if let error = model.errorMessage { return .error(error) }
         if let prompt = model.searchPrompt { return .search(prompt) }
         if model.isRunning { return .running }
@@ -1032,6 +1079,7 @@ struct ResultCard: View {
             switch look {
             case .checklist: checklist
             case .error(let message): errorView(message)
+            case .partial: partialView
             case .hint(let notice): hintView(notice)
             case .running, .fresh, .faded: resultView(faded: { if case .faded = look { return true } else { return false } }())
             case .editing: editView
@@ -1043,7 +1091,7 @@ struct ResultCard: View {
             // 修改中：外面一圈 4pt 淡紫光。
             if case .editing = look { shape.inset(by: -4).fill(Brand.tagSelectedText.opacity(0.14)) }
             shape.fill(KeyStyle.charKey)
-            if case .error = look { shape.fill(Color.red.opacity(0.07)) }
+            if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
         }
         .overlay {
             if animating { SweepBand().clipShape(shape) }
@@ -1083,32 +1131,72 @@ struct ResultCard: View {
 
     // MARK: 结果
 
+    /// 识意的结果（和识意生成中）：结果卡最左边是模式控件（SW4），代替正文开头的「AI 生成」标签；润色的结果照旧用标签。
+    private var showsModeSwitch: Bool {
+        model.isRunning ? model.askRunning : model.session?.currentIsAsk == true
+    }
+
+    /// 正文左边距：有模式控件时控件占左边（卡片左内边距 6、控件 34、间距 8），正文贴着它。
+    private var textLeading: CGFloat { showsModeSwitch ? 0 : 10 }
+
     private func resultView(faded: Bool) -> some View {
         HStack(alignment: .top, spacing: 2) {
+            HStack(alignment: .top, spacing: 8) {
+            if showsModeSwitch {
+                // 生成中还不知道方式：上半「AI」+ 流光，下半变淡不能点。
+                let pending = model.isRunning && model.askKind == nil
+                let answer = model.isRunning ? model.askKind == .answer : model.session?.currentIsAnswer == true
+                ModeSwitch(answer: answer, pending: pending, enabled: !model.isRunning && model.session?.currentAskSource != nil) {
+                    model.switchAskMode()
+                }
+                .padding(.leading, 6)
+                .padding(.vertical, 6)
+            }
             VStack(alignment: .leading, spacing: 0) {
             // 生成中第一行是流光小字「AI 正在改写… / 正在回答…」（QA10），出结果后这行字消失，
             // 「AI 生成」标签（CP8）放在正文第一行开头，只在界面上标，不往正文里插任何标记。
             if model.isRunning {
-                RunningLabel(text: runningTitle, color: runningColor, animating: animating)
-                    .padding(.leading, 10)
-                    .padding(.top, 8)
+                HStack(spacing: 6) {
+                    RunningLabel(text: runningTitle, color: runningColor, animating: animating)
+                    // 8 秒还没出第一个字（ER4）：后面加灰字「模型响应较慢」，右边小「取消」。
+                    if model.responseSlow {
+                        Text(L("模型响应较慢", "Slow to respond", "応答が遅れています"))
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Button { model.stop() } label: {
+                            Text(L("取消", "Cancel", "キャンセル"))
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                                .padding(.horizontal, 10)
+                                .frame(height: 22)
+                                .background(Capsule().fill(Brand.searchDeclineFill))
+                        }
+                        .buttonStyle(KeyPressStyle())
+                    }
+                }
+                .padding(.leading, textLeading)
+                .padding(.top, 8)
             }
             resultText(faded: faded)
-                .padding(.leading, 10)
+                .padding(.leading, textLeading)
                 .padding(.top, model.isRunning ? 4 : 8)
                 .padding(.bottom, 8)
                 .contentShape(Rectangle())
                 // 文字区上下滑留给滚动（展开、收起都一样），翻版本在右边的 ▲▼ 上滑；只有收起时生成中整块滑动翻版本。长按复制。
                 // 滑动放在主手势、长按放在同时识别，onLongPressGesture 会把拖动吞掉。
                 .gesture(swipeToTurn, including: model.cardTall || !model.isRunning ? .subviews : .all)
-                .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.copy() })
+                // 长按打开分词面板（BB1），复制全文用右边的小复制按钮。
+                .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.openWordPanel() })
                 // 点文字进入修改，光标放在点的位置。
                 .simultaneousGesture(SpatialTapGesture().onEnded { value in
                     guard model.hasResult, let text = model.session?.current else { return }
                     // 减掉文字区的内边距；展开卡片滚动过时按未滚动估算，进入后可以再点一次调整。
-                    let point = CGPoint(x: value.location.x - 10, y: value.location.y - (model.isRunning ? 4 : 8))
+                    let point = CGPoint(x: value.location.x - textLeading, y: value.location.y - (model.isRunning ? 4 : 8))
                     model.beginCardEdit(caret: CardTextHit.index(at: point, in: text, width: textWidth))
                 })
+            }
             }
             iconColumn(faded: faded)
                 .padding(.vertical, 5)
@@ -1211,7 +1299,7 @@ struct ResultCard: View {
 
     @ViewBuilder
     private func resultText(faded: Bool) -> some View {
-        let tag = model.isRunning ? Text("") : Text(Image(uiImage: AIGeneratedTag.image(dark: colorScheme == .dark)))
+        let tag = model.isRunning || showsModeSwitch ? Text("") : Text(Image(uiImage: AIGeneratedTag.image(dark: colorScheme == .dark)))
         let text = tag + Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(runningColor)
         Group {
             if model.isRunning && model.displayText.isEmpty {
@@ -1351,9 +1439,7 @@ struct ResultCard: View {
                 Image(systemName: "chevron.up").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .disabled(index == 0)
-            Text("\(index + 1)/\(count)")
-                .font(.system(size: 10, weight: .semibold).monospacedDigit())
-                .foregroundStyle(Color.primary)
+            pageNumber(index: index, count: count)
             if model.session?.currentIsEdited == true {
                 Text(L("已改", "Edited", "編集済み")).font(.system(size: 9.5, weight: .semibold)).foregroundStyle(Brand.deepPurple)
             }
@@ -1365,8 +1451,28 @@ struct ResultCard: View {
         .font(.system(size: 10, weight: .semibold))
         .foregroundStyle(Color.secondary)
         .buttonStyle(.plain)
-        .frame(width: 28)
+        .frame(width: 22)
         .padding(.vertical, 2)
+    }
+
+    /// 页码（PG1）：总数 1–9 横排「2/2」；总数 ≥10 上下两行，当前页 / 12 宽细线 / 总数，超过 99 写 99。
+    /// 按总数切换版式，从第 9 翻到第 10 条时不跳。
+    @ViewBuilder
+    private func pageNumber(index: Int, count: Int) -> some View {
+        if count < 10 {
+            Text("\(index + 1)/\(count)")
+                .font(.system(size: 10, weight: .bold).monospacedDigit())
+                .foregroundStyle(Color.primary)
+        } else {
+            VStack(spacing: 1) {
+                Text("\(min(index + 1, 99))").foregroundStyle(Color.primary).frame(height: 11)
+                Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 12, height: 1)
+                Text("\(min(count, 99))").foregroundStyle(Color.secondary).frame(height: 11)
+            }
+            .font(.system(size: 10, weight: .bold).monospacedDigit())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(index + 1)/\(count)")
+        }
     }
 
     /// 上滑看下一版，下滑看上一版。
@@ -1409,7 +1515,13 @@ struct ResultCard: View {
         case .faded:
             shape.strokeBorder(Color.secondary.opacity(0.35), lineWidth: 0.8)
         case .error:
-            shape.strokeBorder(Color.red.opacity(0.35), lineWidth: 0.8)
+            if model.failure != nil {
+                shape.strokeBorder(Brand.rowStroke, lineWidth: 1.5)
+            } else {
+                shape.strokeBorder(Color.red.opacity(0.35), lineWidth: 0.8)
+            }
+        case .partial:
+            shape.strokeBorder(Brand.rowStroke, lineWidth: 1.5)
         case .editing:
             shape.strokeBorder(Brand.tagSelectedText, lineWidth: 2)
         case .search:
@@ -1442,7 +1554,139 @@ struct ResultCard: View {
         .padding(.vertical, 8)
     }
 
+    // MARK: 出错（ER0–ER5）
+
+    @ViewBuilder
     private func errorView(_ message: String) -> some View {
+        if let failure = model.failure {
+            failureCard(failure)
+        } else {
+            plainErrorView(message)
+        }
+    }
+
+    /// 和结果卡一样大的出错卡：⚠ 标题 + 灰字说明「· 详情」，右边「去设置」「重试」。
+    /// 点「· 详情」卡片展开到 4 行高，下面灰底框里是服务商原文（11pt 等宽，可长按复制）。
+    private func failureCard(_ failure: LLMFailure) -> some View {
+        let provider = model.failureProvider
+        let header = HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Brand.warning)
+                    Text(failure.title(provider: provider))
+                        .font(.system(size: 15, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                if !model.failureDetailShown {
+                    (Text(failure.note(provider: provider))
+                     + Text(model.failureDetail == nil ? "" : L(" · 详情", " · Details", "・詳細")))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .onTapGesture {
+                            guard model.failureDetail != nil else { return }
+                            withAnimation(.easeOut(duration: 0.2)) { model.failureDetailShown = true }
+                        }
+                }
+            }
+            .layoutPriority(1)
+            Spacer(minLength: 4)
+            if failure.needsSettings {
+                cardButton(L("去设置", "Settings", "設定"), primary: false) { model.openAPISettings() }
+            }
+            cardButton(L("重试", "Retry", "再試行"), primary: true) { model.retryLastRun() }
+        }
+        return VStack(alignment: .leading, spacing: 8) {
+            header
+            if model.failureDetailShown, let detail = model.failureDetail {
+                ScrollView {
+                    Text(detail)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.aiTagFill))
+                .contextMenu {
+                    Button(L("复制", "Copy", "コピー")) { UIPasteboard.general.string = detail }
+                }
+            }
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: model.failureDetailShown ? .topLeading : .leading)
+    }
+
+    /// 出了一半断了（ER3）：第一行保留已出的字（带模式标签），第二行橙字 ⚠「没写完，连接断了」+ 右边小「重试」。
+    private var partialView: some View {
+        let partial = model.partialResult
+        return HStack(alignment: .top, spacing: 2) {
+            HStack(alignment: .top, spacing: 8) {
+                if let partial, let answer = partial.answer {
+                    ModeSwitch(answer: answer, pending: false, enabled: false) {}
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Group {
+                        if partial?.answer == nil {
+                            Text(Image(uiImage: AIGeneratedTag.image(dark: colorScheme == .dark))) + Text(partial?.text ?? "")
+                        } else {
+                            Text(partial?.text ?? "")
+                        }
+                    }
+                    .font(.system(size: 15))
+                    .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Image(systemName: "exclamationmark.triangle").font(.system(size: 12, weight: .semibold))
+                        Text(L("没写完，连接断了", "Cut off before finishing", "途中で接続が切れました"))
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Button { model.retryLastRun() } label: {
+                            Text(L("重试", "Retry", "再試行"))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 12)
+                                .frame(height: 24)
+                                .background(Capsule().fill(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
+                        }
+                        .buttonStyle(KeyPressStyle())
+                    }
+                    .foregroundStyle(Brand.warning)
+                }
+            }
+            .padding(.leading, partial?.answer == nil ? 10 : 6)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            iconColumn(faded: false)
+                .padding(.vertical, 5)
+        }
+        .padding(.trailing, 4)
+    }
+
+    /// 出错卡右边的按钮：高 32、圆角 9、14pt semibold；主按钮紫色渐变白字，次按钮灰底。
+    private func cardButton(_ title: String, primary: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(primary ? Color.white : Color.primary)
+                .lineLimit(1)
+                .padding(.horizontal, 11)
+                .frame(height: 32)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(primary ? AnyShapeStyle(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+                          : AnyShapeStyle(Brand.searchDeclineFill)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func plainErrorView(_ message: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Label(L("出错了", "Something went wrong", "エラーが発生しました"), systemImage: "exclamationmark.circle")
                 .font(.system(size: 12, weight: .semibold))
@@ -1617,6 +1861,83 @@ enum AIGeneratedTag {
     }
 }
 
+/// 结果卡左边的模式控件（P1-4b 方案④）：宽 34、圆角 7。上半是当前方式「AI改写 / AI问答」，
+/// 下半「⇄ 切换」用要切过去那种方式的底色和字色，点一下按另一种方式重做（新版本）。
+/// 生成中还没定方式（pending）时上半只写「AI」加流光，下半变淡不能点；出错或取消后留着半截字时照样写全称。
+struct ModeSwitch: View {
+    var answer: Bool
+    var pending: Bool
+    var enabled: Bool
+    var action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    private func fill(_ answer: Bool) -> Color { answer ? Brand.modeAnswerFill : Brand.modeRewriteFill }
+    private func text(_ answer: Bool) -> Color { answer ? Brand.modeAnswerText : Brand.modeRewriteText }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        let stroke = answer ? Brand.answerBorder : Brand.rowStroke
+        Button(action: action) {
+            VStack(spacing: 0) {
+                ZStack {
+                    fill(answer)
+                    if pending {
+                        Text("AI").font(.system(size: 11, weight: .bold)).foregroundStyle(text(answer))
+                            .overlay {
+                                TimelineView(.animation) { context in
+                                    let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
+                                    LinearGradient(colors: [.white.opacity(0), .white.opacity(0.8), .white.opacity(0)],
+                                                   startPoint: .leading, endPoint: .trailing)
+                                        .frame(width: 14)
+                                        .offset(x: -24 + 48 * phase)
+                                }
+                                .mask(Text("AI").font(.system(size: 11, weight: .bold)))
+                                .allowsHitTesting(false)
+                            }
+                    } else {
+                        Text(answer ? L("AI问答", "AI Q&A", "AI回答") : L("AI改写", "AI edit", "AI書換"))
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(text(answer))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .padding(.horizontal, 2)
+                    }
+                }
+                Rectangle().fill(stroke.opacity(0.5)).frame(height: 1)
+                ZStack {
+                    fill(!answer)
+                    VStack(spacing: 1) {
+                        Image(systemName: "arrow.left.arrow.right").font(.system(size: 9, weight: .semibold))
+                        Text(L("切换", "Switch", "切替")).font(.system(size: 9.5, weight: .bold))
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(text(!answer))
+                }
+                .opacity(pending || !enabled ? 0.4 : 1)
+            }
+            .frame(width: 34)
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(stroke.opacity(0.33), lineWidth: 1))
+        }
+        .buttonStyle(ModeSwitchStyle(dark: colorScheme == .dark))
+        .disabled(pending || !enabled)
+        .accessibilityLabel(answer
+            ? L("AI问答，点按切换成改写重做", "AI answer, tap to redo as a rewrite", "AI回答、タップで書き換えとしてやり直す")
+            : L("AI改写，点按切换成问答重做", "AI rewrite, tap to redo as an answer", "AI書き換え、タップで回答としてやり直す"))
+    }
+}
+
+private struct ModeSwitchStyle: ButtonStyle {
+    var dark: Bool
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(configuration.isPressed ? (dark ? Color.white.opacity(0.14) : Color.black.opacity(0.10)) : .clear)
+                .allowsHitTesting(false))
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+    }
+}
+
 /// 生成中卡片第一行的流光小字（QA10）：星星 +「AI 正在改写… / 正在回答…」，一道亮光从左扫到右。
 struct RunningLabel: View {
     var text: String
@@ -1650,7 +1971,7 @@ struct RunningLabel: View {
     }
 }
 
-/// 快速模式替换后 AI 栏上的浅紫胶囊（CP9）：高 28、圆角 14，紫色四角星 +「AI 生成 · 已替换」。
+/// 快速模式替换后 AI 栏上的浅紫胶囊（CP9）：高 28、圆角 14，紫色四角星 +「AI 改写 · 已替换」。
 struct ReplacedPill: View {
     var action: () -> Void
 
@@ -1658,7 +1979,7 @@ struct ReplacedPill: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: "sparkle").font(.system(size: 11, weight: .semibold))
-                Text(L("AI 生成 · 已替换", "AI-generated · Replaced", "AI 生成・置き換え済み"))
+                Text(L("AI 改写 · 已替换", "AI rewrite · Replaced", "AI 書き換え・置き換え済み"))
                     .font(.system(size: 12.5, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)

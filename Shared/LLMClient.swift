@@ -52,36 +52,52 @@ enum LLMFailure: Equatable {
         }
     }
 
-    /// 自动重试一次的：429、5xx、还没出字就断了（超时、网络断开）。Key 无效、余额不足重试也没用。
+    /// 自动重试一次的（ER0）：超时、429、5xx，还没出字时 1.5 秒后重发一次。网络不通、Key 无效、余额不足重试也没用。
     var autoRetry: Bool {
         switch self {
-        case .timeout, .network, .rateLimited, .server: return true
-        case .unauthorized, .noBalance, .other: return false
+        case .timeout, .rateLimited, .server: return true
+        case .network, .unauthorized, .noBalance, .other: return false
         }
     }
 
-    /// 要去 App 接口页改的：Key 无效、余额不足（界面上加「去设置」）。
+    /// 要去 App 接口页改的：Key 无效、余额不足（出错卡上多一颗「去设置」）。
     var needsSettings: Bool { self == .unauthorized || self == .noBalance }
 
-    /// 一句话的原因，和设置向导里的分类文案一致。other 返回 nil，用错误原文。
-    var message: String? {
+    /// 出错卡第一行的标题（ER0）。
+    func title(provider: String) -> String {
         switch self {
-        case .timeout: return L("模型太久没响应，可能是网络慢或服务繁忙，点重试再试一次", "The model took too long to respond. The network may be slow or the service busy. Try again", "モデルの応答が遅すぎます。ネットワークが遅いか混雑しているかもしれません。再試行してください")
-        case .network: return L("网络不通，检查一下网络再试", "No network. Check your connection and try again", "ネットワークにつながりません。接続を確認して再試行してください")
-        case .unauthorized: return L("API Key 不对或已失效，去 App 的接口页检查", "The API key is wrong or expired. Check it on the API page in the app", "API キーが正しくないか期限切れです。アプリの API ページで確認してください")
-        case .noBalance: return L("服务商账户余额不足，充值后再试", "Not enough credit with the provider. Top up and try again", "サービスの残高が足りません。チャージしてから再試行してください")
-        case .rateLimited: return L("请求太频繁，服务商限流了，稍等一下再试", "Too many requests. The provider is limiting you; wait a moment and try again", "リクエストが多すぎて制限されています。少し待ってから再試行してください")
-        case .server(let code): return L("服务商那边出错了（HTTP \(code)），稍后再试", "The provider had an error (HTTP \(code)). Try again later", "サービス側でエラーが起きました（HTTP \(code)）。後で再試行してください")
-        case .other: return nil
+        case .timeout: return L("模型太久没响应", "The model took too long", "モデルの応答がありません")
+        case .network: return L("连不上服务商", "Can't reach the provider", "サービスに接続できません")
+        case .unauthorized: return L("API Key 无效", "Invalid API key", "API キーが無効です")
+        case .noBalance: return L("账户余额不足", "Not enough credit", "残高が足りません")
+        case .rateLimited: return L("请求太频繁", "Too many requests", "リクエストが多すぎます")
+        case .server: return L("服务商出错了", "The provider had an error", "サービス側のエラー")
+        case .other: return L("出错了", "Something went wrong", "エラーが発生しました")
         }
     }
 
-    /// 卡片上的错误：一句话原因；服务端原文（详情）接在下一行，截到 160 字（界面等 UI 稿再折叠）。
-    static func describe(_ error: Error) -> (message: String, detail: String?) {
-        let raw = error.localizedDescription
-        guard let message = of(error).message else { return (raw, nil) }
-        if case LLMError.timeout = error { return (message, nil) }
-        return (message, String(raw.prefix(160)))
+    /// 出错卡第二行的灰字说明（ER0）。
+    func note(provider: String) -> String {
+        switch self {
+        case .timeout: return L("可能是网络慢或服务商忙", "The network may be slow or the provider busy", "ネットワークが遅いか、サービスが混雑しています")
+        case .network: return L("检查一下网络，或稍后再试", "Check your network or try again later", "ネットワークを確認するか、後で再試行してください")
+        case .unauthorized: return L("到 App 接口页检查 Key", "Check the key on the API page in the app", "アプリの API ページでキーを確認してください")
+        case .noBalance: return L("到 \(provider) 充值后再试", "Top up with \(provider) and try again", "\(provider) でチャージしてから再試行してください")
+        case .rateLimited: return L("等几秒再试", "Wait a few seconds and try again", "数秒待ってから再試行してください")
+        case .server: return L("\(provider) 那边暂时有问题，稍后再试", "\(provider) is having trouble. Try again later", "\(provider) で一時的な問題が起きています。後で再試行してください")
+        case .other: return L("点重试再试一次", "Tap Retry to try again", "再試行してください")
+        }
+    }
+
+    /// 「· 详情」里的原文：第一行「{服务商} · HTTP {码}」，下面是服务端返回（截到 500 字）。
+    static func detail(_ error: Error, provider: String) -> String {
+        switch error {
+        case LLMError.http(let code, let body): return "\(provider) · HTTP \(code)\n\(body)"
+        case LLMError.timeout(let firstData):
+            return "\(provider) · " + (firstData ? "timeout (no data)" : "timeout (stalled)")
+        case let error as URLError: return "\(provider) · URLError \(error.code.rawValue)\n\(error.localizedDescription)"
+        default: return "\(provider)\n\(error.localizedDescription)"
+        }
     }
 }
 

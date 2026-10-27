@@ -109,14 +109,34 @@ extension KeyboardModel {
     }
 
     /// 「识意」的结果进历史：同一句换了一种方式重做，新结果顶掉上一条（上一条用过就保留）；同一种方式照常新增。
-    func appendAsk(_ result: String, kind: AskMode, question: String, to session: inout EditSession) {
+    func appendAsk(_ result: String, kind: AskMode, question: String, context: String, to session: inout EditSession) {
         var replacing = false
         if let last = lastAsk, last.question == question, last.kind != kind, !last.used,
            last.index == session.versions.count - 1 {
             replacing = true
         }
-        session.appendAsk(result, answer: kind == .answer, replacingLast: replacing)
+        session.appendAsk(result, answer: kind == .answer, replacingLast: replacing,
+                          source: EditSession.AskSource(question: question, context: context))
         lastAsk = LastAsk(question: question, kind: kind, index: session.currentIndex)
+    }
+
+    /// 结果卡左边模式控件「⇄ 切换」（SW4）：同一句、同样的原文换另一种方式重做，结果作为新的一版进翻页。
+    func switchAskMode() {
+        guard !isRunning, let session, session.currentIsAsk, let source = session.currentAskSource else { return }
+        guard passGate(then: { [weak self] in self?.switchAskMode() }) else { return }
+        reload()
+        guard checkCanAsk() else { return }
+        let target: AskMode = session.currentIsAnswer ? .rewrite : .answer
+        if target == .answer {
+            guard passAnswerConsent(then: { [weak self] in self?.switchAskMode() }) else { return }
+        }
+        // 新的一版，不顶掉现在这一版。
+        lastAsk = nil
+        let search = target == .answer ? settings.answerSearch : nil
+        let request = AskRequest(question: source.question, forced: target, fallbackAnswer: target == .answer,
+                                 context: source.context, search: search)
+        let messages = Prompts.ask(source.question, context: source.context, forceAnswer: target == .answer, search: search != nil)
+        start(from: .ask) { run(messages, pending: session, ask: request) }
     }
 
     /// 替换、插入、复制过的那一版不会被顶掉。

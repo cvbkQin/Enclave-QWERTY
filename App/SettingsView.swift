@@ -1080,33 +1080,6 @@ struct KeyboardSettingsView: View {
                 Text(resultKeyFooter)
             }
             Section {
-                HStack {
-                    Text(L("滑动方式", "Swipe style", "スワイプ方法"))
-                    Picker(L("滑动方式", "Swipe style", "スワイプ方法"), selection: $store.settings.resultKeySwipe) {
-                        ForEach(ResultKeySwipe.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                if store.settings.resultKeySwipe == .wheel {
-                    HStack {
-                        Text(L("方向", "Direction", "方向"))
-                        Picker(L("方向", "Direction", "方向"), selection: $store.settings.resultKeyWheelUp) {
-                            Text(L("上滑", "Up", "上")).tag(true)
-                            Text(L("下滑", "Down", "下")).tag(false)
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                }
-            } footer: {
-                Text(store.settings.resultKeySwipe == .wheel
-                     ? L("滚轮：两个功能在按钮里上下挨着，跟着手指滚，像拨号盘，松手执行后弹回。上滑时另一个露在下面（默认），下滑时露在上面。",
-                         "Wheel: both actions sit stacked in the button and roll with your finger like a dial, then spring back after you let go. With Up the other one peeks out below (default); with Down it peeks out above.",
-                         "ホイール：2 つの機能がボタンの中で上下に並び、指に合わせてダイヤルのように回ります。指を離すと実行して元に戻ります。「上」ではもう一方が下に少し見え（デフォルト）、「下」では上に見えます。")
-                     : L("弹出：按钮下面一个 ▾，往下一划，正下方弹出另一个按钮（和逗号键一样），松手执行。",
-                         "Pop-up: the button shows a ▾. Slide down and the other action pops up right below it, like the comma key. Let go to use it.",
-                         "ポップアップ：ボタンの下に ▾ があり、下にスライドするともう一方のボタンが真下に出ます（読点キーと同じ）。指を離すと実行します。"))
-            }
-            Section {
                 // 打开要再确认一次：长文本处理慢、更容易改错，替换的范围也更大。
                 Toggle(isOn: Binding(get: { store.settings.longText },
                                      set: { on in if on { confirmLongText = true } else { store.settings.longText = false } })) {
@@ -1156,12 +1129,7 @@ struct KeyboardSettingsView: View {
         let detail = other == .insert
             ? L("插入（接在原来的话后面）", "insert (add it after the existing text)", "挿入（元の文の後ろに追加）")
             : L("替换（换掉原来的话）", "replace (swap out the existing text)", "置き換え（元の文と入れ替え）")
-        let swipe: String
-        switch (settings.resultKeySwipe, settings.resultKeyWheelUp) {
-        case (.pop, _): swipe = L("按住往下划，下方弹出", "Hold and slide down to pop up ", "長押しで下にスライドすると下に出る：")
-        case (.wheel, true): swipe = L("按住往上滑", "Hold and slide up to ", "長押しで上にスライドすると")
-        case (.wheel, false): swipe = L("按住往下滑", "Hold and slide down to ", "長押しで下にスライドすると")
-        }
+        let swipe = L("按住往上推", "Hold and push up to ", "長押しで上に押すと")
         return L("\(tap)；\(swipe)\(detail)。", "\(tap). \(swipe)\(detail).", "\(tap)。\(swipe)\(detail)。")
     }
 

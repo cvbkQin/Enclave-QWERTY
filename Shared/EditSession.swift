@@ -17,6 +17,15 @@ struct EditSession: Codable, Equatable {
     /// 「识意」生成的版本序号，其中 answerVersions 是回答（不是可以直接发出去的正文）。卡片按它画边框颜色。旧数据里没有。
     var askVersions: [Int]?
     var answerVersions: [Int]?
+    /// 「识意」每一版是哪句话、带着什么原文问的（按版本序号存），结果卡左边「⇄ 切换」换方式重做时用。旧数据里没有。
+    var askSources: [String: AskSource]?
+
+    struct AskSource: Codable, Equatable {
+        var question: String
+        var context: String
+    }
+
+    var currentAskSource: AskSource? { askSources?[String(currentIndex)] }
 
     var current: String? {
         versions.indices.contains(currentIndex) ? versions[currentIndex] : nil
@@ -36,7 +45,7 @@ struct EditSession: Codable, Equatable {
     var currentIsAsk: Bool { askVersions?.contains(currentIndex) ?? false }
 
     /// 「识意」的结果：replacingLast 时顶掉最后一版（同一句换了方式重做），否则接在后面。
-    mutating func appendAsk(_ version: String, answer: Bool, replacingLast: Bool) {
+    mutating func appendAsk(_ version: String, answer: Bool, replacingLast: Bool, source: AskSource? = nil) {
         if replacingLast, !versions.isEmpty {
             let last = versions.count - 1
             versions[last] = version
@@ -49,6 +58,7 @@ struct EditSession: Codable, Equatable {
         }
         if !(askVersions ?? []).contains(currentIndex) { askVersions = (askVersions ?? []) + [currentIndex] }
         if answer { answerVersions = (answerVersions ?? []) + [currentIndex] }
+        if let source { askSources = (askSources ?? [:]).merging([String(currentIndex): source]) { $1 } }
     }
 
     /// 输入框里的文字是否还是这次会话的内容：包含原话或任一版本。

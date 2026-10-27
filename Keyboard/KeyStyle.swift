@@ -300,6 +300,24 @@ enum Brand {
                                   Color(UIColor(red: 0x38 / 255, green: 0xBD / 255, blue: 0xF8 / 255, alpha: 1))]
     /// 问答结果卡的天蓝边 #38BDF8 / 深色 #7DD3FC；改写结果卡紫边 #8B7CF6。
     static let answerBorder = dynamic(0x38BDF8, 0x7DD3FC)
+    /// 结果卡左边模式控件（SW4）：改写 底 #ECEAFD 字 #4A3BD6（深色 #4E4875 / #E4DFFF），问答 底 #E0F2FE 字 #0369A1（深色 #0C4A6E / #BAE6FD）。
+    static let modeRewriteFill = dynamic(0xECEAFD, 0x4E4875)
+    static let modeRewriteText = dynamic(0x4A3BD6, 0xE4DFFF)
+    static let modeAnswerFill = dynamic(0xE0F2FE, 0x0C4A6E)
+    static let modeAnswerText = dynamic(0x0369A1, 0xBAE6FD)
+    /// 分词面板（BB1）：直角框 1pt 描边 #C9C2F2 / 深色 #4A4380，底 #F1EFFB / 深色 #211F2E；划过的词块浅紫描边。
+    static let wordPanelStroke = dynamic(0xC9C2F2, 0x4A4380)
+    static let wordPanelFill = dynamic(0xF1EFFB, 0x211F2E)
+    /// 复制键的绿青渐变 #059669→#0D9488。
+    static let copyGradient = [Color(red: 0x05 / 255, green: 0x96 / 255, blue: 0x69 / 255),
+                               Color(red: 0x0D / 255, green: 0x94 / 255, blue: 0x88 / 255)]
+    /// 撤销条上的 ✓ #34C759。
+    static let success = Color(red: 0x34 / 255, green: 0xC7 / 255, blue: 0x59 / 255)
+    /// 长按候选的气泡：浅色模式 #2C2C2E 白字，深色模式 #F2F2F7 黑字。
+    static let candidateMenuFill = dynamic(0x2C2C2E, 0xF2F2F7)
+    static let candidateMenuText = dynamic(0xFFFFFF, 0x1C1C1E)
+    /// 出错卡的 ⚠ 和「没写完」橙字：#FF9F0A。
+    static let warning = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
     /// 要联网时选择卡左边那颗灰按钮（WB1）：#F2F2F7 / 深色 #3A3A3C。
     static let searchDeclineFill = dynamic(0xF2F2F7, 0x3A3A3C)
     /// 「AI 正在回答…」的字 #0284C7 / 深色 #7DD3FC。

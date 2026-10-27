@@ -80,6 +80,10 @@ struct EnclaveApp: App {
                             }
                         }
                     // 键盘里要联网但已禁止时的「去开启」：接口 › 问答页，滚到「联网调用」。
+                    // 键盘出错卡的「去设置」：接口页（改写那一页）。
+                    case "api":
+                        UserDefaults.standard.set("main", forKey: "apiPage")
+                        router.tab = .model
                     case "api-answer":
                         router.tab = .model
                         router.showsAnswerWebSearch = true

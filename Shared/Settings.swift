@@ -197,8 +197,9 @@ extension EnclaveSettings {
         autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize
         polishAnimation = try c.decodeIfPresent(Bool.self, forKey: .polishAnimation) ?? polishAnimation
         resultKeyPrimary = (try? c.decodeIfPresent(ResultKeyAction.self, forKey: .resultKeyPrimary)) ?? resultKeyPrimary
-        resultKeySwipe = (try? c.decodeIfPresent(ResultKeySwipe.self, forKey: .resultKeySwipe)) ?? resultKeySwipe
-        resultKeyWheelUp = try c.decodeIfPresent(Bool.self, forKey: .resultKeyWheelUp) ?? resultKeyWheelUp
+        // P1-4a：滑动方式和方向不再能设，一律上滑；之前选了弹出或下滑的，升级后不提示直接换成上滑。
+        resultKeySwipe = .wheel
+        resultKeyWheelUp = true
         longText = try c.decodeIfPresent(Bool.self, forKey: .longText) ?? longText
         webSearchMode = try? c.decodeIfPresent(WebSearchMode.self, forKey: .webSearchMode)
         if webSearchMode == nil, let legacy = try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .webSearch) {
@@ -328,6 +329,18 @@ extension EnclaveSettings {
 }
 
 extension EnclaveSettings {
+    /// 键盘出错卡里写的服务商名字：认得出的写服务商，自定义的写主机名。
+    var providerName: String {
+        let base = baseURL.lowercased()
+        if base.contains("api.deepseek.com") { return "DeepSeek" }
+        if base.contains("moonshot.") { return "Kimi" }
+        if base.contains("dashscope") { return L("通义千问", "Qwen", "Qwen") }
+        if base.contains("bigmodel.cn") || base.contains("api.z.ai") { return L("智谱", "Zhipu", "Zhipu") }
+        if base.contains("api.openai.com") { return "OpenAI" }
+        if base.contains(":11434") { return "Ollama" }
+        return URL(string: baseURL.trimmingCharacters(in: .whitespaces))?.host ?? baseURL
+    }
+
     /// 连的是 Kimi（api.moonshot.cn / .ai）。
     var isKimi: Bool { baseURL.contains("moonshot.") }
     /// 这个接口能联网的话是哪一家：Kimi、千问（阿里云百炼）、智谱。别的服务商没有可用的联网接口，返回 nil。

@@ -12,7 +12,11 @@ struct KeysView: View {
             ZStack(alignment: .topLeading) {
                 if let panel = model.keysPanel {
                     Group {
-                        if panel == .quickWords { QuickWordsPanel(model: model) } else { SymbolPanel(model: model) }
+                        switch panel {
+                        case .quickWords: QuickWordsPanel(model: model)
+                        case .words: WordPanel(model: model)
+                        case .emoji, .kaomoji: SymbolPanel(model: model)
+                        }
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
                 } else if model.candidatesExpanded {

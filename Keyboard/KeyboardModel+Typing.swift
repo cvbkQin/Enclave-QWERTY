@@ -29,6 +29,8 @@ extension KeyboardModel {
 
     /// 字母、九宫格数字交给拼音引擎。拼音引擎在后台算，这里不等，算完由 applyEngineResults 上屏、更新候选。
     func feedEngine(_ key: String) {
+        dismissCandidateMenu()
+        commitPendingCandidateDelete()
         guard let queued = engine as? QueuedEngine else {
             if let output = engine.input(key) { commit(output) }
             syncEngine()
@@ -135,7 +137,7 @@ extension KeyboardModel {
         if let text, !isComposing, chineseMode { showPredictions(after: text) }
     }
 
-    /// 候选长按「删除」（P1，界面等稿）：只删拼音学到的词，词库自带的词 librime 只会降回原位。
+    /// 候选长按「删除」：只删拼音学到的词，词库自带的词 librime 只会降回原位，不动词库。
     /// 返回 false 表示没删掉。
     @discardableResult
     func deleteLearnedCandidate(_ index: Int) -> Bool {
@@ -143,6 +145,92 @@ extension KeyboardModel {
         let deleted = engine.deleteCandidate(index)
         syncEngine()
         return deleted
+    }
+
+    // MARK: - 候选长按（CL1–CL4）
+
+    struct CandidateMenu: Equatable {
+        enum Action { case delete, pin, removeCommon }
+        let index: Int
+        let word: String
+        /// 被按的词在候选栏里的中心横坐标（候选栏左边算 0），气泡的尖角对准它。
+        let midX: CGFloat
+        let actions: [Action]
+    }
+
+    /// 长按候选 0.45 秒：按词的来源给不同项。常用词只有「从常用词移除」（系统文本替换、通讯录来的改不了，不弹）；
+    /// 拼音候选「删除 | 置顶」；英文候选没有置顶，也没有学到的词可删，不弹。
+    func showCandidateMenu(index: Int, midX: CGFloat) {
+        guard isComposing, chineseMode, candidates.indices.contains(index) else { return }
+        let word = candidates[index]
+        let actions: [CandidateMenu.Action]
+        if commonWordTexts.contains(word) {
+            guard CommonWordStore.load().contains(where: { $0.text == word }) else { return }
+            actions = [.removeCommon]
+        } else {
+            actions = CommonWordStore.containsHanzi(word) ? [.delete, .pin] : [.delete]
+        }
+        keyFeedback(for: .space)
+        candidateMenu = CandidateMenu(index: index, word: word, midX: midX, actions: actions)
+    }
+
+    func performCandidateMenu(_ action: CandidateMenu.Action) {
+        guard let menu = candidateMenu else { return }
+        candidateMenu = nil
+        keyFeedback(for: .space)
+        switch action {
+        case .delete:
+            // 先只藏起来、给 3 秒撤销；时间到或者继续打字时才真的删（删了就撤不回来）。
+            commitPendingCandidateDelete()
+            candidateUndo = menu.word
+            let timer = DispatchWorkItem { [weak self] in self?.commitPendingCandidateDelete() }
+            candidateUndoTimer = timer
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: timer)
+        case .pin:
+            // 加进常用词（排在候选最前），不弹提示，候选顺序马上变。
+            let pinyin = CommonWordStore.pinyin(of: menu.word)
+            guard !pinyin.isEmpty else { return }
+            var words = CommonWordStore.load()
+            if !words.contains(where: { $0.text == menu.word }) {
+                words.append(CommonWord(text: menu.word, pinyin: pinyin))
+                CommonWordStore.save(words)
+            }
+            refreshCandidatesAfterPhraseChange()
+        case .removeCommon:
+            CommonWordStore.save(CommonWordStore.load().filter { $0.text != menu.word })
+            refreshCandidatesAfterPhraseChange()
+        }
+    }
+
+    func dismissCandidateMenu() {
+        if candidateMenu != nil { candidateMenu = nil }
+    }
+
+    /// 撤销条上的「撤销」：不删了，候选栏回来。
+    func undoCandidateDelete() {
+        candidateUndoTimer?.cancel()
+        candidateUndoTimer = nil
+        candidateUndo = nil
+        keyFeedback(for: .space)
+    }
+
+    /// 真的删：拼写还是删的时候那一串，按词找回它现在的位置再删。
+    func commitPendingCandidateDelete() {
+        candidateUndoTimer?.cancel()
+        candidateUndoTimer = nil
+        guard let word = candidateUndo else { return }
+        candidateUndo = nil
+        applyEngineResults(wait: true)
+        if let index = engine.candidates.firstIndex(of: word) { deleteLearnedCandidate(index) }
+    }
+
+    /// 常用词短语表重写后引擎会重建会话，拼了一半的字母要原样再输一遍。
+    private func refreshCandidatesAfterPhraseChange() {
+        applyEngineResults(wait: true)
+        let raw = engine.rawInput
+        reloadCommonWords()
+        if !raw.isEmpty { engine.replaceInput(raw) }
+        syncEngine()
     }
 
     private func showPredictions(after text: String) {
@@ -178,6 +266,8 @@ extension KeyboardModel {
     }
 
     func perform(_ kind: KeyKind) {
+        dismissCandidateMenu()
+        commitPendingCandidateDelete()
         // 英文的补全和联想每按一个键重新算（删除照常删字，空格照常打空格）。
         if !chineseMode {
             learnCurrentEnglishWord(before: kind)

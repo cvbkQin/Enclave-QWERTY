@@ -74,9 +74,26 @@ final class KeyboardModel: ObservableObject {
     }
     /// 同意后接着做的那一步（润色或再润）。
     private var afterConsent: (() -> Void)?
-    @Published var errorMessage: String? { didSet { aiLabelMayChange() } }
-    /// 最近一次 AI 请求失败的分类（P1）：界面按它决定「重试 / 去设置」；errorMessage 是一句话原因 + 服务端原文。
+    @Published var errorMessage: String? {
+        didSet {
+            aiLabelMayChange()
+            // 出错卡没了（新的一次请求、关掉抽屉等），失败的附带信息也一起清掉。
+            if errorMessage == nil, oldValue != nil, failure != nil || partialResult != nil { clearFailure() }
+        }
+    }
+    /// 最近一次 AI 请求失败的分类（ER0–ER5）：出错卡按它写标题、说明，决定有没有「去设置」。
     @Published var failure: LLMFailure?
+    /// 出错卡「· 详情」里的原文：第一行「{服务商} · HTTP {码}」，下面是服务端返回。
+    @Published var failureDetail: String?
+    /// 出错的那个接口的服务商名字（说明里的 {服务商}），以及它是不是问答页的接口（「去设置」打开哪一页）。
+    @Published var failureProvider = ""
+    var failureOnAnswerAPI = false
+    /// 点了「· 详情」：卡片展开到 4 行高。
+    @Published var failureDetailShown = false
+    /// 出了一半断了（ER3）：保留已出的字，下面一行橙字「没写完，连接断了」+ 重试。answer 是当时识意判断的方式。
+    @Published var partialResult: (text: String, answer: Bool?)?
+    /// 重试用：上一次发出去的请求，原样再发一次（结果作为新的一版进翻页）。
+    private var lastRun: (messages: [ChatMessage], pending: EditSession, ask: AskRequest?, origin: RunOrigin)?
     /// 8 秒还没出字：卡片第一行后面加「模型响应较慢」和「取消」（界面等稿）。出字或结束时清掉。
     @Published var responseSlow = false
     @Published var notice: String?
@@ -130,8 +147,15 @@ final class KeyboardModel: ObservableObject {
     @Published var trackpadActive = false
     /// 候选词展开成整页。
     @Published var candidatesExpanded = false
+    /// 长按候选弹出的小气泡（CL1–CL3）；按的那个词在候选栏里浅色底。
+    @Published var candidateMenu: CandidateMenu?
+    /// 删了候选后候选栏换成「✓ 已删除「xx」 撤销」（CL4），3 秒后或继续打字时真的删。
+    @Published var candidateUndo: String?
+    var candidateUndoTimer: DispatchWorkItem?
     /// 盖在按键区上的面板：表情、颜文字、常用词。
     @Published var keysPanel: KeysPanel?
+    /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
+    @Published var wordPanelText = ""
     /// 长按按键弹出的备选条。
     @Published var alternates: AlternatesPopup?
     /// 九宫格长按的十字弹层。
@@ -226,7 +250,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
     /// 在卡片里改结果时也用五行高度，改长了也看得全。
-    var cardTall: Bool { cardExpanded || aiBlocked || target == .card }
+    var cardTall: Bool { cardExpanded || aiBlocked || target == .card || failureDetailShown }
 
     /// 结果卡片左上角的「AI 生成」标签（CP8）：有结果或正在生成时显示，卡片跟着高 22。和 ResultCard 的 look 对应。
     var showsAILabel: Bool {
@@ -328,6 +352,11 @@ final class KeyboardModel: ObservableObject {
 
     /// 上次交给引擎的短语表（按内容比）。
     private var lastPhraseSignature: [String]?
+
+    /// 候选长按改了常用词：马上交给引擎，不等下次弹出键盘。
+    func reloadCommonWords() {
+        applyCommonWords(CommonWordStore.active(lexicon: CommonWordStore.lexicon))
+    }
 
     private func applyCommonWords(_ words: [CommonWord]) {
         let texts = Set(words.map(\.text))
@@ -609,7 +638,8 @@ final class KeyboardModel: ObservableObject {
             : LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
         var mayHandOff = answerClient != nil && ask != nil && ask?.forced != .answer
         isRunning = true
-        failure = nil
+        clearFailure()
+        lastRun = (messages, pending, ask, runOrigin ?? .polish)
         streamingText = ""
         askRunning = ask != nil
         if askKind != nil { askKind = nil }
@@ -730,7 +760,7 @@ final class KeyboardModel: ObservableObject {
                     self.refreshAIAccess()
                     var updated = pending
                     if let ask, let kind = self.askKind {
-                        self.appendAsk(result, kind: kind, question: ask.question, to: &updated)
+                        self.appendAsk(result, kind: kind, question: ask.question, context: ask.context, to: &updated)
                     } else {
                         updated.append(result)
                     }
@@ -750,12 +780,23 @@ final class KeyboardModel: ObservableObject {
                     }
                 }
             } catch {
-                if !Task.isCancelled {
+                if !Task.isCancelled, let self {
                     record(ok: false)
-                    let described = LLMFailure.describe(error)
-                    self?.failure = LLMFailure.of(error)
-                    self?.errorMessage = described.detail.map { described.message + "\n" + $0 } ?? described.message
-                    self?.endQuickMode(.failed)
+                    let kind = LLMFailure.of(error)
+                    let provider = client.settings.providerName
+                    self.failure = kind
+                    self.failureProvider = provider
+                    self.failureOnAnswerAPI = answeredByAnswerAPI
+                    self.failureDetail = LLMFailure.detail(error, provider: provider)
+                    // 已经出了字：保留已出的部分，不当整张出错卡（ER3）。
+                    let shown = ModelOutput.clean(raw)
+                    let split = ask.flatMap { Prompts.splitAsk(shown, final: true, fallback: $0.fallbackAnswer) }
+                    let partial = split?.body ?? shown
+                    if !partial.isEmpty, !partial.hasPrefix("联网") {
+                        self.partialResult = (partial, split.map(\.answer))
+                    }
+                    self.errorMessage = kind.title(provider: provider)
+                    self.endQuickMode(.failed)
                 }
             }
             self?.isRunning = false
@@ -765,6 +806,26 @@ final class KeyboardModel: ObservableObject {
             if self?.askSearching == true { self?.askSearching = false }
             if self?.askKind != nil { self?.askKind = nil }
         }
+    }
+
+    func clearFailure() {
+        failure = nil
+        failureDetail = nil
+        failureDetailShown = false
+        partialResult = nil
+    }
+
+    /// 出错卡、没写完那一行的「重试」：把上一次的请求原样再发一次，结果作为新的一版进翻页。
+    func retryLastRun() {
+        guard let last = lastRun, !isRunning else { return }
+        errorMessage = nil
+        clearFailure()
+        start(from: last.origin) { run(last.messages, pending: last.pending, ask: last.ask) }
+    }
+
+    /// 出错卡的「去设置」：打开 App 接口页（问答接口出的错打开问答页）。
+    func openAPISettings() {
+        openContainingApp(failureOnAnswerAPI ? "enclave://api-answer" : "enclave://api")
     }
 
     /// 点了「润色」或「再润」：记下是哪个按钮，没开始生成（提示、出错）就清掉。
@@ -1083,7 +1144,33 @@ final class KeyboardModel: ObservableObject {
         if !new.isEmpty { proxy.insertText(new) }
     }
 
-    /// 卡片上的复制图标或长按卡片：复制当前版本。
+    /// 长按结果卡：打开分词面板，拆当前版本。
+    func openWordPanel() {
+        guard hasResult, let text = session?.current, !text.isEmpty else { return }
+        endCoach()
+        wordPanelText = text
+        keyFeedback(for: .space)
+        openPanel(.words)
+    }
+
+    /// 分词面板的「插入」：在光标处插入选中的词，插完关面板。
+    func insertWords(_ text: String) {
+        guard !text.isEmpty, let proxy else { return }
+        proxy.insertText(text)
+        recordEdit(inserted: text, original: "", use: .inserted)
+        closePanel()
+    }
+
+    /// 分词面板的「复制」：复制选中的词，复制完关面板。
+    func copyWords(_ text: String) {
+        guard !text.isEmpty else { return }
+        markAskUsed()
+        UIPasteboard.general.string = text
+        keyFeedback(for: .space)
+        closePanel()
+    }
+
+    /// 卡片上的复制图标：复制当前版本。
     func copy() {
         guard hasResult, let text = session?.current else { return }
         markAskUsed()
