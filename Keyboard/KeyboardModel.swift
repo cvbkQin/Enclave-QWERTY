@@ -405,9 +405,12 @@ final class KeyboardModel: ObservableObject {
         return false
     }
 
-    /// 第一次联网问答：地址同意过也再出一次确认卡，卡上多一行「联网问答会调用 Kimi 搜索」。同意过返回 true。
-    func passWebSearchConsent(then action: @escaping () -> Void) -> Bool {
-        guard !WebSearch.isConsented, let endpoint = ConsentStore.endpoint(of: settings.baseURL) else { return true }
+    /// 识意可能问答时：问答单独用另一个接口的，那个地址也要先同意；第一次联网问答，地址同意过也再出一次确认卡，
+    /// 卡上多一行「联网问答会调用 Kimi 搜索」。都同意过返回 true。
+    func passAnswerConsent(search: Bool, then action: @escaping () -> Void) -> Bool {
+        guard let endpoint = ConsentStore.endpoint(of: settings.forAnswers.baseURL) else { return true }
+        let needsEndpoint = settings.usesAnswerEndpoint && !ConsentStore.isConsented(endpoint)
+        guard needsEndpoint || (search && !WebSearch.isConsented) else { return true }
         gate = .consent(endpoint: endpoint, previous: nil)
         afterConsent = action
         return false
@@ -558,7 +561,12 @@ final class KeyboardModel: ObservableObject {
     }
 
     func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil) {
-        let client = LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
+        // 手动选了问答就直接找问答模型；自动时先用润色的快模型判断，判断是问答再换问答模型重问（answerClient）。
+        let answerClient = settings.usesAnswerEndpoint
+            ? LLMClient(settings: settings.forAnswers, apiKey: SettingsStore.answerKey(for: settings)) : nil
+        var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: settings, apiKey: SettingsStore.apiKey))
+            : LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
+        var mayHandOff = answerClient != nil && ask != nil && ask?.forced != .answer
         isRunning = true
         streamingText = ""
         askRunning = ask != nil
@@ -579,6 +587,7 @@ final class KeyboardModel: ObservableObject {
                 while true {
                     raw = ""
                     var wantsSearch = false
+                    var handOff = false
                     for try await piece in client.stream(messages) {
                         raw += piece
                         guard let self else { continue }
@@ -597,6 +606,8 @@ final class KeyboardModel: ObservableObject {
                             // 等第一行写出「改写 / 问答」再显示正文。
                             guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
                             self.askDecided(split.answer ? .answer : .rewrite)
+                            // 快模型判断是问答：停下，交给问答模型重新回答。
+                            if split.answer && mayHandOff { handOff = true; break }
                             guard show || self.aiExpanded else { continue }
                             shownAt = now
                             self.streamingText = split.body
@@ -608,12 +619,20 @@ final class KeyboardModel: ObservableObject {
                     if maySearch, !wantsSearch, Prompts.searchProbe(ModelOutput.clean(raw), final: true) == .search {
                         wantsSearch = true
                     }
+                    if handOff, let ask, let answerClient {
+                        mayHandOff = false
+                        client = answerClient
+                        messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, search: maySearch)
+                        continue
+                    }
                     guard wantsSearch, let ask, let self else { break }
                     maySearch = false
+                    // 联网之后的回答也交给问答模型。
+                    if let answerClient { client = answerClient; mayHandOff = false }
                     // 联网的一定是问答：展开抽屉，流光小字写「正在联网搜索…」。
                     self.askDecided(.answer)
                     self.askSearching = true
-                    let search = WebSearch(settings: self.settings, apiKey: SettingsStore.apiKey)
+                    let search = WebSearch(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings))
                     let results: String
                     do {
                         results = WebSearch.digest(try await search.search(ask.question))

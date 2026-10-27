@@ -288,6 +288,13 @@ final class AppStore: ObservableObject {
             test = .idle
         }
     }
+    /// 问答接口单独的 API Key。
+    @Published var answerApiKey = SettingsStore.answerApiKey ?? "" {
+        didSet {
+            guard answerApiKey != oldValue else { return }
+            SettingsStore.answerApiKey = answerApiKey
+        }
+    }
     @Published private(set) var test: TestState = .idle
     /// 测试失败的原因，引导里按它给一句话（OB6）：Key 不对、余额不足、网络不通。
     @Published private(set) var testFailure: TestFailure?
@@ -302,6 +309,7 @@ final class AppStore: ObservableObject {
     func reload() {
         settings = SettingsStore.load()
         apiKey = SettingsStore.apiKey ?? ""
+        answerApiKey = SettingsStore.answerApiKey ?? ""
         test = .idle
     }
 

@@ -217,6 +217,8 @@ enum Provider: CaseIterable, Identifiable {
     /// Kimi 国内站（platform.moonshot.cn）和国际站（platform.moonshot.ai）的 Key 不通用：大陆店面填 .cn，其他地区填 .ai。
     static let kimiChina = "https://api.moonshot.cn/v1"
     static let kimiGlobal = "https://api.moonshot.ai/v1"
+    /// Kimi 预设：润色用高速版（能力一样、快 2～3 倍），单独设问答接口时问答用 K3。
+    static let kimiAnswerModel = "kimi-k3.1-pro"
     /// 千问（阿里云百炼）同样分国内站和国际站（新加坡）。
     static let qwenChina = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     static let qwenGlobal = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
@@ -225,7 +227,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-flash")
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
-        case .kimi: return (Storefront.isMainlandChina ? Self.kimiChina : Self.kimiGlobal, "kimi-k3.1-pro")
+        case .kimi: return (Storefront.isMainlandChina ? Self.kimiChina : Self.kimiGlobal, "kimi-k3.1-pro-highspeed")
         case .qwen: return (Storefront.isMainlandChina ? Self.qwenChina : Self.qwenGlobal, "qwen-plus")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
@@ -341,7 +343,8 @@ struct ModelSettingsView: View {
             } footer: {
                 Text(L("温度越低越稳定，润色建议 0.2–0.5。", "Lower is steadier. 0.2–0.5 works well for polishing.", "低いほど安定します。整えるには 0.2〜0.5 がおすすめです。"))
             }
-            if store.settings.isKimi {
+            answerSection
+            if store.settings.forAnswers.isKimi {
                 Section {
                     Toggle(L("识意问答联网", "Web search in Ask", "質問でウェブ検索"), isOn: Binding(
                         get: { store.settings.webSearch ?? false },
@@ -486,6 +489,50 @@ struct ModelSettingsView: View {
             ? L("最近 \(recent.count) 次请求都成功", "Last \(recent.count) requests succeeded", "直近 \(recent.count) 回すべて成功")
             : L("最近 \(recent.count) 次请求有 \(failed) 次失败", "\(failed) of the last \(recent.count) requests failed", "直近 \(recent.count) 回中 \(failed) 回失敗")
         return model.isEmpty ? head : head + " · " + model
+    }
+
+    /// 问答接口（PB5）：润色、识意改写走上面的接口要快；识意问答可以单独用另一家、另一个模型（比如 Kimi K3 + 联网）。
+    @ViewBuilder
+    private var answerSection: some View {
+        Section {
+            Toggle(L("问答用另一个接口", "Use another API for Ask answers", "質問の回答に別の API を使う"), isOn: $store.settings.separateAnswer)
+                .tint(AppColor.purple)
+            if store.settings.separateAnswer {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    ForEach(Provider.shown) { item in
+                        ProviderCard(provider: item, selected: selectedAnswerProvider == item) { chooseAnswer(item) }
+                    }
+                }
+                .padding(.vertical, 4)
+                LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.answerBaseURL, placeholder: "https://api.moonshot.cn/v1", keyboard: .URL)
+                LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.answerModel, placeholder: "kimi-k3.1-pro")
+                HStack {
+                    Text("API Key")
+                    SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: $store.answerApiKey)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+            }
+        } header: {
+            Text(L("问答接口", "Answers", "回答用 API"))
+        } footer: {
+            Text(store.settings.separateAnswer
+                 ? L("润色和识意改写用上面的接口，识意判断是问答时改用这里的接口回答。第一次用这个地址前，键盘上会再确认一次。", "Polish and Ask rewrites use the API above. When Ask turns out to be a question, this API answers it. The keyboard asks you to confirm this address before first use.", "整えると質問での書き換えは上の API、質問への回答はこちらの API を使います。初めて使う前にキーボードで送信先を確認します。")
+                 : L("润色要快，问答可以想久一点、联网：打开后识意问答可以用另一家服务商或另一个模型（比如 Kimi K3）。", "Polish should be fast; answers can think longer or search the web. Turn this on to answer Ask questions with another provider or model, such as Kimi K3.", "整えるは速さ重視、回答はじっくり考えたりウェブ検索したりできます。オンにすると、質問への回答に別のサービスやモデル（Kimi K3 など）を使えます。"))
+        }
+    }
+
+    private var selectedAnswerProvider: Provider? {
+        Provider.matching(baseURL: store.settings.answerBaseURL, model: store.settings.answerModel)
+            ?? (store.settings.answerModel == Provider.kimiAnswerModel && Provider.detect(store.settings.answerBaseURL) == .kimi ? .kimi : nil)
+    }
+
+    private func chooseAnswer(_ item: Provider) {
+        guard item != selectedAnswerProvider, let preset = item.preset else { return }
+        store.settings.answerBaseURL = preset.baseURL
+        // Kimi 问答用 K3（润色的预设是更快的高速版）。
+        store.settings.answerModel = item == .kimi ? Provider.kimiAnswerModel : preset.model
     }
 
     /// 卡片选中哪个跟着地址和模型走：自己改过就不选中预设。

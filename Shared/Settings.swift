@@ -139,6 +139,11 @@ struct EnclaveSettings: Codable, Equatable {
     /// 识意问答联网（仅 Kimi）：模型说要查最新信息时，先用 Kimi 的搜索接口搜一次再回答，搜索由 Kimi 另外按次计费。
     /// 没选过时为 nil：App 启动后按店面定下来（中国大陆默认关，其他地区默认开）；键盘读到 nil 当关。
     var webSearch: Bool?
+    /// 问答用另一个接口：润色和识意改写走上面的接口（要快），识意问答走这一个（可以想久一点、联网）。
+    /// 关着或没填好时问答也走润色的接口。API Key 单独存在钥匙串（SettingsStore.answerApiKey）。
+    var separateAnswer: Bool = false
+    var answerBaseURL: String = ""
+    var answerModel: String = ""
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     var appearance: Appearance = .system
@@ -146,7 +151,7 @@ struct EnclaveSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
         case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
-        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearch
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearch, separateAnswer, answerBaseURL, answerModel
     }
 
     var isConfigured: Bool {
@@ -193,6 +198,9 @@ extension EnclaveSettings {
         resultKeyWheelUp = try c.decodeIfPresent(Bool.self, forKey: .resultKeyWheelUp) ?? resultKeyWheelUp
         longText = try c.decodeIfPresent(Bool.self, forKey: .longText) ?? longText
         webSearch = try c.decodeIfPresent(Bool.self, forKey: .webSearch)
+        separateAnswer = try c.decodeIfPresent(Bool.self, forKey: .separateAnswer) ?? separateAnswer
+        answerBaseURL = try c.decodeIfPresent(String.self, forKey: .answerBaseURL) ?? answerBaseURL
+        answerModel = try c.decodeIfPresent(String.self, forKey: .answerModel) ?? answerModel
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
@@ -252,6 +260,17 @@ enum SettingsStore {
         set { Keychain.set(newValue, for: apiKeyAccount) }
     }
 
+    /// 问答接口的 API Key（单独设了问答接口时用）。
+    static var answerApiKey: String? {
+        get { Keychain.get("apiKey.answer") }
+        set { Keychain.set(newValue, for: "apiKey.answer") }
+    }
+
+    /// 问答该用哪个 Key：单独设了问答接口用它的，否则和润色同一个。
+    static func answerKey(for settings: EnclaveSettings) -> String? {
+        settings.usesAnswerEndpoint ? answerApiKey : apiKey
+    }
+
     // MARK: - 通过剪贴板同步（App Group 不可用时的兜底）
 
     private static let exportPrefix = "enclave-config:"
@@ -259,10 +278,11 @@ enum SettingsStore {
     private struct ExportPayload: Codable {
         var settings: EnclaveSettings
         var apiKey: String?
+        var answerApiKey: String?
     }
 
     static func exportString() -> String? {
-        let payload = ExportPayload(settings: load(), apiKey: apiKey)
+        let payload = ExportPayload(settings: load(), apiKey: apiKey, answerApiKey: answerApiKey)
         guard let data = try? JSONEncoder().encode(payload) else { return nil }
         return exportPrefix + data.base64EncodedString()
     }
@@ -277,6 +297,7 @@ enum SettingsStore {
         else { return false }
         save(payload.settings)
         apiKey = payload.apiKey
+        if let key = payload.answerApiKey { answerApiKey = key }
         return true
     }
 }
@@ -303,6 +324,22 @@ extension EnclaveSettings {
 extension EnclaveSettings {
     /// 连的是 Kimi（api.moonshot.cn / .ai）。
     var isKimi: Bool { baseURL.contains("moonshot.") }
-    /// 识意问答可以联网：Kimi 而且开着「问答联网」。
-    var canWebSearch: Bool { isKimi && webSearch == true }
+    /// 识意问答可以联网：问答走的接口是 Kimi，而且开着「问答联网」。
+    var canWebSearch: Bool { forAnswers.isKimi && webSearch == true }
+
+    /// 问答真的走另一个接口：开着、地址和模型都填了。
+    var usesAnswerEndpoint: Bool {
+        separateAnswer && !answerBaseURL.trimmingCharacters(in: .whitespaces).isEmpty
+            && !answerModel.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// 问答用的设置：换成问答接口的地址和模型，温度、最大输出等照旧（Kimi K3 会先思考，最大输出至少 4096）。
+    var forAnswers: EnclaveSettings {
+        guard usesAnswerEndpoint else { return self }
+        var copy = self
+        copy.baseURL = answerBaseURL
+        copy.model = answerModel
+        if copy.usesFixedTemperature { copy.maxTokens = max(copy.maxTokens, 4096) }
+        return copy
+    }
 }
