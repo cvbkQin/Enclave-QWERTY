@@ -58,7 +58,11 @@ struct EnclaveApp: App {
                 .onAppear { KeyboardDismiss.shared.install() }
                 .task { RimeDeployer.shared.deployIfNeeded() }
                 .task { await UnlockStore.shared.refresh() }
-                .task { await Storefront.refreshCountry() }
+                .task {
+                    await Storefront.refreshCountry()
+                    // 识意问答联网没选过：按店面定下来，中国大陆默认关，其他地区默认开。
+                    if store.settings.webSearch == nil { store.settings.webSearch = !Storefront.isMainlandChina }
+                }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                     Task { await UnlockStore.shared.refresh() }
                 }

@@ -65,6 +65,7 @@ extension KeyboardModel {
             ? EditSession(mode: .write, original: question)
             : EditSession(mode: .polish, original: context))
         let search = settings.canWebSearch && mode != .rewrite
+        guard !search || passWebSearchConsent(then: { [weak self] in self?.askTapped(mode) }) else { return }
         let request = AskRequest(question: question, forced: mode,
                                  fallbackAnswer: mode.map { $0 == .answer } ?? context.isEmpty,
                                  context: context, search: search)

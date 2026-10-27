@@ -405,10 +405,19 @@ final class KeyboardModel: ObservableObject {
         return false
     }
 
-    /// 确认卡上的「同意并润色」：记下这个地址，接着做刚才那一步。
+    /// 第一次联网问答：地址同意过也再出一次确认卡，卡上多一行「联网问答会调用 Kimi 搜索」。同意过返回 true。
+    func passWebSearchConsent(then action: @escaping () -> Void) -> Bool {
+        guard !WebSearch.isConsented, let endpoint = ConsentStore.endpoint(of: settings.baseURL) else { return true }
+        gate = .consent(endpoint: endpoint, previous: nil)
+        afterConsent = action
+        return false
+    }
+
+    /// 确认卡上的「同意并润色」：记下这个地址，接着做刚才那一步。卡上写了联网那一行时，联网问答也算同意了。
     func acceptConsent() {
         guard case .consent(let endpoint, _) = gate else { return }
         ConsentStore.grant(endpoint)
+        if settings.canWebSearch { WebSearch.grantConsent() }
         let action = afterConsent
         dismissGate()
         action?()
@@ -569,14 +578,14 @@ final class KeyboardModel: ObservableObject {
             do {
                 while true {
                     raw = ""
-                    var query: String?
+                    var wantsSearch = false
                     for try await piece in client.stream(messages) {
                         raw += piece
                         guard let self else { continue }
                         if maySearch {
                             let probe = Prompts.searchProbe(ModelOutput.clean(raw), final: false)
                             if probe == .pending { continue }
-                            if case .search(let text) = probe { query = text; break }
+                            if probe == .search { wantsSearch = true; break }
                         }
                         // 每设一次 streamingText 整个键盘就重画一遍，模型一秒能吐几十段：
                         // 面板收着（快速模式，看不到正文）就不设，展开时最多每 50 毫秒设一次。识意还没判断出方式时照常往下看。
@@ -596,10 +605,10 @@ final class KeyboardModel: ObservableObject {
                             self.streamingText = text
                         }
                     }
-                    if maySearch, query == nil, case .search(let text) = Prompts.searchProbe(ModelOutput.clean(raw), final: true) {
-                        query = text
+                    if maySearch, !wantsSearch, Prompts.searchProbe(ModelOutput.clean(raw), final: true) == .search {
+                        wantsSearch = true
                     }
-                    guard let query, let ask, let self else { break }
+                    guard wantsSearch, let ask, let self else { break }
                     maySearch = false
                     // 联网的一定是问答：展开抽屉，流光小字写「正在联网搜索…」。
                     self.askDecided(.answer)
@@ -607,7 +616,7 @@ final class KeyboardModel: ObservableObject {
                     let search = WebSearch(settings: self.settings, apiKey: SettingsStore.apiKey)
                     let results: String
                     do {
-                        results = WebSearch.digest(try await search.search(query))
+                        results = WebSearch.digest(try await search.search(ask.question))
                     } catch {
                         if Task.isCancelled { throw error }
                         results = ""

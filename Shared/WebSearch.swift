@@ -23,6 +23,11 @@ struct WebSearch {
     var settings: EnclaveSettings
     var apiKey: String?
 
+    /// 键盘第一次联网问答前在确认卡上说明过「联网问答会调用 Kimi 搜索」，并且点了同意。
+    private static let consentKey = "webSearch.consented"
+    static var isConsented: Bool { SharedStorage.defaults.bool(forKey: consentKey) }
+    static func grantConsent() { SharedStorage.defaults.set(true, forKey: consentKey) }
+
     func endpoint() throws -> URL {
         var base = settings.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         while base.hasSuffix("/") { base.removeLast() }

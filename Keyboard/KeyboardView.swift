@@ -883,6 +883,12 @@ struct GateCard: View {
             .font(.system(size: 12))
             .foregroundStyle(Brand.cardNote)
             .fixedSize(horizontal: false, vertical: true)
+        if model.settings.canWebSearch && !WebSearch.isConsented {
+            Text(L("联网问答会调用 Kimi 搜索：问题会发给 Kimi 的搜索接口，每次约 0.01 元从你的 Kimi 账户扣。", "Web search in Ask uses Kimi search: your question goes to Kimi's search API, about ¥0.01 per search from your Kimi account.", "質問のウェブ検索は Kimi 検索を使います。質問が Kimi の検索 API に送られ、1 回約 0.01 元が Kimi アカウントから引かれます。"))
+                .font(.system(size: 12))
+                .foregroundStyle(Brand.cardNote)
+                .fixedSize(horizontal: false, vertical: true)
+        }
         Spacer(minLength: 0)
         HStack(spacing: 8) {
             Button { model.openContainingApp("enclave://privacy-policy") } label: {
@@ -1096,9 +1102,9 @@ struct ResultCard: View {
                 .padding(.top, model.isRunning ? 4 : 8)
                 .padding(.bottom, 8)
                 .contentShape(Rectangle())
-                // 不展开时上下滑翻版本（展开时文字区要留给滚动）；长按复制。
+                // 文字区上下滑留给滚动（展开、收起都一样），翻版本在右边的 ▲▼ 上滑；只有收起时生成中整块滑动翻版本。长按复制。
                 // 滑动放在主手势、长按放在同时识别，onLongPressGesture 会把拖动吞掉。
-                .gesture(swipeToTurn, including: model.cardTall ? .subviews : .all)
+                .gesture(swipeToTurn, including: model.cardTall || !model.isRunning ? .subviews : .all)
                 .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.copy() })
                 // 点文字进入修改，光标放在点的位置。
                 .simultaneousGesture(SpatialTapGesture().onEnded { value in
@@ -1149,14 +1155,15 @@ struct ResultCard: View {
                     }
                 }
                 .padding(.top, 6)
-            } else if model.cardTall {
+            } else if model.cardTall || !model.isRunning {
+                // 展开的四行和收起的两行都能上下滚着看全文（收起时翻版本靠右边的 ▲▼）。
                 ScrollView {
                     text.frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .hidingScrollEdgeEffect()
             } else {
-                // 两行高：生成中第一行是「AI 正在…」，正文只露最新的一行；出结果后正文两行。
-                text.lineLimit(model.isRunning ? 1 : 2).truncationMode(model.isRunning ? .head : .tail)
+                // 两行高、生成中：第一行是「AI 正在…」，正文只露最新的一行。
+                text.lineLimit(1).truncationMode(.head)
             }
         }
         .font(.system(size: 15))

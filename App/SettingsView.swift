@@ -252,6 +252,8 @@ struct ModelSettingsView: View {
     @State private var needsPrivacy = false
     @State private var importResult: Bool?
     @State private var recent: [UsageStats.Request] = []
+    /// 大陆店面打开「识意问答联网」前的说明。
+    @State private var confirmWebSearch = false
     /// 测试连接成功、这个地址还没同意过时弹出的确认（P05）。
     @State private var consentEndpoint: ConsentPrompt?
 
@@ -341,7 +343,12 @@ struct ModelSettingsView: View {
             }
             if store.settings.isKimi {
                 Section {
-                    Toggle(L("识意问答联网", "Web search in Ask", "質問でウェブ検索"), isOn: $store.settings.webSearch)
+                    Toggle(L("识意问答联网", "Web search in Ask", "質問でウェブ検索"), isOn: Binding(
+                        get: { store.settings.webSearch ?? false },
+                        set: { on in
+                            // 大陆店面默认关，打开时先说清楚问题发给谁、谁收费。
+                            if on, Storefront.isMainlandChina { confirmWebSearch = true } else { store.settings.webSearch = on }
+                        }))
                         .tint(AppColor.purple)
                 } footer: {
                     Text(L("仅 Kimi。问天气、新闻、价格这类要最新信息的问题时，先用 Kimi 搜一下再回答，回答最后列出来源网站。只在需要时才搜，每次搜索由 Kimi 另外计费（约 ¥0.01）；问题会发给 Kimi 的搜索接口。改写不联网。", "Kimi only. For questions that need current info, like weather, news or prices, Kimi searches the web first and lists its sources. It searches only when needed; each search is billed separately by Kimi. Your question is sent to Kimi's search API. Rewrites never search.", "Kimi のみ。天気・ニュース・価格など最新情報が必要な質問では、先に Kimi で検索してから答え、出典サイトを示します。必要なときだけ検索し、検索ごとに Kimi が別途課金します。質問は Kimi の検索 API に送られます。書き換えでは検索しません。"))
@@ -358,6 +365,12 @@ struct ModelSettingsView: View {
             }
         }
         .navigationTitle(L("接口", "API", "API"))
+        .alert(L("打开识意问答联网？", "Turn on web search in Ask?", "質問でウェブ検索をオンにしますか？"), isPresented: $confirmWebSearch) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+            Button(L("打开", "Turn On", "オンにする")) { store.settings.webSearch = true }
+        } message: {
+            Text(L("问题会发给 Kimi 搜索，每次约 0.01 元从你的 Kimi 账户扣。", "Your question is sent to Kimi search, about ¥0.01 per search from your Kimi account.", "質問は Kimi 検索に送られ、1 回約 0.01 元が Kimi アカウントから引かれます。"))
+        }
         .tabRootPage()
         .alert(L("用 AI 之前，先同意隐私政策", "Agree to the Privacy Policy to use AI", "AI を使う前にプライバシーポリシーに同意してください"), isPresented: $needsPrivacy) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}

@@ -111,7 +111,8 @@ enum Prompts {
 
     /// 「识意」：一句话，可能是修改要求（或让它帮忙写），也可能是问题。输入框里的原文作为上下文，空就不带。
     /// 让模型第一行先写「改写」或「问答」，键盘据此决定直接替换还是展开卡片；forceAnswer 为 nil 时由模型判断。
-    /// search：可以联网（Kimi 且开着「问答联网」）。模型判断要查最新信息时第一行写「联网：搜索词」，键盘搜完带上 results 再问一次。
+    /// search：可以联网（Kimi 且开着「问答联网」）。模型判断要查最新信息时第一行写「联网」，键盘拿用户的话原样去搜
+    /// （隐私政策写明只发问题本身，不带输入框里的字），搜完带上 results 再问一次。
     /// results：搜到的资料（WebSearch.digest）；有资料时按问答回答，末尾一行写来源。
     static func ask(_ question: String, context: String, forceAnswer: Bool?,
                     search: Bool = false, results: String? = nil) -> [ChatMessage] {
@@ -136,7 +137,7 @@ enum Prompts {
             system += """
 
             今天是 \(today)。你可以联网：如果是问答，而且要最新或实时的信息才能答准（天气、新闻、价格、汇率、比分、航班、近期的事等），\
-            第一行只写「联网：」加上要搜的词（写清地点和日期，比如「联网：新加坡 \(today) 天气」），不要写别的，搜到的资料会再发给你。
+            第一行只写「联网」两个字，不要写别的，键盘会拿用户的话去搜，搜到的资料再发给你。
             不需要最新信息就照常按上面的格式回答，不要写「联网」。改写永远不联网。
             """
         }
@@ -166,19 +167,14 @@ enum Prompts {
         return [.system(system), .user(prompt)]
     }
 
-    enum SearchProbe: Equatable { case pending, search(String), no }
+    enum SearchProbe: Equatable { case pending, search, no }
 
-    /// 识意输出开头是不是「联网：搜索词」。第一行还没写完、看不出来时 pending；final 时第一行写完了就算。
+    /// 识意输出开头是不是「联网」。还没写够两个字、看不出来时 pending。
     static func searchProbe(_ text: String, final: Bool) -> SearchProbe {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let marker = "联网"
-        guard trimmed.hasPrefix(marker) else {
-            return marker.hasPrefix(trimmed) && !final ? .pending : .no
-        }
-        guard let lineEnd = trimmed.firstIndex(of: "\n") ?? (final ? trimmed.endIndex : nil) else { return .pending }
-        let query = trimmed[trimmed.index(trimmed.startIndex, offsetBy: marker.count)..<lineEnd]
-            .trimmingCharacters(in: CharacterSet(charactersIn: ":： 「」\"").union(.whitespaces))
-        return query.isEmpty ? .no : .search(query)
+        if trimmed.hasPrefix(marker) { return .search }
+        return marker.hasPrefix(trimmed) && !final ? .pending : .no
     }
 
     private static func today() -> String {

@@ -136,8 +136,9 @@ struct EnclaveSettings: Codable, Equatable {
     var resultKeyWheelUp: Bool = true
     /// 处理长文本：关着（默认）时 AI 只读光标前 100 字左右的整句，打开后 200 字左右。
     var longText: Bool = false
-    /// 识意问答联网（仅 Kimi）：模型说要查最新信息时，先用 Kimi 的搜索接口搜一次再回答。默认开，搜索由 Kimi 另外按次计费。
-    var webSearch: Bool = true
+    /// 识意问答联网（仅 Kimi）：模型说要查最新信息时，先用 Kimi 的搜索接口搜一次再回答，搜索由 Kimi 另外按次计费。
+    /// 没选过时为 nil：App 启动后按店面定下来（中国大陆默认关，其他地区默认开）；键盘读到 nil 当关。
+    var webSearch: Bool?
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     var appearance: Appearance = .system
@@ -191,7 +192,7 @@ extension EnclaveSettings {
         resultKeySwipe = (try? c.decodeIfPresent(ResultKeySwipe.self, forKey: .resultKeySwipe)) ?? resultKeySwipe
         resultKeyWheelUp = try c.decodeIfPresent(Bool.self, forKey: .resultKeyWheelUp) ?? resultKeyWheelUp
         longText = try c.decodeIfPresent(Bool.self, forKey: .longText) ?? longText
-        webSearch = try c.decodeIfPresent(Bool.self, forKey: .webSearch) ?? webSearch
+        webSearch = try c.decodeIfPresent(Bool.self, forKey: .webSearch)
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
@@ -303,5 +304,5 @@ extension EnclaveSettings {
     /// 连的是 Kimi（api.moonshot.cn / .ai）。
     var isKimi: Bool { baseURL.contains("moonshot.") }
     /// 识意问答可以联网：Kimi 而且开着「问答联网」。
-    var canWebSearch: Bool { isKimi && webSearch }
+    var canWebSearch: Bool { isKimi && webSearch == true }
 }
