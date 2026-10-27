@@ -111,7 +111,7 @@ struct ResultKey: View {
     private func faceOnWheel(_ action: ResultKeyAction, y: CGFloat, step: CGFloat, color: Color) -> some View {
         let distance = min(abs(y) / step, 1)
         return face(action, color: color)
-            .opacity(1 - 0.45 * distance)
+            .opacity(Double(1 - 0.45 * distance))
             .blur(radius: 0.9 * distance)
             .offset(y: y)
     }
