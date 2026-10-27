@@ -67,6 +67,22 @@ struct KeyboardView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         // 使用指引「一键应用」后的小手指，画在键盘里面。
         .coachHandOverlay(model)
+        // 键盘里拉不起 App 时（有的系统版本、有的 App 里不让）：请人自己打开。
+        .overlay(alignment: .top) {
+            if model.openAppFailed {
+                Text(L("打不开飞地输入法 App，请回到主屏幕手动打开它", "Couldn't open the Enclave app. Open it from the Home Screen.", "Enclave アプリを開けませんでした。ホーム画面から開いてください。"))
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .foregroundStyle(.white)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.black.opacity(0.78)))
+                    .padding(.top, 6)
+                    .padding(.horizontal, 12)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
         .coordinateSpace(name: "keyboard")
         .onPreferenceChange(RowChipEdgeKey.self) { edges in
             // 打拼音时 AI 栏换成候选栏、按钮不在了，沿用上次的位置。
@@ -791,7 +807,8 @@ struct GateCard: View {
         .onTapGesture { model.dismissGate() }
     }
 
-    /// 试用结束后今天的免费次数用完（K2）：打字照常，明天 0 点恢复，或去 App 里买断。
+    /// 试用结束后今天的免费次数用完（K2）：打字照常，明天 0 点恢复。
+    /// 审核 4.4.1：键盘里不提购买、不引导去买，只说明情况和在 App 哪里能看到详情。
     @ViewBuilder
     private var quotaUsed: some View {
         let uses = AIAccess.dailyFreeUses
@@ -804,14 +821,14 @@ struct GateCard: View {
             Text(L("今天的 \(uses) 次用完了", "You’ve used today’s \(uses) free uses", "今日の無料分（\(uses) 回）を使い切りました"))
                 .font(.system(size: 14, weight: .semibold))
         }
-        Text(L("试用结束后每天可以免费用 \(uses) 次，明天 0 点恢复。在飞地输入法 App 里一次买断，就不限次数。打字、拼音、常用词一直免费。",
-               "After the trial you get \(uses) free uses a day, reset at midnight. Unlock once in the Enclave app for unlimited use. Typing, pinyin and My Words are always free.",
-               "無料体験のあとも 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。Enclave アプリで購入すると回数無制限に。入力・ピンイン・ユーザ辞書はずっと無料です。"))
+        Text(L("试用结束后每天可以免费用 \(uses) 次，明天 0 点恢复。打字、拼音、常用词一直可以用，不受影响。",
+               "After the trial you get \(uses) free uses a day, reset at midnight. Typing, pinyin and My Words keep working as usual.",
+               "無料体験のあとも 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。入力・ピンイン・ユーザ辞書はそのまま使えます。"))
             .font(.system(size: 13))
             .foregroundStyle(Brand.cardBody)
             .fixedSize(horizontal: false, vertical: true)
         VStack(alignment: .leading, spacing: 3) {
-            Text(L("在 App 里解锁", "Unlock in the app", "アプリで購入")).font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            Text(L("详细说明", "Details", "詳しくは")).font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
             (Text(L("打开飞地输入法", "Open Enclave", "Enclave を開く")).foregroundColor(Brand.cardBody)
                 + Text(" › ").foregroundColor(Brand.pathSeparator)
                 + Text(L("设置", "Settings", "設定")).foregroundColor(Brand.cardBody)
@@ -825,11 +842,6 @@ struct GateCard: View {
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
         Spacer(minLength: 0)
         HStack(spacing: 8) {
-            Text(L("买过了？在 App 里点「恢复购买」", "Already bought? Tap Restore Purchases in the app", "購入済みの場合はアプリで「購入を復元」"))
-                .font(.system(size: 12))
-                .foregroundStyle(Brand.disabledText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
             Spacer(minLength: 4)
             GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
         }
@@ -1035,6 +1047,23 @@ struct ResultCard: View {
             if animating { SweepBand().clipShape(shape) }
         }
         .overlay { border(look) }
+        .overlay(alignment: .bottom) {
+            if model.partialReplace {
+                Text(L("文字太长，只替换了光标附近读到的一段。整段处理请先全选再点 ✨",
+                       "The text is long, so only the part near the cursor was replaced. Select all first to work on the whole text.",
+                       "長い文章のため、カーソル付近の部分だけを置き換えました。全体を扱うには先に全選択してください。"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .foregroundStyle(.white)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.75)))
+                    .padding(6)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
         .overlay {
             if model.copied {
                 Label(L("已复制", "Copied", "コピーしました"), systemImage: "checkmark")

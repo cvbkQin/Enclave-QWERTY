@@ -4,7 +4,26 @@ import Foundation
 /// 引擎（librime-octagram）用 mmap 只读映射，只读用到的部分。键盘要开完全访问才读得到。
 enum GrammarModel {
     static let language = "wanxiang-lts-zh-hans"
-    static let downloadURL = URL(string: "https://github.com/amzxyz/rime-wanxiang-data/releases/download/LTS/wanxiang-lts-zh-hans.gram")!
+    /// 默认从万象的 GitHub 下载；大陆网络下常常很慢或打不开，App 里可以换成别的地址（镜像、自建服务器）。
+    static let defaultDownloadURL = URL(string: "https://github.com/amzxyz/rime-wanxiang-data/releases/download/LTS/wanxiang-lts-zh-hans.gram")!
+    private static let downloadURLKey = "grammar.downloadURL"
+
+    /// 自己填的下载地址，没填或不是 http(s) 地址时为 nil。
+    static var customDownloadURL: String? {
+        get { SharedStorage.defaults.string(forKey: downloadURLKey) }
+        set {
+            let text = newValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if text.isEmpty { SharedStorage.defaults.removeObject(forKey: downloadURLKey) }
+            else { SharedStorage.defaults.set(text, forKey: downloadURLKey) }
+        }
+    }
+
+    static var downloadURL: URL {
+        if let text = customDownloadURL, let url = URL(string: text), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+            return url
+        }
+        return defaultDownloadURL
+    }
     /// 下载前显示的大概大小。
     static let approximateSize: Int64 = 380 * 1_000_000
 

@@ -163,13 +163,31 @@ enum ProviderName {
 }
 
 /// 常用服务商，选了自动填地址和模型。
-/// 中国大陆店面不列 OpenAI（没有在国内备案），换成已备案的通义千问；其他地区不变。
+/// 中国大陆店面只列已备案的 DeepSeek、Kimi、通义千问，加上跑在自己电脑上的 Ollama；没有「自定义」卡片，
+/// 自己改了地址或模型就四个都不选中，算自定义。其他地区不变。
 enum Provider: CaseIterable, Identifiable {
-    case deepseek, openai, qwen, ollama, custom
+    case deepseek, openai, kimi, qwen, ollama, custom
 
     /// 服务商卡片按这个顺序排，2×2。
     static var shown: [Provider] {
-        Storefront.isMainlandChina ? [.deepseek, .qwen, .ollama, .custom] : [.deepseek, .openai, .ollama, .custom]
+        Storefront.isMainlandChina ? [.deepseek, .kimi, .qwen, .ollama] : [.deepseek, .openai, .ollama, .custom]
+    }
+
+    /// 现在填的地址和模型对得上哪个预设：地址和模型都和预设一样才算；Ollama 只认 11434 端口（IP 本来就要改）。
+    /// 对不上时大陆店面返回 nil（四个都不选中），其他地区返回「自定义」。
+    static func matching(baseURL: String, model: String) -> Provider? {
+        func trimmed(_ text: String) -> String {
+            var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            while text.hasSuffix("/") { text.removeLast() }
+            return text
+        }
+        let found = shown.first { provider in
+            if provider == .ollama { return baseURL.contains(":11434") }
+            guard let preset = provider.preset else { return false }
+            return trimmed(baseURL) == preset.baseURL && trimmed(model) == preset.model
+        }
+        if let found { return found }
+        return shown.contains(.custom) ? .custom : nil
     }
 
     var id: Self { self }
@@ -178,6 +196,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return "DeepSeek"
         case .openai: return "OpenAI"
+        case .kimi: return "Kimi"
         case .qwen: return L("通义千问", "Qwen", "Qwen")
         case .ollama: return "Ollama"
         case .custom: return L("自定义", "Custom", "カスタム")
@@ -188,6 +207,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return "api.deepseek.com"
         case .openai: return "api.openai.com"
+        case .kimi: return "api.moonshot.cn"
         case .qwen: return "dashscope.aliyuncs.com"
         case .ollama: return L("局域网的电脑", "A computer on your network", "ローカルネットのPC")
         case .custom: return "vLLM、LM Studio"
@@ -198,6 +218,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-flash")
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
+        case .kimi: return ("https://api.moonshot.cn/v1", "moonshot-v1-8k")
         case .qwen: return ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
@@ -207,6 +228,7 @@ enum Provider: CaseIterable, Identifiable {
     static func detect(_ baseURL: String) -> Provider {
         if baseURL.contains("api.deepseek.com") { return .deepseek }
         if baseURL.contains("api.openai.com") { return .openai }
+        if baseURL.contains("api.moonshot.cn") { return .kimi }
         if baseURL.contains("dashscope.aliyuncs.com") { return .qwen }
         if baseURL.contains(":11434") { return .ollama }
         return .custom
@@ -218,7 +240,6 @@ struct ModelSettingsView: View {
     @EnvironmentObject private var router: AppRouter
     /// 没同意隐私政策时点「测试」：和键盘里的锁卡片一样，先去同意。
     @State private var needsPrivacy = false
-    @State private var provider: Provider = .custom
     @State private var importResult: Bool?
     @State private var recent: [UsageStats.Request] = []
     /// 测试连接成功、这个地址还没同意过时弹出的确认（P05）。
@@ -248,11 +269,16 @@ struct ModelSettingsView: View {
                         .padding(.leading, 16)
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                         ForEach(Provider.shown) { item in
-                            ProviderCard(provider: item, selected: provider == item) { choose(item) }
+                            ProviderCard(provider: item, selected: selectedProvider == item) { choose(item) }
                         }
                     }
                 }
                 .dashFormCard()
+            } footer: {
+                if Storefront.isMainlandChina {
+                    // 审核和合规：国区只列已完成生成式人工智能服务备案的模型；App 自己不提供模型。
+                    Text("DeepSeek（杭州深度求索人工智能基础技术研究有限公司）、Kimi（北京月之暗面科技有限公司）、通义千问（阿里云）均已完成生成式人工智能服务备案。Ollama 在你自己的电脑上运行。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
+                }
             }
             Section {
                 LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
@@ -267,8 +293,10 @@ struct ModelSettingsView: View {
             } header: {
                 Text(L("连接", "Connection", "接続"))
             } footer: {
-                Text(provider == .ollama
+                Text(selectedProvider == .ollama
                      ? L("把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。", "Replace the IP with the local address of the computer running Ollama. The URL ends with /v1. ", "IP を Ollama を動かしているパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
+                     : Storefront.isMainlandChina
+                     ? L("选一个服务商会自动填好地址和模型。也可以直接改地址和模型，改了就算自定义，上面不再选中。地址填到 /v1。", "Pick a provider to fill in the URL and model, or edit them yourself to use something else. The URL ends with /v1. ", "サービスを選ぶと URL とモデルが入力されます。自分で書き換えるとカスタム扱いになります。URL は /v1 までです。")
                      : L("选一个服务商会自动填好地址。自建 Ollama / vLLM / LM Studio 选「自定义」，地址填到 /v1。", "Pick a provider to fill in the URL. For self-hosted Ollama, vLLM or LM Studio, choose Custom. The URL ends with /v1. ", "サービスを選ぶと URL が入力されます。セルフホストの Ollama / vLLM / LM Studio は「カスタム」を選び、URL は /v1 までです。"))
                     + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
             }
@@ -312,7 +340,6 @@ struct ModelSettingsView: View {
             Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
         }
         .onAppear {
-            provider = Provider.detect(store.settings.baseURL)
             recent = UsageStats.polishRecent
         }
         .onChange(of: store.test) { _ in recent = UsageStats.polishRecent }
@@ -422,12 +449,17 @@ struct ModelSettingsView: View {
         return model.isEmpty ? head : head + " · " + model
     }
 
+    /// 卡片选中哪个跟着地址和模型走：自己改过就不选中预设。
+    private var selectedProvider: Provider? {
+        Provider.matching(baseURL: store.settings.baseURL, model: store.settings.model)
+    }
+
     private func choose(_ item: Provider) {
-        if item != provider, let preset = item.preset {
+        guard item != selectedProvider else { return }
+        if let preset = item.preset {
             store.settings.baseURL = preset.baseURL
             store.settings.model = preset.model
         }
-        provider = item
     }
 
     private func importConfig() {
@@ -903,6 +935,8 @@ struct PinyinView: View {
     @State private var typingStats: TypingStats.Summary?
     @ObservedObject private var grammar = GrammarDownloader.shared
     @State private var confirmDeleteGrammar = false
+    /// 整句模型的下载地址，空着就用默认的 GitHub 地址。
+    @State private var grammarURL = GrammarModel.customDownloadURL ?? ""
     @State private var englishEnabled = Predictor.englishEnabled
 
     var body: some View {
@@ -995,13 +1029,14 @@ struct PinyinView: View {
                             .disabled(deployer.state == .deploying)
                     } else {
                         DashBigNumber(value: "380", unit: L("MB · 未下载", "MB · Not downloaded", "MB · 未ダウンロード"))
-                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。从万象的 GitHub 下载，下载时不要退出 App。",
-                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from Wanxiang's GitHub; keep the app open meanwhile.",
-                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。万象の GitHub からダウンロードします。完了まで App を閉じないでください。"))
+                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。默认从万象的 GitHub 下载，断了会自动重试、接着下。",
+                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from Wanxiang's GitHub by default; if the connection drops it retries and picks up where it left off.",
+                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。デフォルトでは万象の GitHub からダウンロードし、途切れたら自動で再試行して続きから再開します。"))
                             .font(.system(size: 13)).foregroundStyle(.secondary)
-                        Button(L("下载", "Download", "ダウンロード")) { grammar.download() }
+                        Button(grammar.canResume ? L("继续下载", "Resume download", "続きから") : L("下载", "Download", "ダウンロード")) { grammar.download() }
                             .font(.system(size: 15, weight: .semibold))
                             .disabled(deployer.state == .deploying)
+                        grammarURLField
                     }
                 }
                 if case .failed(let message) = grammar.state {
@@ -1009,6 +1044,32 @@ struct PinyinView: View {
                 }
             }
         }
+    }
+
+    /// 下载地址：GitHub 在大陆常常很慢或打不开，可以换成镜像或自己的服务器。改了地址旧进度作废。
+    private var grammarURLField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("下载地址", "Download address", "ダウンロード元")).font(.system(size: 13, weight: .semibold))
+            TextField(GrammarModel.defaultDownloadURL.absoluteString, text: $grammarURL)
+                .font(.system(size: 12, design: .monospaced))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.tertiarySystemFill)))
+                .onSubmit { saveGrammarURL() }
+                .onChange(of: grammarURL) { _ in saveGrammarURL() }
+            Text(L("空着就用上面灰字的 GitHub 地址。下不动时可以换成镜像地址，文件要是同一个 .gram。",
+                   "Leave empty to use the GitHub address shown in gray. If it's too slow, use a mirror of the same .gram file.",
+                   "空欄なら灰色の GitHub のアドレスを使います。遅いときは同じ .gram ファイルのミラーを指定できます。"))
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+    }
+
+    private func saveGrammarURL() {
+        let old = GrammarModel.downloadURL
+        GrammarModel.customDownloadURL = grammarURL
+        if GrammarModel.downloadURL != old { grammar.discardProgress() }
     }
 
     // MARK: - 英文词库

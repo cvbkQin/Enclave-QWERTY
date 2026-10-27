@@ -11,6 +11,10 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var canRedo = false
     /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
     @Published private(set) var copied = false
+    /// 输入框太长、键盘只读到光标附近一段：替换只换了这一段，卡片上提示 4 秒。
+    @Published private(set) var partialReplace = false
+    /// 键盘里拉起 App 失败：顶上提示 4 秒，请人自己打开 App。
+    @Published private(set) var openAppFailed = false
     /// 结果卡片展开到五行。
     @Published var cardExpanded = false { didSet { heightMayChange?() } }
     /// AI 栏上方展开的一行：「润色 ▴」的提示词标签，或「识意 ▾」的输入框（QA2、QA14）。两者互斥。
@@ -402,6 +406,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     /// 键盘里打开主 App 的某个页面。扩展不能直接调 open(_:)，沿响应链找到 UIApplication 再调它。
+    /// 找不到、或系统回报没打开时，提示人自己去主屏幕打开 App。
     func openContainingApp(_ link: String) {
         guard let url = NSURL(string: link) else { return }
         // 先沿响应链找，找不到再用 sharedApplication；两种在不同系统版本上各有失灵的时候。
@@ -414,14 +419,27 @@ final class KeyboardModel: ObservableObject {
         if application == nil {
             application = UIApplication.value(forKey: "sharedApplication") as? NSObject
         }
-        guard let application else { return }
+        guard let application else { showOpenAppFailed(); return }
         let modern = NSSelectorFromString("openURL:options:completionHandler:")
         if application.responds(to: modern) {
             typealias Open = @convention(c) (NSObject, Selector, NSURL, NSDictionary, AnyObject?) -> Void
             let open = unsafeBitCast(application.method(for: modern), to: Open.self)
-            open(application, modern, url, NSDictionary(), nil)
-        } else {
+            let completion: @convention(block) (Bool) -> Void = { [weak self] success in
+                guard !success else { return }
+                DispatchQueue.main.async { self?.showOpenAppFailed() }
+            }
+            open(application, modern, url, NSDictionary(), completion as AnyObject)
+        } else if application.responds(to: NSSelectorFromString("openURL:")) {
             application.perform(NSSelectorFromString("openURL:"), with: url)
+        } else {
+            showOpenAppFailed()
+        }
+    }
+
+    private func showOpenAppFailed() {
+        withAnimation(.easeOut(duration: 0.15)) { openAppFailed = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            withAnimation(.easeIn(duration: 0.2)) { self?.openAppFailed = false }
         }
     }
 
@@ -852,8 +870,9 @@ final class KeyboardModel: ObservableObject {
         if field.isSelection {
             proxy.insertText(text)
         } else {
-            clearField(proxy)
+            let partial = clearField(proxy)
             proxy.insertText(text)
+            if partial { showPartialReplace() }
         }
         recordEdit(inserted: text, original: field.text, use: .replaced)
     }
@@ -929,21 +948,29 @@ final class KeyboardModel: ObservableObject {
     #endif
 
     /// iOS 没有「全选删除」接口：把光标移到末尾，再逐字删除。
-    private func clearField(_ proxy: UITextDocumentProxy) {
+    /// 删掉读到的那段（光标前后各一段）。返回删完后两边是否还有字：系统对长文本只给光标附近的一段，
+    /// 读不到的部分不能跟着删，不然润色只看了一段、却把整段换掉，前后的字就丢了（撤销也找不回）。
+    @discardableResult
+    private func clearField(_ proxy: UITextDocumentProxy) -> Bool {
         let after = proxy.documentContextAfterInput ?? ""
         let before = proxy.documentContextBeforeInput ?? ""
         if !after.isEmpty {
             proxy.adjustTextPosition(byCharacterOffset: after.count)
         }
         for _ in 0..<(before.count + after.count) { proxy.deleteBackward() }
-        // 长文本时系统只给出光标附近的一段，继续删到读不到内容为止。
-        var guardCount = 0
-        while let rest = proxy.documentContextBeforeInput, !rest.isEmpty, guardCount < 5000 {
-            for _ in 0..<rest.count { proxy.deleteBackward() }
-            guardCount += rest.count
-        }
+        let restBefore = proxy.documentContextBeforeInput ?? ""
+        let restAfter = proxy.documentContextAfterInput ?? ""
+        return !restBefore.isEmpty || !restAfter.isEmpty
     }
 
+    private func showPartialReplace() {
+        // 快速模式抽屉是收着的：展开给人看到这句提示。
+        if !aiExpanded { setAIExpanded(true) }
+        withAnimation(.easeOut(duration: 0.15)) { partialReplace = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            withAnimation(.easeIn(duration: 0.2)) { self?.partialReplace = false }
+        }
+    }
 
     // MARK: - 配置导入
 

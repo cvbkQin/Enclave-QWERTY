@@ -863,6 +863,7 @@ private struct GuideProviderCard: View {
         switch provider {
         case .deepseek: return "D"
         case .openai: return "O"
+        case .kimi: return "K"
         case .qwen: return L("通", "Q", "Q")
         case .ollama: return "O"
         case .custom: return "+"
@@ -874,6 +875,7 @@ private struct GuideProviderCard: View {
         switch provider {
         case .deepseek: colors = [Color(hex: 0x6A7DFF), Color(hex: 0x4D6BFE)]
         case .qwen: colors = [Color(hex: 0x8A6BFF), Color(hex: 0x5B4BE8)]
+        case .kimi: colors = [Color(hex: 0x2B2B33), Color(hex: 0x0B0B12)]
         case .openai, .ollama: colors = [Color(hex: 0x3A3A3C), Color(hex: 0x111111)]
         case .custom: colors = [Color(hex: 0xC7C2DD), Color(hex: 0xA39DBE)]
         }
@@ -885,6 +887,7 @@ private struct GuideProviderCard: View {
         case .deepseek:
             return SetupGuide.showsPrice ? "国内直接用 · 1 元可调用约 500 次" : L("国内直接用", "Cheap and fast", "安くて速い")
         case .qwen: return L("阿里云百炼账号", "Alibaba Cloud Model Studio account", "Alibaba Cloud Model Studio のアカウント")
+        case .kimi: return L("月之暗面开放平台账号", "Moonshot AI platform account", "Moonshot AI のアカウント")
         case .openai: return L("OpenAI 账号", "OpenAI account", "OpenAI のアカウント")
         case .ollama: return L("在自己电脑上跑模型", "Run a model on your own computer", "自分のパソコンでモデルを動かす")
         case .custom: return L("填 API 地址、模型名和 Key", "Enter the API URL, model and key", "API の URL、モデル名、キーを入力")
