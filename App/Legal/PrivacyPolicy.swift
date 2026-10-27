@@ -53,9 +53,11 @@ enum PrivacyPolicy {
 
 本应用预设的模型服务仅为方便填写，您可以自由选择其他服务。我们建议您选择依法完成备案的模型服务。
 
-### （三）识意问答联网（仅在问答接口为千问、Kimi 或智谱时可用）
+### （三）识意问答与联网（联网仅在问答接口为千问、Kimi 或智谱时可用）
 
-您可以在“接口”页的“问答”中单独设置识意问答使用的接口。“识意问答联网”分为“开”“每次询问”“禁止”三档，中国大陆默认“禁止”，其他地区默认“开”，您可以随时在“问答”页更改。中国大陆地区预设的问答服务商均为已完成生成式人工智能服务备案的境内服务商。联网只在识意问答时使用，改写不调用联网搜索。是否需要联网由模型根据问题先行判断；需要联网时，选“开”且已同意过该服务商的会直接联网，选“每次询问”或首次使用该服务商时会先在回答框中征得您的同意，选“禁止”时不会联网，仅提示您可前往开启。各服务商的方式和发送内容如下：
+**仅在您主动在键盘里提问时**，本应用会将您输入的问题，以及输入框中的文字（如有，选中时仅为选中部分），直接发送至您为识意问答配置的模型服务接口。您可以在“接口”页的“问答”中单独设置识意问答使用的接口（服务商、地址、模型和 API 密钥均由您填写），未单独设置时使用上述主接口。问答接口地址同样会在首次发送前单独征得您的同意。
+
+“识意问答联网”分为“开”“每次询问”“禁止”三档，中国大陆默认“禁止”，其他地区默认“开”，您可以随时在“问答”页更改。中国大陆地区预设的问答服务商均为已完成生成式人工智能服务备案的境内服务商。联网只在识意问答时使用，改写不调用联网搜索。是否需要联网由模型根据问题先行判断；需要联网时，选“开”且已同意过该服务商的会直接联网，选“每次询问”或首次使用该服务商时会先在回答框中征得您的同意，选“禁止”时不会联网，仅提示您可前往开启。各服务商的方式和发送内容如下：
 
 1. **Kimi（北京月之暗面科技有限公司）：** 模型判断需要最新信息时，键盘使用**您自己填写的 Kimi API 密钥**，将**您输入的问题本身**（原文，不包含输入框中的其他文字、通讯录或其他个人信息）直接发送至 Kimi 的联网搜索接口，再把搜索结果连同问题发给模型生成回答。
 2. **通义千问（阿里云）、智谱 GLM（北京智谱华章科技股份有限公司）：** 联网由服务商自带的搜索功能完成。键盘另发一次开启联网的问答请求，其中**仅包含您输入的问题本身**（不包含输入框中的其他文字、通讯录或其他个人信息），由服务商根据问题生成搜索词、检索公开网页信息并生成回答。
@@ -82,7 +84,7 @@ enum PrivacyPolicy {
 
 以下信息仅保存在您的设备上：
 
-1. 模型服务的 API 密钥，保存在系统钥匙串中；
+1. 您填写的模型服务 API 密钥（包括主接口、问答接口及您保存的接口方案），保存在系统钥匙串中；
 2. AI 历史记录，包括原文与生成结果；
 3. 拼音输入学习记录；
 4. 您的提示词、常用词、键盘、接口及语言设置；
@@ -158,9 +160,11 @@ This information is processed by the model service provider you have chosen, und
 
 Before the first transmission, and whenever you change the endpoint address, the App shows you where the text will be sent and asks for your separate consent. Nothing is sent without your consent.
 
-### Web Search in Ask (Qwen, Kimi or Zhipu answers API only)
+### Ask Answers and Web Search (web search only with a Qwen, Kimi or Zhipu answers API)
 
-On the API page, under Answers, you can set a separate API for Ask answers. Web search in Ask has three settings: On, Ask each time and Off. It is Off by default in mainland China and On in other regions, and you can change it at any time on the Answers page. In mainland China, the preset answer providers are all domestic providers that have completed generative AI service filing. Web search is used only for answers; rewrites never call web search. The model first decides from the question whether it needs the web. If it does: with On, and once you have agreed for that provider, it searches; with Ask each time, or the first time you use a provider, the keyboard asks for your consent in the answer box first; with Off, nothing is searched and the keyboard only tells you where to turn it on. How each provider searches and what is sent:
+**Only when you actively ask a question in the keyboard**, the App sends your question, plus the text in the input field if any (just the selection, if there is one), directly to the model service API you configured for Ask answers. On the API page, under Answers, you can set a separate API for Ask answers (you enter the provider, URL, model and API key); if you don't, the main API above is used. Before the first transmission to an answers API address, the App also asks for your separate consent.
+
+Web search in Ask has three settings: On, Ask each time and Off. It is Off by default in mainland China and On in other regions, and you can change it at any time on the Answers page. In mainland China, the preset answer providers are all domestic providers that have completed generative AI service filing. Web search is used only for answers; rewrites never call web search. The model first decides from the question whether it needs the web. If it does: with On, and once you have agreed for that provider, it searches; with Ask each time, or the first time you use a provider, the keyboard asks for your consent in the answer box first; with Off, nothing is searched and the keyboard only tells you where to turn it on. How each provider searches and what is sent:
 
 1. **Kimi (Beijing Moonshot AI Technology Co., Ltd.):** When the model needs current information, the keyboard uses **the Kimi API key you entered** to send **only your question itself**, as typed (no other text in the input field, no contacts or other personal information), directly to Kimi's web search API, then sends the results with the question to the model to produce an answer.
 2. **Qwen (Alibaba Cloud) and Zhipu GLM (Beijing Zhipu Huazhang Technology Co., Ltd.):** Search is built into the provider's service. The keyboard sends a separate answer request with search turned on that contains **only your question itself** (no other text in the input field, no contacts or other personal information). The provider generates search terms from the question, searches public web pages and produces an answer.
@@ -179,7 +183,7 @@ The App offers a 14-day free trial. After the trial, AI features can be used a l
 
 The following is stored only on your device:
 
-- your model service API key, in the system Keychain;
+- the model service API keys you entered (for the main API, the answers API and any API setups you saved), in the system Keychain;
 - your polish history, including the original text and the results;
 - your pinyin input learning data;
 - your style, keyboard, endpoint and language settings;
@@ -245,9 +249,11 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 初回の送信前、および API の URL を変更したときは、送信先を表示したうえで個別に同意をいただきます。同意なく内容を送信することはありません。
 
-### 質問のウェブ検索（回答用 API が Qwen・Kimi・Zhipu のときのみ）
+### 質問への回答とウェブ検索（ウェブ検索は回答用 API が Qwen・Kimi・Zhipu のときのみ）
 
-API ページの「回答」で、質問への回答に使う API を別に設定できます。「質問でウェブ検索」には「オン」「毎回確認」「オフ」の 3 段階があり、中国大陸では初期設定で「オフ」、その他の地域では「オン」です。「回答」ページでいつでも変更できます。中国大陸でプリセットしている回答用サービスは、すべて生成 AI サービスの届出を済ませた国内のサービスです。検索するのは回答のときだけで、書き換えではウェブ検索を使いません。検索が必要かどうかは、まず質問をもとにモデルが判断します。必要な場合、「オン」でそのサービスに同意済みなら検索し、「毎回確認」またはそのサービスを初めて使うときは回答欄で先に同意を求め、「オフ」では検索せず、オンにできる場所をお知らせするだけです。サービスごとの方法と送信内容は次のとおりです。
+**お客様がキーボードで自分から質問したときだけ**、入力した質問と、あれば入力欄の文章（選択している場合はその部分だけ）を、質問への回答用に設定したモデルサービスの API に直接送信します。API ページの「回答」で回答用の API を別に設定できます（サービス、URL、モデル、API キーはお客様が入力します）。設定しない場合は上記のメインの API を使います。回答用 API の URL にも、初回の送信前に個別に同意をいただきます。
+
+「質問でウェブ検索」には「オン」「毎回確認」「オフ」の 3 段階があり、中国大陸では初期設定で「オフ」、その他の地域では「オン」です。「回答」ページでいつでも変更できます。中国大陸でプリセットしている回答用サービスは、すべて生成 AI サービスの届出を済ませた国内のサービスです。検索するのは回答のときだけで、書き換えではウェブ検索を使いません。検索が必要かどうかは、まず質問をもとにモデルが判断します。必要な場合、「オン」でそのサービスに同意済みなら検索し、「毎回確認」またはそのサービスを初めて使うときは回答欄で先に同意を求め、「オフ」では検索せず、オンにできる場所をお知らせするだけです。サービスごとの方法と送信内容は次のとおりです。
 
 1. **Kimi（北京月之暗面科技有限公司）：** 最新の情報が必要とモデルが判断したとき、キーボードが**お客様が入力した Kimi の API キー**を使い、**入力した質問そのもの**（原文のみ。入力欄のほかの文章、連絡先、その他の個人情報は含みません）を Kimi のウェブ検索 API へ直接送り、検索結果を質問とともにモデルに送って回答を作ります。
 2. **Qwen（Alibaba Cloud）・Zhipu GLM（北京智譜華章科技股份有限公司）：** 検索はサービス側の機能で行います。キーボードは検索をオンにした回答リクエストを別に送り、その中身は**入力した質問そのものだけ**です（入力欄のほかの文章、連絡先、その他の個人情報は含みません）。サービス側が質問から検索語を作り、公開されているウェブページを検索して回答を作ります。
@@ -266,7 +272,7 @@ API ページの「回答」で、質問への回答に使う API を別に設�
 
 次の情報はお客様の端末にのみ保存されます。
 
-- モデルサービスの API キー（システムのキーチェーンに保存）
+- お客様が入力したモデルサービスの API キー（メインの API、回答用 API、保存した API の設定を含む。システムのキーチェーンに保存）
 - 整えた履歴（元の文章と結果）
 - ピンイン入力の学習データ
 - 文体、キーボード、API、言語の設定
