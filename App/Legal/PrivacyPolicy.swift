@@ -53,9 +53,9 @@ enum PrivacyPolicy {
 
 本应用预设的模型服务仅为方便填写，您可以自由选择其他服务。我们建议您选择依法完成备案的模型服务。
 
-### （三）识意问答联网（仅在使用 Kimi 接口时可用，默认关闭）
+### （三）识意问答联网（仅在使用 Kimi 接口时可用）
 
-当您在接口设置中选择 Kimi 并**主动开启**“联网问答”后，您在键盘里提出的问题会由键盘使用**您自己填写的 Kimi API 密钥**，直接发送至 Kimi（北京月之暗面科技有限公司）的联网搜索接口，用于检索公开网页信息并生成回答。发送的内容仅为您输入的问题本身，不包含输入框中的其他文字、通讯录或其他个人信息，且不经过我们的服务器。
+“联网问答”在中国大陆默认关闭，其他地区默认开启，您可以随时在“接口”页关闭。当您在接口设置中选择 Kimi 并**主动开启**“联网问答”后，您在键盘里提出的问题会由键盘使用**您自己填写的 Kimi API 密钥**，直接发送至 Kimi（北京月之暗面科技有限公司）的联网搜索接口，用于检索公开网页信息并生成回答。发送的内容仅为您输入的问题本身，不包含输入框中的其他文字、通讯录或其他个人信息，且不经过我们的服务器。
 
 联网搜索按次计费，费用由 Kimi 从**您的 Kimi 账户**扣除（目前约每次 0.01 元，以 Kimi 官方价格为准），我们不收取任何费用。
 
@@ -153,6 +153,14 @@ This information is processed by the model service provider you have chosen, und
 
 Before the first transmission, and whenever you change the endpoint address, the App shows you where the text will be sent and asks for your separate consent. Nothing is sent without your consent.
 
+### Web Search in Ask (Kimi only)
+
+Web search in Ask is off by default in mainland China and on by default in other regions; you can turn it off at any time on the API page. When it is on and you use Kimi, a question you ask in the keyboard that needs current information is sent by the keyboard, using **the Kimi API key you entered**, directly to Kimi's web search API (Beijing Moonshot AI Technology Co., Ltd.) to search public web pages and produce an answer. Only the question itself is sent. It does not include other text in the input field, your contacts or any other personal information, and it does not pass through our servers.
+
+Each search is billed by Kimi to **your Kimi account** (currently about ¥0.01 per search; see Kimi's official pricing). We charge nothing.
+
+When web search is off, your question goes only to the model. Answers are marked "AI-generated" and may be inaccurate or out of date, so please check them yourself.
+
 ### Free Trial and Purchase
 
 The App offers a 14-day free trial. After the trial, AI features can be used a limited number of times per day for free, or unlocked with a one-time purchase on the App Store. Payment is handled by Apple, and we never receive your payment details. The App uses Apple's interfaces to read the App's original download date and your purchase record, to calculate the trial and confirm the purchase. Daily usage counts are stored only on your device.
@@ -177,7 +185,7 @@ You can clear the polish history and the input learning data under Settings › 
 
 ## 5. Third-Party Services
 
-The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. Purchases are processed by Apple's App Store under Apple's privacy policy.
+The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, your question is sent to Kimi's web search API under Kimi's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy.
 
 ## 6. Your Rights
 
@@ -227,6 +235,14 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 初回の送信前、および API の URL を変更したときは、送信先を表示したうえで個別に同意をいただきます。同意なく内容を送信することはありません。
 
+### 質問のウェブ検索（Kimi のみ）
+
+「質問でウェブ検索」は中国大陸では初期設定でオフ、その他の地域ではオンです。API ページでいつでもオフにできます。オンで Kimi を使っている場合、キーボードで最新の情報が必要な質問をすると、キーボードが**お客様が入力した Kimi の API キー**を使い、その質問を Kimi（北京月之暗面科技有限公司）のウェブ検索 API へ直接送信し、公開されているウェブページを検索して回答を作ります。送信するのは質問そのものだけで、入力欄のほかの文章、連絡先、その他の個人情報は含まず、当方のサーバーも経由しません。
+
+検索は 1 回ごとに Kimi が**お客様の Kimi アカウント**に課金します（現在 1 回約 0.01 元。Kimi の公式料金をご確認ください）。当方が料金を受け取ることはありません。
+
+オフの場合、質問はモデルにのみ送られます。回答には「AI 生成」と表示され、不正確または古い可能性があるため、ご自身でご確認ください。
+
 ### 無料体験と購入
 
 本アプリには 14 日間の無料体験があり、終了後も AI 機能は 1 日に一定回数まで無料で使えます。App Store での買い切り購入で回数制限がなくなります。支払いは Apple が処理し、当方がお支払い情報を受け取ることはありません。無料体験の期間計算と購入の確認のため、本アプリは Apple の仕組みを通じて初回ダウンロード日と購入履歴を読み取ります。1 日の使用回数はお客様の端末にのみ記録されます。
@@ -251,7 +267,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 ## 5. 第三者のサービス
 
-本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。
+本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、質問は Kimi のウェブ検索 API に送られ、Kimi の利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。
 
 ## 6. お客様の権利
 
