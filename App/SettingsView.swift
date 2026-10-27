@@ -314,7 +314,7 @@ struct ModelSettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L("温度", "Temperature", "温度"))
                             if store.settings.usesFixedTemperature {
-                                Text(L("Kimi K 系列用固定温度，这里不生效", "Kimi K models use a fixed temperature. This has no effect.", "Kimi K シリーズは温度固定のため、ここは反映されません"))
+                                Text(L("Kimi K 系列用固定温度，这里不生效", "Kimi K models use a fixed temperature; this setting is ignored", "Kimi K シリーズは温度が固定のため、この設定は使われません"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -324,6 +324,9 @@ struct ModelSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                // Kimi K 系列：温度变灰不能调，数值留着，换回别的模型恢复。
+                .disabled(store.settings.usesFixedTemperature)
+                .opacity(store.settings.usesFixedTemperature ? 0.45 : 1)
                 Stepper(value: $store.settings.maxTokens, in: 256...8192, step: 256) {
                     HStack {
                         Text(L("最大输出", "Max output", "最大出力"))
