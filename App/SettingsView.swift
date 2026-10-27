@@ -896,6 +896,15 @@ struct PinyinView: View {
                         }
                         TypingSmallStat(value: "\(stats.memoryWarnings)", label: L("内存警告", "Memory warnings", "メモリ警告"))
                     }
+                    if let launch = stats.launch {
+                        HStack(alignment: .top) {
+                            TypingSmallStat(value: Self.milliseconds(launch.appear),
+                                            label: L("冷启动到弹出", "Cold start to shown", "コールド起動→表示"))
+                            TypingSmallStat(value: Self.milliseconds(launch.ready),
+                                            label: L("冷启动到能打拼音", "Cold start to pinyin ready", "コールド起動→入力可"))
+                            TypingSmallStat(value: "\(launch.count)", label: L("冷启动次数", "Cold starts", "コールド起動回数"))
+                        }
+                    }
                     HStack(spacing: 4) {
                         Text(L("从手指离开按键到候选出来。30 毫秒以内基本感觉不到。", "From lifting your finger to candidates shown. Under 30 ms feels instant.", "指を離してから候補が出るまで。30 ミリ秒以内ならほぼ感じません。"))
                             .font(.system(size: 13)).foregroundStyle(.secondary)
