@@ -23,6 +23,11 @@ struct EnclaveApp: App {
                                   shortcut: parts.count > 1 ? parts[1] : "")
             })
         }
+        // -promptsDebug missing / empty / optimized：提示词页截图（删掉两条预设、空提示词的编辑页、AI 优化结果）。
+        if let index = args.firstIndex(of: "-promptsDebug"), args.indices.contains(index + 1) {
+            PromptsDebug.scene = args[index + 1]
+            AppRouter.shared.tab = .styles
+        }
         // -keyboardWords "张三丰,me@example.com" 写进键盘常用语。
         if let index = args.firstIndex(of: "-keyboardWords"), args.indices.contains(index + 1) {
             CommonWordStore.keyboardTexts = args[index + 1].split(separator: ",").map(String.init)

@@ -11,6 +11,13 @@ struct StylesTab: View {
     }
 }
 
+#if DEBUG
+/// 截图用（-promptsDebug）：提示词页停在某个样子。
+enum PromptsDebug {
+    static var scene: String?
+}
+#endif
+
 /// 提示词（PR1，原「风格」）：顶部说明小卡、全部提示词（每行本周次数）、添加、恢复默认。
 /// 左滑删除，「编辑」拖动排序；这里的顺序就是键盘「润色▾」里的顺序。存储还是 StylePreset。
 struct StylesView: View {
@@ -18,6 +25,8 @@ struct StylesView: View {
     @State private var confirmReset = false
     /// 每条提示词本周执行的次数，进页面时读一次。
     @State private var weekCounts: [UUID: Int] = [:]
+    /// 截图用：直接打开这一条的编辑页。
+    @State private var debugEditing: UUID?
 
     var body: some View {
         List {
@@ -125,8 +134,37 @@ struct StylesView: View {
         .tabRootPage()
         .onAppear {
             weekCounts = Dictionary(uniqueKeysWithValues: settings.styles.map { ($0.id, UsageStats.week("polish.style.\($0.id.uuidString)")) })
+            #if DEBUG
+            applyDebugScene()
+            #endif
+        }
+        .navigationDestination(isPresented: Binding(get: { debugEditing != nil }, set: { if !$0 { debugEditing = nil } })) {
+            if let index = settings.styles.firstIndex(where: { $0.id == debugEditing }) {
+                StyleEditor(style: $settings.styles[index], settings: $settings)
+            }
         }
     }
+
+    #if DEBUG
+    private func applyDebugScene() {
+        guard let scene = PromptsDebug.scene else { return }
+        PromptsDebug.scene = scene == "optimized" ? scene : nil
+        settings.styles = StylePreset.defaults
+        switch scene {
+        case "missing":
+            settings.styles.removeAll { $0.name == "正式" || $0.name == "结构" }
+        case "empty":
+            let blank = StylePreset(name: L("新提示词", "New prompt", "新しいプロンプト"), prompt: "")
+            settings.styles.append(blank)
+            debugEditing = blank.id
+        case "optimized":
+            let custom = StylePreset(name: "客户", prompt: "发给客户的，客气点，别太啰嗦")
+            settings.styles.append(custom)
+            debugEditing = custom.id
+        default: break
+        }
+    }
+    #endif
 
     /// 自带的 5 条里被删掉的：名字和内容都找不到了才算（改了名或改了内容的还在列表里）。
     /// 「润色」默认内容为空：列表里还有任何一条内容为空就算没删，免得改名后加回变成两条空的。
@@ -284,6 +322,15 @@ private struct StyleEditor: View {
         .navigationTitle(L("编辑提示词", "Edit prompt", "プロンプトを編集"))
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear { optimizer.cancel() }
+        #if DEBUG
+        .onAppear {
+            guard PromptsDebug.scene == "optimized" else { return }
+            PromptsDebug.scene = nil
+            optimizer.result = PromptOptimizer.Result(
+                prompt: "这段话要发给客户。语气礼貌客气，称呼用「您」；表达简洁，去掉重复和口语词，保留原文里的时间、数字和具体安排。",
+                suggestions: ["开头加问候", "结尾加致谢", "先说结论"])
+        }
+        #endif
     }
 
     // MARK: AI 优化
