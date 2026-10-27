@@ -16,6 +16,16 @@ struct FieldSpan: Equatable {
 
     init(before: String, after: String, longText: Bool) {
         let (limit, lookahead) = Self.limits(longText: longText)
+        // 系统对很长的输入框只给光标前一截，这一截可能从半句话开始。以标点开头的肯定是被截过的（真正的输入框不会以「，」开头）：
+        // 跳到第一个句末之后再读，别把半句话交给 AI、替换时又把它删掉。找不到句末就跳过开头的标点。
+        var before = before
+        if let first = before.first, Self.cutMarks.contains(first) {
+            let chars = Array(before)
+            let next = chars.indices.dropFirst().first { Self.sentenceEnds.contains(chars[$0 - 1]) && !Self.cutMarks.contains(chars[$0]) }
+                ?? chars.firstIndex { !Self.cutMarks.contains($0) }
+                ?? chars.count
+            before = String(chars[next...])
+        }
         if before.count + after.count <= limit {
             beforeCount = before.count
             afterCount = after.count
@@ -47,6 +57,8 @@ struct FieldSpan: Equatable {
     }
 
     private static let sentenceEnds: Set<Character> = ["。", "！", "？", "!", "?", "；", ";", "…", "\n", "\r"]
+    /// 真正的输入框不会以这些标点开头，光标前那一截以它们开头就是被系统截过的。
+    private static let cutMarks: Set<Character> = ["，", ",", "、", "。", "．", "；", ";", "：", ":", "！", "!", "？", "?", "」", "』", "）", ")", "”"]
     private static let clauseEnds: Set<Character> = ["，", ",", "、", "：", ":"]
 
     /// 从哪个下标开始读（含）。
