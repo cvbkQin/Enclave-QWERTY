@@ -42,8 +42,18 @@ struct LLMClient {
         var model: String
         var messages: [ChatMessage]
         var stream: Bool
-        var temperature: Double
+        /// 为空就不发（Kimi 的 kimi-k 系列温度有固定要求，填别的值会报错，交给服务端用默认值）。
+        var temperature: Double?
         var max_tokens: Int
+        /// Kimi K3 一直会先思考，默认想得最久（max）；键盘里要快，发 low。别的服务商不发。
+        var reasoning_effort: String?
+    }
+
+    /// 按服务商调整参数：Kimi（api.moonshot.cn / .ai）的 kimi-k 系列不发温度，K3 再加 reasoning_effort: low。
+    private var kimiModel: String? {
+        let model = settings.model.trimmingCharacters(in: .whitespaces).lowercased()
+        guard settings.baseURL.contains("moonshot."), model.hasPrefix("kimi-k") else { return nil }
+        return model
     }
 
     private struct StreamChunk: Decodable {
@@ -79,8 +89,9 @@ struct LLMClient {
                         model: settings.model.trimmingCharacters(in: .whitespaces),
                         messages: messages,
                         stream: true,
-                        temperature: settings.temperature,
-                        max_tokens: settings.maxTokens
+                        temperature: kimiModel == nil ? settings.temperature : nil,
+                        max_tokens: settings.maxTokens,
+                        reasoning_effort: kimiModel?.hasPrefix("kimi-k3") == true ? "low" : nil
                     ))
 
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)

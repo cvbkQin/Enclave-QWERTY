@@ -51,6 +51,9 @@ struct EnclaveApp: App {
             RootView()
                 .environmentObject(router)
                 .environmentObject(store)
+                // 输入时收起键盘：往下拖列表跟着收起，点输入框以外的地方也收起（KeyboardDismiss）。
+                .scrollDismissesKeyboard(.interactively)
+                .onAppear { KeyboardDismiss.shared.install() }
                 .task { RimeDeployer.shared.deployIfNeeded() }
                 .task { await UnlockStore.shared.refresh() }
                 .task { await Storefront.refreshCountry() }

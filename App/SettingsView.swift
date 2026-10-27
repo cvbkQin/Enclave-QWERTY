@@ -225,7 +225,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-flash")
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
-        case .kimi: return (Storefront.isMainlandChina ? Self.kimiChina : Self.kimiGlobal, "moonshot-v1-8k")
+        case .kimi: return (Storefront.isMainlandChina ? Self.kimiChina : Self.kimiGlobal, "kimi-k3.1-pro")
         case .qwen: return (Storefront.isMainlandChina ? Self.qwenChina : Self.qwenGlobal, "qwen-plus")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
