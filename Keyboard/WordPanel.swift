@@ -77,6 +77,7 @@ struct WordPanel: View {
                 }
             }
             .coordinateSpace(name: Self.space + "scroll")
+            .flashingIndicatorsOnAppear()
             .onPreferenceChange(WordScrollOffset.self) { scrolled = $0 < -1 }
             .overlay(alignment: .top) { fade(top: true).opacity(scrolled ? 1 : 0) }
             .overlay(alignment: .bottom) { fade(top: false) }
@@ -270,5 +271,17 @@ private struct WordFlow: Layout {
         }
         if !row.items.isEmpty { rows.append(row) }
         return rows
+    }
+}
+
+private extension View {
+    /// 打开面板时内容超出一屏就先闪一下滚动条（iOS 17 起才有）。
+    @ViewBuilder
+    func flashingIndicatorsOnAppear() -> some View {
+        if #available(iOS 17.0, *) {
+            scrollIndicatorsFlash(onAppear: true)
+        } else {
+            self
+        }
     }
 }

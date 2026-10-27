@@ -150,7 +150,7 @@ final class KeyboardModel: ObservableObject {
     /// 长按候选弹出的小气泡（CL1–CL3）；按的那个词在候选栏里浅色底。
     @Published var candidateMenu: CandidateMenu?
     /// 删了候选后候选栏换成「✓ 已删除「xx」 撤销」（CL4），3 秒后或继续打字时真的删。
-    @Published var candidateUndo: String?
+    @Published var candidateUndo: CandidateUndo?
     var candidateUndoTimer: DispatchWorkItem?
     /// 盖在按键区上的面板：表情、颜文字、常用词。
     @Published var keysPanel: KeysPanel?

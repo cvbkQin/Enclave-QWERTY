@@ -30,7 +30,7 @@ extension KeyboardModel {
     /// 字母、九宫格数字交给拼音引擎。拼音引擎在后台算，这里不等，算完由 applyEngineResults 上屏、更新候选。
     func feedEngine(_ key: String) {
         dismissCandidateMenu()
-        commitPendingCandidateDelete()
+        closeCandidateUndo()
         guard let queued = engine as? QueuedEngine else {
             if let output = engine.input(key) { commit(output) }
             syncEngine()
@@ -180,10 +180,13 @@ extension KeyboardModel {
         keyFeedback(for: .space)
         switch action {
         case .delete:
-            // 先只藏起来、给 3 秒撤销；时间到或者继续打字时才真的删（删了就撤不回来）。
-            commitPendingCandidateDelete()
-            candidateUndo = menu.word
-            let timer = DispatchWorkItem { [weak self] in self?.commitPendingCandidateDelete() }
+            // 马上删，再取一遍候选：词还在说明是词库自带的，只是降回了原位（CL4 改提示）。
+            closeCandidateUndo()
+            applyEngineResults(wait: true)
+            let raw = engine.rawInput
+            guard let index = engine.candidates.firstIndex(of: menu.word), deleteLearnedCandidate(index) else { return }
+            candidateUndo = CandidateUndo(word: menu.word, raw: raw, restored: engine.candidates.contains(menu.word))
+            let timer = DispatchWorkItem { [weak self] in self?.closeCandidateUndo() }
             candidateUndoTimer = timer
             DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: timer)
         case .pin:
@@ -206,22 +209,32 @@ extension KeyboardModel {
         if candidateMenu != nil { candidateMenu = nil }
     }
 
-    /// 撤销条上的「撤销」：不删了，候选栏回来。
-    func undoCandidateDelete() {
-        candidateUndoTimer?.cancel()
-        candidateUndoTimer = nil
-        candidateUndo = nil
-        keyFeedback(for: .space)
+    struct CandidateUndo: Equatable {
+        let word: String
+        /// 删的时候的原始输入，撤销时按它把拼写恢复回来。
+        let raw: String
+        /// 删完词还在：词库自带的词，只是降回了默认位置。
+        let restored: Bool
     }
 
-    /// 真的删：拼写还是删的时候那一串，按词找回它现在的位置再删。
-    func commitPendingCandidateDelete() {
+    /// 撤销条上的「撤销」：librime 没有「加回用户词」的接口，就在引擎里把这个词选一次让它重新学到（不上屏），
+    /// 再把拼写原样输回去。删完已经打不出这个词时没法撤销，只关掉撤销条。
+    func undoCandidateDelete() {
+        guard let undo = candidateUndo else { return }
+        closeCandidateUndo()
+        keyFeedback(for: .space)
+        applyEngineResults(wait: true)
+        guard engine.rawInput == undo.raw, let index = engine.candidates.firstIndex(of: undo.word) else { return }
+        _ = engine.select(index)
+        engine.replaceInput(undo.raw)
+        syncEngine()
+    }
+
+    /// 撤销条到时间或继续打字时关掉。
+    func closeCandidateUndo() {
         candidateUndoTimer?.cancel()
         candidateUndoTimer = nil
-        guard let word = candidateUndo else { return }
-        candidateUndo = nil
-        applyEngineResults(wait: true)
-        if let index = engine.candidates.firstIndex(of: word) { deleteLearnedCandidate(index) }
+        if candidateUndo != nil { candidateUndo = nil }
     }
 
     /// 常用词短语表重写后引擎会重建会话，拼了一半的字母要原样再输一遍。
@@ -267,7 +280,7 @@ extension KeyboardModel {
 
     func perform(_ kind: KeyKind) {
         dismissCandidateMenu()
-        commitPendingCandidateDelete()
+        closeCandidateUndo()
         // 英文的补全和联想每按一个键重新算（删除照常删字，空格照常打空格）。
         if !chineseMode {
             learnCurrentEnglishWord(before: kind)

@@ -174,10 +174,13 @@ struct KeyboardView: View {
     private var showsCandidateBar: Bool { model.isComposing || model.showsPredictions }
 
     /// 「✓ 已删除「xx」」+ 右边「撤销」胶囊。
-    private func candidateUndoBar(_ word: String) -> some View {
-        HStack(spacing: 8) {
+    private func candidateUndoBar(_ undo: KeyboardModel.CandidateUndo) -> some View {
+        let word = undo.word
+        return HStack(spacing: 8) {
             Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Brand.success)
-            Text(L("已删除「\(word)」", "Deleted “\(word)”", "「\(word)」を削除しました"))
+            Text(undo.restored
+                 ? L("已恢复默认位置「\(word)」", "“\(word)” back to its default spot", "「\(word)」を元の位置に戻しました")
+                 : L("已删除「\(word)」", "Deleted “\(word)”", "「\(word)」を削除しました"))
                 .font(.system(size: 15))
                 .foregroundStyle(Color.primary)
                 .lineLimit(1)
@@ -207,8 +210,8 @@ struct KeyboardView: View {
                 CandidateStrip(model: model)
                     .opacity(model.candidateUndo == nil ? 1 : 0)
                     .allowsHitTesting(model.candidateUndo == nil)
-                if let word = model.candidateUndo {
-                    candidateUndoBar(word)
+                if let undo = model.candidateUndo {
+                    candidateUndoBar(undo)
                 }
             }
             Divider().frame(height: 22)
@@ -1881,6 +1884,15 @@ struct ModeSwitch: View {
     private func fill(_ answer: Bool) -> Color { answer ? Brand.modeAnswerFill : Brand.modeRewriteFill }
     private func text(_ answer: Bool) -> Color { answer ? Brand.modeAnswerText : Brand.modeRewriteText }
 
+    /// 一行写完：9.5pt 粗体放不下就用 8.5pt，不换行、不省略（UI 设计 10-28）。
+    private func fitted(_ label: String) -> some View {
+        ViewThatFits(in: .horizontal) {
+            Text(label).font(.system(size: 9.5, weight: .bold)).fixedSize()
+            Text(label).font(.system(size: 8.5, weight: .bold)).fixedSize()
+        }
+        .frame(width: 32)
+    }
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
         let stroke = answer ? Brand.answerBorder : Brand.rowStroke
@@ -1902,12 +1914,8 @@ struct ModeSwitch: View {
                                 .allowsHitTesting(false)
                             }
                     } else {
-                        Text(answer ? L("AI问答", "AI Q&A", "AI回答") : L("AI改写", "AI edit", "AI書換"))
-                            .font(.system(size: 9.5, weight: .bold))
+                        fitted(answer ? L("AI问答", "AI Q&A", "AI回答") : L("AI改写", "AI edit", "AI書換"))
                             .foregroundStyle(text(answer))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .padding(.horizontal, 2)
                     }
                 }
                 Rectangle().fill(stroke.opacity(0.5)).frame(height: 1)
@@ -1915,8 +1923,7 @@ struct ModeSwitch: View {
                     fill(!answer)
                     VStack(spacing: 1) {
                         Image(systemName: "arrow.left.arrow.right").font(.system(size: 9, weight: .semibold))
-                        Text(L("切换", "Switch", "切替")).font(.system(size: 9.5, weight: .bold))
-                            .lineLimit(1).minimumScaleFactor(0.7)
+                        fitted(L("切换", "Switch", "切替"))
                     }
                     .foregroundStyle(text(!answer))
                 }
