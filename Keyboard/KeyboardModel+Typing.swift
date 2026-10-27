@@ -758,6 +758,11 @@ extension KeyboardModel {
             case "ask", "askEmpty", "askSelected", "askRewrite", "askAnswerMode", "askAnswer", "askRewriteResult", "askRunning":
                 loadDebugAsk(option)
             case "askHold": debugAskHold = true
+            // 结果卡左边的键：key:insert 默认插入，key:down 滚轮下滑，key:pop 弹出；key:rolled / key:popped 停在换过去的样子。
+            case "key:insert": debugResultKey(primary: .insert)
+            case "key:down": debugResultKey(swipe: .wheel, wheelUp: false)
+            case "key:pop": debugResultKey(swipe: .pop)
+            case "key:rolled", "key:popped": debugResultKeyPose = String(option.dropFirst(4))
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)

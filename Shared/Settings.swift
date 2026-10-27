@@ -79,6 +79,37 @@ enum Appearance: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// 结果卡左边那颗键点一下做什么，另一个按住滑过去。
+enum ResultKeyAction: String, Codable, CaseIterable, Identifiable {
+    case replace, insert
+
+    var id: String { rawValue }
+    var other: ResultKeyAction { self == .replace ? .insert : .replace }
+
+    var title: String {
+        switch self {
+        case .replace: return L("替换", "Replace", "置き換え")
+        case .insert: return L("插入", "Insert", "挿入")
+        }
+    }
+
+    var systemImage: String { self == .replace ? "arrow.left.arrow.right" : "text.insert" }
+}
+
+/// 结果卡左边那颗键怎么换到另一个：滚轮（像拨号盘跟着手指转）或往下划弹出。
+enum ResultKeySwipe: String, Codable, CaseIterable, Identifiable {
+    case wheel, pop
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .wheel: return L("滚轮", "Wheel", "ホイール")
+        case .pop: return L("弹出", "Pop-up", "ポップアップ")
+        }
+    }
+}
+
 struct EnclaveSettings: Codable, Equatable {
     /// OpenAI 兼容接口的 base URL，例如 https://api.deepseek.com/v1 或 http://100.x.x.x:11434/v1
     var baseURL: String = ""
@@ -99,6 +130,10 @@ struct EnclaveSettings: Codable, Equatable {
     var autoCapitalize: Bool = true
     /// 润色时结果卡片的流光和星星动画；系统打开「减弱动态效果」时不播。
     var polishAnimation: Bool = true
+    /// 结果卡左边的键：点一下是哪个（默认替换）、怎么滑到另一个、滚轮往哪边滑（true 上滑，另一个露在下面）。
+    var resultKeyPrimary: ResultKeyAction = .replace
+    var resultKeySwipe: ResultKeySwipe = .wheel
+    var resultKeyWheelUp: Bool = true
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     var appearance: Appearance = .system
@@ -106,6 +141,7 @@ struct EnclaveSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID
         case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp
     }
 
     var isConfigured: Bool {
@@ -141,6 +177,9 @@ extension EnclaveSettings {
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
         autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize
         polishAnimation = try c.decodeIfPresent(Bool.self, forKey: .polishAnimation) ?? polishAnimation
+        resultKeyPrimary = (try? c.decodeIfPresent(ResultKeyAction.self, forKey: .resultKeyPrimary)) ?? resultKeyPrimary
+        resultKeySwipe = (try? c.decodeIfPresent(ResultKeySwipe.self, forKey: .resultKeySwipe)) ?? resultKeySwipe
+        resultKeyWheelUp = try c.decodeIfPresent(Bool.self, forKey: .resultKeyWheelUp) ?? resultKeyWheelUp
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }

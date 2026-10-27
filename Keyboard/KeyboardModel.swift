@@ -180,6 +180,15 @@ final class KeyboardModel: ObservableObject {
     var debugFakeRun = false
     /// 截图用（-keyboardDebug askHold）：✨ 上停着按住时弹出的「改写 / 问答」（QA11）。
     var debugAskHold = false
+    /// 截图用（-keyboardDebug key:…）：结果卡左边的键停在滑过 16pt 换过去（rolled）或弹出另一个（popped）的样子。
+    var debugResultKeyPose: String?
+
+    /// 截图用：不经过 App 改结果卡左边那颗键的设置。
+    func debugResultKey(primary: ResultKeyAction? = nil, swipe: ResultKeySwipe? = nil, wheelUp: Bool? = nil) {
+        if let primary { settings.resultKeyPrimary = primary }
+        if let swipe { settings.resultKeySwipe = swipe }
+        if let wheelUp { settings.resultKeyWheelUp = wheelUp }
+    }
     #endif
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 键盘主体。
 /// AI 栏永远紧贴按键上方，收起和展开是同一条：[抽屉] [✨] [润色 ▴] [识意 ▾] … [撤销|重做]；打拼音时这一行换成候选。
-/// 展开抽屉时 AI 栏上面是结果卡片和动作行（替换、插入）；「润色 ▴」「识意 ▾」各自往上展开一行，紧贴 AI 栏。
+/// 展开抽屉时 AI 栏上面是结果卡片，左边一颗替换 / 插入键；「润色 ▴」「识意 ▾」各自往上展开一行，紧贴 AI 栏。
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
@@ -17,14 +17,16 @@ struct KeyboardView: View {
                     .padding(.horizontal, inset)
                     .padding(.top, KeyboardMetrics.panelTop)
             } else if model.aiExpanded {
-                VStack(spacing: KeyboardMetrics.panelSpacing) {
+                // 替换 / 插入键在结果卡左边，和卡片一样高；弹出方式的另一个按钮浮在下面一行上，所以这一块叠在最上层。
+                HStack(spacing: KeyboardMetrics.resultKeyGap) {
+                    ResultKey(model: model)
+                        .frame(width: KeyboardMetrics.resultKeyWidth)
                     ResultCard(model: model)
-                        .frame(height: KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel))
-                    actionRow
-                        .frame(height: KeyboardMetrics.actionRow)
                 }
+                .frame(height: KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel))
                 .padding(.horizontal, inset)
                 .padding(.top, KeyboardMetrics.panelTop)
+                .zIndex(2)
             }
             if model.gate == nil, let row = model.aiRow {
                 // 尖角对准下面那颗按钮右侧的箭头：中心距按钮右边 15.5pt。
@@ -93,6 +95,14 @@ struct KeyboardView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
+            // 「完成」在结果卡左边的键上，取消放这里。
+            Button(L("取消", "Cancel", "キャンセル")) { model.cancelCardEdit() }
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Brand.cardBody)
+                .padding(.horizontal, 12)
+                .frame(height: KeyboardMetrics.chipHeight)
+                .background(Capsule().fill(KeyStyle.charKey))
+                .buttonStyle(KeyPressStyle())
         }
         .padding(.horizontal, inset)
     }
@@ -146,38 +156,6 @@ struct KeyboardView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(KeyPressStyle())
-        }
-    }
-
-    // MARK: - 动作行
-
-    /// 结果卡片下面只有替换和插入；用过以后按钮显示「✓ 已替换」「✓ 已插入」。
-    @ViewBuilder
-    private var actionRow: some View {
-        if model.target == .card {
-            HStack(spacing: 6) {
-                PanelButton(title: L("取消修改", "Cancel", "キャンセル"), systemImage: nil, kind: .plain) { model.cancelCardEdit() }
-                PanelButton(title: L("完成修改", "Done", "完了"), systemImage: "checkmark", kind: .primary) { model.finishCardEdit() }
-            }
-        } else {
-            useRow
-        }
-    }
-
-    private var useRow: some View {
-        let replaced = model.resultUse == .replaced
-        let inserted = model.resultUse == .inserted
-        return HStack(spacing: 6) {
-            PanelButton(title: replaced ? L("已替换", "Replaced", "置き換え済み") : L("替换", "Replace", "置き換え"),
-                        systemImage: replaced ? "checkmark" : "arrow.left.arrow.right",
-                        kind: replaced ? .done : .primary) { model.replace() }
-                .disabled(!model.hasResult || replaced)
-                .coachTarget(.replace, active: model.coachDisplay?.target == .replace)
-            PanelButton(title: inserted ? L("已插入", "Inserted", "挿入済み") : L("插入", "Insert", "挿入"),
-                        systemImage: inserted ? "checkmark" : "text.insert",
-                        kind: inserted ? .done : .outlined) { model.insert() }
-                .disabled(!model.hasResult || inserted)
-                .coachTarget(.insert, active: model.coachDisplay?.target == .insert)
         }
     }
 }
@@ -690,51 +668,6 @@ struct UndoRedoPair: View {
         }
         .buttonStyle(KeyPressStyle())
         .disabled(!enabled)
-    }
-}
-
-/// 动作行的按钮。primary 是实心紫（替换），outlined 是紫色描边（插入），done 是用过之后的淡紫底。
-struct PanelButton: View {
-    /// plain：白底深灰字（「取消修改」）。
-    enum Kind { case primary, outlined, done, plain }
-
-    var title: String
-    var systemImage: String?
-    var kind: Kind
-    var action: () -> Void
-    @Environment(\.isEnabled) private var isEnabled
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
-        Button(action: action) {
-            HStack(spacing: 4) {
-                if let systemImage { Image(systemName: systemImage) }
-                Text(title)
-            }
-            .font(.system(size: 14, weight: .semibold))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .foregroundStyle(foreground)
-            .background(shape.fill(fill))
-        }
-        .buttonStyle(KeyPressStyle())
-    }
-
-    /// 替换用润色的蓝紫渐变，插入用青到靛蓝，都是白字；不能点时一律灰底灰字，不做半透明。
-    private var fill: AnyShapeStyle {
-        guard kind == .done || kind == .plain || isEnabled else { return AnyShapeStyle(Brand.disabledFill) }
-        switch kind {
-        case .primary: return AnyShapeStyle(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
-                                                          startPoint: .topLeading, endPoint: .bottomTrailing))
-        case .outlined: return AnyShapeStyle(Brand.insertGradient)
-        case .done: return AnyShapeStyle(Brand.returnSoftFill)
-        case .plain: return AnyShapeStyle(KeyStyle.charKey)
-        }
-    }
-
-    private var foreground: Color {
-        if kind == .done { return Brand.deepPurple }
-        if kind == .plain { return Brand.cardBody }
-        return isEnabled ? .white : Brand.disabledText
     }
 }
 

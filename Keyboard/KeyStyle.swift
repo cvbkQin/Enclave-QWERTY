@@ -42,7 +42,9 @@ enum KeyboardMetrics {
     static func cardHeight(tall: Bool, aiLabel: Bool) -> CGFloat {
         (tall ? expandedCardHeight : cardHeight) + (aiLabel ? aiLabelHeight : 0)
     }
-    static let actionRow: CGFloat = 34
+    /// 结果卡左边的替换 / 插入键：宽 58，和卡片一样高，和卡片隔 6。
+    static let resultKeyWidth: CGFloat = 58
+    static let resultKeyGap: CGFloat = 6
     /// AI 栏上方展开的一行（提示词 / 识意，QA2、QA14）：高 42，底边的小尖角伸到下面按钮的上沿。
     static let aiRowHeight: CGFloat = 42
     /// 这一行的底边到 AI 栏（44 高、按钮 34 居中）之间留 2.5，加上按钮上方的 5，正好是尖角的 7.5。
@@ -64,7 +66,7 @@ enum KeyboardMetrics {
         }
     }
 
-    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，展开提示词 / 识意时再加一行。
+    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片（替换 / 插入键在卡片左边，不占高度），展开提示词 / 识意时再加一行。
     /// 提示卡出现时只留它一块，不和结果卡片、展开的一行叠在一起。
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
                        reminder: Bool = false, aiLabel: Bool = false) -> CGFloat {
@@ -72,7 +74,7 @@ enum KeyboardMetrics {
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
-            height += panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel) + panelSpacing + actionRow
+            height += panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel)
         }
         if rowOpen {
             height += (expanded ? panelSpacing : panelTop) + aiRowHeight + aiRowGap
@@ -198,11 +200,11 @@ enum Brand {
     /// 浮层里「风格」「要求」两个字 #3A3A3C。
     static let panelLabel = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.78, alpha: 1) : UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1) })
-    /// 结果卡片「插入」：135° #0891B2 → #6366F1。
-    static let insertGradient = LinearGradient(
-        colors: [Color(red: 0x08 / 255, green: 0x91 / 255, blue: 0xB2 / 255),
-                 Color(red: 0x63 / 255, green: 0x66 / 255, blue: 0xF1 / 255)],
-        startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// 结果卡左边的键（QA5）：替换 #4F46E5 → #7C3AED，插入 #0E7490 → #2563EB，都是 135°。
+    static let resultKeyReplaceColors = [Color(red: 0x4F / 255, green: 0x46 / 255, blue: 0xE5 / 255),
+                                         Color(red: 0x7C / 255, green: 0x3A / 255, blue: 0xED / 255)]
+    static let resultKeyInsertColors = [Color(red: 0x0E / 255, green: 0x74 / 255, blue: 0x90 / 255),
+                                        Color(red: 0x25 / 255, green: 0x63 / 255, blue: 0xEB / 255)]
     /// 不能点的「替换」「插入」：#E5E5EA 底、#8E8E93 字。
     static let disabledFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.24, alpha: 1) : UIColor(red: 0xE5 / 255, green: 0xE5 / 255, blue: 0xEA / 255, alpha: 1) })

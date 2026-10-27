@@ -569,6 +569,53 @@ struct KeyboardSettingsView: View {
                     }
                 }
             }
+            Section {
+            } header: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("结果卡左边的按钮", "Button beside the result", "結果の左のボタン"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 16)
+                    HStack(spacing: 12) {
+                        ForEach(ResultKeyAction.allCases) { action in
+                            ResultKeyCard(action: action, settings: store.settings,
+                                          selected: store.settings.resultKeyPrimary == action) {
+                                store.settings.resultKeyPrimary = action
+                            }
+                        }
+                    }
+                }
+                .dashFormCard()
+            } footer: {
+                Text(resultKeyFooter)
+            }
+            Section {
+                HStack {
+                    Text(L("滑动方式", "Swipe style", "スワイプ方法"))
+                    Picker(L("滑动方式", "Swipe style", "スワイプ方法"), selection: $store.settings.resultKeySwipe) {
+                        ForEach(ResultKeySwipe.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                if store.settings.resultKeySwipe == .wheel {
+                    HStack {
+                        Text(L("方向", "Direction", "方向"))
+                        Picker(L("方向", "Direction", "方向"), selection: $store.settings.resultKeyWheelUp) {
+                            Text(L("上滑", "Up", "上")).tag(true)
+                            Text(L("下滑", "Down", "下")).tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+            } footer: {
+                Text(store.settings.resultKeySwipe == .wheel
+                     ? L("滚轮：两个功能在按钮里上下挨着，跟着手指滚，像拨号盘，松手执行后弹回。上滑时另一个露在下面（默认），下滑时露在上面。",
+                         "Wheel: both actions sit stacked in the button and roll with your finger like a dial, then spring back after you let go. With Up the other one peeks out below (default); with Down it peeks out above.",
+                         "ホイール：2 つの機能がボタンの中で上下に並び、指に合わせてダイヤルのように回ります。指を離すと実行して元に戻ります。「上」ではもう一方が下に少し見え（デフォルト）、「下」では上に見えます。")
+                     : L("弹出：按钮下面一个 ▾，往下一划，正下方弹出另一个按钮（和逗号键一样），松手执行。",
+                         "Pop-up: the button shows a ▾. Slide down and the other action pops up right below it, like the comma key. Let go to use it.",
+                         "ポップアップ：ボタンの下に ▾ があり、下にスライドするともう一方のボタンが真下に出ます（読点キーと同じ）。指を離すと実行します。"))
+            }
             Section(L("动画", "Animation", "アニメーション")) {
                 Toggle(isOn: $store.settings.polishAnimation) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -581,6 +628,25 @@ struct KeyboardSettingsView: View {
         .tint(AppColor.purple)
         .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 点一下做什么、怎么换到另一个，随设置变。
+    private var resultKeyFooter: String {
+        let settings = store.settings
+        let tap = settings.resultKeyPrimary == .replace
+            ? L("点一下把结果换掉输入框里的话", "Tap to replace the text in the field with the result", "タップで入力欄の文を結果に置き換えます")
+            : L("点一下把结果接在输入框里的话后面", "Tap to add the result after the text in the field", "タップで入力欄の文の後ろに結果を追加します")
+        let other = settings.resultKeyPrimary.other
+        let detail = other == .insert
+            ? L("插入（接在原来的话后面）", "insert (add it after the existing text)", "挿入（元の文の後ろに追加）")
+            : L("替换（换掉原来的话）", "replace (swap out the existing text)", "置き換え（元の文と入れ替え）")
+        let swipe: String
+        switch (settings.resultKeySwipe, settings.resultKeyWheelUp) {
+        case (.pop, _): swipe = L("按住往下划，下方弹出", "Hold and slide down to pop up ", "長押しで下にスライドすると下に出る：")
+        case (.wheel, true): swipe = L("按住往上滑", "Hold and slide up to ", "長押しで上にスライドすると")
+        case (.wheel, false): swipe = L("按住往下滑", "Hold and slide down to ", "長押しで下にスライドすると")
+        }
+        return L("\(tap)；\(swipe)\(detail)。", "\(tap). \(swipe)\(detail).", "\(tap)。\(swipe)\(detail)。")
     }
 
     private var languageFooter: String {
@@ -632,6 +698,97 @@ private struct LayoutCard: View {
                 .padding(.horizontal, layout == .qwerty && count < 10 ? CGFloat(10 - count) * 3 : 0)
             }
         }
+    }
+}
+
+/// 「结果卡左边的按钮」二选一卡片（SET1、SET2）：上面画出键和结果卡的样子、往哪滑换成什么，下面名称和勾选圈。
+private struct ResultKeyCard: View {
+    var action: ResultKeyAction
+    var settings: EnclaveSettings
+    var selected: Bool
+    var onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        miniKey
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(.systemBackground))
+                            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(AppColor.purple.opacity(0.35), lineWidth: 1))
+                            .overlay(alignment: .topLeading) {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Capsule().fill(AppColor.purple.opacity(0.18)).frame(height: 5)
+                                    Capsule().fill(AppColor.purple.opacity(0.18)).frame(width: 40, height: 5)
+                                }
+                                .padding(8)
+                            }
+                    }
+                    .frame(height: 44)
+                    HStack(spacing: 3) {
+                        Image(systemName: up ? "chevron.up" : "chevron.down").font(.system(size: 8, weight: .semibold))
+                        Text(hint).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
+                HStack {
+                    Text(action.title).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selected ? AppColor.purple : Color.secondary)
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(selected ? AppColor.purple : Color.clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var pop: Bool { settings.resultKeySwipe == .pop }
+    private var up: Bool { !pop && settings.resultKeyWheelUp }
+
+    private var hint: String {
+        let other = action.other.title
+        if pop { return L("往下划：下方弹出\(other)", "Slide down: pop up \(other)", "下へ：\(other)") }
+        return up ? L("往上滑：\(other)", "Slide up: \(other)", "上へ：\(other)")
+                  : L("往下滑：\(other)", "Slide down: \(other)", "下へ：\(other)")
+    }
+
+    /// 缩小的键：主功能在正中，滚轮时另一个在边上露一点，弹出时下面一个 ▾。
+    private var miniKey: some View {
+        let colors: [Color] = action == .replace
+            ? [Color(red: 0x4F / 255, green: 0x46 / 255, blue: 0xE5 / 255), Color(red: 0x7C / 255, green: 0x3A / 255, blue: 0xED / 255)]
+            : [Color(red: 0x0E / 255, green: 0x74 / 255, blue: 0x90 / 255), Color(red: 0x25 / 255, green: 0x63 / 255, blue: 0xEB / 255)]
+        return ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            label(action).offset(y: pop ? -4 : 0)
+            if pop {
+                Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).foregroundStyle(.white).offset(y: 12)
+            } else {
+                label(action.other).opacity(0.5).blur(radius: 0.6).offset(y: up ? 17 : -17)
+            }
+        }
+        .frame(width: 46)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func label(_ action: ResultKeyAction) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: action.systemImage).font(.system(size: 8, weight: .bold))
+            Text(action.title).font(.system(size: 10, weight: .bold))
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 2)
     }
 }
 
