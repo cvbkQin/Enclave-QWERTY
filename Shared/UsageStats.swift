@@ -10,7 +10,8 @@ enum UsageStats {
     // MARK: 执行提示词（键盘里）
 
     /// 一次请求结束：成功记 polish.done、耗时和这条提示词，失败记 polish.failed；都进最近 10 次。点停止不算。
-    static func recordPolish(ms: Int, ok: Bool, styleID: UUID?) {
+    /// mainAPI：发到接口页上面那个主接口。走单独问答接口的请求不进接口页「最近 10 次」小曲线。
+    static func recordPolish(ms: Int, ok: Bool, styleID: UUID?, mainAPI: Bool = true) {
         if ok {
             DailyStats.add("polish.done")
             DailyStats.add("polish.ms", ms)
@@ -18,7 +19,7 @@ enum UsageStats {
         } else {
             DailyStats.add("polish.failed")
         }
-        recordRequest(ms: ms, ok: ok)
+        if mainAPI { recordRequest(ms: ms, ok: ok) }
         // 请求不多，每次都写，App 马上能看到。
         DailyStats.flush()
     }

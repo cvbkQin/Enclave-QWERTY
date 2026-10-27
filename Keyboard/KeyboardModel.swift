@@ -574,8 +574,11 @@ final class KeyboardModel: ObservableObject {
         let started = Date()
         let styleID = settings.selectedStyle?.id
         // 仪表盘的统计：耗时按毫秒记。
+        // 最后是问答接口回答的（单独设了问答接口）：不进接口页的小曲线，那里只看主接口。
+        var answeredByAnswerAPI = ask?.forced == .answer && answerClient != nil
         func record(ok: Bool) {
-            UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID)
+            UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID,
+                                    mainAPI: !answeredByAnswerAPI)
         }
         task = Task { [weak self] in
             var raw = ""
@@ -622,13 +625,14 @@ final class KeyboardModel: ObservableObject {
                     if handOff, let ask, let answerClient {
                         mayHandOff = false
                         client = answerClient
+                        answeredByAnswerAPI = true
                         messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, search: maySearch)
                         continue
                     }
                     guard wantsSearch, let ask, let self else { break }
                     maySearch = false
                     // 联网之后的回答也交给问答模型。
-                    if let answerClient { client = answerClient; mayHandOff = false }
+                    if let answerClient { client = answerClient; mayHandOff = false; answeredByAnswerAPI = true }
                     // 联网的一定是问答：展开抽屉，流光小字写「正在联网搜索…」。
                     self.askDecided(.answer)
                     self.askSearching = true
