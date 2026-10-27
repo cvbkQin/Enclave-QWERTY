@@ -351,7 +351,7 @@ struct ModelSettingsView: View {
                         }))
                         .tint(AppColor.purple)
                 } footer: {
-                    Text(L("仅 Kimi。问天气、新闻、价格这类要最新信息的问题时，先用 Kimi 搜一下再回答，回答最后列出来源网站。只在需要时才搜，每次搜索由 Kimi 另外计费（约 ¥0.01）；问题会发给 Kimi 的搜索接口。改写不联网。", "Kimi only. For questions that need current info, like weather, news or prices, Kimi searches the web first and lists its sources. It searches only when needed; each search is billed separately by Kimi. Your question is sent to Kimi's search API. Rewrites never search.", "Kimi のみ。天気・ニュース・価格など最新情報が必要な質問では、先に Kimi で検索してから答え、出典サイトを示します。必要なときだけ検索し、検索ごとに Kimi が別途課金します。質問は Kimi の検索 API に送られます。書き換えでは検索しません。"))
+                    Text(L("仅 Kimi。问天气、新闻、价格这类要最新信息的问题时，先用 Kimi 搜一下再回答，回答最后列出来源网站。只在需要时才搜，每次搜索由 Kimi 另外计费（约 ¥0.01）；问题会发给 Kimi 的搜索接口。改写照常由模型处理，不调用 Kimi 联网搜索。", "Kimi only. For questions that need current info, like weather, news or prices, Kimi searches the web first and lists its sources. It searches only when needed; each search is billed separately by Kimi. Your question is sent to Kimi's search API. Rewrites are still handled by the model but never call Kimi web search.", "Kimi のみ。天気・ニュース・価格など最新情報が必要な質問では、先に Kimi で検索してから答え、出典サイトを示します。必要なときだけ検索し、検索ごとに Kimi が別途課金します。質問は Kimi の検索 API に送られます。書き換えは通常どおりモデルが処理し、Kimi のウェブ検索は使いません。"))
                 }
             }
             if SharedStorage.usesClipboardConfig {

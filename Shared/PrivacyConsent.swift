@@ -25,6 +25,12 @@ enum PrivacyConsent {
         SharedStorage.defaults.integer(forKey: seenVersionKey) < currentVersion
     }
 
+    /// 以前看过（同意或选了基础功能）旧版说明，这次是因为政策更新才再弹：说明页顶上显示更新了什么。首次安装为 false。
+    static var isUpdate: Bool {
+        let seen = SharedStorage.defaults.integer(forKey: seenVersionKey)
+        return seen > 0 && seen < currentVersion
+    }
+
     static func agree() {
         let defaults = SharedStorage.defaults
         defaults.set(currentVersion, forKey: agreedVersionKey)
