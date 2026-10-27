@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - AI 栏的两颗功能按钮（QA1）
 
-/// 「润色 ▴」「识意 ▴」：高 34、圆角 17、左内边 13 右内边 9；文字 14pt，中间 1×16 细竖线，右边 13pt 箭头。
-/// 收起时箭头朝上（往上展开），展开时朝下，整颗选中态：浅紫底、深紫字、1.5pt #8B7CF6 内描边。
+/// 「润色 ▴」「识意 ▾」：高 34、圆角 17、左内边 13 右内边 9；文字 14pt，中间 1×16 细竖线，右边 13pt 箭头。
+/// 收起时箭头朝下 ▾，展开时朝上 ▴，整颗选中态：浅紫底、深紫字、1.5pt #8B7CF6 内描边。
 /// 「润色」位置显示当前提示词名，太长截断。
 struct RowChip: View {
     @ObservedObject var model: KeyboardModel
@@ -23,7 +23,7 @@ struct RowChip: View {
                     .frame(width: 1, height: 16)
                     .padding(.horizontal, 8)
                     .layoutPriority(1)
-                Image(systemName: open ? "chevron.down" : "chevron.up")
+                Image(systemName: open ? "chevron.up" : "chevron.down")
                     .font(.system(size: 13, weight: .semibold))
                     .layoutPriority(1)
             }

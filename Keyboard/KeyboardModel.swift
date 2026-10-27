@@ -13,7 +13,7 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var copied = false
     /// 结果卡片展开到五行。
     @Published var cardExpanded = false { didSet { heightMayChange?() } }
-    /// AI 栏上方展开的一行：「润色 ▴」的提示词标签，或「识意 ▴」的输入框（QA2、QA14）。两者互斥。
+    /// AI 栏上方展开的一行：「润色 ▴」的提示词标签，或「识意 ▾」的输入框（QA2、QA14）。两者互斥。
     enum AIRow { case prompts, ask }
     @Published var aiRow: AIRow? { didSet { if aiRow != oldValue { heightMayChange?() } } }
     /// 「识意」框重新展开时整段全选：直接打字就覆盖，删除键清空。

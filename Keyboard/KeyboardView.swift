@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// 键盘主体。
-/// AI 栏永远紧贴按键上方，收起和展开是同一条：[抽屉] [✨] [润色 ▴] [识意 ▴] … [撤销|重做]；打拼音时这一行换成候选。
-/// 展开抽屉时 AI 栏上面是结果卡片和动作行（替换、插入）；「润色 ▴」「识意 ▴」各自往上展开一行，紧贴 AI 栏。
+/// AI 栏永远紧贴按键上方，收起和展开是同一条：[抽屉] [✨] [润色 ▴] [识意 ▾] … [撤销|重做]；打拼音时这一行换成候选。
+/// 展开抽屉时 AI 栏上面是结果卡片和动作行（替换、插入）；「润色 ▴」「识意 ▾」各自往上展开一行，紧贴 AI 栏。
 struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
@@ -73,7 +73,7 @@ struct KeyboardView: View {
         .clipped()
     }
 
-    /// 「润色 ▴」「识意 ▴」右边缘在键盘里的位置，展开那一行的尖角按它对齐。
+    /// 「润色 ▴」「识意 ▾」右边缘在键盘里的位置，展开那一行的尖角按它对齐。
     @State private var chipEdges: [KeyboardModel.AIRow: CGFloat] = [:]
 
     // MARK: - AI 栏
@@ -284,18 +284,23 @@ struct PolishButton: View {
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 0)
             .onChanged { value in
+                let canHold = model.canAsk && !model.isRunning
                 if !pressed {
                     pressed = true
-                    guard model.canAsk, !model.isRunning else { return }
-                    let timer = DispatchWorkItem {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { holding = true }
-                        model.keyFeedback(for: .space)
-                    }
+                    guard canHold else { return }
+                    // 按住不动 0.3 秒也弹出两个选项。
+                    let timer = DispatchWorkItem { showHold() }
                     holdTimer = timer
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: timer)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: timer)
+                }
+                let dy = value.translation.height
+                // 按下后上下一滑（超过 17pt）立刻弹出并选中那一个，不用先等。
+                if !holding, canHold, abs(dy) > 17 {
+                    holdTimer?.cancel()
+                    holdTimer = nil
+                    showHold()
                 }
                 guard holding else { return }
-                let dy = value.translation.height
                 let next: KeyboardModel.AskMode? = dy < -17 ? .rewrite : (dy > 17 ? .answer : nil)
                 if next != pick {
                     pick = next
@@ -326,6 +331,12 @@ struct PolishButton: View {
         .accessibilityAction(named: L("问答", "Answer", "回答")) { model.askTapped(.answer) }
         .coachTarget(.run, active: model.coachDisplay?.target == .run)
         .onChange(of: model.finished) { finished in flashDone(at: finished?.at) }
+    }
+
+    private func showHold() {
+        guard !holding else { return }
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { holding = true }
+        model.keyFeedback(for: .space)
     }
 
     private var debugHold: Bool {
@@ -1307,7 +1318,7 @@ struct ResultCard: View {
                     SparkleMark(size: 11, color: Brand.purpleText)
                     Text(L("点 ✨，按当前提示词改输入框里的话", "Tap ✨ to run the current prompt on your text", "✨ で、いまのプロンプトを入力欄の文章に使います")).font(.system(size: 12, weight: .semibold)).foregroundStyle(Brand.purpleText)
                 }
-                Text(L("点「\(chipName) ▴」换一条提示词；点「识意 ▴」问个问题，或说说想怎么改：翻成日语、改成朋友圈语气……", "Tap \(chipName) ▴ to switch prompts, or tap Ask ▴ to ask anything or say how to change it…", "「\(chipName) ▴」でプロンプトを切り替え、「たずねる ▴」で質問や直し方の指示ができます……"))
+                Text(L("点「\(chipName) ▾」换一条提示词；点「识意 ▾」问个问题，或说说想怎么改：翻成日语、改成朋友圈语气……", "Tap \(chipName) ▾ to switch prompts, or tap Ask ▾ to ask anything or say how to change it…", "「\(chipName) ▾」でプロンプトを切り替え、「たずねる ▾」で質問や直し方の指示ができます……"))
                     .font(.system(size: 11.5))
                     .foregroundStyle(Color.secondary)
             }

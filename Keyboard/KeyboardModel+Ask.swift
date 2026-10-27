@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// AI 栏往上展开的一行（QA1–QA14）：「润色 ▴」展开提示词标签，「识意 ▴」展开一个输入框，问问题或提要求。
+/// AI 栏往上展开的一行（QA1–QA14）：「润色 ▴」展开提示词标签，「识意 ▾」展开一个输入框，问问题或提要求。
 /// 识意展开时 ✨ 按框里的话执行：模型先判断是改写还是问答，问答展开抽屉看回答，改写跟着快速模式走。
 extension KeyboardModel {
     /// 不在卡片里改字时打字去哪：识意展开着就进识意框，否则进对方的输入框。
     var restingTarget: InputTarget { aiRow == .ask ? .instruction : .host }
 
-    /// 点「润色 ▴」「识意 ▴」：开这一行（另一行自动收起），再点自己收起。
+    /// 点「润色 ▴」「识意 ▾」：开这一行（另一行自动收起），再点自己收起。
     func toggleRow(_ row: AIRow) {
         endCoach()
         if target == .card { finishCardEdit() }

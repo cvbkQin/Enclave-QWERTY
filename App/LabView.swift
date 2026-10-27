@@ -108,7 +108,7 @@ struct LabScene: Identifiable {
                  situation: L("同事催进度，但这周确实做不完。", "A coworker is pushing for progress, but you really can't finish this week.",
                               "同僚に進捗を急かされたけれど、今週中には終わらないときに。"),
                  text: "周五前给不了，下周一吧",
-                 steps: [L("点「识意 ▴」，写「语气委婉一点」", "Tap Ask ▴ and type \"softer\"", "「たずねる ▴」をタップし、「やわらかく」と入力"),
+                 steps: [L("点「识意 ▾」，写「语气委婉一点」", "Tap Ask ▾ and type \"softer\"", "「たずねる ▾」をタップし、「やわらかく」と入力"),
                          L("点 ✨，输入框直接改好；不满意点 ↶ 撤销", "Tap ✨ and the text is rewritten in place. Tap ↶ to undo", "✨ をタップすると入力欄が書き換わります。↶ で元に戻せます")],
                  preset: Preset(style: "自动", instruction: L("语气委婉一点", "softer", "やわらかく"))),
         LabScene(id: 2, category: .work, mode: .insert, title: L("请假申请", "Ask for a day off", "休暇の申請"), icon: "calendar",
