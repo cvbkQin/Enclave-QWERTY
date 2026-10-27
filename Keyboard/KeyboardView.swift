@@ -324,7 +324,7 @@ struct PolishButton: View {
             })
         .accessibilityElement()
         .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル")
-                            : L("执行识意", "Run Ask", "たずねるを実行"))
+                            : L("执行识意，按住上滑改写、下滑问答", "Run Ask. Hold and slide up to edit, down for Q&A", "たずねるを実行。長押しで上にスライドすると修正、下で質問"))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.isRunning ? model.stop() : model.askTapped(model.askButtonMode) }
         .accessibilityAction(named: L("改写", "Rewrite", "書き換え")) { model.askTapped(.rewrite) }
@@ -375,7 +375,14 @@ struct PolishButton: View {
             }
             .padding(.horizontal, 4)
         } else {
-            PolishStars(size: starSize, running: false, glowing: glowing, doneAt: doneAt)
+            // 自动（10-27 定，方案 E3）：识意图标 | 细竖线 | 上下箭头，提示可以上滑改写、下滑问答。
+            HStack(spacing: 5) {
+                AskIcon().frame(width: 18, height: 18)
+                Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
         }
     }
 
@@ -456,6 +463,42 @@ struct PolishButton: View {
     private var polishFill: AnyShapeStyle {
         let gradient = LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]], startPoint: .leading, endPoint: .trailing)
         return (model.aiBlocked || model.aiQuotaUsed) ? AnyShapeStyle(gradient.opacity(0.35)) : AnyShapeStyle(gradient)
+    }
+}
+
+/// 识意展开、自动时 ✨ 里的图标（方案 E3，design/ask-icon/ask-icon-e3.svg，24×24 画布）：
+/// 白色实心镜片的放大镜，镜片里一颗紫粉渐变四角星，右上、左上两颗小黄星。
+struct AskIcon: View {
+    /// 和 ✨ 同款的四角星，24×24 画布里的路径。
+    private static func star(_ path: inout Path, center: CGPoint, scale k: CGFloat) {
+        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: center.x + (x - 12) * k, y: center.y + (y - 12) * k) }
+        path.move(to: p(12, 3))
+        path.addCurve(to: p(21, 12), control1: p(12.8, 8.5), control2: p(15.5, 11.2))
+        path.addCurve(to: p(12, 21), control1: p(15.5, 12.8), control2: p(12.8, 15.5))
+        path.addCurve(to: p(3, 12), control1: p(11.2, 15.5), control2: p(8.5, 12.8))
+        path.addCurve(to: p(12, 3), control1: p(8.5, 11.2), control2: p(11.2, 8.5))
+        path.closeSubpath()
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            context.scaleBy(x: size.width / 24, y: size.height / 24)
+            // 镜片：半径 6.8 的白圆加 2pt 白描边。
+            context.fill(Path(ellipseIn: CGRect(x: 10 - 7.8, y: 10.6 - 7.8, width: 15.6, height: 15.6)), with: .color(.white))
+            var handle = Path()
+            handle.move(to: CGPoint(x: 15.41, y: 16.01))
+            handle.addLine(to: CGPoint(x: 19.41, y: 20.01))
+            context.stroke(handle, with: .color(.white), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            var lens = Path()
+            Self.star(&lens, center: CGPoint(x: 10, y: 10.6), scale: 0.44)
+            context.fill(lens, with: .linearGradient(Gradient(colors: Brand.askAutoColors),
+                                                     startPoint: CGPoint(x: 6, y: 6.6), endPoint: CGPoint(x: 14, y: 14.6)))
+            var sparks = Path()
+            Self.star(&sparks, center: CGPoint(x: 20, y: 3.4), scale: 0.26)
+            Self.star(&sparks, center: CGPoint(x: 2.6, y: 3.2), scale: 0.17)
+            context.fill(sparks, with: .color(Brand.gold))
+        }
+        .accessibilityHidden(true)
     }
 }
 
