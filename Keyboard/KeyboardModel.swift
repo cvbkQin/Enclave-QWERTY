@@ -511,17 +511,26 @@ final class KeyboardModel: ObservableObject {
         }
         task = Task { [weak self] in
             var raw = ""
+            var shownAt = Date.distantPast
             do {
                 for try await piece in client.stream(messages) {
                     raw += piece
                     guard let self else { continue }
+                    // 每设一次 streamingText 整个键盘就重画一遍，模型一秒能吐几十段：
+                    // 面板收着（快速模式，看不到正文）就不设，展开时最多每 50 毫秒设一次。识意还没判断出方式时照常往下看。
+                    let now = Date()
+                    let show = self.aiExpanded && now.timeIntervalSince(shownAt) >= 0.05
+                    guard show || (ask != nil && self.askKind == nil) else { continue }
                     let text = ModelOutput.clean(raw)
                     if let ask {
                         // 等第一行写出「改写 / 问答」再显示正文。
                         guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
                         self.askDecided(split.answer ? .answer : .rewrite)
+                        guard show || self.aiExpanded else { continue }
+                        shownAt = now
                         self.streamingText = split.body
                     } else {
+                        shownAt = now
                         self.streamingText = text
                     }
                 }
