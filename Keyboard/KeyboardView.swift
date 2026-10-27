@@ -1051,7 +1051,7 @@ struct ResultCard: View {
             if let note = model.replaceNote {
                 Text(note == .partial
                      ? L("只替换了读到的一段，整段请先全选", "Only the part read was replaced. Select all for the whole text", "読んだ部分だけ置き換えました。全体は全選択から")
-                     : L("输入框改过了，没有替换，可以点插入", "The text changed, so nothing was replaced. Try Insert", "入力欄が変わったため置き換えていません。挿入をどうぞ"))
+                     : L("输入框改过了，没有替换，可以改用插入", "The text changed, so nothing was replaced. Try Insert instead", "入力欄が変わったため置き換えていません。挿入をお使いください"))
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
