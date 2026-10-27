@@ -232,6 +232,9 @@ enum Provider: CaseIterable, Identifiable {
         }
     }
 
+    /// 选这个服务商时最大输出填多少。
+    var maxTokens: Int { self == .kimi ? 4096 : EnclaveSettings().maxTokens }
+
     static func detect(_ baseURL: String) -> Provider {
         if baseURL.contains("api.deepseek.com") { return .deepseek }
         if baseURL.contains("api.openai.com") { return .openai }
@@ -308,7 +311,14 @@ struct ModelSettingsView: View {
             Section {
                 Stepper(value: $store.settings.temperature, in: 0...1.5, step: 0.1) {
                     HStack {
-                        Text(L("温度", "Temperature", "温度"))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("温度", "Temperature", "温度"))
+                            if store.settings.usesFixedTemperature {
+                                Text(L("Kimi K 系列用固定温度，这里不生效", "Kimi K models use a fixed temperature. This has no effect.", "Kimi K シリーズは温度固定のため、ここは反映されません"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                         Spacer()
                         Text(store.settings.temperature, format: .number.precision(.fractionLength(1)))
                             .foregroundStyle(.secondary)
@@ -464,6 +474,9 @@ struct ModelSettingsView: View {
         if let preset = item.preset {
             store.settings.baseURL = preset.baseURL
             store.settings.model = preset.model
+            // 生成参数跟着预设走：温度回到默认；Kimi K3 先思考，思考也算在最大输出里，给 4096，其他家 1024。
+            store.settings.temperature = EnclaveSettings().temperature
+            store.settings.maxTokens = item.maxTokens
         }
     }
 

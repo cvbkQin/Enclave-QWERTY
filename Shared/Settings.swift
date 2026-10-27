@@ -288,3 +288,10 @@ extension EnclaveSettings {
         model = "deepseek-flash"
     }
 }
+
+extension EnclaveSettings {
+    /// Kimi 的 kimi-k 系列温度是固定的（填别的值会报错）：请求里不发温度，接口页的温度一行注明不生效。
+    var usesFixedTemperature: Bool {
+        baseURL.contains("moonshot.") && model.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("kimi-k")
+    }
+}

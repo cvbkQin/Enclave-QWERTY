@@ -51,9 +51,7 @@ struct LLMClient {
 
     /// 按服务商调整参数：Kimi（api.moonshot.cn / .ai）的 kimi-k 系列不发温度，K3 再加 reasoning_effort: low。
     private var kimiModel: String? {
-        let model = settings.model.trimmingCharacters(in: .whitespaces).lowercased()
-        guard settings.baseURL.contains("moonshot."), model.hasPrefix("kimi-k") else { return nil }
-        return model
+        settings.usesFixedTemperature ? settings.model.trimmingCharacters(in: .whitespaces).lowercased() : nil
     }
 
     private struct StreamChunk: Decodable {
