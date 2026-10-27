@@ -12,7 +12,11 @@ final class KeyboardModel: ObservableObject {
     /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
     @Published private(set) var copied = false
     /// 输入框太长、键盘只读到光标附近一段：替换只换了这一段，卡片上提示 4 秒。
-    @Published private(set) var partialReplace = false
+    /// 替换后卡片底部的一行提示：只替换了读到的一段 / 输入框改过了没替换。4 秒后消失。
+    @Published private(set) var replaceNote: ReplaceNote?
+    enum ReplaceNote { case partial, mismatch }
+    /// 发给 AI 的那段输入框文字在哪（不是选中时）。替换照它删，不在按替换时重算。
+    private var readSpan: FieldSpan?
     /// 键盘里拉起 App 失败：顶上提示 4 秒，请人自己打开 App。
     @Published private(set) var openAppFailed = false
     /// 结果卡片展开到五行。
@@ -194,7 +198,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 截图用：结果卡上的部分替换提示、顶上的打不开 App 提示，一直显示。
     func debugShowNotes(partial: Bool) {
-        if partial { partialReplace = true } else { openAppFailed = true }
+        if partial { replaceNote = .partial } else { openAppFailed = true }
     }
 
     /// 截图用：不经过 App 改结果卡左边那颗键的设置。
@@ -330,7 +334,7 @@ final class KeyboardModel: ObservableObject {
 
         guard checkCanCallModel() else { return }
 
-        var parsed = CommandParser.parse(readField().text)
+        var parsed = CommandParser.parse(readField(remember: true).text)
         // 卡片上显示的是手改过的一版：拿它当原文；否则读输入框此刻的内容。
         if let session, session.currentIsEdited, let edited = session.current {
             parsed.content = edited
@@ -864,12 +868,15 @@ final class KeyboardModel: ObservableObject {
 
     /// AI 读输入框：有选中读选中的；没选中时读光标前后系统给的那段，
     /// 超过 100 字（打开「处理长文本」时 200 字）只读光标前按整句截出来的一段（见 FieldSpan）。
-    func readField() -> (text: String, isSelection: Bool) {
+    /// remember：这次读到的就是要发给 AI 的那段，记下来，替换时照它删（见 readSpan）。
+    func readField(remember: Bool = false) -> (text: String, isSelection: Bool) {
         guard let proxy else { return ("", false) }
         if let selected = proxy.selectedText, !selected.isEmpty {
+            if remember { readSpan = nil }
             return (selected, true)
         }
         let span = fieldSpan(proxy)
+        if remember { readSpan = span }
         return (span.text, false)
     }
 
@@ -886,12 +893,18 @@ final class KeyboardModel: ObservableObject {
         let field = readField()
         if field.isSelection {
             proxy.insertText(text)
-        } else {
-            let partial = clearField(proxy)
-            proxy.insertText(text)
-            if partial { showPartialReplace() }
+            readSpan = FieldSpan(written: text)
+            recordEdit(inserted: text, original: field.text, use: .replaced)
+            return
         }
-        recordEdit(inserted: text, original: field.text, use: .replaced)
+        guard let cleared = clearField(proxy) else {
+            showReplaceNote(.mismatch)
+            return
+        }
+        proxy.insertText(text)
+        readSpan = FieldSpan(written: text)
+        if cleared.partial { showReplaceNote(.partial) }
+        recordEdit(inserted: text, original: cleared.removed, use: .replaced)
     }
 
     /// 在光标处插入当前版本。
@@ -906,6 +919,7 @@ final class KeyboardModel: ObservableObject {
         endCoach()
         guard let edit = undoStack.popLast(), let proxy else { return }
         swap(edit.inserted, for: edit.original, in: proxy)
+        if edit.use == .replaced { readSpan = FieldSpan(written: edit.original) }
         redoStack.append(edit)
         resultUse = nil
         resultUses.remove(edit.use)
@@ -916,6 +930,7 @@ final class KeyboardModel: ObservableObject {
         endCoach()
         guard let edit = redoStack.popLast(), let proxy else { return }
         swap(edit.original, for: edit.inserted, in: proxy)
+        if edit.use == .replaced { readSpan = FieldSpan(written: edit.inserted) }
         undoStack.append(edit)
         resultUse = edit.use
         resultUses.insert(edit.use)
@@ -965,26 +980,32 @@ final class KeyboardModel: ObservableObject {
     #endif
 
     /// iOS 没有「全选删除」接口：把光标移到末尾，再逐字删除。
-    /// 删掉这次读到的那段（FieldSpan）。返回删完后两边是否还有字：系统对长文本只给光标附近的一段，
+    /// 删掉发给 AI 的那段（readSpan），先核对光标前后还是它；对不上返回 nil。返回删完后两边是否还有字：系统对长文本只给光标附近的一段，
     /// 默认又只读光标前 100 字左右；没读到的部分不能跟着删，不然润色只看了一段、却把整段换掉，前后的字就丢了。
-    @discardableResult
-    private func clearField(_ proxy: UITextDocumentProxy) -> Bool {
-        let span = fieldSpan(proxy)
+    private func clearField(_ proxy: UITextDocumentProxy) -> (removed: String, partial: Bool)? {
+        let before = proxy.documentContextBeforeInput ?? ""
+        let after = proxy.documentContextAfterInput ?? ""
+        // 照发给 AI 时读到的那段删，不在这时重算：系统每次给的光标前文字长短不一，重算出来的起点会在句子间跳。
+        let span = readSpan.flatMap { $0.matches(before: before, after: after) ? $0 : nil }
+            ?? (readSpan == nil ? fieldSpan(proxy) : nil)
+        guard let span else { return nil }
         if span.afterCount > 0 {
             proxy.adjustTextPosition(byCharacterOffset: span.afterCount)
         }
         for _ in 0..<(span.beforeCount + span.afterCount) { proxy.deleteBackward() }
         let restBefore = proxy.documentContextBeforeInput ?? ""
         let restAfter = proxy.documentContextAfterInput ?? ""
-        return !restBefore.isEmpty || !restAfter.isEmpty
+        return (span.text, !restBefore.isEmpty || !restAfter.isEmpty)
     }
 
-    private func showPartialReplace() {
-        // 快速模式抽屉是收着的：展开给人看到这句提示。
+    /// partial：系统对长文本只给光标附近的一段，没读到的没动。mismatch：读完之后输入框被改过（光标挪了、又打了字），
+    /// 对不上发给 AI 的那段，不替换，免得删错地方。快速模式抽屉是收着的：展开给人看到这句提示。
+    private func showReplaceNote(_ note: ReplaceNote) {
         if !aiExpanded { setAIExpanded(true) }
-        withAnimation(.easeOut(duration: 0.15)) { partialReplace = true }
+        withAnimation(.easeOut(duration: 0.15)) { replaceNote = note }
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-            withAnimation(.easeIn(duration: 0.2)) { self?.partialReplace = false }
+            guard self?.replaceNote == note else { return }
+            withAnimation(.easeIn(duration: 0.2)) { self?.replaceNote = nil }
         }
     }
 

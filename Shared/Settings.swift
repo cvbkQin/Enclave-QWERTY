@@ -173,8 +173,10 @@ extension EnclaveSettings {
             styles = StylePreset.defaults
             selectedStyleID = nil
         }
-        // 默认那条以前叫「自动」（提示词为空），键盘上却显示「润色」：改名成「润色」，App 里和键盘上一致。
-        for index in styles.indices where styles[index].name == "自动" && styles[index].prompt.isEmpty {
+        // 默认那条以前叫「自动」，键盘上却显示「润色」：改名成「润色」，App 里和键盘上一致。
+        // 提示词改过、名字前后带空格的也改（0.81 只改了提示词为空的，有人键盘上还是「自动」）；已经有「润色」就不动。
+        if !styles.contains(where: { $0.name == "润色" }),
+           let index = styles.firstIndex(where: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) == "自动" }) {
             styles[index].name = "润色"
         }
         inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage

@@ -1048,8 +1048,10 @@ struct ResultCard: View {
         }
         .overlay { border(look) }
         .overlay(alignment: .bottom) {
-            if model.partialReplace {
-                Text(L("只替换了读到的一段，整段请先全选", "Only the part read was replaced. Select all for the whole text", "読んだ部分だけ置き換えました。全体は全選択から"))
+            if let note = model.replaceNote {
+                Text(note == .partial
+                     ? L("只替换了读到的一段，整段请先全选", "Only the part read was replaced. Select all for the whole text", "読んだ部分だけ置き換えました。全体は全選択から")
+                     : L("输入框改过了，没有替换，可以点插入", "The text changed, so nothing was replaced. Try Insert", "入力欄が変わったため置き換えていません。挿入をどうぞ"))
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -1132,7 +1134,7 @@ struct ResultCard: View {
 
     @ViewBuilder
     private func resultText(faded: Bool) -> some View {
-        let tag = model.isRunning ? Text("") : Text(Image(uiImage: AIGeneratedTag.image(dark: colorScheme == .dark))).baselineOffset(-3.5) + Text(" ")
+        let tag = model.isRunning ? Text("") : Text(Image(uiImage: AIGeneratedTag.image(dark: colorScheme == .dark))) + Text(" ")
         let text = tag + Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(runningColor)
         Group {
             if model.isRunning && model.displayText.isEmpty {
@@ -1514,6 +1516,7 @@ struct AIGeneratedTag: View {
     }
 
     /// 同一个标签画成图片，拼在正文第一行开头（QA5、QA6）：Text 里只能嵌图片，嵌不了视图。按深浅色、语言各画一次。
+    /// 图片高 14，坐在基线上不往下沉：baselineOffset 会把第一行撑高，高 18 也会，第一行和后面几行行距就不一样了。
     private static var images: [String: UIImage] = [:]
 
     static func image(dark: Bool) -> UIImage {
@@ -1524,17 +1527,17 @@ struct AIGeneratedTag: View {
             : UIColor(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255, alpha: 1)
         let ink = dark ? UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1)
             : UIColor(red: 0x6B / 255, green: 0x6B / 255, blue: 0x73 / 255, alpha: 1)
-        let font = UIFont.systemFont(ofSize: 10.5, weight: .semibold)
-        let star = UIImage(systemName: "sparkle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 9, weight: .semibold))?
+        let font = UIFont.systemFont(ofSize: 10, weight: .semibold)
+        let star = UIImage(systemName: "sparkle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 8.5, weight: .semibold))?
             .withTintColor(ink, renderingMode: .alwaysOriginal)
         let starWidth = star?.size.width ?? 0
         let textSize = (label as NSString).size(withAttributes: [.font: font])
-        let size = CGSize(width: ceil(6 + starWidth + 3 + textSize.width + 6), height: 18)
+        let size = CGSize(width: ceil(5 + starWidth + 3 + textSize.width + 5), height: 14)
         let image = UIGraphicsImageRenderer(size: size).image { _ in
             fill.setFill()
-            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 5).fill()
-            star?.draw(at: CGPoint(x: 6, y: (size.height - (star?.size.height ?? 0)) / 2))
-            (label as NSString).draw(at: CGPoint(x: 6 + starWidth + 3, y: (size.height - textSize.height) / 2),
+            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 4).fill()
+            star?.draw(at: CGPoint(x: 5, y: (size.height - (star?.size.height ?? 0)) / 2))
+            (label as NSString).draw(at: CGPoint(x: 5 + starWidth + 3, y: (size.height - textSize.height) / 2),
                                      withAttributes: [.font: font, .foregroundColor: ink])
         }
         images[key] = image

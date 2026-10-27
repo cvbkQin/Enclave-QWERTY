@@ -59,7 +59,7 @@ extension KeyboardModel {
         let question = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         // 卡片上是手改过的一版就拿它当原文，否则读输入框此刻的内容；输入框空就不带上下文。
         let edited = session?.currentIsEdited == true ? session?.current : nil
-        let context = edited ?? CommandParser.parse(readField().text).content
+        let context = edited ?? CommandParser.parse(readField(remember: true).text).content
         if edited == nil { dropSession(unlessItBelongsTo: context) }
         let pending = session ?? (context.isEmpty
             ? EditSession(mode: .write, original: question)

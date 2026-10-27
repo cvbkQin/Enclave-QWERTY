@@ -4,7 +4,8 @@ import Foundation
 /// 而且按完整的句子或段落截：往回最多看 150 字找句号、问号、换行这类断点，取不超过 100 字的最长一段整句；
 /// 100 字内没有断点就放宽到 150 字，再没有就退到逗号，实在没有才硬截 100 字。
 /// 光标前后加起来不到 100 字就全读（光标在中间也一样）。「处理长文本」打开时是 200 / 250 字。
-/// 替换时按 beforeCount / afterCount 删，读不到的字一个不动，撤销也能原样还原。
+/// 发给 AI 时记下这一段，替换时先核对光标前后还是它，再按 beforeCount / afterCount 删；不在替换时重算，
+/// 系统每次给的光标前文字长短不一，重算的起点会在句子之间跳。读不到的字一个不动，撤销也能原样还原。
 struct FieldSpan: Equatable {
     /// 平时 100 字、往回最多看 150 字；「处理长文本」打开时 200 / 250。
     static func limits(longText: Bool) -> (limit: Int, lookahead: Int) { longText ? (200, 250) : (100, 150) }
@@ -26,6 +27,23 @@ struct FieldSpan: Equatable {
         beforeCount = chars.count - start
         afterCount = 0
         text = String(chars[start...])
+    }
+
+    /// 刚写进去的一段（替换、撤销、重做之后光标正好在它末尾）：下次替换就删它。
+    init(written text: String) {
+        beforeCount = text.count
+        afterCount = 0
+        self.text = text
+    }
+
+    /// 输入框光标前后还是读到时的样子：光标前以这段的前半截结尾、光标后以后半截开头。
+    /// 系统这次给的光标前文字比读的时候短（只给了一截），只要给的这截都对得上也算。
+    func matches(before: String, after: String) -> Bool {
+        let head = String(text.prefix(beforeCount))
+        let tail = String(text.suffix(afterCount))
+        let beforeOK = before.hasSuffix(head) || (!before.isEmpty && head.hasSuffix(before))
+        let afterOK = after.hasPrefix(tail) || (!after.isEmpty && tail.hasPrefix(after))
+        return beforeOK && afterOK
     }
 
     private static let sentenceEnds: Set<Character> = ["。", "！", "？", "!", "?", "；", ";", "…", "\n", "\r"]
