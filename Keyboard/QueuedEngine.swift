@@ -110,11 +110,37 @@ final class QueuedEngine: InputEngine {
 
     // MARK: - 同步（先处理完排着的键）
 
+    /// 没在组字、也没有排着的键时，删除、选词、上屏、清空都不用碰引擎，直接返回，不等队列。
+    /// 冷启动时 Rime 还在后台启动，这时按删除、标点、切中英，连键盘弹出、收起时的清空，都会被 queue.sync 卡住，直到引擎准备好。
+    private var idle: Bool { pending == 0 && state.composition.isEmpty }
+
     func input(_ letter: String) -> String? { run { $0.input(letter) } }
-    func backspace() -> Bool { run { $0.backspace() } }
-    func select(_ index: Int) -> String? { run { $0.select(index) } }
-    func commitComposition() -> String? { run { $0.commitComposition() } }
-    func reset() { run { $0.reset() } }
+
+    func backspace() -> Bool {
+        guard !idle else { return false }
+        return run { $0.backspace() }
+    }
+
+    func select(_ index: Int) -> String? {
+        guard !idle else { return nil }
+        return run { $0.select(index) }
+    }
+
+    func commitComposition() -> String? {
+        guard !idle else { return nil }
+        return run { $0.commitComposition() }
+    }
+
+    func reset() {
+        guard idle else {
+            run { $0.reset() }
+            return
+        }
+        // 排在后面清一下就行，主线程不等。
+        state = Snapshot()
+        queue.async { [inner] in inner.reset() }
+    }
+
     func replaceInput(_ raw: String) { run { $0.replaceInput(raw) } }
 
     func loadMoreCandidates() {

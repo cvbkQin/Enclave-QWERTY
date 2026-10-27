@@ -14,13 +14,14 @@ enum RimeStore {
         let user: URL
     }
 
-    static var paths: Paths? {
+    /// 共享容器的位置不会变，只算一次：键盘每次弹出要查好几遍（有没有词库、联想数据在哪），containerURL 每次都要问系统。
+    static let paths: Paths? = {
         guard SharedStorage.isShared, let id = SharedStorage.appGroupID,
               let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: id) else { return nil }
         let root = container.appendingPathComponent("Rime", isDirectory: true)
         return Paths(shared: root.appendingPathComponent("shared", isDirectory: true),
                      user: root.appendingPathComponent("user", isDirectory: true))
-    }
+    }()
 
     private static let deployedVersionKey = "rime.deployedVersion"
 
@@ -32,7 +33,8 @@ enum RimeStore {
 
     /// 键盘自带的编译好的词库（RimeBuild/build 是 librime 的预编译目录），配上扩展自己容器里的用户目录。
     /// 没开完全访问、读不到共享目录时用这一份，打字照常能用，学到的词频先存在扩展自己这边。
-    static var bundled: (paths: Paths, version: String)? {
+    /// 只算一次：引擎每个按键都要确认一遍词库位置，不用每次都建目录、读版本文件。
+    static let bundled: (paths: Paths, version: String)? = {
         guard let root = Bundle.main.url(forResource: "RimeBuild", withExtension: nil),
               let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         else { return nil }
@@ -45,7 +47,7 @@ enum RimeStore {
         let version = (try? String(contentsOf: root.appendingPathComponent("data_version.txt"), encoding: .utf8))?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? "bundled"
         return (Paths(shared: root, user: user), version)
-    }
+    }()
 
     /// 编译好的方案文件在不在。
     static var isDeployed: Bool {

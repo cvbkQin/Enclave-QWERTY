@@ -14,6 +14,9 @@ struct EditSession: Codable, Equatable {
     var conversation: [ChatMessage] = []
     /// 用户在卡片里手改后存下的版本序号，卡片上标「已改」。旧数据里没有这一项。
     var editedVersions: [Int]?
+    /// 「识意」生成的版本序号，其中 answerVersions 是回答（不是可以直接发出去的正文）。卡片按它画边框颜色。旧数据里没有。
+    var askVersions: [Int]?
+    var answerVersions: [Int]?
 
     var current: String? {
         versions.indices.contains(currentIndex) ? versions[currentIndex] : nil
@@ -26,6 +29,26 @@ struct EditSession: Codable, Equatable {
         versions.append(version)
         currentIndex = versions.count - 1
         if edited { editedVersions = (editedVersions ?? []) + [currentIndex] }
+    }
+
+    /// 正在显示的是「识意」的回答 / 「识意」改写的一版。
+    var currentIsAnswer: Bool { answerVersions?.contains(currentIndex) ?? false }
+    var currentIsAsk: Bool { askVersions?.contains(currentIndex) ?? false }
+
+    /// 「识意」的结果：replacingLast 时顶掉最后一版（同一句换了方式重做），否则接在后面。
+    mutating func appendAsk(_ version: String, answer: Bool, replacingLast: Bool) {
+        if replacingLast, !versions.isEmpty {
+            let last = versions.count - 1
+            versions[last] = version
+            editedVersions?.removeAll { $0 == last }
+            answerVersions?.removeAll { $0 == last }
+            currentIndex = last
+        } else {
+            versions.append(version)
+            currentIndex = versions.count - 1
+        }
+        if !(askVersions ?? []).contains(currentIndex) { askVersions = (askVersions ?? []) + [currentIndex] }
+        if answer { answerVersions = (answerVersions ?? []) + [currentIndex] }
     }
 
     /// 输入框里的文字是否还是这次会话的内容：包含原话或任一版本。

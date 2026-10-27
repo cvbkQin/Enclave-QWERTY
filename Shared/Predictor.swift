@@ -17,6 +17,13 @@ enum Predictor {
     }
     private static let spaceChainKey = "prediction.spaceChain"
 
+    /// 英文单词补全和下一个词联想（数据随键盘内置，不用下载）。
+    static var englishEnabled: Bool {
+        get { SharedStorage.defaults.object(forKey: englishKey) as? Bool ?? true }
+        set { SharedStorage.defaults.set(newValue, forKey: englishKey) }
+    }
+    private static let englishKey = "prediction.english"
+
     static var isEnabled: Bool {
         get { SharedStorage.defaults.object(forKey: enabledKey) as? Bool ?? true }
         set { SharedStorage.defaults.set(newValue, forKey: enabledKey) }
@@ -30,18 +37,35 @@ enum Predictor {
         lock.unlock()
         if same { return }
         queue.async {
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else { return }
-            var result: [String: [String]] = [:]
-            result.reserveCapacity(20000)
-            for line in text.split(separator: "\n") {
-                guard let tab = line.firstIndex(of: "\t") else { continue }
-                result[String(line[..<tab])] = line[line.index(after: tab)...].split(separator: " ").map(String.init)
-            }
+            guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return }
+            let result = parseTable(data, capacity: 20000)
             lock.lock()
             table = result
             loadedFrom = url
             lock.unlock()
         }
+    }
+
+    /// 收到内存警告、又在打英文用不上联想时放掉表，下次弹出键盘再读。
+    static func unload() {
+        lock.lock()
+        table = [:]
+        loadedFrom = nil
+        lock.unlock()
+    }
+
+    /// 读「词 \t 后面的词（空格隔开）」一行一条的表。按字节切，不按 Character：
+    /// String.split 按字符切要逐个判断字形边界，几万行的表在键盘冷启动时要多花好几倍的时间。
+    static func parseTable(_ data: Data, capacity: Int) -> [String: [String]] {
+        var result = [String: [String]](minimumCapacity: capacity)
+        data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            for line in raw.split(separator: 0x0A) {
+                guard let tab = line.firstIndex(of: 0x09) else { continue }
+                let words = line[line.index(after: tab)...].split(separator: 0x20).map { String(decoding: $0, as: UTF8.self) }
+                result[String(decoding: line[..<tab], as: UTF8.self)] = words
+            }
+        }
+        return result
     }
 
     /// 刚上屏的字后面常跟什么。整段对不上就看它最后几个字（「我们今天」按「今天」联想）。

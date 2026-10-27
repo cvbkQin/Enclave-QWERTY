@@ -109,7 +109,7 @@ extension KeyboardModel {
         if layer != .letters && layer != .digits { layer = .letters }
     }
 
-    /// 组字时回车把字母原样上屏；在要求框里回车就是「执行」。
+    /// 组字时回车把字母原样上屏；在识意框里回车就是 ✨。
     func returnKey() {
         if isComposing {
             if let raw = engine.commitComposition() { commit(raw) }
@@ -119,7 +119,7 @@ extension KeyboardModel {
         switch target {
         case .host: proxy?.insertText("\n")
         case .instruction:
-            menuPolishTapped()
+            askTapped(askButtonMode)
         case .card:
             commit("\n")
         }
@@ -146,6 +146,7 @@ extension KeyboardModel {
     /// 点了联想词：上屏，再接着联想它后面的词。
     func selectPrediction(_ index: Int) {
         guard predictions.indices.contains(index) else { return }
+        if !chineseMode { return selectEnglishSuggestion(index) }
         let word = predictions[index]
         commit(word)
         // 点联想词省掉的字数（首页「联想帮你少打了 N 个字」）。
@@ -162,10 +163,19 @@ extension KeyboardModel {
 
     var layoutState: KeyLayout.State {
         KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
+                        englishOnly: settings.inputLanguage == .englishOnly,
                         composing: isComposing, digitsMore: digitsMore)
     }
 
     func perform(_ kind: KeyKind) {
+        // 英文的补全和联想每按一个键重新算（删除照常删字，空格照常打空格）。
+        if !chineseMode {
+            learnCurrentEnglishWord(before: kind)
+            performKey(kind)
+            // 切回中文时英文的候选不留。
+            if chineseMode { dismissPredictions() } else { updateEnglishSuggestions() }
+            return
+        }
         if showsPredictions {
             switch kind {
             // 有联想时：删除只收起联想，不删字；开了「空格连续联想」时空格上屏第一个联想词。
@@ -180,6 +190,11 @@ extension KeyboardModel {
         }
         // 按了别的键：联想收起（打字母时候选栏换成拼音候选）。
         dismissPredictions()
+        performKey(kind)
+        if !chineseMode { updateEnglishSuggestions() }
+    }
+
+    private func performKey(_ kind: KeyKind) {
         switch kind {
         case .letter(let letter): typeLetter(letter)
         case .symbol(let symbol): typeSymbol(symbol)
@@ -285,6 +300,8 @@ extension KeyboardModel {
     }
 
     func toggleChinese() {
+        // 只用英文时没有中文；九宫格布局菜单之类的入口也不切过去。
+        if !chineseMode && settings.inputLanguage == .englishOnly { return }
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         chineseMode.toggle()
@@ -292,6 +309,19 @@ extension KeyboardModel {
         if layer == .digits { switchLayer(.letters) }
         selectEngine()
         if chineseMode { shift = .off } else { updateAutoShift() }
+    }
+
+    /// 键盘弹出时按「主要语言」定中英：英文为主、只用英文每次都从英文开始；
+    /// 中文保持上次的状态，只在刚从英文设置改回中文时切回中文。
+    func applyInputLanguage() {
+        let language = settings.inputLanguage
+        defer { appliedLanguage = language }
+        switch language {
+        case .englishFirst, .englishOnly:
+            if chineseMode { toggleChinese() }
+        case .chinese:
+            if appliedLanguage != nil, appliedLanguage != .chinese, !chineseMode { toggleChinese() }
+        }
     }
 
     /// 九宫格只用于中文拼音；英文模式和拼音不可用时用全键盘。
@@ -504,10 +534,11 @@ extension KeyboardModel {
     }
     #endif
 
-    /// 系统内存警告：只记下次数。试过关掉 Rime 引擎，实测只省 0.2–0.4MB（词典和整句模型是文件映射，本来就不算进占用），
-    /// 还要丢掉正在拼的内容，不值得。
+    /// 系统内存警告：记下次数，放掉眼下用不上的那份联想表（各几 MB），少被系统杀掉，下次弹出就少一次冷启动。
+    /// 不关 Rime 引擎：试过，实测只省 0.2–0.4MB（词典和整句模型是文件映射，本来就不算进占用），还要丢掉正在拼的内容。
     func noteMemoryWarning() {
         TypingStats.noteMemoryWarning()
+        if chineseMode { EnglishPredictor.unload() } else { Predictor.unload() }
     }
 
     /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。
@@ -537,6 +568,11 @@ extension KeyboardModel {
             #if DEBUG
             KeyboardProbe.run(fullAccess: useShared, pinyinReady: ok, source: source)
             #endif
+            // 联想数据等拼音引擎启动完再读：冷启动时两边一起读词库，抢 CPU 和磁盘，键盘出来得慢。
+            if ok {
+                TypingStats.noteLaunchEngineReady()
+                Predictor.prepare()
+            }
             guard let self, !ok, self.pinyinReady else { return }
             // 词库其实读不出来：退回直接打字母。
             self.pinyinReady = false
@@ -587,47 +623,6 @@ extension KeyboardModel {
         aiExpanded = expanded
     }
 
-    /// 点「正式▾」：打开或关上风格浮层（只有这里能收起）。打开时光标进要求框，回车键变「执行」；关上回到原输入框。
-    func toggleStyleMenu() {
-        endCoach()
-        if target == .card { finishCardEdit() }
-        finishComposition()
-        styleMenuOpen.toggle()
-        target = styleMenuOpen ? .instruction : .host
-    }
-
-    /// 浮层里的「润色」：按选好的风格和要求开始改。浮层不收起，只有再点「正式▾」才收。
-    /// 面板收起时是快速模式，润完直接替换输入框（AI 栏上流光）；展开时进结果卡片，等替换或插入。
-    func menuPolishTapped() {
-        guard passGate(then: { [weak self] in self?.menuPolishTapped() }) else { return }
-        #if DEBUG
-        if debugFakeRun { coachTapped(.run); fakeCoachRun(); return }
-        #endif
-        coachTapped(.run)
-        if target == .card { finishCardEdit() }
-        finishComposition()
-        guard !aiExpanded else {
-            start(from: .rerun) { regenerate() }
-            return
-        }
-        beginQuickMode(source: readField().text)
-        start(from: .rerun) { regenerate() }
-        if !isRunning {
-            quickSource = nil
-            clearQuickStatus()
-            setAIExpanded(true)
-        }
-    }
-
-    /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
-    func toggleInstructionEditing() {
-        endCoach()
-        // 同一时间只有一处接收打字：正在改卡片就先保存，焦点给要求框。
-        if target == .card { finishCardEdit() }
-        finishComposition()
-        target = target == .instruction ? .host : .instruction
-    }
-
     /// 把正在拼的字母原样上屏，然后清空引擎。
     func finishComposition() {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
@@ -651,9 +646,12 @@ extension KeyboardModel {
     }
 
     func syncEngine() {
-        composition = engine.composition
-        candidates = engine.candidates
-        if candidates.isEmpty { candidatesExpanded = false }
+        // 没变的不设：@Published 设一次就让整个键盘重画一遍。
+        let newComposition = engine.composition
+        if newComposition != composition { composition = newComposition }
+        let newCandidates = engine.candidates
+        if newCandidates != candidates { candidates = newCandidates }
+        if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
         if target == .host && isComposing {
             proxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
@@ -670,14 +668,16 @@ extension KeyboardModel {
         hasMarkedText = false
     }
 
-    /// 英文模式在句首自动大写，和系统一样。
+    /// 英文模式在句首自动大写，和系统一样；设置里关掉时不动 shift。
     func updateAutoShift() {
-        guard !chineseMode, target == .host, layer == .letters, shift != .locked else { return }
+        guard settings.autoCapitalize, !chineseMode, target == .host, layer == .letters, shift != .locked else { return }
         let before = proxy?.documentContextBeforeInput ?? ""
         let trimmed = before.trimmingCharacters(in: .whitespaces)
         let sentenceStart = trimmed.isEmpty || before.hasSuffix("\n")
             || (before.hasSuffix(" ") && [".", "?", "!"].contains(trimmed.last.map(String.init) ?? ""))
-        shift = sentenceStart ? .on : .off
+        let wanted: ShiftState = sentenceStart ? .on : .off
+        // 没变就不设（同 syncEngine），英文打字时每个键都会走到这里。
+        if shift != wanted { shift = wanted }
     }
 }
 
@@ -744,7 +744,8 @@ extension KeyboardModel {
             case "digits": layer = .digits
             case "digitsMore": layer = .digits; digitsMore = true
             case "english": if chineseMode { toggleChinese() }
-            case "instruction", "menu": styleMenuOpen = true; target = .instruction
+            case "prompts": aiRow = .prompts
+            case "instruction", "menu": aiRow = .ask; target = .instruction
             case "cardExpanded": aiExpanded = true; cardExpanded = true
             #if DEBUG
             case "versions": aiExpanded = true; debugUnblocked = true; loadDebugVersions()
@@ -754,12 +755,22 @@ extension KeyboardModel {
                 aiExpanded = true; debugUnblocked = true; loadDebugVersions()
                 beginCardEdit(); insertInCard("周五补上进度。"); finishCardEdit()
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
+            case "ask", "askEmpty", "askSelected", "askRewrite", "askAnswerMode", "askAnswer", "askRewriteResult", "askRunning":
+                loadDebugAsk(option)
+            case "askHold": debugAskHold = true
+            // 结果卡左边的键：key:insert 默认插入，key:down 滚轮下滑，key:pop 弹出；key:rolled / key:popped 停在换过去的样子。
+            case "key:insert": debugResultKey(primary: .insert)
+            case "key:down": debugResultKey(swipe: .wheel, wheelUp: false)
+            case "key:pop": debugResultKey(swipe: .pop)
+            case "key:rolled", "key:popped": debugResultKeyPose = String(option.dropFirst(4))
+            // 截图用：替换后「只替换了读到的一段」、拉起 App 失败的提示，停住不消失。
+            case "partialReplace": aiExpanded = true; debugUnblocked = true; loadDebugVersions(); debugShowNotes(partial: true)
+            case "openAppFailed": debugShowNotes(partial: false)
+            case "quotaUsed": debugShowGate(.quotaUsed)
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
             case "quick:cycle": loadDebugQuickCycle()
-            case "rerun:running": loadDebugRerun(cycle: false)
-            case "rerun:cycle": loadDebugRerun(cycle: true)
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "quickWords": keysPanel = .quickWords
@@ -798,5 +809,75 @@ extension KeyboardModel {
             if parts.count > 2 { cross?.selected = directions[parts[2]] }
         }
         #endif
+    }
+}
+
+// MARK: - 英文补全和联想
+
+extension KeyboardModel {
+    /// 光标前正在打的英文单词（字母和撇号）。
+    private var currentEnglishWord: Substring {
+        let before = proxy?.documentContextBeforeInput ?? ""
+        return before.suffix { $0.isASCII && ($0.isLetter || $0 == "'") }
+    }
+
+    /// 英文状态下：正在打一个词时给补全；刚打完一个词加空格时给它后面常跟的词。
+    func updateEnglishSuggestions() {
+        guard !chineseMode, target == .host, layer == .letters, Predictor.englishEnabled,
+              hostKeyboardType != .URL, hostKeyboardType != .emailAddress else {
+            predictionReplaces = 0
+            dismissPredictions()
+            return
+        }
+        EnglishPredictor.prepare()
+        let before = proxy?.documentContextBeforeInput ?? ""
+        let word = before.suffix { $0.isASCII && ($0.isLetter || $0 == "'") }
+        var words: [String] = []
+        var replaces = 0
+        if !word.isEmpty {
+            words = EnglishPredictor.complete(String(word))
+            replaces = word.count
+        } else if before.hasSuffix(" ") {
+            let previous = before.dropLast().suffix { $0.isASCII && ($0.isLetter || $0 == "'") }
+            if !previous.isEmpty { words = EnglishPredictor.next(after: String(previous)) }
+        }
+        predictionReplaces = replaces
+        if words != predictions { predictions = words }
+    }
+
+    /// 点了英文补全或联想：换掉正在打的半个词，补上空格，接着联想下一个词。
+    func selectEnglishSuggestion(_ index: Int) {
+        let word = predictions[index]
+        for _ in 0..<predictionReplaces { proxy?.deleteBackward() }
+        commit(word + " ")
+        EnglishPredictor.learn(word)
+        DailyStats.add("prediction.tapped")
+        DailyStats.add("prediction.chars", max(word.count - predictionReplaces, 0))
+        predictionReplaces = 0
+        updateEnglishSuggestions()
+    }
+
+    /// 打完一个词（按了空格、标点、换行）：记住这个词，下次补全排前面。
+    func learnCurrentEnglishWord(before kind: KeyKind) {
+        switch kind {
+        case .space, .symbol, .returnKey: break
+        default: return
+        }
+        guard target == .host else { return }
+        let word = currentEnglishWord
+        if word.count >= 2 { EnglishPredictor.learn(String(word)) }
+    }
+}
+
+private extension StringProtocol {
+    /// 末尾连续满足条件的那一段（标准库只有 prefix(while:)）。
+    func suffix(while predicate: (Character) -> Bool) -> SubSequence {
+        var start = endIndex
+        while start > startIndex {
+            let previous = index(before: start)
+            guard predicate(self[previous]) else { break }
+            start = previous
+        }
+        return self[start...]
     }
 }

@@ -98,6 +98,13 @@ final class RimeEngine: InputEngine {
         return true
     }
 
+    /// 按键时用：词库换没换在每次弹出时（prepare(schema:)）已经查过，这里只看会话还在不在，
+    /// 不再每个键都读共享存储、查方案文件在不在。
+    private func ensureSession() -> Bool {
+        if loadedVersion != nil, session != 0, enclave_rime_session_alive(session) { return true }
+        return prepare()
+    }
+
     /// 新会话先拼一个字母再清掉：词典和方案在这时读进内存，用户的第一个键就不用等。
     private func warmUp() {
         enclave_rime_process_key(session, 0x6e, 0) // n
@@ -109,7 +116,7 @@ final class RimeEngine: InputEngine {
     }
 
     func input(_ letter: String) -> String? {
-        guard prepare() else { return letter }
+        guard ensureSession() else { return letter }
         var handled = false
         for scalar in letter.unicodeScalars {
             handled = enclave_rime_process_key(session, Int32(scalar.value), 0) || handled

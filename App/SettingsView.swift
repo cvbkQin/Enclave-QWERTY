@@ -101,7 +101,14 @@ struct SettingsView: View {
                 // 键盘、拼音词库和常用词从首页进。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
-                        DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
+                        // 测过并且失败时 AI 这一步不算完成，和设置向导页一致。
+                        let left = Readiness.remainingSteps(apiConfigured: store.settings.isConfigured && store.lastTestOK != false)
+                        HStack(spacing: 12) {
+                            DashRow(icon: "questionmark.circle", color: DashColor.ai, title: L("设置向导", "Setup guide", "設定ガイド"))
+                            Text(left == 0 ? L("已完成", "Done", "完了") : L("还差 \(left) 步", "\(left) left", "あと \(left) ステップ"))
+                                .foregroundStyle(left == 0 ? Color.secondary : Color(hex: 0xD97706))
+                                .lineLimit(1)
+                        }
                     }
                     NavigationLink(value: AppRouter.SettingsPage.playground) {
                         DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
@@ -130,13 +137,7 @@ struct SettingsView: View {
                 case .keyboard: KeyboardSettingsView()
                 case .fuzzy: FuzzyPinyinView()
                 case .pinyin: PinyinView()
-                case .guide:
-                    ScrollView {
-                        OnboardingSteps().padding(16)
-                    }
-                    .background(Color(.systemGroupedBackground))
-                    .navigationTitle(L("开启键盘指南", "Keyboard setup guide", "キーボードの設定ガイド"))
-                    .navigationBarTitleDisplayMode(.inline)
+                case .guide: SetupWizardView()
                 case .playground: LabView()
                 case .privacy: PrivacyView()
                 case .about: AboutView()
@@ -162,13 +163,31 @@ enum ProviderName {
 }
 
 /// 常用服务商，选了自动填地址和模型。
-/// 中国大陆店面不列 OpenAI（没有在国内备案），换成已备案的通义千问；其他地区不变。
+/// 中国大陆店面只列已备案的 DeepSeek、Kimi、通义千问，加上跑在自己电脑上的 Ollama；没有「自定义」卡片，
+/// 自己改了地址或模型就四个都不选中，算自定义。其他地区不变。
 enum Provider: CaseIterable, Identifiable {
-    case deepseek, openai, qwen, ollama, custom
+    case deepseek, openai, kimi, qwen, ollama, custom
 
     /// 服务商卡片按这个顺序排，2×2。
     static var shown: [Provider] {
-        Storefront.isMainlandChina ? [.deepseek, .qwen, .ollama, .custom] : [.deepseek, .openai, .ollama, .custom]
+        Storefront.isMainlandChina ? [.deepseek, .kimi, .qwen, .ollama] : [.deepseek, .openai, .ollama, .custom]
+    }
+
+    /// 现在填的地址和模型对得上哪个预设：地址和模型都和预设一样才算；Ollama 只认 11434 端口（IP 本来就要改）。
+    /// 对不上时大陆店面返回 nil（四个都不选中），其他地区返回「自定义」。
+    static func matching(baseURL: String, model: String) -> Provider? {
+        func trimmed(_ text: String) -> String {
+            var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            while text.hasSuffix("/") { text.removeLast() }
+            return text
+        }
+        let found = shown.first { provider in
+            if provider == .ollama { return baseURL.contains(":11434") }
+            guard let preset = provider.preset else { return false }
+            return trimmed(baseURL) == preset.baseURL && trimmed(model) == preset.model
+        }
+        if let found { return found }
+        return shown.contains(.custom) ? .custom : nil
     }
 
     var id: Self { self }
@@ -177,6 +196,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return "DeepSeek"
         case .openai: return "OpenAI"
+        case .kimi: return "Kimi"
         case .qwen: return L("通义千问", "Qwen", "Qwen")
         case .ollama: return "Ollama"
         case .custom: return L("自定义", "Custom", "カスタム")
@@ -187,6 +207,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return "api.deepseek.com"
         case .openai: return "api.openai.com"
+        case .kimi: return "api.moonshot.cn"
         case .qwen: return "dashscope.aliyuncs.com"
         case .ollama: return L("局域网的电脑", "A computer on your network", "ローカルネットのPC")
         case .custom: return "vLLM、LM Studio"
@@ -197,6 +218,7 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-flash")
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
+        case .kimi: return ("https://api.moonshot.cn/v1", "moonshot-v1-8k")
         case .qwen: return ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
@@ -206,6 +228,7 @@ enum Provider: CaseIterable, Identifiable {
     static func detect(_ baseURL: String) -> Provider {
         if baseURL.contains("api.deepseek.com") { return .deepseek }
         if baseURL.contains("api.openai.com") { return .openai }
+        if baseURL.contains("api.moonshot.cn") { return .kimi }
         if baseURL.contains("dashscope.aliyuncs.com") { return .qwen }
         if baseURL.contains(":11434") { return .ollama }
         return .custom
@@ -217,7 +240,6 @@ struct ModelSettingsView: View {
     @EnvironmentObject private var router: AppRouter
     /// 没同意隐私政策时点「测试」：和键盘里的锁卡片一样，先去同意。
     @State private var needsPrivacy = false
-    @State private var provider: Provider = .custom
     @State private var importResult: Bool?
     @State private var recent: [UsageStats.Request] = []
     /// 测试连接成功、这个地址还没同意过时弹出的确认（P05）。
@@ -247,11 +269,16 @@ struct ModelSettingsView: View {
                         .padding(.leading, 16)
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                         ForEach(Provider.shown) { item in
-                            ProviderCard(provider: item, selected: provider == item) { choose(item) }
+                            ProviderCard(provider: item, selected: selectedProvider == item) { choose(item) }
                         }
                     }
                 }
                 .dashFormCard()
+            } footer: {
+                if Storefront.isMainlandChina {
+                    // 审核和合规：国区只列已完成生成式人工智能服务备案的模型；App 自己不提供模型。
+                    Text("DeepSeek（杭州深度求索人工智能基础技术研究有限公司）、Kimi（北京月之暗面科技有限公司）、通义千问（阿里云）均已完成生成式人工智能服务备案。Ollama 在你自己的电脑上运行。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
+                }
             }
             Section {
                 LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
@@ -266,8 +293,10 @@ struct ModelSettingsView: View {
             } header: {
                 Text(L("连接", "Connection", "接続"))
             } footer: {
-                Text(provider == .ollama
+                Text(selectedProvider == .ollama
                      ? L("把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。", "Replace the IP with the local address of the computer running Ollama. The URL ends with /v1. ", "IP を Ollama を動かしているパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
+                     : Storefront.isMainlandChina
+                     ? L("选一个服务商会自动填好地址和模型。也可以直接改地址和模型，改了就算自定义，上面不再选中。地址填到 /v1。", "Pick a provider to fill in the URL and model, or edit them yourself to use something else. The URL ends with /v1. ", "サービスを選ぶと URL とモデルが入力されます。自分で書き換えるとカスタム扱いになります。URL は /v1 までです。")
                      : L("选一个服务商会自动填好地址。自建 Ollama / vLLM / LM Studio 选「自定义」，地址填到 /v1。", "Pick a provider to fill in the URL. For self-hosted Ollama, vLLM or LM Studio, choose Custom. The URL ends with /v1. ", "サービスを選ぶと URL が入力されます。セルフホストの Ollama / vLLM / LM Studio は「カスタム」を選び、URL は /v1 までです。"))
                     + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
             }
@@ -311,7 +340,6 @@ struct ModelSettingsView: View {
             Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
         }
         .onAppear {
-            provider = Provider.detect(store.settings.baseURL)
             recent = UsageStats.polishRecent
         }
         .onChange(of: store.test) { _ in recent = UsageStats.polishRecent }
@@ -346,7 +374,8 @@ struct ModelSettingsView: View {
                 Spacer(minLength: 8)
             }
             HStack(alignment: .firstTextBaseline) {
-                if let seconds = lastSeconds {
+                // 没配置时旧的请求记录不算数，不显示。
+                if store.settings.isConfigured, let seconds = lastSeconds {
                     DashBigNumber(value: String(format: "%.1f", seconds),
                                   unit: lastFailed ? L("秒 · 最近一次失败", "s · last request failed", "秒・直近は失敗") : L("秒 · 最近一次", "s · last request", "秒・直近"))
                         .foregroundStyle(lastFailed ? Color.secondary : Color.primary)
@@ -374,8 +403,10 @@ struct ModelSettingsView: View {
                 .buttonStyle(.plain)
                 .disabled(!store.settings.isConfigured || store.test == .running)
             }
-            DashSparkline(values: recent.map { Double($0.ms) }, color: recent.allSatisfy(\.ok) ? DashColor.ok : .orange)
-            Text(recentSummary).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+            if store.settings.isConfigured {
+                DashSparkline(values: recent.map { Double($0.ms) }, color: recent.allSatisfy(\.ok) ? DashColor.ok : .orange)
+                Text(recentSummary).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+            }
         }
     }
 
@@ -418,12 +449,17 @@ struct ModelSettingsView: View {
         return model.isEmpty ? head : head + " · " + model
     }
 
+    /// 卡片选中哪个跟着地址和模型走：自己改过就不选中预设。
+    private var selectedProvider: Provider? {
+        Provider.matching(baseURL: store.settings.baseURL, model: store.settings.model)
+    }
+
     private func choose(_ item: Provider) {
-        if item != provider, let preset = item.preset {
+        guard item != selectedProvider else { return }
+        if let preset = item.preset {
             store.settings.baseURL = preset.baseURL
             store.settings.model = preset.model
         }
-        provider = item
     }
 
     private func importConfig() {
@@ -432,7 +468,6 @@ struct ModelSettingsView: View {
             return
         }
         store.reload()
-        provider = Provider.detect(store.settings.baseURL)
         importResult = true
     }
 }
@@ -484,6 +519,8 @@ private struct LabeledField: View {
 
 struct KeyboardSettingsView: View {
     @EnvironmentObject private var store: AppStore
+    /// 打开「处理长文本」前的二次确认。
+    @State private var confirmLongText = false
 
     var body: some View {
         Form {
@@ -494,37 +531,68 @@ struct KeyboardSettingsView: View {
                     NotSyncedBanner().dashFormCard()
                 }
             }
+            // 主要语言（EM1/EM2）：小标题 + 白卡里的三段选择，脚注随选项变。
             Section {
             } header: {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(L("中文布局", "Chinese layout", "中国語の配列"))
+                    Text(L("主要语言", "Primary language", "主な言語"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.leading, 16)
-                    HStack(spacing: 12) {
-                        ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
-                            LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout) {
-                                store.settings.keyboardLayout = layout
-                            }
-                        }
+                    Picker(L("主要语言", "Primary language", "主な言語"), selection: $store.settings.inputLanguage) {
+                        ForEach(InputLanguage.allCases) { Text($0.title).tag($0) }
                     }
+                    .pickerStyle(.segmented)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
                 }
                 .dashFormCard()
             } footer: {
-                Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
+                Text(languageFooter)
             }
-            Section(L("拼音", "Pinyin", "ピンイン")) {
-                NavigationLink(value: AppRouter.SettingsPage.fuzzy) {
-                    HStack {
-                        Text(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
-                        Spacer()
-                        Text(store.settings.fuzzyPinyin.isEmpty ? L("未开启", "Off", "オフ") : L("已开 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) on", "\(store.settings.fuzzyPinyin.count) 組オン"))
+            if store.settings.inputLanguage != .englishOnly {
+                Section {
+                } header: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L("中文布局", "Chinese layout", "中国語の配列"))
+                            .font(.footnote)
                             .foregroundStyle(.secondary)
+                            .padding(.leading, 16)
+                        HStack(spacing: 12) {
+                            ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
+                                LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout) {
+                                    store.settings.keyboardLayout = layout
+                                }
+                            }
+                        }
+                    }
+                    .dashFormCard()
+                } footer: {
+                    Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
+                }
+                Section(L("拼音", "Pinyin", "ピンイン")) {
+                    NavigationLink(value: AppRouter.SettingsPage.fuzzy) {
+                        HStack {
+                            Text(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
+                            Spacer()
+                            Text(store.settings.fuzzyPinyin.isEmpty ? L("未开启", "Off", "オフ") : L("已开 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) on", "\(store.settings.fuzzyPinyin.count) 組オン"))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    PredictionToggle()
+                }
+            }
+            Section(L("英文", "English", "英語")) {
+                EnglishSuggestionsToggle()
+                Toggle(isOn: $store.settings.autoCapitalize) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("句首自动大写", "Auto-capitalization", "文頭を自動で大文字に"))
+                        Text(L("句子开头的第一个字母自动大写", "Capitalizes the first letter of each sentence", "文の最初の文字を自動で大文字にします"))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                PredictionToggle()
             }
-            TouchCalibrationSection(layout: store.settings.keyboardLayout)
+            TouchCalibrationSection(layout: store.settings.inputLanguage == .englishOnly ? .qwerty : store.settings.keyboardLayout)
             Section(L("按键反馈", "Key feedback", "キーのフィードバック")) {
                 Toggle(L("按键震动", "Haptics", "触覚"), isOn: $store.settings.keyHaptics)
                 Toggle(isOn: $store.settings.keySound) {
@@ -533,6 +601,79 @@ struct KeyboardSettingsView: View {
                         Text(L("手机静音时不响", "Silent when the iPhone is muted", "消音モードでは鳴りません")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
+            }
+            Section {
+            } header: {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("结果卡左边的按钮", "Button beside the result", "結果の左のボタン"))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 16)
+                    HStack(spacing: 12) {
+                        ForEach(ResultKeyAction.allCases) { action in
+                            ResultKeyCard(action: action, settings: store.settings,
+                                          selected: store.settings.resultKeyPrimary == action) {
+                                store.settings.resultKeyPrimary = action
+                            }
+                        }
+                    }
+                }
+                .dashFormCard()
+            } footer: {
+                Text(resultKeyFooter)
+            }
+            Section {
+                HStack {
+                    Text(L("滑动方式", "Swipe style", "スワイプ方法"))
+                    Picker(L("滑动方式", "Swipe style", "スワイプ方法"), selection: $store.settings.resultKeySwipe) {
+                        ForEach(ResultKeySwipe.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                if store.settings.resultKeySwipe == .wheel {
+                    HStack {
+                        Text(L("方向", "Direction", "方向"))
+                        Picker(L("方向", "Direction", "方向"), selection: $store.settings.resultKeyWheelUp) {
+                            Text(L("上滑", "Up", "上")).tag(true)
+                            Text(L("下滑", "Down", "下")).tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+            } footer: {
+                Text(store.settings.resultKeySwipe == .wheel
+                     ? L("滚轮：两个功能在按钮里上下挨着，跟着手指滚，像拨号盘，松手执行后弹回。上滑时另一个露在下面（默认），下滑时露在上面。",
+                         "Wheel: both actions sit stacked in the button and roll with your finger like a dial, then spring back after you let go. With Up the other one peeks out below (default); with Down it peeks out above.",
+                         "ホイール：2 つの機能がボタンの中で上下に並び、指に合わせてダイヤルのように回ります。指を離すと実行して元に戻ります。「上」ではもう一方が下に少し見え（デフォルト）、「下」では上に見えます。")
+                     : L("弹出：按钮下面一个 ▾，往下一划，正下方弹出另一个按钮（和逗号键一样），松手执行。",
+                         "Pop-up: the button shows a ▾. Slide down and the other action pops up right below it, like the comma key. Let go to use it.",
+                         "ポップアップ：ボタンの下に ▾ があり、下にスライドするともう一方のボタンが真下に出ます（読点キーと同じ）。指を離すと実行します。"))
+            }
+            Section {
+                // 打开要再确认一次：长文本处理慢、更容易改错，替换的范围也更大。
+                Toggle(isOn: Binding(get: { store.settings.longText },
+                                     set: { on in if on { confirmLongText = true } else { store.settings.longText = false } })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("处理长文本", "Process long text", "長い文章も処理"))
+                        Text(L("关着时 AI 只读光标前约 100 字", "When off, AI reads about 100 characters before the cursor", "オフのとき AI はカーソル前の約 100 字だけを読みます"))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text(L("AI 读取范围", "What AI reads", "AI が読む範囲"))
+            } footer: {
+                Text(L("没选中文字时，AI 只处理光标前约 100 字，按整句截取；打开后约 200 字。文字越长越慢、越容易改错，替换前请看一遍结果。替换只换送去处理的那一段，其余不动；要处理整段，先全选再点 ✨。",
+                       "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences; about 200 when on. Longer text is slower and easier to get wrong, so check the result first. Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",
+                       "何も選択していないとき、AI はカーソル前の約 100 字を文単位で処理します。オンで約 200 字。長いほど遅く、誤りやすいので、置き換える前に結果を確認してください。置き換えは送った部分だけで、残りはそのままです。全体は全選択してから ✨ をタップします。"))
+
+            }
+            .alert(L("打开「处理长文本」？", "Turn on Process long text?", "「長い文章も処理」をオンにしますか？"), isPresented: $confirmLongText) {
+                Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+                Button(L("打开", "Turn On", "オンにする")) { store.settings.longText = true }
+            } message: {
+                Text(L("AI 每次会读光标前约 200 字。文字越长，生成越慢、越容易改错，替换的范围也越大。替换前请先看一遍结果，不对可以撤销。",
+                       "AI will read about 200 characters before the cursor. Longer text is slower, more likely to be changed by mistake, and Replace changes more at once. Check the result before replacing; you can undo.",
+                       "AI はカーソル前の約 200 字を読みます。長いほど時間がかかり、誤って書き換えられやすく、置き換える範囲も広くなります。置き換える前に結果を確認してください。取り消しもできます。"))
             }
             Section(L("动画", "Animation", "アニメーション")) {
                 Toggle(isOn: $store.settings.polishAnimation) {
@@ -546,6 +687,33 @@ struct KeyboardSettingsView: View {
         .tint(AppColor.purple)
         .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 点一下做什么、怎么换到另一个，随设置变。
+    private var resultKeyFooter: String {
+        let settings = store.settings
+        let tap = settings.resultKeyPrimary == .replace
+            ? L("点一下把结果换掉输入框里的话", "Tap to replace the text in the field with the result", "タップで入力欄の文を結果に置き換えます")
+            : L("点一下把结果接在输入框里的话后面", "Tap to add the result after the text in the field", "タップで入力欄の文の後ろに結果を追加します")
+        let other = settings.resultKeyPrimary.other
+        let detail = other == .insert
+            ? L("插入（接在原来的话后面）", "insert (add it after the existing text)", "挿入（元の文の後ろに追加）")
+            : L("替换（换掉原来的话）", "replace (swap out the existing text)", "置き換え（元の文と入れ替え）")
+        let swipe: String
+        switch (settings.resultKeySwipe, settings.resultKeyWheelUp) {
+        case (.pop, _): swipe = L("按住往下划，下方弹出", "Hold and slide down to pop up ", "長押しで下にスライドすると下に出る：")
+        case (.wheel, true): swipe = L("按住往上滑", "Hold and slide up to ", "長押しで上にスライドすると")
+        case (.wheel, false): swipe = L("按住往下滑", "Hold and slide down to ", "長押しで下にスライドすると")
+        }
+        return L("\(tap)；\(swipe)\(detail)。", "\(tap). \(swipe)\(detail).", "\(tap)。\(swipe)\(detail)。")
+    }
+
+    private var languageFooter: String {
+        switch store.settings.inputLanguage {
+        case .chinese: return L("打开键盘先是拼音，按「中/英」切到英文。", "The keyboard opens in pinyin. Tap 中/英 for English.", "キーボードはピンインで開きます。「中/英」で英語に切り替えます。")
+        case .englishFirst: return L("打开键盘先是英文，按「中/英」切到拼音。", "The keyboard opens in English. Tap 中/英 for pinyin.", "キーボードは英語で開きます。「中/英」でピンインに切り替えます。")
+        case .englishOnly: return L("只有英文全键盘，不打拼音。「中/英」键换成逗号，长按出 ' ? !", "English QWERTY only, no pinyin. The 中/英 key becomes a comma; hold it for ' ? !", "英語の QWERTY のみで、ピンインは使いません。「中/英」キーはカンマになり、長押しで ' ? ! が出ます。")
+        }
     }
 }
 
@@ -589,6 +757,97 @@ private struct LayoutCard: View {
                 .padding(.horizontal, layout == .qwerty && count < 10 ? CGFloat(10 - count) * 3 : 0)
             }
         }
+    }
+}
+
+/// 「结果卡左边的按钮」二选一卡片（SET1、SET2）：上面画出键和结果卡的样子、往哪滑换成什么，下面名称和勾选圈。
+private struct ResultKeyCard: View {
+    var action: ResultKeyAction
+    var settings: EnclaveSettings
+    var selected: Bool
+    var onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        miniKey
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(.systemBackground))
+                            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .strokeBorder(AppColor.purple.opacity(0.35), lineWidth: 1))
+                            .overlay(alignment: .topLeading) {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Capsule().fill(AppColor.purple.opacity(0.18)).frame(height: 5)
+                                    Capsule().fill(AppColor.purple.opacity(0.18)).frame(width: 40, height: 5)
+                                }
+                                .padding(8)
+                            }
+                    }
+                    .frame(height: 44)
+                    HStack(spacing: 3) {
+                        Image(systemName: up ? "chevron.up" : "chevron.down").font(.system(size: 8, weight: .semibold))
+                        Text(hint).lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
+                HStack {
+                    Text(action.title).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selected ? AppColor.purple : Color.secondary)
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(selected ? AppColor.purple : Color.clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var pop: Bool { settings.resultKeySwipe == .pop }
+    private var up: Bool { !pop && settings.resultKeyWheelUp }
+
+    private var hint: String {
+        let other = action.other.title
+        if pop { return L("往下划：下方弹出\(other)", "Slide down: pop up \(other)", "下へ：\(other)") }
+        return up ? L("往上滑：\(other)", "Slide up: \(other)", "上へ：\(other)")
+                  : L("往下滑：\(other)", "Slide down: \(other)", "下へ：\(other)")
+    }
+
+    /// 缩小的键：主功能在正中，滚轮时另一个在边上露一点，弹出时下面一个 ▾。
+    private var miniKey: some View {
+        let colors: [Color] = action == .replace
+            ? [Color(red: 0x4F / 255, green: 0x46 / 255, blue: 0xE5 / 255), Color(red: 0x7C / 255, green: 0x3A / 255, blue: 0xED / 255)]
+            : [Color(red: 0x0E / 255, green: 0x74 / 255, blue: 0x90 / 255), Color(red: 0x25 / 255, green: 0x63 / 255, blue: 0xEB / 255)]
+        return ZStack {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            label(action).offset(y: pop ? -4 : 0)
+            if pop {
+                Image(systemName: "chevron.down").font(.system(size: 7, weight: .bold)).foregroundStyle(.white).offset(y: 12)
+            } else {
+                label(action.other).opacity(0.5).blur(radius: 0.6).offset(y: up ? 17 : -17)
+            }
+        }
+        .frame(width: 46)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func label(_ action: ResultKeyAction) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: action.systemImage).font(.system(size: 8, weight: .bold))
+            Text(action.title).font(.system(size: 10, weight: .bold))
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 2)
     }
 }
 
@@ -703,14 +962,20 @@ struct PinyinView: View {
     @State private var typingStats: TypingStats.Summary?
     @ObservedObject private var grammar = GrammarDownloader.shared
     @State private var confirmDeleteGrammar = false
+    /// 整句模型的下载地址，空着就用默认的 GitHub 地址。
+    @State private var grammarURL = GrammarModel.customDownloadURL ?? ""
+    /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
+    @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
+    @State private var englishEnabled = Predictor.englishEnabled
 
     var body: some View {
         DashPage {
             dictionaryCard
             grammarCard
+            englishCard
             speedCard
         }
-        .navigationTitle(L("拼音词库", "Pinyin dictionary", "ピンイン辞書"))
+        .navigationTitle(L("词库", "Dictionaries", "辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: deployer.state) {
             size = await Task.detached { RimeDeployer.diskSize() }.value
@@ -718,6 +983,7 @@ struct PinyinView: View {
         .onAppear {
             typingStats = TypingStats.summary
             grammar.refresh()
+            englishEnabled = Predictor.englishEnabled
         }
         .confirmationDialog(L("删除整句模型？", "Delete the sentence model?", "文章モデルを削除しますか？"), isPresented: $confirmDeleteGrammar, titleVisibility: .visible) {
             Button(L("删除", "Delete", "削除"), role: .destructive) { grammar.delete() }
@@ -792,19 +1058,80 @@ struct PinyinView: View {
                             .disabled(deployer.state == .deploying)
                     } else {
                         DashBigNumber(value: "380", unit: L("MB · 未下载", "MB · Not downloaded", "MB · 未ダウンロード"))
-                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。从万象的 GitHub 下载，下载时不要退出 App。",
-                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from Wanxiang's GitHub; keep the app open meanwhile.",
-                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。万象の GitHub からダウンロードします。完了まで App を閉じないでください。"))
+                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。默认从万象的 GitHub 下载，断了会自动重试、接着下。",
+                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from Wanxiang's GitHub by default; if the connection drops it retries and picks up where it left off.",
+                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。デフォルトでは万象の GitHub からダウンロードし、途切れたら自動で再試行して続きから再開します。"))
                             .font(.system(size: 13)).foregroundStyle(.secondary)
-                        Button(L("下载", "Download", "ダウンロード")) { grammar.download() }
+                        Button(grammar.canResume ? L("继续下载", "Resume download", "続きから") : L("下载", "Download", "ダウンロード")) { grammar.download() }
                             .font(.system(size: 15, weight: .semibold))
                             .disabled(deployer.state == .deploying)
+                        grammarURLField
                     }
                 }
                 if case .failed(let message) = grammar.state {
                     Text(message).font(.system(size: 13)).foregroundStyle(.red)
                 }
             }
+        }
+    }
+
+    /// 下载地址：GitHub 在大陆常常很慢或打不开，可以换成镜像或自己的服务器。改了地址旧进度作废。
+    @ViewBuilder
+    private var grammarURLField: some View {
+        if showsGrammarURL || isGrammarFailed {
+            grammarURLEditor
+        } else {
+            Button(L("下载太慢？换个下载地址", "Slow? Use another download address", "遅いときは別のアドレスへ")) { showsGrammarURL = true }
+                .font(.system(size: 13))
+                .foregroundStyle(AppColor.purple)
+                .buttonStyle(.plain)
+        }
+    }
+
+    private var isGrammarFailed: Bool {
+        if case .failed = grammar.state { return true }
+        return false
+    }
+
+    private var grammarURLEditor: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("下载地址", "Download address", "ダウンロード元")).font(.system(size: 13, weight: .semibold))
+            TextField(GrammarModel.defaultDownloadURL.absoluteString, text: $grammarURL)
+                .font(.system(size: 12, design: .monospaced))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.tertiarySystemFill)))
+                .onSubmit { saveGrammarURL() }
+                .onChange(of: grammarURL) { _ in saveGrammarURL() }
+            Text(L("空着就用上面灰字的 GitHub 地址。下不动时可以换成镜像地址，文件要是同一个 .gram。",
+                   "Leave empty to use the GitHub address shown in gray. If it's too slow, use a mirror of the same .gram file.",
+                   "空欄なら灰色の GitHub のアドレスを使います。遅いときは同じ .gram ファイルのミラーを指定できます。"))
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+    }
+
+    private func saveGrammarURL() {
+        let old = GrammarModel.downloadURL
+        GrammarModel.customDownloadURL = grammarURL
+        if GrammarModel.downloadURL != old { grammar.discardProgress() }
+    }
+
+    // MARK: - 英文词库
+
+    /// 英文单词表和联想数据随键盘内置，不用下载，这里只能开关。
+    private var englishCard: some View {
+        DashCard {
+            DashCardHeader(icon: "textformat.abc", title: L("英文词库", "English words", "英語辞書"), color: DashColor.input, note: L("已内置", "Built in", "内蔵"))
+            DashBigNumber(value: L("6 万", "60k", "6 万"), unit: L("个单词 · 1.6 MB", "words · 1.6 MB", "語 · 1.6 MB"))
+            Toggle(L("英文补全和联想", "English suggestions", "英語の候補と予測"),
+                   isOn: Binding(get: { englishEnabled }, set: { englishEnabled = $0; Predictor.englishEnabled = $0 }))
+                .tint(AppColor.purple)
+            Text(L("英文状态下打字时补全单词（tomo → tomorrow），打完一个词接着推荐下一个。单词表来自万象拼音（CC BY 4.0），词组搭配来自 Tatoeba 例句（CC BY 2.0 FR）。",
+                   "Completes words as you type in English (tomo → tomorrow) and suggests the next word. Word list from Wanxiang Pinyin (CC BY 4.0); word pairs from Tatoeba sentences (CC BY 2.0 FR).",
+                   "英語入力中に単語を補完し（tomo → tomorrow）、次の単語を予測します。単語リストは万象ピンイン（CC BY 4.0）、語のつながりは Tatoeba の例文（CC BY 2.0 FR）から。"))
+                .font(.system(size: 13)).foregroundStyle(.secondary)
         }
     }
 
@@ -832,6 +1159,15 @@ struct PinyinView: View {
                                             label: L("内存 MB 一般/最高", "Memory MB typ/peak", "メモリ MB 通常/最大"))
                         }
                         TypingSmallStat(value: "\(stats.memoryWarnings)", label: L("内存警告", "Memory warnings", "メモリ警告"))
+                    }
+                    if let launch = stats.launch {
+                        HStack(alignment: .top) {
+                            TypingSmallStat(value: Self.milliseconds(launch.appear),
+                                            label: L("冷启动到弹出", "Cold start to shown", "コールド起動→表示"))
+                            TypingSmallStat(value: Self.milliseconds(launch.ready),
+                                            label: L("冷启动到能打拼音", "Cold start to pinyin ready", "コールド起動→入力可"))
+                            TypingSmallStat(value: "\(launch.count)", label: L("冷启动次数", "Cold starts", "コールド起動回数"))
+                        }
                     }
                     HStack(spacing: 4) {
                         Text(L("从手指离开按键到候选出来。30 毫秒以内基本感觉不到。", "From lifting your finger to candidates shown. Under 30 ms feels instant.", "指を離してから候補が出るまで。30 ミリ秒以内ならほぼ感じません。"))

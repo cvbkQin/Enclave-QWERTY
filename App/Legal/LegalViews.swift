@@ -301,6 +301,13 @@ struct AboutView: View {
                 }
                 NavigationLink(value: AppRouter.SettingsPage.licenses) {
                     HStack {
+                        Text(L("Tatoeba · 英文联想", "Tatoeba · English suggestions", "Tatoeba · 英語の予測"))
+                        Spacer()
+                        Text("CC BY 2.0 FR").foregroundStyle(.secondary)
+                    }
+                }
+                NavigationLink(value: AppRouter.SettingsPage.licenses) {
+                    HStack {
                         Text(L("开源许可", "Open Source Licenses", "オープンソースライセンス"))
                         Spacer()
                         Text(L("\(OpenSource.components.count) 项", "\(OpenSource.components.count)", "\(OpenSource.components.count) 件"))

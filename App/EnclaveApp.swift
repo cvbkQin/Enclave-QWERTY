@@ -23,6 +23,22 @@ struct EnclaveApp: App {
                                   shortcut: parts.count > 1 ? parts[1] : "")
             })
         }
+        // -promptsDebug missing / empty / optimized：提示词页截图（删掉两条预设、空提示词的编辑页、AI 优化结果）。
+        if let index = args.firstIndex(of: "-promptsDebug"), args.indices.contains(index + 1) {
+            PromptsDebug.scene = args[index + 1]
+            AppRouter.shared.tab = .styles
+        }
+        // -storefront CHN：按中国大陆店面显示（接口页服务商）。
+        if let index = args.firstIndex(of: "-storefront"), args.indices.contains(index + 1) {
+            Storefront.debugOverride(args[index + 1])
+        }
+        // -appPage keyboard / pinyin / api：直接打开设置 › 键盘、词库页或接口页。
+        if let index = args.firstIndex(of: "-appPage"), args.indices.contains(index + 1) {
+            switch args[index + 1] {
+            case "api": AppRouter.shared.tab = .model
+            case let page: if let page = AppRouter.SettingsPage(rawValue: page) { AppRouter.shared.openSettings(page) }
+            }
+        }
         // -keyboardWords "张三丰,me@example.com" 写进键盘常用语。
         if let index = args.firstIndex(of: "-keyboardWords"), args.indices.contains(index + 1) {
             CommonWordStore.keyboardTexts = args[index + 1].split(separator: ",").map(String.init)
@@ -59,6 +75,8 @@ struct EnclaveApp: App {
                         router.tab = .settings
                     // 键盘提示卡「去解锁」。
                     case "unlock": router.openSettings(.unlock)
+                    // 键盘「润色 ▾」那一行最右的「+」：去提示词页。
+                    case "prompts": router.tab = .styles
                     case "common-words":
                         router.tab = .home
                         router.homePath = NavigationPath([AppRouter.HomePage.commonWords])
@@ -77,10 +95,23 @@ struct RootView: View {
     var body: some View {
         tabs
             // 首次打开先看隐私说明（CP1），不能下滑关掉。
-            .fullScreenCover(isPresented: $router.showsPrivacyWelcome) {
+            .fullScreenCover(isPresented: $router.showsPrivacyWelcome, onDismiss: {
+                router.showSetupGuideIfNeeded(configured: store.settings.isConfigured)
+            }) {
                 PrivacyWelcomeView()
                     .environmentObject(router)
                     .environment(\.locale, Loc.locale)
+            }
+            // 连上 AI 接口的引导（OB1–OB7）。
+            .fullScreenCover(item: $router.setupGuide) { start in
+                SetupGuideView(start: start)
+                    .environmentObject(router)
+                    .environmentObject(store)
+                    .environment(\.locale, Loc.locale)
+            }
+            .onAppear {
+                // 之前已经同意过隐私政策、但还没走过引导的（老用户没配接口）。
+                if !router.showsPrivacyWelcome { router.showSetupGuideIfNeeded(configured: store.settings.isConfigured) }
             }
             // 语言变了整棵视图按新语言重画；页面路径存在 router 里，不会回到首页。
             .id(router.language)
@@ -138,6 +169,14 @@ final class AppRouter: ObservableObject {
     /// 隐私政策同意情况（CP1–CP5）：首次打开整页说明，设置 › 隐私里「阅读并同意」也打开它。
     @Published var privacyAgreed = PrivacyConsent.isAgreed
     @Published var showsPrivacyWelcome = PrivacyConsent.needsPrompt
+    /// 首次启动引导（OB1–OB7）：隐私同意之后弹一次；首页「跟着教程设置」从选服务商开始再打开。
+    @Published var setupGuide: SetupGuidePage?
+
+    /// 隐私说明关掉后：同意了、引导没看过、接口也没配，就接着弹引导。
+    func showSetupGuideIfNeeded(configured: Bool) {
+        guard privacyAgreed, !SetupGuide.seen, !configured else { return }
+        setupGuide = .intro
+    }
 
     func agreePrivacy() {
         PrivacyConsent.agree()
@@ -171,6 +210,17 @@ final class AppRouter: ObservableObject {
             }
             privacyAgreed = PrivacyConsent.isAgreed
             showsPrivacyWelcome = PrivacyConsent.needsPrompt
+        }
+        // -setupGuide reset / seen / open：引导看没看过，open 直接打开。
+        if let i = args.firstIndex(of: "-setupGuide"), args.indices.contains(i + 1) {
+            switch args[i + 1] {
+            case "reset": SetupGuide.seen = false
+            case "seen": SetupGuide.seen = true
+            case "open": setupGuide = .intro
+            case "deepseek": setupGuide = .step(4)
+            case "done": setupGuide = .done
+            default: break
+            }
         }
         #endif
         if args.contains("-playground") { homePath = NavigationPath([HomePage.lab, HomePage.scene(0)]) }
@@ -230,6 +280,10 @@ final class AppStore: ObservableObject {
         }
     }
     @Published private(set) var test: TestState = .idle
+    /// 测试失败的原因，引导里按它给一句话（OB6）：Key 不对、余额不足、网络不通。
+    @Published private(set) var testFailure: TestFailure?
+
+    enum TestFailure: Equatable { case unauthorized, noBalance, network, other }
 
     enum TestState: Equatable {
         case idle, running, success(String, TimeInterval), failure(String)
@@ -249,10 +303,19 @@ final class AppStore: ObservableObject {
 
     private var testKey: String { "test.ok.\(settings.baseURL)|\(settings.model)" }
 
+    #if DEBUG
+    /// 截图用：不联网，直接当作测试成功。
+    func fakeTestSuccess() {
+        testFailure = nil
+        test = .success("你好", 0.8)
+    }
+    #endif
+
     func runTest() async {
         // 没同意隐私政策前不发任何网络请求（测试会把 API Key 发到外部地址），入口处会先提示。
         guard PrivacyConsent.isAgreed else { return }
         test = .running
+        testFailure = nil
         let start = Date()
         let client = LLMClient(settings: settings, apiKey: apiKey)
         var raw = ""
@@ -265,6 +328,12 @@ final class AppStore: ObservableObject {
                 : .success(String(reply.prefix(40)), Date().timeIntervalSince(start))
         } catch {
             test = .failure(error.localizedDescription)
+            switch error {
+            case LLMError.http(let code, _) where code == 401 || code == 403: testFailure = .unauthorized
+            case LLMError.http(402, _): testFailure = .noBalance
+            case is URLError: testFailure = .network
+            default: testFailure = .other
+            }
         }
         var ok = false
         if case .success = test { ok = true }

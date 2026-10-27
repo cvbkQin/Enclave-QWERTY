@@ -9,6 +9,8 @@ enum TypingStats {
     private static let memoryKey = "typing.memoryMB"
     private static let memoryModelKey = "typing.memoryModelMB"
     private static let warningsKey = "typing.memoryWarnings"
+    private static let launchAppearKey = "typing.launchAppearMs"
+    private static let launchReadyKey = "typing.launchReadyMs"
     /// 键盘现在用的词库带不带整句模型，键盘切引擎时设置。
     static var modelInUse = false
     /// 只留最近这么多个按键。
@@ -40,6 +42,54 @@ enum TypingStats {
         engine = []
     }
 
+    // MARK: - 冷启动
+
+    /// 键盘进程是什么时候启动的（系统拉起扩展的那一刻）。读不到时为空，冷启动就不记。
+    private static let processStart: Date? = {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        guard sysctl(&mib, u_int(mib.count), &info, &size, nil, 0) == 0 else { return nil }
+        let start = info.kp_proc.p_un.__p_starttime
+        return Date(timeIntervalSince1970: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000)
+    }()
+    private static var launchAppear: Double?
+    private static var launchReady: Double?
+    private static var launchDone = false
+
+    /// 冷启动时键盘第一次弹出来（viewDidAppear）。
+    static func noteLaunchAppeared() {
+        guard launchAppear == nil else { return }
+        launchAppear = sinceLaunch()
+        saveLaunch()
+    }
+
+    /// 冷启动时拼音引擎第一次准备好（能出候选）。
+    static func noteLaunchEngineReady() {
+        guard launchReady == nil else { return }
+        launchReady = sinceLaunch()
+        saveLaunch()
+    }
+
+    /// 毫秒。离进程启动太久（系统预先拉起、隔了很久才弹出）就不算冷启动，记 -1。
+    private static func sinceLaunch() -> Double {
+        guard let processStart else { return -1 }
+        let ms = Date().timeIntervalSince(processStart) * 1000
+        return ms >= 0 && ms < 20_000 ? ms : -1
+    }
+
+    /// 两个时刻都有了才写，每个进程只写一次。
+    private static func saveLaunch() {
+        guard !launchDone, let appear = launchAppear, let ready = launchReady else { return }
+        launchDone = true
+        guard appear >= 0, ready >= 0 else { return }
+        let defaults = SharedStorage.defaults
+        for (key, value) in [(launchAppearKey, appear), (launchReadyKey, ready)] {
+            let saved = (defaults.array(forKey: key) as? [Double]) ?? []
+            defaults.set(Array((saved + [value]).suffix(30)), forKey: key)
+        }
+    }
+
     /// 系统发来内存警告时记一次。
     static func noteMemoryWarning() {
         let defaults = SharedStorage.defaults
@@ -69,6 +119,15 @@ enum TypingStats {
         var memory: Memory?
         var memoryWithModel: Memory?
         var memoryWarnings: Int
+        /// 最近几次冷启动，没有记录时为空。
+        var launch: Launch?
+    }
+
+    /// 冷启动：从键盘进程启动到弹出来、到拼音能打（毫秒，中位数）。
+    struct Launch {
+        var count: Int
+        var appear: Double
+        var ready: Double
     }
 
     struct Memory {
@@ -84,7 +143,14 @@ enum TypingStats {
         return Summary(count: total.count, medianTotal: percentile(total, 0.5), slowTotal: percentile(total, 0.9),
                        slowestTotal: total.last ?? 0, medianEngine: engine.isEmpty ? 0 : percentile(engine, 0.5),
                        memory: memory(forKey: memoryKey), memoryWithModel: memory(forKey: memoryModelKey),
-                       memoryWarnings: defaults.integer(forKey: warningsKey))
+                       memoryWarnings: defaults.integer(forKey: warningsKey), launch: launch)
+    }
+
+    private static var launch: Launch? {
+        let appear = ((SharedStorage.defaults.array(forKey: launchAppearKey) as? [Double]) ?? []).sorted()
+        let ready = ((SharedStorage.defaults.array(forKey: launchReadyKey) as? [Double]) ?? []).sorted()
+        guard !appear.isEmpty, !ready.isEmpty else { return nil }
+        return Launch(count: appear.count, appear: percentile(appear, 0.5), ready: percentile(ready, 0.5))
     }
 
     private static func memory(forKey key: String) -> Memory? {
@@ -94,7 +160,7 @@ enum TypingStats {
     }
 
     static func clear() {
-        for key in [totalKey, engineKey, memoryKey, memoryModelKey, warningsKey] {
+        for key in [totalKey, engineKey, memoryKey, memoryModelKey, warningsKey, launchAppearKey, launchReadyKey] {
             SharedStorage.defaults.removeObject(forKey: key)
         }
     }

@@ -12,7 +12,8 @@ struct HomeView: View {
         NavigationStack(path: $router.homePath) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    if Readiness.remainingSteps(apiConfigured: store.settings.isConfigured) == 0 {
+                    // 键盘两步做完就进摘要；接口没填由摘要顶上的「AI 还没连上」卡片（OB8）引导。
+                    if Readiness.remainingSteps(apiConfigured: true) == 0 {
                         TabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
                                  title: L("摘要", "Summary", "概要"))
                             .padding(.top, 8)
@@ -108,14 +109,19 @@ private struct Dashboard: View {
     var body: some View {
         if !SharedStorage.isShared { SharedConfigBanner() }
         TrialBanner()
+        if needsAISetup { AISetupCard() }
         summaryCard
         apiCard
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
             GridCard(icon: "keyboard", title: L("键盘", "Keyboard", "キーボード"), color: DashColor.input,
                      value: store.settings.keyboardLayout.shortTitle,
                      detail: store.settings.fuzzyPinyin.isEmpty ? L("模糊拼音未开", "Fuzzy pinyin off", "あいまい入力オフ") : L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "Fuzzy pinyin: \(store.settings.fuzzyPinyin.count)", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組")) { router.openHome(.keyboard) }
-            GridCard(icon: "book.closed", title: L("拼音词库", "Pinyin", "ピンイン辞書"), color: DashColor.input,
-                     value: L("万象拼音", "Wanxiang", "万象ピンイン"), detail: pinyinStatus.text, dot: pinyinStatus.dot) { router.openHome(.pinyin) }
+            // 词库：拼音（万象，要部署）和英文（内置）两份，圆点看拼音的状态。
+            GridCard(icon: "book.closed", title: L("词库", "Dictionaries", "辞書"), color: DashColor.input,
+                     // 英文关掉时只写「拼音」；下一行只放拼音状态，窄屏上放得下。
+                     value: Predictor.englishEnabled ? L("拼音 · 英文", "Pinyin · English", "ピンイン · 英語") : L("拼音", "Pinyin", "ピンイン"),
+                     detail: pinyinStatus.text,
+                     dot: pinyinStatus.dot) { router.openHome(.pinyin) }
             GridCard(icon: "text.book.closed", title: L("常用词", "My Words", "ユーザ辞書"), color: DashColor.input,
                      value: "\(words.all.count)", detail: wordsDetail) { router.openHome(.commonWords) }
             GridCard(icon: "star.fill", title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), color: DashColor.phrase,
@@ -129,6 +135,11 @@ private struct Dashboard: View {
                 stats = AIStats.load()
                 lastRequest = UsageStats.polishRecent.last
             }
+    }
+
+    /// 还没连上 AI（OB8）：同意了隐私政策，接口没配好或者上次测试失败。连接测试通过后就不显示。
+    private var needsAISetup: Bool {
+        router.privacyAgreed && (!store.settings.isConfigured || store.lastTestOK == false)
     }
 
     /// 摘要卡：今天所有提示词的执行次数（不只「润色」那条）、7 天柱状图、本周合计和平均耗时。
@@ -174,6 +185,9 @@ private struct Dashboard: View {
                         .font(.system(size: 22, weight: .bold)).lineLimit(1).fixedSize()
                     if store.settings.isConfigured {
                         Text(apiDetail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    } else {
+                        Text(L("填好 API Key 才能用 AI", "Add an API key to use AI", "API キーを入れると AI が使えます"))
+                            .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer(minLength: 0)
                 }
@@ -323,8 +337,17 @@ struct OnboardingSteps: View {
                 Text(SharedStorage.usesClipboardConfig
                      ? L("填 API 地址和 Key，或者从剪贴板导入配置。", "Enter the API URL and key, or import settings from the clipboard.", "API の URL とキーを入力するか、クリップボードから設定を読み込みます。")
                      : L("填 API 地址和 Key。", "Enter the API URL and key.", "API の URL とキーを入力します。"))
-                Button(L("去配置", "Set up", "設定する")) { router.openModel() }
-                    .buttonStyle(StepButtonStyle(prominent: current == 2))
+                if router.privacyAgreed {
+                    HStack(spacing: 10) {
+                        Button(L("跟着教程设置", "Follow the Guide", "ガイドに沿って設定")) { router.setupGuide = .provider }
+                            .buttonStyle(StepButtonStyle(prominent: current == 2))
+                        Button(L("已有 Key", "I Have a Key", "キーを持っている")) { router.openModel() }
+                            .buttonStyle(StepButtonStyle(prominent: false))
+                    }
+                } else {
+                    Button(L("去配置", "Set up", "設定する")) { router.openModel() }
+                        .buttonStyle(StepButtonStyle(prominent: current == 2))
+                }
             }
             DeployCard()
         }
@@ -384,7 +407,7 @@ private struct StepButtonStyle: ButtonStyle {
 }
 
 /// 拼音词库部署进度。编译没有真实进度，按大约一分钟估一条进度条。
-private struct DeployCard: View {
+struct DeployCard: View {
     @ObservedObject private var deployer = RimeDeployer.shared
 
     var body: some View {
@@ -421,5 +444,46 @@ private struct DeployCard: View {
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
+    }
+}
+
+/// 跳过引导后首页最上面的深紫卡（OB8）：「跟着教程设置」从选服务商开始，「已有 Key」进接口设置页。
+struct AISetupCard: View {
+    @EnvironmentObject private var router: AppRouter
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 5) {
+                Image(systemName: "sparkle").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0xFFE9A8))
+                Text(L("AI 还没连上", "AI isn't connected yet", "AI はまだつながっていません"))
+                    .font(.system(size: 12.5, weight: .semibold)).foregroundStyle(Color(hex: 0xD9D3FF))
+            }
+            Text(L("填一个你自己的 API Key，\n就能用 AI 润色", "Add your own API key\nto use AI", "自分の API キーを入れると\nAI が使えます"))
+                .font(.system(size: 19, weight: .bold)).foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(SetupGuide.showsPrice ? "跟着教程大约 3 分钟 · 1 元可调用约 500 次" : L("跟着教程大约 3 分钟", "About 3 minutes with the guide", "ガイドに沿って約 3 分"))
+                .font(.system(size: 13)).foregroundStyle(Color(hex: 0xCFC8FF))
+            HStack(spacing: 8) {
+                Button { router.setupGuide = .provider } label: {
+                    Text(L("跟着教程设置", "Follow the Guide", "ガイドで設定"))
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color(hex: 0x4A3BD6))
+                        .frame(maxWidth: .infinity).frame(height: 40)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white))
+                }
+                Button { router.openModel() } label: {
+                    Text(L("已有 Key", "I Have a Key", "キーがある"))
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                        .padding(.horizontal, 16).frame(height: 40)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.14)))
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(
+            LinearGradient(colors: [Color(hex: 0x2A2160), Color(hex: 0x4A3BD6)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .shadow(color: Color(hex: 0x4A3BD6).opacity(0.28), radius: 14, y: 12))
     }
 }
