@@ -163,18 +163,16 @@ enum ProviderName {
 }
 
 /// 常用服务商，选了自动填地址和模型。
-/// 中国大陆店面只列已备案的 DeepSeek、Kimi、通义千问，加上跑在自己电脑上的 Ollama；没有「自定义」卡片，
-/// 自己改了地址或模型就四个都不选中，算自定义。其他地区不变。
+/// 所有地区都列 DeepSeek、Kimi、通义千问，加上跑在自己电脑上的 Ollama（0.86 起，原来只有中国大陆店面这样）；
+/// 没有「自定义」卡片，自己改了地址或模型就四个都不选中，算自定义。OpenAI 和自定义只留着认旧设置的地址。
 enum Provider: CaseIterable, Identifiable {
     case deepseek, openai, kimi, qwen, ollama, custom
 
     /// 服务商卡片按这个顺序排，2×2。
-    static var shown: [Provider] {
-        Storefront.isMainlandChina ? [.deepseek, .kimi, .qwen, .ollama] : [.deepseek, .openai, .ollama, .custom]
-    }
+    static let shown: [Provider] = [.deepseek, .kimi, .qwen, .ollama]
 
     /// 现在填的地址和模型对得上哪个预设：地址和模型都和预设一样才算；Ollama 只认 11434 端口（IP 本来就要改）。
-    /// 对不上时大陆店面返回 nil（四个都不选中），其他地区返回「自定义」。
+    /// 对不上时返回 nil（四个都不选中）。
     static func matching(baseURL: String, model: String) -> Provider? {
         func trimmed(_ text: String) -> String {
             var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -184,10 +182,11 @@ enum Provider: CaseIterable, Identifiable {
         let found = shown.first { provider in
             if provider == .ollama { return baseURL.contains(":11434") }
             guard let preset = provider.preset else { return false }
-            return trimmed(baseURL) == preset.baseURL && trimmed(model) == preset.model
+            // Kimi 国内、国际两个地址都算（国际站的 Key 只能连 .ai）。
+            let urls = provider == .kimi ? [Provider.kimiChina, Provider.kimiGlobal] : [preset.baseURL]
+            return urls.contains(trimmed(baseURL)) && trimmed(model) == preset.model
         }
-        if let found { return found }
-        return shown.contains(.custom) ? .custom : nil
+        return found
     }
 
     var id: Self { self }
@@ -207,18 +206,22 @@ enum Provider: CaseIterable, Identifiable {
         switch self {
         case .deepseek: return "api.deepseek.com"
         case .openai: return "api.openai.com"
-        case .kimi: return "api.moonshot.cn"
+        case .kimi: return Storefront.isMainlandChina ? "api.moonshot.cn" : "api.moonshot.ai"
         case .qwen: return "dashscope.aliyuncs.com"
         case .ollama: return L("局域网的电脑", "A computer on your network", "ローカルネットのPC")
         case .custom: return "vLLM、LM Studio"
         }
     }
 
+    /// Kimi 国内站（platform.moonshot.cn）和国际站（platform.moonshot.ai）的 Key 不通用：大陆店面填 .cn，其他地区填 .ai。
+    static let kimiChina = "https://api.moonshot.cn/v1"
+    static let kimiGlobal = "https://api.moonshot.ai/v1"
+
     var preset: (baseURL: String, model: String)? {
         switch self {
         case .deepseek: return ("https://api.deepseek.com/v1", "deepseek-flash")
         case .openai: return ("https://api.openai.com/v1", "gpt-4o-mini")
-        case .kimi: return ("https://api.moonshot.cn/v1", "moonshot-v1-8k")
+        case .kimi: return (Storefront.isMainlandChina ? Self.kimiChina : Self.kimiGlobal, "moonshot-v1-8k")
         case .qwen: return ("https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-plus")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
@@ -228,7 +231,7 @@ enum Provider: CaseIterable, Identifiable {
     static func detect(_ baseURL: String) -> Provider {
         if baseURL.contains("api.deepseek.com") { return .deepseek }
         if baseURL.contains("api.openai.com") { return .openai }
-        if baseURL.contains("api.moonshot.cn") { return .kimi }
+        if baseURL.contains("api.moonshot.cn") || baseURL.contains("api.moonshot.ai") { return .kimi }
         if baseURL.contains("dashscope.aliyuncs.com") { return .qwen }
         if baseURL.contains(":11434") { return .ollama }
         return .custom
@@ -295,9 +298,7 @@ struct ModelSettingsView: View {
             } footer: {
                 Text(selectedProvider == .ollama
                      ? L("把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。", "Replace the IP with the local address of the computer running Ollama. The URL ends with /v1. ", "IP を Ollama を動かしているパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
-                     : Storefront.isMainlandChina
-                     ? L("选一个服务商会自动填好地址和模型。也可以直接改地址和模型，改了就算自定义，上面不再选中。地址填到 /v1。", "Pick a provider to fill in the URL and model, or edit them yourself to use something else. The URL ends with /v1. ", "サービスを選ぶと URL とモデルが入力されます。自分で書き換えるとカスタム扱いになります。URL は /v1 までです。")
-                     : L("选一个服务商会自动填好地址。自建 Ollama / vLLM / LM Studio 选「自定义」，地址填到 /v1。", "Pick a provider to fill in the URL. For self-hosted Ollama, vLLM or LM Studio, choose Custom. The URL ends with /v1. ", "サービスを選ぶと URL が入力されます。セルフホストの Ollama / vLLM / LM Studio は「カスタム」を選び、URL は /v1 までです。"))
+                     : L("选一个服务商会自动填好地址和模型。也可以直接改地址和模型，改了就算自定义，上面不再选中。地址填到 /v1。", "Pick a provider to fill in the URL and model, or edit them yourself to use something else. The URL ends with /v1. ", "サービスを選ぶと URL とモデルが入力されます。自分で書き換えるとカスタム扱いになります。URL は /v1 までです。"))
                     + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
             }
             Section {
