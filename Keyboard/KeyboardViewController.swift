@@ -157,7 +157,7 @@ struct NextKeyboardButton: UIViewRepresentable {
 
 #if DEBUG
 extension KeyboardViewController {
-    /// 调试真机弹出高度：除了 NSLog，再追加到 App Group 里的 debug-height.log（只留最后 60 行），
+    /// 调试真机弹出高度：除了 NSLog，再追加到 App Group 里的 Library/Diagnostics/debug-height.log（只留最后 60 行），
     /// 真机上不用 root 也能用 devicectl 拷出来。
     func heightLog(_ stage: String) {
         let inWindow = view.window.map { view.convert(view.bounds, to: $0) } ?? .zero
@@ -168,7 +168,10 @@ extension KeyboardViewController {
         NSLog("%@", line)
         guard let id = SharedStorage.appGroupID,
               let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: id) else { return }
-        let url = dir.appendingPathComponent("debug-height.log")
+        // devicectl 只能拷 App Group 里 Library、Documents、tmp 下的文件，放在 Library/Diagnostics。
+        let folder = dir.appendingPathComponent("Library/Diagnostics", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("debug-height.log")
         let old = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         let lines = (old.split(separator: "\n").map(String.init) + [line]).suffix(60)
         try? (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
