@@ -108,4 +108,58 @@ enum Prompts {
         要求里明确写了的（比如字数、要不要分点、具体的说法）以要求为准。
         """
     }
+
+    /// 「识意」：一句话，可能是修改要求（或让它帮忙写），也可能是问题。输入框里的原文作为上下文，空就不带。
+    /// 让模型第一行先写「改写」或「问答」，键盘据此决定直接替换还是展开卡片；forceAnswer 为 nil 时由模型判断。
+    static func ask(_ question: String, context: String, forceAnswer: Bool?) -> [ChatMessage] {
+        let system = """
+        你是嵌在用户输入法里的助手。用户在聊天输入框里写了一段话（可能为空），又在键盘上的小框里对你说了一句话：可能是对这段话的修改要求（包括翻译、换语气、帮忙写一段），也可能是一个问题。
+        先判断是哪种：
+        - 改写：要你产出一段可以直接发出去的文字。
+        - 问答：要你解释、比较、给建议或回答问题，用户看完自己决定怎么写。
+        输出格式：第一行只写「改写」或「问答」两个字，从第二行开始写正文，不要别的说明。
+        改写的正文：只输出最终可以发送的完整文字，不要解释、前言或引号；尽量少改动，要求没涉及的地方保持原样；没有原文时直接写。
+        问答的正文：简短直接，几句话说清楚。
+        都要遵守：不用 Markdown 符号（#、**、- 列表等），需要分点时用「1.」「2.」；回答用用户说话的语言，中文一律用简体；不要编造原文没有的事实。
+        """
+        var prompt = ""
+        if !context.isEmpty {
+            prompt += """
+            <输入框原文>
+            \(context)
+            </输入框原文>
+
+            """
+        }
+        prompt += """
+        <用户的话>
+        \(question)
+        </用户的话>
+        """
+        if let forceAnswer {
+            prompt += forceAnswer
+                ? "\n\n这次按「问答」处理：第一行写「问答」，然后回答。"
+                : "\n\n这次按「改写」处理：第一行写「改写」，然后只输出改好的完整正文。"
+        }
+        return [.system(system), .user(prompt)]
+    }
+
+    /// 拆出「识意」输出第一行的类型。还没写完第一行时返回 nil；final 时没写类型就当 fallback。
+    static func splitAsk(_ text: String, final: Bool, fallback: Bool) -> (answer: Bool, body: String)? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let markers: [(String, Bool)] = [("改写", false), ("问答", true), ("回答", true)]
+        let head = trimmed.prefix(8).trimmingCharacters(in: CharacterSet(charactersIn: "【】[]「」:：*# "))
+        for (marker, answer) in markers where head.hasPrefix(marker) {
+            // 类型后面的正文：第一行剩下的（模型偶尔写在同一行）加上后面几行。
+            guard let markerRange = trimmed.range(of: marker) else { break }
+            let skip = CharacterSet(charactersIn: "】]」:：*# \n")
+            let rest = trimmed[markerRange.upperBound...].drop { $0.unicodeScalars.allSatisfy(skip.contains) }
+            return (answer, String(rest))
+        }
+        // 第一行已经写完（或够长）还不是类型：模型没按格式来，整段当正文。
+        if final || trimmed.contains("\n") || trimmed.count > 8 {
+            return (fallback, trimmed)
+        }
+        return nil
+    }
 }

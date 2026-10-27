@@ -43,17 +43,10 @@ enum KeyboardMetrics {
         (tall ? expandedCardHeight : cardHeight) + (aiLabel ? aiLabelHeight : 0)
     }
     static let actionRow: CGFloat = 34
-    /// 「正式▾」浮层：风格行 + 要求行，底下一个小尖角指向按钮。
-    static let menuHeight: CGFloat = 94
-    /// 要求框（NQ1–NQ3）：14pt，行高 19，写长了自动换行，最多 3 行；一行时还是 32 高。
-    static let requestLineHeight: CGFloat = 19
-    static func requestFieldHeight(lines: Int) -> CGFloat {
-        lines <= 1 ? 32 : 16 + requestLineHeight * CGFloat(min(lines, 3))
-    }
-    /// 要求框变高时面板跟着加高。
-    static func menuHeight(requestLines: Int) -> CGFloat {
-        menuHeight + requestFieldHeight(lines: requestLines) - requestFieldHeight(lines: 1)
-    }
+    /// AI 栏上方展开的一行（提示词 / 识意，QA2、QA14）：高 42，底边的小尖角伸到下面按钮的上沿。
+    static let aiRowHeight: CGFloat = 42
+    /// 这一行的底边到 AI 栏（44 高、按钮 34 居中）之间留 2.5，加上按钮上方的 5，正好是尖角的 7.5。
+    static let aiRowGap: CGFloat = 2.5
     /// 试用最后 3 天的提示条（K3）。
     static let trialReminderHeight: CGFloat = 34
     static let panelSpacing: CGFloat = 5
@@ -71,18 +64,18 @@ enum KeyboardMetrics {
         }
     }
 
-    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，打开风格菜单时再加一块。
-    /// 提示卡出现时只留它一块，不和结果卡片、风格菜单叠在一起。
-    static func height(expanded: Bool, cardExpanded: Bool, menuOpen: Bool, gate: KeyboardModel.AIGate? = nil,
-                       reminder: Bool = false, requestLines: Int = 1, aiLabel: Bool = false) -> CGFloat {
+    /// 键盘总高度：AI 栏 + 按键，展开时上面加结果卡片和动作行，展开提示词 / 识意时再加一行。
+    /// 提示卡出现时只留它一块，不和结果卡片、展开的一行叠在一起。
+    static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
+                       reminder: Bool = false, aiLabel: Bool = false) -> CGFloat {
         var height = topRow + keysHeight
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
             height += panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel) + panelSpacing + actionRow
         }
-        if menuOpen {
-            height += menuHeight(requestLines: requestLines) + panelSpacing + (expanded ? 0 : panelTop)
+        if rowOpen {
+            height += (expanded ? panelSpacing : panelTop) + aiRowHeight + aiRowGap
         }
         return height
     }
@@ -273,6 +266,48 @@ enum Brand {
         ? UIColor(white: 0.55, alpha: 1) : UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1) })
     static let toggleSlash = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.45, alpha: 1) : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) })
+    // MARK: AI 栏往上展开的一行（QA1–QA14）
+
+    private static func rgb(_ hex: UInt32) -> UIColor {
+        UIColor(red: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+    }
+    private static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? rgb(dark) : rgb(light) })
+    }
+    /// 展开那一行和选中态的描边、尖角 #8B7CF6，深浅色一样。
+    static let rowStroke = Color(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255)
+    /// 展开那一行的底：白，深色 #4A4A4C。
+    static let rowFill = dynamic(0xFFFFFF, 0x4A4A4C)
+    /// 「润色 ▾」「识意 ▾」展开时、当前提示词标签：底 #ECEAFD / 深色 #4E4875，字 #4A3BD6 / 深色白。
+    static let chipOpenFill = dynamic(0xECEAFD, 0x4E4875)
+    static let chipOpenText = dynamic(0x4A3BD6, 0xFFFFFF)
+    /// 功能按钮中间的细竖线 #E2E2E7（深色 #6E6E73），展开时 #8B7CF6。
+    static let chipLine = dynamic(0xE2E2E7, 0x6E6E73)
+    /// 识意框：字 #1C1C1E / 白，占位字 #AEAEB2，光标 #5B4BE8 / #B4A9FF；× 底 #E2E2E7 / #3A3A3C，叉 #6B6B73 / #AEAEB2。
+    static let askText = dynamic(0x1C1C1E, 0xFFFFFF)
+    static let askPlaceholder = Color(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255)
+    static let askCaret = dynamic(0x5B4BE8, 0xB4A9FF)
+    static let askSelection = dynamic(0xD8D4F8, 0x5E56A0)
+    static let askClearFill = dynamic(0xE2E2E7, 0x3A3A3C)
+    static let askClearIcon = dynamic(0x6B6B73, 0xAEAEB2)
+    /// ✨ 在识意展开时的三种底：自动 #A855F7→#EC4899，改写 #4F46E5→#7C3AED，问答 #0284C7→#38BDF8。
+    static let askAutoColors = [Color(UIColor(red: 0xA8 / 255, green: 0x55 / 255, blue: 0xF7 / 255, alpha: 1)),
+                                Color(UIColor(red: 0xEC / 255, green: 0x48 / 255, blue: 0x99 / 255, alpha: 1))]
+    static let askRewriteColors = [gradient[0], gradient[1]]
+    static let askAnswerColors = [Color(UIColor(red: 0x02 / 255, green: 0x84 / 255, blue: 0xC7 / 255, alpha: 1)),
+                                  Color(UIColor(red: 0x38 / 255, green: 0xBD / 255, blue: 0xF8 / 255, alpha: 1))]
+    /// 问答结果卡的天蓝边 #38BDF8 / 深色 #7DD3FC；改写结果卡紫边 #8B7CF6。
+    static let answerBorder = dynamic(0x38BDF8, 0x7DD3FC)
+    /// 「AI 正在回答…」的字 #0284C7 / 深色 #7DD3FC。
+    static let answerText = dynamic(0x0284C7, 0x7DD3FC)
+    /// 问答生成中边框流光：天蓝一圈。
+    static let answerRing = [Color(red: 0x02 / 255, green: 0x84 / 255, blue: 0xC7 / 255),
+                             Color(red: 0x38 / 255, green: 0xBD / 255, blue: 0xF8 / 255),
+                             Color(red: 0xBA / 255, green: 0xE6 / 255, blue: 0xFD / 255),
+                             Color(red: 0x7D / 255, green: 0xD3 / 255, blue: 0xFC / 255)]
+    /// 生成中卡片里还没出字时的两条灰条 #F2F2F7 / #3A3A3C。
+    static let skeleton = dynamic(0xF2F2F7, 0x3A3A3C)
+
     /// 九宫格长按十字弹层中间那格 #E6E5EB。
     static let crossCenterFill = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.36, alpha: 1)

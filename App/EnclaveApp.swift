@@ -59,6 +59,8 @@ struct EnclaveApp: App {
                         router.tab = .settings
                     // 键盘提示卡「去解锁」。
                     case "unlock": router.openSettings(.unlock)
+                    // 键盘「润色 ▾」那一行最右的「+」：去提示词页。
+                    case "prompts": router.tab = .styles
                     case "common-words":
                         router.tab = .home
                         router.homePath = NavigationPath([AppRouter.HomePage.commonWords])

@@ -35,8 +35,10 @@ extension KeyboardModel {
         finishComposition()
         clearQuickStatus()
         aiExpanded = mark.expanded
-        styleMenuOpen = mark.menuOpen
-        target = styleMenuOpen ? .instruction : .host
+        // 有要求的场景打开「识意」，要求已经在框里。
+        aiRow = mark.menuOpen ? .ask : nil
+        if askSelected { askSelected = false }
+        target = restingTarget
         coach = Coach(steps: mark.steps)
         watchCoach()
     }

@@ -109,7 +109,7 @@ extension KeyboardModel {
         if layer != .letters && layer != .digits { layer = .letters }
     }
 
-    /// 组字时回车把字母原样上屏；在要求框里回车就是「执行」。
+    /// 组字时回车把字母原样上屏；在识意框里回车就是 ✨。
     func returnKey() {
         if isComposing {
             if let raw = engine.commitComposition() { commit(raw) }
@@ -119,7 +119,7 @@ extension KeyboardModel {
         switch target {
         case .host: proxy?.insertText("\n")
         case .instruction:
-            menuPolishTapped()
+            askTapped(askButtonMode)
         case .card:
             commit("\n")
         }
@@ -621,47 +621,6 @@ extension KeyboardModel {
         aiExpanded = expanded
     }
 
-    /// 点「正式▾」：打开或关上风格浮层（只有这里能收起）。打开时光标进要求框，回车键变「执行」；关上回到原输入框。
-    func toggleStyleMenu() {
-        endCoach()
-        if target == .card { finishCardEdit() }
-        finishComposition()
-        styleMenuOpen.toggle()
-        target = styleMenuOpen ? .instruction : .host
-    }
-
-    /// 浮层里的「润色」：按选好的风格和要求开始改。浮层不收起，只有再点「正式▾」才收。
-    /// 面板收起时是快速模式，润完直接替换输入框（AI 栏上流光）；展开时进结果卡片，等替换或插入。
-    func menuPolishTapped() {
-        guard passGate(then: { [weak self] in self?.menuPolishTapped() }) else { return }
-        #if DEBUG
-        if debugFakeRun { coachTapped(.run); fakeCoachRun(); return }
-        #endif
-        coachTapped(.run)
-        if target == .card { finishCardEdit() }
-        finishComposition()
-        guard !aiExpanded else {
-            start(from: .rerun) { regenerate() }
-            return
-        }
-        beginQuickMode(source: readField().text)
-        start(from: .rerun) { regenerate() }
-        if !isRunning {
-            quickSource = nil
-            clearQuickStatus()
-            setAIExpanded(true)
-        }
-    }
-
-    /// 点要求框：键盘的输入切到要求框，再点一下切回原输入框。
-    func toggleInstructionEditing() {
-        endCoach()
-        // 同一时间只有一处接收打字：正在改卡片就先保存，焦点给要求框。
-        if target == .card { finishCardEdit() }
-        finishComposition()
-        target = target == .instruction ? .host : .instruction
-    }
-
     /// 把正在拼的字母原样上屏，然后清空引擎。
     func finishComposition() {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
@@ -783,7 +742,8 @@ extension KeyboardModel {
             case "digits": layer = .digits
             case "digitsMore": layer = .digits; digitsMore = true
             case "english": if chineseMode { toggleChinese() }
-            case "instruction", "menu": styleMenuOpen = true; target = .instruction
+            case "prompts": aiRow = .prompts
+            case "instruction", "menu": aiRow = .ask; target = .instruction
             case "cardExpanded": aiExpanded = true; cardExpanded = true
             #if DEBUG
             case "versions": aiExpanded = true; debugUnblocked = true; loadDebugVersions()
@@ -793,12 +753,13 @@ extension KeyboardModel {
                 aiExpanded = true; debugUnblocked = true; loadDebugVersions()
                 beginCardEdit(); insertInCard("周五补上进度。"); finishCardEdit()
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
+            case "ask", "askEmpty", "askSelected", "askRewrite", "askAnswerMode", "askAnswer", "askRewriteResult", "askRunning":
+                loadDebugAsk(option)
+            case "askHold": debugAskHold = true
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
             case "quick:cycle": loadDebugQuickCycle()
-            case "rerun:running": loadDebugRerun(cycle: false)
-            case "rerun:cycle": loadDebugRerun(cycle: true)
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "quickWords": keysPanel = .quickWords

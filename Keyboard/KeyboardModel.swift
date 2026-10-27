@@ -13,8 +13,27 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var copied = false
     /// 结果卡片展开到五行。
     @Published var cardExpanded = false { didSet { heightMayChange?() } }
-    /// 「正式▾」浮层：风格和要求。
-    @Published var styleMenuOpen = false { didSet { heightMayChange?() } }
+    /// AI 栏上方展开的一行：「润色 ▴」的提示词标签，或「识意 ▴」的输入框（QA2、QA14）。两者互斥。
+    enum AIRow { case prompts, ask }
+    @Published var aiRow: AIRow? { didSet { if aiRow != oldValue { heightMayChange?() } } }
+    /// 「识意」框重新展开时整段全选：直接打字就覆盖，删除键清空。
+    @Published var askSelected = false
+    /// 「识意」的两种方式：改写（产出能直接发的文字）、问答（回答问题）。
+    enum AskMode { case rewrite, answer }
+    /// 按住 ✨ 手动选的方式，只跟着当时那一句：识意框的字一改就回到自动。
+    @Published var askChoice: AskMode?
+    var askChoiceText = ""
+    /// 这次生成是「识意」发起的；askKind 是模型给出的判断，还没判断时为 nil。
+    @Published var askRunning = false
+    @Published var askKind: AskMode?
+    /// 上一次「识意」的结果：同一句换了方式重做时顶掉它（没替换、插入、复制过的话）。
+    struct LastAsk {
+        var question: String
+        var kind: AskMode
+        var index: Int
+        var used = false
+    }
+    var lastAsk: LastAsk?
     /// 当前结果已经替换或插入过：卡片变灰，按钮显示「✓ 已替换」。
     @Published private(set) var resultUse: ResultUse?
     /// 输入框又改过，当前结果和输入对不上：卡片同样变灰。
@@ -38,7 +57,7 @@ final class KeyboardModel: ObservableObject {
     @Published var notice: String?
     @Published var hasFullAccess = true
     @Published var needsGlobeKey = true
-    /// 要求栏：和正文分开存放的修改要求，执行时和输入框里的「// 要求」合并。
+    /// 「识意」框里的话（问题或修改要求），和正文分开存放。
     @Published private(set) var instruction = ""
     /// 要求框里的光标在第几个字后面。
     @Published private(set) var instructionCaret = 0
@@ -114,8 +133,8 @@ final class KeyboardModel: ObservableObject {
     /// 快速模式在 AI 栏上的状态：润色中（流光圈住 AI 栏）、✓ 已润色（1.5 秒后消失）、润色失败点重试。
     @Published private(set) var quickStatus: QuickStatus?
     enum QuickStatus { case running, done, failed }
-    /// 这次生成是哪个按钮点的：特效只在那个按钮上（AI 栏「润色」或风格浮层「再润」），收起展开都一样。
-    enum RunOrigin { case polish, rerun }
+    /// 这次生成是怎么开始的：✨ 按提示词润色，或识意展开时的 ✨。特效都在 ✨ 上。
+    enum RunOrigin { case polish, ask }
     @Published private(set) var runOrigin: RunOrigin?
     /// 刚完成的一次，按钮上的星星闪金用。
     struct Finished: Equatable {
@@ -159,6 +178,8 @@ final class KeyboardModel: ObservableObject {
     #if DEBUG
     /// 截图用（-keyboardDebug coach:…）：点 ✨ /「执行」不真的请求，2 秒后出三个假版本，看小手飞到下一步。
     var debugFakeRun = false
+    /// 截图用（-keyboardDebug askHold）：✨ 上停着按住时弹出的「改写 / 问答」（QA11）。
+    var debugAskHold = false
     #endif
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
@@ -182,18 +203,13 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, menuOpen: styleMenuOpen, gate: gate,
-                               reminder: showsTrialReminder, requestLines: requestLines, aiLabel: showsAILabel)
-    }
-
-    /// 提示词面板里要求框现在显示几行（1–3），由要求框按宽度折行后告诉这里，键盘跟着变高。
-    @Published var requestLines = 1 {
-        didSet { if requestLines != oldValue { heightMayChange?() } }
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, rowOpen: aiRow != nil, gate: gate,
+                               reminder: showsTrialReminder, aiLabel: showsAILabel)
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
     @Published private(set) var trialReminder = false { didSet { heightMayChange?() } }
-    var showsTrialReminder: Bool { trialReminder && gate == nil && !aiExpanded && !styleMenuOpen }
+    var showsTrialReminder: Bool { trialReminder && gate == nil && !aiExpanded && aiRow == nil }
 
     /// 使用指引「一键应用」后的小手指引导（见 KeyboardModel+Coach）。
     @Published var coach: Coach?
@@ -295,17 +311,13 @@ final class KeyboardModel: ObservableObject {
         } else {
             dropSession(unlessItBelongsTo: parsed.content)
         }
-        let command = CommandParser.Command(
-            content: parsed.content,
-            instruction: [instruction.trimmingCharacters(in: .whitespacesAndNewlines), parsed.instruction]
-                .filter { !$0.isEmpty }
-                .joined(separator: "；")
-        )
+        // 「识意」框里的话只在识意展开时用（askTapped），这里只看输入框里的「// 要求」。
+        let command = parsed
         let style = settings.selectedStyle
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
-            notice = L("先在输入框里写点什么，或者点「\(settings.selectedStyle?.displayName ?? "润色")▾」写一个要求让它帮你写。", "Type something first, or tap \(settings.selectedStyle?.displayName ?? "Polish") ▾ and add a prompt to have it written for you.", "先に何か入力するか、「\(settings.selectedStyle?.displayName ?? "整える")▾」で指示を書くと下書きを作成します。")
+            notice = L("先在输入框里写点什么，或者点「识意」说说想写什么，让它帮你写。", "Type something first, or tap Ask and say what you want written.", "先に何か入力するか、「たずねる」で書いてほしい内容を伝えてください。")
 
         case (false, true):
             // 润色：总是润输入框里现在的文字（可能是替换后又手改过的），结果接在这次会话后面，翻页还能找回之前的版本。
@@ -418,7 +430,7 @@ final class KeyboardModel: ObservableObject {
     func finishCardEdit() {
         guard target == .card else { return }
         finishComposition()
-        target = .host
+        target = restingTarget
         let text = cardDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var session, !text.isEmpty, cardDraft != session.current else { return }
         session.append(cardDraft, edited: true)
@@ -433,7 +445,7 @@ final class KeyboardModel: ObservableObject {
         guard target == .card else { return }
         engine.reset()
         syncEngine()
-        target = .host
+        target = restingTarget
         cardDraft = ""
     }
 
@@ -478,43 +490,19 @@ final class KeyboardModel: ObservableObject {
     /// 预览区已经有一个结果（不在生成中）。
     var hasResult: Bool { !isRunning && session?.current != nil }
 
-    /// 风格浮层里的「润色」和回车「执行」：按当前风格和要求生成。
-    /// 已有这段文字的结果时，用原话重写一版追加到后面，可以上下翻回之前的版本；否则照常执行。
-    func regenerate() {
-        guard !isRunning else { return }
-        let request = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        let edited = session?.currentIsEdited == true ? session?.current : nil
-        let content = edited ?? CommandParser.parse(readField().text).content
-        guard !content.isEmpty, edited != nil || !dropSession(unlessItBelongsTo: content),
-              hasResult, var pending = session, let style = settings.selectedStyle
-        else {
-            execute()
-            return
-        }
-        guard checkCanCallModel() else { return }
-        switch pending.mode {
-        case .polish:
-            // 再润也以输入框里现在的文字为准，不退回最初的原话。
-            run(rewrite(content, request: request, style: style), pending: pending)
-        case .write:
-            let ask = ["按「\(style.name)」的写法重写一遍。", request].filter { !$0.isEmpty }.joined(separator: "；")
-            pending.conversation.append(.user(ask))
-            run(Prompts.revise(original: pending.original, current: content, instruction: ask, style: style),
-                pending: pending)
-        }
+    /// 「识意」的这一次：问的话、手动选的方式（nil 自动），模型没写类型时按 fallback 算回答还是改写。
+    struct AskRequest {
+        var question: String
+        var forced: AskMode?
+        var fallbackAnswer: Bool
     }
 
-    /// 按风格重写一段原话；有要求时按要求改。
-    private func rewrite(_ text: String, request: String, style: StylePreset) -> [ChatMessage] {
-        request.isEmpty
-            ? Prompts.polish(text, style: style)
-            : Prompts.revise(original: text, current: text, instruction: request, style: style)
-    }
-
-    private func run(_ messages: [ChatMessage], pending: EditSession) {
+    func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil) {
         let client = LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
         isRunning = true
         streamingText = ""
+        askRunning = ask != nil
+        if askKind != nil { askKind = nil }
         let started = Date()
         let styleID = settings.selectedStyle?.id
         // 仪表盘的统计：耗时按毫秒记。
@@ -526,10 +514,22 @@ final class KeyboardModel: ObservableObject {
             do {
                 for try await piece in client.stream(messages) {
                     raw += piece
-                    self?.streamingText = ModelOutput.clean(raw)
+                    guard let self else { continue }
+                    let text = ModelOutput.clean(raw)
+                    if let ask {
+                        // 等第一行写出「改写 / 问答」再显示正文。
+                        guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
+                        self.askDecided(split.answer ? .answer : .rewrite)
+                        self.streamingText = split.body
+                    } else {
+                        self.streamingText = text
+                    }
                 }
-                let result = ModelOutput.clean(raw)
                 guard let self else { return }
+                let cleaned = ModelOutput.clean(raw)
+                let split = ask.map { Prompts.splitAsk(cleaned, final: true, fallback: $0.fallbackAnswer) } ?? nil
+                let result = split?.body ?? cleaned
+                if let split { self.askDecided(split.answer ? .answer : .rewrite) }
                 if result.isEmpty {
                     self.errorMessage = L("模型没有返回内容。", "The model returned nothing.", "モデルから応答がありませんでした。")
                     self.endQuickMode(.failed)
@@ -540,8 +540,12 @@ final class KeyboardModel: ObservableObject {
                     AIAccess.recordUse()
                     self.refreshAIAccess()
                     var updated = pending
-                    updated.append(result)
-                    if updated.mode == .write {
+                    if let ask, let kind = self.askKind {
+                        self.appendAsk(result, kind: kind, question: ask.question, to: &updated)
+                    } else {
+                        updated.append(result)
+                    }
+                    if updated.mode == .write, ask == nil {
                         updated.conversation.append(.assistant(result))
                     }
                     self.session = updated
@@ -564,6 +568,8 @@ final class KeyboardModel: ObservableObject {
             }
             self?.isRunning = false
             self?.runOrigin = nil
+            self?.askRunning = false
+            if self?.askKind != nil { self?.askKind = nil }
         }
     }
 
@@ -579,6 +585,8 @@ final class KeyboardModel: ObservableObject {
         task = nil
         isRunning = false
         runOrigin = nil
+        askRunning = false
+        if askKind != nil { askKind = nil }
         quickSource = nil
         quickStatus = nil
     }
@@ -676,25 +684,17 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    /// 截图用：风格浮层「再润」生成中（rerun:running），或 3 秒后完成闪金、每 5 秒重来（rerun:cycle）。
-    func loadDebugRerun(cycle: Bool) {
-        styleMenuOpen = true
-        guard cycle else {
-            isRunning = true
-            runOrigin = .rerun
-            return
-        }
-        Task { [weak self] in
-            while let self {
-                self.isRunning = true
-                self.runOrigin = .rerun
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                self.isRunning = false
-                self.runOrigin = nil
-                self.finished = Finished(origin: .rerun, at: Date())
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-            }
-        }
+    func loadDebugSession(_ debug: EditSession) {
+        session = debug
+    }
+
+    /// 截图用：识意生成中，已经判断出类型，还没出字（QA10）。
+    func loadDebugAskRunning(_ kind: AskMode) {
+        isRunning = true
+        runOrigin = .ask
+        askRunning = true
+        askKind = kind
+        streamingText = ""
     }
 
     /// 截图用：润色中 3 秒后完成，看完成时星星闪金（-keyboardDebug quick:cycle），每 5 秒重来一次。
@@ -769,16 +769,26 @@ final class KeyboardModel: ObservableObject {
 
     /// 整段换掉（清空、填入建议），光标放到最后。
     func setInstruction(_ text: String) {
+        if askSelected { askSelected = false }
         storeInstruction(text, caret: text.count)
     }
 
     func insertInInstruction(_ text: String) {
+        // 全选着：打的字直接盖掉原来的。
+        if askSelected {
+            setInstruction(text)
+            return
+        }
         let split = instruction.index(instruction.startIndex, offsetBy: instructionCaret)
         storeInstruction(String(instruction[..<split]) + text + String(instruction[split...]),
                          caret: instructionCaret + text.count)
     }
 
     func deleteInInstruction() {
+        if askSelected {
+            setInstruction("")
+            return
+        }
         guard instructionCaret > 0 else { return }
         let end = instruction.index(instruction.startIndex, offsetBy: instructionCaret)
         let start = instruction.index(before: end)
@@ -786,10 +796,13 @@ final class KeyboardModel: ObservableObject {
     }
 
     func moveInstructionCaret(by offset: Int) {
+        if askSelected { askSelected = false }
         instructionCaret = min(max(instructionCaret + offset, 0), instruction.count)
     }
 
     private func storeInstruction(_ text: String, caret: Int) {
+        // 字改了，手动选的改写 / 问答就不再跟着。
+        if askChoice != nil, text != askChoiceText { askChoice = nil }
         instruction = text
         instructionCaret = min(max(caret, 0), text.count)
         SharedStorage.defaults.set(text, forKey: Self.instructionKey)
@@ -854,6 +867,7 @@ final class KeyboardModel: ObservableObject {
     /// 卡片上的复制图标或长按卡片：复制当前版本。
     func copy() {
         guard hasResult, let text = session?.current else { return }
+        markAskUsed()
         UIPasteboard.general.string = text
         keyFeedback(for: .space)
         withAnimation(.easeOut(duration: 0.15)) { copied = true }
@@ -863,6 +877,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func recordEdit(inserted: String, original: String, use: ResultUse) {
+        markAskUsed()
         resultUse = use
         resultStale = false
         undoStack.append(FieldEdit(inserted: inserted, original: original, use: use))
