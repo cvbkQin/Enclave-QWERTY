@@ -251,6 +251,7 @@ private struct StyleEditor: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
     @StateObject private var optimizer = PromptOptimizer()
+    @FocusState private var editingPrompt: Bool
 
     private var builtIn: StylePreset? { StyleSuggestions.builtIn(style) }
 
@@ -269,6 +270,7 @@ private struct StyleEditor: View {
             }
             Section {
                 TextEditor(text: $style.prompt)
+                    .focused($editingPrompt)
                     .frame(minHeight: 120)
                     .overlay(alignment: .topLeading) {
                         if style.prompt.isEmpty {
@@ -325,6 +327,7 @@ private struct StyleEditor: View {
             }
         }
         .navigationTitle(L("编辑提示词", "Edit prompt", "プロンプトを編集"))
+        .doneEditingButton(editingPrompt)
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear { optimizer.cancel() }
         #if DEBUG

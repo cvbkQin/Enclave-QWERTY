@@ -430,6 +430,7 @@ struct SceneView: View {
                 }
                 Text(scene.situation).font(.subheadline).foregroundStyle(.secondary)
                 TextField(scene.text.isEmpty ? L("输入框留空，按下面的提示让它帮你写", "Leave this empty and follow the steps below to have it written for you", "空欄のまま、下の手順で書いてもらいます") : L("在这里输入…", "Type here…", "ここに入力…"), text: $text, axis: .vertical)
+                    .submitLabel(.return)
                     .lineLimit(3...10)
                     .focused($focused)
                     .padding(14)

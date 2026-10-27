@@ -92,6 +92,7 @@ struct TypingTestView: View {
                 .pickerStyle(.segmented)
                 articleView
                 TextField(L("在这里打字…", "Type here…", "ここに入力…"), text: $typed, axis: .vertical)
+                    .submitLabel(.return)
                     .lineLimit(4...12)
                     .focused($focused)
                     .disabled(finished)

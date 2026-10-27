@@ -53,6 +53,8 @@ struct EnclaveApp: App {
                 .environmentObject(store)
                 // 输入时收起键盘：往下拖列表跟着收起，点输入框以外的地方也收起（KeyboardDismiss）。
                 .scrollDismissesKeyboard(.interactively)
+                // 单行输入框回车键写「完成」，点了收起；多行的各自改回换行（.submitLabel(.return)）。
+                .submitLabel(.done)
                 .onAppear { KeyboardDismiss.shared.install() }
                 .task { RimeDeployer.shared.deployIfNeeded() }
                 .task { await UnlockStore.shared.refresh() }

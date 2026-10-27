@@ -168,3 +168,21 @@ struct NotSyncedBanner: View {
         }
     }
 }
+
+extension View {
+    /// 多行输入框（回车是换行）编辑时，导航栏右上角出现「完成」，点了收起键盘；不在编辑时不显示。
+    func doneEditingButton(_ editing: Bool) -> some View {
+        toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if editing {
+                    Button {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    } label: {
+                        Text(L("完成", "Done", "完了")).font(.system(size: 17, weight: .semibold))
+                    }
+                    .tint(AppColor.purple)
+                }
+            }
+        }
+    }
+}

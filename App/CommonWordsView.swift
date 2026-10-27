@@ -373,6 +373,7 @@ private struct WordEditor: View {
                     HStack(alignment: .firstTextBaseline, spacing: 16) {
                         Text(L("词", "Word", "語")).frame(width: 36, alignment: .leading)
                         TextField(L("比如：你的邮箱或地址", "e.g. your email or address", "例：メールアドレスや住所"), text: $text, axis: .vertical)
+                            .submitLabel(.return)
                             .onChange(of: text) { value in
                                 if !pinyinEdited { pinyin = CommonWordStore.pinyin(of: value) }
                             }

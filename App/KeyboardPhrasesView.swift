@@ -128,6 +128,7 @@ private struct PhraseEditor: View {
             Form {
                 Section {
                     TextField(L("比如：邮箱、地址、税号", "e.g. email, address, company ID", "例：メールアドレス、住所"), text: $text, axis: .vertical)
+                        .submitLabel(.return)
                         .lineLimit(1...6)
                         .focused($focused)
                 } footer: {
