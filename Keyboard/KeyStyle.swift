@@ -43,7 +43,7 @@ enum KeyboardMetrics {
         (tall ? expandedCardHeight : cardHeight) + (aiLabel ? aiLabelHeight : 0)
     }
     /// 结果卡左边的替换 / 插入键：宽 58，和卡片一样高，和卡片隔 6。
-    static let resultKeyWidth: CGFloat = 58
+    static let resultKeyWidth: CGFloat = 36
     static let resultKeyGap: CGFloat = 6
     /// AI 栏上方展开的一行（提示词 / 识意，QA2、QA14）：高 42，底边的小尖角伸到下面按钮的上沿。
     static let aiRowHeight: CGFloat = 42
@@ -300,6 +300,8 @@ enum Brand {
                                   Color(UIColor(red: 0x38 / 255, green: 0xBD / 255, blue: 0xF8 / 255, alpha: 1))]
     /// 问答结果卡的天蓝边 #38BDF8 / 深色 #7DD3FC；改写结果卡紫边 #8B7CF6。
     static let answerBorder = dynamic(0x38BDF8, 0x7DD3FC)
+    /// 要联网时选择卡左边那颗灰按钮（WB1）：#F2F2F7 / 深色 #3A3A3C。
+    static let searchDeclineFill = dynamic(0xF2F2F7, 0x3A3A3C)
     /// 「AI 正在回答…」的字 #0284C7 / 深色 #7DD3FC。
     static let answerText = dynamic(0x0284C7, 0x7DD3FC)
     /// 问答生成中边框流光：天蓝一圈。

@@ -387,6 +387,15 @@ enum SearchProvider: String {
         }
     }
 
+    /// 大陆店面打开联网时确认框里写的公司全称（AP4）。
+    var company: String {
+        switch self {
+        case .kimi: return "北京月之暗面科技有限公司"
+        case .qwen: return "阿里云"
+        case .glm: return "北京智谱华章科技股份有限公司"
+        }
+    }
+
     /// 服务商自带联网（一次请求里搜完答完），不用键盘另外去搜。
     var builtin: Bool { self != .kimi }
 }

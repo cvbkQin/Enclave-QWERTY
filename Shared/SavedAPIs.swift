@@ -16,6 +16,19 @@ struct SavedAPI: Codable, Identifiable, Equatable {
         nonmutating set { Keychain.set(newValue, for: keyAccount) }
     }
 
+    /// 列表上只显示 Key 的尾号 4 位，没有 Key 时 nil。
+    var keySuffix: String? {
+        guard let key = apiKey, !key.isEmpty else { return nil }
+        return String(key.suffix(4))
+    }
+
+    /// 地址、模型、Key 三样都一样。
+    func matches(baseURL: String, model: String, apiKey: String?) -> Bool {
+        SavedAPIStore.normalized(self.baseURL) == SavedAPIStore.normalized(baseURL)
+            && self.model == model.trimmingCharacters(in: .whitespacesAndNewlines)
+            && (self.apiKey ?? "") == (apiKey ?? "")
+    }
+
     /// 默认名字：「Kimi · kimi-k3.1-pro」，认不出的服务商写主机名。
     static func defaultName(baseURL: String, model: String) -> String {
         let host = URL(string: baseURL.trimmingCharacters(in: .whitespaces))?.host ?? baseURL
@@ -39,30 +52,29 @@ enum SavedAPIStore {
         if let data = try? JSONEncoder().encode(list) { SharedStorage.defaults.set(data, forKey: key) }
     }
 
-    /// 存一条。地址和模型都一样的旧方案直接更新（Key 也换成新的），不重复存；新的放最前面。
+    static func normalized(_ url: String) -> String {
+        var text = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        while text.hasSuffix("/") { text.removeLast() }
+        return text
+    }
+
+    enum SaveResult { case saved(SavedAPI), duplicate(SavedAPI) }
+
+    /// 存一条，放在最后。地址、模型、Key 三样都和已有某条一样时不新增，返回那一条。
     @discardableResult
-    static func save(name: String?, baseURL: String, model: String, apiKey: String?) -> SavedAPI {
-        func trimmed(_ text: String) -> String {
-            var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            while text.hasSuffix("/") { text.removeLast() }
-            return text
-        }
+    static func save(name: String?, baseURL: String, model: String, apiKey: String?) -> SaveResult {
         var list = all
-        let url = trimmed(baseURL), model = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let existing = list.first(where: { $0.matches(baseURL: baseURL, model: model, apiKey: apiKey) }) {
+            return .duplicate(existing)
+        }
+        let url = normalized(baseURL), model = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let name = name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
             ?? SavedAPI.defaultName(baseURL: url, model: model)
-        var item: SavedAPI
-        if let index = list.firstIndex(where: { trimmed($0.baseURL) == url && $0.model == model }) {
-            item = list.remove(at: index)
-            item.name = name
-            item.savedAt = Date()
-        } else {
-            item = SavedAPI(name: name, baseURL: url, model: model)
-        }
+        let item = SavedAPI(name: name, baseURL: url, model: model)
         item.apiKey = apiKey
-        list.insert(item, at: 0)
+        list.append(item)
         write(list)
-        return item
+        return .saved(item)
     }
 
     static func rename(_ id: UUID, to name: String) {

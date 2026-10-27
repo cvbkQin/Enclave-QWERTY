@@ -79,6 +79,10 @@ struct EnclaveApp: App {
                                 UIApplication.shared.open(settings)
                             }
                         }
+                    // 键盘里要联网但已禁止时的「去开启」：接口 › 问答页，滚到「联网调用」。
+                    case "api-answer":
+                        router.tab = .model
+                        router.showsAnswerWebSearch = true
                     case "privacy-policy":
                         router.settingsPath = [.privacy, .privacyPolicy]
                         router.tab = .settings
@@ -174,6 +178,8 @@ final class AppRouter: ObservableObject {
         didSet { Loc.setting = language }
     }
     @Published var settingsPath: [SettingsPage] = []
+    /// 接口页切到「问答」并滚到「联网调用」（键盘「去开启」）。接口页处理完清掉。
+    @Published var showsAnswerWebSearch = false
     @Published var homePath = NavigationPath()
     /// 隐私政策同意情况（CP1–CP5）：首次打开整页说明，设置 › 隐私里「阅读并同意」也打开它。
     @Published var privacyAgreed = PrivacyConsent.isAgreed
@@ -310,17 +316,24 @@ final class AppStore: ObservableObject {
     /// 已存方案（接口页「保存」）。
     @Published private(set) var savedAPIs = SavedAPIStore.all
 
-    /// 把这一页现在填的地址、模型、Key 存成方案。answer：问答页。
-    func saveAPI(name: String? = nil, answer: Bool) {
-        if answer {
-            SavedAPIStore.save(name: name, baseURL: settings.answerBaseURL, model: settings.answerModel, apiKey: answerApiKey)
-        } else {
-            SavedAPIStore.save(name: name, baseURL: settings.baseURL, model: settings.model, apiKey: apiKey)
-        }
+    /// 把这一页现在填的地址、模型、Key 存成预设。answer：问答页。三样都和已有某条一样时不新增（.duplicate）。
+    @discardableResult
+    func saveAPI(name: String?, answer: Bool) -> SavedAPIStore.SaveResult {
+        let result = answer
+            ? SavedAPIStore.save(name: name, baseURL: settings.answerBaseURL, model: settings.answerModel, apiKey: answerApiKey)
+            : SavedAPIStore.save(name: name, baseURL: settings.baseURL, model: settings.model, apiKey: apiKey)
         savedAPIs = SavedAPIStore.all
+        return result
     }
 
-    /// 点方案：恢复到这一页的地址、模型和 Key。问答页恢复时顺便打开「单独设置问答接口」。
+    /// 这一页现在用的是哪条预设：地址、模型、Key 三样都一样才算。
+    func currentSavedAPI(answer: Bool) -> SavedAPI? {
+        savedAPIs.first { answer
+            ? $0.matches(baseURL: settings.answerBaseURL, model: settings.answerModel, apiKey: answerApiKey)
+            : $0.matches(baseURL: settings.baseURL, model: settings.model, apiKey: apiKey) }
+    }
+
+    /// 点预设：只换这一页的地址、模型和 Key（问答页顺便关掉「和改写用同一个接口」），然后状态卡重新测一次。
     func applySavedAPI(_ saved: SavedAPI, answer: Bool) {
         let key = saved.apiKey ?? ""
         if answer {
@@ -333,6 +346,8 @@ final class AppStore: ObservableObject {
             settings.model = saved.model
             apiKey = key
         }
+        guard PrivacyConsent.isAgreed else { return }
+        Task { answer ? await runAnswerTest() : await runTest() }
     }
 
     func renameSavedAPI(_ id: UUID, to name: String) {
@@ -385,6 +400,10 @@ final class AppStore: ObservableObject {
         } catch {
             answerTest = .failure(error.localizedDescription)
         }
+        var ok = false
+        if case .success = answerTest { ok = true }
+        // 问答页的小曲线里有它。
+        UsageStats.recordAnswerRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok)
     }
 
     func runTest() async {

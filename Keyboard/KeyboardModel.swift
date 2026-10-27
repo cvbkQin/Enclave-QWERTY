@@ -632,6 +632,7 @@ final class KeyboardModel: ObservableObject {
                     for try await piece in client.stream(messages) {
                         raw += piece
                         guard let self else { continue }
+                        if self.askSearching, !ModelOutput.clean(raw).isEmpty { self.askSearching = false }
                         if maySearch {
                             let probe = Prompts.searchProbe(ModelOutput.clean(raw), final: false)
                             if probe == .pending { continue }
@@ -680,7 +681,8 @@ final class KeyboardModel: ObservableObject {
                     }
                     try Task.checkCancellation()
                     if provider.builtin {
-                        // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。
+                        // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。搜索在服务商那边，出字前流光小字写「正在用 … 联网搜索…」。
+                        self.askSearching = true
                         client = LLMClient(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings), webSearch: true)
                         messages = Prompts.ask(ask.question, context: "", forceAnswer: true, builtinSearch: true)
                         continue

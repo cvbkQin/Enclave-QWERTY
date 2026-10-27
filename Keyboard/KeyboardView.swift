@@ -1007,12 +1007,13 @@ struct ResultCard: View {
     /// 文字区宽度，点文字时换算成第几个字。
     @State private var textWidth: CGFloat = 200
 
-    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded, editing }
+    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded, editing, search(KeyboardModel.SearchPrompt) }
 
     private var look: Look {
         if model.aiBlocked { return .checklist }
         if model.target == .card { return .editing }
         if let error = model.errorMessage { return .error(error) }
+        if let prompt = model.searchPrompt { return .search(prompt) }
         if model.isRunning { return .running }
         if model.session?.current != nil {
             return model.resultUse != nil || model.resultStale ? .faded : .fresh
@@ -1023,7 +1024,7 @@ struct ResultCard: View {
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
 
     /// 只在生成中播放；App 里关了动画或系统开了「减弱动态效果」就不播。
-    private var animating: Bool { model.isRunning && model.settings.polishAnimation && !reduceMotion }
+    private var animating: Bool { model.isRunning && model.searchPrompt == nil && model.settings.polishAnimation && !reduceMotion }
 
     var body: some View {
         let look = look
@@ -1034,6 +1035,7 @@ struct ResultCard: View {
             case .hint(let notice): hintView(notice)
             case .running, .fresh, .faded: resultView(faded: { if case .faded = look { return true } else { return false } }())
             case .editing: editView
+            case .search(let prompt): searchPromptView(prompt)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1121,9 +1123,81 @@ struct ResultCard: View {
         .padding(.trailing, 4)
     }
 
+    // MARK: 要联网时（WB1–WB3）
+
+    /// 和结果卡一样大的选择卡：左边 🌐 标题 + 灰字说明，右边两颗按钮；没有右边修改 / 复制 / 展开三个图标。
+    private func searchPromptView(_ prompt: KeyboardModel.SearchPrompt) -> some View {
+        let name = prompt.provider.name
+        let firstTime = !prompt.disabled && model.settings.webSearchMode == .on
+        let title: String, detail: String, decline: String, accept: String
+        if prompt.disabled {
+            title = L("要联网才答得准", "Needs the web to answer well", "ウェブ検索が必要です")
+            detail = L("联网调用已禁止", "Web search is off", "ウェブ検索はオフ")
+            decline = L("直接回答", "Answer anyway", "そのまま回答")
+            accept = L("去开启", "Turn on", "オンにする")
+        } else if firstTime {
+            title = L("第一次用 \(name) 联网", "Search the web?", "ウェブで検索しますか？")
+            detail = L("约 ¥0.01 一次 · 允许后不再问", "Sends to \(name) search", "\(name) の検索に送信")
+            decline = L("拒绝", "Don't allow", "許可しない")
+            accept = L("允许", "Allow", "許可")
+        } else {
+            title = L("要联网搜索吗？", "Search the web?", "ウェブで検索しますか？")
+            detail = L("发给 \(name) 搜索 · 约 ¥0.01", "Sends to \(name) search", "\(name) の検索に送信")
+            decline = L("拒绝", "Don't allow", "許可しない")
+            accept = L("允许", "Allow", "許可")
+        }
+        return HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    // 禁止时地球上加一道斜线（WB3）。
+                    Image(systemName: "globe")
+                        .font(.system(size: 14, weight: .semibold))
+                        .overlay {
+                            if prompt.disabled {
+                                Capsule().frame(width: 1.8, height: 19).rotationEffect(.degrees(-45))
+                            }
+                        }
+                        .foregroundStyle(Brand.answerText)
+                    Text(title).font(.system(size: 15, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.75)
+                }
+                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            Spacer(minLength: 4)
+            Button { model.resolveSearchPrompt(allow: false) } label: {
+                Text(decline)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 11)
+                    .frame(height: 32)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.searchDeclineFill))
+            }
+            .buttonStyle(.plain)
+            Button {
+                if prompt.disabled { model.openContainingApp("enclave://api-answer") } else { model.resolveSearchPrompt(allow: true) }
+            } label: {
+                Text(accept)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .padding(.horizontal, 11)
+                    .frame(height: 32)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 12)
+        .padding(.trailing, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private var runningTitle: String {
         guard model.askRunning else { return L("AI 正在润色…", "AI is polishing…", "AI が整えています…") }
-        if model.askSearching { return L("正在联网搜索…", "Searching the web…", "ウェブを検索しています…") }
+        if model.askSearching {
+            let name = model.settings.answerSearch?.name ?? ""
+            return L("正在用 \(name) 联网搜索…", "Searching the web with \(name)…", "\(name) でウェブを検索しています…")
+        }
         switch model.askKind {
         case .answer: return L("AI 正在回答…", "AI is answering…", "AI が回答しています…")
         case .rewrite: return L("AI 正在改写…", "AI is rewriting…", "AI が書き換えています…")
@@ -1135,7 +1209,7 @@ struct ResultCard: View {
 
     @ViewBuilder
     private func resultText(faded: Bool) -> some View {
-        let tag = model.isRunning ? Text("") : Text(Image(uiImage: AIGeneratedTag.image(dark: colorScheme == .dark))) + Text(" ")
+        let tag = model.isRunning ? Text("") : Text(Image(uiImage: AIGeneratedTag.image(dark: colorScheme == .dark)))
         let text = tag + Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(runningColor)
         Group {
             if model.isRunning && model.displayText.isEmpty {
@@ -1336,6 +1410,8 @@ struct ResultCard: View {
             shape.strokeBorder(Color.red.opacity(0.35), lineWidth: 0.8)
         case .editing:
             shape.strokeBorder(Brand.tagSelectedText, lineWidth: 2)
+        case .search:
+            shape.strokeBorder(Brand.answerBorder, lineWidth: 1.5)
         case .checklist, .hint:
             EmptyView()
         }
@@ -1503,45 +1579,37 @@ extension View {
 }
 
 
-/// 结果卡片左上角的「AI 生成」标签（CP8）：高 18、圆角 5，灰底灰字，前面一颗四角星。
-struct AIGeneratedTag: View {
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: "sparkle").font(.system(size: 9, weight: .semibold))
-            Text(L("AI 生成", "AI-generated", "AI 生成")).font(.system(size: 10.5, weight: .semibold))
-        }
-        .foregroundStyle(Brand.aiTagText)
-        .padding(.horizontal, 6)
-        .frame(height: 18)
-        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Brand.aiTagFill))
-        .accessibilityElement(children: .combine)
-    }
-
-    /// 同一个标签画成图片，拼在正文第一行开头（QA5、QA6）：Text 里只能嵌图片，嵌不了视图。按深浅色、语言各画一次。
-    /// 图片高 14，坐在基线上不往下沉：baselineOffset 会把第一行撑高，高 18 也会，第一行和后面几行行距就不一样了。
+/// 结果正文第一行开头的「AI 生成」标签（CP8，TG3、TG4）：高 15、圆角 4、左右内边距 5，字 10pt semibold，灰底灰字，没有星星。
+/// Text 里只能嵌图片，嵌不了视图，所以画成图片拼进正文。
+enum AIGeneratedTag {
     private static var images: [String: UIImage] = [:]
 
-    static func image(dark: Bool) -> UIImage {
+    /// 对齐（TG4）：标签上下中线 = 第一行汉字的中线 = 基线 + 正文字体 capHeight / 2。
+    /// 和 NSTextAttachment 的 bounds.origin.y = capHeight/2 − 15/2 一样：用图片自己的基线（withBaselineOffset），
+    /// 让标签往基线下面伸约 2.2pt，落在正文的下行空间里，第一行不会被撑高（不用 baselineOffset 往上抬）。
+    /// 图片右边多画 6pt 透明，就是标签和正文的间距。
+    static func image(dark: Bool, bodySize: CGFloat = 15) -> UIImage {
         let label = L("AI 生成", "AI-generated", "AI 生成")
-        let key = "\(dark)\(label)"
+        let key = "\(dark)\(label)\(bodySize)"
         if let image = images[key] { return image }
         let fill = dark ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
             : UIColor(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255, alpha: 1)
         let ink = dark ? UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1)
             : UIColor(red: 0x6B / 255, green: 0x6B / 255, blue: 0x73 / 255, alpha: 1)
         let font = UIFont.systemFont(ofSize: 10, weight: .semibold)
-        let star = UIImage(systemName: "sparkle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 8.5, weight: .semibold))?
-            .withTintColor(ink, renderingMode: .alwaysOriginal)
-        let starWidth = star?.size.width ?? 0
         let textSize = (label as NSString).size(withAttributes: [.font: font])
-        let size = CGSize(width: ceil(5 + starWidth + 3 + textSize.width + 5), height: 14)
-        let image = UIGraphicsImageRenderer(size: size).image { _ in
+        let height: CGFloat = 15
+        let tagWidth = ceil(5 + textSize.width + 5)
+        let size = CGSize(width: tagWidth + 6, height: height)
+        let rendered = UIGraphicsImageRenderer(size: size).image { _ in
             fill.setFill()
-            UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 4).fill()
-            star?.draw(at: CGPoint(x: 5, y: (size.height - (star?.size.height ?? 0)) / 2))
-            (label as NSString).draw(at: CGPoint(x: 5 + starWidth + 3, y: (size.height - textSize.height) / 2),
+            UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: tagWidth, height: height), cornerRadius: 4).fill()
+            (label as NSString).draw(at: CGPoint(x: 5, y: (height - textSize.height) / 2),
                                      withAttributes: [.font: font, .foregroundColor: ink])
         }
+        let capHeight = UIFont.systemFont(ofSize: bodySize).capHeight
+        let below = max(0, height / 2 - capHeight / 2)
+        let image = rendered.withBaselineOffset(fromBottom: below)
         images[key] = image
         return image
     }
