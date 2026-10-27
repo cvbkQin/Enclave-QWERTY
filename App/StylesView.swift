@@ -129,9 +129,10 @@ struct StylesView: View {
     }
 
     /// 自带的 5 条里被删掉的：名字和内容都找不到了才算（改了名或改了内容的还在列表里）。
+    /// 「润色」默认内容为空：列表里还有任何一条内容为空就算没删，免得改名后加回变成两条空的。
     private var missingDefaults: [StylePreset] {
         StylePreset.defaults.filter { preset in
-            !settings.styles.contains { $0.name == preset.name || (!preset.prompt.isEmpty && $0.prompt == preset.prompt) }
+            !settings.styles.contains { $0.name == preset.name || $0.prompt == preset.prompt }
         }
     }
 
@@ -312,6 +313,11 @@ private struct StyleEditor: View {
             .foregroundStyle(empty && !optimizer.running ? Color.secondary : AppColor.deepPurple)
         }
         .disabled(empty && !optimizer.running)
+        if empty && !optimizer.running {
+            Text(L("先写几个字，AI 再帮你改清楚", "Write a few words first, then AI can sharpen it", "数文字書いてから AI で整えられます"))
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+        }
         if let error = optimizer.error {
             Text(error).font(.footnote).foregroundStyle(.red)
         }
@@ -341,7 +347,10 @@ private struct StyleEditor: View {
                     Text(L("还可以加上", "You could also add", "追加するなら"))
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    SuggestionChips(tags: result.suggestions, prompt: $style.prompt)
+                    // 加进淡紫框里这一版，「用这一版」时一起带上。
+                    SuggestionChips(tags: result.suggestions,
+                                    prompt: Binding(get: { optimizer.result?.prompt ?? "" },
+                                                    set: { optimizer.result?.prompt = $0 }))
                 }
                 .padding(.vertical, 4)
             }
@@ -351,7 +360,7 @@ private struct StyleEditor: View {
                 Text(L("AI 优化结果", "AI suggestion", "AI の提案"))
             }
         } footer: {
-            Text(L("「用这一版」会替换上面的提示词内容；下面的建议点一下加进现在的提示词。", "\"Use this\" replaces the prompt above. Tap a suggestion to add it to the current prompt.", "「これを使う」で上のプロンプトを置き換えます。下の候補はタップで今のプロンプトに追加します。"))
+            Text(L("「用这一版」会换掉上面的提示词内容；下面的建议点一下加进这一版。", "\"Use this\" replaces the prompt above. Tap a suggestion to add it to this version.", "「これを使う」で上のプロンプトを置き換えます。下の候補はタップでこの案に追加します。"))
         }
     }
 }
