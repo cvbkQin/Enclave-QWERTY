@@ -68,6 +68,8 @@ struct KeyboardView: View {
             // 按住 ✨ 弹出的「问答」盖在按键上面。
             .zIndex(1)
             KeysView(model: model)
+                // 横屏九宫格居中 420 宽，不拉宽。
+                .frame(maxWidth: model.landscape && model.nineGrid ? KeyboardMetrics.landscapeNineWidth : .infinity)
                 .padding(.horizontal, KeyboardMetrics.sidePadding)
                 .layoutPriority(1)
                 // 气泡开着时点按键区别处只关气泡，不打字。
@@ -77,6 +79,8 @@ struct KeyboardView: View {
                     }
                 }
         }
+        // 横屏两边各留 48 给刘海 / 灵动岛。
+        .padding(.horizontal, model.landscape ? KeyboardMetrics.landscapeSideMargin : 0)
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         // 使用指引「一键应用」后的小手指，画在键盘里面。
@@ -1417,6 +1421,9 @@ struct ResultCard: View {
                        tint: .secondary) {
                 withAnimation(.easeOut(duration: 0.2)) { model.cardExpanded.toggle() }
             }
+            // 横屏结果卡固定 2 行，不能展开。
+            .opacity(model.landscape ? 0 : 1)
+            .disabled(model.landscape)
         }
         .frame(width: 24)
     }

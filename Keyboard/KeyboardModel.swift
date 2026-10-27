@@ -250,7 +250,17 @@ final class KeyboardModel: ObservableObject {
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
     /// 在卡片里改结果时也用五行高度，改长了也看得全。
-    var cardTall: Bool { cardExpanded || aiBlocked || target == .card || failureDetailShown }
+    var cardTall: Bool { !landscape && (cardExpanded || aiBlocked || target == .card || failureDetailShown) }
+
+    /// 横屏简版（LS1–LS3）：控制器按屏幕方向设，尺寸见 KeyboardMetrics.landscape。
+    @Published private(set) var landscape = false
+
+    func setLandscape(_ value: Bool) {
+        guard value != landscape else { return }
+        KeyboardMetrics.landscape = value
+        landscape = value
+        heightMayChange?()
+    }
 
     /// 结果卡片左上角的「AI 生成」标签（CP8）：有结果或正在生成时显示，卡片跟着高 22。和 ResultCard 的 look 对应。
     var showsAILabel: Bool {

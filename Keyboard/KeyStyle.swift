@@ -4,11 +4,17 @@ import UIKit
 
 /// 键盘尺寸，按 iOS 26 自带简体拼音键盘在 402pt 宽的 iPhone 上量出来的。键盘高度也从这里算。
 enum KeyboardMetrics {
-    /// 一个按键格子的高度（含上下间隙）：行距 54，按键本身 43。
-    static let slotHeight: CGFloat = 54
+    /// 横屏简版（LS1–LS3）：按键高 29、行距 6，AI 栏 34，两边各留 48 给刘海 / 灵动岛；九宫格居中 420 宽；
+    /// 结果卡固定 2 行。控制器按屏幕方向设，竖屏一点不动。
+    static var landscape = false
+    static let landscapeSideMargin: CGFloat = 48
+    static let landscapeNineWidth: CGFloat = 420
+
+    /// 一个按键格子的高度（含上下间隙）：行距 54，按键本身 43；横屏 35（键 29 + 缝 6）。
+    static var slotHeight: CGFloat { landscape ? 35 : 54 }
     static let keyInsetX: CGFloat = 3.1
-    static let keyInsetY: CGFloat = 5.5
-    static let keysHeight: CGFloat = slotHeight * 4
+    static var keyInsetY: CGFloat { landscape ? 3 : 5.5 }
+    static var keysHeight: CGFloat { slotHeight * 4 }
     /// 全键盘底行「中/英」键宽 42pt，字 14pt；九宫格的「中/英」16pt。
     static let toggleKeyWidth: CGFloat = 42
     static let toggleFontSize: CGFloat = 14
@@ -17,21 +23,21 @@ enum KeyboardMetrics {
     static let shiftKeyWidth: CGFloat = 45
     /// 九宫格对齐原生：键高 46、行距 7（每行 53），列距 6、两边各 7，五列等宽。
     /// 四行 212pt，比按键区少 4pt，上下各留 2pt，键盘总高不变。
-    static let nineKeyHeight: CGFloat = 46
-    static let nineRowGap: CGFloat = 7
+    static var nineKeyHeight: CGFloat { landscape ? 29 : 46 }
+    static var nineRowGap: CGFloat { landscape ? 6 : 7 }
     static let nineColumnGap: CGFloat = 6
     static let nineSideMargin: CGFloat = 7
-    static let nineRowPitch: CGFloat = nineKeyHeight + nineRowGap
-    static let nineTopOffset: CGFloat = (keysHeight - nineRowPitch * 4) / 2
+    static var nineRowPitch: CGFloat { nineKeyHeight + nineRowGap }
+    static var nineTopOffset: CGFloat { (keysHeight - nineRowPitch * 4) / 2 }
     static let nineKeyInsetX: CGFloat = nineColumnGap / 2
-    static let nineKeyInsetY: CGFloat = nineRowGap / 2
-    /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝。
-    static let pinyinCellHeight: CGFloat = 38
+    static var nineKeyInsetY: CGFloat { nineRowGap / 2 }
+    /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝（横屏 25.6）。
+    static var pinyinCellHeight: CGFloat { landscape ? (nineKeyHeight * 3 + nineRowGap * 2) / 4 : 38 }
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
-    static let topRow: CGFloat = 44
-    /// AI 栏里按钮的高度；✨ 润色按钮 84×34。
-    static let chipHeight: CGFloat = 34
+    static var topRow: CGFloat { landscape ? 34 : 44 }
+    /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 30）。
+    static var chipHeight: CGFloat { landscape ? 30 : 34 }
     static let polishButtonWidth: CGFloat = 58
     /// 结果卡片：默认两行，展开到四行，再多就在卡片里滚动。
     static let cardHeight: CGFloat = 60

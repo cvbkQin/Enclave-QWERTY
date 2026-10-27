@@ -47,6 +47,23 @@ final class KeyboardViewController: UIInputViewController {
             .store(in: &cancellables)
     }
 
+    /// 横屏用简版尺寸。键盘扩展里拿不到界面方向：有窗口时按屏幕宽高比，还没进窗口时看竖向尺寸类（iPhone 横屏是 compact）。
+    private func updateOrientation() {
+        if let screen = view.window?.windowScene?.screen.bounds.size {
+            model.setLandscape(screen.width > screen.height)
+        } else {
+            model.setLandscape(traitCollection.verticalSizeClass == .compact)
+        }
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+            self?.updateOrientation()
+            self?.updateHeight()
+        }
+    }
+
     private func updateHeight() {
         let target = model.keyboardHeight
         guard let heightConstraint, heightConstraint.constant != target else { return }
@@ -75,6 +92,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         // 先定下有没有地球键，免得键盘滑出来的途中按键再换一次排法。
         updateGlobeKey()
+        updateOrientation()
         model.dropStaleSessionOnAppear()
         // 每次弹出都按输入框类型重新选一次页（数字框直接出数字键盘）。
         model.hostKeyboardType = nil
