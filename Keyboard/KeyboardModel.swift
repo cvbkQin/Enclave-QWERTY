@@ -816,8 +816,9 @@ final class KeyboardModel: ObservableObject {
                     self.askSearching = false
                     if results.isEmpty && ask.forceSearch { throw ForcedSearchFailed() }
                     if results.isEmpty { searchedBy = nil }
-                    messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, answerStyle: answerStyle,
-                                           results: results.isEmpty ? L("（联网搜索失败或没有搜到，按已有知识回答，并说明可能不是最新信息。）", "(The web search failed or found nothing. Answer from what you know and say it may be out of date.)", "（検索に失敗したか結果がありません。手持ちの知識で答え、最新でない可能性を伝えてください。）") : results)
+                    messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true,
+                                           results: results.isEmpty ? L("（联网搜索失败或没有搜到，按已有知识回答，并说明可能不是最新信息。）", "(The web search failed or found nothing. Answer from what you know and say it may be out of date.)", "（検索に失敗したか結果がありません。手持ちの知識で答え、最新でない可能性を伝えてください。）") : results,
+                                           answerStyle: answerStyle)
                 }
                 guard let self else { return }
                 let cleaned = ModelOutput.clean(raw)
