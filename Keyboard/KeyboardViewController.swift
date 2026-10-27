@@ -90,14 +90,15 @@ final class KeyboardViewController: UIInputViewController {
         updateHeight()
         view.layoutIfNeeded()
         #if DEBUG
-        NSLog("EnclaveHeight willAppear: view %.1f, target %.1f", view.bounds.height, model.keyboardHeight)
+        heightLog("willAppear")
         #endif
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         #if DEBUG
-        NSLog("EnclaveHeight didAppear: view %.1f, target %.1f", view.bounds.height, model.keyboardHeight)
+        heightLog("didAppear")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.heightLog("settled") }
         #endif
         // 常用词要读系统文本替换和通讯录、可能重写词库里的短语表，不影响键盘长什么样，放到弹出以后再做，
         // 不占弹出前的那一段主线程。
@@ -153,3 +154,24 @@ struct NextKeyboardButton: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIButton, context: Context) {}
 }
+
+#if DEBUG
+extension KeyboardViewController {
+    /// 调试真机弹出高度：除了 NSLog，再追加到 App Group 里的 debug-height.log（只留最后 60 行），
+    /// 真机上不用 root 也能用 devicectl 拷出来。
+    func heightLog(_ stage: String) {
+        let inWindow = view.window.map { view.convert(view.bounds, to: $0) } ?? .zero
+        let line = String(format: "%@ EnclaveHeight %@: view %.1f, target %.1f, inWindow y %.1f h %.1f, window h %.1f, safe top %.1f, iOS %@",
+                          ISO8601DateFormatter().string(from: Date()), stage, view.bounds.height, model.keyboardHeight,
+                          inWindow.minY, inWindow.height, view.window?.bounds.height ?? -1, view.safeAreaInsets.top,
+                          UIDevice.current.systemVersion)
+        NSLog("%@", line)
+        guard let id = SharedStorage.appGroupID,
+              let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: id) else { return }
+        let url = dir.appendingPathComponent("debug-height.log")
+        let old = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        let lines = (old.split(separator: "\n").map(String.init) + [line]).suffix(60)
+        try? (lines.joined(separator: "\n") + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+}
+#endif
