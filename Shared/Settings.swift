@@ -6,10 +6,10 @@ struct StylePreset: Codable, Identifiable, Hashable {
     var prompt: String
 
     /// 界面上显示的名字：自带的 5 个风格按界面语言翻译，用户自己起的名字原样显示。提示词不翻。
-    /// 默认那条（名字「自动」、提示词为空）显示成「润色」，键盘上平时看到的是「✨」+「润色▾」。
+    /// 默认那条叫「润色」（0.81 之前叫「自动」、显示成「润色」，名字和键盘上对不上，升级时改名）。
     var displayName: String {
         switch name {
-        case "自动": return L("润色", "Polish", "整える")
+        case "润色": return L("润色", "Polish", "整える")
         case "正式": return L("正式", "Formal", "丁寧")
         case "口语": return L("口语", "Casual", "カジュアル")
         case "简短": return L("简短", "Concise", "簡潔に")
@@ -171,6 +171,10 @@ extension EnclaveSettings {
             styles = StylePreset.defaults
             selectedStyleID = nil
         }
+        // 默认那条以前叫「自动」（提示词为空），键盘上却显示「润色」：改名成「润色」，App 里和键盘上一致。
+        for index in styles.indices where styles[index].name == "自动" && styles[index].prompt.isEmpty {
+            styles[index].name = "润色"
+        }
         inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
@@ -186,10 +190,10 @@ extension EnclaveSettings {
 }
 
 extension StylePreset {
-    /// 键盘上的风格标签。「自动」没有额外要求，由润色 prompt 按内容决定排版。
+    /// 键盘上的风格标签。「润色」没有额外要求，由润色 prompt 按内容决定排版。
     /// 场景化的写法（邮件、周报等）由用户自己在 App 里添加。
     static let defaults: [StylePreset] = [
-        StylePreset(name: "自动", prompt: ""),
+        StylePreset(name: "润色", prompt: ""),
         StylePreset(name: "正式", prompt: "风格：正式。用书面、得体、礼貌的表达，适合工作沟通和对外发送；不用口语词、语气词和表情。"),
         StylePreset(name: "口语", prompt: "风格：口语。像本人平时说话一样自然随意，句子简短；不加标题、不分点编号，不用书面套话。"),
         StylePreset(name: "简短", prompt: "风格：简短。只保留核心意思，删掉客套、铺垫和重复，能一句说清就只写一句。"),

@@ -114,7 +114,7 @@ struct StylesView: View {
     static func summary(_ style: StylePreset) -> String {
         if let builtIn = StyleSuggestions.builtIn(style), builtIn.prompt == style.prompt {
             switch style.name {
-            case "自动": return L("不加额外要求，按原文的语气改顺、改通", "No extra instructions. Smooths the text in its own tone", "追加の指示なし。元の語調のまま読みやすく整えます")
+            case "润色": return L("不加额外要求，按原文的语气改顺、改通", "No extra instructions. Smooths the text in its own tone", "追加の指示なし。元の語調のまま読みやすく整えます")
             case "正式": return L("书面、得体、礼貌，适合工作沟通和对外发送", "Written, polite and proper, for work and outside contacts", "書き言葉で丁寧に。仕事や社外向けに")
             case "口语": return L("像本人平时说话一样自然随意", "Natural and casual, the way you talk", "普段話すように自然でカジュアルに")
             case "简短": return L("只留核心意思，能一句说清就一句", "Just the point, in one sentence if possible", "要点だけ。できれば一文で")
