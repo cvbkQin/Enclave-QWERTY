@@ -958,7 +958,9 @@ private extension View {
     @ViewBuilder
     func lockedRow(_ locked: Bool) -> some View {
         if locked {
-            self.disabled(true)
+            // 右边给锁让出位置，值的最后几个字不被挡住。
+            self.padding(.trailing, 20)
+                .disabled(true)
                 .opacity(0.45)
                 .overlay(alignment: .trailing) { LockBadge(size: 18).offset(x: 6) }
                 .listRowBackground(Color(.systemGray4).opacity(0.55))
