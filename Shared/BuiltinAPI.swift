@@ -3,7 +3,7 @@ import Foundation
 /// 内测版（版本号后缀 .0）自带的接口：邀请来的人装上就能用，不用自己申请 Key。
 /// 地址、模型、Key 只写在打包那台 Mac 的 Configs/Local.xcconfig 里（不进 Git），打内测包时加 INTERNAL_BUILD=YES 才编进 Info.plist；
 /// 开发者版、公测版这几项是空的，这里什么都不做。
-/// 用内置 Key 时每天有上限：润色（含改写、自动识意）100 次，问答 50 次。换成自己的 Key 就不限。
+/// 用内置 Key 时每天有上限：润色（含改写、自动识意）100 次，问答 50 次。
 enum BuiltinAPI {
     private static func value(_ key: String) -> String {
         let raw = (Bundle.main.object(forInfoDictionaryKey: key) as? String ?? "").trimmingCharacters(in: .whitespaces)
@@ -70,9 +70,10 @@ enum BuiltinAPI {
         return true
     }
 
+    /// 内测版接口页锁着，换不了 Key，只能等明天。
     static func limitMessage(_ kind: Kind) -> String {
         kind == .polish
-            ? L("内测接口今天的润色次数（100 次）用完了，明天再来，或者在 App 的接口页填自己的 Key。", "The beta's built-in API has used today's 100 rewrites. Try tomorrow, or add your own key on the API page.", "内蔵 API の今日の書き換え（100 回）を使い切りました。明日また使うか、API ページで自分のキーを入力してください。")
-            : L("内测接口今天的问答次数（50 次）用完了，明天再来，或者在 App 的接口页填自己的 Key。", "The beta's built-in API has used today's 50 answers. Try tomorrow, or add your own key on the API page.", "内蔵 API の今日の回答（50 回）を使い切りました。明日また使うか、API ページで自分のキーを入力してください。")
+            ? L("内测接口今天的润色次数（100 次）用完了，明天再来。", "The beta's built-in API has used today's 100 rewrites. Try again tomorrow.", "内蔵 API の今日の書き換え（100 回）を使い切りました。また明日お使いください。")
+            : L("内测接口今天的问答次数（50 次）用完了，明天再来。", "The beta's built-in API has used today's 50 answers. Try again tomorrow.", "内蔵 API の今日の回答（50 回）を使い切りました。また明日お使いください。")
     }
 }
