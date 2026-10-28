@@ -174,18 +174,18 @@ final class AppRouter: ObservableObject {
     enum Tab: Hashable { case home, styles, model, settings }
 
     enum SettingsPage: String, Hashable {
-        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language, privacyPolicy, licenses
+        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics
     }
 
     /// 首页里的二级页：键盘、常用词（全部 / 键盘标签）、使用指引和其中一个场景。
     enum HomePage: Hashable { case keyboard, pinyin, commonWords, keyboardWords, lab, scene(Int) }
 
-    @Published var tab: Tab = .home
+    @Published var tab: Tab = .home { didSet { markScreen() } }
     /// 界面语言，改了马上存进 App Group，整个界面按新语言重画（导航位置保留）。
     @Published var language = Loc.setting {
         didSet { Loc.setting = language }
     }
-    @Published var settingsPath: [SettingsPage] = []
+    @Published var settingsPath: [SettingsPage] = [] { didSet { markScreen() } }
     /// 接口页切到「问答」并滚到「联网调用」（键盘「去开启」）。接口页处理完清掉。
     @Published var showsAnswerWebSearch = false
     @Published var homePath = NavigationPath()
@@ -215,6 +215,16 @@ final class AppRouter: ObservableObject {
         } else if !SetupGuide.seen, !configured {
             setupGuide = .intro
         }
+    }
+
+    /// 内测版诊断记录用的「当时界面」：哪个标签、设置里哪一页。
+    func markScreen(_ detail: String? = nil) {
+        guard CrashLog.isEnabled else { return }
+        let names: [Tab: String] = [.home: "首页", .styles: "提示词", .model: "接口", .settings: "设置"]
+        var parts = [names[tab] ?? ""]
+        if tab == .settings, let page = settingsPath.last { parts.append(page.rawValue) }
+        if let detail { parts.append(detail) }
+        CrashLog.mark(parts.joined(separator: " · "), source: "app")
     }
 
     func agreePrivacy() {
@@ -272,6 +282,10 @@ final class AppRouter: ObservableObject {
             case "open": setupGuide = .tourReplay
             default: break
             }
+        }
+        // -diag sample / clear：诊断与反馈页塞几条假记录看样子，或者清空。
+        if let i = args.firstIndex(of: "-diag"), args.indices.contains(i + 1) {
+            args[i + 1] == "sample" ? CrashLog.addSamples() : CrashLog.clear()
         }
         #endif
         if args.contains("-playground") { homePath = NavigationPath([HomePage.lab, HomePage.scene(0)]) }

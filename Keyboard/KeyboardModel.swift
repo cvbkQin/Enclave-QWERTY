@@ -6,7 +6,7 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var settings = EnclaveSettings()
     @Published private(set) var session: EditSession? { didSet { aiLabelMayChange() } }
     @Published private(set) var streamingText = ""
-    @Published private(set) var isRunning = false { didSet { aiLabelMayChange() } }
+    @Published private(set) var isRunning = false { didSet { aiLabelMayChange(); markScreen() } }
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
     /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
@@ -126,6 +126,7 @@ final class KeyboardModel: ObservableObject {
     /// 抽屉：回答卡和识意框一整块（MG2），一次开收。展开时打字进识意框。
     @Published var aiExpanded = false {
         didSet {
+            if aiExpanded != oldValue { markScreen() }
             if aiExpanded { unseenResult = false }
             if aiExpanded != oldValue {
                 hostFocused = false
@@ -173,7 +174,12 @@ final class KeyboardModel: ObservableObject {
     @Published var candidateUndo: CandidateUndo?
     var candidateUndoTimer: DispatchWorkItem?
     /// 盖在按键区上的面板：表情、颜文字、常用词。
-    @Published var keysPanel: KeysPanel? { didSet { if (keysPanel == .words) != (oldValue == .words) { heightMayChange?() } } }
+    @Published var keysPanel: KeysPanel? {
+        didSet {
+            if (keysPanel == .words) != (oldValue == .words) { heightMayChange?() }
+            if keysPanel != oldValue { markScreen() }
+        }
+    }
     /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
     @Published var wordPanelText = ""
     @Published var wordPanelFading = false
@@ -1416,5 +1422,21 @@ private enum ContactPinyin {
         cache[name] = pinyin
         lock.unlock()
         return pinyin
+    }
+}
+
+extension KeyboardModel {
+    /// 内测版诊断记录用的「当时界面」：抽屉开没开、哪个面板、AI 在不在跑。只记界面名，不记文字。
+    func markScreen() {
+        guard CrashLog.isEnabled else { return }
+        var parts = [aiExpanded ? "抽屉展开" : "抽屉收起"]
+        switch keysPanel {
+        case .words?: parts.append("分词面板")
+        case .emoji?, .kaomoji?: parts.append("表情面板")
+        case .quickWords?: parts.append("常用词面板")
+        case nil: break
+        }
+        if isRunning { parts.append(aiExpanded ? "识意处理中" : "润色中") }
+        CrashLog.mark(parts.joined(separator: " · "), source: "keyboard")
     }
 }

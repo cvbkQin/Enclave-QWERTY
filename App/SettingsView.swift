@@ -79,8 +79,13 @@ struct SettingsView: View {
                     VStack(spacing: 12) {
                         TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.version)", title: L("设置", "Settings", "設定"))
                         // 整张卡可点，不要列表行的箭头。
-                        Button { router.settingsPath.append(.unlock) } label: { EnclaveAICard() }
-                            .buttonStyle(.plain)
+                        // 内测版没有试用和解锁：换成内置接口今天的用量。
+                        if BuiltinAPI.isInternalBuild {
+                            BuiltinUsageCard()
+                        } else {
+                            Button { router.settingsPath.append(.unlock) } label: { EnclaveAICard() }
+                                .buttonStyle(.plain)
+                        }
                     }
                     .dashFormCard()
                 }
@@ -115,6 +120,13 @@ struct SettingsView: View {
                                 value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
                     }
                 }
+                if CrashLog.isEnabled {
+                    Section {
+                        NavigationLink(value: AppRouter.SettingsPage.diagnostics) { DiagnosticsRow() }
+                    } footer: {
+                        Text(L("内测版专有。闪退和异常退出的记录只存在手机上。", "Beta only. Crash and exit records stay on this iPhone.", "ベータ版のみ。クラッシュと異常終了の記録はこの iPhone にだけ保存されます。"))
+                    }
+                }
                 Section {
                     if SharedStorage.usesClipboardConfig {
                     DashRow(icon: "link", color: DashColor.system, title: L("App 与键盘共享配置", "Shared with keyboard", "キーボードと設定を共有"),
@@ -145,6 +157,7 @@ struct SettingsView: View {
                 case .language: LanguageView()
                 case .privacyPolicy: PrivacyPolicyView()
                 case .licenses: LicensesView()
+                case .diagnostics: DiagnosticsView()
                 }
             }
         }
