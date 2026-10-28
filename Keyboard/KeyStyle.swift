@@ -336,7 +336,9 @@ enum Brand {
     /// 分词面板（BB1）：直角框 1pt 描边 #C9C2F2 / 深色 #4A4380，底 #F1EFFB / 深色 #211F2E；划过的词块浅紫描边。
     static let wordPanelStroke = dynamic(0xC9C2F2, 0x4A4380)
     static let wordPanelFill = dynamic(0xF1EFFB, 0x211F2E)
-    /// 复制键的绿青渐变 #059669→#0D9488。
+    /// 插入键 135° #4F46E5→#7C3AED。原来用的是 4 色的 gradient（里面有 ✨ 的金色），按钮中间出一团紫→白→金。
+    static let insertGradient = [gradient[0], gradient[1]]
+    /// 复制键的绿青渐变 135° #059669→#0D9488。
     static let copyGradient = [Color(red: 0x05 / 255, green: 0x96 / 255, blue: 0x69 / 255),
                                Color(red: 0x0D / 255, green: 0x94 / 255, blue: 0x88 / 255)]
     /// 撤销条上的 ✓ #34C759。

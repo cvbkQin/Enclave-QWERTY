@@ -94,9 +94,9 @@ struct WordPanel: View {
             let empty = selected.isEmpty
             let all = !tokens.isEmpty && selected.count == tokens.count
             HStack(spacing: gap) {
-                barButton(L("插入", "Insert", "挿入"), fill: AnyShapeStyle(LinearGradient(colors: Brand.gradient, startPoint: .leading, endPoint: .trailing)),
+                barButton(L("插入", "Insert", "挿入"), fill: AnyShapeStyle(LinearGradient(colors: Brand.insertGradient, startPoint: .topLeading, endPoint: .bottomTrailing)),
                           text: .white, width: unit * 1.5, enabled: !empty) { model.insertWords(chosenText) }
-                barButton(L("复制", "Copy", "コピー"), fill: AnyShapeStyle(LinearGradient(colors: Brand.copyGradient, startPoint: .leading, endPoint: .trailing)),
+                barButton(L("复制", "Copy", "コピー"), fill: AnyShapeStyle(LinearGradient(colors: Brand.copyGradient, startPoint: .topLeading, endPoint: .bottomTrailing)),
                           text: .white, width: unit * 1.5, enabled: !empty) { model.copyWords(chosenText) }
                 barButton(all ? L("全不选", "None", "全解除") : L("全选", "All", "全選択"), fill: AnyShapeStyle(KeyStyle.charKey),
                           text: .primary, width: unit, enabled: !tokens.isEmpty) {
@@ -124,7 +124,7 @@ struct WordPanel: View {
             }
             .foregroundStyle(text)
             .frame(width: width, height: 34)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(fill))
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(fill))
         }
         .buttonStyle(KeyPressStyle())
         .disabled(!enabled)
