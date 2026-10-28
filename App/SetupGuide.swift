@@ -21,10 +21,13 @@ enum SetupGuide {
 enum GuideTarget { case rewrite, answer }
 
 enum SetupGuidePage: Identifiable, Hashable {
-    case intro, provider, step(Int), done
+    /// tour：首次打开的功能演示，走完进 OB1；tourReplay：使用指引里再玩一次，走完关掉。
+    case tour, tourReplay, intro, provider, step(Int), done
 
     var id: String {
         switch self {
+        case .tour: return "tour"
+        case .tourReplay: return "tourReplay"
         case .intro: return "intro"
         case .provider: return "provider"
         case .step(let n): return "step\(n)"
@@ -72,15 +75,29 @@ struct SetupGuideView: View {
 
     var body: some View {
         ZStack {
-            GuideBackground(glow: page == .intro || page == .provider || page == .done)
-            VStack(spacing: 0) {
-                if page != .intro && page != .done { topBar }
-                content
-                    .frame(maxHeight: .infinity, alignment: .top)
+            if page == .tour || page == .tourReplay {
+                FeatureTourView { tourExit($0) }
+            } else {
+                GuideBackground(glow: page == .intro || page == .provider || page == .done)
+                VStack(spacing: 0) {
+                    if page != .intro && page != .done { topBar }
+                    content
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
             }
         }
         .interactiveDismissDisabled()
         .animation(.easeInOut(duration: 0.22), value: page)
+    }
+
+    /// 功能演示结束：首次打开的接着进 OB1（已配好接口的跳过就直接关）；使用指引里再玩的直接关。
+    private func tourExit(_ exit: FeatureTourView.Exit) {
+        if page == .tourReplay { return router.setupGuide = nil }
+        switch exit {
+        case .setup: page = .intro
+        case .skip: if store.settings.isConfigured { finish() } else { page = .intro }
+        case .later: finish()
+        }
     }
 
     // MARK: 顶栏：左上返回、右上跳过
@@ -123,6 +140,7 @@ struct SetupGuideView: View {
     @ViewBuilder
     private var content: some View {
         switch page {
+        case .tour, .tourReplay: EmptyView()
         case .intro: intro
         case .provider: providerPage
         case .step(let n):
@@ -699,7 +717,7 @@ private struct GuideIllustration: View {
 // MARK: - 共用部件
 
 /// 页面：可滚动的内容 + 底部按钮。
-private struct GuidePage<Content: View, Bottom: View>: View {
+struct GuidePage<Content: View, Bottom: View>: View {
     @ViewBuilder var content: Content
     @ViewBuilder var bottom: Bottom
 
@@ -719,7 +737,7 @@ private struct GuidePage<Content: View, Bottom: View>: View {
 }
 
 /// 说明、选服务商、完成页顶部的淡紫光晕；教程页纯底色。
-private struct GuideBackground: View {
+struct GuideBackground: View {
     let glow: Bool
     @Environment(\.colorScheme) private var scheme
 
@@ -742,7 +760,7 @@ private struct GuideBackground: View {
     }
 }
 
-private struct GuideTitle: View {
+struct GuideTitle: View {
     let title: String
     let subtitle: String
 
@@ -766,7 +784,7 @@ private struct GuideTitle: View {
 }
 
 /// 品牌渐变圆角方块（或圆）+ 黄色四角星。
-private struct GuideAppMark: View {
+struct GuideAppMark: View {
     let size: CGFloat
     let corner: CGFloat
 
@@ -780,7 +798,7 @@ private struct GuideAppMark: View {
     }
 }
 
-private struct GuideCard<Content: View>: View {
+struct GuideCard<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -792,7 +810,7 @@ private struct GuideCard<Content: View>: View {
     }
 }
 
-private struct GuideDivider: View {
+struct GuideDivider: View {
     var body: some View {
         Rectangle().fill(GuideColor.divider).frame(height: 1).padding(.leading, 64)
     }
@@ -997,7 +1015,7 @@ struct GuidePrimaryButton: View {
     }
 }
 
-private struct GuideSecondaryButton: View {
+struct GuideSecondaryButton: View {
     let title: String
     let action: () -> Void
 

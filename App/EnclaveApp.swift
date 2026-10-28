@@ -205,9 +205,14 @@ final class AppRouter: ObservableObject {
     }
 
     /// 隐私说明关掉后：同意了、引导没看过、接口也没配，就接着弹引导。
+    /// 先放功能演示（没看过的），演示走完再进 OB1。
     func showSetupGuideIfNeeded(configured: Bool) {
-        guard privacyAgreed, !SetupGuide.seen, !configured else { return }
-        setupGuide = .intro
+        guard privacyAgreed else { return }
+        if !FeatureTour.seen {
+            setupGuide = .tour
+        } else if !SetupGuide.seen, !configured {
+            setupGuide = .intro
+        }
     }
 
     func agreePrivacy() {
@@ -254,6 +259,15 @@ final class AppRouter: ObservableObject {
                 guideProvider = ["kimi": .kimi, "qwen": .qwen, "glm": .glm][args[i + 1]] ?? .deepseek
                 setupGuide = .step(1)
             case "done": setupGuide = .done
+            default: break
+            }
+        }
+        // -tour reset / seen / open：功能演示看没看过，open 直接打开（再玩一次的样子）。
+        if let i = args.firstIndex(of: "-tour"), args.indices.contains(i + 1) {
+            switch args[i + 1] {
+            case "reset": FeatureTour.seen = false
+            case "seen": FeatureTour.seen = true
+            case "open": setupGuide = .tourReplay
             default: break
             }
         }

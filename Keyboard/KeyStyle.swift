@@ -364,22 +364,6 @@ enum Brand {
         : UIColor(red: 0xE6 / 255, green: 0xE5 / 255, blue: 0xEB / 255, alpha: 1) })
 }
 
-/// 四角星，logo 星星组的一颗。
-struct FourPointStar: Shape {
-    func path(in rect: CGRect) -> Path {
-        let c = CGPoint(x: rect.midX, y: rect.midY)
-        let w = rect.width / 2, h = rect.height / 2, k: CGFloat = 0.22
-        var path = Path()
-        path.move(to: CGPoint(x: c.x, y: c.y - h))
-        path.addQuadCurve(to: CGPoint(x: c.x + w, y: c.y), control: CGPoint(x: c.x + w * k, y: c.y - h * k))
-        path.addQuadCurve(to: CGPoint(x: c.x, y: c.y + h), control: CGPoint(x: c.x + w * k, y: c.y + h * k))
-        path.addQuadCurve(to: CGPoint(x: c.x - w, y: c.y), control: CGPoint(x: c.x - w * k, y: c.y + h * k))
-        path.addQuadCurve(to: CGPoint(x: c.x, y: c.y - h), control: CGPoint(x: c.x - w * k, y: c.y - h * k))
-        path.closeSubpath()
-        return path
-    }
-}
-
 /// logo 那组星星：一颗大星、五颗小星。animating 时小星错开闪烁，大星轻轻放大带金色微光，周期 1.6 秒，不旋转。
 struct SparkleMark: View {
     var size: CGFloat

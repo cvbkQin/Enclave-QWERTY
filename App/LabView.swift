@@ -217,6 +217,7 @@ struct LabModeLabel: View {
 
 /// 使用指引（PB6，原「场景实验室」）：试过几个和进度格、下一个推荐、压力测试上次结果，场景按分类分组，试过的打绿勾。
 struct LabView: View {
+    @EnvironmentObject private var router: AppRouter
     @State private var tried = UsageStats.labTried
     @State private var lastTest = TypingTestRecord.load().first
 
@@ -224,6 +225,7 @@ struct LabView: View {
 
     var body: some View {
         DashPage {
+            tourCard
             progressCard
             modesCard
             stressCard
@@ -251,6 +253,30 @@ struct LabView: View {
             tried = UsageStats.labTried
             lastTest = TypingTestRecord.load().first
         }
+    }
+
+    /// 再玩一次首次打开时的功能演示（模拟键盘、预设结果，不调用 API）。
+    private var tourCard: some View {
+        Button { router.setupGuide = .tourReplay } label: {
+            DashCard {
+                HStack(spacing: 12) {
+                    Image(systemName: "hand.tap.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .fill(LinearGradient(colors: [Color(hex: 0x8A7BFF), Color(hex: 0x5B4BE8)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("功能演示 · 约 1 分钟").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        Text("用模拟键盘把润色、识意、分词插入点一遍，不调用 API").font(.footnote).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var progressCard: some View {
