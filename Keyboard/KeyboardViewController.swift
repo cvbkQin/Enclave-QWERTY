@@ -98,6 +98,8 @@ final class KeyboardViewController: UIInputViewController {
         updateGlobeKey()
         updateOrientation()
         model.dropStaleSessionOnAppear()
+        // 弹出时系统会通知一次文字变了，那次不算点了输入框：先不记光标，下一次通知只记下来。
+        model.hostCaret = nil
         // 每次弹出都按输入框类型重新选一次页（数字框直接出数字键盘）。
         model.hostKeyboardType = nil
         model.reload()

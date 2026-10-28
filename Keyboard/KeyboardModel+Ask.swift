@@ -6,10 +6,24 @@ extension KeyboardModel {
     /// 不在卡片里改字时打字去哪：识意展开着就进识意框，否则进对方的输入框。
     var restingTarget: InputTarget { aiExpanded && !hostFocused ? .instruction : .host }
 
-    /// 对方输入框的光标变了（用户点了上面的输入框）：抽屉开着、正打进识意框时，打字换回对方输入框。
-    /// 键盘自己刚插过字、替换过的不算；在卡片里改字时不动。
+    /// 对方输入框光标前后各有多少字，用来判断光标是不是被挪了。
+    func recordHostCaret() {
+        hostCaret = currentHostCaret()
+    }
+
+    private func currentHostCaret() -> (before: Int, after: Int) {
+        ((proxy?.documentContextBeforeInput ?? "").count, (proxy?.documentContextAfterInput ?? "").count)
+    }
+
+    /// 对方输入框通知变了：抽屉开着、正打进识意框时，只有光标真的挪了（字数没变、光标前的字数变了）才算用户点了上面的输入框，打字换回对方输入框。
+    /// 键盘刚弹出、对方 App 自己改字（总字数变了）、键盘自己刚插过字替换过的都不算；在卡片里改字时不动。
     func hostSelectionChanged() {
-        guard aiExpanded, target == .instruction, Date().timeIntervalSince(lastProxyUse) > 0.5 else { return }
+        let now = currentHostCaret()
+        let previous = hostCaret
+        hostCaret = now
+        guard aiExpanded, target == .instruction, Date().timeIntervalSince(lastProxyUse) > 0.5,
+              let previous, previous.before + previous.after == now.before + now.after, previous.before != now.before
+        else { return }
         if isComposing { finishComposition() }
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
