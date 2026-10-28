@@ -307,8 +307,16 @@ struct ModelSettingsView: View {
     @State private var duplicateName: String?
     @State private var renaming: SavedAPI?
     @State private var renameText = ""
+    /// 「选择」模型的 sheet（ML2）：给哪一页选。
+    @State private var pickerFor: PickerTarget?
+    /// 「手动输入模型名」后聚焦模型一栏。
+    @FocusState private var modelFocused: Bool
 
     private enum APIPage: String { case main, answer }
+    private enum PickerTarget: Identifiable {
+        case main, answer
+        var id: Self { self }
+    }
 
     private struct ConsentPrompt: Identifiable {
         let endpoint: String
@@ -428,6 +436,17 @@ struct ModelSettingsView: View {
                   !ConsentStore.isConsented(endpoint) else { return }
             consentEndpoint = ConsentPrompt(endpoint: endpoint)
         }
+        .sheet(item: $pickerFor) { target in
+            let answer = target == .answer
+            ModelPickerSheet(baseURL: answer ? store.settings.answerBaseURL : store.settings.baseURL,
+                             apiKey: answer ? store.answerApiKey : store.apiKey,
+                             current: answer ? store.settings.answerModel : store.settings.model,
+                             answer: answer) { model in
+                if answer { store.settings.answerModel = model } else { store.settings.model = model }
+            } onManual: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { modelFocused = true }
+            }
+        }
         .sheet(item: $consentEndpoint) { prompt in
             ConsentSheet(provider: Provider.detect(store.settings.baseURL).title, endpoint: prompt.endpoint) {
                 ConsentStore.grant(prompt.endpoint)
@@ -478,7 +497,7 @@ struct ModelSettingsView: View {
         Section {
             LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
                 .lockedRow(locked)
-            LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.model, placeholder: "deepseek-flash")
+            modelField($store.settings.model, placeholder: "deepseek-flash", target: .main)
                 .lockedRow(locked)
             keyField($store.apiKey)
                 .lockedRow(locked)
@@ -499,7 +518,46 @@ struct ModelSettingsView: View {
                  ? L("把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。", "Replace the IP with the local address of the computer running Ollama. The URL ends with /v1. ", "IP を Ollama を動かしているパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
                  : L("选一个服务商会自动填好地址和模型；改了就算自定义，上面不再选中。", "Pick a provider to fill in the URL and model. Edit them and it counts as custom. ", "サービスを選ぶと URL とモデルが入力されます。書き換えるとカスタム扱いになります。"))
                 + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
+                + Text(showsPicker(.main) ? pickerFootnote : "")
         }
+    }
+
+    /// 模型一栏（ML1、ML5）：右边「选择」；当前模型可能已下线时值变橙，下面一行「⚠ 可能已下线」。
+    private func modelField(_ text: Binding<String>, placeholder: String, target: PickerTarget) -> some View {
+        let missing = (target == .answer ? store.answerMissingModel : store.missingModel) != nil
+        let warning = Color(hex: 0xD97706)
+        return VStack(alignment: .trailing, spacing: 4) {
+            HStack {
+                Text(L("模型", "Model", "モデル"))
+                TextField(placeholder, text: text)
+                    .multilineTextAlignment(.trailing)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($modelFocused)
+                    .foregroundStyle(missing ? warning : Color.primary)
+                if showsPicker(target) { ModelPickButton { openPicker(target) } }
+            }
+            if missing {
+                Text("⚠ " + L("可能已下线", "May be retired", "提供終了の可能性"))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(warning)
+            }
+        }
+    }
+
+    /// 内测版锁着、还没填地址、服务商返回过 404 时不显示「选择」。
+    private func showsPicker(_ target: PickerTarget) -> Bool {
+        let base = target == .answer ? store.settings.answerBaseURL : store.settings.baseURL
+        return !locked && !base.trimmingCharacters(in: .whitespaces).isEmpty && !ModelList.isUnsupported(base)
+    }
+
+    private var pickerFootnote: String {
+        L("点「选择」会用上面的地址和 Key 向服务商获取可用的模型。", " Tap Choose to load the available models from the provider with the URL and key above.", "「選択」を押すと、上の URL とキーでサービスから利用できるモデルを取得します。")
+    }
+
+    /// 选模型要把 Key 发给服务商：没同意隐私政策时先去同意。
+    private func openPicker(_ target: PickerTarget) {
+        if router.privacyAgreed { pickerFor = target } else { needsPrivacy = true }
     }
 
     private var generationSummary: String {
@@ -537,7 +595,7 @@ struct ModelSettingsView: View {
             Section {
                 LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.answerBaseURL, placeholder: Provider.kimi.preset?.baseURL ?? "", keyboard: .URL)
                     .lockedRow(locked)
-                LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.answerModel, placeholder: Provider.kimiAnswerModel)
+                modelField($store.settings.answerModel, placeholder: Provider.kimiAnswerModel, target: .answer)
                     .lockedRow(locked)
                 keyField($store.answerApiKey)
                     .lockedRow(locked)
@@ -545,6 +603,7 @@ struct ModelSettingsView: View {
                 Text(L("连接", "Connection", "接続"))
             } footer: {
                 Text(L("Ollama 这类自己电脑上的模型，直接在这里填地址就行，算自定义、不联网。", "For a model on your own computer, such as Ollama, just enter its URL here. It counts as custom and can't search the web.", "Ollama など自分のパソコンのモデルは、ここに URL を入力するだけです。カスタム扱いで、ウェブ検索はしません。"))
+                    + Text(showsPicker(.answer) ? pickerFootnote : "")
             }
         }
         webSearchSection
@@ -772,7 +831,38 @@ struct ModelSettingsView: View {
                 DashSparkline(values: requests.map { Double($0.ms) }, color: requests.allSatisfy(\.ok) ? DashColor.ok : .orange)
                 Text(Self.summary(requests, model: model)).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
             }
+            if !locked, let missing = ownAnswer ? store.answerMissingModel : store.missingModel {
+                missingModelTip(missing) { openPicker(ownAnswer ? .answer : .main) }
+            }
         }
+    }
+
+    /// 状态卡里的橙色提示（ML5）：连得上，但服务商的列表里已经没有这个模型。
+    private func missingModelTip(_ model: String, choose: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color(hex: 0xFF9500))
+                Text(L("服务商的模型列表里没有 \(model)，这个模型可能已下线。现在仍能连接，但随时可能停止服务。",
+                       "\(model) isn't in the provider's model list and may be retired. It still connects for now but could stop working anytime.",
+                       "サービスのモデル一覧に \(model) がありません。提供終了の可能性があります。今は接続できますが、いつ停止するかわかりません。"))
+                    .font(.footnote)
+                    .foregroundStyle(Color(light: 0x7C2D12, dark: 0xFDBA74))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button(action: choose) {
+                Text(L("选择其他模型", "Choose another model", "別のモデルを選ぶ"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color(hex: 0xC2410C))
+                    .padding(.horizontal, 14)
+                    .frame(height: 32)
+                    .background(Capsule().fill(Color(.systemBackground)))
+                    .overlay(Capsule().stroke(Color(hex: 0xFF9500), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(light: 0xFFF4E5, dark: 0x3A2810)))
     }
 
     /// 测试刚失败时显示错误；否则看最近一次请求，再不然看上次测试。「已连接 DeepSeek」带上服务商名字。

@@ -334,8 +334,14 @@ final class AppStore: ObservableObject {
         didSet {
             guard settings != oldValue else { return }
             SettingsStore.save(settings)
-            if settings.answerBaseURL != oldValue.answerBaseURL || settings.answerModel != oldValue.answerModel { answerTest = .idle }
-            if settings.baseURL != oldValue.baseURL || settings.model != oldValue.model { test = .idle }
+            if settings.answerBaseURL != oldValue.answerBaseURL || settings.answerModel != oldValue.answerModel {
+                answerTest = .idle
+                answerMissingModel = nil
+            }
+            if settings.baseURL != oldValue.baseURL || settings.model != oldValue.model {
+                test = .idle
+                missingModel = nil
+            }
         }
     }
     @Published var apiKey = SettingsStore.apiKey ?? "" {
@@ -343,6 +349,7 @@ final class AppStore: ObservableObject {
             guard apiKey != oldValue else { return }
             SettingsStore.apiKey = apiKey
             test = .idle
+            missingModel = nil
         }
     }
     /// 问答接口单独的 API Key。
@@ -351,9 +358,13 @@ final class AppStore: ObservableObject {
             guard answerApiKey != oldValue else { return }
             SettingsStore.answerApiKey = answerApiKey
             answerTest = .idle
+            answerMissingModel = nil
         }
     }
     @Published private(set) var test: TestState = .idle
+    /// 测试成功后顺便取一次模型列表，当前模型不在里面时记下它的名字（ML5「可能已下线」）。取列表失败不算。
+    @Published private(set) var missingModel: String?
+    @Published private(set) var answerMissingModel: String?
     /// 测试失败的原因，引导里按它给一句话（OB6）：Key 不对、余额不足、网络不通。
     @Published private(set) var testFailure: TestFailure?
 
@@ -452,8 +463,21 @@ final class AppStore: ObservableObject {
         }
         var ok = false
         if case .success = answerTest { ok = true }
+        if ok { await checkModelListed(answer: true) }
         // 问答页的小曲线里有它。
         UsageStats.recordAnswerRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok)
+    }
+
+    private func checkModelListed(answer: Bool) async {
+        let config = answer ? settings.forAnswers : settings
+        let model = config.model.trimmingCharacters(in: .whitespaces)
+        guard !BuiltinAPI.isInternalBuild, !model.isEmpty, !ModelList.isUnsupported(config.baseURL),
+              let models = try? await ModelList.fetch(baseURL: config.baseURL, apiKey: answer ? answerApiKey : apiKey),
+              !models.isEmpty else { return }
+        // 等列表回来时设置可能已经改了。
+        guard (answer ? settings.forAnswers : settings).model.trimmingCharacters(in: .whitespaces) == model else { return }
+        let missing = models.contains(model) ? nil : model
+        if answer { answerMissingModel = missing } else { missingModel = missing }
     }
 
     func runTest() async {
@@ -484,6 +508,7 @@ final class AppStore: ObservableObject {
         var ok = false
         if case .success = test { ok = true }
         SharedStorage.defaults.set(ok, forKey: testKey)
+        if ok { await checkModelListed(answer: false) }
         // 测试也算一次请求，接口页的小曲线里有它。
         UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok)
     }
