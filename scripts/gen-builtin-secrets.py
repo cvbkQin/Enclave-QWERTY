@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Xcode 编译前（两个 target 的 Run Script）生成 BuiltinSecrets.swift，放在 DERIVED_FILE_DIR，不进 Git。
+"""Xcode 编译前（两个 target 的 Run Script）生成 Generated/BuiltinSecrets.swift（已 gitignore，不进 Git）。
 
 内测包（INTERNAL_BUILD=YES）：
 - Key 不进 Info.plist。从 Local.xcconfig 传进来的 INTERNAL_API_KEY / INTERNAL_ANSWER_API_KEY 用每次随机的掩码异或，
@@ -76,7 +76,7 @@ def main():
     env = os.environ
     internal = env.get("INTERNAL_BUILD", "NO") == "YES"
     public = env.get("PUBLIC_BUILD", "NO") == "YES"
-    out_dir = env.get("DERIVED_FILE_DIR") or fail("没有 DERIVED_FILE_DIR，要在 Xcode 里跑")
+    out_dir = os.path.join(env.get("SRCROOT") or fail("没有 SRCROOT，要在 Xcode 里跑"), "Generated")
     if internal and public:
         fail("INTERNAL_BUILD 和 PUBLIC_BUILD 不能同时是 YES：内测包带内置 Key，不能当公测包发出去")
 
@@ -93,9 +93,16 @@ def main():
         if not pins:
             fail("内测包没取到任何证书指纹")
 
+    # 两个 target 都会跑这个脚本：内容（Key 和指纹）没变就不重写，免得另一个 target 编译到一半文件被换掉。
+    stamp = hashlib.sha256("\n".join([key, answer_key] + sorted(pins)).encode()).hexdigest()
+    path = os.path.join(out_dir, "BuiltinSecrets.swift")
+    if os.path.exists(path) and f"// stamp {stamp}" in open(path).read():
+        print("BuiltinSecrets.swift 没变")
+        return
     key_parts, key_masks = obfuscate(key)
     answer_parts, answer_masks = obfuscate(answer_key)
     swift = f"""// 由 scripts/gen-builtin-secrets.py 在编译时生成，不进 Git，不要手改。
+// stamp {stamp}
 enum BuiltinSecrets {{
     static let keyParts: [[UInt8]] = {swift_bytes(key_parts)}
     static let keyMasks: [[UInt8]] = {swift_bytes(key_masks)}
@@ -105,12 +112,9 @@ enum BuiltinSecrets {{
 }}
 """
     os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, "BuiltinSecrets.swift")
-    old = open(path).read() if os.path.exists(path) else None
-    # 非内测包内容不变就不重写，免得每次都重编。
-    if old != swift or internal:
-        with open(path, "w") as f:
-            f.write(swift)
+    with open(path + ".tmp", "w") as f:
+        f.write(swift)
+    os.replace(path + ".tmp", path)
     print(f"BuiltinSecrets.swift：{'内测包，' + str(len(pins)) + ' 个证书指纹' if internal else '空'}")
 
 

@@ -23,3 +23,6 @@ Vendor/
 
 # 出版本的产物，scripts/keep-build.sh 放进来，只留最近 5 个
 builds/
+
+# 内测 Key（混淆后）和证书指纹，编译时由 scripts/gen-builtin-secrets.py 生成
+Generated/

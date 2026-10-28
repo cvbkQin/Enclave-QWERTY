@@ -53,15 +53,16 @@ targets:
     sources:
       - App
       - Shared
+      # 编译前由 scripts/gen-builtin-secrets.py 生成；刚 clone 时还没有，所以是 optional。
+      - path: Generated/BuiltinSecrets.swift
+        optional: true
       - path: Vendor/RimeData
         type: folder
         buildPhase: resources
-    # 内测包的 Key（混淆）和证书指纹，生成到 DERIVED_FILE_DIR；别的包生成空的。也检查内测、公测开关没同时打开。
+    # 内测包的 Key（混淆）和证书指纹，生成到 Generated/BuiltinSecrets.swift（不进 Git）；别的包生成空的。也检查内测、公测开关没同时打开。
     preBuildScripts:
       - name: Builtin secrets
         script: python3 "$SRCROOT/scripts/gen-builtin-secrets.py"
-        outputFiles:
-          - $(DERIVED_FILE_DIR)/BuiltinSecrets.swift
         basedOnDependencyAnalysis: false
     settings:
       base:
@@ -110,16 +111,17 @@ targets:
     sources:
       - Keyboard
       - Shared
+      # 编译前由 scripts/gen-builtin-secrets.py 生成；刚 clone 时还没有，所以是 optional。
+      - path: Generated/BuiltinSecrets.swift
+        optional: true
       # 不开完全访问时用的自带词库（编译好的），由 scripts/prebuild-rime.sh 生成。
       - path: Vendor/RimeBuild
         type: folder
         buildPhase: resources
-    # 内测包的 Key（混淆）和证书指纹，生成到 DERIVED_FILE_DIR；别的包生成空的。也检查内测、公测开关没同时打开。
+    # 内测包的 Key（混淆）和证书指纹，生成到 Generated/BuiltinSecrets.swift（不进 Git）；别的包生成空的。也检查内测、公测开关没同时打开。
     preBuildScripts:
       - name: Builtin secrets
         script: python3 "$SRCROOT/scripts/gen-builtin-secrets.py"
-        outputFiles:
-          - $(DERIVED_FILE_DIR)/BuiltinSecrets.swift
         basedOnDependencyAnalysis: false
     # 内测包自带整句模型：从 Vendor/Grammar/ 拷进扩展包（先运行 scripts/fetch-grammar.sh）。
     postCompileScripts:
