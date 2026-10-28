@@ -286,6 +286,8 @@ enum SettingsStore {
             return settings
         }
         settings.migrateRetiredModels()
+        // 内测版接口页锁着：装在开发版上面时旧设置改不了，换成内置接口。
+        if BuiltinAPI.needsReseed(settings) { BuiltinAPI.seed(&settings, force: true) }
         return settings
     }
 

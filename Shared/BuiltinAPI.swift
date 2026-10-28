@@ -43,19 +43,27 @@ enum BuiltinAPI {
         return key == apiKey || key == answerApiKey
     }
 
-    /// 第一次装上（还没有任何设置）时把内置接口填进去；已经有设置的不动，装在旧版上面会保留原来填的。
-    static func seed(_ settings: inout EnclaveSettings) {
+    /// 把内置接口填进去。第一次装上（还没有任何设置）时调；Key 只在钥匙串里没有时才写。
+    /// force：内测版接口页锁着改不了，装在开发版上面留下的旧设置（或者空的）要整个换成内置的，Key 也换。
+    static func seed(_ settings: inout EnclaveSettings, force: Bool = false) {
         guard available else { return }
         settings.baseURL = baseURL
         settings.model = model
-        if (SettingsStore.apiKey ?? "").isEmpty { SettingsStore.apiKey = apiKey }
+        if force || (SettingsStore.apiKey ?? "").isEmpty { SettingsStore.apiKey = apiKey }
         if answerAvailable {
             settings.separateAnswer = true
             settings.answerBaseURL = answerBaseURL
             settings.answerModel = answerModel
-            if (SettingsStore.answerApiKey ?? "").isEmpty { SettingsStore.answerApiKey = answerApiKey }
+            if force || (SettingsStore.answerApiKey ?? "").isEmpty { SettingsStore.answerApiKey = answerApiKey }
         }
         SettingsStore.save(settings)
+    }
+
+    /// 内测版里存着的接口和内置的对不上（装在开发版上面）。
+    static func needsReseed(_ settings: EnclaveSettings) -> Bool {
+        guard isInternalBuild, available else { return false }
+        if settings.baseURL != baseURL || settings.model != model { return true }
+        return answerAvailable && (!settings.separateAnswer || settings.answerBaseURL != answerBaseURL || settings.answerModel != answerModel)
     }
 
     // MARK: - 每天的上限
