@@ -581,7 +581,8 @@ private struct TourHand: View {
     private static let holdTrack = Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
 
     private func holdFrame(_ h: CGFloat) -> some View {
-        let center = CGPoint(x: rect.midX, y: rect.midY)
+        // 按在回答卡左上那几个字上，手从右边斜着伸过来（同 FT7），不盖住下面识意框里的问题。
+        let center = CGPoint(x: rect.minX + 60, y: rect.minY + 18)
         let press = min(h / 0.1, 1)
         let fill = min(max((h - 0.1) / 0.25, 0), 1)
         let pop = min(max((h - 0.35) / 0.175, 0), 1)
@@ -601,7 +602,9 @@ private struct TourHand: View {
                 .opacity(Double(1 - pop))
                 .position(center)
             }
-            hand(tip: CGPoint(x: center.x, y: center.y + 4 - 3 * press), ripple: nil)
+            let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
+            CoachHandShape.hand(flipped: false, angle: -55)
+                .position(x: center.x + 4 + size.width / 2 - fingertip.x, y: center.y + 4 - 3 * press + size.height / 2 - fingertip.y)
         }
         .opacity(fade)
     }
@@ -947,7 +950,7 @@ private struct TourKeyboard: View {
                 .lineLimit(1)
                 .truncationMode(.head)
                 // FT5 小手指着「切换」、FT7 放大镜正上方冒出「改写」气泡：字往右让开，不被挡住。
-                .padding(.leading, step == 5 || step == 7 ? 64 : 0)
+                .padding(.leading, step == 5 ? 64 : step == 7 ? 120 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if state.searched {
                 Label("已联网 · Kimi", systemImage: "globe").font(.system(size: 12)).foregroundStyle(GuideColor.secondary).fixedSize()

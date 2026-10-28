@@ -26,11 +26,22 @@ extension KeyboardModel {
         guard aiExpanded, target == .instruction, previous != nil,
               Date().timeIntervalSince(lastProxyUse) > 0.5, Date().timeIntervalSince(askFocusedAt) > 0.8
         else { return }
-        if isComposing { finishComposition() }
+        commitTopCandidates()
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
         hostFocused = true
         target = .host
+    }
+
+    /// 识意框里拼音还没选字就离开：和按空格一样上屏第一个候选（一次只选得掉一段就接着选），不留下一串字母。
+    private func commitTopCandidates() {
+        var rounds = 0
+        while isComposing, chineseMode, !candidates.isEmpty, rounds < 10 {
+            selectCandidate(0)
+            rounds += 1
+        }
+        if isComposing { finishComposition() }
+        dismissPredictions()
     }
 
     /// 点 AI 栏的风格键：展开时整块下半格换成这一种的风格一排，收起时浮在 AI 栏上面；再点自己换回来。
