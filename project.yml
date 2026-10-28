@@ -75,6 +75,14 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         EnclaveAppGroup: $(APP_GROUP_ID)
+        # 内测版自带的接口（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值，原文只在 Mac 的 Local.xcconfig 里。
+        EnclaveInternalBuild: $(INTERNAL_BUILD)
+        EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
+        EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
+        EnclaveBuiltinKey: $(ENCLAVE_BUILTIN_KEY)
+        EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
+        EnclaveBuiltinAnswerModel: $(ENCLAVE_BUILTIN_ANSWER_MODEL)
+        EnclaveBuiltinAnswerKey: $(ENCLAVE_BUILTIN_ANSWER_KEY)
         CFBundleURLTypes:
           - CFBundleURLName: enclave
             CFBundleURLSchemes: [enclave]
@@ -111,6 +119,14 @@ targets:
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations: [zh-Hans, en, ja]
         EnclaveAppGroup: $(APP_GROUP_ID)
+        # 内测版自带的接口（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值，原文只在 Mac 的 Local.xcconfig 里。
+        EnclaveInternalBuild: $(INTERNAL_BUILD)
+        EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
+        EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
+        EnclaveBuiltinKey: $(ENCLAVE_BUILTIN_KEY)
+        EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
+        EnclaveBuiltinAnswerModel: $(ENCLAVE_BUILTIN_ANSWER_MODEL)
+        EnclaveBuiltinAnswerKey: $(ENCLAVE_BUILTIN_ANSWER_KEY)
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true

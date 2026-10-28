@@ -693,6 +693,15 @@ final class KeyboardModel: ObservableObject {
         var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: settings, apiKey: SettingsStore.apiKey))
             : LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
         var mayHandOff = answerClient != nil && ask != nil && ask?.forced != .answer
+        // 内测版用自带的 Key：润色每天 100 次、问答 50 次，到了就不调。
+        let firstKind: BuiltinAPI.Kind = ask?.forced == .answer ? .answer : .polish
+        let firstKey = firstKind == .answer && settings.usesAnswerEndpoint ? SettingsStore.answerApiKey : SettingsStore.apiKey
+        guard BuiltinAPI.take(firstKind, key: firstKey) else {
+            errorMessage = BuiltinAPI.limitMessage(firstKind)
+            if quickStatus == .running { endQuickMode(.failed) }
+            return
+        }
+        let handOffKey = SettingsStore.answerKey(for: settings)
         isRunning = true
         clearFailure()
         lastRun = (messages, pending, ask, runOrigin ?? .polish)
@@ -771,7 +780,8 @@ final class KeyboardModel: ObservableObject {
                     if maySearch, !wantsSearch, Prompts.searchProbe(ModelOutput.clean(raw), final: true) == .search {
                         wantsSearch = true
                     }
-                    if handOff, let ask, let answerClient {
+                    // 换问答模型重问也算一次问答；内置 Key 的问答次数用完就留着润色模型这一版。
+                    if handOff, let ask, let answerClient, BuiltinAPI.take(.answer, key: handOffKey) {
                         mayHandOff = false
                         client = answerClient
                         answeredByAnswerAPI = separateAnswer

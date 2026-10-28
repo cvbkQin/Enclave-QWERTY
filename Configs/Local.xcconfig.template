@@ -3,3 +3,14 @@
 BUNDLE_ID_PREFIX = com.yourname
 // Xcode › Settings › Accounts 里能看到 Team ID（免费 Apple ID 是 Personal Team）
 DEVELOPMENT_TEAM = XXXXXXXXXX
+
+// 内测版自带的接口（可选）。只在打内测包（版本后缀 .0）时用：xcodebuild ... INTERNAL_BUILD=YES。
+// 网址里的 // 在 xcconfig 里会被当成注释，要写成 https:/$()/ 这样。
+// 建议给内测单独建一个 Key，并在服务商后台设金额上限；包里的 Key 能被提取出来。
+// INTERNAL_BASE_URL = https:/$()/api.deepseek.com/v1
+// INTERNAL_MODEL = deepseek-flash
+// INTERNAL_API_KEY = sk-...
+// 问答单独用一家时再填这三项（不填就和上面同一个接口）：
+// INTERNAL_ANSWER_BASE_URL = https:/$()/dashscope.aliyuncs.com/compatible-mode/v1
+// INTERNAL_ANSWER_MODEL = qwen-plus
+// INTERNAL_ANSWER_API_KEY = sk-...

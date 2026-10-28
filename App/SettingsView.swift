@@ -303,6 +303,8 @@ struct ModelSettingsView: View {
     }
 
     private var page: APIPage { APIPage(rawValue: pageRaw) ?? .main }
+    /// 内测版：接口统一用自带的，这一页只能看；能点的只有「测试」和问答页的「联网调用」（联网倾向在提示词页）。
+    private var locked: Bool { BuiltinAPI.isInternalBuild }
     private var answer: Bool { page == .answer }
 
     var body: some View {
@@ -323,6 +325,7 @@ struct ModelSettingsView: View {
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 4)
+                        if locked { InternalLockNotice() }
                         statusCard
                     }
                     .dashFormCard()
@@ -339,6 +342,7 @@ struct ModelSettingsView: View {
                         }
                         .font(.footnote)
                         .foregroundStyle(importResult == false ? Color.orange : AppColor.purple)
+                        .lockedRow(locked)
                     }
                 }
             }
@@ -451,6 +455,7 @@ struct ModelSettingsView: View {
         Section {
         } header: {
             providerGrid(Provider.shown, selected: selectedProvider, badges: false) { choose($0) }
+                .lockedBox(locked)
         } footer: {
             if Storefront.isMainlandChina {
                 // 审核和合规：国区只列已完成生成式人工智能服务备案的模型；App 自己不提供模型。
@@ -459,8 +464,11 @@ struct ModelSettingsView: View {
         }
         Section {
             LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
+                .lockedRow(locked)
             LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.model, placeholder: "deepseek-flash")
+                .lockedRow(locked)
             keyField($store.apiKey)
+                .lockedRow(locked)
             NavigationLink {
                 GenerationSettingsView()
             } label: {
@@ -470,6 +478,7 @@ struct ModelSettingsView: View {
                     Text(generationSummary).foregroundStyle(.secondary)
                 }
             }
+            .lockedRow(locked)
         } header: {
             Text(L("连接", "Connection", "接続"))
         } footer: {
@@ -499,12 +508,14 @@ struct ModelSettingsView: View {
                 }
             }
             .tint(AppColor.purple)
+            .lockedRow(locked)
         }
         if store.settings.separateAnswer {
             presetsSection
             Section {
             } header: {
                 providerGrid(Provider.answerShown, selected: selectedAnswerProvider, badges: true) { chooseAnswer($0) }
+                    .lockedBox(locked)
             } footer: {
                 if Storefront.isMainlandChina {
                     Text("通义千问（阿里云）、Kimi（北京月之暗面科技有限公司）、智谱 GLM（北京智谱华章科技股份有限公司）、DeepSeek（杭州深度求索人工智能基础技术研究有限公司）均已完成生成式人工智能服务备案。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
@@ -512,8 +523,11 @@ struct ModelSettingsView: View {
             }
             Section {
                 LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.answerBaseURL, placeholder: Provider.kimi.preset?.baseURL ?? "", keyboard: .URL)
+                    .lockedRow(locked)
                 LabeledField(title: L("模型", "Model", "モデル"), text: $store.settings.answerModel, placeholder: Provider.kimiAnswerModel)
+                    .lockedRow(locked)
                 keyField($store.answerApiKey)
+                    .lockedRow(locked)
             } header: {
                 Text(L("连接", "Connection", "接続"))
             } footer: {
@@ -599,7 +613,9 @@ struct ModelSettingsView: View {
                     PresetRow(item: item, current: item.id == current?.id)
                 }
                 .buttonStyle(.plain)
-                .swipeActions(edge: .trailing) {
+                .lockedRow(locked)
+                .swipeActions(edge: .trailing, allowsFullSwipe: !locked) {
+                    if !locked {
                     Button(role: .destructive) { store.deleteSavedAPI(item.id) } label: {
                         Text(L("删除", "Delete", "削除"))
                     }
@@ -610,6 +626,7 @@ struct ModelSettingsView: View {
                         Text(L("改名", "Rename", "名前を変更"))
                     }
                     .tint(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
+                    }
                 }
             }
             Button {
@@ -620,6 +637,7 @@ struct ModelSettingsView: View {
                     .foregroundStyle(AppColor.purple)
             }
             .disabled(!pageConfigured)
+            .lockedRow(locked)
         } header: {
             Text(L("我的预设", "My presets", "保存した設定"))
         } footer: {
@@ -910,6 +928,80 @@ private struct GenerationSettingsView: View {
         }
         .navigationTitle(L("生成参数", "Generation", "生成パラメータ"))
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 内测版接口页顶上的说明。
+private struct InternalLockNotice: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color(.systemGray)))
+            Text(L("内测版的接口由开发者统一提供，这一页只能查看，灰色带锁的地方都不能改。可以点「测试」检查连接，问答页的「联网调用」可以改，联网倾向在提示词页。内置接口每天可以润色 100 次、问答 50 次。",
+                   "In the beta, the API is provided for you, so this page is view-only. Gray areas with a lock can't be changed. You can tap Test, change Web search on the Ask page, and set the web search tendency on the Prompts page. The built-in API allows 100 rewrites and 50 answers a day.",
+                   "ベータ版では API はあらかじめ用意されているため、このページは表示のみです。鍵の付いたグレーの部分は変更できません。「テスト」と、回答ページの「ウェブ検索」は使えます。検索の積極さはプロンプトページで設定します。内蔵 API は 1 日に書き換え 100 回・回答 50 回まで使えます。"))
+                .font(.system(size: 13))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.systemGray5)))
+    }
+}
+
+/// 小锁：灰底白锁的小圆。
+private struct LockBadge: View {
+    var size: CGFloat = 20
+    var body: some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: size * 0.5, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(Circle().fill(Color(.systemGray)))
+            .accessibilityLabel(L("内测版不可修改", "Locked in the beta", "ベータ版では変更不可"))
+    }
+}
+
+private extension View {
+    /// 内测版不能改的一行：点不动、字变淡，整行盖一层半透明灰，右边一把小锁。
+    @ViewBuilder
+    func lockedRow(_ locked: Bool) -> some View {
+        if locked {
+            self.disabled(true)
+                .opacity(0.45)
+                .overlay(alignment: .trailing) { LockBadge(size: 18).offset(x: 6) }
+                .listRowBackground(Color(.systemGray4).opacity(0.55))
+        } else {
+            self
+        }
+    }
+
+    /// 内测版不能改的一整块（服务商格子）：盖一个半透明灰色圆角框，中间一把锁。
+    @ViewBuilder
+    func lockedBox(_ locked: Bool) -> some View {
+        if locked {
+            self.disabled(true)
+                .overlay {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(.systemGray3).opacity(0.55))
+                        HStack(spacing: 6) {
+                            LockBadge(size: 22)
+                            Text(L("内测版不可修改", "Locked in the beta", "ベータ版では変更不可"))
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .frame(height: 34)
+                        .background(Capsule().fill(Color(.systemBackground).opacity(0.9)))
+                    }
+                }
+        } else {
+            self
+        }
     }
 }
 

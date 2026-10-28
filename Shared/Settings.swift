@@ -279,7 +279,12 @@ enum SettingsStore {
     static func load() -> EnclaveSettings {
         guard let data = SharedStorage.defaults.data(forKey: settingsKey),
               var settings = try? JSONDecoder().decode(EnclaveSettings.self, from: data)
-        else { return EnclaveSettings() }
+        else {
+            // 第一次装：内测版填上自带的接口，其他版本照旧是空的。
+            var settings = EnclaveSettings()
+            BuiltinAPI.seed(&settings)
+            return settings
+        }
         settings.migrateRetiredModels()
         return settings
     }
