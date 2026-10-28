@@ -216,6 +216,8 @@ final class KeyboardModel: ObservableObject {
     /// 快速模式在 AI 栏上的状态：润色中（流光圈住 AI 栏）、✓ 已润色（1.5 秒后消失）、润色失败点重试。
     @Published private(set) var quickStatus: QuickStatus?
     enum QuickStatus { case running, done, failed }
+    /// 按住放大镜弹出了「改写 / 问答」：这时 AI 栏整行要盖在回答卡上面，不然上面那颗「改写」被回答卡挡住。
+    @Published var askHoldShowing = false
     /// 快速模式点 ✨ 但输入框里没字（NC1）：按钮右边的「未检测到内容」。
     @Published private(set) var emptyTapHint = false
     /// 每次没字时点 ✨ 加一，按钮跟着晃一下（NC2）。

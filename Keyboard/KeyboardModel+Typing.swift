@@ -901,7 +901,7 @@ extension KeyboardModel {
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
             case "ask", "askEmpty", "askSelected", "askRewrite", "askAnswerMode", "askAnswer", "askRewriteResult", "askRunning":
                 loadDebugAsk(option)
-            case "askHold": debugAskHold = true
+            case "askHold": debugAskHold = true; askHoldShowing = true
             // 结果卡左边的键：key:insert 默认插入，key:down 滚轮下滑，key:pop 弹出；key:rolled / key:popped 停在换过去的样子。
             case "key:insert": debugResultKey(primary: .insert)
             case "key:down": debugResultKey(swipe: .wheel, wheelUp: false)

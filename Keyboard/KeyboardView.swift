@@ -85,8 +85,8 @@ struct KeyboardView: View {
                     }
                 }
             }
-            // 按住 ✨ 弹出的「问答」盖在按键上面。
-            .zIndex(1)
+            // 按住 ✨ 弹出的「问答」盖在按键上面；弹出时「改写」还要盖在回答卡（zIndex 2）上面。
+            .zIndex(model.askHoldShowing ? 3 : 1)
             KeysView(model: model)
                 // 横屏九宫格居中 420 宽，不拉宽。
                 .frame(maxWidth: model.landscape && model.nineGrid ? KeyboardMetrics.landscapeNineWidth : .infinity)
@@ -735,6 +735,7 @@ struct PolishButton: View {
                 pressed = false
                 pick = nil
                 withAnimation(.easeOut(duration: 0.15)) { holding = false }
+                model.askHoldShowing = false
                 if model.isRunning {
                     model.stop()
                 } else if model.canAsk {
@@ -762,6 +763,7 @@ struct PolishButton: View {
 
     private func showHold() {
         guard !holding else { return }
+        model.askHoldShowing = true
         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { holding = true }
         model.keyFeedback(for: .space)
     }
