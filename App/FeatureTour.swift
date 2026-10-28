@@ -280,7 +280,7 @@ struct FeatureTourView: View {
             GeometryReader { proxy in
                 // FT7 手指自己按着拖的时候不再示范。
                 if !processing, !(step == 7 && dragging), let anchor = anchors[target] {
-                    TourHand(rect: proxy[anchor], bounds: proxy.size, dragDemo: step == 7,
+                    TourHand(rect: proxy[anchor], bounds: proxy.size, dragDemo: step == 7, holdDemo: target == .card,
                              reduceMotion: reduceMotion, shakes: shakes)
                         .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: target)
                 }
@@ -541,6 +541,8 @@ private struct TourHand: View {
     var rect: CGRect
     var bounds: CGSize
     var dragDemo: Bool
+    /// FT10 长按结果卡：手指按住，指尖下一圈进度环 0.5 秒转满。
+    var holdDemo = false
     var reduceMotion: Bool
     var shakes: Int
 
@@ -556,6 +558,9 @@ private struct TourHand: View {
                     if dragDemo {
                         let d = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.dragPeriod) / Self.dragPeriod)
                         dragFrame(d)
+                    } else if holdDemo {
+                        let h = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.holdPeriod) / Self.holdPeriod)
+                        holdFrame(h)
                     } else {
                         let t = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period)
                         let offset: CGFloat = 4 - 7 * (1 - cos(2 * .pi * t)) / 2
@@ -568,6 +573,40 @@ private struct TourHand: View {
     }
 
     private var flipped: Bool { rect.midX > bounds.width / 2 }
+
+    /// FT10 一轮 2 秒：按下 0.2 秒 → 进度环 0.5 秒转满 → 闭合时闪一下、停住 → 抬手淡出。
+    private static let holdPeriod = 2.0
+
+    private func holdFrame(_ h: CGFloat) -> some View {
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        let press = min(h / 0.1, 1)
+        // 0.1–0.35（0.5 秒）转满。
+        let fill = min(max((h - 0.1) / 0.25, 0), 1)
+        let closed = h >= 0.35
+        let flash = closed ? max(0, 1 - (h - 0.35) / 0.15) : 0
+        let fade: Double = h < 0.8 ? 1 : Double(1 - (h - 0.8) / 0.2)
+        return ZStack {
+            Circle()
+                .stroke(Self.rippleColor.opacity(0.22), lineWidth: 4)
+                .frame(width: 46, height: 46)
+                .position(center)
+            Circle()
+                .trim(from: 0, to: fill)
+                .stroke(Self.rippleColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .frame(width: 46, height: 46)
+                .scaleEffect(1 + 0.18 * flash)
+                .position(center)
+            // 按下的灰点。
+            Circle()
+                .fill(Self.rippleColor.opacity(0.18 + 0.2 * Double(flash)))
+                .frame(width: 30, height: 30)
+                .scaleEffect(1.2 - 0.2 * press)
+                .position(center)
+            hand(tip: CGPoint(x: center.x, y: center.y + 4 - 3 * press), ripple: nil)
+        }
+        .opacity(fade)
+    }
 
     /// FT7 一轮 2.6 秒：按下（灰圈缩进去）→ 按住不动 → 沿紫色虚线往上拖到「改写」→ 停一下 → 淡出。
     private static let dragPeriod = 2.6
