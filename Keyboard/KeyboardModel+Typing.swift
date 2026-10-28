@@ -81,7 +81,7 @@ extension KeyboardModel {
         }
         switch target {
         case .host:
-            proxy?.deleteBackward()
+            editProxy?.deleteBackward()
             updateAutoShift()
         case .instruction:
             deleteInInstruction()
@@ -100,7 +100,7 @@ extension KeyboardModel {
         if target == .host, now.timeIntervalSince(lastSpaceTime) < 0.45,
            let before = proxy?.documentContextBeforeInput, before.hasSuffix(" "),
            let previous = before.dropLast().last, !previous.isWhitespace, !previous.isPunctuation {
-            proxy?.deleteBackward()
+            editProxy?.deleteBackward()
             commit(chineseMode ? "。" : ". ")
             lastSpaceTime = .distantPast
         } else {
@@ -119,7 +119,7 @@ extension KeyboardModel {
             return
         }
         switch target {
-        case .host: proxy?.insertText("\n")
+        case .host: editProxy?.insertText("\n")
         case .instruction:
             askTapped(askButtonMode)
         case .card:
@@ -396,7 +396,7 @@ extension KeyboardModel {
 
     func moveCursor(by offset: Int) {
         switch target {
-        case .host: proxy?.adjustTextPosition(byCharacterOffset: offset)
+        case .host: editProxy?.adjustTextPosition(byCharacterOffset: offset)
         case .card: moveCardCaret(by: offset)
         case .instruction: moveInstructionCaret(by: offset)
         }
@@ -467,7 +467,7 @@ extension KeyboardModel {
         if target == .host, now.timeIntervalSince(lastPunctuationTap) < 0.8,
            let last = proxy?.documentContextBeforeInput?.last.map(String.init),
            let index = marks.firstIndex(of: last) {
-            proxy?.deleteBackward()
+            editProxy?.deleteBackward()
             commit(marks[(index + 1) % marks.count])
         } else {
             commit(marks[0])
@@ -749,7 +749,7 @@ extension KeyboardModel {
         switch target {
         case .host:
             clearMarkedText()
-            proxy?.insertText(text)
+            editProxy?.insertText(text)
             updateAutoShift()
         case .instruction:
             insertInInstruction(text)
@@ -767,7 +767,7 @@ extension KeyboardModel {
         if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
         if target == .host && isComposing {
-            proxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
+            editProxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
             hasMarkedText = true
         } else {
             clearMarkedText()
@@ -776,8 +776,8 @@ extension KeyboardModel {
 
     func clearMarkedText() {
         guard hasMarkedText else { return }
-        proxy?.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
-        proxy?.unmarkText()
+        editProxy?.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
+        editProxy?.unmarkText()
         hasMarkedText = false
     }
 
@@ -962,7 +962,7 @@ extension KeyboardModel {
     /// 点了英文补全或联想：换掉正在打的半个词，补上空格，接着联想下一个词。
     func selectEnglishSuggestion(_ index: Int) {
         let word = predictions[index]
-        for _ in 0..<predictionReplaces { proxy?.deleteBackward() }
+        for _ in 0..<predictionReplaces { editProxy?.deleteBackward() }
         commit(word + " ")
         EnglishPredictor.learn(word)
         DailyStats.add("prediction.tapped")

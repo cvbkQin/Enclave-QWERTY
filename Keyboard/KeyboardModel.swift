@@ -225,11 +225,14 @@ final class KeyboardModel: ObservableObject {
         QueuedEngine.shared.willSync = { [weak self] in self?.applyEngineResults(wait: true) }
     }
 
-    var proxy: UITextDocumentProxy? {
+    var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
+    /// 要改对方输入框（插字、删字、挪光标）时用它：记下时间，之后不久的光标变化是我们自己带出来的。
+    /// 只读不算：用户点输入框时系统也会通知文字变了，我们跟着读一下，不能因此把那次点击当成自己改的。
+    var editProxy: UITextDocumentProxy? {
         lastProxyUse = Date()
         return controller?.textDocumentProxy
     }
-    /// 键盘自己最后一次碰对方输入框的时间：之后不久的光标变化是我们插字、替换带出来的，不算用户点了输入框。
+    /// 键盘自己最后一次改对方输入框的时间：之后不久的光标变化是我们插字、替换带出来的，不算用户点了输入框。
     var lastProxyUse = Date.distantPast
     /// 抽屉开着时用户点了对方的输入框：打字回到对方输入框，点识意框再回来。
     var hostFocused = false
@@ -1208,7 +1211,7 @@ final class KeyboardModel: ObservableObject {
     /// 用当前版本替换输入框内容（有选中时只替换选中部分）。
     func replace() {
         endCoach()
-        guard let text = session?.current, let proxy else { return }
+        guard let text = session?.current, let proxy = editProxy else { return }
         let field = readField()
         if field.isSelection {
             proxy.insertText(text)
@@ -1229,14 +1232,14 @@ final class KeyboardModel: ObservableObject {
     /// 在光标处插入当前版本。
     func insert() {
         endCoach()
-        guard let text = session?.current, let proxy else { return }
+        guard let text = session?.current, let proxy = editProxy else { return }
         proxy.insertText(text)
         recordEdit(inserted: text, original: "", use: .inserted)
     }
 
     func undo() {
         endCoach()
-        guard let edit = undoStack.popLast(), let proxy else { return }
+        guard let edit = undoStack.popLast(), let proxy = editProxy else { return }
         swap(edit.inserted, for: edit.original, in: proxy)
         if edit.use == .replaced { readSpan = FieldSpan(written: edit.original) }
         redoStack.append(edit)
@@ -1247,7 +1250,7 @@ final class KeyboardModel: ObservableObject {
 
     func redo() {
         endCoach()
-        guard let edit = redoStack.popLast(), let proxy else { return }
+        guard let edit = redoStack.popLast(), let proxy = editProxy else { return }
         swap(edit.original, for: edit.inserted, in: proxy)
         if edit.use == .replaced { readSpan = FieldSpan(written: edit.inserted) }
         undoStack.append(edit)
@@ -1273,7 +1276,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 分词面板的「插入」：直接把字放进输入框，面板淡出。不动结果卡左边的键（不出用过的小绿勾动画）。
     func insertWords(_ text: String) {
-        guard !text.isEmpty, let proxy else { return }
+        guard !text.isEmpty, let proxy = editProxy else { return }
         markAskUsed()
         proxy.insertText(text)
         keyFeedback(for: .space)
