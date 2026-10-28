@@ -303,6 +303,12 @@ enum Brand {
     static let askText = dynamic(0x1C1C1E, 0xFFFFFF)
     static let askPlaceholder = Color(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255)
     static let askCaret = dynamic(0x5B4BE8, 0xB4A9FF)
+    /// 识意框激活 / 未激活（FC1–FC4）：激活时占位字浅紫灰、顶上 1pt 紫线；未激活浅灰底，占位字和「点这里输入」faint，留着的字 sub 灰。
+    static let askPlaceholderActive = dynamic(0x8C84C7, 0x9C94D6)
+    static let askActiveLine = dynamic(0xC9C0FF, 0x5A4FA0)
+    static let askInactiveFill = dynamic(0xF2F2F5, 0x232325)
+    static let askFaint = dynamic(0xAEAEB2, 0x636366)
+    static let askSub = dynamic(0x8E8E93, 0x98989F)
     static let askSelection = dynamic(0xD8D4F8, 0x5E56A0)
     static let askClearFill = dynamic(0xE2E2E7, 0x3A3A3C)
     static let askClearIcon = dynamic(0x6B6B73, 0xAEAEB2)

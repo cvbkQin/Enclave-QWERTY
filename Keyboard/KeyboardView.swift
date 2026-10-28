@@ -1534,14 +1534,22 @@ struct ResultCard: View {
             content(look)
             // 下半格是识意框（MG3）；自由编辑时整块变成编辑框。
             if model.target != .card {
-                Rectangle().fill(Brand.blockHair).frame(height: 0.5)
-                lowerHalf.frame(height: KeyboardMetrics.askBoxHeight - 0.5)
+                // 激活（打字进识意框）：顶上 1pt 紫线；未激活：0.5pt 细线，下半格浅灰底（FC1–FC4）。
+                let active = askActive
+                Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair).frame(height: active ? 1 : 0.5)
+                lowerHalf.frame(height: KeyboardMetrics.askBoxHeight - (active ? 1 : 0.5))
             }
         }
         .background {
             // 修改中：外面一圈 4pt 淡紫光。
             if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
             shape.fill(KeyStyle.charKey)
+            if model.target != .card, !askActive {
+                Brand.askInactiveFill
+                    .frame(height: KeyboardMetrics.askBoxHeight)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .clipShape(shape)
+            }
             if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
         }
         .overlay {
@@ -1551,6 +1559,9 @@ struct ResultCard: View {
     }
 
     /// 识意框，或者点了风格键时这一种的风格一排（MG5）。
+    /// 识意框激活：打字进识意框；风格一排开着时那一格也算激活（白底）。
+    private var askActive: Bool { model.target == .instruction || model.aiRow != nil }
+
     @ViewBuilder
     private var lowerHalf: some View {
         if let row = model.aiRow {

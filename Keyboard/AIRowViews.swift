@@ -283,6 +283,15 @@ struct AskField: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture { model.focusAsk() }
+            // 未激活、空着：右边 12pt「点这里输入」。
+            if !editing, model.instruction.isEmpty {
+                Text(L("点这里输入", "Tap to type", "タップして入力"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Brand.askFaint)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .onTapGesture { model.focusAsk() }
+            }
             searchButton
         }
         .padding(.horizontal, 12)
@@ -326,7 +335,7 @@ struct AskField: View {
         let composing = model.target == .instruction ? model.composition : ""
         if text.isEmpty && composing.isEmpty {
             Text(placeholder)
-                .foregroundStyle(Brand.askPlaceholder)
+                .foregroundStyle(caretVisible == nil ? Brand.askFaint : Brand.askPlaceholderActive)
                 .lineLimit(1)
                 .overlay(alignment: .leading) {
                     if let caretVisible { caretImage(caretVisible).offset(x: -2) }
@@ -347,7 +356,8 @@ struct AskField: View {
                 + Text(composing).underline(color: Brand.askCaret)
                 + (caretVisible.map { Text(Image(uiImage: Self.caret)).foregroundColor(Brand.askCaret.opacity($0 ? 1 : 0)).baselineOffset(-4) } ?? Text(""))
                 + Text(text[split...]))
-                .foregroundStyle(Brand.askText)
+                // 未激活时留着的字变灰。
+                .foregroundStyle(caretVisible == nil ? Brand.askSub : Brand.askText)
                 .lineLimit(1)
                 .truncationMode(atEnd ? .head : .tail)
         }
