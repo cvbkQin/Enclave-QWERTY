@@ -278,8 +278,9 @@ struct FeatureTourView: View {
         }
         .overlayPreferenceValue(TourFramesKey.self) { anchors in
             GeometryReader { proxy in
-                if !processing, let anchor = anchors[target] {
-                    TourHand(rect: proxy[anchor], bounds: proxy.size, dragDemo: step == 7 && !dragging,
+                // FT7 手指自己按着拖的时候不再示范。
+                if !processing, !(step == 7 && dragging), let anchor = anchors[target] {
+                    TourHand(rect: proxy[anchor], bounds: proxy.size, dragDemo: step == 7,
                              reduceMotion: reduceMotion, shakes: shakes)
                         .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: target)
                 }
@@ -521,7 +522,8 @@ private struct TourFramesKey: PreferenceKey {
 
 private extension View {
     func tourTarget(_ target: TourTarget) -> some View {
-        anchorPreference(key: TourFramesKey.self, value: .bounds) { [target: $0] }
+        // 合并而不是覆盖：「⇄ 切换」在回答卡里面，外层回答卡的标记不能把它盖掉。
+        transformAnchorPreference(key: TourFramesKey.self, value: .bounds) { $0[target] = $1 }
     }
 }
 
@@ -551,13 +553,11 @@ private struct TourHand: View {
                 hand(tip: CGPoint(x: rect.midX, y: rect.midY + 4), ripple: nil)
             } else {
                 TimelineView(.animation) { context in
-                    let t = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period)
                     if dragDemo {
-                        // 按住往上拖 40pt，停一下再回到起点。
-                        let p = min(t / 0.7, 1)
-                        let eased = p * p * (3 - 2 * p)
-                        hand(tip: CGPoint(x: rect.midX, y: rect.midY + 4 - 40 * eased), ripple: nil)
+                        let d = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.dragPeriod) / Self.dragPeriod)
+                        dragFrame(d)
                     } else {
+                        let t = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period)
                         let offset: CGFloat = 4 - 7 * (1 - cos(2 * .pi * t)) / 2
                         hand(tip: CGPoint(x: rect.midX, y: rect.midY + offset), ripple: t)
                     }
@@ -568,6 +568,49 @@ private struct TourHand: View {
     }
 
     private var flipped: Bool { rect.midX > bounds.width / 2 }
+
+    /// FT7 一轮 2.6 秒：按下（灰圈缩进去）→ 按住不动 → 沿紫色虚线往上拖到「改写」→ 停一下 → 淡出。
+    private static let dragPeriod = 2.6
+    /// 放大镜中心到「改写」中心。
+    private static let dragDistance: CGFloat = 42
+
+    @ViewBuilder
+    private func dragFrame(_ d: CGFloat) -> some View {
+        let start = CGPoint(x: rect.midX, y: rect.midY)
+        // 0–0.12 按下，0.12–0.3 按住，0.3–0.65 上拖，0.65–0.85 停在「改写」，0.85–1 淡出。
+        let move: CGFloat = d < 0.3 ? 0 : d < 0.65 ? (d - 0.3) / 0.35 : 1
+        let eased = move * move * (3 - 2 * move)
+        let point = CGPoint(x: start.x, y: start.y - Self.dragDistance * eased)
+        let press: CGFloat = min(d / 0.12, 1)
+        let fade: Double = d < 0.85 ? 1 : Double(1 - (d - 0.85) / 0.15)
+        let holding = d >= 0.12 && d < 0.3
+        ZStack {
+            // 走过的路：一道渐亮的紫线，头上一个箭头。
+            if move > 0 {
+                Path { p in p.move(to: start); p.addLine(to: point) }
+                    .stroke(Self.rippleColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .opacity(0.55)
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundStyle(Self.rippleColor)
+                    .position(x: point.x, y: point.y - 24)
+                    .opacity(move < 1 ? 1 : 0)
+            }
+            // 手指按着的灰圈：按下时缩进去，按住时轻轻一跳。
+            Circle()
+                .fill(Color.white.opacity(0.35))
+                .overlay(Circle().strokeBorder(Color.white, lineWidth: 2.5))
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+                .frame(width: 34, height: 34)
+                .scaleEffect(1.25 - 0.25 * press + (holding ? 0.06 * sin((d - 0.12) / 0.18 * .pi) : 0))
+                .position(point)
+            // 手斜着从右下伸过来，不挡放大镜正下方的「问答」。
+            let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
+            CoachHandShape.hand(flipped: false, angle: -28)
+                .position(x: point.x + 6 + size.width / 2 - fingertip.x, y: point.y + 10 + size.height / 2 - fingertip.y)
+        }
+        .opacity(fade)
+    }
 
     private func hand(tip: CGPoint, ripple t: CGFloat?) -> some View {
         let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
@@ -612,7 +655,8 @@ private struct TourKeyboard: View {
                     .padding(.horizontal, side + 2)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            aiBar.padding(.horizontal, side + 2)
+            // FT7 放大镜下方弹出的「问答」要盖在按键上面。
+            aiBar.padding(.horizontal, side + 2).zIndex(1)
             if state.panel {
                 wordPanel.padding(.horizontal, side + 2)
             } else {
