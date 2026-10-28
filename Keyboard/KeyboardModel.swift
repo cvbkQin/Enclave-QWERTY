@@ -130,6 +130,7 @@ final class KeyboardModel: ObservableObject {
             if aiExpanded { unseenResult = false }
             if aiExpanded != oldValue {
                 hostFocused = false
+                askFocusedAt = Date()
                 if aiExpanded { recordHostCaret() } else { hostCaret = nil }
                 if aiRow != nil { aiRow = nil }
                 // 换打字的地方之前，正在拼的先上屏到原来的地方。
@@ -243,6 +244,8 @@ final class KeyboardModel: ObservableObject {
     var lastProxyUse = Date.distantPast
     /// 抽屉开着时用户点了对方的输入框：打字回到对方输入框，点识意框再回来。
     var hostFocused = false
+    /// 刚展开抽屉或刚点识意框的时间：之后不久对方输入框的通知是键盘变高、换焦点带出来的，不算用户点了输入框。
+    var askFocusedAt = Date.distantPast
     /// 上次看到的对方输入框光标前后的文字和选中的文字（nil 没记过）。
     var hostCaret: HostCaret?
 

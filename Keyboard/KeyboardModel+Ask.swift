@@ -16,15 +16,15 @@ extension KeyboardModel {
                   selected: proxy?.selectedText ?? "")
     }
 
-    /// 对方输入框通知变了：抽屉开着、正打进识意框时，光标前后的文字或选中的文字变了，就算用户点了上面的输入框，打字换回对方输入框。
-    /// 只比字数不够：长文本时系统只给光标附近固定长度的一截，挪光标前后字数常常一样（0.91 真机上备忘录切不过去）。
-    /// 键盘刚弹出（还没记过）、键盘自己刚插过字替换过的都不算；在卡片里改字时不动。
+    /// 对方输入框通知变了：抽屉开着、正打进识意框时，就算用户点了上面的输入框，打字换回对方输入框（识意框变成未激活的灰底）。
+    /// 不比光标挪没挪：微信里光标本来就在末尾，点一下光标不动；长文本时系统只给光标附近一截，字数也常常不变。
+    /// 点输入框时系统总会通知一次，这一下就够了。不算的：键盘刚弹出后的第一次通知（hostCaret 还没记）、
+    /// 刚展开抽屉或刚点识意框 0.8 秒内（键盘变高、换焦点带出来的）、键盘自己刚改过对方输入框 0.5 秒内；在卡片里改字时不动。
     func hostSelectionChanged() {
-        let now = currentHostCaret()
         let previous = hostCaret
-        hostCaret = now
-        guard aiExpanded, target == .instruction, Date().timeIntervalSince(lastProxyUse) > 0.5,
-              let previous, previous != now
+        hostCaret = currentHostCaret()
+        guard aiExpanded, target == .instruction, previous != nil,
+              Date().timeIntervalSince(lastProxyUse) > 0.5, Date().timeIntervalSince(askFocusedAt) > 0.8
         else { return }
         if isComposing { finishComposition() }
         if aiRow != nil { aiRow = nil }
@@ -47,6 +47,7 @@ extension KeyboardModel {
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
         hostFocused = false
+        askFocusedAt = Date()
         if target != .instruction { target = .instruction }
     }
 
