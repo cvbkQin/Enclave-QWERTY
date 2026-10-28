@@ -13,7 +13,6 @@ enum AIVisuals {
 
 /// 星团底：线性底上叠四团椭圆光和三粒小白星，照稿子的 CSS 换成多层径向渐变（百分比相对按钮自己的宽高）。
 /// ask 是识意自动时 ✨ 的蓝紫（MG2–MG5）；rewrite、answer 是两颗风格键，join 是收着时合成的那一颗（AB1–AB3）。
-/// 0.91 起展开后分出来的三颗（ask、rewrite、answer）改成扁平纯色，只有收着的 join 还是星团。
 struct NebulaFill: View {
     enum Palette { case ask, rewrite, answer, join }
 
@@ -66,30 +65,11 @@ struct NebulaFill: View {
         }
     }
 
-    /// 扁平的那三颗：识意 #6366F1、改写 #7C3AED、问答 #0284C7。
-    static func flatColor(_ palette: Palette) -> Color? {
-        switch palette {
-        case .ask: return color(0x6366F1)
-        case .rewrite: return color(0x7C3AED)
-        case .answer: return color(0x0284C7)
-        case .join: return nil
-        }
-    }
-
     static func color(_ hex: UInt32) -> Color {
         Color(red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
 
-    @ViewBuilder
     var body: some View {
-        if let flat = Self.flatColor(palette) {
-            Rectangle().fill(flat).allowsHitTesting(false)
-        } else {
-            nebula
-        }
-    }
-
-    private var nebula: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
             let glows = self.glows, stars = self.stars
