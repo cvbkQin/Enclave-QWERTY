@@ -838,7 +838,7 @@ private struct TourKeyboard: View {
 
     /// 左边模式块：上半「AI问答 / AI改写」，下半「⇄ 切换」。
     private var modeBlock: some View {
-        let text = state.cardAnswer ? Color(hex: 0x0369A1) : Color(hex: 0x4A3BD6)
+        let text = state.cardAnswer ? Color(light: 0x0369A1, dark: 0x7DD3FC) : Color(light: 0x4A3BD6, dark: 0xB4A9FF)
         let fill = state.cardAnswer ? Color(light: 0xE0F2FE, dark: 0x0C3448) : Color(light: 0xECEAFD, dark: 0x2E2766)
         return VStack(spacing: 0) {
             Text(state.cardAnswer ? "AI问答" : "AI改写").font(.system(size: 10, weight: .bold))
@@ -865,6 +865,8 @@ private struct TourKeyboard: View {
                 .foregroundStyle(GuideColor.text)
                 .lineLimit(1)
                 .truncationMode(.head)
+                // FT7 放大镜正上方要冒出「改写」气泡：字往右让开，不被挡住。
+                .padding(.leading, step == 7 ? 64 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if state.searched {
                 Label("已联网 · Kimi", systemImage: "globe").font(.system(size: 12)).foregroundStyle(GuideColor.secondary).fixedSize()
@@ -892,14 +894,15 @@ private struct TourKeyboard: View {
     private var keys: some View {
         let gap: CGFloat = 6, height: CGFloat = 42
         return HStack(alignment: .top, spacing: gap) {
-            VStack(spacing: gap) {
+            // 四列等宽，空格占两列。
+            Grid(horizontalSpacing: gap, verticalSpacing: gap) {
                 keyRow(["123", "，。?!", "ABC", "DEF"], height: height)
                 keyRow(["#@¥", "GHI", "JKL", "MNO"], height: height)
                 keyRow(["常用", "PQRS", "TUV", "WXYZ"], height: height)
-                HStack(spacing: gap) {
+                GridRow {
                     key(Image(systemName: "face.smiling"), height: height)
                     key(Text("中/英"), height: height)
-                    key(Text("空 格"), height: height).frame(maxWidth: .infinity).layoutPriority(1)
+                    key(Text("空 格"), height: height).gridCellColumns(2)
                 }
             }
             VStack(spacing: gap) {
@@ -912,7 +915,7 @@ private struct TourKeyboard: View {
     }
 
     private func keyRow(_ titles: [String], height: CGFloat) -> some View {
-        HStack(spacing: 6) {
+        GridRow {
             ForEach(titles, id: \.self) { key(Text($0), height: height) }
         }
     }
