@@ -333,6 +333,7 @@ extension KeyboardModel {
         if gate != nil { dismissGate() }
         // 开始打字，小手指引导就结束。
         endCoach()
+        hideEmptyTapHint()
         pressedKeys.insert(key.id)
         if feedback { keyFeedback(for: key.kind) }
     }
@@ -390,8 +391,31 @@ extension KeyboardModel {
     }
 
     func setTrackpad(_ active: Bool) {
+        if !active { flushCursorMove() }
         trackpadActive = active
         if active { keyFeedback(for: .space) }
+        // 拖的时候对方输入框的通知都跳过了（见 KeyboardViewController），松手补一次。
+        if !active {
+            recordHostCaret()
+            fieldDidChange()
+            if !chineseMode { updateEnglishSuggestions() }
+        }
+    }
+
+    /// 触控板拖动：同一帧里的几次移动并成一次 adjustTextPosition。每次调用都要和对方 App 来回一趟，
+    /// 手指一动就调、再加上每次调完对方发回来的通知都去读输入框，拖起来一顿一顿的。
+    func queueCursorMove(_ offset: Int) {
+        pendingCursorMove += offset
+        guard !cursorFlushScheduled else { return }
+        cursorFlushScheduled = true
+        DispatchQueue.main.async { [weak self] in self?.flushCursorMove() }
+    }
+
+    func flushCursorMove() {
+        cursorFlushScheduled = false
+        let offset = pendingCursorMove
+        pendingCursorMove = 0
+        if offset != 0 { moveCursor(by: offset) }
     }
 
     func moveCursor(by offset: Int) {
@@ -706,6 +730,11 @@ extension KeyboardModel {
 
     /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
+        // 快速模式、输入框里没字：不展开回答卡、不调接口、不计次数，也不先弹提示卡；按钮晃一下、右边提示「未检测到内容」（NC1）。
+        if !aiExpanded, target == .host, !isComposing, !isRunning, fieldIsBlank {
+            showEmptyTapHint()
+            return
+        }
         guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
         #if DEBUG
         if debugFakeRun { coachTapped(.sparkle); fakeCoachRun(); return }
@@ -717,6 +746,7 @@ extension KeyboardModel {
             return
         }
         finishComposition()
+        hideEmptyTapHint()
         beginQuickMode(source: readField().text)
         start(from: .polish) { execute() }
         // 没开始生成（空输入框提示、没配置、没开完全访问）就展开，把原因显示出来。
@@ -732,7 +762,7 @@ extension KeyboardModel {
         // 收起就看不到卡片了，改到一半的先存下来。
         if target == .card { finishCardEdit() }
         finishComposition()
-        if expanded { clearQuickStatus() }
+        if expanded { clearQuickStatus(); hideEmptyTapHint() }
         aiExpanded = expanded
     }
 
@@ -871,7 +901,7 @@ extension KeyboardModel {
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
             case "ask", "askEmpty", "askSelected", "askRewrite", "askAnswerMode", "askAnswer", "askRewriteResult", "askRunning":
                 loadDebugAsk(option)
-            case "askHold": debugAskHold = true
+            case "askHold": debugAskHold = true; askHoldShowing = true
             // 结果卡左边的键：key:insert 默认插入，key:down 滚轮下滑，key:pop 弹出；key:rolled / key:popped 停在换过去的样子。
             case "key:insert": debugResultKey(primary: .insert)
             case "key:down": debugResultKey(swipe: .wheel, wheelUp: false)
@@ -885,6 +915,11 @@ extension KeyboardModel {
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
             case "quick:cycle": loadDebugQuickCycle()
+            // 截图用：输入框空着时点 ✨ 的「未检测到内容」（NC1）；1 秒后点一次，再过 1 秒又点一次看重新计时。
+            case "emptyTap":
+                debugUnblocked = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.sparkleTapped() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.sparkleTapped() }
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "quickWords": keysPanel = .quickWords

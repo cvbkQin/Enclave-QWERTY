@@ -6,34 +6,48 @@ extension KeyboardModel {
     /// 不在卡片里改字时打字去哪：识意展开着就进识意框，否则进对方的输入框。
     var restingTarget: InputTarget { aiExpanded && !hostFocused ? .instruction : .host }
 
-    /// 对方输入框光标前后各有多少字，用来判断光标是不是被挪了。
+    /// 记下对方输入框光标前后的文字，用来判断光标是不是被挪了。
     func recordHostCaret() {
         hostCaret = currentHostCaret()
     }
 
-    private func currentHostCaret() -> (before: Int, after: Int) {
-        ((proxy?.documentContextBeforeInput ?? "").count, (proxy?.documentContextAfterInput ?? "").count)
+    private func currentHostCaret() -> HostCaret {
+        HostCaret(before: proxy?.documentContextBeforeInput ?? "", after: proxy?.documentContextAfterInput ?? "",
+                  selected: proxy?.selectedText ?? "")
     }
 
-    /// 对方输入框通知变了：抽屉开着、正打进识意框时，只有光标真的挪了（字数没变、光标前的字数变了）才算用户点了上面的输入框，打字换回对方输入框。
-    /// 键盘刚弹出、对方 App 自己改字（总字数变了）、键盘自己刚插过字替换过的都不算；在卡片里改字时不动。
+    /// 对方输入框通知变了：抽屉开着、正打进识意框时，就算用户点了上面的输入框，打字换回对方输入框（识意框变成未激活的灰底）。
+    /// 不比光标挪没挪：微信里光标本来就在末尾，点一下光标不动；长文本时系统只给光标附近一截，字数也常常不变。
+    /// 点输入框时系统总会通知一次，这一下就够了。不算的：键盘刚弹出后的第一次通知（hostCaret 还没记）、
+    /// 刚展开抽屉或刚点识意框 0.8 秒内（键盘变高、换焦点带出来的）、键盘自己刚改过对方输入框 0.5 秒内；在卡片里改字时不动。
     func hostSelectionChanged() {
-        let now = currentHostCaret()
         let previous = hostCaret
-        hostCaret = now
-        guard aiExpanded, target == .instruction, Date().timeIntervalSince(lastProxyUse) > 0.5,
-              let previous, previous.before + previous.after == now.before + now.after, previous.before != now.before
+        hostCaret = currentHostCaret()
+        guard aiExpanded, target == .instruction, previous != nil,
+              Date().timeIntervalSince(lastProxyUse) > 0.5, Date().timeIntervalSince(askFocusedAt) > 0.8
         else { return }
-        if isComposing { finishComposition() }
+        commitTopCandidates()
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
         hostFocused = true
         target = .host
     }
 
+    /// 识意框里拼音还没选字就离开：和按空格一样上屏第一个候选（一次只选得掉一段就接着选），不留下一串字母。
+    private func commitTopCandidates() {
+        var rounds = 0
+        while isComposing, chineseMode, !candidates.isEmpty, rounds < 10 {
+            selectCandidate(0)
+            rounds += 1
+        }
+        if isComposing { finishComposition() }
+        dismissPredictions()
+    }
+
     /// 点 AI 栏的风格键：展开时整块下半格换成这一种的风格一排，收起时浮在 AI 栏上面；再点自己换回来。
     func toggleRow(_ row: AIRow) {
         endCoach()
+        hideEmptyTapHint()
         if target == .card { finishCardEdit() }
         finishComposition()
         aiRow = aiRow == row ? nil : row
@@ -45,6 +59,7 @@ extension KeyboardModel {
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
         hostFocused = false
+        askFocusedAt = Date()
         if target != .instruction { target = .instruction }
     }
 

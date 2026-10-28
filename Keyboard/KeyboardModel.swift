@@ -130,6 +130,7 @@ final class KeyboardModel: ObservableObject {
             if aiExpanded { unseenResult = false }
             if aiExpanded != oldValue {
                 hostFocused = false
+                askFocusedAt = Date()
                 if aiExpanded { recordHostCaret() } else { hostCaret = nil }
                 if aiRow != nil { aiRow = nil }
                 // 换打字的地方之前，正在拼的先上屏到原来的地方。
@@ -166,6 +167,9 @@ final class KeyboardModel: ObservableObject {
     }
     /// 长按空格进入的光标移动模式，按键上的字会隐藏。
     @Published var trackpadActive = false
+    /// 触控板还没交给对方输入框的移动（同一帧里并成一次）。
+    var pendingCursorMove = 0
+    var cursorFlushScheduled = false
     /// 候选词展开成整页。
     @Published var candidatesExpanded = false
     /// 长按候选弹出的小气泡（CL1–CL3）；按的那个词在候选栏里浅色底。
@@ -212,6 +216,13 @@ final class KeyboardModel: ObservableObject {
     /// 快速模式在 AI 栏上的状态：润色中（流光圈住 AI 栏）、✓ 已润色（1.5 秒后消失）、润色失败点重试。
     @Published private(set) var quickStatus: QuickStatus?
     enum QuickStatus { case running, done, failed }
+    /// 按住放大镜弹出了「改写 / 问答」：这时 AI 栏整行要盖在回答卡上面，不然上面那颗「改写」被回答卡挡住。
+    @Published var askHoldShowing = false
+    /// 快速模式点 ✨ 但输入框里没字（NC1）：按钮右边的「未检测到内容」。
+    @Published private(set) var emptyTapHint = false
+    /// 每次没字时点 ✨ 加一，按钮跟着晃一下（NC2）。
+    @Published private(set) var emptyTapShake = 0
+    private var emptyTapToken = 0
     /// 这次生成是怎么开始的：✨ 按提示词润色，或识意展开时的 ✨。特效都在 ✨ 上。
     enum RunOrigin { case polish, ask }
     @Published private(set) var runOrigin: RunOrigin?
@@ -243,8 +254,16 @@ final class KeyboardModel: ObservableObject {
     var lastProxyUse = Date.distantPast
     /// 抽屉开着时用户点了对方的输入框：打字回到对方输入框，点识意框再回来。
     var hostFocused = false
-    /// 上次看到的对方输入框光标前后字数（nil 没记过）。
-    var hostCaret: (before: Int, after: Int)?
+    /// 刚展开抽屉或刚点识意框的时间：之后不久对方输入框的通知是键盘变高、换焦点带出来的，不算用户点了输入框。
+    var askFocusedAt = Date.distantPast
+    /// 上次看到的对方输入框光标前后的文字和选中的文字（nil 没记过）。
+    var hostCaret: HostCaret?
+
+    struct HostCaret: Equatable {
+        var before: String
+        var after: String
+        var selected: String
+    }
 
     enum ResultUse { case replaced, inserted }
 
@@ -968,6 +987,41 @@ final class KeyboardModel: ObservableObject {
         quickStatus = nil
     }
 
+    /// 输入框里光标前后去掉空白、换行都没字，也没选中文字（NC1 的「没检测到内容」）。
+    var fieldIsBlank: Bool {
+        guard let proxy else { return true }
+        if let selected = proxy.selectedText, !selected.isEmpty { return false }
+        let before = proxy.documentContextBeforeInput ?? "", after = proxy.documentContextAfterInput ?? ""
+        return (before + after).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 没字时点 ✨（NC2）：轻触感 + 按钮晃一下，120 ms 后右边滑出提示，停 2 秒淡出。提示还在时再点只重新晃、重新计时。
+    func showEmptyTapHint() {
+        emptyTapToken += 1
+        let token = emptyTapToken
+        if hasFullAccess { haptic.impactOccurred() }
+        emptyTapShake += 1
+        UIAccessibility.post(notification: .announcement, argument: L("未检测到内容", "No text detected", "テキストがありません"))
+        let delay = UIAccessibility.isReduceMotionEnabled ? 0 : 0.12
+        if !emptyTapHint {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, token == self.emptyTapToken else { return }
+                withAnimation(.easeOut(duration: 0.15)) { self.emptyTapHint = true }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.15 + 2) { [weak self] in
+            guard let self, token == self.emptyTapToken else { return }
+            self.hideEmptyTapHint()
+        }
+    }
+
+    /// 打字、点别处、展开抽屉时提示立刻淡出。
+    func hideEmptyTapHint() {
+        emptyTapToken += 1
+        guard emptyTapHint else { return }
+        withAnimation(.easeIn(duration: 0.2)) { emptyTapHint = false }
+    }
+
     /// 快速模式开始：AI 栏进入「润色中」。
     func beginQuickMode(source: String) {
         quickSource = source
@@ -1105,6 +1159,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 输入框的文字变了（系统通知）：和当前结果对不上就把卡片变灰。
     func fieldDidChange() {
+        hideEmptyTapHint()
         refreshHostState()
         // 对方 App 清空或改了输入框（比如发送后）：重新判断句首大写。
         if !isComposing { updateAutoShift() }
@@ -1284,16 +1339,17 @@ final class KeyboardModel: ObservableObject {
     }
 
     /// 分词面板的「插入」：直接把字放进输入框，面板淡出。不动结果卡左边的键（不出用过的小绿勾动画）。
-    func insertWords(_ text: String) {
+    /// close：「插入/复制后关闭」开着时插完关面板，关着时面板留着（BT2）。
+    func insertWords(_ text: String, close: Bool = true) {
         guard !text.isEmpty, let proxy = editProxy else { return }
         markAskUsed()
         proxy.insertText(text)
         keyFeedback(for: .space)
-        closeWordPanel()
+        if close { closeWordPanel() }
     }
 
     /// 分词面板的「复制」：复制选中的词，右边复制图标照旧提示一下，面板淡出。
-    func copyWords(_ text: String) {
+    func copyWords(_ text: String, close: Bool = true) {
         guard !text.isEmpty else { return }
         markAskUsed()
         UIPasteboard.general.string = text
@@ -1302,7 +1358,7 @@ final class KeyboardModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             withAnimation(.easeIn(duration: 0.2)) { self?.copied = false }
         }
-        closeWordPanel()
+        if close { closeWordPanel() }
     }
 
     /// 分词面板 0.15 秒淡出，淡完再收起、键盘高度和结果卡回到打开前。

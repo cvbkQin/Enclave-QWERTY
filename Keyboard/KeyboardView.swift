@@ -85,8 +85,8 @@ struct KeyboardView: View {
                     }
                 }
             }
-            // 按住 ✨ 弹出的「问答」盖在按键上面。
-            .zIndex(1)
+            // 按住 ✨ 弹出的「问答」盖在按键上面；弹出时「改写」还要盖在回答卡（zIndex 2）上面。
+            .zIndex(model.askHoldShowing ? 3 : 1)
             KeysView(model: model)
                 // 横屏九宫格居中 420 宽，不拉宽。
                 .frame(maxWidth: model.landscape && model.nineGrid ? KeyboardMetrics.landscapeNineWidth : .infinity)
@@ -187,6 +187,12 @@ struct KeyboardView: View {
                     StyleKey(model: model, row: .answerStyles)
                 } else {
                     PolishButton(model: model)
+                        .modifier(EmptyTapShake(trigger: model.emptyTapShake))
+                    // 没字时点 ✨：右边「未检测到内容」，从左边 6pt 滑出（NC1、NC2）。
+                    if model.emptyTapHint {
+                        EmptyTapHint()
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(x: -6)))
+                    }
                     // 快速模式替换成功后 3 秒，旁边出「AI 生成 · 已替换」（CP9），点它展开看结果。
                     if model.quickStatus == .done, model.aiRow == nil {
                         ReplacedPill { model.setAIExpanded(true) }
@@ -208,6 +214,7 @@ struct KeyboardView: View {
         .overlay(alignment: .leading) {
             if hidden && !reduceMotion {
                 AIBarMorph(u: barMorphU,
+                           closing: !model.aiExpanded,
                            rewriteTitle: StyleKey.title(model, answer: false),
                            answerTitle: StyleKey.title(model, answer: true))
                     .padding(.leading, inset + 44 + 6)
@@ -226,7 +233,7 @@ struct KeyboardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 和回答卡同一条 ease-out：动画本身按时间匀速推进，曲线在 AIBarMorph 里算。
-    /// 展开多跑 60 ms 给「直击要害」回弹；收起合上那一下轻触感一次，展开不震。
+    /// 展开多跑 60 ms 给「直击要害」回弹；收起合上那一下轻触感一次（三颗刚好并成一颗时），展开不震。
     private func morphBar(_ expanded: Bool) {
         barMorphToken += 1
         let token = barMorphToken
@@ -241,7 +248,7 @@ struct KeyboardView: View {
         let duration = expanded ? 0.31 : 0.25
         withAnimation(.linear(duration: duration)) { barMorphU = target }
         if !expanded {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration - 0.03) {
                 guard token == barMorphToken, model.hasFullAccess else { return }
                 model.haptic.impactOccurred()
             }
@@ -320,10 +327,13 @@ struct KeyboardView: View {
 /// 抽屉开收时，合成的一颗和展开后的三颗（放大镜、润色、直击要害）之间的过渡。只在开收那一下画，平时是真按钮。
 /// u 是时间进度：0 收着，1 是 250 ms，展开时跑到 end（310 ms）给「直击要害」冲过头再回弹的尾巴。
 /// 形状不用模糊滤镜：相邻两颗胶囊之间连一截颈，颈的半高从 17 掐到 0（约 150 ms 断开），两边各画半截。
+/// 收起不是把展开倒着放（那样头 60 ms 只有回弹在倒退，接着又是先慢后快，比回答卡收起慢半拍）：
+/// 三颗从第一帧就一起往回收、先快后慢，颈、星星、文字按位置对回展开时同一刻的样子。
 struct AIBarMorph: View, Animatable {
     static let end: CGFloat = 1.24
 
     var u: CGFloat
+    var closing = false
     var rewriteTitle: String
     var answerTitle: String
 
@@ -355,8 +365,16 @@ struct AIBarMorph: View, Animatable {
 
     var body: some View {
         let h = KeyboardMetrics.chipHeight
-        let ms = u * 250
-        let e = 1 - pow(1 - Self.clamp(u), 3)
+        // 收起：t 是走过的时间比例，位置 e = (1 − t)²；ms 换算成展开时位置相同的那一刻。
+        let e: CGFloat, ms: CGFloat
+        if closing {
+            let left = Self.clamp(u / Self.end)
+            e = left * left
+            ms = 250 * (1 - pow(1 - e, 1.0 / 3))
+        } else {
+            ms = u * 250
+            e = 1 - pow(1 - Self.clamp(u), 3)
+        }
         let gap: CGFloat = 6
         let wJ = PolishButton.joinedWidth(rewriteTitle)
         let wM = KeyboardMetrics.polishButtonWidth
@@ -365,7 +383,7 @@ struct AIBarMorph: View, Animatable {
         let m = Span.lerp(Span(minX: 0, maxX: split), Span(minX: 0, maxX: wM), e)
         let r = Span.lerp(Span(minX: split, maxX: wJ), Span(minX: wM + gap, maxX: wM + gap + wR), e)
         let a0 = Span(minX: wJ - h, maxX: wJ), a1 = Span(minX: wM + 2 * gap + wR, maxX: wM + 2 * gap + wR + wA)
-        let bounce = Self.overshoot(ms)
+        let bounce = closing ? 0 : Self.overshoot(ms)
         var a = Span.lerp(a0, a1, e)
         a.minX += bounce
         a.maxX += bounce
@@ -379,7 +397,7 @@ struct AIBarMorph: View, Animatable {
         let starX = 22 + 12 * pull + (m.midX - 34) * back
         let reveal = Self.clamp((ms - 150) / 80)
         let pen = Self.clamp((ms - 150) / 80)
-        let textStart = 38 + (wM + gap + 9 + 16 + 4 - 38) * e
+        let textStart = 39 + (wM + gap + 7 + 16 + 3 - 39) * e
         let answerText = Self.clamp((ms - 60) / 100)
 
         return ZStack(alignment: .topLeading) {
@@ -393,7 +411,7 @@ struct AIBarMorph: View, Animatable {
                 .mask(Capsule().frame(width: a.width, height: h).position(x: a.midX, y: h / 2)
                     .frame(width: total, height: h, alignment: .topLeading))
                 .scaleEffect(aScale, anchor: UnitPoint(x: a.midX / total, y: 0.5))
-            // 放大镜、润色：开始都是紫色，靠形状分开；放大镜的蓝紫星团从星星的位置用圆形遮罩扩开。
+            // 放大镜、润色：开始都是紫色，靠形状分开；放大镜的蓝紫混色从星星的位置用圆形遮罩扩开。
             blob(m, h: h, total: total, left: nil, right: (mr, neck), palette: .rewrite)
             NebulaFill(palette: .ask)
                 .frame(width: m.width, height: h)
@@ -416,28 +434,29 @@ struct AIBarMorph: View, Animatable {
                 .rotationEffect(.degrees(180 * back))
                 .opacity(1 - back)
                 .position(x: starX, y: h / 2)
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
                 Text(rewriteTitle)
                     .font(.system(size: 13.5, weight: .semibold))
                     .lineLimit(1)
                     .frame(width: StyleKey.textWidth(rewriteTitle))
+                StyleKey.chevronDivider
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
                     .frame(width: 10)
             }
             .foregroundStyle(.white)
-            .position(x: textStart + (StyleKey.textWidth(rewriteTitle) + 14) / 2, y: h / 2)
+            .position(x: textStart + (StyleKey.textWidth(rewriteTitle) + 17) / 2, y: h / 2)
             Image(systemName: "pencil")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.white)
                 .scaleEffect(pen)
                 .opacity(pen)
-                .position(x: textStart - 12, y: h / 2)
+                .position(x: textStart - 11, y: h / 2)
         }
         .frame(width: total, height: h, alignment: .topLeading)
     }
 
-    /// 一颗胶囊加两边的半截颈，填对应的星团底。颈从胶囊端头圆心伸到两颗中间那条线。坐标都按整块的左上角算。
+    /// 一颗胶囊加两边的半截颈，填对应的混色底。颈从胶囊端头圆心伸到两颗中间那条线。坐标都按整块的左上角算。
     private func blob(_ span: Span, h: CGFloat, total: CGFloat, left: (x: CGFloat, half: CGFloat)?, right: (x: CGFloat, half: CGFloat)?,
                       palette: NebulaFill.Palette) -> some View {
         NebulaFill(palette: palette)
@@ -580,7 +599,7 @@ struct PolishButton: View {
 
     // MARK: 收着：✨ 和润色合成一颗（AB1）
 
-    /// 收着时 AI 栏里只有这一颗：join 星团底，左边黄色 ✨ 20pt，右边白字风格名 + ▾。
+    /// 收着时 AI 栏里只有这一颗：join 混色底，左边黄色 ✨ 20pt，右边白字风格名 + ▾。
     /// 点 ✨ 那半边（到 x≈46）快速润色；点「润色 ▾」那半边打开改写风格一排。生成中整颗点了都是停止。
     private var joinedButton: some View {
         let title = StyleKey.title(model, answer: false)
@@ -627,8 +646,8 @@ struct PolishButton: View {
     /// 点 ✨ 和点「润色 ▾」的分界：✨ 右边缘。
     static let joinedSplit: CGFloat = 46
 
-    /// 12 + ✨ 20 + 6 + 字 + 4 + ▾ 10 + 12。
-    static func joinedWidth(_ title: String) -> CGFloat { 64 + StyleKey.textWidth(title) }
+    /// 12 + ✨ 20 + 7 + 字 + 3 + 竖线 1 + 3 + ▾ 10 + 9（FB1）。
+    static func joinedWidth(_ title: String) -> CGFloat { 65 + StyleKey.textWidth(title) }
 
     /// 合成那一颗的样子（AI 栏分裂动画的第一帧也用它）。
     static func joinedFace<Star: View>(title: String, open: Bool = false, stop: Bool = false, faded: Bool = false, star: Star) -> some View {
@@ -641,19 +660,20 @@ struct PolishButton: View {
                 }
             }
             .frame(width: 20, height: 20)
-            .padding(.trailing, 6)
+            .padding(.trailing, 7)
             Text(title)
                 .font(.system(size: 13.5, weight: .semibold))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(width: StyleKey.textWidth(title))
-                .padding(.trailing, 4)
+            StyleKey.chevronDivider.padding(.horizontal, 3)
             Image(systemName: open ? "chevron.up" : "chevron.down")
                 .font(.system(size: 10, weight: .semibold))
                 .frame(width: 10)
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 12)
+        .padding(.leading, 12)
+        .padding(.trailing, 9)
         .frame(width: joinedWidth(title), height: KeyboardMetrics.chipHeight)
         .background(NebulaFill(palette: .join).clipShape(Capsule()).opacity(faded ? 0.35 : 1))
     }
@@ -715,6 +735,7 @@ struct PolishButton: View {
                 pressed = false
                 pick = nil
                 withAnimation(.easeOut(duration: 0.15)) { holding = false }
+                model.askHoldShowing = false
                 if model.isRunning {
                     model.stop()
                 } else if model.canAsk {
@@ -742,6 +763,7 @@ struct PolishButton: View {
 
     private func showHold() {
         guard !holding else { return }
+        model.askHoldShowing = true
         withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { holding = true }
         model.keyFeedback(for: .space)
     }
@@ -793,7 +815,7 @@ struct PolishButton: View {
     // MARK: 外观
 
     /// 58×34 的胶囊：生成中深灰底白色方块，流光描边按这次的颜色。
-    /// nebula：识意自动时的蓝紫星团底（MG2）。
+    /// nebula：识意自动时的蓝紫柔和混色底（MG2、FB）。
     private func face<Label: View>(fill: AnyShapeStyle, nebula: Bool = false, ring: [Color], @ViewBuilder label: () -> Label) -> some View {
         let shape = Capsule()
         return Group {
@@ -804,6 +826,12 @@ struct PolishButton: View {
             }
         }
         .frame(width: KeyboardMetrics.polishButtonWidth, height: KeyboardMetrics.chipHeight)
+        .background {
+            // 生成中外面 3pt 淡外圈 rgba(99,102,241,.25)（FB，取代左右两团彩色光）。
+            if model.isRunning {
+                shape.fill(Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255).opacity(0.25)).padding(-3)
+            }
+        }
         .background {
             if nebula {
                 NebulaFill().clipShape(shape)
@@ -2270,6 +2298,54 @@ struct RunningLabel: View {
 }
 
 /// 快速模式替换后 AI 栏上的浅紫胶囊（CP9）：高 28、圆角 14，紫色四角星 +「AI 改写 · 已替换」。
+/// 「ⓘ 未检测到内容」：高 28、圆角 14、左 8 右 10，按键底色，13pt 500 次要色（NC1）。只是提示，点不了。
+struct EmptyTapHint: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "info.circle").font(.system(size: 13, weight: .semibold))
+            Text(L("未检测到内容", "No text detected", "テキストがありません"))
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.leading, 8)
+        .padding(.trailing, 10)
+        .frame(height: 28)
+        .background(Capsule().fill(KeyStyle.charKey))
+        .allowsHitTesting(false)
+        // 出现时已经用 announcement 读过一次，这里不再重复读。
+        .accessibilityHidden(true)
+    }
+}
+
+/// 没字时点 ✨ 的按钮动效（NC2）：按下缩到 96%，60 ms 后回弹，同时左右 ±3pt 晃两下共 240 ms。减弱动态效果时不动。
+struct EmptyTapShake: ViewModifier {
+    var trigger: Int
+    @State private var scale: CGFloat = 1
+    @State private var offset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(scale)
+            .offset(x: offset)
+            .onChange(of: trigger) { _ in
+                guard !reduceMotion else { return }
+                withAnimation(.easeOut(duration: 0.06)) { scale = 0.96 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { scale = 1 }
+                }
+                // 240 ms 里 +3、−3、+3、−3、0 五段，每段 48 ms。
+                for (k, x) in [3, -3, 3, -3, 0].enumerated() {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.06 + 0.048 * Double(k)) {
+                        withAnimation(.easeInOut(duration: 0.048)) { offset = CGFloat(x) }
+                    }
+                }
+            }
+    }
+}
+
 struct ReplacedPill: View {
     var action: () -> Void
 

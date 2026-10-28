@@ -1014,10 +1014,10 @@ private struct ProviderCard: View {
                     if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(DashColor.ai) }
                 }
                 Text(provider.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                // 问答页：可联网标签和「配置教程」同一行；改写页没有标签，也留出这一行。
+                // 问答页：可联网标签和「配置教程」同一行；改写页没有标签、Ollama 没有教程，也留出这一行，格子一样高。
                 if let badge {
                     badgeView(badge).padding(.top, 5)
-                } else if tutorial != nil {
+                } else {
                     Color.clear.frame(height: 18).padding(.top, 5)
                 }
             }

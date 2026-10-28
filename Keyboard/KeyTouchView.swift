@@ -15,6 +15,8 @@ final class KeyTouchView: UIView {
         var timer: Timer?
         var repeats = 0
         var trackpadX: CGFloat?
+        /// 上一次 touchesMoved 的横坐标和时间，算手指速度（越快每个字要划的距离越短）。
+        var trackpadLast: (x: CGFloat, time: TimeInterval)?
         /// 从 123 键按下后滑到了符号上。
         var slidFromLayer = false
         /// 长按弹出了备选条，松手时打出选中的那个。
@@ -26,6 +28,11 @@ final class KeyTouchView: UIView {
     }
 
     private var tracking: [UITouch: Tracking] = [:]
+    /// 长按空格多久变成触控板。
+    private static let trackpadDelay: TimeInterval = 0.35
+    /// 触控板每移一个字要划的距离：慢划和快划。
+    private static let trackpadSlowStep: CGFloat = 10
+    private static let trackpadFastStep: CGFloat = 4
     /// 九宫格按住划出多远算方向划。
     private static let flickDistance: CGFloat = 16
 
@@ -118,10 +125,13 @@ final class KeyTouchView: UIView {
                 state.fired = true
                 startRepeating(state)
             case .space:
-                state.timer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: false) { [weak self, weak state] _ in
+                // 接近系统键盘：按住 0.35 秒变成触控板（原来 0.45 秒，用起来总觉得慢半拍）。
+                state.timer = Timer.scheduledTimer(withTimeInterval: Self.trackpadDelay, repeats: false) { [weak self, weak state] _ in
                     Task { @MainActor in
                         guard let self, let state, !state.fired, self.model?.isComposing == false else { return }
-                        state.trackpadX = touch.location(in: self).x
+                        let x = touch.location(in: self).x
+                        state.trackpadX = x
+                        state.trackpadLast = (x, touch.timestamp)
                         state.fired = true
                         self.model?.setTrackpad(true)
                     }
@@ -167,11 +177,17 @@ final class KeyTouchView: UIView {
                 continue
             }
             if let lastX = state.trackpadX {
-                // 光标移动：每 9pt 移一个字。
-                let steps = Int((point.x - lastX) / 9)
+                // 光标移动：慢慢划每 10pt 一个字，好对准；划得快每个字只要 4pt，长距离不用来回搓。
+                var speed: CGFloat = 0
+                if let last = state.trackpadLast, touch.timestamp > last.time {
+                    speed = abs(point.x - last.x) / CGFloat(touch.timestamp - last.time)
+                }
+                state.trackpadLast = (point.x, touch.timestamp)
+                let width = max(Self.trackpadSlowStep - speed / 120, Self.trackpadFastStep)
+                let steps = Int((point.x - lastX) / width)
                 if steps != 0 {
-                    model.moveCursor(by: steps)
-                    state.trackpadX = lastX + CGFloat(steps) * 9
+                    model.queueCursorMove(steps)
+                    state.trackpadX = lastX + CGFloat(steps) * width
                 }
                 continue
             }

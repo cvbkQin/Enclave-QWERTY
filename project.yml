@@ -13,8 +13,8 @@ settings:
     # 两个 Run Script 要读 Vendor/ 和 Local.xcconfig 传来的设置。
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     # 版本号：从 0.1 起每次改动加 0.1，正式发布时才改成 1.0。CURRENT_PROJECT_VERSION 同时加 1。
-    MARKETING_VERSION: "0.91"
-    CURRENT_PROJECT_VERSION: "91"
+    MARKETING_VERSION: "0.92"
+    CURRENT_PROJECT_VERSION: "92"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。

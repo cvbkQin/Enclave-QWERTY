@@ -278,8 +278,9 @@ struct FeatureTourView: View {
         }
         .overlayPreferenceValue(TourFramesKey.self) { anchors in
             GeometryReader { proxy in
-                if !processing, let anchor = anchors[target] {
-                    TourHand(rect: proxy[anchor], bounds: proxy.size, dragDemo: step == 7 && !dragging,
+                // FT7 手指自己按着拖的时候不再示范。
+                if !processing, !(step == 7 && dragging), let anchor = anchors[target] {
+                    TourHand(rect: proxy[anchor], bounds: proxy.size, dragDemo: step == 7, holdDemo: target == .card,
                              reduceMotion: reduceMotion, shakes: shakes)
                         .animation(reduceMotion ? nil : .easeInOut(duration: 0.6), value: target)
                 }
@@ -521,7 +522,8 @@ private struct TourFramesKey: PreferenceKey {
 
 private extension View {
     func tourTarget(_ target: TourTarget) -> some View {
-        anchorPreference(key: TourFramesKey.self, value: .bounds) { [target: $0] }
+        // 合并而不是覆盖：「⇄ 切换」在回答卡里面，外层回答卡的标记不能把它盖掉。
+        transformAnchorPreference(key: TourFramesKey.self, value: .bounds) { $0[target] = $1 }
     }
 }
 
@@ -539,6 +541,8 @@ private struct TourHand: View {
     var rect: CGRect
     var bounds: CGSize
     var dragDemo: Bool
+    /// FT10 长按结果卡：手指按住，指尖下一圈进度环 0.5 秒转满。
+    var holdDemo = false
     var reduceMotion: Bool
     var shakes: Int
 
@@ -551,13 +555,14 @@ private struct TourHand: View {
                 hand(tip: CGPoint(x: rect.midX, y: rect.midY + 4), ripple: nil)
             } else {
                 TimelineView(.animation) { context in
-                    let t = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period)
                     if dragDemo {
-                        // 按住往上拖 40pt，停一下再回到起点。
-                        let p = min(t / 0.7, 1)
-                        let eased = p * p * (3 - 2 * p)
-                        hand(tip: CGPoint(x: rect.midX, y: rect.midY + 4 - 40 * eased), ripple: nil)
+                        let d = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.dragPeriod) / Self.dragPeriod)
+                        dragFrame(d)
+                    } else if holdDemo {
+                        let h = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.holdPeriod) / Self.holdPeriod)
+                        holdFrame(h)
                     } else {
+                        let t = CGFloat(context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period) / Self.period)
                         let offset: CGFloat = 4 - 7 * (1 - cos(2 * .pi * t)) / 2
                         hand(tip: CGPoint(x: rect.midX, y: rect.midY + offset), ripple: t)
                     }
@@ -568,6 +573,84 @@ private struct TourHand: View {
     }
 
     private var flipped: Bool { rect.midX > bounds.width / 2 }
+
+    /// FT10 一轮 2 秒，和宣传视频一样：按下 0.2 秒 → 指尖一圈天蓝进度环 0.5 秒转满（圈里的底色跟着变深）→
+    /// 闭合时环往外撑大、0.35 秒淡掉 → 手停一下再淡出。
+    private static let holdPeriod = 2.0
+    private static let holdRing = Color(hex: 0x0EA5E9)
+    private static let holdTrack = Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
+
+    private func holdFrame(_ h: CGFloat) -> some View {
+        // 按在回答卡左上那几个字上，手从右边斜着伸过来（同 FT7），不盖住下面识意框里的问题。
+        let center = CGPoint(x: rect.minX + 60, y: rect.minY + 18)
+        let press = min(h / 0.1, 1)
+        let fill = min(max((h - 0.1) / 0.25, 0), 1)
+        let pop = min(max((h - 0.35) / 0.175, 0), 1)
+        let radius: CGFloat = 24 + 10 * pop
+        let fade: Double = h < 0.75 ? 1 : max(0, Double(1 - (h - 0.75) / 0.15))
+        return ZStack {
+            if h >= 0.1 && pop < 1 {
+                ZStack {
+                    Circle().fill(Self.holdTrack.opacity(0.12 + 0.2 * Double(fill)))
+                    Circle().stroke(Self.holdTrack.opacity(0.25), lineWidth: 4)
+                    Circle()
+                        .trim(from: 0, to: fill)
+                        .stroke(Self.holdRing, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                .frame(width: radius * 2, height: radius * 2)
+                .opacity(Double(1 - pop))
+                .position(center)
+            }
+            let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
+            CoachHandShape.hand(flipped: false, angle: -55)
+                .position(x: center.x + 4 + size.width / 2 - fingertip.x, y: center.y + 4 - 3 * press + size.height / 2 - fingertip.y)
+        }
+        .opacity(fade)
+    }
+
+    /// FT7 一轮 2.6 秒：按下（灰圈缩进去）→ 按住不动 → 沿紫色虚线往上拖到「改写」→ 停一下 → 淡出。
+    private static let dragPeriod = 2.6
+    /// 放大镜中心到「改写」中心。
+    private static let dragDistance: CGFloat = 42
+
+    @ViewBuilder
+    private func dragFrame(_ d: CGFloat) -> some View {
+        let start = CGPoint(x: rect.midX, y: rect.midY)
+        // 0–0.12 按下，0.12–0.3 按住，0.3–0.65 上拖，0.65–0.85 停在「改写」，0.85–1 淡出。
+        let move: CGFloat = d < 0.3 ? 0 : d < 0.65 ? (d - 0.3) / 0.35 : 1
+        let eased = move * move * (3 - 2 * move)
+        let point = CGPoint(x: start.x, y: start.y - Self.dragDistance * eased)
+        let press: CGFloat = min(d / 0.12, 1)
+        let fade: Double = d < 0.85 ? 1 : Double(1 - (d - 0.85) / 0.15)
+        let holding = d >= 0.12 && d < 0.3
+        ZStack {
+            // 走过的路：一道渐亮的紫线，头上一个箭头。
+            if move > 0 {
+                Path { p in p.move(to: start); p.addLine(to: point) }
+                    .stroke(Self.rippleColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .opacity(0.85)
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundStyle(Self.rippleColor)
+                    .position(x: point.x, y: point.y - 24)
+                    .opacity(move < 1 ? 1 : 0)
+            }
+            // 手指按着的灰圈：按下时缩进去，按住时轻轻一跳。
+            Circle()
+                .fill(Color.white.opacity(0.35))
+                .overlay(Circle().strokeBorder(Color.white, lineWidth: 2.5))
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+                .frame(width: 34, height: 34)
+                .scaleEffect(1.25 - 0.25 * press + (holding ? 0.06 * sin((d - 0.12) / 0.18 * .pi) : 0))
+                .position(point)
+            // 手从右边斜着伸过来，按下时也不压放大镜正下方的「问答」。
+            let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
+            CoachHandShape.hand(flipped: false, angle: -55)
+                .position(x: point.x + 20 + size.width / 2 - fingertip.x, y: point.y + 2 + size.height / 2 - fingertip.y)
+        }
+        .opacity(fade)
+    }
 
     private func hand(tip: CGPoint, ripple t: CGFloat?) -> some View {
         let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
@@ -612,7 +695,8 @@ private struct TourKeyboard: View {
                     .padding(.horizontal, side + 2)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            aiBar.padding(.horizontal, side + 2)
+            // FT7 放大镜下方弹出的「问答」要盖在按键上面。
+            aiBar.padding(.horizontal, side + 2).zIndex(1)
             if state.panel {
                 wordPanel.padding(.horizontal, side + 2)
             } else {
@@ -689,20 +773,21 @@ private struct TourKeyboard: View {
                 }
             }
             .frame(width: 20, height: 20)
-            .padding(.trailing, 6)
+            .padding(.trailing, 7)
             .tourTarget(.sparkle)
-            Text("润色").font(.system(size: 13.5, weight: .semibold)).padding(.trailing, 4)
+            Text("润色").font(.system(size: 13.5, weight: .semibold))
+            divider.padding(.horizontal, 3)
             Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 12)
+        .padding(.leading, 12).padding(.trailing, 9)
         .frame(height: 34)
         .background(NebulaFill(palette: .join).clipShape(Capsule()))
         .contentShape(Capsule())
         .onTapGesture(coordinateSpace: .local) { point in point.x < 46 ? tap(.sparkle) : wrong() }
     }
 
-    /// 展开：蓝紫星团的放大镜。FT7 按住往上拖，正上方「改写」、正下方「问答」。
+    /// 展开：蓝紫混色的放大镜。FT7 按住往上拖，正上方「改写」、正下方「问答」。
     private var magnifier: some View {
         HStack(spacing: 5) {
             if processing && target == .magnifier {
@@ -750,20 +835,26 @@ private struct TourKeyboard: View {
         .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 
-    /// 润色 ▾（紫色星团）、直击要害 ▾（蓝色星团）；回答卡上是哪种结果，那颗亮边框。
+    /// 名字和 ▾ 之间的竖线，和键盘一样（FB）。
+    private var divider: some View {
+        Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
+    }
+
+    /// 润色 ▾（紫色）、直击要害 ▾（蓝色），柔和混色、扁平；回答卡上是哪种结果，那颗亮边框加 3pt 淡外圈。
     private func styleKey(answer: Bool) -> some View {
         let active = state.card != nil && state.cardAnswer == answer
-        return HStack(spacing: 4) {
+        return HStack(spacing: 3) {
             Image(systemName: answer ? "questionmark.circle" : "pencil").font(.system(size: 14, weight: .semibold))
             Text(answer ? "直击要害" : "润色").font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            divider
             Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
         }
         .foregroundStyle(.white)
-        .padding(.leading, 9).padding(.trailing, 8)
+        .padding(.leading, 7).padding(.trailing, 6)
         .frame(height: 34)
         .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()))
         .overlay(Capsule().strokeBorder(answer ? Color(hex: 0x7DD3FC) : Color(hex: 0xC4B5FD), lineWidth: active ? 1.5 : 0))
-        .shadow(color: active ? (answer ? Color(hex: 0x0EA5E9) : Color(hex: 0x7C3AED)).opacity(0.5) : .clear, radius: 6)
+        .background(Capsule().fill((answer ? Color(hex: 0x0EA5E9) : Color(hex: 0x7C3AED)).opacity(active ? 0.25 : 0)).padding(-3))
         .fixedSize()
         .contentShape(Capsule())
         .onTapGesture { wrong() }
@@ -865,8 +956,8 @@ private struct TourKeyboard: View {
                 .foregroundStyle(GuideColor.text)
                 .lineLimit(1)
                 .truncationMode(.head)
-                // FT7 放大镜正上方要冒出「改写」气泡：字往右让开，不被挡住。
-                .padding(.leading, step == 7 ? 64 : 0)
+                // FT5 小手指着「切换」、FT7 放大镜正上方冒出「改写」气泡：字往右让开，不被挡住。
+                .padding(.leading, step == 5 ? 64 : step == 7 ? 120 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if state.searched {
                 Label("已联网 · Kimi", systemImage: "globe").font(.system(size: 12)).foregroundStyle(GuideColor.secondary).fixedSize()

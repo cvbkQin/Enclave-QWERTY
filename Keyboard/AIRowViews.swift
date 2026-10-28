@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - AI 栏的两颗风格键（MG1–MG5）
 
-/// 改写风格键、问答风格键（AB2）：展开时才有，紫色 / 蓝色星团底、白字白图标。
-/// 回答卡上是哪一种结果，那一颗就激活：1.5pt 浅色边框、两小段白光沿边框转（3 秒一圈）、外面一圈 10pt 的光。
+/// 改写风格键、问答风格键（AB2）：展开时才有，紫色 / 蓝色柔和混色底、白字白图标。
+/// 回答卡上是哪一种结果，那一颗就激活：1.5pt 浅色边框、两小段白光沿边框转（3 秒一圈）、外面 3pt 淡外圈（扁平化后不再有 10pt 的光）。
 struct StyleKey: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
@@ -18,9 +18,9 @@ struct StyleKey: View {
         Button { locked ? model.showFullAccessTip() : model.toggleRow(row) } label: {
             Self.face(answer: answer, title: Self.title(model, answer: answer), open: open)
             .background {
-                // 激活：外面一圈 10pt 光，润色 rgba(124,58,237,.55)、直击要害 rgba(14,165,233,.55)。
+                // 激活：外面 3pt 淡外圈，润色 rgba(124,58,237,.25)、直击要害 rgba(14,165,233,.25)。
                 if active {
-                    Capsule().fill(answer ? Self.answerGlow : Self.rewriteGlow).padding(-3).blur(radius: 5)
+                    Capsule().fill(answer ? Self.answerGlow : Self.rewriteGlow).padding(-3)
                 }
             }
             .overlay {
@@ -47,13 +47,13 @@ struct StyleKey: View {
 
     static let rewriteBorder = NebulaFill.color(0xC4B5FD)
     static let answerBorder = NebulaFill.color(0x7DD3FC)
-    static let rewriteGlow = Color(red: 124 / 255, green: 58 / 255, blue: 237 / 255).opacity(0.55)
-    static let answerGlow = Color(red: 14 / 255, green: 165 / 255, blue: 233 / 255).opacity(0.55)
+    static let rewriteGlow = Color(red: 124 / 255, green: 58 / 255, blue: 237 / 255).opacity(0.25)
+    static let answerGlow = Color(red: 14 / 255, green: 165 / 255, blue: 233 / 255).opacity(0.25)
 
-    /// 星团底、白字白图标（AB2）：高 34、左内边 9、右内边 8；15pt 图标、13.5pt 600 风格名（最宽 76）、10pt ▾。
+    /// 柔和混色底、白字白图标（AB2；底色、竖线和内边距按 FB2）：高 34、左内边 7、右内边 6；15pt 图标、间距 3、13.5pt 600 风格名（最宽 76）、竖线、10pt ▾。
     /// 宽度按字算死，AI 栏分裂动画里画的那几颗和这里一样宽。
     static func face(answer: Bool, title: String, open: Bool = false, filled: Bool = true) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             Image(systemName: answer ? "questionmark.circle" : "pencil")
                 .font(.system(size: 15, weight: .semibold))
                 .frame(width: 16)
@@ -62,13 +62,14 @@ struct StyleKey: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(width: textWidth(title))
+            chevronDivider
             Image(systemName: open ? "chevron.up" : "chevron.down")
                 .font(.system(size: 10, weight: .semibold))
                 .frame(width: 10)
         }
         .foregroundStyle(.white)
-        .padding(.leading, 9)
-        .padding(.trailing, 8)
+        .padding(.leading, 7)
+        .padding(.trailing, 6)
         .frame(width: width(title), height: KeyboardMetrics.chipHeight)
         .background {
             if filled { NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()) }
@@ -81,8 +82,13 @@ struct StyleKey: View {
         return min(76, ceil((title as NSString).size(withAttributes: [.font: font]).width))
     }
 
-    /// 整颗的宽：9 + 图标 16 + 4 + 字 + 4 + ▾ 10 + 8。
-    static func width(_ title: String) -> CGFloat { 51 + textWidth(title) }
+    /// 名字和 ▾ 之间的竖线：1×14、白 45%，和放大镜里那条一样（FB）。两边的 3pt 由 HStack 间距给。
+    static var chevronDivider: some View {
+        Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
+    }
+
+    /// 整颗的宽：7 + 图标 16 + 3 + 字 + 3 + 竖线 1 + 3 + ▾ 10 + 6。
+    static func width(_ title: String) -> CGFloat { 49 + textWidth(title) }
 
     /// 展开、有结果时，回答卡上是问答就激活问答那颗，否则激活改写那颗（润色也算改写）。
     private var isActive: Bool {

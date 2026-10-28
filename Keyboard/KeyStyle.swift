@@ -312,7 +312,7 @@ enum Brand {
     static let askSelection = dynamic(0xD8D4F8, 0x5E56A0)
     static let askClearFill = dynamic(0xE2E2E7, 0x3A3A3C)
     static let askClearIcon = dynamic(0x6B6B73, 0xAEAEB2)
-    /// ✨ 在识意展开时的三种底：自动是蓝紫星团（NebulaFill），改写 #4F46E5→#7C3AED，问答 #0284C7→#38BDF8。
+    /// ✨ 在识意展开时的三种底：自动是蓝紫柔和混色（NebulaFill），改写 #4F46E5→#7C3AED，问答 #0284C7→#38BDF8。
     /// 放大镜里那颗星：#7C3AED → #38BDF8 → #8B5CF6（MG2）。
     static let askAutoColors = [Color(rgb(0x7C3AED)), Color(rgb(0x38BDF8)), Color(rgb(0x8B5CF6))]
     static let askRewriteColors = [gradient[0], gradient[1]]
@@ -336,7 +336,12 @@ enum Brand {
     /// 分词面板（BB1）：直角框 1pt 描边 #C9C2F2 / 深色 #4A4380，底 #F1EFFB / 深色 #211F2E；划过的词块浅紫描边。
     static let wordPanelStroke = dynamic(0xC9C2F2, 0x4A4380)
     static let wordPanelFill = dynamic(0xF1EFFB, 0x211F2E)
-    /// 复制键的绿青渐变 #059669→#0D9488。
+    /// 插入键 135° #4F46E5→#7C3AED。原来用的是 4 色的 gradient（里面有 ✨ 的金色），按钮中间出一团紫→白→金。
+    static let insertGradient = [gradient[0], gradient[1]]
+    /// 分词面板「插入/复制后关闭」开关：开 #5B4BE8，关 #D1D1D6 / 深色 #48484A（BT1）。
+    static let pickToggleOn = Color(rgb(0x5B4BE8))
+    static let pickToggleOff = dynamic(0xD1D1D6, 0x48484A)
+    /// 复制键的绿青渐变 135° #059669→#0D9488。
     static let copyGradient = [Color(red: 0x05 / 255, green: 0x96 / 255, blue: 0x69 / 255),
                                Color(red: 0x0D / 255, green: 0x94 / 255, blue: 0x88 / 255)]
     /// 撤销条上的 ✓ #34C759。

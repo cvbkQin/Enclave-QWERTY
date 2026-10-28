@@ -78,6 +78,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        // 长按空格拖光标时，每移一下对方都会通知；这时不读输入框，松手再补（setTrackpad(false)）。
+        if model.trackpadActive { return }
         // 点对方输入框挪光标时，系统有时只通知文字变了、不通知光标变了（iOS 27 模拟器上就是这样），两处都接。
         model.hostSelectionChanged()
         model.fieldDidChange()
@@ -86,6 +88,7 @@ final class KeyboardViewController: UIInputViewController {
     /// 换到别的输入框、移动光标时也更新一下发送键（有没有字、回车键类型）。
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
+        if model.trackpadActive { return }
         // 用户点了对方输入框：抽屉开着时打字换回对方输入框。
         model.hostSelectionChanged()
         model.refreshHostState()
@@ -134,6 +137,8 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         model.engine.reset()
+        // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
+        QueuedEngine.shared.closeSession()
         model.syncEngine()
         model.pressedKeys = []
         model.trackpadActive = false
