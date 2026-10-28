@@ -137,6 +137,8 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         model.engine.reset()
+        // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
+        QueuedEngine.shared.closeSession()
         model.syncEngine()
         model.pressedKeys = []
         model.trackpadActive = false

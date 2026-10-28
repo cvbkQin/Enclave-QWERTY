@@ -104,6 +104,21 @@ final class QueuedEngine: InputEngine {
         }
     }
 
+    /// 键盘收起：在队列上关掉 Rime 会话，放开 App Group 里用户词库的文件锁（见 RimeEngine.closeSession）。
+    /// 用 performExpiringActivity 向系统要一点时间，关完再让扩展被挂起，不然挂起时还锁着就会被杀。
+    func closeSession() {
+        let done = DispatchSemaphore(value: 0)
+        queue.async { [inner] in
+            inner.closeSession()
+            done.signal()
+        }
+        state = Snapshot()
+        ProcessInfo.processInfo.performExpiringActivity(withReason: "Close Rime user dictionary") { expired in
+            guard !expired else { return }
+            _ = done.wait(timeout: .now() + 3)
+        }
+    }
+
     func updatePhrases(_ entries: [(text: String, code: String)]) {
         queue.async { [inner] in inner.updatePhrases(entries) }
     }

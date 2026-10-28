@@ -174,6 +174,18 @@ final class RimeEngine: InputEngine {
         _ = refresh()
     }
 
+    /// 键盘收起时关掉会话：用户词库（LevelDB 的 *.userdb）在 App Group 里，开着就一直锁着 LOCK 文件，
+    /// 扩展被挂起时还锁着共享容器里的文件，系统会直接杀掉（0xDEAD10CC），下次在别的 App 里弹出时可能等不到我们、换成系统键盘。
+    /// 会话一关，librime 里最后一个引用放掉，用户词库随之关闭、解锁；下次弹出时 prepare 再建会话。
+    func closeSession() {
+        if session != 0 {
+            enclave_rime_destroy_session(session)
+            session = 0
+        }
+        composition = ""
+        candidates = []
+    }
+
     func reset() {
         if session != 0 { enclave_rime_clear(session) }
         composition = ""
