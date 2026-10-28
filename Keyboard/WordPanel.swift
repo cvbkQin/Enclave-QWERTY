@@ -75,6 +75,11 @@ struct WordPanel: View {
         .foregroundStyle(Color.secondary)
         .lineLimit(1)
         .minimumScaleFactor(0.8)
+        // VoiceOver 读不了「划选」：换成能照着做的一句。
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(selected.isEmpty
+            ? L("分词面板。轻点两下选中一个词，再点插入或复制", "Word panel. Double-tap words to select them, then Insert or Copy", "単語パネル。ダブルタップで単語を選び、挿入かコピーを押します")
+            : L("已选 \(selected.count) 个", "\(selected.count) selected", "\(selected.count) 個選択"))
     }
 
     private var chosenText: String {

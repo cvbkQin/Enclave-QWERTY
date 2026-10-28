@@ -1467,6 +1467,20 @@ struct ResultCard: View {
                     let point = CGPoint(x: value.location.x - textLeading, y: value.location.y - (model.isRunning ? 4 : 8))
                     model.beginFreeEdit(caret: CardTextHit.index(at: point, in: text, width: textWidth))
                 })
+                // VoiceOver 用不了滑动、长按、连点三下：上下轻扫（可调整）翻版本，「操作」里有分词和修改。
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(resultAccessibilityLabel)
+                .accessibilityAdjustableAction { direction in
+                    switch direction {
+                    case .increment: turn(1)
+                    case .decrement: turn(-1)
+                    @unknown default: break
+                    }
+                }
+                .accessibilityAction(named: L("分词", "Split into words", "単語に分ける")) { model.openWordPanel() }
+                .accessibilityAction(named: L("修改", "Edit", "編集")) {
+                    if model.hasResult, let text = model.session?.current { model.beginFreeEdit(caret: text.count) }
+                }
             }
             }
             iconColumn(faded: faded)
@@ -1668,11 +1682,14 @@ struct ResultCard: View {
                 model.copy()
             }
             .disabled(!model.hasResult)
+            .accessibilityLabel(model.copied ? L("已复制", "Copied", "コピーしました") : L("复制结果", "Copy result", "結果をコピー"))
             Spacer(minLength: 0)
             iconButton(model.cardExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
                        tint: .secondary) {
                 withAnimation(.easeOut(duration: 0.2)) { model.cardExpanded.toggle() }
             }
+            .accessibilityLabel(model.cardExpanded ? L("缩小结果卡", "Shrink result card", "結果カードを縮小") : L("放大结果卡", "Enlarge result card", "結果カードを拡大"))
+            .accessibilityHidden(model.landscape)
             // 横屏结果卡固定 2 行，不能展开。
             .opacity(model.landscape ? 0 : 1)
             // 分词面板开着时结果卡固定 2 行。
@@ -1692,12 +1709,26 @@ struct ResultCard: View {
         .buttonStyle(.plain)
     }
 
+    /// 结果正文读成「AI 生成的结果，第 2 版，共 3 版：正文」。
+    private var resultAccessibilityLabel: String {
+        guard let session = model.session, let text = session.current, !model.isRunning else {
+            return model.isRunning ? runningTitle : ""
+        }
+        let head = session.currentIsAnswer ? L("AI 的回答", "AI answer", "AI の回答") : L("AI 生成的结果", "AI result", "AI の結果")
+        let page = session.versions.count > 1
+            ? L("，第 \(session.currentIndex + 1) 版，共 \(session.versions.count) 版", ", version \(session.currentIndex + 1) of \(session.versions.count)",
+                "、\(session.versions.count) 件中 \(session.currentIndex + 1) 件目")
+            : ""
+        return head + page + "：" + text
+    }
+
     /// 多个版本：▲ 2/3 ▼。
     private func pager(index: Int, count: Int) -> some View {
         VStack(spacing: 0) {
             Button { turn(-1) } label: {
                 Image(systemName: "chevron.up").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .accessibilityLabel(L("上一版", "Previous version", "前のバージョン"))
             .disabled(index == 0)
             pageNumber(index: index, count: count)
             if model.session?.currentIsEdited == true {
@@ -1706,6 +1737,7 @@ struct ResultCard: View {
             Button { turn(1) } label: {
                 Image(systemName: "chevron.down").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .accessibilityLabel(L("下一版", "Next version", "次のバージョン"))
             .disabled(index >= count - 1)
         }
         .font(.system(size: 10, weight: .semibold))

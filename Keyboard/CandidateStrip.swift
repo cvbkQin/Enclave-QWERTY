@@ -93,6 +93,11 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
                 label.index = labels.count
                 label.isHidden = true
                 label.onActivate = { [weak self] index in self?.onSelect?(index) }
+                // VoiceOver 没法长按：「更多操作」打开同一个气泡（删除 / 置顶 / 从常用词移除）。
+                label.onMore = { [weak self] index in
+                    guard let self, index < self.frames.count else { return }
+                    self.onLongPress?(index, self.frames[index].midX - self.contentOffset.x)
+                }
                 addSubview(label)
                 labels.append(label)
             }
@@ -248,6 +253,18 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
 private final class CandidateLabel: UILabel {
     var index = 0
     var onActivate: ((Int) -> Void)?
+    var onMore: ((Int) -> Void)?
+
+    override var accessibilityCustomActions: [UIAccessibilityCustomAction]? {
+        get {
+            [UIAccessibilityCustomAction(name: L("更多操作", "More actions", "その他の操作")) { [weak self] _ in
+                guard let self else { return false }
+                self.onMore?(self.index)
+                return true
+            }]
+        }
+        set {}
+    }
 
     override var isAccessibilityElement: Bool { get { !isHidden } set {} }
     override var accessibilityTraits: UIAccessibilityTraits { get { .button } set {} }

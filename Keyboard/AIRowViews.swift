@@ -283,6 +283,13 @@ struct AskField: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture { model.focusAsk() }
+            // VoiceOver：整行读成一个输入框，读出框里的字；轻点两下开始在这里打字。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L("识意输入框", "Ask field", "たずねる入力欄"))
+            .accessibilityValue(model.instruction.isEmpty ? placeholder : model.instruction + model.composition)
+            .accessibilityHint(editing ? L("正在输入", "Typing here", "入力中") : L("轻点两下在这里输入", "Double-tap to type here", "ダブルタップしてここに入力"))
+            .accessibilityAddTraits(editing ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { model.focusAsk() }
             // 未激活、空着：右边 12pt「点这里输入」。
             if !editing, model.instruction.isEmpty {
                 Text(L("点这里输入", "Tap to type", "タップして入力"))
@@ -291,6 +298,7 @@ struct AskField: View {
                     .lineLimit(1)
                     .fixedSize()
                     .onTapGesture { model.focusAsk() }
+                    .accessibilityHidden(true)
             }
             searchButton
         }
