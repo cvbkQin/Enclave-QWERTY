@@ -10,6 +10,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Check privacy policy pages match the App
+        run: python3 scripts/gen-privacy.py --check
       - name: Select newest Xcode
         run: |
           latest=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -n 1)
