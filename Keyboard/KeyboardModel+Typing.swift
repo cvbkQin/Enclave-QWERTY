@@ -390,8 +390,31 @@ extension KeyboardModel {
     }
 
     func setTrackpad(_ active: Bool) {
+        if !active { flushCursorMove() }
         trackpadActive = active
         if active { keyFeedback(for: .space) }
+        // 拖的时候对方输入框的通知都跳过了（见 KeyboardViewController），松手补一次。
+        if !active {
+            recordHostCaret()
+            fieldDidChange()
+            if !chineseMode { updateEnglishSuggestions() }
+        }
+    }
+
+    /// 触控板拖动：同一帧里的几次移动并成一次 adjustTextPosition。每次调用都要和对方 App 来回一趟，
+    /// 手指一动就调、再加上每次调完对方发回来的通知都去读输入框，拖起来一顿一顿的。
+    func queueCursorMove(_ offset: Int) {
+        pendingCursorMove += offset
+        guard !cursorFlushScheduled else { return }
+        cursorFlushScheduled = true
+        DispatchQueue.main.async { [weak self] in self?.flushCursorMove() }
+    }
+
+    func flushCursorMove() {
+        cursorFlushScheduled = false
+        let offset = pendingCursorMove
+        pendingCursorMove = 0
+        if offset != 0 { moveCursor(by: offset) }
     }
 
     func moveCursor(by offset: Int) {

@@ -167,6 +167,9 @@ final class KeyboardModel: ObservableObject {
     }
     /// 长按空格进入的光标移动模式，按键上的字会隐藏。
     @Published var trackpadActive = false
+    /// 触控板还没交给对方输入框的移动（同一帧里并成一次）。
+    var pendingCursorMove = 0
+    var cursorFlushScheduled = false
     /// 候选词展开成整页。
     @Published var candidatesExpanded = false
     /// 长按候选弹出的小气泡（CL1–CL3）；按的那个词在候选栏里浅色底。
