@@ -6,23 +6,25 @@ extension KeyboardModel {
     /// 不在卡片里改字时打字去哪：识意展开着就进识意框，否则进对方的输入框。
     var restingTarget: InputTarget { aiExpanded && !hostFocused ? .instruction : .host }
 
-    /// 对方输入框光标前后各有多少字，用来判断光标是不是被挪了。
+    /// 记下对方输入框光标前后的文字，用来判断光标是不是被挪了。
     func recordHostCaret() {
         hostCaret = currentHostCaret()
     }
 
-    private func currentHostCaret() -> (before: Int, after: Int) {
-        ((proxy?.documentContextBeforeInput ?? "").count, (proxy?.documentContextAfterInput ?? "").count)
+    private func currentHostCaret() -> HostCaret {
+        HostCaret(before: proxy?.documentContextBeforeInput ?? "", after: proxy?.documentContextAfterInput ?? "",
+                  selected: proxy?.selectedText ?? "")
     }
 
-    /// 对方输入框通知变了：抽屉开着、正打进识意框时，只有光标真的挪了（字数没变、光标前的字数变了）才算用户点了上面的输入框，打字换回对方输入框。
-    /// 键盘刚弹出、对方 App 自己改字（总字数变了）、键盘自己刚插过字替换过的都不算；在卡片里改字时不动。
+    /// 对方输入框通知变了：抽屉开着、正打进识意框时，光标前后的文字或选中的文字变了，就算用户点了上面的输入框，打字换回对方输入框。
+    /// 只比字数不够：长文本时系统只给光标附近固定长度的一截，挪光标前后字数常常一样（0.91 真机上备忘录切不过去）。
+    /// 键盘刚弹出（还没记过）、键盘自己刚插过字替换过的都不算；在卡片里改字时不动。
     func hostSelectionChanged() {
         let now = currentHostCaret()
         let previous = hostCaret
         hostCaret = now
         guard aiExpanded, target == .instruction, Date().timeIntervalSince(lastProxyUse) > 0.5,
-              let previous, previous.before + previous.after == now.before + now.after, previous.before != now.before
+              let previous, previous != now
         else { return }
         if isComposing { finishComposition() }
         if aiRow != nil { aiRow = nil }

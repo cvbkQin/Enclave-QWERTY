@@ -243,8 +243,14 @@ final class KeyboardModel: ObservableObject {
     var lastProxyUse = Date.distantPast
     /// 抽屉开着时用户点了对方的输入框：打字回到对方输入框，点识意框再回来。
     var hostFocused = false
-    /// 上次看到的对方输入框光标前后字数（nil 没记过）。
-    var hostCaret: (before: Int, after: Int)?
+    /// 上次看到的对方输入框光标前后的文字和选中的文字（nil 没记过）。
+    var hostCaret: HostCaret?
+
+    struct HostCaret: Equatable {
+        var before: String
+        var after: String
+        var selected: String
+    }
 
     enum ResultUse { case replaced, inserted }
 
