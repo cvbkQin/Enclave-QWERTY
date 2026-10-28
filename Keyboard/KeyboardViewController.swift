@@ -77,6 +77,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        // 点对方输入框挪光标时，系统有时只通知文字变了、不通知光标变了（iOS 27 模拟器上就是这样），两处都接。
+        model.hostSelectionChanged()
         model.fieldDidChange()
     }
 
