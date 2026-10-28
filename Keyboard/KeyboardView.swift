@@ -187,6 +187,12 @@ struct KeyboardView: View {
                     StyleKey(model: model, row: .answerStyles)
                 } else {
                     PolishButton(model: model)
+                        .modifier(EmptyTapShake(trigger: model.emptyTapShake))
+                    // 没字时点 ✨：右边「未检测到内容」，从左边 6pt 滑出（NC1、NC2）。
+                    if model.emptyTapHint {
+                        EmptyTapHint()
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(x: -6)))
+                    }
                     // 快速模式替换成功后 3 秒，旁边出「AI 生成 · 已替换」（CP9），点它展开看结果。
                     if model.quickStatus == .done, model.aiRow == nil {
                         ReplacedPill { model.setAIExpanded(true) }
@@ -2290,6 +2296,54 @@ struct RunningLabel: View {
 }
 
 /// 快速模式替换后 AI 栏上的浅紫胶囊（CP9）：高 28、圆角 14，紫色四角星 +「AI 改写 · 已替换」。
+/// 「ⓘ 未检测到内容」：高 28、圆角 14、左 8 右 10，按键底色，13pt 500 次要色（NC1）。只是提示，点不了。
+struct EmptyTapHint: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "info.circle").font(.system(size: 13, weight: .semibold))
+            Text(L("未检测到内容", "No text detected", "テキストがありません"))
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.leading, 8)
+        .padding(.trailing, 10)
+        .frame(height: 28)
+        .background(Capsule().fill(KeyStyle.charKey))
+        .allowsHitTesting(false)
+        // 出现时已经用 announcement 读过一次，这里不再重复读。
+        .accessibilityHidden(true)
+    }
+}
+
+/// 没字时点 ✨ 的按钮动效（NC2）：按下缩到 96%，60 ms 后回弹，同时左右 ±3pt 晃两下共 240 ms。减弱动态效果时不动。
+struct EmptyTapShake: ViewModifier {
+    var trigger: Int
+    @State private var scale: CGFloat = 1
+    @State private var offset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(scale)
+            .offset(x: offset)
+            .onChange(of: trigger) { _ in
+                guard !reduceMotion else { return }
+                withAnimation(.easeOut(duration: 0.06)) { scale = 0.96 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) { scale = 1 }
+                }
+                // 240 ms 里 +3、−3、+3、−3、0 五段，每段 48 ms。
+                for (k, x) in [3, -3, 3, -3, 0].enumerated() {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.06 + 0.048 * Double(k)) {
+                        withAnimation(.easeInOut(duration: 0.048)) { offset = CGFloat(x) }
+                    }
+                }
+            }
+    }
+}
+
 struct ReplacedPill: View {
     var action: () -> Void
 

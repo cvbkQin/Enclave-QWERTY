@@ -216,6 +216,11 @@ final class KeyboardModel: ObservableObject {
     /// 快速模式在 AI 栏上的状态：润色中（流光圈住 AI 栏）、✓ 已润色（1.5 秒后消失）、润色失败点重试。
     @Published private(set) var quickStatus: QuickStatus?
     enum QuickStatus { case running, done, failed }
+    /// 快速模式点 ✨ 但输入框里没字（NC1）：按钮右边的「未检测到内容」。
+    @Published private(set) var emptyTapHint = false
+    /// 每次没字时点 ✨ 加一，按钮跟着晃一下（NC2）。
+    @Published private(set) var emptyTapShake = 0
+    private var emptyTapToken = 0
     /// 这次生成是怎么开始的：✨ 按提示词润色，或识意展开时的 ✨。特效都在 ✨ 上。
     enum RunOrigin { case polish, ask }
     @Published private(set) var runOrigin: RunOrigin?
@@ -980,6 +985,41 @@ final class KeyboardModel: ObservableObject {
         quickStatus = nil
     }
 
+    /// 输入框里光标前后去掉空白、换行都没字，也没选中文字（NC1 的「没检测到内容」）。
+    var fieldIsBlank: Bool {
+        guard let proxy else { return true }
+        if let selected = proxy.selectedText, !selected.isEmpty { return false }
+        let before = proxy.documentContextBeforeInput ?? "", after = proxy.documentContextAfterInput ?? ""
+        return (before + after).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 没字时点 ✨（NC2）：轻触感 + 按钮晃一下，120 ms 后右边滑出提示，停 2 秒淡出。提示还在时再点只重新晃、重新计时。
+    func showEmptyTapHint() {
+        emptyTapToken += 1
+        let token = emptyTapToken
+        if hasFullAccess { haptic.impactOccurred() }
+        emptyTapShake += 1
+        UIAccessibility.post(notification: .announcement, argument: L("未检测到内容", "No text detected", "テキストがありません"))
+        let delay = UIAccessibility.isReduceMotionEnabled ? 0 : 0.12
+        if !emptyTapHint {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, token == self.emptyTapToken else { return }
+                withAnimation(.easeOut(duration: 0.15)) { self.emptyTapHint = true }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.15 + 2) { [weak self] in
+            guard let self, token == self.emptyTapToken else { return }
+            self.hideEmptyTapHint()
+        }
+    }
+
+    /// 打字、点别处、展开抽屉时提示立刻淡出。
+    func hideEmptyTapHint() {
+        emptyTapToken += 1
+        guard emptyTapHint else { return }
+        withAnimation(.easeIn(duration: 0.2)) { emptyTapHint = false }
+    }
+
     /// 快速模式开始：AI 栏进入「润色中」。
     func beginQuickMode(source: String) {
         quickSource = source
@@ -1117,6 +1157,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 输入框的文字变了（系统通知）：和当前结果对不上就把卡片变灰。
     func fieldDidChange() {
+        hideEmptyTapHint()
         refreshHostState()
         // 对方 App 清空或改了输入框（比如发送后）：重新判断句首大写。
         if !isComposing { updateAutoShift() }

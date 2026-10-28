@@ -47,6 +47,7 @@ extension KeyboardModel {
     /// 点 AI 栏的风格键：展开时整块下半格换成这一种的风格一排，收起时浮在 AI 栏上面；再点自己换回来。
     func toggleRow(_ row: AIRow) {
         endCoach()
+        hideEmptyTapHint()
         if target == .card { finishCardEdit() }
         finishComposition()
         aiRow = aiRow == row ? nil : row
