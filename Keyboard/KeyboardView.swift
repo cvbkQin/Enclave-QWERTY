@@ -171,30 +171,86 @@ struct KeyboardView: View {
         .padding(.horizontal, inset)
     }
 
+    /// 收着（AB1）：抽屉、合成的一颗、空白、撤销 | 重做；展开（AB2）：抽屉、放大镜、润色 ▾、直击要害 ▾。
+    /// 开收时中间这几颗换成 AIBarMorph 画 250 ms 的分裂 / 融合，画完再露出真按钮。
     private var aiBar: some View {
-        HStack(spacing: 6) {
+        let hidden = barMorphing || barExpanded != model.aiExpanded
+        return HStack(spacing: 6) {
             PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) {
                 model.endCoach()
                 model.setAIExpanded(!model.aiExpanded)
             }
-            PolishButton(model: model)
-            // 快速模式替换成功后 3 秒，两颗功能按钮的位置换成「AI 生成 · 已替换」（CP9），点它展开看结果。
-            if model.quickStatus == .done, !model.aiExpanded, model.aiRow == nil {
-                ReplacedPill { model.setAIExpanded(true) }
-                    .layoutPriority(1)
-                    .transition(.opacity)
-            } else {
-                // 改写风格、问答风格（MG1）。
-                StyleKey(model: model, row: .prompts).layoutPriority(1)
-                StyleKey(model: model, row: .answerStyles)
+            HStack(spacing: 6) {
+                if model.aiExpanded {
+                    PolishButton(model: model)
+                    StyleKey(model: model, row: .prompts).layoutPriority(1)
+                    StyleKey(model: model, row: .answerStyles)
+                } else {
+                    PolishButton(model: model)
+                    // 快速模式替换成功后 3 秒，旁边出「AI 生成 · 已替换」（CP9），点它展开看结果。
+                    if model.quickStatus == .done, model.aiRow == nil {
+                        ReplacedPill { model.setAIExpanded(true) }
+                            .layoutPriority(1)
+                            .transition(.opacity)
+                    }
+                    if model.quickStatus == .failed {
+                        QuickRetryLabel(model: model)
+                    }
+                }
             }
-            if model.quickStatus == .failed, !model.aiExpanded {
-                QuickRetryLabel(model: model)
-            }
+            .opacity(hidden && !reduceMotion ? 0 : 1)
+            // 减弱动态效果：不分裂，直接交叉淡入。
+            .animation(reduceMotion ? .easeInOut(duration: 0.25) : nil, value: model.aiExpanded)
             Spacer(minLength: 0)
             UndoRedoPair(model: model)
         }
         .padding(.horizontal, inset)
+        .overlay(alignment: .leading) {
+            if hidden && !reduceMotion {
+                AIBarMorph(u: barMorphU,
+                           rewriteTitle: StyleKey.title(model, answer: false),
+                           answerTitle: StyleKey.title(model, answer: true))
+                    .padding(.leading, inset + 44 + 6)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onAppear { barExpanded = model.aiExpanded; barMorphU = model.aiExpanded ? AIBarMorph.end : 0 }
+        .onChange(of: model.aiExpanded) { expanded in morphBar(expanded) }
+    }
+
+    /// AI 栏上次画完停在哪个样子；和 model.aiExpanded 不一样时说明正在开收。
+    @State private var barExpanded = false
+    @State private var barMorphing = false
+    @State private var barMorphU: CGFloat = 0
+    @State private var barMorphToken = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// 和回答卡同一条 ease-out：动画本身按时间匀速推进，曲线在 AIBarMorph 里算。
+    /// 展开多跑 60 ms 给「直击要害」回弹；收起合上那一下轻触感一次，展开不震。
+    private func morphBar(_ expanded: Bool) {
+        barMorphToken += 1
+        let token = barMorphToken
+        guard !reduceMotion, !model.isRunning else {
+            barMorphing = false
+            barExpanded = expanded
+            barMorphU = expanded ? AIBarMorph.end : 0
+            return
+        }
+        barMorphing = true
+        let target: CGFloat = expanded ? AIBarMorph.end : 0
+        let duration = expanded ? 0.31 : 0.25
+        withAnimation(.linear(duration: duration)) { barMorphU = target }
+        if !expanded {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+                guard token == barMorphToken, model.hasFullAccess else { return }
+                model.haptic.impactOccurred()
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.02) {
+            guard token == barMorphToken else { return }
+            barMorphing = false
+            barExpanded = expanded
+        }
     }
 
     /// 打拼音、或者上屏后有联想时显示候选栏。
@@ -256,6 +312,170 @@ struct KeyboardView: View {
             }
             .buttonStyle(KeyPressStyle())
         }
+    }
+}
+
+// MARK: - AI 栏分裂 / 融合（AB3、AB4、joinbar-anim）
+
+/// 抽屉开收时，合成的一颗和展开后的三颗（放大镜、润色、直击要害）之间的过渡。只在开收那一下画，平时是真按钮。
+/// u 是时间进度：0 收着，1 是 250 ms，展开时跑到 end（310 ms）给「直击要害」冲过头再回弹的尾巴。
+/// 形状不用模糊滤镜：相邻两颗胶囊之间连一截颈，颈的半高从 17 掐到 0（约 150 ms 断开），两边各画半截。
+struct AIBarMorph: View, Animatable {
+    static let end: CGFloat = 1.24
+
+    var u: CGFloat
+    var rewriteTitle: String
+    var answerTitle: String
+
+    var animatableData: CGFloat {
+        get { u }
+        set { u = newValue }
+    }
+
+    private struct Span {
+        var minX: CGFloat
+        var maxX: CGFloat
+        var width: CGFloat { maxX - minX }
+        var midX: CGFloat { (minX + maxX) / 2 }
+        static func lerp(_ a: Span, _ b: Span, _ k: CGFloat) -> Span {
+            Span(minX: a.minX + (b.minX - a.minX) * k, maxX: a.maxX + (b.maxX - a.maxX) * k)
+        }
+    }
+
+    private static func clamp(_ x: CGFloat) -> CGFloat { min(max(x, 0), 1) }
+    private static func smooth(_ x: CGFloat) -> CGFloat { let k = clamp(x); return k * k * (3 - 2 * k) }
+
+    /// 「直击要害」最后冲过头 5pt 再回 −1.5pt 落定（弹簧 response 0.3、阻尼 0.6 的样子）。
+    private static func overshoot(_ ms: CGFloat) -> CGFloat {
+        if ms < 150 { return 0 }
+        if ms < 220 { return 5 * smooth((ms - 150) / 70) }
+        if ms < 280 { return 5 - 6.5 * smooth((ms - 220) / 60) }
+        return -1.5 + 1.5 * smooth((ms - 280) / 30)
+    }
+
+    var body: some View {
+        let h = KeyboardMetrics.chipHeight
+        let ms = u * 250
+        let e = 1 - pow(1 - Self.clamp(u), 3)
+        let gap: CGFloat = 6
+        let wJ = PolishButton.joinedWidth(rewriteTitle)
+        let wM = KeyboardMetrics.polishButtonWidth
+        let wR = StyleKey.width(rewriteTitle), wA = StyleKey.width(answerTitle)
+        let split = PolishButton.joinedSplit
+        let m = Span.lerp(Span(minX: 0, maxX: split), Span(minX: 0, maxX: wM), e)
+        let r = Span.lerp(Span(minX: split, maxX: wJ), Span(minX: wM + gap, maxX: wM + gap + wR), e)
+        let a0 = Span(minX: wJ - h, maxX: wJ), a1 = Span(minX: wM + 2 * gap + wR, maxX: wM + 2 * gap + wR + wA)
+        let bounce = Self.overshoot(ms)
+        var a = Span.lerp(a0, a1, e)
+        a.minX += bounce
+        a.maxX += bounce
+        let aScale = 1 + 0.04 * max(bounce, 0) / 5
+        // 颈：半高从 h/2 掐到 0。
+        let neck = h / 2 * (1 - Self.smooth(ms / 150))
+        let mr = (m.maxX + r.minX) / 2, ra = (r.maxX + a.minX) / 2
+        let total = max(wJ, a1.maxX + 6)
+        // ✨：先被往右扯长（横向最多 1.7 倍、右移 12），掐断后弹回放大镜中间，一边转一边缩小淡出。
+        let pull = Self.clamp(ms / 150), back = Self.clamp((ms - 150) / 80)
+        let starX = 22 + 12 * pull + (m.midX - 34) * back
+        let reveal = Self.clamp((ms - 150) / 80)
+        let pen = Self.clamp((ms - 150) / 80)
+        let textStart = 38 + (wM + gap + 9 + 16 + 4 - 38) * e
+        let answerText = Self.clamp((ms - 60) / 100)
+
+        return ZStack(alignment: .topLeading) {
+            // 直击要害：在最下面，一开始藏在润色右端。
+            blob(a, h: h, total: total, left: (ra, neck), right: nil, palette: .answer)
+                .scaleEffect(aScale, anchor: UnitPoint(x: a.midX / total, y: 0.5))
+            StyleKey.face(answer: true, title: answerTitle, filled: false)
+                .opacity(answerText)
+                .position(x: a.minX + a1.width / 2, y: h / 2)
+                .frame(width: total, height: h, alignment: .topLeading)
+                .mask(Capsule().frame(width: a.width, height: h).position(x: a.midX, y: h / 2)
+                    .frame(width: total, height: h, alignment: .topLeading))
+                .scaleEffect(aScale, anchor: UnitPoint(x: a.midX / total, y: 0.5))
+            // 放大镜、润色：开始都是紫色，靠形状分开；放大镜的蓝紫星团从星星的位置用圆形遮罩扩开。
+            blob(m, h: h, total: total, left: nil, right: (mr, neck), palette: .rewrite)
+            NebulaFill(palette: .ask)
+                .frame(width: m.width, height: h)
+                .mask(Circle().frame(width: 2 * wM * reveal, height: 2 * wM * reveal).position(x: starX - m.minX, y: h / 2))
+                .clipShape(Capsule())
+                .position(x: m.midX, y: h / 2)
+            blob(r, h: h, total: total, left: (mr, neck), right: (ra, neck), palette: .rewrite)
+            // 收着那一颗的 join 底，头 100 ms 淡掉。
+            ZStack(alignment: .topLeading) {
+                blob(m, h: h, total: total, left: nil, right: (mr, neck), palette: .join)
+                blob(r, h: h, total: total, left: (mr, neck), right: nil, palette: .join)
+            }
+            .opacity(1 - Self.clamp(ms / 100))
+            PolishButton.askLabel(nil, starSize: 20)
+                .frame(width: m.width, height: h)
+                .mask(Circle().frame(width: 2 * wM * reveal, height: 2 * wM * reveal).position(x: starX - m.minX, y: h / 2))
+                .position(x: m.midX, y: h / 2)
+            PolishStars(size: 20, running: false, glowing: false, doneAt: nil, tint: Brand.gold)
+                .scaleEffect(x: (1 + 0.7 * pull) * (1 - back), y: 1 - back)
+                .rotationEffect(.degrees(180 * back))
+                .opacity(1 - back)
+                .position(x: starX, y: h / 2)
+            HStack(spacing: 4) {
+                Text(rewriteTitle)
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .lineLimit(1)
+                    .frame(width: StyleKey.textWidth(rewriteTitle))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 10)
+            }
+            .foregroundStyle(.white)
+            .position(x: textStart + (StyleKey.textWidth(rewriteTitle) + 14) / 2, y: h / 2)
+            Image(systemName: "pencil")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .scaleEffect(pen)
+                .opacity(pen)
+                .position(x: textStart - 12, y: h / 2)
+        }
+        .frame(width: total, height: h, alignment: .topLeading)
+    }
+
+    /// 一颗胶囊加两边的半截颈，填对应的星团底。颈从胶囊端头圆心伸到两颗中间那条线。坐标都按整块的左上角算。
+    private func blob(_ span: Span, h: CGFloat, total: CGFloat, left: (x: CGFloat, half: CGFloat)?, right: (x: CGFloat, half: CGFloat)?,
+                      palette: NebulaFill.Palette) -> some View {
+        NebulaFill(palette: palette)
+            .frame(width: max(span.width, h) + 8, height: h)
+            .position(x: span.midX, y: h / 2)
+            .frame(width: total, height: h, alignment: .topLeading)
+            .mask(ZStack(alignment: .topLeading) {
+                Capsule().frame(width: max(span.width, h), height: h).position(x: span.midX, y: h / 2)
+                if let left, left.half > 0.3 {
+                    HalfNeck(from: span.minX + h / 2, to: left.x, half: left.half, height: h)
+                }
+                if let right, right.half > 0.3 {
+                    HalfNeck(from: span.maxX - h / 2, to: right.x, half: right.half, height: h)
+                }
+            }
+            .frame(width: total, height: h, alignment: .topLeading))
+    }
+}
+
+/// 半截颈：从胶囊端头圆心（满高）用 cubic 收到两颗中间那条线（半高 half）。
+private struct HalfNeck: Shape {
+    var from: CGFloat
+    var to: CGFloat
+    var half: CGFloat
+    var height: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let cy = height / 2, r = height / 2
+        let d = to - from
+        var path = Path()
+        path.move(to: CGPoint(x: from, y: cy - r))
+        path.addCurve(to: CGPoint(x: to, y: cy - half),
+                      control1: CGPoint(x: from + d * 0.5, y: cy - r), control2: CGPoint(x: to - d * 0.35, y: cy - half))
+        path.addLine(to: CGPoint(x: to, y: cy + half))
+        path.addCurve(to: CGPoint(x: from, y: cy + r),
+                      control1: CGPoint(x: to - d * 0.35, y: cy + half), control2: CGPoint(x: from + d * 0.5, y: cy + r))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -354,18 +574,88 @@ struct PolishButton: View {
         if asking {
             askButton
         } else {
-            Button {
-                model.isRunning ? model.stop() : model.sparkleTapped()
-            } label: {
-                decorated(face(fill: polishFill, ring: Brand.gradient) {
-                    PolishStars(size: 20, running: false, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil)
+            joinedButton
+        }
+    }
+
+    // MARK: 收着：✨ 和润色合成一颗（AB1）
+
+    /// 收着时 AI 栏里只有这一颗：join 星团底，左边黄色 ✨ 20pt，右边白字风格名 + ▾。
+    /// 点 ✨ 那半边（到 x≈46）快速润色；点「润色 ▾」那半边打开改写风格一排。生成中整颗点了都是停止。
+    private var joinedButton: some View {
+        let title = StyleKey.title(model, answer: false)
+        let width = Self.joinedWidth(title)
+        let locked = !model.hasFullAccess
+        let open = !locked && model.aiRow == .prompts
+        return decorated(width: width, ZStack(alignment: .leading) {
+            Self.joinedFace(title: title, open: open, stop: model.isRunning, faded: model.aiBlocked || model.aiQuotaUsed,
+                            star: PolishStars(size: 20, running: false, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil, tint: Brand.gold))
+                .overlay {
+                    if open { Capsule().strokeBorder(StyleKey.rewriteBorder, lineWidth: 1.5) }
+                }
+                .overlay {
+                    if quickRunning && fullMotion {
+                        PolishButtonGlow(ring: Brand.gradient).clipShape(Capsule())
+                    }
+                }
+            HStack(spacing: 0) {
+                Button {
+                    model.isRunning ? model.stop() : model.sparkleTapped()
+                } label: {
+                    Color.clear.frame(width: Self.joinedSplit).contentShape(Rectangle())
+                }
+                .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行当前提示词", "Run prompt", "プロンプトを実行"))
+                .coachTarget(.sparkle, active: model.coachDisplay?.target == .sparkle)
+                Button {
+                    if model.isRunning { model.stop() } else if locked { model.showFullAccessTip() } else { model.toggleRow(.prompts) }
+                } label: {
+                    Color.clear.contentShape(Rectangle())
+                }
+                .accessibilityLabel(L("改写风格", "Rewrite style", "書き換えスタイル") + "：" + title)
+                .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
+                .background(GeometryReader { geometry in
+                    // 风格一排的尖角对准「润色 ▾」这半边。
+                    Color.clear.preference(key: RowChipEdgeKey.self, value: [.prompts: geometry.frame(in: .named("keyboard")).midX])
                 })
             }
             .buttonStyle(KeyPressStyle())
-            .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行当前提示词", "Run prompt", "プロンプトを実行"))
-            .coachTarget(.sparkle, active: model.coachDisplay?.target == .sparkle)
-            .onChange(of: model.finished) { finished in flashDone(at: finished?.at) }
         }
+        .frame(width: width, height: KeyboardMetrics.chipHeight))
+        .onChange(of: model.finished) { finished in flashDone(at: finished?.at) }
+    }
+
+    /// 点 ✨ 和点「润色 ▾」的分界：✨ 右边缘。
+    static let joinedSplit: CGFloat = 46
+
+    /// 12 + ✨ 20 + 6 + 字 + 4 + ▾ 10 + 12。
+    static func joinedWidth(_ title: String) -> CGFloat { 64 + StyleKey.textWidth(title) }
+
+    /// 合成那一颗的样子（AI 栏分裂动画的第一帧也用它）。
+    static func joinedFace<Star: View>(title: String, open: Bool = false, stop: Bool = false, faded: Bool = false, star: Star) -> some View {
+        HStack(spacing: 0) {
+            Group {
+                if stop {
+                    RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(Color.white).frame(width: 12, height: 12)
+                } else {
+                    star
+                }
+            }
+            .frame(width: 20, height: 20)
+            .padding(.trailing, 6)
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: StyleKey.textWidth(title))
+                .padding(.trailing, 4)
+            Image(systemName: open ? "chevron.up" : "chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+                .frame(width: 10)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .frame(width: joinedWidth(title), height: KeyboardMetrics.chipHeight)
+        .background(NebulaFill(palette: .join).clipShape(Capsule()).opacity(faded ? 0.35 : 1))
     }
 
     // MARK: 识意展开时
@@ -529,7 +819,7 @@ struct PolishButton: View {
     }
 
     /// 小锁、剩余次数，点按区上下各扩 5pt。
-    private func decorated<Content: View>(_ content: Content) -> some View {
+    private func decorated<Content: View>(width: CGFloat = KeyboardMetrics.polishButtonWidth, _ content: Content) -> some View {
         content
             .overlay(alignment: .topLeading) {
                 // 没开完全访问、试用结束后今天的次数用完：右上角一个小锁（P01）。
@@ -540,7 +830,7 @@ struct PolishButton: View {
                         .frame(width: 18, height: 18)
                         .background(Circle().fill(Brand.lockFill))
                         .overlay(Circle().strokeBorder(Brand.lockRing, lineWidth: 2))
-                        .offset(x: KeyboardMetrics.polishButtonWidth - 12, y: -4)
+                        .offset(x: width - 12, y: -4)
                         .accessibilityLabel(model.aiQuotaUsed
                             ? L("今天的免费次数用完了", "No free uses left today", "今日の無料分は終了")
                             : L("需要允许完全访问", "Needs Allow Full Access", "フルアクセスの許可が必要"))
@@ -580,51 +870,92 @@ struct PolishButton: View {
         guard model.hasFullAccess, !model.debugUnblocked, let left = model.aiUsesLeft else { return nil }
         return left > 0 ? left : nil
     }
-
-    private var polishFill: AnyShapeStyle {
-        let gradient = LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]], startPoint: .leading, endPoint: .trailing)
-        return (model.aiBlocked || model.aiQuotaUsed) ? AnyShapeStyle(gradient.opacity(0.35)) : AnyShapeStyle(gradient)
-    }
 }
 
-/// 识意自动时 ✨ 的底：蓝紫星团（MG2–MG5），115° 线性底上叠四团椭圆光和三粒小白星，照稿子的 CSS 换成多层径向渐变。
+/// 星团底：线性底上叠四团椭圆光和三粒小白星，照稿子的 CSS 换成多层径向渐变（百分比相对按钮自己的宽高）。
+/// ask 是识意自动时 ✨ 的蓝紫（MG2–MG5）；rewrite、answer 是两颗风格键，join 是收着时合成的那一颗（AB1–AB3）。
 struct NebulaFill: View {
-    /// 椭圆光：横竖半径（占宽高的比例）、中心、颜色、渐隐到透明的位置。
-    private static let glows: [(rx: CGFloat, ry: CGFloat, x: CGFloat, y: CGFloat, color: UInt32, stop: CGFloat)] = [
-        (0.55, 0.80, 0.90, 0.70, 0xA855F7, 0.70),
-        (0.50, 0.70, 0.40, 0.88, 0x0EA5E9, 0.70),
-        (0.55, 0.80, 0.62, 0.18, 0x38BDF8, 0.68),
-        (0.60, 0.75, 0.18, 0.28, 0x8B5CF6, 0.70),
-    ]
-    /// 小白星：位置、透明度、半径。
-    private static let stars: [(x: CGFloat, y: CGFloat, alpha: Double, r: CGFloat)] = [
-        (0.74, 0.30, 0.85, 0.6), (0.22, 0.72, 0.70, 0.5), (0.88, 0.78, 0.60, 0.5),
-    ]
+    enum Palette { case ask, rewrite, answer, join }
 
-    private static func color(_ hex: UInt32) -> Color {
+    /// 椭圆光：横竖半径（占宽高的比例）、中心、颜色、透明度。CSS 里写在前面的在上层，这里按 CSS 顺序列，画的时候倒过来。
+    private typealias Glow = (rx: CGFloat, ry: CGFloat, x: CGFloat, y: CGFloat, color: UInt32, alpha: Double)
+    /// 小白星：位置、透明度、半径。
+    private typealias Star = (x: CGFloat, y: CGFloat, alpha: Double, r: CGFloat)
+
+    var palette: Palette = .ask
+
+    private var glows: [Glow] {
+        switch palette {
+        case .ask:
+            return [(0.60, 0.75, 0.18, 0.28, 0x8B5CF6, 1), (0.55, 0.80, 0.62, 0.18, 0x38BDF8, 1),
+                    (0.50, 0.70, 0.40, 0.88, 0x0EA5E9, 1), (0.55, 0.80, 0.90, 0.70, 0xA855F7, 1)]
+        case .rewrite:
+            return [(0.60, 0.75, 0.18, 0.28, 0xA855F7, 1), (0.50, 0.70, 0.66, 0.16, 0xC084FC, 0.75),
+                    (0.50, 0.70, 0.42, 0.90, 0x7C3AED, 1), (0.55, 0.80, 0.92, 0.72, 0x9333EA, 1)]
+        case .answer:
+            return [(0.60, 0.75, 0.18, 0.28, 0x38BDF8, 1), (0.50, 0.70, 0.66, 0.16, 0x67E8F9, 0.70),
+                    (0.50, 0.70, 0.42, 0.90, 0x0EA5E9, 1), (0.55, 0.80, 0.92, 0.72, 0x3B82F6, 1)]
+        case .join:
+            return [(0.40, 0.75, 0.14, 0.30, 0x8B5CF6, 1), (0.40, 0.70, 0.50, 0.14, 0xA855F7, 0.80),
+                    (0.45, 0.70, 0.70, 0.90, 0x7C3AED, 1), (0.35, 0.80, 0.94, 0.70, 0x9333EA, 1)]
+        }
+    }
+
+    private var stars: [Star] {
+        switch palette {
+        case .ask: return [(0.74, 0.30, 0.85, 0.6), (0.22, 0.72, 0.70, 0.5), (0.88, 0.78, 0.60, 0.5)]
+        case .rewrite: return [(0.74, 0.30, 0.8, 0.6), (0.24, 0.74, 0.8, 0.5), (0.88, 0.80, 0.8, 0.5)]
+        case .answer: return [(0.72, 0.28, 0.8, 0.6), (0.26, 0.76, 0.8, 0.5), (0.90, 0.78, 0.8, 0.5)]
+        case .join: return [(0.30, 0.22, 0.8, 0.6), (0.62, 0.78, 0.8, 0.5), (0.84, 0.30, 0.8, 0.5)]
+        }
+    }
+
+    /// 底：ask、rewrite、answer 是 115°，join 是 90°。
+    private var base: LinearGradient {
+        let angled = (UnitPoint(x: 0, y: 0.25), UnitPoint(x: 1, y: 0.75))
+        func stops(_ list: [(UInt32, CGFloat)]) -> [Gradient.Stop] { list.map { .init(color: Self.color($0.0), location: $0.1) } }
+        switch palette {
+        case .ask:
+            return LinearGradient(stops: stops([(0x5B21B6, 0), (0x4338CA, 0.4), (0x1E40AF, 0.65), (0x6D28D9, 1)]), startPoint: angled.0, endPoint: angled.1)
+        case .rewrite:
+            return LinearGradient(stops: stops([(0x4C1D95, 0), (0x5B21B6, 0.4), (0x6D28D9, 0.7), (0x4C1D95, 1)]), startPoint: angled.0, endPoint: angled.1)
+        case .answer:
+            return LinearGradient(stops: stops([(0x0C4A6E, 0), (0x075985, 0.4), (0x0369A1, 0.65), (0x1E3A8A, 1)]), startPoint: angled.0, endPoint: angled.1)
+        case .join:
+            return LinearGradient(stops: stops([(0x4C1D95, 0), (0x6D28D9, 1)]), startPoint: .leading, endPoint: .trailing)
+        }
+    }
+
+    static func color(_ hex: UInt32) -> Color {
         Color(red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255)
     }
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
+            let glows = self.glows, stars = self.stars
             ZStack(alignment: .topLeading) {
-                LinearGradient(stops: [.init(color: Self.color(0x5B21B6), location: 0), .init(color: Self.color(0x4338CA), location: 0.4),
-                                       .init(color: Self.color(0x1E40AF), location: 0.65), .init(color: Self.color(0x6D28D9), location: 1)],
-                               startPoint: UnitPoint(x: 0, y: 0.25), endPoint: UnitPoint(x: 1, y: 0.75))
-                ForEach(0..<Self.glows.count, id: \.self) { i in
-                    let g = Self.glows[i]
-                    EllipticalGradient(stops: [.init(color: Self.color(g.color), location: 0),
-                                               .init(color: Self.color(g.color).opacity(0), location: g.stop)],
+                base
+                ForEach(0..<glows.count, id: \.self) { k in
+                    let g = glows[glows.count - 1 - k]
+                    let c = Self.color(g.color).opacity(g.alpha)
+                    EllipticalGradient(stops: [.init(color: c, location: 0), .init(color: c.opacity(0), location: 0.7)],
                                        center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
                         .frame(width: 2 * g.rx * w, height: 2 * g.ry * h)
                         .position(x: g.x * w, y: g.y * h)
                 }
-                ForEach(0..<Self.stars.count, id: \.self) { i in
-                    let star = Self.stars[i]
+                ForEach(0..<stars.count, id: \.self) { k in
+                    let star = stars[k]
                     Circle().fill(Color.white.opacity(star.alpha))
                         .frame(width: 2 * star.r, height: 2 * star.r)
                         .position(x: star.x * w, y: star.y * h)
+                }
+                if palette != .ask {
+                    // 顶上一道淡淡的水光：宽 60%、高 9、白 22%。
+                    EllipticalGradient(stops: [.init(color: .white.opacity(0.22), location: 0), .init(color: .white.opacity(0), location: 1)],
+                                       center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
+                        .frame(width: 0.6 * w, height: 9)
+                        .position(x: w / 2, y: 1 + 4.5)
                 }
             }
         }
@@ -767,6 +1098,8 @@ struct PolishStars: View {
     var running: Bool
     var glowing: Bool
     var doneAt: Date?
+    /// 星星的颜色：收着那一颗是黄色（#FDE68A），别处白色。
+    var tint: Color = .white
 
     private static let stars: [(x: CGFloat, y: CGFloat, d: CGFloat, phase: Double)] = [
         (0.40, 0.58, 0.66, 0),
@@ -817,7 +1150,7 @@ struct PolishStars: View {
                 let opacity: Double = big || !running ? 1 : (glowing ? 0.35 + 0.65 * wave : 1 - 0.3 * wave)
                 let gold = done.map { $0 < 0.6 ? 1.0 : 1 - ($0 - 0.6) / 0.4 } ?? 0
                 FourPointStar()
-                    .fill(Color.white)
+                    .fill(tint)
                     .overlay(FourPointStar().fill(Brand.gold).opacity(gold))
                     .frame(width: size * star.d, height: size * star.d)
                     .scaleEffect(scale)

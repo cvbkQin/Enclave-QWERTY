@@ -326,7 +326,7 @@ enum Brand {
     static let rewriteRing = dynamic(0x8B7CF6, 0x9D92FF)
     static let blockHair = dynamic(0xE2E2E7, 0x545458)
     /// 风格键激活时边框上转的两小段亮光：浅色白，深色 #E0F2FE。
-    static let styleSpot = dynamic(0xFFFFFF, 0xE0F2FE)
+    static let styleSpot = Color.white
     /// 分词面板（BB1）：直角框 1pt 描边 #C9C2F2 / 深色 #4A4380，底 #F1EFFB / 深色 #211F2E；划过的词块浅紫描边。
     static let wordPanelStroke = dynamic(0xC9C2F2, 0x4A4380)
     static let wordPanelFill = dynamic(0xF1EFFB, 0x211F2E)

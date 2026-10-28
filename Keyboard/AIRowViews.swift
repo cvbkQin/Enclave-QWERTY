@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - AI 栏的两颗风格键（MG1–MG5）
 
-/// 改写风格键、问答风格键：高 34、圆角 17、左右内边 6；左边 18pt 渐变圆里 11pt 白图标，中间风格名 13.5pt 600，右边 10pt ▾ / ▴。
-/// 回答卡上是哪一种结果，那一颗就激活：1.5pt 模式色边框、两小段亮光沿边框转（3 秒一圈）、外面 8pt 模式色 25% 的光。
+/// 改写风格键、问答风格键（AB2）：展开时才有，紫色 / 蓝色星团底、白字白图标。
+/// 回答卡上是哪一种结果，那一颗就激活：1.5pt 浅色边框、两小段白光沿边框转（3 秒一圈）、外面一圈 10pt 的光。
 struct StyleKey: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
@@ -15,35 +15,17 @@ struct StyleKey: View {
         let locked = !model.hasFullAccess
         let open = !locked && model.aiRow == row
         let active = !locked && isActive
-        let ring = answer ? Brand.answerBorder : Brand.rewriteRing
         Button { locked ? model.showFullAccessTip() : model.toggleRow(row) } label: {
-            HStack(spacing: 4) {
-                Image(systemName: answer ? "questionmark.circle" : "pencil")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 18, height: 18)
-                    .background(Circle().fill(LinearGradient(colors: answer ? Brand.askAnswerColors : Brand.askRewriteColors,
-                                                             startPoint: .topLeading, endPoint: .bottomTrailing)))
-                // 风格名太长时截断，整颗按内容宽度。
-                Text(title)
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 76)
-                Image(systemName: open ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .layoutPriority(1)
-            }
-            .padding(.horizontal, 6)
-            .frame(height: KeyboardMetrics.chipHeight)
-            .foregroundStyle(answer ? Brand.modeAnswerText : Brand.modeRewriteText)
+            Self.face(answer: answer, title: Self.title(model, answer: answer), open: open)
             .background {
-                if active { Capsule().fill(ring.opacity(0.25)).padding(-4).blur(radius: 4) }
-                Capsule().fill(answer ? Brand.modeAnswerFill : Brand.modeRewriteFill)
+                // 激活：外面一圈 10pt 光，润色 rgba(124,58,237,.55)、直击要害 rgba(14,165,233,.55)。
+                if active {
+                    Capsule().fill(answer ? Self.answerGlow : Self.rewriteGlow).padding(-3).blur(radius: 5)
+                }
             }
             .overlay {
                 if active || open {
-                    Capsule().strokeBorder(ring, lineWidth: 1.5)
+                    Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5)
                 }
                 if active && !reduceMotion {
                     StyleKeySpots().mask(Capsule().strokeBorder(lineWidth: 1.5))
@@ -59,10 +41,48 @@ struct StyleKey: View {
             .padding(.vertical, -5)
         }
         .buttonStyle(KeyPressStyle())
-        .fixedSize(horizontal: true, vertical: false)
-        .accessibilityLabel((answer ? L("问答风格", "Answer style", "回答スタイル") : L("改写风格", "Rewrite style", "書き換えスタイル")) + "：" + title)
+        .accessibilityLabel((answer ? L("问答风格", "Answer style", "回答スタイル") : L("改写风格", "Rewrite style", "書き換えスタイル")) + "：" + Self.title(model, answer: answer))
         .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
     }
+
+    static let rewriteBorder = NebulaFill.color(0xC4B5FD)
+    static let answerBorder = NebulaFill.color(0x7DD3FC)
+    static let rewriteGlow = Color(red: 124 / 255, green: 58 / 255, blue: 237 / 255).opacity(0.55)
+    static let answerGlow = Color(red: 14 / 255, green: 165 / 255, blue: 233 / 255).opacity(0.55)
+
+    /// 星团底、白字白图标（AB2）：高 34、左内边 9、右内边 8；15pt 图标、13.5pt 600 风格名（最宽 76）、10pt ▾。
+    /// 宽度按字算死，AI 栏分裂动画里画的那几颗和这里一样宽。
+    static func face(answer: Bool, title: String, open: Bool = false, filled: Bool = true) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: answer ? "questionmark.circle" : "pencil")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 16)
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: textWidth(title))
+            Image(systemName: open ? "chevron.up" : "chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+                .frame(width: 10)
+        }
+        .foregroundStyle(.white)
+        .padding(.leading, 9)
+        .padding(.trailing, 8)
+        .frame(width: width(title), height: KeyboardMetrics.chipHeight)
+        .background {
+            if filled { NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()) }
+        }
+    }
+
+    /// 风格名的宽度，最宽 76，太长截断。
+    static func textWidth(_ title: String) -> CGFloat {
+        let font = UIFont.systemFont(ofSize: 13.5, weight: .semibold)
+        return min(76, ceil((title as NSString).size(withAttributes: [.font: font]).width))
+    }
+
+    /// 整颗的宽：9 + 图标 16 + 4 + 字 + 4 + ▾ 10 + 8。
+    static func width(_ title: String) -> CGFloat { 51 + textWidth(title) }
 
     /// 展开、有结果时，回答卡上是问答就激活问答那颗，否则激活改写那颗（润色也算改写）。
     private var isActive: Bool {
@@ -70,7 +90,7 @@ struct StyleKey: View {
         return session.currentIsAnswer == answer
     }
 
-    private var title: String {
+    static func title(_ model: KeyboardModel, answer: Bool) -> String {
         if answer {
             return model.settings.selectedAnswerStyle?.displayName ?? L("直击要害", "To the point", "要点だけ")
         }
