@@ -1,4 +1,5 @@
 import XCTest
+import StoreKit
 
 /// 服务商预设：中国大陆店面和其他地区填不同的地址，认得出现有设置。
 final class ProviderTests: XCTestCase {
