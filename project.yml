@@ -165,3 +165,29 @@ targets:
             PrefersRightToLeft: false
             PrimaryLanguage: zh-Hans
             RequestsOpenAccess: true
+  # 单元测试（xcodebuild test -scheme EnclaveTests，模拟器能跑）：不挂 App，直接编要测的纯逻辑文件，不链拼音引擎。
+  EnclaveTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+      - path: Shared
+        excludes: ["Rime/*.c", "Rime/*.h"]
+      - path: Keyboard/FieldSpan.swift
+      - path: App/Provider.swift
+      - path: App/StorefrontRegion.swift
+      - path: Generated/EnclaveTests/BuiltinSecrets.swift
+        optional: true
+    preBuildScripts:
+      - name: Builtin secrets
+        script: python3 "$SRCROOT/scripts/gen-builtin-secrets.py"
+        outputFiles:
+          - $(SRCROOT)/Generated/$(TARGET_NAME)/BuiltinSecrets.swift
+        basedOnDependencyAnalysis: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+    scheme:
+      testTargets: [EnclaveTests]
