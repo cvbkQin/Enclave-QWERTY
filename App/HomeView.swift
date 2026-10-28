@@ -15,7 +15,7 @@ struct HomeView: View {
                     // 键盘两步做完就进摘要；接口没填由摘要顶上的「AI 还没连上」卡片（OB8）引导。
                     if Readiness.remainingSteps(apiConfigured: true) == 0 {
                         TabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
-                                 title: L("摘要", "Summary", "概要"))
+                                 title: L("摘要", "Summary", "概要"), showsBuildBadge: true)
                             .padding(.top, 8)
                         Dashboard()
                     } else {

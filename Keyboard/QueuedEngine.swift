@@ -126,6 +126,11 @@ final class QueuedEngine: InputEngine {
         return run { $0.select(index) }
     }
 
+    func deleteCandidate(_ index: Int) -> Bool {
+        guard !idle else { return false }
+        return run { $0.deleteCandidate(index) }
+    }
+
     func commitComposition() -> String? {
         guard !idle else { return nil }
         return run { $0.commitComposition() }

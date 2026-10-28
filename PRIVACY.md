@@ -1,92 +1,131 @@
-<!-- 和 App/Legal/PrivacyPolicy.swift 同一份文字；改动时两边一起改。上架前把开发者名称和联系邮箱填好，放到公开网址填进 App Store Connect。 -->
+<!-- 由 scripts/gen-privacy.py 从 App/Legal/PrivacyPolicy.swift 生成，不要手改。 -->
 
-# Enclave 隐私政策
+# 飞地输入法隐私政策
 
-生效日期：2026 年 10 月 25 日
+生效日期：2026 年 10 月 27 日  
+版本：2
 
 ## 引言
 
-Enclave（以下简称“本应用”）由 Gengyun Qin（以下简称“我们”）提供。我们重视您的个人信息和隐私保护。本政策说明本应用在您使用过程中如何处理相关信息，以及您享有的权利。
+飞地输入法（英文名 Enclave，以下简称“本应用”）是由个人开发者秦耕耘（以下简称“我们”）开发和提供的中文输入法应用，包含 App 主程序及其附带的键盘扩展。
 
-本政策适用于 Enclave 应用及其附带的键盘扩展。请您在使用本应用前仔细阅读并充分理解本政策。
+我们深知个人信息对您的重要性，并依照《中华人民共和国个人信息保护法》等法律法规处理与您相关的信息。本政策说明本应用如何处理信息、您享有哪些权利以及如何联系我们。请您在使用本应用前仔细阅读，特别是以**加粗**方式标示的内容。
 
-## 一、我们收集的信息
+首次打开本应用时，我们会通过弹窗向您展示本政策的要点，您点击“同意”后才会启用 AI 相关功能。您不同意的，仍可使用拼音、英文等基础输入功能。
 
-本应用不设账号体系，不收集、不存储、也不向我们的服务器上传您的个人信息。我们没有为本应用设置任何用于接收用户数据的服务器。
+## 一、核心原则
 
-## 二、各项功能的信息处理方式
+1. **本应用不设账号体系，我们没有为本应用设置任何接收用户数据的服务器，不收集、不上传您的个人信息和输入内容。**
+2. 打字、候选词计算和输入习惯学习全部在您的设备本地完成。
+3. 只有在您主动使用 AI 功能时，相关文字才会发送到**您自己填写**的模型服务接口，且不经过我们。
+
+## 二、各项功能如何处理信息
 
 ### （一）文字输入
 
-拼音输入、候选词计算及输入习惯学习均在您的设备本地完成，不通过网络传输任何内容。
+拼音输入、候选词计算、联想预测和输入习惯学习均在您的设备本地完成，不通过网络传输任何内容。
 
-### （二）AI 润色
+如您在拼音设置中主动选择下载“整句模型”等词库文件，本应用会从公开的文件服务器下载该文件，下载请求不包含您的输入内容或其他个人信息。
 
-仅在您主动点击“润色”或“再润”时，本应用会将以下信息直接发送至您自行配置的模型服务接口：
+### （二）AI 功能（点 ✨ 执行提示词，例如润色、翻译、改写）
+
+**仅在您主动点击 ✨ 或“执行”时**，本应用会将以下信息直接发送至您自行配置的模型服务接口：
 
 1. 当前输入框中的文字；如您已选中部分文字，则仅发送所选部分；
-2. 您填写的润色要求；
-3. 您所选风格的说明文字。
+2. 您填写的要求；
+3. 您所选提示词的说明文字。
 
-上述信息由您所选择的模型服务提供方依据其隐私政策进行处理，不经过我们的服务器，我们无法访问相关内容。
+上述信息由您选择的模型服务提供方依据其服务条款和隐私政策处理，不经过我们的服务器，我们无法访问。**在首次发送前，以及您更换接口地址后，本应用会展示信息将发送到的地址，并单独征得您的同意，未经同意不会发送任何内容。**
 
-在首次发送前，以及您更换接口地址后，本应用将向您展示信息的发送对象，并单独征得您的同意。未经您同意，本应用不会发送任何内容。
+**AI 生成内容提示：** AI 功能返回的文字由您配置的大模型生成，本应用会在界面上以“AI 生成”“AI改写”“AI问答”等标签提示。生成内容可能不准确，请您自行核对后使用。我们不会在您的正文中插入任何标记。
 
-### （三）试用与购买
+本应用预设的模型服务仅为方便填写，您可以自由选择其他服务。我们建议您选择依法完成备案的模型服务。
 
-本应用提供 14 天免费试用，试用结束后 AI 功能每天可免费使用一定次数，也可通过 App Store 一次性购买解锁。付款由 Apple 处理，我们不会获得您的付款信息。本应用通过 Apple 提供的接口读取本应用的首次下载日期和购买记录，用于计算试用期和确认是否已购买；每日使用次数只记录在您的设备上。
+### （三）识意问答与联网（联网仅在问答接口为千问、Kimi 或智谱时可用）
+
+**仅在您主动在键盘里提问时**，本应用会将您输入的问题，以及输入框中的文字（如有，选中时仅为选中部分），直接发送至您为识意问答配置的模型服务接口。您可以在“接口”页的“问答”中单独设置识意问答使用的接口（服务商、地址、模型和 API 密钥均由您填写），未单独设置时使用上述主接口。问答接口地址同样会在首次发送前单独征得您的同意。
+
+“识意问答联网”分为“开”“每次询问”“禁止”三档，中国大陆默认“禁止”，其他地区默认“开”，您可以随时在“问答”页更改。中国大陆地区预设的问答服务商均为已完成生成式人工智能服务备案的境内服务商。联网只在识意问答时使用，改写不调用联网搜索。是否需要联网由模型根据问题先行判断；需要联网时，选“开”且已同意过该服务商的会直接联网，选“每次询问”或首次使用该服务商时会先在回答框中征得您的同意，选“禁止”时不会联网，仅提示您可前往开启。各服务商的方式和发送内容如下：
+
+1. **Kimi（北京月之暗面科技有限公司）：** 模型判断需要最新信息时，键盘使用**您自己填写的 Kimi API 密钥**，将**您输入的问题本身**（原文，不包含输入框中的其他文字、通讯录或其他个人信息）直接发送至 Kimi 的联网搜索接口，再把搜索结果连同问题发给模型生成回答。
+2. **通义千问（阿里云）、智谱 GLM（北京智谱华章科技股份有限公司）：** 联网由服务商自带的搜索功能完成。键盘另发一次开启联网的问答请求，其中**仅包含您输入的问题本身**（不包含输入框中的其他文字、通讯录或其他个人信息），由服务商根据问题生成搜索词、检索公开网页信息并生成回答。
+
+以上请求均使用**您自己填写的 API 密钥**直接发送给对应服务商，不经过我们的服务器。征得同意时，键盘会提示内容将发送给哪家服务商及收费方式。
+
+联网搜索按次计费，费用由对应服务商从**您在该服务商的账户**扣除（Kimi、智谱目前约每次 0.01 元，千问按阿里云百炼的价格，均以官方价格为准），我们不收取任何费用。
+
+选择“禁止”或在回答框中拒绝联网时，问题只发送给模型本身，不会联网搜索。回答同样以“AI问答”标签提示，内容可能不准确或过时，请您自行核对。
+
+### （四）试用与购买
+
+本应用提供 14 天免费试用，试用结束后 AI 功能每天可免费使用一定次数，也可通过 App Store 一次性购买解锁。付款由 Apple 处理，我们不会获得您的付款信息。本应用通过 Apple 提供的接口读取本应用的首次下载日期和购买记录，用于计算试用期和确认是否已购买。
+
+### （五）通讯录（可选）
+
+仅在您开启“使用通讯录里的名字”后，键盘通过系统接口读取联系人姓名作为候选词，不读取电话号码等其他信息，也不会上传。您可以随时关闭该开关或在系统设置中撤回通讯录权限。
+
+### （六）使用统计
+
+为了在 App 首页向您展示使用情况，本应用按天记录 AI 使用次数、常用词上屏次数等计数，**只保存在您的设备上，保留 30 天，不上传**。计数不包含您输入的具体内容。
 
 ## 三、在设备本地存储的信息
 
 以下信息仅保存在您的设备上：
 
-1. 模型服务的 API 密钥，保存在系统钥匙串中；
-2. 润色历史，包括原文与生成结果；
+1. 您填写的模型服务 API 密钥（包括主接口、问答接口及您保存的接口方案），保存在系统钥匙串中；
+2. AI 历史记录，包括原文与生成结果；
 3. 拼音输入学习记录；
-4. 您的风格、键盘、接口及语言设置；
-5. 试用开始日期、购买状态和当日 AI 使用次数。
+4. 您的提示词、常用词、键盘、接口及语言设置；
+5. 试用开始日期、购买状态、当日 AI 使用次数和按天使用统计；
+6. 您同意本政策的版本和时间。
 
-您可以在“设置 › 隐私”中清除润色历史和拼音输入学习记录。卸载本应用后，上述信息将一并删除（购买记录由 App Store 保存，重新安装后可恢复）。
+您可以在“设置 › 隐私”中清除 AI 历史记录和拼音输入学习记录。**卸载本应用后，上述信息将全部删除**（购买记录由 App Store 保存，重新安装后可恢复）。
 
 ## 四、权限说明
 
-**允许完全访问：** 键盘扩展仅将该权限用于连接模型服务接口、提供按键振动反馈，以及与本应用同步设置。未开启该权限时，拼音及英文输入功能均可正常使用，仅 AI 润色功能不可用。
+**允许完全访问（键盘）：** 用于联网调用您配置的模型接口、按键振动、与 App 同步设置。不开启时，拼音和英文输入正常，AI 功能不可用。
 
-**通讯录（可选）：** 仅在您开启“使用通讯录里的名字”后，键盘通过系统接口读取联系人姓名用作候选词，不读取电话号码等其他信息，也不会上传。
+**通讯录（可选）：** 用于读取联系人姓名作为候选词。不开启时，候选词中不出现联系人姓名。
+
+本应用不申请定位、相机、麦克风、相册等权限。
 
 ## 五、第三方服务
 
-本应用未集成任何第三方统计、广告或崩溃报告工具。
-
-AI 润色功能所使用的模型服务由您自行选择和配置。您与该服务提供方之间的数据处理关系受其服务条款和隐私政策约束，建议您在使用前查阅。购买由 Apple 的 App Store 处理，适用 Apple 的隐私政策。
+1. 本应用**未集成任何第三方统计、广告、推送或崩溃报告 SDK**。本应用使用的开源输入引擎 Rime 在本地运行，不联网。
+2. AI 功能所使用的模型服务由您自行选择和配置，您与该服务提供方之间的数据处理关系受其服务条款和隐私政策约束。
+3. 如您开启识意问答联网，联网搜索由您选择的问答服务商（千问、Kimi 或智谱）完成，适用该服务商的服务条款和隐私政策。
+4. 购买由 Apple 的 App Store 处理，适用 Apple 的隐私政策。
 
 ## 六、您的权利
 
-1. **撤回同意：** 您可以随时在“设置 › 隐私”中撤回发送同意。撤回后，本应用在下一次发送前将再次征求您的同意。
-2. **删除信息：** 您可以随时清除设备本地保存的润色历史和输入学习记录。
-3. **关闭权限：** 您可以随时在系统设置中关闭“允许完全访问”。
+1. **查阅和删除：** 您的信息都保存在您的设备上，您可以在本应用内查看 AI 历史记录和设置，并随时在“设置 › 隐私”中清除，或卸载本应用删除全部信息。
+2. **撤回同意：** 您可以在“设置 › 隐私”中撤回对本政策的同意，撤回后本应用回到基础输入功能模式；也可以撤回对某个接口地址的发送同意，撤回后下一次发送前会再次征求您的同意。撤回同意不影响撤回前基于您的同意已进行的处理。
+3. **关闭权限：** 您可以随时在系统设置中关闭“允许完全访问”或通讯录权限。
+4. **联系我们：** 对以上权利的行使有任何问题，可通过第九条的方式联系我们。
+
+由于我们不持有您的任何个人信息，无法也无需为您提供账号注销服务。
 
 ## 七、未成年人保护
 
-本应用不面向 13 周岁以下的未成年人。未成年人应在监护人的指导下使用本应用。
+本应用不面向 14 周岁以下的未成年人。若您是 14 周岁以下的未成年人，请在监护人的陪同和同意下使用本应用。
 
 ## 八、本政策的更新
 
-我们可能适时修订本政策。修订后的政策将在本应用内发布，并更新上方的生效日期。如修订涉及信息处理方式的重大变更，我们将在本应用内以显著方式通知您。
+我们可能适时修订本政策，修订后的政策将在本应用内发布，并更新版本号和生效日期。**如修订涉及信息处理方式的重大变更，我们将在您下次打开本应用时以弹窗方式通知您并重新征求您的同意。**
 
 ## 九、联系我们
 
-如您对本政策有任何疑问、意见或建议，可通过以下方式与我们联系：
-
+开发者：秦耕耘（个人开发者）
 电子邮箱：cvbk.qin@gmail.com
 
-我们将在收到您的反馈后 15 个工作日内予以答复。
+我们将在收到您的反馈后 15 个工作日内答复。如您对我们的答复不满意，可以向网信、工信等有关主管部门投诉或举报。
 
 ---
 
 # Enclave Privacy Policy
 
-Effective date: October 25, 2026
+Effective date: October 27, 2026  
+Version 2
 
 ## Introduction
 
@@ -114,6 +153,23 @@ This information is processed by the model service provider you have chosen, und
 
 Before the first transmission, and whenever you change the endpoint address, the App shows you where the text will be sent and asks for your separate consent. Nothing is sent without your consent.
 
+**AI-generated content:** Text returned by AI features is generated by the model you configured, and the App labels it on screen with tags such as "AI-generated", "AI edit" and "AI Q&A". It may be inaccurate, so please check it before use. We never insert any marker into your text.
+
+### Ask Answers and Web Search (web search only with a Qwen, Kimi or Zhipu answers API)
+
+**Only when you actively ask a question in the keyboard**, the App sends your question, plus the text in the input field if any (just the selection, if there is one), directly to the model service API you configured for Ask answers. On the API page, under Answers, you can set a separate API for Ask answers (you enter the provider, URL, model and API key); if you don't, the main API above is used. Before the first transmission to an answers API address, the App also asks for your separate consent.
+
+Web search in Ask has three settings: On, Ask each time and Off. It is Off by default in mainland China and On in other regions, and you can change it at any time on the Answers page. In mainland China, the preset answer providers are all domestic providers that have completed generative AI service filing. Web search is used only for answers; rewrites never call web search. The model first decides from the question whether it needs the web. If it does: with On, and once you have agreed for that provider, it searches; with Ask each time, or the first time you use a provider, the keyboard asks for your consent in the answer box first; with Off, nothing is searched and the keyboard only tells you where to turn it on. How each provider searches and what is sent:
+
+1. **Kimi (Beijing Moonshot AI Technology Co., Ltd.):** When the model needs current information, the keyboard uses **the Kimi API key you entered** to send **only your question itself**, as typed (no other text in the input field, no contacts or other personal information), directly to Kimi's web search API, then sends the results with the question to the model to produce an answer.
+2. **Qwen (Alibaba Cloud) and Zhipu GLM (Beijing Zhipu Huazhang Technology Co., Ltd.):** Search is built into the provider's service. The keyboard sends a separate answer request with search turned on that contains **only your question itself** (no other text in the input field, no contacts or other personal information). The provider generates search terms from the question, searches public web pages and produces an answer.
+
+All of these requests go directly to the provider using **the API key you entered** and do not pass through our servers. When asking for consent, the keyboard tells you which provider will receive the content and how it is billed.
+
+Each search is billed by the provider to **your account with that provider** (Kimi and Zhipu currently about ¥0.01 per search, Qwen per Alibaba Cloud Model Studio pricing; see each provider's official pricing). We charge nothing.
+
+When web search is Off, or you decline it in the answer box, your question goes only to the model. Answers are labeled "AI Q&A" and may be inaccurate or out of date, so please check them yourself.
+
 ### Free Trial and Purchase
 
 The App offers a 14-day free trial. After the trial, AI features can be used a limited number of times per day for free, or unlocked with a one-time purchase on the App Store. Payment is handled by Apple, and we never receive your payment details. The App uses Apple's interfaces to read the App's original download date and your purchase record, to calculate the trial and confirm the purchase. Daily usage counts are stored only on your device.
@@ -122,7 +178,7 @@ The App offers a 14-day free trial. After the trial, AI features can be used a l
 
 The following is stored only on your device:
 
-- your model service API key, in the system Keychain;
+- the model service API keys you entered (for the main API, the answers API and any API setups you saved), in the system Keychain;
 - your polish history, including the original text and the results;
 - your pinyin input learning data;
 - your style, keyboard, endpoint and language settings;
@@ -138,7 +194,7 @@ You can clear the polish history and the input learning data under Settings › 
 
 ## 5. Third-Party Services
 
-The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. Purchases are processed by Apple's App Store under Apple's privacy policy.
+The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi or Zhipu) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy.
 
 ## 6. Your Rights
 
@@ -164,7 +220,8 @@ We will respond within 15 business days.
 
 # Enclave プライバシーポリシー
 
-施行日：2026年10月25日
+施行日：2026 年 10 月 27 日  
+バージョン：2
 
 ## はじめに
 
@@ -192,6 +249,23 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 初回の送信前、および API の URL を変更したときは、送信先を表示したうえで個別に同意をいただきます。同意なく内容を送信することはありません。
 
+**AI 生成コンテンツの表示：** AI 機能が返す文章は、お客様が設定したモデルが生成したもので、本アプリは画面上で「AI 生成」「AI書換」「AI回答」などのラベルで表示します。不正確な場合があるため、ご自身で確認してからお使いください。お客様の文章に目印を入れることはありません。
+
+### 質問への回答とウェブ検索（ウェブ検索は回答用 API が Qwen・Kimi・Zhipu のときのみ）
+
+**お客様がキーボードで自分から質問したときだけ**、入力した質問と、あれば入力欄の文章（選択している場合はその部分だけ）を、質問への回答用に設定したモデルサービスの API に直接送信します。API ページの「回答」で回答用の API を別に設定できます（サービス、URL、モデル、API キーはお客様が入力します）。設定しない場合は上記のメインの API を使います。回答用 API の URL にも、初回の送信前に個別に同意をいただきます。
+
+「質問でウェブ検索」には「オン」「毎回確認」「オフ」の 3 段階があり、中国大陸では初期設定で「オフ」、その他の地域では「オン」です。「回答」ページでいつでも変更できます。中国大陸でプリセットしている回答用サービスは、すべて生成 AI サービスの届出を済ませた国内のサービスです。検索するのは回答のときだけで、書き換えではウェブ検索を使いません。検索が必要かどうかは、まず質問をもとにモデルが判断します。必要な場合、「オン」でそのサービスに同意済みなら検索し、「毎回確認」またはそのサービスを初めて使うときは回答欄で先に同意を求め、「オフ」では検索せず、オンにできる場所をお知らせするだけです。サービスごとの方法と送信内容は次のとおりです。
+
+1. **Kimi（北京月之暗面科技有限公司）：** 最新の情報が必要とモデルが判断したとき、キーボードが**お客様が入力した Kimi の API キー**を使い、**入力した質問そのもの**（原文のみ。入力欄のほかの文章、連絡先、その他の個人情報は含みません）を Kimi のウェブ検索 API へ直接送り、検索結果を質問とともにモデルに送って回答を作ります。
+2. **Qwen（Alibaba Cloud）・Zhipu GLM（北京智譜華章科技股份有限公司）：** 検索はサービス側の機能で行います。キーボードは検索をオンにした回答リクエストを別に送り、その中身は**入力した質問そのものだけ**です（入力欄のほかの文章、連絡先、その他の個人情報は含みません）。サービス側が質問から検索語を作り、公開されているウェブページを検索して回答を作ります。
+
+いずれも**お客様が入力した API キー**で各サービスに直接送信し、当方のサーバーは経由しません。同意を求める際は、送信先のサービスと課金方法をキーボードで示します。
+
+検索は 1 回ごとに各サービスが**お客様のそのサービスのアカウント**に課金します（Kimi・Zhipu は現在 1 回約 0.01 元、Qwen は Alibaba Cloud Model Studio の料金。各サービスの公式料金をご確認ください）。当方が料金を受け取ることはありません。
+
+「オフ」のとき、または回答欄で検索を断ったときは、質問はモデルにのみ送られます。回答には「AI回答」と表示され、不正確または古い可能性があるため、ご自身でご確認ください。
+
 ### 無料体験と購入
 
 本アプリには 14 日間の無料体験があり、終了後も AI 機能は 1 日に一定回数まで無料で使えます。App Store での買い切り購入で回数制限がなくなります。支払いは Apple が処理し、当方がお支払い情報を受け取ることはありません。無料体験の期間計算と購入の確認のため、本アプリは Apple の仕組みを通じて初回ダウンロード日と購入履歴を読み取ります。1 日の使用回数はお客様の端末にのみ記録されます。
@@ -200,7 +274,7 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 次の情報はお客様の端末にのみ保存されます。
 
-- モデルサービスの API キー（システムのキーチェーンに保存）
+- お客様が入力したモデルサービスの API キー（メインの API、回答用 API、保存した API の設定を含む。システムのキーチェーンに保存）
 - 整えた履歴（元の文章と結果）
 - ピンイン入力の学習データ
 - 文体、キーボード、API、言語の設定
@@ -216,7 +290,7 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 ## 5. 第三者のサービス
 
-本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。
+本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。
 
 ## 6. お客様の権利
 

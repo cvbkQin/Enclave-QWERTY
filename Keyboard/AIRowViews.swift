@@ -1,42 +1,39 @@
 import SwiftUI
 
-// MARK: - AI 栏的两颗功能按钮（QA1）
+// MARK: - AI 栏的两颗风格键（MG1–MG5）
 
-/// 「润色 ▴」「识意 ▾」：高 34、圆角 17、左内边 13 右内边 9；文字 14pt，中间 1×16 细竖线，右边 13pt 箭头。
-/// 收起时箭头朝下 ▾，展开时朝上 ▴，整颗选中态：浅紫底、深紫字、1.5pt #8B7CF6 内描边。
-/// 「润色」位置显示当前提示词名，太长截断。
-struct RowChip: View {
+/// 改写风格键、问答风格键（AB2）：展开时才有，紫色 / 蓝色星团底、白字白图标。
+/// 回答卡上是哪一种结果，那一颗就激活：1.5pt 浅色边框、两小段白光沿边框转（3 秒一圈）、外面一圈 10pt 的光。
+struct StyleKey: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var answer: Bool { row == .answerStyles }
 
     var body: some View {
         let locked = !model.hasFullAccess
         let open = !locked && model.aiRow == row
+        let active = !locked && isActive
         Button { locked ? model.showFullAccessTip() : model.toggleRow(row) } label: {
-            HStack(spacing: 0) {
-                // 提示词名太长时截断，整颗按内容宽度，不往两边撑。
-                Text(title).lineLimit(1).truncationMode(.tail)
-                    .frame(maxWidth: row == .prompts ? 70 : nil)
-                // 只是视觉上分开，整颗还是一个按钮；线和箭头不参与截断。
-                Rectangle()
-                    .fill(open ? Brand.rowStroke : Brand.chipLine)
-                    .frame(width: 1, height: 16)
-                    .padding(.horizontal, 8)
-                    .layoutPriority(1)
-                Image(systemName: open ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 13, weight: .semibold))
-                    .layoutPriority(1)
+            Self.face(answer: answer, title: Self.title(model, answer: answer), open: open)
+            .background {
+                // 激活：外面一圈 10pt 光，润色 rgba(124,58,237,.55)、直击要害 rgba(14,165,233,.55)。
+                if active {
+                    Capsule().fill(answer ? Self.answerGlow : Self.rewriteGlow).padding(-3).blur(radius: 5)
+                }
             }
-            .font(.system(size: 14, weight: open ? .semibold : .regular))
-            .padding(.leading, 13)
-            .padding(.trailing, 9)
-            .frame(height: KeyboardMetrics.chipHeight)
-            .foregroundStyle(open ? Brand.chipOpenText : Color.primary)
-            .background(Capsule().fill(open ? Brand.chipOpenFill : KeyStyle.charKey))
-            .overlay(Capsule().strokeBorder(Brand.rowStroke, lineWidth: open ? 1.5 : 0))
+            .overlay {
+                if active || open {
+                    Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5)
+                }
+                if active && !reduceMotion {
+                    StyleKeySpots().mask(Capsule().strokeBorder(lineWidth: 1.5))
+                }
+            }
             .opacity(locked ? 0.45 : 1)
             .background(GeometryReader { geometry in
-                Color.clear.preference(key: RowChipEdgeKey.self, value: [row: geometry.frame(in: .named("keyboard")).maxX])
+                Color.clear.preference(key: RowChipEdgeKey.self, value: [row: geometry.frame(in: .named("keyboard")).midX])
             })
             // 点按区上下各扩 5pt。
             .padding(.vertical, 5)
@@ -44,20 +41,87 @@ struct RowChip: View {
             .padding(.vertical, -5)
         }
         .buttonStyle(KeyPressStyle())
-        .fixedSize(horizontal: true, vertical: false)
-        .accessibilityLabel(title)
+        .accessibilityLabel((answer ? L("问答风格", "Answer style", "回答スタイル") : L("改写风格", "Rewrite style", "書き換えスタイル")) + "：" + Self.title(model, answer: answer))
         .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
     }
 
-    private var title: String {
-        switch row {
-        case .prompts: return model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
-        case .ask: return L("识意", "Ask", "たずねる")
+    static let rewriteBorder = NebulaFill.color(0xC4B5FD)
+    static let answerBorder = NebulaFill.color(0x7DD3FC)
+    static let rewriteGlow = Color(red: 124 / 255, green: 58 / 255, blue: 237 / 255).opacity(0.55)
+    static let answerGlow = Color(red: 14 / 255, green: 165 / 255, blue: 233 / 255).opacity(0.55)
+
+    /// 星团底、白字白图标（AB2）：高 34、左内边 9、右内边 8；15pt 图标、13.5pt 600 风格名（最宽 76）、10pt ▾。
+    /// 宽度按字算死，AI 栏分裂动画里画的那几颗和这里一样宽。
+    static func face(answer: Bool, title: String, open: Bool = false, filled: Bool = true) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: answer ? "questionmark.circle" : "pencil")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 16)
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: textWidth(title))
+            Image(systemName: open ? "chevron.up" : "chevron.down")
+                .font(.system(size: 10, weight: .semibold))
+                .frame(width: 10)
+        }
+        .foregroundStyle(.white)
+        .padding(.leading, 9)
+        .padding(.trailing, 8)
+        .frame(width: width(title), height: KeyboardMetrics.chipHeight)
+        .background {
+            if filled { NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()) }
+        }
+    }
+
+    /// 风格名的宽度，最宽 76，太长截断。
+    static func textWidth(_ title: String) -> CGFloat {
+        let font = UIFont.systemFont(ofSize: 13.5, weight: .semibold)
+        return min(76, ceil((title as NSString).size(withAttributes: [.font: font]).width))
+    }
+
+    /// 整颗的宽：9 + 图标 16 + 4 + 字 + 4 + ▾ 10 + 8。
+    static func width(_ title: String) -> CGFloat { 51 + textWidth(title) }
+
+    /// 展开、有结果时，回答卡上是问答就激活问答那颗，否则激活改写那颗（润色也算改写）。
+    private var isActive: Bool {
+        guard model.aiExpanded, model.target != .card, let session = model.session, session.current != nil else { return false }
+        return session.currentIsAnswer == answer
+    }
+
+    static func title(_ model: KeyboardModel, answer: Bool) -> String {
+        if answer {
+            return model.settings.selectedAnswerStyle?.displayName ?? L("直击要害", "To the point", "要点だけ")
+        }
+        return model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
+    }
+}
+
+/// 激活的风格键边框上两小段亮光，相隔 180°，匀速 3 秒一圈。只在激活时出现，外面用边框形状遮住。
+struct StyleKeySpots: View {
+    @State private var spin = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let side = max(geo.size.width, geo.size.height) * 1.5
+            AngularGradient(stops: [
+                .init(color: .clear, location: 0), .init(color: Brand.styleSpot, location: 0.05), .init(color: .clear, location: 0.1),
+                .init(color: .clear, location: 0.5), .init(color: Brand.styleSpot, location: 0.55), .init(color: .clear, location: 0.6),
+                .init(color: .clear, location: 1),
+            ], center: .center)
+            .frame(width: side, height: side)
+            .rotationEffect(.degrees(spin ? 360 : 0))
+            .position(x: geo.size.width / 2, y: geo.size.height / 2)
+        }
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) { spin = true }
         }
     }
 }
 
-/// 两颗功能按钮的右边缘（键盘坐标）。
+/// 两颗风格键的中线（键盘坐标），尖角按它对齐。
 struct RowChipEdgeKey: PreferenceKey {
     static var defaultValue: [KeyboardModel.AIRow: CGFloat] = [:]
     static func reduce(value: inout [KeyboardModel.AIRow: CGFloat], nextValue: () -> [KeyboardModel.AIRow: CGFloat]) {
@@ -67,7 +131,7 @@ struct RowChipEdgeKey: PreferenceKey {
 
 // MARK: - 往上展开的那一行（QA2、QA14）
 
-/// 整宽、高 42、圆角 12 的白框（深色 #4A4A4C），1.5pt #8B7CF6 内描边；底边伸出一个小尖角对准下面那颗按钮的箭头。
+/// 抽屉收着时点风格键：整宽、高 42、圆角 12 的白框（深色 #4A4A4C），1.5pt 模式色内描边；底边伸出一个小尖角对准下面那颗键。
 struct AIRowPanel: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
@@ -75,15 +139,11 @@ struct AIRowPanel: View {
     var arrowX: CGFloat
 
     var body: some View {
-        Group {
-            switch row {
-            case .prompts: PromptRow(model: model)
-            case .ask: AskField(model: model)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AIRowBubble(arrowX: arrowX).fill(Brand.rowFill))
-        .overlay(AIRowBubble(arrowX: arrowX, inset: 0.75).stroke(Brand.rowStroke, lineWidth: 1.5).allowsHitTesting(false))
+        StyleRow(model: model, row: row)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AIRowBubble(arrowX: arrowX).fill(Brand.rowFill))
+            .overlay(AIRowBubble(arrowX: arrowX, inset: 0.75)
+                .stroke(row == .answerStyles ? Brand.answerBorder : Brand.rewriteRing, lineWidth: 1.5).allowsHitTesting(false))
     }
 }
 
@@ -121,21 +181,26 @@ struct AIRowBubble: Shape {
     }
 }
 
-// MARK: - 「润色 ▾」：提示词标签
+// MARK: - 风格一排（MG5）
 
-/// 一排提示词标签横向可滑（左右内边 6、间距 6），右边 12% 渐隐；最右固定一个 30×30「+」去 App 管理提示词。
-/// 点标签只切换当前提示词，这一行不收起；✨ 按它执行。
-struct PromptRow: View {
+/// 一排风格小块横向可滑（左右内边 6、间距 6），右边 12% 渐隐；最右固定一个 28×28「＋」去 App 加。
+/// 点小块只换下一次用的风格，不重新调用接口；展开时选完换回识意框。
+struct StyleRow: View {
     @ObservedObject var model: KeyboardModel
+    let row: KeyboardModel.AIRow
+
+    private var answer: Bool { row == .answerStyles }
 
     var body: some View {
+        let styles = answer ? model.settings.answerStyles : model.settings.styles
+        let selectedID = answer ? model.settings.selectedAnswerStyle?.id : model.settings.selectedStyle?.id
         HStack(spacing: 0) {
             ScrollViewReader { reader in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(model.settings.styles) { style in
-                            PromptTag(title: style.displayName, selected: style.id == model.settings.selectedStyle?.id) {
-                                model.selectStyle(style)
+                        ForEach(styles) { style in
+                            PromptTag(title: style.displayName, selected: style.id == selectedID, answer: answer) {
+                                answer ? model.selectAnswerStyle(style) : model.selectStyle(style)
                             }
                             .id(style.id)
                         }
@@ -147,27 +212,28 @@ struct PromptRow: View {
                                              .init(color: .black.opacity(0), location: 1)],
                                      startPoint: .leading, endPoint: .trailing))
                 .onAppear {
-                    if let id = model.settings.selectedStyle?.id { reader.scrollTo(id, anchor: .center) }
+                    if let selectedID { reader.scrollTo(selectedID, anchor: .center) }
                 }
             }
-            Button { model.openContainingApp("enclave://prompts") } label: {
+            Button { model.openContainingApp(answer ? "enclave://prompts-answer" : "enclave://prompts") } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Brand.askClearIcon)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 28, height: 28)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.tagFill))
             }
             .buttonStyle(KeyPressStyle())
             .padding(.trailing, 6)
-            .accessibilityLabel(L("管理提示词", "Manage prompts", "プロンプトを管理"))
+            .accessibilityLabel(answer ? L("添加问答风格", "Add answer style", "回答スタイルを追加") : L("管理提示词", "Manage prompts", "プロンプトを管理"))
         }
     }
 }
 
-/// 提示词标签：高 30、圆角 8、左右内边 12、14pt。没选浅灰底；当前那条浅紫底、1pt #8B7CF6 内描边、深紫粗体字、前面 12pt 勾。
+/// 风格小块：高 28、圆角 8、左右内边 10、14pt。没选 tagBg 底；当前那条模式色底、1pt 模式色内描边、粗体字、前面 12pt 勾。
 struct PromptTag: View {
     var title: String
     var selected: Bool
+    var answer = false
     var action: () -> Void
 
     var body: some View {
@@ -178,11 +244,11 @@ struct PromptTag: View {
                 Text(title).lineLimit(1)
             }
             .font(.system(size: 14, weight: selected ? .semibold : .regular))
-            .padding(.horizontal, 12)
-            .frame(height: 30)
-            .foregroundStyle(selected ? Brand.chipOpenText : Brand.tagLabel)
-            .background(shape.fill(selected ? Brand.chipOpenFill : Brand.tagFill))
-            .overlay(shape.strokeBorder(Brand.rowStroke, lineWidth: selected ? 1 : 0))
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .foregroundStyle(selected ? (answer ? Brand.modeAnswerText : Brand.chipOpenText) : Brand.tagLabel)
+            .background(shape.fill(selected ? (answer ? Brand.modeAnswerFill : Brand.chipOpenFill) : Brand.tagFill))
+            .overlay(shape.strokeBorder(answer ? Brand.answerBorder : Brand.rowStroke, lineWidth: selected ? 1 : 0))
             .contentShape(shape)
         }
         .buttonStyle(.plain)
@@ -190,10 +256,10 @@ struct PromptTag: View {
     }
 }
 
-// MARK: - 「识意 ▾」：问问题或提要求
+// MARK: - 识意框：问问题或提要求
 
-/// 识意框（QA14、QA3、QA4）：左内边 14、15pt 字，一行；右端 24×24 圆形 ×，只收起不清空。
-/// 展开后键盘打的字进这里，打拼音时候选栏照常出在 AI 栏；重新展开时整段全选，直接打字覆盖。
+/// 识意框（MG2）：回答卡下半格，左右内边 12、15pt 字，一行；问题太长从开头省略，不挤右边的联网按钮。
+/// 抽屉展开时键盘打的字进这里，打拼音时候选栏照常出在 AI 栏；重新展开时整段全选，直接打字覆盖。
 struct AskField: View {
     @ObservedObject var model: KeyboardModel
 
@@ -217,21 +283,53 @@ struct AskField: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
             .onTapGesture { model.focusAsk() }
-            Button { model.closeAskRow() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Brand.askClearIcon)
-                    .frame(width: 24, height: 24)
-                    .background(Circle().fill(Brand.askClearFill))
-                    .frame(width: 36, height: 40)
-                    .contentShape(Rectangle())
+            // VoiceOver：整行读成一个输入框，读出框里的字；轻点两下开始在这里打字。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L("识意输入框", "Ask field", "たずねる入力欄"))
+            .accessibilityValue(model.instruction.isEmpty ? placeholder : model.instruction + model.composition)
+            .accessibilityHint(editing ? L("正在输入", "Typing here", "入力中") : L("轻点两下在这里输入", "Double-tap to type here", "ダブルタップしてここに入力"))
+            .accessibilityAddTraits(editing ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction { model.focusAsk() }
+            // 未激活、空着：右边 12pt「点这里输入」。
+            if !editing, model.instruction.isEmpty {
+                Text(L("点这里输入", "Tap to type", "タップして入力"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Brand.askFaint)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .onTapGesture { model.focusAsk() }
+                    .accessibilityHidden(true)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L("收起", "Close", "閉じる"))
+            searchButton
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 3)
+        .padding(.horizontal, 12)
         .font(.system(size: 15))
+    }
+
+    /// 「使用联网查询」（MG6）：28 高、圆角 14，问答浅蓝底、1pt 天蓝 40% 内描边；联网过的回答换成灰字「已联网 · Kimi」（MG7）。
+    @ViewBuilder
+    private var searchButton: some View {
+        if !model.isRunning, model.session?.currentIsAnswer == true, let searchedBy = model.session?.currentSearchedBy {
+            Label(L("已联网 · \(searchedBy)", "Searched · \(searchedBy)", "検索済み · \(searchedBy)"), systemImage: "globe")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+        } else if model.canForceSearch {
+            Button { model.forceWebSearch() } label: {
+                Label(L("使用联网查询", "Search the web", "ウェブで調べる"), systemImage: "globe")
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .padding(.leading, 7)
+                    .padding(.trailing, 9)
+                    .frame(height: 28)
+                    .foregroundStyle(Brand.modeAnswerText)
+                    .background(Capsule().fill(Brand.modeAnswerFill))
+                    .overlay(Capsule().strokeBorder(Brand.answerBorder.opacity(0.4), lineWidth: 1))
+                    .fixedSize()
+            }
+            .buttonStyle(KeyPressStyle())
+        }
     }
 
     private var placeholder: String {
@@ -245,7 +343,7 @@ struct AskField: View {
         let composing = model.target == .instruction ? model.composition : ""
         if text.isEmpty && composing.isEmpty {
             Text(placeholder)
-                .foregroundStyle(Brand.askPlaceholder)
+                .foregroundStyle(caretVisible == nil ? Brand.askFaint : Brand.askPlaceholderActive)
                 .lineLimit(1)
                 .overlay(alignment: .leading) {
                     if let caretVisible { caretImage(caretVisible).offset(x: -2) }
@@ -266,7 +364,8 @@ struct AskField: View {
                 + Text(composing).underline(color: Brand.askCaret)
                 + (caretVisible.map { Text(Image(uiImage: Self.caret)).foregroundColor(Brand.askCaret.opacity($0 ? 1 : 0)).baselineOffset(-4) } ?? Text(""))
                 + Text(text[split...]))
-                .foregroundStyle(Brand.askText)
+                // 未激活时留着的字变灰。
+                .foregroundStyle(caretVisible == nil ? Brand.askSub : Brand.askText)
                 .lineLimit(1)
                 .truncationMode(atEnd ? .head : .tail)
         }

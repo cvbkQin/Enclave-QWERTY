@@ -23,6 +23,8 @@ protocol InputEngine: AnyObject {
     func replaceInput(_ raw: String)
     /// 候选只先取了第一屏；滑到头或展开整页时再往后取。
     func loadMoreCandidates()
+    /// 候选长按「删除」：删掉用户词库里学到的这个词，候选跟着刷新。删不了（词库自带的词、没有词库）返回 false。
+    func deleteCandidate(_ index: Int) -> Bool
 }
 
 extension InputEngine {
@@ -30,6 +32,7 @@ extension InputEngine {
     var rawInput: String { "" }
     func replaceInput(_ raw: String) {}
     func loadMoreCandidates() {}
+    func deleteCandidate(_ index: Int) -> Bool { false }
 }
 
 /// 字母原样上屏，用于英文模式，也是接入拼音之前的默认引擎。

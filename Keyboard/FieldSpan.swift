@@ -4,7 +4,8 @@ import Foundation
 /// 而且按完整的句子或段落截：往回最多看 150 字找句号、问号、换行这类断点，取不超过 100 字的最长一段整句；
 /// 100 字内没有断点就放宽到 150 字，再没有就退到逗号，实在没有才硬截 100 字。
 /// 光标前后加起来不到 100 字就全读（光标在中间也一样）。「处理长文本」打开时是 200 / 250 字。
-/// 替换时按 beforeCount / afterCount 删，读不到的字一个不动，撤销也能原样还原。
+/// 发给 AI 时记下这一段，替换时先核对光标前后还是它，再按 beforeCount / afterCount 删；不在替换时重算，
+/// 系统每次给的光标前文字长短不一，重算的起点会在句子之间跳。读不到的字一个不动，撤销也能原样还原。
 struct FieldSpan: Equatable {
     /// 平时 100 字、往回最多看 150 字；「处理长文本」打开时 200 / 250。
     static func limits(longText: Bool) -> (limit: Int, lookahead: Int) { longText ? (200, 250) : (100, 150) }
@@ -15,6 +16,16 @@ struct FieldSpan: Equatable {
 
     init(before: String, after: String, longText: Bool) {
         let (limit, lookahead) = Self.limits(longText: longText)
+        // 系统对很长的输入框只给光标前一截，这一截可能从半句话开始。以标点开头的肯定是被截过的（真正的输入框不会以「，」开头）：
+        // 跳到第一个句末之后再读，别把半句话交给 AI、替换时又把它删掉。找不到句末就跳过开头的标点。
+        var before = before
+        if let first = before.first, Self.cutMarks.contains(first) {
+            let chars = Array(before)
+            let next = chars.indices.dropFirst().first { Self.sentenceEnds.contains(chars[$0 - 1]) && !Self.cutMarks.contains(chars[$0]) }
+                ?? chars.firstIndex { !Self.cutMarks.contains($0) }
+                ?? chars.count
+            before = String(chars[next...])
+        }
         if before.count + after.count <= limit {
             beforeCount = before.count
             afterCount = after.count
@@ -28,7 +39,26 @@ struct FieldSpan: Equatable {
         text = String(chars[start...])
     }
 
+    /// 刚写进去的一段（替换、撤销、重做之后光标正好在它末尾）：下次替换就删它。
+    init(written text: String) {
+        beforeCount = text.count
+        afterCount = 0
+        self.text = text
+    }
+
+    /// 输入框光标前后还是读到时的样子：光标前以这段的前半截结尾、光标后以后半截开头。
+    /// 系统这次给的光标前文字比读的时候短（只给了一截），只要给的这截都对得上也算。
+    func matches(before: String, after: String) -> Bool {
+        let head = String(text.prefix(beforeCount))
+        let tail = String(text.suffix(afterCount))
+        let beforeOK = before.hasSuffix(head) || (!before.isEmpty && head.hasSuffix(before))
+        let afterOK = after.hasPrefix(tail) || (!after.isEmpty && tail.hasPrefix(after))
+        return beforeOK && afterOK
+    }
+
     private static let sentenceEnds: Set<Character> = ["。", "！", "？", "!", "?", "；", ";", "…", "\n", "\r"]
+    /// 真正的输入框不会以这些标点开头，光标前那一截以它们开头就是被系统截过的。
+    private static let cutMarks: Set<Character> = ["，", ",", "、", "。", "．", "；", ";", "：", ":", "！", "!", "？", "?", "」", "』", "）", ")", "”"]
     private static let clauseEnds: Set<Character> = ["，", ",", "、", "：", ":"]
 
     /// 从哪个下标开始读（含）。

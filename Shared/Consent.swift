@@ -20,17 +20,25 @@ enum ConsentStore {
         return (endpoint, date)
     }
 
+    /// 润色和问答可以是两个接口：同意过的地址都记着（consented 是最近同意的那个）。
+    private static let endpointsKey = "consent.endpoints"
+    private static var endpoints: [String] { SharedStorage.defaults.stringArray(forKey: endpointsKey) ?? [] }
+
     static func isConsented(_ endpoint: String) -> Bool {
-        consented?.endpoint == endpoint
+        consented?.endpoint == endpoint || endpoints.contains(endpoint)
     }
 
     static func grant(_ endpoint: String) {
         SharedStorage.defaults.set(endpoint, forKey: endpointKey)
         SharedStorage.defaults.set(Date(), forKey: dateKey)
+        // 只留润色、问答最近用的两个，换了地址的旧地址要重新确认。
+        let kept = Array((endpoints.filter { $0 != endpoint } + [endpoint]).suffix(2))
+        SharedStorage.defaults.set(kept, forKey: endpointsKey)
     }
 
     static func revoke() {
         SharedStorage.defaults.removeObject(forKey: endpointKey)
         SharedStorage.defaults.removeObject(forKey: dateKey)
+        SharedStorage.defaults.removeObject(forKey: endpointsKey)
     }
 }

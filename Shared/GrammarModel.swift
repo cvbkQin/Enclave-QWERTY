@@ -1,6 +1,7 @@
 import Foundation
 
 /// 整句模型（万象语法模型，CC BY 4.0）：可选下载，放在共享目录的 Rime 用户目录里，部署时给方案加上 grammar 配置。
+/// 内测包自带一份（见 bundledURL），只能停用不能删。
 /// 引擎（librime-octagram）用 mmap 只读映射，只读用到的部分。键盘要开完全访问才读得到。
 enum GrammarModel {
     static let language = "wanxiang-lts-zh-hans"
@@ -31,9 +32,36 @@ enum GrammarModel {
         RimeStore.paths?.user.appendingPathComponent(language + ".gram")
     }
 
+    /// 下载过，或内测包自带（部署时才在用户目录放链接）。
     static var isInstalled: Bool {
+        if isBundled { return true }
         guard let fileURL else { return false }
         return isValid(fileURL)
+    }
+
+    /// 内测包自带的那份（打包时 INTERNAL_BUILD=YES 由 scripts/fetch-grammar.sh 拷进键盘扩展）。
+    /// 键盘里是自己的包；App 里去 PlugIns 下的键盘扩展里找。包里的文件只读，删不掉，只能停用。
+    static let bundledURL: URL? = {
+        let name = language + ".gram"
+        var candidates = [Bundle.main.bundleURL.appendingPathComponent(name)]
+        if let plugins = Bundle.main.builtInPlugInsURL,
+           let items = try? FileManager.default.contentsOfDirectory(at: plugins, includingPropertiesForKeys: nil) {
+            candidates += items.filter { $0.pathExtension == "appex" }.map { $0.appendingPathComponent(name) }
+        }
+        return candidates.first { isValid($0) }
+    }()
+
+    static var isBundled: Bool { bundledURL != nil }
+
+    /// 包里带了模型：在 Rime 用户目录放一个指向它的链接，引擎照常在用户目录找到它、mmap 直接读包里那份，不再占一份空间。
+    /// App 升级后包的路径会变，App 部署和键盘加载词库前都调一次，链接不对就重建。以前下载过的那份换成链接。
+    static func linkBundled() {
+        guard let bundledURL, let fileURL else { return }
+        let fm = FileManager.default
+        if (try? fm.destinationOfSymbolicLink(atPath: fileURL.path)) == bundledURL.path { return }
+        try? fm.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? fm.removeItem(at: fileURL)
+        try? fm.createSymbolicLink(at: fileURL, withDestinationURL: bundledURL)
     }
 
     /// 下载后的开关：关掉时文件留着，部署时不用它（方便对比有没有模型）。默认开。
@@ -46,7 +74,7 @@ enum GrammarModel {
     static var isActive: Bool { isInstalled && isEnabled }
 
     static var installedSize: Int64? {
-        guard let path = fileURL?.path,
+        guard let path = fileURL?.resolvingSymlinksInPath().path,
               let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? NSNumber else { return nil }
         return size.int64Value
     }

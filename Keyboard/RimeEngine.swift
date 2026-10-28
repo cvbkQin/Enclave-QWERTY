@@ -85,6 +85,8 @@ final class RimeEngine: InputEngine {
                 enclave_rime_finalize()
                 session = 0
             }
+            // 内测包自带整句模型：App 升级后包路径变了，先把用户目录里的链接指回来。
+            if version.hasPrefix("shared:") { GrammarModel.linkBundled() }
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
             source = version
@@ -138,6 +140,13 @@ final class RimeEngine: InputEngine {
         guard session != 0, index >= 0 else { return nil }
         enclave_rime_select_candidate(session, index)
         return refresh()
+    }
+
+    func deleteCandidate(_ index: Int) -> Bool {
+        guard session != 0, index >= 0 else { return false }
+        let deleted = enclave_rime_delete_candidate(session, index)
+        _ = refresh()
+        return deleted
     }
 
     func commitComposition() -> String? {

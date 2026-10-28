@@ -14,6 +14,10 @@ struct StylePreset: Codable, Identifiable, Hashable {
         case "口语": return L("口语", "Casual", "カジュアル")
         case "简短": return L("简短", "Concise", "簡潔に")
         case "结构": return L("结构", "Bullets", "箇条書き")
+        case "直击要害": return L("直击要害", "To the point", "要点だけ")
+        case "详细": return L("详细", "Detailed", "詳しく")
+        case "列要点": return L("列要点", "Key points", "要点を列挙")
+        case "通俗": return L("通俗", "Plain words", "やさしく")
         default:
             // 名字清空了也要能认出来：键盘面板里不能出现空的标签。
             return name.trimmingCharacters(in: .whitespaces).isEmpty ? L("未命名", "Untitled", "名前なし") : name
@@ -118,6 +122,11 @@ struct EnclaveSettings: Codable, Equatable {
     var maxTokens: Int = 1024
     var styles: [StylePreset] = StylePreset.defaults
     var selectedStyleID: UUID?
+    /// 问答风格（AI 栏蓝色那颗）：和改写的风格分开，一列名字 + 提示词，选中一条。旧版本没有，读的时候用默认四条。
+    var answerStyles: [StylePreset] = StylePreset.answerDefaults
+    var selectedAnswerStyleID: UUID?
+    /// 联网倾向 0–4（问答提示词页那根条）：只管模型想不想联网，能不能联网仍看 webSearchMode。nil 当 2（适中）。
+    var searchTendency: Int?
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -136,15 +145,26 @@ struct EnclaveSettings: Codable, Equatable {
     var resultKeyWheelUp: Bool = true
     /// 处理长文本：关着（默认）时 AI 只读光标前 100 字左右的整句，打开后 200 字左右。
     var longText: Bool = false
+    /// 识意问答联网（问答接口是千问、Kimi、智谱时）：模型说要查最新信息时怎么办。开：直接联网；每次询问：回答框里先问一次；
+    /// 禁止：提示去开启。没选过时为 nil：App 启动后按店面定下来（中国大陆默认禁止，其他地区默认开）；键盘读到 nil 当禁止。
+    /// 0.87 存的是布尔 webSearch，读的时候换过来。
+    var webSearchMode: WebSearchMode?
+    /// 问答用另一个接口：润色和识意改写走上面的接口（要快），识意问答走这一个（可以想久一点、联网）。
+    /// 关着或没填好时问答也走润色的接口。API Key 单独存在钥匙串（SettingsStore.answerApiKey）。
+    var separateAnswer: Bool = false
+    var answerBaseURL: String = ""
+    var answerModel: String = ""
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
-        case baseURL, model, temperature, maxTokens, styles, selectedStyleID
+        case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
-        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
     }
+
+    private enum LegacyKeys: String, CodingKey { case webSearch }
 
     var isConfigured: Bool {
         !baseURL.trimmingCharacters(in: .whitespaces).isEmpty
@@ -154,6 +174,13 @@ struct EnclaveSettings: Codable, Equatable {
     var selectedStyle: StylePreset? {
         styles.first { $0.id == selectedStyleID } ?? styles.first
     }
+
+    var selectedAnswerStyle: StylePreset? {
+        answerStyles.first { $0.id == selectedAnswerStyleID } ?? answerStyles.first
+    }
+
+    /// 联网倾向，0–4，没设过是 2。
+    var tendency: Int { min(max(searchTendency ?? 2, 0), 4) }
 }
 
 extension EnclaveSettings {
@@ -173,10 +200,15 @@ extension EnclaveSettings {
             styles = StylePreset.defaults
             selectedStyleID = nil
         }
-        // 默认那条以前叫「自动」（提示词为空），键盘上却显示「润色」：改名成「润色」，App 里和键盘上一致。
-        for index in styles.indices where styles[index].name == "自动" && styles[index].prompt.isEmpty {
+        // 默认那条以前叫「自动」，键盘上却显示「润色」：改名成「润色」，App 里和键盘上一致。
+        // 提示词改过、名字前后带空格的也改（0.81 只改了提示词为空的，有人键盘上还是「自动」）；已经有「润色」就不动。
+        if !styles.contains(where: { $0.name == "润色" }),
+           let index = styles.firstIndex(where: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) == "自动" }) {
             styles[index].name = "润色"
         }
+        answerStyles = (try? c.decodeIfPresent([StylePreset].self, forKey: .answerStyles)) ?? answerStyles
+        selectedAnswerStyleID = try? c.decodeIfPresent(UUID.self, forKey: .selectedAnswerStyleID)
+        searchTendency = try? c.decodeIfPresent(Int.self, forKey: .searchTendency)
         inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
@@ -184,9 +216,17 @@ extension EnclaveSettings {
         autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize
         polishAnimation = try c.decodeIfPresent(Bool.self, forKey: .polishAnimation) ?? polishAnimation
         resultKeyPrimary = (try? c.decodeIfPresent(ResultKeyAction.self, forKey: .resultKeyPrimary)) ?? resultKeyPrimary
-        resultKeySwipe = (try? c.decodeIfPresent(ResultKeySwipe.self, forKey: .resultKeySwipe)) ?? resultKeySwipe
-        resultKeyWheelUp = try c.decodeIfPresent(Bool.self, forKey: .resultKeyWheelUp) ?? resultKeyWheelUp
+        // P1-4a：滑动方式和方向不再能设，一律上滑；之前选了弹出或下滑的，升级后不提示直接换成上滑。
+        resultKeySwipe = .wheel
+        resultKeyWheelUp = true
         longText = try c.decodeIfPresent(Bool.self, forKey: .longText) ?? longText
+        webSearchMode = try? c.decodeIfPresent(WebSearchMode.self, forKey: .webSearchMode)
+        if webSearchMode == nil, let legacy = try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .webSearch) {
+            webSearchMode = legacy ? .on : .off
+        }
+        separateAnswer = try c.decodeIfPresent(Bool.self, forKey: .separateAnswer) ?? separateAnswer
+        answerBaseURL = try c.decodeIfPresent(String.self, forKey: .answerBaseURL) ?? answerBaseURL
+        answerModel = try c.decodeIfPresent(String.self, forKey: .answerModel) ?? answerModel
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
@@ -201,6 +241,15 @@ extension StylePreset {
         StylePreset(name: "口语", prompt: "风格：口语。像本人平时说话一样自然随意，句子简短；不加标题、不分点编号，不用书面套话。"),
         StylePreset(name: "简短", prompt: "风格：简短。只保留核心意思，删掉客套、铺垫和重复，能一句说清就只写一句。"),
         StylePreset(name: "结构", prompt: "风格：结构。提炼原文里的关键信息，删掉无关细节和铺垫，整理成「1.」「2.」「3.」编号要点，每点一行、一句话说清；要点较多且能归类时先分组，每组一行小标题，组内编号。即使原文很短也按要点列出。"),
+    ]
+
+    /// 问答风格的默认四条（规格「问答风格与联网提示词」第 1 节）。提示词空着时按「简短直接，几句话说清楚」回答。
+    /// id 固定：旧设置里没有这一组时，App 和键盘各自读出来的默认四条是同一批，次数统计对得上。
+    static let answerDefaults: [StylePreset] = [
+        StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000001")!, name: "直击要害", prompt: "先给结论，直击要害，言简意赅。一般不超过三句，不铺垫、不重复问题、不加客套和免责声明。"),
+        StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000002")!, name: "详细", prompt: "先给结论，再用几句话解释原因和要点，必要时举一个例子。"),
+        StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000003")!, name: "列要点", prompt: "用「1.」「2.」分点回答，每点一句，最多五点。"),
+        StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000004")!, name: "通俗", prompt: "像跟朋友解释一样，用大白话，少用术语，术语要顺带解释。"),
     ]
 
     /// 以前各版的默认风格，用户没改过时升级成新的默认列表。
@@ -230,8 +279,15 @@ enum SettingsStore {
     static func load() -> EnclaveSettings {
         guard let data = SharedStorage.defaults.data(forKey: settingsKey),
               var settings = try? JSONDecoder().decode(EnclaveSettings.self, from: data)
-        else { return EnclaveSettings() }
+        else {
+            // 第一次装：内测版填上自带的接口，其他版本照旧是空的。
+            var settings = EnclaveSettings()
+            BuiltinAPI.seed(&settings)
+            return settings
+        }
         settings.migrateRetiredModels()
+        // 内测版接口页锁着：装在开发版上面时旧设置改不了，换成内置接口。
+        if BuiltinAPI.needsReseed(settings) { BuiltinAPI.seed(&settings, force: true) }
         return settings
     }
 
@@ -246,6 +302,17 @@ enum SettingsStore {
         set { Keychain.set(newValue, for: apiKeyAccount) }
     }
 
+    /// 问答接口的 API Key（单独设了问答接口时用）。
+    static var answerApiKey: String? {
+        get { Keychain.get("apiKey.answer") }
+        set { Keychain.set(newValue, for: "apiKey.answer") }
+    }
+
+    /// 问答该用哪个 Key：单独设了问答接口用它的，否则和润色同一个。
+    static func answerKey(for settings: EnclaveSettings) -> String? {
+        settings.usesAnswerEndpoint ? answerApiKey : apiKey
+    }
+
     // MARK: - 通过剪贴板同步（App Group 不可用时的兜底）
 
     private static let exportPrefix = "enclave-config:"
@@ -253,10 +320,11 @@ enum SettingsStore {
     private struct ExportPayload: Codable {
         var settings: EnclaveSettings
         var apiKey: String?
+        var answerApiKey: String?
     }
 
     static func exportString() -> String? {
-        let payload = ExportPayload(settings: load(), apiKey: apiKey)
+        let payload = ExportPayload(settings: load(), apiKey: apiKey, answerApiKey: answerApiKey)
         guard let data = try? JSONEncoder().encode(payload) else { return nil }
         return exportPrefix + data.base64EncodedString()
     }
@@ -271,6 +339,7 @@ enum SettingsStore {
         else { return false }
         save(payload.settings)
         apiKey = payload.apiKey
+        if let key = payload.answerApiKey { answerApiKey = key }
         return true
     }
 }
@@ -285,4 +354,96 @@ extension EnclaveSettings {
               Self.retiredDeepSeekModels.contains(model.trimmingCharacters(in: .whitespaces).lowercased()) else { return }
         model = "deepseek-flash"
     }
+}
+
+extension EnclaveSettings {
+    /// Kimi 的 kimi-k 系列温度是固定的（填别的值会报错）：请求里不发温度，接口页的温度一行注明不生效。
+    var usesFixedTemperature: Bool {
+        baseURL.contains("moonshot.") && model.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("kimi-k")
+    }
+}
+
+extension EnclaveSettings {
+    /// 键盘出错卡里写的服务商名字：认得出的写服务商，自定义的写主机名。
+    var providerName: String {
+        let base = baseURL.lowercased()
+        if base.contains("api.deepseek.com") { return "DeepSeek" }
+        if base.contains("moonshot.") { return "Kimi" }
+        if base.contains("dashscope") { return L("通义千问", "Qwen", "Qwen") }
+        if base.contains("bigmodel.cn") || base.contains("api.z.ai") { return L("智谱", "Zhipu", "Zhipu") }
+        if base.contains("api.openai.com") { return "OpenAI" }
+        if base.contains(":11434") { return "Ollama" }
+        return URL(string: baseURL.trimmingCharacters(in: .whitespaces))?.host ?? baseURL
+    }
+
+    /// 连的是 Kimi（api.moonshot.cn / .ai）。
+    var isKimi: Bool { baseURL.contains("moonshot.") }
+    /// 这个接口能联网的话是哪一家：Kimi、千问（阿里云百炼）、智谱。别的服务商没有可用的联网接口，返回 nil。
+    var searchProvider: SearchProvider? {
+        if isKimi { return .kimi }
+        if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
+        if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
+        return nil
+    }
+    /// 识意问答联网用哪一家：问答走的接口能联网就有（三档里选了禁止也有，要联网时提示去开启）。
+    var answerSearch: SearchProvider? { forAnswers.searchProvider }
+
+    /// 问答真的走另一个接口：开着、地址和模型都填了。
+    var usesAnswerEndpoint: Bool {
+        separateAnswer && !answerBaseURL.trimmingCharacters(in: .whitespaces).isEmpty
+            && !answerModel.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// 问答用的设置：换成问答接口的地址和模型，温度、最大输出等照旧（Kimi K3 会先思考，最大输出至少 4096）。
+    var forAnswers: EnclaveSettings {
+        guard usesAnswerEndpoint else { return self }
+        var copy = self
+        copy.baseURL = answerBaseURL
+        copy.model = answerModel
+        // Kimi K3、智谱 GLM 会先思考，思考也算在最大输出里。
+        if copy.usesFixedTemperature || copy.searchProvider == .glm { copy.maxTokens = max(copy.maxTokens, 4096) }
+        return copy
+    }
+}
+
+/// 识意问答联网的三档。
+enum WebSearchMode: String, Codable, CaseIterable, Identifiable {
+    case on, ask, off
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .on: return L("开", "On", "オン")
+        case .ask: return L("每次询问", "Ask each time", "毎回確認")
+        case .off: return L("禁止", "Off", "オフ")
+        }
+    }
+}
+
+/// 识意问答联网用哪一家的方式。
+/// 三家都是模型先判断：第一行写「联网」才算要联网（三档在这一步起作用）。允许之后：
+/// Kimi：键盘拿问题原文调 Kimi 的搜索接口（/tools/search），再带上资料问一次。
+/// 千问（enable_search + forced_search）、智谱（web_search 工具）：服务商自带联网，只带问题原文再问一次，搜索词由服务商根据问题生成。
+enum SearchProvider: String {
+    case kimi, qwen, glm
+
+    var name: String {
+        switch self {
+        case .kimi: return "Kimi"
+        case .qwen: return L("通义千问", "Qwen", "Qwen")
+        case .glm: return L("智谱", "Zhipu GLM", "Zhipu GLM")
+        }
+    }
+
+    /// 大陆店面打开联网时确认框里写的公司全称（AP4）。
+    var company: String {
+        switch self {
+        case .kimi: return "北京月之暗面科技有限公司"
+        case .qwen: return "阿里云"
+        case .glm: return "北京智谱华章科技股份有限公司"
+        }
+    }
+
+    /// 服务商自带联网（一次请求里搜完答完），不用键盘另外去搜。
+    var builtin: Bool { self != .kimi }
 }

@@ -4,13 +4,15 @@ import Foundation
 /// 不按天的两样（最近 10 次请求、试过的场景）存在这里。都只在手机上，不上传。
 enum UsageStats {
     private static let recentKey = "stats.polishRecent"
+    private static let answerRecentKey = "stats.answerRecent"
     private static let labKey = "stats.labTried"
     private static let recentLimit = 10
 
     // MARK: 执行提示词（键盘里）
 
     /// 一次请求结束：成功记 polish.done、耗时和这条提示词，失败记 polish.failed；都进最近 10 次。点停止不算。
-    static func recordPolish(ms: Int, ok: Bool, styleID: UUID?) {
+    /// mainAPI：发到「改写 · 润色」页的接口。走单独问答接口的请求记进问答页的「最近 10 次」。
+    static func recordPolish(ms: Int, ok: Bool, styleID: UUID?, mainAPI: Bool = true) {
         if ok {
             DailyStats.add("polish.done")
             DailyStats.add("polish.ms", ms)
@@ -18,7 +20,7 @@ enum UsageStats {
         } else {
             DailyStats.add("polish.failed")
         }
-        recordRequest(ms: ms, ok: ok)
+        if mainAPI { recordRequest(ms: ms, ok: ok) } else { recordAnswerRequest(ms: ms, ok: ok) }
         // 请求不多，每次都写，App 马上能看到。
         DailyStats.flush()
     }
@@ -28,6 +30,23 @@ enum UsageStats {
         var recent = polishRecent
         recent.append(Request(ms: ms, ok: ok, at: Date()))
         polishRecent = Array(recent.suffix(recentLimit))
+    }
+
+    /// 问答页状态卡的最近 10 次（单独设了问答接口时；问答页「测试」也算）。
+    static func recordAnswerRequest(ms: Int, ok: Bool) {
+        var recent = answerRecent
+        recent.append(Request(ms: ms, ok: ok, at: Date()))
+        answerRecent = Array(recent.suffix(recentLimit))
+    }
+
+    static var answerRecent: [Request] {
+        get {
+            guard let data = SharedStorage.defaults.data(forKey: answerRecentKey) else { return [] }
+            return (try? JSONDecoder().decode([Request].self, from: data)) ?? []
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) { SharedStorage.defaults.set(data, forKey: answerRecentKey) }
+        }
     }
 
     struct Request: Codable {
@@ -53,6 +72,7 @@ enum UsageStats {
     static func clearStats() {
         DailyStats.clear()
         SharedStorage.defaults.removeObject(forKey: recentKey)
+        SharedStorage.defaults.removeObject(forKey: answerRecentKey)
     }
 
     static func wordCommitted(_ text: String) {

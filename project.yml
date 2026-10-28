@@ -10,9 +10,11 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.0"
+    # 两个 Run Script 要读 Vendor/ 和 Local.xcconfig 传来的设置。
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
     # 版本号：从 0.1 起每次改动加 0.1，正式发布时才改成 1.0。CURRENT_PROJECT_VERSION 同时加 1。
-    MARKETING_VERSION: "0.85"
-    CURRENT_PROJECT_VERSION: "85"
+    MARKETING_VERSION: "0.91"
+    CURRENT_PROJECT_VERSION: "91"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。
@@ -51,9 +53,19 @@ targets:
     sources:
       - App
       - Shared
+      # 编译前由 scripts/gen-builtin-secrets.py 生成；刚 clone 时还没有，所以是 optional。
+      - path: Generated/Enclave/BuiltinSecrets.swift
+        optional: true
       - path: Vendor/RimeData
         type: folder
         buildPhase: resources
+    # 内测包的 Key（混淆）和证书指纹，生成到 Generated/<target>/BuiltinSecrets.swift（不进 Git）；别的包生成空的。也检查内测、公测开关没同时打开。
+    preBuildScripts:
+      - name: Builtin secrets
+        script: python3 "$SRCROOT/scripts/gen-builtin-secrets.py"
+        outputFiles:
+          - $(SRCROOT)/Generated/$(TARGET_NAME)/BuiltinSecrets.swift
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave
@@ -75,6 +87,14 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         EnclaveAppGroup: $(APP_GROUP_ID)
+        # 内测版自带的接口地址和模型（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值。
+        # Key 不放这里，由 scripts/gen-builtin-secrets.py 混淆后编进代码。
+        EnclaveInternalBuild: $(INTERNAL_BUILD)
+        EnclavePublicBuild: $(PUBLIC_BUILD)
+        EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
+        EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
+        EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
+        EnclaveBuiltinAnswerModel: $(ENCLAVE_BUILTIN_ANSWER_MODEL)
         CFBundleURLTypes:
           - CFBundleURLName: enclave
             CFBundleURLSchemes: [enclave]
@@ -93,10 +113,25 @@ targets:
     sources:
       - Keyboard
       - Shared
+      # 编译前由 scripts/gen-builtin-secrets.py 生成；刚 clone 时还没有，所以是 optional。
+      - path: Generated/EnclaveKeyboard/BuiltinSecrets.swift
+        optional: true
       # 不开完全访问时用的自带词库（编译好的），由 scripts/prebuild-rime.sh 生成。
       - path: Vendor/RimeBuild
         type: folder
         buildPhase: resources
+    # 内测包的 Key（混淆）和证书指纹，生成到 Generated/<target>/BuiltinSecrets.swift（不进 Git）；别的包生成空的。也检查内测、公测开关没同时打开。
+    preBuildScripts:
+      - name: Builtin secrets
+        script: python3 "$SRCROOT/scripts/gen-builtin-secrets.py"
+        outputFiles:
+          - $(SRCROOT)/Generated/$(TARGET_NAME)/BuiltinSecrets.swift
+        basedOnDependencyAnalysis: false
+    # 内测包自带整句模型：从 Vendor/Grammar/ 拷进扩展包（先运行 scripts/fetch-grammar.sh）。
+    postCompileScripts:
+      - name: Embed grammar
+        script: bash "$SRCROOT/scripts/embed-grammar.sh"
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave.keyboard
@@ -111,6 +146,14 @@ targets:
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations: [zh-Hans, en, ja]
         EnclaveAppGroup: $(APP_GROUP_ID)
+        # 内测版自带的接口地址和模型（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值。
+        # Key 不放这里，由 scripts/gen-builtin-secrets.py 混淆后编进代码。
+        EnclaveInternalBuild: $(INTERNAL_BUILD)
+        EnclavePublicBuild: $(PUBLIC_BUILD)
+        EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
+        EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
+        EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
+        EnclaveBuiltinAnswerModel: $(ENCLAVE_BUILTIN_ANSWER_MODEL)
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
@@ -122,3 +165,29 @@ targets:
             PrefersRightToLeft: false
             PrimaryLanguage: zh-Hans
             RequestsOpenAccess: true
+  # 单元测试（xcodebuild test -scheme EnclaveTests，模拟器能跑）：不挂 App，直接编要测的纯逻辑文件，不链拼音引擎。
+  EnclaveTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+      - path: Shared
+        excludes: ["Rime/*.c", "Rime/*.h"]
+      - path: Keyboard/FieldSpan.swift
+      - path: App/Provider.swift
+      - path: App/StorefrontRegion.swift
+      - path: Generated/EnclaveTests/BuiltinSecrets.swift
+        optional: true
+    preBuildScripts:
+      - name: Builtin secrets
+        script: python3 "$SRCROOT/scripts/gen-builtin-secrets.py"
+        outputFiles:
+          - $(SRCROOT)/Generated/$(TARGET_NAME)/BuiltinSecrets.swift
+        basedOnDependencyAnalysis: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+    scheme:
+      testTargets: [EnclaveTests]

@@ -10,6 +10,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        CrashLog.shared.start(source: "keyboard")
         let host = UIHostingController(rootView: KeyboardView(model: model))
         // 铺一层不透明的键盘底色，不再几乎透明：在 Chrome 里从系统键盘（英文、日文等）切回来时，
         // 系统键盘的按键会残留在我们下面，透明的话从键缝里透出来。不透明也保证键缝能接到触摸。
@@ -47,6 +48,23 @@ final class KeyboardViewController: UIInputViewController {
             .store(in: &cancellables)
     }
 
+    /// 横屏用简版尺寸。键盘扩展里拿不到界面方向：有窗口时按屏幕宽高比，还没进窗口时看竖向尺寸类（iPhone 横屏是 compact）。
+    private func updateOrientation() {
+        if let screen = view.window?.windowScene?.screen.bounds.size {
+            model.setLandscape(screen.width > screen.height)
+        } else {
+            model.setLandscape(traitCollection.verticalSizeClass == .compact)
+        }
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+            self?.updateOrientation()
+            self?.updateHeight()
+        }
+    }
+
     private func updateHeight() {
         let target = model.keyboardHeight
         guard let heightConstraint, heightConstraint.constant != target else { return }
@@ -60,12 +78,16 @@ final class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
+        // 点对方输入框挪光标时，系统有时只通知文字变了、不通知光标变了（iOS 27 模拟器上就是这样），两处都接。
+        model.hostSelectionChanged()
         model.fieldDidChange()
     }
 
     /// 换到别的输入框、移动光标时也更新一下发送键（有没有字、回车键类型）。
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
+        // 用户点了对方输入框：抽屉开着时打字换回对方输入框。
+        model.hostSelectionChanged()
         model.refreshHostState()
         // 挪了光标，英文补全按新位置重算。
         if !model.chineseMode { model.updateEnglishSuggestions() }
@@ -75,7 +97,10 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         // 先定下有没有地球键，免得键盘滑出来的途中按键再换一次排法。
         updateGlobeKey()
+        updateOrientation()
         model.dropStaleSessionOnAppear()
+        // 弹出时系统会通知一次文字变了，那次不算点了输入框：先不记光标，下一次通知只记下来。
+        model.hostCaret = nil
         // 每次弹出都按输入框类型重新选一次页（数字框直接出数字键盘）。
         model.hostKeyboardType = nil
         model.reload()

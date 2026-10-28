@@ -31,5 +31,7 @@ size_t enclave_rime_get_candidates(uint64_t session, char **out, size_t limit);
 /// 从第 start 个候选词开始取，最多 limit 个；用来在候选栏滑到头、展开整页时再往后取。
 size_t enclave_rime_get_candidates_from(uint64_t session, char **out, size_t start, size_t limit);
 bool enclave_rime_select_candidate(uint64_t session, size_t index);
+// 删掉用户词库里学到的这个候选（librime 的 delete_candidate）。词库自带的词删不掉，只会降回原来的位置。
+bool enclave_rime_delete_candidate(uint64_t session, size_t index);
 
 #endif

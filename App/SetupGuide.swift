@@ -17,11 +17,17 @@ enum SetupGuide {
     static var showsPrice: Bool { Storefront.isMainlandChina }
 }
 
+/// 从接口页打开的教程，Key 填进哪一页。
+enum GuideTarget { case rewrite, answer }
+
 enum SetupGuidePage: Identifiable, Hashable {
-    case intro, provider, step(Int), done
+    /// tour：首次打开的功能演示，走完进 OB1；tourReplay：使用指引里再玩一次，走完关掉。
+    case tour, tourReplay, intro, provider, step(Int), done
 
     var id: String {
         switch self {
+        case .tour: return "tour"
+        case .tourReplay: return "tourReplay"
         case .intro: return "intro"
         case .provider: return "provider"
         case .step(let n): return "step\(n)"
@@ -61,7 +67,7 @@ struct SetupGuideView: View {
     @Environment(\.openURL) private var openURL
     @State private var page: SetupGuidePage
     @State private var history: [SetupGuidePage] = []
-    @State private var provider: Provider = .deepseek
+    private var provider: Provider { router.guideProvider }
 
     init(start: SetupGuidePage) {
         _page = State(initialValue: start)
@@ -69,15 +75,29 @@ struct SetupGuideView: View {
 
     var body: some View {
         ZStack {
-            GuideBackground(glow: page == .intro || page == .provider || page == .done)
-            VStack(spacing: 0) {
-                if page != .intro && page != .done { topBar }
-                content
-                    .frame(maxHeight: .infinity, alignment: .top)
+            if page == .tour || page == .tourReplay {
+                FeatureTourView { tourExit($0) }
+            } else {
+                GuideBackground(glow: page == .intro || page == .provider || page == .done)
+                VStack(spacing: 0) {
+                    if page != .intro && page != .done { topBar }
+                    content
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
             }
         }
         .interactiveDismissDisabled()
         .animation(.easeInOut(duration: 0.22), value: page)
+    }
+
+    /// 功能演示结束：首次打开的接着进 OB1（已配好接口的跳过就直接关）；使用指引里再玩的直接关。
+    private func tourExit(_ exit: FeatureTourView.Exit) {
+        if page == .tourReplay { return router.setupGuide = nil }
+        switch exit {
+        case .setup: page = .intro
+        case .skip: if store.settings.isConfigured { finish() } else { page = .intro }
+        case .later: finish()
+        }
     }
 
     // MARK: 顶栏：左上返回、右上跳过
@@ -95,9 +115,21 @@ struct SetupGuideView: View {
                 .accessibilityLabel(L("返回", "Back", "戻る"))
             }
             Spacer()
-            Button(L("跳过", "Skip", "スキップ")) { finish() }
-                .font(.system(size: 15))
-                .foregroundStyle(GuideColor.secondary)
+            if router.guideTarget != nil {
+                // 从接口页打开：右上是 ×，没有「跳过」（TA1）。
+                Button { finish() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(GuideColor.text)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(GuideColor.card.opacity(0.85)))
+                }
+                .accessibilityLabel(L("关闭", "Close", "閉じる"))
+            } else {
+                Button(L("跳过", "Skip", "スキップ")) { finish() }
+                    .font(.system(size: 15))
+                    .foregroundStyle(GuideColor.secondary)
+            }
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 24)
@@ -108,9 +140,13 @@ struct SetupGuideView: View {
     @ViewBuilder
     private var content: some View {
         switch page {
+        case .tour, .tourReplay: EmptyView()
         case .intro: intro
         case .provider: providerPage
-        case .step(let n): GuideStepView(step: n, next: { go(n < 4 ? .step(n + 1) : .done) }, store: store)
+        case .step(let n):
+            GuideStepView(step: n, provider: provider, target: router.guideTarget, next: {
+                if n < 4 { go(.step(n + 1)) } else if router.guideTarget != nil { finish() } else { go(.done) }
+            }, store: store)
         case .done: done
         }
     }
@@ -137,7 +173,7 @@ struct SetupGuideView: View {
                     GuideDivider()
                     GuideRow(icon: "checkmark", color: Color(hex: 0x30A46C),
                              title: L("跟着教程 3 分钟搞定", "About 3 minutes with the guide", "ガイドに沿って約 3 分"),
-                             detail: L("内置 DeepSeek 分步教程，从注册到测试连接。", "A step-by-step DeepSeek guide, from sign-up to a test call.", "DeepSeek の手順ガイド付き。登録から接続テストまで。"))
+                             detail: L("DeepSeek、Kimi、通义千问、智谱都有分步教程，从注册到测试连接。", "Step-by-step guides for DeepSeek, Kimi, Qwen and Zhipu, from sign-up to a test call.", "DeepSeek・Kimi・Qwen・Zhipu の手順ガイド付き。登録から接続テストまで。"))
                 }
                 if SetupGuide.showsPrice { PriceCard() }
             }
@@ -153,10 +189,10 @@ struct SetupGuideView: View {
         GuidePage {
             VStack(alignment: .leading, spacing: 20) {
                 GuideTitle(L("选一个服务商", "Pick a provider", "サービスを選ぶ"),
-                           subtitle: L("第一次用就选 DeepSeek，每一步都有图。", "New to this? Pick DeepSeek. Every step has a picture.", "はじめてなら DeepSeek を。手順はすべて図解付きです。"))
+                           subtitle: L("前四家都有分步教程。第一次用推荐 DeepSeek。", "The first four have step-by-step guides. New to this? Pick DeepSeek.", "上の 4 つは手順ガイド付き。はじめてなら DeepSeek を。"))
                 VStack(spacing: 12) {
-                    ForEach(Provider.shown) { item in
-                        GuideProviderCard(provider: item, selected: provider == item) { provider = item }
+                    ForEach(Provider.guideShown) { item in
+                        GuideProviderCard(provider: item, selected: provider == item) { router.guideProvider = item }
                     }
                 }
             }
@@ -221,19 +257,22 @@ struct SetupGuideView: View {
         page = previous
     }
 
-    /// 走完或跳过：记下看过，关掉引导。
+    /// 走完或跳过：记下看过，关掉引导。从接口页打开的教程关掉后回到接口页。
     private func finish() {
         SetupGuide.seen = true
         router.setupGuide = nil
+        router.guideTarget = nil
     }
 
-    /// 选 DeepSeek 走教程；其他服务商填好预设，进接口设置页。
+    /// 有教程的四家（TU0）填好预设走教程；Ollama、其他填好预设，进接口设置页。
     private func chooseProvider() {
         if let preset = provider.preset {
             store.settings.baseURL = preset.baseURL
             store.settings.model = preset.model
+            store.settings.temperature = EnclaveSettings().temperature
+            store.settings.maxTokens = provider.maxTokens
         }
-        if provider == .deepseek {
+        if GuideTutorial.of(provider) != nil {
             go(.step(1))
         } else {
             finish()
@@ -242,35 +281,48 @@ struct SetupGuideView: View {
     }
 }
 
-// MARK: - OB3–OB6 DeepSeek 教程
+// MARK: - OB3–OB6 各家教程（DeepSeek、Kimi、通义千问、智谱 GLM，TK1–TZ4）
 
 private struct GuideStepView: View {
     let step: Int
+    let provider: Provider
+    /// 从接口页打开时是哪一页；引导里为 nil。
+    let target: GuideTarget?
     let next: () -> Void
     @ObservedObject var store: AppStore
     @Environment(\.openURL) private var openURL
+
+    private var tutorial: GuideTutorial { GuideTutorial.of(provider) ?? .deepseek }
+    private var current: GuideTutorial.Step? { step < 4 ? tutorial.steps[step - 1] : nil }
+    private var answer: Bool { target == .answer }
 
     var body: some View {
         GuidePage {
             VStack(alignment: .leading, spacing: 20) {
                 progress
-                Text(title)
+                Text(current?.title ?? L("粘贴 Key，测一下", "Paste the key and test", "キーを貼り付けてテスト"))
                     .font(.system(size: 26, weight: .bold))
                     .foregroundStyle(GuideColor.text)
-                if step < 4 {
-                    GuideIllustration(step: step)
-                    GuideNumberedList(items: items)
-                    if step == 2 && SetupGuide.showsPrice { PriceCard() }
-                    linkButton
+                if let current {
+                    GuideIllustration(step: step, tutorial: tutorial)
+                    GuideNumberedList(items: current.items)
+                    if let note = current.note {
+                        Text(note).font(.system(size: 13)).foregroundStyle(GuideColor.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let warning = current.warning { warningBox(warning) }
+                    if step == 2 && provider == .deepseek && SetupGuide.showsPrice { PriceCard() }
+                    if let link = current.link { linkButton(link) }
                 } else {
-                    GuideKeyStep(store: store)
+                    GuideKeyStep(store: store, provider: provider, tutorial: tutorial, target: target)
                 }
             }
         } bottom: {
             if step < 4 {
                 GuidePrimaryButton(L("下一步", "Next", "次へ"), action: next)
             } else {
-                GuidePrimaryButton(L("完成", "Done", "完了"), enabled: store.test.isSuccess, action: next)
+                GuidePrimaryButton(target != nil ? L("完成，回到接口", "Done, back to API", "完了して API に戻る") : L("完成", "Done", "完了"),
+                                   enabled: answer ? store.answerTest.isSuccess : store.test.isSuccess, action: next)
             }
         }
     }
@@ -278,12 +330,22 @@ private struct GuideStepView: View {
     private var progress: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Text(L("DeepSeek 教程", "DeepSeek guide", "DeepSeek ガイド"))
+                Text(tutorial.name)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(GuideColor.chipText)
                     .padding(.horizontal, 9)
                     .frame(height: 24)
                     .background(Capsule().fill(GuideColor.chipFill))
+                // 大陆站 / 国际站：跟 App Store 地区走，两边的 Key 不通用。
+                if let site = tutorial.site {
+                    Text(site)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(GuideColor.secondary)
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
+                        .background(Capsule().fill(GuideColor.card))
+                        .overlay(Capsule().stroke(Color(hex: 0xE2DEF5), lineWidth: 1))
+                }
                 Text("\(step) / 4").font(.system(size: 13, weight: .medium)).foregroundStyle(GuideColor.secondary)
             }
             HStack(spacing: 5) {
@@ -294,37 +356,18 @@ private struct GuideStepView: View {
         }
     }
 
-    private var title: String {
-        switch step {
-        case 1: return L("注册并登录", "Sign up and sign in", "登録してログイン")
-        case 2: return L("充一点钱", "Add a little credit", "少しチャージする")
-        case 3: return L("创建 Key 并复制", "Create a key and copy it", "キーを作ってコピー")
-        default: return L("粘贴 Key，测一下", "Paste the key and test", "キーを貼り付けてテスト")
-        }
+    /// 橙色提醒框：#FFF4E0 底、#8A4B00 字（TZ3）。
+    private func warningBox(_ text: String) -> some View {
+        (Text(L("注意 ", "Note ", "注意 ")).bold() + Text(text))
+            .font(.system(size: 14))
+            .foregroundStyle(Color(hex: 0x8A4B00))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(hex: 0xFFF4E0)))
     }
 
-    private var items: [String] {
-        switch step {
-        case 1: return [L("在 Safari 里打开 DeepSeek 开放平台", "Open the DeepSeek Platform in Safari", "Safari で DeepSeek Platform を開く"),
-                        L("手机号或邮箱收验证码，第一次登录就是注册", "Get a code by phone or email. Your first sign-in creates the account", "電話番号かメールでコードを受け取る。初回ログインで登録完了"),
-                        L("登录好了回到这里", "Come back here once you're signed in", "ログインしたらここに戻る")]
-        case 2: return [L("左边点「充值」", "Tap Top up on the left", "左の「Top up」をタップ"),
-                        L("充最少的金额就行，用支付宝或微信付", "The smallest amount is enough", "最小金額で十分です")]
-        default: return [L("左边点「API keys」", "Tap API keys on the left", "左の「API keys」をタップ"),
-                         L("点「创建 API key」，名字填「飞地输入法」", "Tap Create API key and name it Enclave", "「Create API key」で名前を Enclave に"),
-                         L("点「复制」。Key 只显示这一次", "Tap Copy. The key is shown only once", "「Copy」をタップ。キーは一度しか表示されません")]
-        }
-    }
-
-    private var link: (title: String, url: String) {
-        switch step {
-        case 1: return (L("打开 platform.deepseek.com", "Open platform.deepseek.com", "platform.deepseek.com を開く"), "https://platform.deepseek.com")
-        case 2: return (L("打开充值页", "Open Top up", "チャージページを開く"), "https://platform.deepseek.com/top_up")
-        default: return (L("打开 API keys 页", "Open API keys", "API keys ページを開く"), "https://platform.deepseek.com/api_keys")
-        }
-    }
-
-    private var linkButton: some View {
+    private func linkButton(_ link: (title: String, url: String)) -> some View {
         Button {
             if let url = URL(string: link.url) { openURL(url) }
         } label: {
@@ -345,6 +388,15 @@ private struct GuideStepView: View {
 /// OB6：粘贴 Key（写进钥匙串），地址和模型已经填好，粘贴后自动测试连接。
 private struct GuideKeyStep: View {
     @ObservedObject var store: AppStore
+    let provider: Provider
+    let tutorial: GuideTutorial
+    /// 从接口页打开：Key 填进打开它的那一页（问答页填问答 Key）。
+    let target: GuideTarget?
+
+    private var answer: Bool { target == .answer }
+    private var key: String { answer ? store.answerApiKey : store.apiKey }
+    private var test: AppStore.TestState { answer ? store.answerTest : store.test }
+    private var model: String { answer ? store.settings.answerModel : store.settings.model }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -353,12 +405,23 @@ private struct GuideKeyStep: View {
                     HStack {
                         Text("API Key").font(.system(size: 15, weight: .semibold)).foregroundStyle(GuideColor.text)
                         Spacer()
-                        Text(L("存在钥匙串里", "Saved in Keychain", "キーチェーンに保存")).font(.system(size: 13)).foregroundStyle(GuideColor.secondary)
+                        if let target {
+                            // TA2：从接口页来，右上角是蓝色胶囊「填进：问答接口 / 改写接口」。
+                            Text(target == .answer ? L("填进：问答接口", "Goes to: Answer API", "入力先：回答 API")
+                                                   : L("填进：改写接口", "Goes to: Rewrite API", "入力先：書き換え API"))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color(hex: 0x0A84FF))
+                                .padding(.horizontal, 9)
+                                .frame(height: 22)
+                                .background(Capsule().fill(Color(hex: 0x0A84FF).opacity(0.12)))
+                        } else {
+                            Text(L("存在钥匙串里", "Saved in Keychain", "キーチェーンに保存")).font(.system(size: 13)).foregroundStyle(GuideColor.secondary)
+                        }
                     }
                     HStack(spacing: 8) {
                         Text(masked)
                             .font(.system(size: 15, design: .monospaced))
-                            .foregroundStyle(store.apiKey.isEmpty ? GuideColor.secondary : GuideColor.text)
+                            .foregroundStyle(key.isEmpty ? GuideColor.secondary : GuideColor.text)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 12)
@@ -374,27 +437,49 @@ private struct GuideKeyStep: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    (Text(L("地址 ", "URL ", "URL ")) + Text("api.deepseek.com").bold()
-                     + Text(L("　模型 ", "   Model ", "　モデル ")) + Text(store.settings.model).bold())
+                    (Text(L("地址 ", "URL ", "URL ")) + Text(tutorial.apiHost).bold()
+                     + Text(L("　模型 ", "   Model ", "　モデル ")) + Text(model).bold())
                         .font(.system(size: 12.5))
                         .foregroundStyle(GuideColor.secondary)
                 }
                 .padding(16)
             }
-            if store.test != .idle { result }
+            if test != .idle { result }
         }
-        // 直接跳到这一步（比如 -setupGuide deepseek）时还没套 DeepSeek 预设，补上。
-        .onAppear {
-            if store.settings.baseURL.isEmpty, let preset = Provider.deepseek.preset {
-                store.settings.baseURL = preset.baseURL
-                store.settings.model = preset.model
-            }
+        // 套上这一家的预设：教程讲的是哪家，Key 就得配哪家的地址和模型才测得通。
+        // 从接口页打开时格子没选中，也在这里换过去；问答页同时打开「问答用另一个接口」。
+        .onAppear(perform: applyPreset)
+    }
+
+    private func applyPreset() {
+        if answer {
+            guard let preset = provider.answerPreset,
+                  Provider.matching(baseURL: store.settings.answerBaseURL, model: store.settings.answerModel, answer: true) != provider
+            else { store.settings.separateAnswer = true; return }
+            store.settings.separateAnswer = true
+            store.settings.answerBaseURL = preset.baseURL
+            store.settings.answerModel = preset.model
+        } else {
+            guard let preset = provider.preset,
+                  Provider.matching(baseURL: store.settings.baseURL, model: store.settings.model) != provider else { return }
+            store.settings.baseURL = preset.baseURL
+            store.settings.model = preset.model
+            store.settings.maxTokens = provider.maxTokens
+        }
+    }
+
+    private func setKey(_ text: String) {
+        if answer {
+            store.answerApiKey = text
+            Task { await store.runAnswerTest() }
+        } else {
+            store.apiKey = text
+            Task { await store.runTest() }
         }
     }
 
     /// sk-7f3a••••••••c21e
     private var masked: String {
-        let key = store.apiKey
         guard key.count > 10 else { return key.isEmpty ? "sk-…" : String(repeating: "•", count: key.count) }
         return String(key.prefix(6)) + String(repeating: "•", count: 10) + String(key.suffix(4))
     }
@@ -404,27 +489,26 @@ private struct GuideKeyStep: View {
         // 模拟器里点不到系统的粘贴授权框：-guideKey <值> 直接当作剪贴板内容。
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-guideKey"), args.indices.contains(i + 1) {
-            store.apiKey = args[i + 1]
             // sk-fake-success：不联网，直接显示成功卡片，方便截图。
-            if args[i + 1] == "sk-fake-success" {
+            if args[i + 1] == "sk-fake-success" && !answer {
+                store.apiKey = args[i + 1]
                 store.fakeTestSuccess()
             } else {
-                Task { await store.runTest() }
+                setKey(args[i + 1])
             }
             return
         }
         #endif
         guard let text = UIPasteboard.general.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
-        store.apiKey = text
-        Task { await store.runTest() }
+        setKey(text)
     }
 
     @ViewBuilder
     private var result: some View {
-        let ok = store.test.isSuccess
+        let ok = test.isSuccess
         HStack(spacing: 12) {
             Group {
-                if store.test == .running {
+                if test == .running {
                     ProgressView()
                 } else {
                     Image(systemName: ok ? "checkmark" : "exclamationmark")
@@ -443,8 +527,8 @@ private struct GuideKeyStep: View {
                 }
             }
             Spacer(minLength: 8)
-            if store.test != .running {
-                Button(L("重新测试", "Test again", "再テスト")) { Task { await store.runTest() } }
+            if test != .running {
+                Button(L("重新测试", "Test again", "再テスト")) { setKey(key) }
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(GuideColor.purple)
                     .buttonStyle(.plain)
@@ -452,11 +536,11 @@ private struct GuideKeyStep: View {
         }
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(ok || store.test == .running ? GuideColor.card : Color(hex: 0xFF3B30).opacity(0.10)))
+            .fill(ok || test == .running ? GuideColor.card : Color(hex: 0xFF3B30).opacity(0.10)))
     }
 
     private var resultTitle: String {
-        switch store.test {
+        switch test {
         case .running: return L("正在测试…", "Testing…", "テスト中…")
         case .success: return L("连接正常", "Connected", "接続できました")
         default: return L("没连上", "Couldn't connect", "接続できませんでした")
@@ -464,12 +548,12 @@ private struct GuideKeyStep: View {
     }
 
     private var resultDetail: String? {
-        switch store.test {
+        switch test {
         case .success(_, let seconds):
             let text = String(format: "%.1f", seconds)
             return L("模型回复用了 \(text) 秒", "The model replied in \(text) s", "モデルの応答 \(text) 秒")
         case .failure(let message):
-            switch store.testFailure {
+            switch answer ? nil : store.testFailure {
             case .unauthorized: return L("Key 不对，回第 3 步重新复制", "The key is wrong. Go back to step 3 and copy it again", "キーが正しくありません。手順 3 に戻ってコピーし直してください")
             case .noBalance: return L("余额不足，回第 2 步充值", "Not enough credit. Go back to step 2 to top up", "残高が足りません。手順 2 に戻ってチャージしてください")
             case .network: return L("网络不通，检查一下网络再试", "No network. Check your connection and try again", "ネットワークにつながりません。接続を確認して再試行してください")
@@ -492,12 +576,14 @@ extension AppStore.TestState {
 private struct GuideIllustration: View {
     @Environment(\.colorScheme) private var colorScheme
     let step: Int
+    let tutorial: GuideTutorial
+    private var accent: Color { tutorial.accent }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 5) {
                 Image(systemName: "lock.fill").font(.system(size: 9))
-                Text("platform.deepseek.com").font(.system(size: 12))
+                Text(tutorial.domain).font(.system(size: 12))
             }
             .foregroundStyle(GuideColor.secondary)
             .frame(maxWidth: .infinity)
@@ -525,7 +611,7 @@ private struct GuideIllustration: View {
 
     private var login: some View {
         VStack(spacing: 8) {
-            Text(L("登录 DeepSeek 开放平台", "Sign in to DeepSeek Platform", "DeepSeek Platform にログイン"))
+            Text(tutorial.signIn)
                 .font(.system(size: 13, weight: .semibold)).foregroundStyle(GuideColor.text)
             fakeField(L("手机号 / 邮箱", "Phone / email", "電話 / メール"))
             fakeField(L("验证码", "Code", "コード"))
@@ -533,7 +619,7 @@ private struct GuideIllustration: View {
                 Text(L("登录 / 注册", "Sign in / Sign up", "ログイン / 登録"))
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
                     .frame(width: 150, height: 28)
-                    .background(RoundedRectangle(cornerRadius: 7).fill(Color(hex: 0x4D6BFE)))
+                    .background(RoundedRectangle(cornerRadius: 7).fill(accent))
             }
         }
         .padding(.horizontal, 30)
@@ -542,10 +628,10 @@ private struct GuideIllustration: View {
     private var console: some View {
         HStack(alignment: .top, spacing: 0) {
             VStack(alignment: .leading, spacing: 10) {
-                sideItem(L("用量信息", "Usage", "使用量"), marked: false)
-                sideItem("API keys", marked: step == 3)
-                sideItem(L("充值", "Top up", "Top up"), marked: step == 2)
-                sideItem(L("接口文档", "Docs", "Docs"), marked: false)
+                ForEach(tutorial.sidebar.indices, id: \.self) { index in
+                    sideItem(tutorial.sidebar[index],
+                             marked: (step == 2 && index == tutorial.topUpIndex) || (step == 3 && index == tutorial.keysIndex))
+                }
             }
             .padding(12)
             .frame(width: 96, alignment: .leading)
@@ -560,34 +646,34 @@ private struct GuideIllustration: View {
 
     private var topUp: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L("充值", "Top up", "Top up")).font(.system(size: 13, weight: .semibold)).foregroundStyle(GuideColor.text)
+            Text(tutorial.sidebar[tutorial.topUpIndex]).font(.system(size: 13, weight: .semibold)).foregroundStyle(GuideColor.text)
             HStack(spacing: 6) {
                 ForEach(["¥10", "¥50", "¥100"], id: \.self) { amount in
                     Text(amount).font(.system(size: 11)).foregroundStyle(GuideColor.text)
                         .frame(maxWidth: .infinity).frame(height: 24)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(amount == "¥10" ? Color(hex: 0x4D6BFE) : GuideColor.divider))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(amount == "¥10" ? accent : GuideColor.divider))
                 }
             }
             Text(L("去支付", "Pay", "支払う")).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity).frame(height: 24)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color(hex: 0x4D6BFE)))
+                .background(RoundedRectangle(cornerRadius: 6).fill(accent))
         }
     }
 
     private var keys: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("API keys").font(.system(size: 13, weight: .semibold)).foregroundStyle(GuideColor.text)
+            Text(tutorial.sidebar[tutorial.keysIndex]).font(.system(size: 13, weight: .semibold)).foregroundStyle(GuideColor.text)
             highlighted(2) {
-                Text(L("创建 API key", "Create API key", "Create API key")).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                Text(tutorial.createLabel).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
                     .padding(.horizontal, 10).frame(height: 24)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(hex: 0x4D6BFE)))
+                    .background(RoundedRectangle(cornerRadius: 6).fill(accent))
             }
             HStack(spacing: 6) {
                 Text("sk-7f3a••••c21e").font(.system(size: 10, design: .monospaced)).foregroundStyle(GuideColor.text)
                     .padding(.horizontal, 6).frame(height: 22)
                     .background(RoundedRectangle(cornerRadius: 5).fill(GuideColor.field))
                 highlighted(3) {
-                    Text(L("复制", "Copy", "Copy")).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color(hex: 0x4D6BFE))
+                    Text(L("复制", "Copy", "Copy")).font(.system(size: 10, weight: .semibold)).foregroundStyle(accent)
                         .padding(.horizontal, 7).frame(height: 22)
                 }
             }
@@ -598,7 +684,7 @@ private struct GuideIllustration: View {
         Group {
             if marked {
                 highlighted(1) {
-                    Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(Color(hex: 0x4D6BFE))
+                    Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(accent)
                         .padding(.horizontal, 6).frame(height: 22)
                 }
             } else {
@@ -631,7 +717,7 @@ private struct GuideIllustration: View {
 // MARK: - 共用部件
 
 /// 页面：可滚动的内容 + 底部按钮。
-private struct GuidePage<Content: View, Bottom: View>: View {
+struct GuidePage<Content: View, Bottom: View>: View {
     @ViewBuilder var content: Content
     @ViewBuilder var bottom: Bottom
 
@@ -651,7 +737,7 @@ private struct GuidePage<Content: View, Bottom: View>: View {
 }
 
 /// 说明、选服务商、完成页顶部的淡紫光晕；教程页纯底色。
-private struct GuideBackground: View {
+struct GuideBackground: View {
     let glow: Bool
     @Environment(\.colorScheme) private var scheme
 
@@ -674,7 +760,7 @@ private struct GuideBackground: View {
     }
 }
 
-private struct GuideTitle: View {
+struct GuideTitle: View {
     let title: String
     let subtitle: String
 
@@ -698,7 +784,7 @@ private struct GuideTitle: View {
 }
 
 /// 品牌渐变圆角方块（或圆）+ 黄色四角星。
-private struct GuideAppMark: View {
+struct GuideAppMark: View {
     let size: CGFloat
     let corner: CGFloat
 
@@ -712,7 +798,7 @@ private struct GuideAppMark: View {
     }
 }
 
-private struct GuideCard<Content: View>: View {
+struct GuideCard<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -724,7 +810,7 @@ private struct GuideCard<Content: View>: View {
     }
 }
 
-private struct GuideDivider: View {
+struct GuideDivider: View {
     var body: some View {
         Rectangle().fill(GuideColor.divider).frame(height: 1).padding(.leading, 64)
     }
@@ -865,6 +951,7 @@ private struct GuideProviderCard: View {
         case .openai: return "O"
         case .kimi: return "K"
         case .qwen: return L("通", "Q", "Q")
+        case .glm: return "Z"
         case .ollama: return "O"
         case .custom: return "+"
         }
@@ -876,6 +963,7 @@ private struct GuideProviderCard: View {
         case .deepseek: colors = [Color(hex: 0x6A7DFF), Color(hex: 0x4D6BFE)]
         case .qwen: colors = [Color(hex: 0x8A6BFF), Color(hex: 0x5B4BE8)]
         case .kimi: colors = [Color(hex: 0x2B2B33), Color(hex: 0x0B0B12)]
+        case .glm: colors = [Color(hex: 0x4F7BFF), Color(hex: 0x2D55E0)]
         case .openai, .ollama: colors = [Color(hex: 0x3A3A3C), Color(hex: 0x111111)]
         case .custom: colors = [Color(hex: 0xC7C2DD), Color(hex: 0xA39DBE)]
         }
@@ -886,10 +974,11 @@ private struct GuideProviderCard: View {
         switch provider {
         case .deepseek:
             return SetupGuide.showsPrice ? "国内直接用 · 1 元可调用约 500 次" : L("国内直接用", "Cheap and fast", "安くて速い")
-        case .qwen: return L("阿里云百炼账号", "Alibaba Cloud Model Studio account", "Alibaba Cloud Model Studio のアカウント")
-        case .kimi: return L("月之暗面开放平台账号", "Moonshot AI platform account", "Moonshot AI のアカウント")
+        case .qwen: return L("阿里云百炼 · 新人有免费额度", "Alibaba Cloud Model Studio · free quota for new users", "Alibaba Cloud Model Studio・新規は無料枠あり")
+        case .kimi: return L("月之暗面 · 问答可以联网", "Moonshot AI · can search the web for answers", "Moonshot AI・回答でウェブ検索できる")
+        case .glm: return L("智谱开放平台 · 问答可以联网", "Zhipu / Z.ai · can search the web for answers", "Zhipu / Z.ai・回答でウェブ検索できる")
         case .openai: return L("OpenAI 账号", "OpenAI account", "OpenAI のアカウント")
-        case .ollama: return L("在自己电脑上跑模型", "Run a model on your own computer", "自分のパソコンでモデルを動かす")
+        case .ollama: return L("在自己电脑上跑 · 自己填地址，没有教程", "Runs on your own computer · enter the address yourself, no guide", "自分のパソコンで動かす・アドレスは自分で入力、ガイドなし")
         case .custom: return L("填 API 地址、模型名和 Key", "Enter the API URL, model and key", "API の URL、モデル名、キーを入力")
         }
     }
@@ -926,7 +1015,7 @@ struct GuidePrimaryButton: View {
     }
 }
 
-private struct GuideSecondaryButton: View {
+struct GuideSecondaryButton: View {
     let title: String
     let action: () -> Void
 

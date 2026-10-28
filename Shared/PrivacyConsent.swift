@@ -4,7 +4,7 @@ import Foundation
 /// 和 ConsentStore（按接口地址的发送确认）是两层：这里先同意隐私政策，发送前再确认地址。
 enum PrivacyConsent {
     /// 隐私政策有实质更新时加 1，所有人重新看一次说明页。
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     private static let agreedVersionKey = "privacy.agreedVersion"
     private static let agreedDateKey = "privacy.agreedAt"
@@ -23,6 +23,12 @@ enum PrivacyConsent {
     /// 打开 App 时要不要整页显示隐私说明。
     static var needsPrompt: Bool {
         SharedStorage.defaults.integer(forKey: seenVersionKey) < currentVersion
+    }
+
+    /// 以前看过（同意或选了基础功能）旧版说明，这次是因为政策更新才再弹：说明页顶上显示更新了什么。首次安装为 false。
+    static var isUpdate: Bool {
+        let seen = SharedStorage.defaults.integer(forKey: seenVersionKey)
+        return seen > 0 && seen < currentVersion
     }
 
     static func agree() {

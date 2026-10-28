@@ -6,19 +6,24 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var settings = EnclaveSettings()
     @Published private(set) var session: EditSession? { didSet { aiLabelMayChange() } }
     @Published private(set) var streamingText = ""
-    @Published private(set) var isRunning = false { didSet { aiLabelMayChange() } }
+    @Published private(set) var isRunning = false { didSet { aiLabelMayChange(); markScreen() } }
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
     /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
     @Published private(set) var copied = false
     /// 输入框太长、键盘只读到光标附近一段：替换只换了这一段，卡片上提示 4 秒。
-    @Published private(set) var partialReplace = false
+    /// 替换后卡片底部的一行提示：只替换了读到的一段 / 输入框改过了没替换。4 秒后消失。
+    @Published private(set) var replaceNote: ReplaceNote?
+    enum ReplaceNote { case partial, mismatch }
+    /// 发给 AI 的那段输入框文字在哪（不是选中时）。替换照它删，不在按替换时重算。
+    private var readSpan: FieldSpan?
     /// 键盘里拉起 App 失败：顶上提示 4 秒，请人自己打开 App。
     @Published private(set) var openAppFailed = false
     /// 结果卡片展开到五行。
     @Published var cardExpanded = false { didSet { heightMayChange?() } }
     /// AI 栏上方展开的一行：「润色 ▴」的提示词标签，或「识意 ▾」的输入框（QA2、QA14）。两者互斥。
-    enum AIRow { case prompts, ask }
+    /// AI 栏两颗风格键点开的一排：改写风格、问答风格（MG5）。展开时换掉识意框，收起时浮在 AI 栏上面。
+    enum AIRow { case prompts, answerStyles }
     @Published var aiRow: AIRow? { didSet { if aiRow != oldValue { heightMayChange?() } } }
     /// 「识意」框重新展开时整段全选：直接打字就覆盖，删除键清空。
     @Published var askSelected = false
@@ -30,6 +35,19 @@ final class KeyboardModel: ObservableObject {
     /// 这次生成是「识意」发起的；askKind 是模型给出的判断，还没判断时为 nil。
     @Published var askRunning = false
     @Published var askKind: AskMode?
+    /// 识意问答正在联网搜索（Kimi）。卡片上的流光小字写「正在联网搜索…」。
+    @Published var askSearching = false
+    /// 模型说要联网、还没允许时，回答框换成这张选择框（见 searchAllowed）。
+    @Published var searchPrompt: SearchPrompt?
+    private var searchReply: CheckedContinuation<Bool, Never>?
+
+    struct SearchPrompt: Equatable {
+        var provider: SearchProvider
+        /// 三档选了禁止：提示去 App 里开启，或者不联网直接回答。
+        var disabled: Bool
+        /// 点「使用联网查询」时这一家第一次联网：只是同意卡，同意后记下来。
+        var forced = false
+    }
     /// 上一次「识意」的结果：同一句换了方式重做时顶掉它（没替换、插入、复制过的话）。
     struct LastAsk {
         var question: String
@@ -59,7 +77,28 @@ final class KeyboardModel: ObservableObject {
     }
     /// 同意后接着做的那一步（润色或再润）。
     private var afterConsent: (() -> Void)?
-    @Published var errorMessage: String? { didSet { aiLabelMayChange() } }
+    @Published var errorMessage: String? {
+        didSet {
+            aiLabelMayChange()
+            // 出错卡没了（新的一次请求、关掉抽屉等），失败的附带信息也一起清掉。
+            if errorMessage == nil, oldValue != nil, failure != nil || partialResult != nil { clearFailure() }
+        }
+    }
+    /// 最近一次 AI 请求失败的分类（ER0–ER5）：出错卡按它写标题、说明，决定有没有「去设置」。
+    @Published var failure: LLMFailure?
+    /// 出错卡「· 详情」里的原文：第一行「{服务商} · HTTP {码}」，下面是服务端返回。
+    @Published var failureDetail: String?
+    /// 出错的那个接口的服务商名字（说明里的 {服务商}），以及它是不是问答页的接口（「去设置」打开哪一页）。
+    @Published var failureProvider = ""
+    var failureOnAnswerAPI = false
+    /// 点了「· 详情」：卡片展开到 4 行高。
+    @Published var failureDetailShown = false
+    /// 出了一半断了（ER3）：保留已出的字，下面一行橙字「没写完，连接断了」+ 重试。answer 是当时识意判断的方式。
+    @Published var partialResult: (text: String, answer: Bool?)?
+    /// 重试用：上一次发出去的请求，原样再发一次（结果作为新的一版进翻页）。
+    private var lastRun: (messages: [ChatMessage], pending: EditSession, ask: AskRequest?, origin: RunOrigin)?
+    /// 8 秒还没出字：卡片第一行后面加「模型响应较慢」和「取消」（界面等稿）。出字或结束时清掉。
+    @Published var responseSlow = false
     @Published var notice: String?
     @Published var hasFullAccess = true
     @Published var needsGlobeKey = true
@@ -84,9 +123,27 @@ final class KeyboardModel: ObservableObject {
     var predictionReplaces = 0
     /// 上次弹出时用的「主要语言」，用来判断设置是不是刚改过。
     var appliedLanguage: InputLanguage?
+    /// 抽屉：回答卡和识意框一整块（MG2），一次开收。展开时打字进识意框。
     @Published var aiExpanded = false {
         didSet {
+            if aiExpanded != oldValue { markScreen() }
             if aiExpanded { unseenResult = false }
+            if aiExpanded != oldValue {
+                hostFocused = false
+                if aiExpanded { recordHostCaret() } else { hostCaret = nil }
+                if aiRow != nil { aiRow = nil }
+                // 换打字的地方之前，正在拼的先上屏到原来的地方。
+                if target != .card, isComposing { finishComposition() }
+                if aiExpanded, target == .host {
+                    moveInstructionCaret(by: instruction.count)
+                    // 识意框里本来有字：展开时全选，直接打字就覆盖。
+                    if askSelected == instruction.isEmpty { askSelected = !instruction.isEmpty }
+                    target = .instruction
+                } else if !aiExpanded, target == .instruction {
+                    if askSelected { askSelected = false }
+                    target = .host
+                }
+            }
             heightMayChange?()
         }
     }
@@ -111,8 +168,24 @@ final class KeyboardModel: ObservableObject {
     @Published var trackpadActive = false
     /// 候选词展开成整页。
     @Published var candidatesExpanded = false
+    /// 长按候选弹出的小气泡（CL1–CL3）；按的那个词在候选栏里浅色底。
+    @Published var candidateMenu: CandidateMenu?
+    /// 删了候选后候选栏换成「✓ 已删除「xx」 撤销」（CL4），3 秒后或继续打字时真的删。
+    @Published var candidateUndo: CandidateUndo?
+    var candidateUndoTimer: DispatchWorkItem?
     /// 盖在按键区上的面板：表情、颜文字、常用词。
-    @Published var keysPanel: KeysPanel?
+    @Published var keysPanel: KeysPanel? {
+        didSet {
+            if (keysPanel == .words) != (oldValue == .words) { heightMayChange?() }
+            if keysPanel != oldValue { markScreen() }
+        }
+    }
+    /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
+    @Published var wordPanelText = ""
+    @Published var wordPanelFading = false
+    /// 刚进自由编辑时的小胶囊。
+    @Published var freeEditToast = false
+    var freeEditToastTimer: DispatchWorkItem?
     /// 长按按键弹出的备选条。
     @Published var alternates: AlternatesPopup?
     /// 九宫格长按的十字弹层。
@@ -160,6 +233,18 @@ final class KeyboardModel: ObservableObject {
     }
 
     var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
+    /// 要改对方输入框（插字、删字、挪光标）时用它：记下时间，之后不久的光标变化是我们自己带出来的。
+    /// 只读不算：用户点输入框时系统也会通知文字变了，我们跟着读一下，不能因此把那次点击当成自己改的。
+    var editProxy: UITextDocumentProxy? {
+        lastProxyUse = Date()
+        return controller?.textDocumentProxy
+    }
+    /// 键盘自己最后一次改对方输入框的时间：之后不久的光标变化是我们插字、替换带出来的，不算用户点了输入框。
+    var lastProxyUse = Date.distantPast
+    /// 抽屉开着时用户点了对方的输入框：打字回到对方输入框，点识意框再回来。
+    var hostFocused = false
+    /// 上次看到的对方输入框光标前后字数（nil 没记过）。
+    var hostCaret: (before: Int, after: Int)?
 
     enum ResultUse { case replaced, inserted }
 
@@ -194,7 +279,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 截图用：结果卡上的部分替换提示、顶上的打不开 App 提示，一直显示。
     func debugShowNotes(partial: Bool) {
-        if partial { partialReplace = true } else { openAppFailed = true }
+        if partial { replaceNote = .partial } else { openAppFailed = true }
     }
 
     /// 截图用：不经过 App 改结果卡左边那颗键的设置。
@@ -207,7 +292,21 @@ final class KeyboardModel: ObservableObject {
 
     /// 卡片用五行高度：用户点了展开，或者要显示检查清单。
     /// 在卡片里改结果时也用五行高度，改长了也看得全。
-    var cardTall: Bool { cardExpanded || aiBlocked || target == .card }
+    /// 自由编辑框按进入前是 2 行还是 4 行算高度（108 或 148）。
+    var freeEditTall: Bool { !landscape && cardExpanded }
+
+    /// 分词面板开着时结果卡固定 2 行，关掉后回到原来的 2 行或 4 行（cardExpanded 不动）。
+    var cardTall: Bool { !landscape && keysPanel != .words && (cardExpanded || aiBlocked || target == .card || failureDetailShown) }
+
+    /// 横屏简版（LS1–LS3）：控制器按屏幕方向设，尺寸见 KeyboardMetrics.landscape。
+    @Published private(set) var landscape = false
+
+    func setLandscape(_ value: Bool) {
+        guard value != landscape else { return }
+        KeyboardMetrics.landscape = value
+        landscape = value
+        heightMayChange?()
+    }
 
     /// 结果卡片左上角的「AI 生成」标签（CP8）：有结果或正在生成时显示，卡片跟着高 22。和 ResultCard 的 look 对应。
     var showsAILabel: Bool {
@@ -226,8 +325,9 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: cardTall, rowOpen: aiRow != nil, gate: gate,
-                               reminder: showsTrialReminder, aiLabel: showsAILabel)
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: aiRow != nil, gate: gate,
+                               reminder: showsTrialReminder, aiLabel: showsAILabel,
+                               freeEdit: target == .card, wordPanel: keysPanel == .words)
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
@@ -246,6 +346,7 @@ final class KeyboardModel: ObservableObject {
 
     func reload() {
         settings = SettingsStore.load()
+        refreshSearchPrompt()
         session = SessionStore.load()
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""
         instructionCaret = instruction.count
@@ -309,6 +410,11 @@ final class KeyboardModel: ObservableObject {
     /// 上次交给引擎的短语表（按内容比）。
     private var lastPhraseSignature: [String]?
 
+    /// 候选长按改了常用词：马上交给引擎，不等下次弹出键盘。
+    func reloadCommonWords() {
+        applyCommonWords(CommonWordStore.active(lexicon: CommonWordStore.lexicon))
+    }
+
     private func applyCommonWords(_ words: [CommonWord]) {
         let texts = Set(words.map(\.text))
         if texts != commonWordTexts { commonWordTexts = texts }
@@ -330,7 +436,7 @@ final class KeyboardModel: ObservableObject {
 
         guard checkCanCallModel() else { return }
 
-        var parsed = CommandParser.parse(readField().text)
+        var parsed = CommandParser.parse(readField(remember: true).text)
         // 卡片上显示的是手改过的一版：拿它当原文；否则读输入框此刻的内容。
         if let session, session.currentIsEdited, let edited = session.current {
             parsed.content = edited
@@ -399,13 +505,54 @@ final class KeyboardModel: ObservableObject {
         return false
     }
 
-    /// 确认卡上的「同意并润色」：记下这个地址，接着做刚才那一步。
+    /// 识意可能问答时：问答单独用另一个接口的，那个地址也要先同意。都同意过返回 true。
+    /// 联网不在这里问：模型说要联网时才在回答框里问（searchPrompt）。
+    func passAnswerConsent(then action: @escaping () -> Void) -> Bool {
+        guard let endpoint = ConsentStore.endpoint(of: settings.forAnswers.baseURL),
+              settings.usesAnswerEndpoint, !ConsentStore.isConsented(endpoint) else { return true }
+        gate = .consent(endpoint: endpoint, previous: nil)
+        afterConsent = action
+        return false
+    }
+
+    /// 确认卡上的「同意并润色」：记下这个地址，接着做刚才那一步。卡上写了联网那一行时，联网问答也算同意了。
     func acceptConsent() {
         guard case .consent(let endpoint, _) = gate else { return }
         ConsentStore.grant(endpoint)
         let action = afterConsent
         dismissGate()
         action?()
+    }
+
+    /// 模型说要联网：开着、这一家同意过就直接联；否则回答框换成选择框，等用户点。
+    /// 开着但第一次用这一家时点允许，记下同意，以后不再问；每次询问只算这一次。
+    /// forced：点了「使用联网查询」，按钮本身就算这一次允许；这一家第一次联网时仍要先过同意卡。
+    func searchAllowed(_ provider: SearchProvider, forced: Bool = false) async -> Bool {
+        let mode = settings.webSearchMode ?? .off
+        if mode == .on && WebSearch.isConsented(provider) { return true }
+        if forced && mode != .off && WebSearch.isConsented(provider) { return true }
+        resolveSearchPrompt(allow: false)
+        return await withCheckedContinuation { reply in
+            searchReply = reply
+            searchPrompt = SearchPrompt(provider: provider, disabled: mode == .off, forced: forced)
+        }
+    }
+
+    /// 选择框上的「允许 / 拒绝」（禁止时的「直接回答」算拒绝）；点停止也走这里。
+    func resolveSearchPrompt(allow: Bool) {
+        let prompt = searchPrompt
+        let reply = searchReply
+        searchPrompt = nil
+        searchReply = nil
+        let allowed = allow && prompt?.disabled == false
+        if allowed, let prompt, settings.webSearchMode == .on || prompt.forced { WebSearch.grantConsent(prompt.provider) }
+        reply?.resume(returning: allowed)
+    }
+
+    /// 回到键盘时重新读了设置：在 App 里把禁止改成了开或每次询问，选择框跟着变成「允许 / 拒绝」。
+    private func refreshSearchPrompt() {
+        guard let prompt = searchPrompt, prompt.disabled, (settings.webSearchMode ?? .off) != .off else { return }
+        searchPrompt = SearchPrompt(provider: prompt.provider, disabled: false)
     }
 
     /// 风格按钮在没开完全访问时也只出提示卡。
@@ -453,7 +600,22 @@ final class KeyboardModel: ObservableObject {
 
     // MARK: - 在卡片里改结果
 
-    /// 进入修改：点文字时光标放在点的位置，点铅笔放到末尾。只在面板展开、有结果时能改。
+    /// 连点 3 下结果卡正文进自由编辑（FE1、FE2）：光标放在第三下点的位置，上方浮出「已开启自由编辑」1.5 秒。
+    func beginFreeEdit(caret: Int) {
+        guard target != .card else { return }
+        beginCardEdit(caret: caret)
+        guard target == .card else { return }
+        keyFeedback(for: .space)
+        withAnimation(.easeOut(duration: 0.15)) { freeEditToast = true }
+        freeEditToastTimer?.cancel()
+        let timer = DispatchWorkItem { [weak self] in
+            withAnimation(.easeIn(duration: 0.25)) { self?.freeEditToast = false }
+        }
+        freeEditToastTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: timer)
+    }
+
+    /// 进入修改：光标放在给的位置，没给就放到末尾。只在面板展开、有结果时能改。
     func beginCardEdit(caret: Int? = nil) {
         guard aiExpanded, hasResult, let text = session?.current else { return }
         if target != .card {
@@ -536,44 +698,157 @@ final class KeyboardModel: ObservableObject {
         var question: String
         var forced: AskMode?
         var fallbackAnswer: Bool
+        /// 输入框原文（联网后再问一次要用）。
+        var context: String = ""
+        /// 问答接口能联网时是哪一家（不是指定改写）。联不联网看三档，模型说要联网时再定。
+        var search: SearchProvider?
+        /// 「使用联网查询」：第一轮直接联网，结果替换正在显示的回答；搜索失败时保留原来的回答。
+        var forceSearch = false
     }
 
     func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil) {
-        let client = LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
+        // 手动选了问答就直接找问答模型；自动时先用润色的快模型判断，判断是问答再换问答模型重问（answerClient）。
+        let answerClient = settings.usesAnswerEndpoint
+            ? LLMClient(settings: settings.forAnswers, apiKey: SettingsStore.answerKey(for: settings)) : nil
+        var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: settings, apiKey: SettingsStore.apiKey))
+            : LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
+        var mayHandOff = answerClient != nil && ask != nil && ask?.forced != .answer
+        // 内测版用自带的 Key：润色每天 100 次、问答 50 次，到了就不调。
+        let firstKind: BuiltinAPI.Kind = ask?.forced == .answer ? .answer : .polish
+        let firstKey = firstKind == .answer && settings.usesAnswerEndpoint ? SettingsStore.answerApiKey : SettingsStore.apiKey
+        guard BuiltinAPI.take(firstKind, key: firstKey) else {
+            errorMessage = BuiltinAPI.limitMessage(firstKind)
+            if quickStatus == .running { endQuickMode(.failed) }
+            return
+        }
+        let handOffKey = SettingsStore.answerKey(for: settings)
         isRunning = true
+        clearFailure()
+        lastRun = (messages, pending, ask, runOrigin ?? .polish)
         streamingText = ""
         askRunning = ask != nil
         if askKind != nil { askKind = nil }
         let started = Date()
         let styleID = settings.selectedStyle?.id
+        let answerStyle = settings.selectedAnswerStyle
+        let tendency = settings.tendency
         // 仪表盘的统计：耗时按毫秒记。
+        // 最后是问答接口回答的（单独设了问答接口）：不进接口页的小曲线，那里只看主接口。
+        let separateAnswer = settings.usesAnswerEndpoint
+        var answeredByAnswerAPI = ask?.forced == .answer && separateAnswer
         func record(ok: Bool) {
-            UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID)
+            UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID,
+                                    mainAPI: !answeredByAnswerAPI)
         }
         task = Task { [weak self] in
             var raw = ""
             var shownAt = Date.distantPast
+            var messages = messages
+            // 模型第一行写「联网」时停下这一轮，按三档决定联不联网，再问一次（只联网一次）。
+            var maySearch = ask?.search != nil
+            // 点了「使用联网查询」：第一轮不问模型，直接去搜。
+            var forceNow = ask?.forceSearch == true && ask?.search != nil
+            var searchedBy: String?
             do {
-                for try await piece in client.stream(messages) {
-                    raw += piece
-                    guard let self else { continue }
-                    // 每设一次 streamingText 整个键盘就重画一遍，模型一秒能吐几十段：
-                    // 面板收着（快速模式，看不到正文）就不设，展开时最多每 50 毫秒设一次。识意还没判断出方式时照常往下看。
-                    let now = Date()
-                    let show = self.aiExpanded && now.timeIntervalSince(shownAt) >= 0.05
-                    guard show || (ask != nil && self.askKind == nil) else { continue }
-                    let text = ModelOutput.clean(raw)
-                    if let ask {
-                        // 等第一行写出「改写 / 问答」再显示正文。
-                        guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
-                        self.askDecided(split.answer ? .answer : .rewrite)
-                        guard show || self.aiExpanded else { continue }
-                        shownAt = now
-                        self.streamingText = split.body
-                    } else {
-                        shownAt = now
-                        self.streamingText = text
+                while true {
+                    raw = ""
+                    var wantsSearch = false
+                    var handOff = false
+                    // 每一轮请求都重新等：8 秒还没出字就标「响应较慢」。
+                    let slowWatch = Task {
+                        try await Task.sleep(nanoseconds: 8_000_000_000)
+                        self?.responseSlow = true
                     }
+                    defer { slowWatch.cancel() }
+                    if forceNow {
+                        forceNow = false
+                        wantsSearch = true
+                        slowWatch.cancel()
+                    } else {
+                    for try await piece in client.stream(messages) {
+                        raw += piece
+                        slowWatch.cancel()
+                        guard let self else { continue }
+                        if self.responseSlow { self.responseSlow = false }
+                        if self.askSearching, !ModelOutput.clean(raw).isEmpty { self.askSearching = false }
+                        if maySearch {
+                            let probe = Prompts.searchProbe(ModelOutput.clean(raw), final: false)
+                            if probe == .pending { continue }
+                            if probe == .search { wantsSearch = true; break }
+                        }
+                        // 每设一次 streamingText 整个键盘就重画一遍，模型一秒能吐几十段：
+                        // 面板收着（快速模式，看不到正文）就不设，展开时最多每 50 毫秒设一次。识意还没判断出方式时照常往下看。
+                        let now = Date()
+                        let show = self.aiExpanded && now.timeIntervalSince(shownAt) >= 0.05
+                        guard show || (ask != nil && self.askKind == nil) else { continue }
+                        let text = ModelOutput.clean(raw)
+                        if let ask {
+                            // 等第一行写出「改写 / 问答」再显示正文。
+                            guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
+                            self.askDecided(split.answer ? .answer : .rewrite)
+                            // 快模型判断是问答：停下，交给问答模型重新回答。
+                            if split.answer && mayHandOff { handOff = true; break }
+                            guard show || self.aiExpanded else { continue }
+                            shownAt = now
+                            self.streamingText = split.body
+                        } else {
+                            shownAt = now
+                            self.streamingText = text
+                        }
+                    }
+                    }
+                    if maySearch, !wantsSearch, Prompts.searchProbe(ModelOutput.clean(raw), final: true) == .search {
+                        wantsSearch = true
+                    }
+                    // 换问答模型重问也算一次问答；内置 Key 的问答次数用完就留着润色模型这一版。
+                    if handOff, let ask, let answerClient, BuiltinAPI.take(.answer, key: handOffKey) {
+                        mayHandOff = false
+                        client = answerClient
+                        answeredByAnswerAPI = separateAnswer
+                        messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, search: maySearch,
+                                               answerStyle: answerStyle, tendency: tendency)
+                        continue
+                    }
+                    guard wantsSearch, let ask, let provider = ask.search, let self else { break }
+                    maySearch = false
+                    // 联网之后的回答也交给问答模型。
+                    if let answerClient { client = answerClient; mayHandOff = false; answeredByAnswerAPI = separateAnswer }
+                    // 联网的一定是问答：展开抽屉。三档：开且这一家同意过就直接联网，否则回答框里先问（禁止时提示去开启）。
+                    self.askDecided(.answer)
+                    guard await self.searchAllowed(provider, forced: ask.forceSearch) else {
+                        try Task.checkCancellation()
+                        // 点按钮联网又没同意：原来的回答不动。
+                        if ask.forceSearch { throw CancellationError() }
+                        messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, offline: true,
+                                               answerStyle: answerStyle)
+                        continue
+                    }
+                    searchedBy = provider.name
+                    try Task.checkCancellation()
+                    if provider.builtin {
+                        // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。搜索在服务商那边，出字前流光小字写「正在用 … 联网搜索…」。
+                        self.askSearching = true
+                        client = LLMClient(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings), webSearch: true)
+                        messages = Prompts.ask(ask.question, context: "", forceAnswer: true, builtinSearch: true,
+                                               answerStyle: answerStyle)
+                        continue
+                    }
+                    // Kimi：流光小字写「正在联网搜索…」，键盘拿问题原文去搜。
+                    self.askSearching = true
+                    let search = WebSearch(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings))
+                    let results: String
+                    do {
+                        results = WebSearch.digest(try await search.search(ask.question))
+                    } catch {
+                        if Task.isCancelled { throw error }
+                        results = ""
+                    }
+                    self.askSearching = false
+                    if results.isEmpty && ask.forceSearch { throw ForcedSearchFailed() }
+                    if results.isEmpty { searchedBy = nil }
+                    messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true,
+                                           results: results.isEmpty ? L("（联网搜索失败或没有搜到，按已有知识回答，并说明可能不是最新信息。）", "(The web search failed or found nothing. Answer from what you know and say it may be out of date.)", "（検索に失敗したか結果がありません。手持ちの知識で答え、最新でない可能性を伝えてください。）") : results,
+                                           answerStyle: answerStyle)
                 }
                 guard let self else { return }
                 let cleaned = ModelOutput.clean(raw)
@@ -586,12 +861,17 @@ final class KeyboardModel: ObservableObject {
                     record(ok: false)
                 } else {
                     record(ok: true)
+                    // 问答页每条问答风格的本周次数。
+                    if split?.answer == true, let id = answerStyle?.id { DailyStats.add("answer.style.\(id.uuidString)"); DailyStats.flush() }
                     // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
                     AIAccess.recordUse()
                     self.refreshAIAccess()
                     var updated = pending
-                    if let ask, let kind = self.askKind {
-                        self.appendAsk(result, kind: kind, question: ask.question, to: &updated)
+                    if let ask, ask.forceSearch, let searchedBy {
+                        updated.replaceCurrentAnswer(result, searchedBy: searchedBy)
+                    } else if let ask, let kind = self.askKind {
+                        self.appendAsk(result, kind: kind, question: ask.question, context: ask.context, to: &updated)
+                        if let searchedBy, kind == .answer { updated.markSearched(by: searchedBy) }
                     } else {
                         updated.append(result)
                     }
@@ -610,18 +890,63 @@ final class KeyboardModel: ObservableObject {
                         self.endQuickMode(unchanged ? .replaced : .changed)
                     }
                 }
-            } catch {
-                if !Task.isCancelled {
+            } catch is CancellationError {
+                // 点「使用联网查询」后又拒绝了联网：什么都不改，原来的回答留着。
+            } catch is ForcedSearchFailed {
+                if !Task.isCancelled, let self {
                     record(ok: false)
-                    self?.errorMessage = error.localizedDescription
-                    self?.endQuickMode(.failed)
+                    self.errorMessage = L("联网搜索失败", "Web search failed", "ウェブ検索に失敗しました")
+                }
+            } catch {
+                if !Task.isCancelled, let self {
+                    record(ok: false)
+                    let kind = LLMFailure.of(error)
+                    let provider = client.settings.providerName
+                    self.failure = kind
+                    self.failureProvider = provider
+                    self.failureOnAnswerAPI = answeredByAnswerAPI
+                    self.failureDetail = LLMFailure.detail(error, provider: provider)
+                    // 已经出了字：保留已出的部分，不当整张出错卡（ER3）。
+                    let shown = ModelOutput.clean(raw)
+                    let split = ask.flatMap { Prompts.splitAsk(shown, final: true, fallback: $0.fallbackAnswer) }
+                    let partial = split?.body ?? shown
+                    if !partial.isEmpty, !partial.hasPrefix("联网") {
+                        self.partialResult = (partial, split.map(\.answer))
+                    }
+                    self.errorMessage = kind.title(provider: provider)
+                    self.endQuickMode(.failed)
                 }
             }
             self?.isRunning = false
+            self?.responseSlow = false
             self?.runOrigin = nil
             self?.askRunning = false
+            if self?.askSearching == true { self?.askSearching = false }
             if self?.askKind != nil { self?.askKind = nil }
         }
+    }
+
+    /// 「使用联网查询」搜不到东西：原来的回答保留，卡片提示「联网搜索失败」。
+    struct ForcedSearchFailed: Error {}
+
+    func clearFailure() {
+        failure = nil
+        failureDetail = nil
+        failureDetailShown = false
+        partialResult = nil
+    }
+
+    /// 出错卡、没写完那一行的「重试」：把上一次的请求原样再发一次，结果作为新的一版进翻页。
+    func retryLastRun() {
+        guard let last = lastRun, !isRunning else { return }
+        errorMessage = nil
+        clearFailure()
+        start(from: last.origin) { run(last.messages, pending: last.pending, ask: last.ask) }
+    }
+
+    /// 出错卡的「去设置」：打开 App 接口页（问答接口出的错打开问答页）。
+    func openAPISettings() {
+        openContainingApp(failureOnAnswerAPI ? "enclave://api-answer" : "enclave://api")
     }
 
     /// 点了「润色」或「再润」：记下是哪个按钮，没开始生成（提示、出错）就清掉。
@@ -634,6 +959,7 @@ final class KeyboardModel: ObservableObject {
     func stop() {
         task?.cancel()
         task = nil
+        resolveSearchPrompt(allow: false)
         isRunning = false
         runOrigin = nil
         askRunning = false
@@ -806,8 +1132,15 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
+    /// 换风格只换下一次用的那条，不重新调用接口；展开时选完换回识意框（MG5）。
     func selectStyle(_ style: StylePreset) {
         updateSettings { $0.selectedStyleID = style.id }
+        if aiExpanded, aiRow != nil { aiRow = nil }
+    }
+
+    func selectAnswerStyle(_ style: StylePreset) {
+        updateSettings { $0.selectedAnswerStyleID = style.id }
+        if aiExpanded, aiRow != nil { aiRow = nil }
     }
 
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {
@@ -826,6 +1159,8 @@ final class KeyboardModel: ObservableObject {
     }
 
     func insertInInstruction(_ text: String) {
+        // 风格一排开着时一打字就换回识意框。
+        if aiRow != nil { aiRow = nil }
         // 全选着：打的字直接盖掉原来的。
         if askSelected {
             setInstruction(text)
@@ -864,12 +1199,15 @@ final class KeyboardModel: ObservableObject {
 
     /// AI 读输入框：有选中读选中的；没选中时读光标前后系统给的那段，
     /// 超过 100 字（打开「处理长文本」时 200 字）只读光标前按整句截出来的一段（见 FieldSpan）。
-    func readField() -> (text: String, isSelection: Bool) {
+    /// remember：这次读到的就是要发给 AI 的那段，记下来，替换时照它删（见 readSpan）。
+    func readField(remember: Bool = false) -> (text: String, isSelection: Bool) {
         guard let proxy else { return ("", false) }
         if let selected = proxy.selectedText, !selected.isEmpty {
+            if remember { readSpan = nil }
             return (selected, true)
         }
         let span = fieldSpan(proxy)
+        if remember { readSpan = span }
         return (span.text, false)
     }
 
@@ -882,30 +1220,37 @@ final class KeyboardModel: ObservableObject {
     /// 用当前版本替换输入框内容（有选中时只替换选中部分）。
     func replace() {
         endCoach()
-        guard let text = session?.current, let proxy else { return }
+        guard let text = session?.current, let proxy = editProxy else { return }
         let field = readField()
         if field.isSelection {
             proxy.insertText(text)
-        } else {
-            let partial = clearField(proxy)
-            proxy.insertText(text)
-            if partial { showPartialReplace() }
+            readSpan = FieldSpan(written: text)
+            recordEdit(inserted: text, original: field.text, use: .replaced)
+            return
         }
-        recordEdit(inserted: text, original: field.text, use: .replaced)
+        guard let cleared = clearField(proxy) else {
+            showReplaceNote(.mismatch)
+            return
+        }
+        proxy.insertText(text)
+        readSpan = FieldSpan(written: text)
+        if cleared.partial { showReplaceNote(.partial) }
+        recordEdit(inserted: text, original: cleared.removed, use: .replaced)
     }
 
     /// 在光标处插入当前版本。
     func insert() {
         endCoach()
-        guard let text = session?.current, let proxy else { return }
+        guard let text = session?.current, let proxy = editProxy else { return }
         proxy.insertText(text)
         recordEdit(inserted: text, original: "", use: .inserted)
     }
 
     func undo() {
         endCoach()
-        guard let edit = undoStack.popLast(), let proxy else { return }
+        guard let edit = undoStack.popLast(), let proxy = editProxy else { return }
         swap(edit.inserted, for: edit.original, in: proxy)
+        if edit.use == .replaced { readSpan = FieldSpan(written: edit.original) }
         redoStack.append(edit)
         resultUse = nil
         resultUses.remove(edit.use)
@@ -914,8 +1259,9 @@ final class KeyboardModel: ObservableObject {
 
     func redo() {
         endCoach()
-        guard let edit = redoStack.popLast(), let proxy else { return }
+        guard let edit = redoStack.popLast(), let proxy = editProxy else { return }
         swap(edit.original, for: edit.inserted, in: proxy)
+        if edit.use == .replaced { readSpan = FieldSpan(written: edit.inserted) }
         undoStack.append(edit)
         resultUse = edit.use
         resultUses.insert(edit.use)
@@ -928,7 +1274,53 @@ final class KeyboardModel: ObservableObject {
         if !new.isEmpty { proxy.insertText(new) }
     }
 
-    /// 卡片上的复制图标或长按卡片：复制当前版本。
+    /// 长按结果卡：打开分词面板，拆当前版本。
+    func openWordPanel() {
+        guard hasResult, let text = session?.current, !text.isEmpty else { return }
+        endCoach()
+        wordPanelText = text
+        keyFeedback(for: .space)
+        openPanel(.words)
+    }
+
+    /// 分词面板的「插入」：直接把字放进输入框，面板淡出。不动结果卡左边的键（不出用过的小绿勾动画）。
+    func insertWords(_ text: String) {
+        guard !text.isEmpty, let proxy = editProxy else { return }
+        markAskUsed()
+        proxy.insertText(text)
+        keyFeedback(for: .space)
+        closeWordPanel()
+    }
+
+    /// 分词面板的「复制」：复制选中的词，右边复制图标照旧提示一下，面板淡出。
+    func copyWords(_ text: String) {
+        guard !text.isEmpty else { return }
+        markAskUsed()
+        UIPasteboard.general.string = text
+        keyFeedback(for: .space)
+        withAnimation(.easeOut(duration: 0.15)) { copied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            withAnimation(.easeIn(duration: 0.2)) { self?.copied = false }
+        }
+        closeWordPanel()
+    }
+
+    /// 分词面板 0.15 秒淡出，淡完再收起、键盘高度和结果卡回到打开前。
+    func closeWordPanel() {
+        guard keysPanel == .words, !wordPanelFading else { return }
+        withAnimation(.easeOut(duration: 0.15)) { wordPanelFading = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            guard let self else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                if self.keysPanel == .words { self.closePanel() }
+                self.wordPanelFading = false
+            }
+        }
+    }
+
+    /// 卡片上的复制图标：复制当前版本。
     func copy() {
         guard hasResult, let text = session?.current else { return }
         markAskUsed()
@@ -965,26 +1357,32 @@ final class KeyboardModel: ObservableObject {
     #endif
 
     /// iOS 没有「全选删除」接口：把光标移到末尾，再逐字删除。
-    /// 删掉这次读到的那段（FieldSpan）。返回删完后两边是否还有字：系统对长文本只给光标附近的一段，
+    /// 删掉发给 AI 的那段（readSpan），先核对光标前后还是它；对不上返回 nil。返回删完后两边是否还有字：系统对长文本只给光标附近的一段，
     /// 默认又只读光标前 100 字左右；没读到的部分不能跟着删，不然润色只看了一段、却把整段换掉，前后的字就丢了。
-    @discardableResult
-    private func clearField(_ proxy: UITextDocumentProxy) -> Bool {
-        let span = fieldSpan(proxy)
+    private func clearField(_ proxy: UITextDocumentProxy) -> (removed: String, partial: Bool)? {
+        let before = proxy.documentContextBeforeInput ?? ""
+        let after = proxy.documentContextAfterInput ?? ""
+        // 照发给 AI 时读到的那段删，不在这时重算：系统每次给的光标前文字长短不一，重算出来的起点会在句子间跳。
+        let span = readSpan.flatMap { $0.matches(before: before, after: after) ? $0 : nil }
+            ?? (readSpan == nil ? fieldSpan(proxy) : nil)
+        guard let span else { return nil }
         if span.afterCount > 0 {
             proxy.adjustTextPosition(byCharacterOffset: span.afterCount)
         }
         for _ in 0..<(span.beforeCount + span.afterCount) { proxy.deleteBackward() }
         let restBefore = proxy.documentContextBeforeInput ?? ""
         let restAfter = proxy.documentContextAfterInput ?? ""
-        return !restBefore.isEmpty || !restAfter.isEmpty
+        return (span.text, !restBefore.isEmpty || !restAfter.isEmpty)
     }
 
-    private func showPartialReplace() {
-        // 快速模式抽屉是收着的：展开给人看到这句提示。
+    /// partial：系统对长文本只给光标附近的一段，没读到的没动。mismatch：读完之后输入框被改过（光标挪了、又打了字），
+    /// 对不上发给 AI 的那段，不替换，免得删错地方。快速模式抽屉是收着的：展开给人看到这句提示。
+    private func showReplaceNote(_ note: ReplaceNote) {
         if !aiExpanded { setAIExpanded(true) }
-        withAnimation(.easeOut(duration: 0.15)) { partialReplace = true }
+        withAnimation(.easeOut(duration: 0.15)) { replaceNote = note }
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-            withAnimation(.easeIn(duration: 0.2)) { self?.partialReplace = false }
+            guard self?.replaceNote == note else { return }
+            withAnimation(.easeIn(duration: 0.2)) { self?.replaceNote = nil }
         }
     }
 
@@ -1024,5 +1422,21 @@ private enum ContactPinyin {
         cache[name] = pinyin
         lock.unlock()
         return pinyin
+    }
+}
+
+extension KeyboardModel {
+    /// 内测版诊断记录用的「当时界面」：抽屉开没开、哪个面板、AI 在不在跑。只记界面名，不记文字。
+    func markScreen() {
+        guard CrashLog.isEnabled else { return }
+        var parts = [aiExpanded ? "抽屉展开" : "抽屉收起"]
+        switch keysPanel {
+        case .words?: parts.append("分词面板")
+        case .emoji?, .kaomoji?: parts.append("表情面板")
+        case .quickWords?: parts.append("常用词面板")
+        case nil: break
+        }
+        if isRunning { parts.append(aiExpanded ? "识意处理中" : "润色中") }
+        CrashLog.mark(parts.joined(separator: " · "), source: "keyboard")
     }
 }

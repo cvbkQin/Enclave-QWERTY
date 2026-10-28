@@ -229,15 +229,45 @@ struct DashTag: View {
 struct TabTitle: View {
     var caption: String
     var title: String
+    /// 只有首页摘要带版本标识。
+    var showsBuildBadge = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(caption).font(.footnote.weight(.semibold)).foregroundStyle(DashColor.system).lineLimit(1)
-            Text(title).font(.largeTitle.bold()).foregroundStyle(.primary)
+            HStack(spacing: 10) {
+                Text(title).font(.largeTitle.bold()).foregroundStyle(.primary)
+                if showsBuildBadge { BuildBadge() }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// 首页「摘要」右边的版本标识（PV1–PV3）：内测版橙色、公测版蓝色；开发者版和正式版不显示。只是标识，点了没反应。
+struct BuildBadge: View {
+    var body: some View {
+        if BuiltinAPI.isInternalBuild {
+            badge(L("内测版", "Internal beta", "社内ベータ"),
+                  fill: Color(light: 0xFFF1E0, dark: 0x3A2410), text: Color(light: 0xC2410C, dark: 0xFDBA74), stroke: Color(light: 0xFED7AA, dark: 0x7C3A12))
+        } else if BuiltinAPI.isPublicBuild {
+            badge(L("公测版", "Public beta", "公開ベータ"),
+                  fill: Color(light: 0xE0F2FE, dark: 0x0C3448), text: Color(light: 0x0369A1, dark: 0x7DD3FC), stroke: Color(light: 0xBAE6FD, dark: 0x155E75))
+        }
+    }
+
+    private func badge(_ title: String, fill: Color, text: Color, stroke: Color) -> some View {
+        Text(title)
+            .font(.system(size: 13, weight: .bold)).kerning(0.5)
+            .foregroundStyle(text)
+            .padding(.horizontal, 10)
+            .frame(height: 24)
+            .background(Capsule().fill(fill))
+            .overlay(Capsule().strokeBorder(stroke, lineWidth: 1))
+            .fixedSize()
+            .accessibilityLabel(title)
     }
 }
 

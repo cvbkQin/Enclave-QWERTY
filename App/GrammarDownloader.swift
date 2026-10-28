@@ -92,6 +92,8 @@ final class GrammarDownloader: NSObject, ObservableObject {
     }
 
     func delete() {
+        // 内测包自带的删不掉。
+        guard !GrammarModel.isBundled else { return }
         if let url = GrammarModel.fileURL { try? FileManager.default.removeItem(at: url) }
         installed = false
         RimeDeployer.shared.deploy()

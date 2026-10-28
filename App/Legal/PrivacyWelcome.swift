@@ -8,11 +8,24 @@ struct PrivacyWelcomeView: View {
     @EnvironmentObject private var router: AppRouter
     @State private var asksAgain = false
     @State private var showsPolicy = false
+    /// 打开时记下是不是更新后再弹（同意后 seenVersion 就变了，不能每次重新算）。
+    @State private var updated = PrivacyConsent.isUpdate
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 0) {
+                    if updated {
+                        // 隐私政策更新后再弹（同意过旧版的人才看到），首次安装不显示。
+                        Text(L("隐私说明有更新：新增识意问答单独接口和联网（千问、Kimi、智谱）", "Privacy notice updated: adds a separate API and web search for Ask answers (Qwen, Kimi, Zhipu)", "プライバシーの説明を更新しました：質問への回答用の API とウェブ検索（Qwen・Kimi・Zhipu）を追加"))
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255))
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 10)
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255)))
+                            .padding(.bottom, 20)
+                    }
                     Image("AboutIcon")
                         .resizable()
                         .frame(width: 72, height: 72)

@@ -131,6 +131,7 @@ final class RimeDeployer: ObservableObject {
                 try FuzzyPinyin.patchSchema(text, groups: fuzzy).write(to: url, atomically: true, encoding: .utf8)
             }
             // 下载了整句模型：两个方案都用上（模型文件在用户目录，引擎会在那里找）。
+            if grammar { GrammarModel.linkBundled() }
             for schema in [RimeStore.schemaID, RimeStore.nineKeySchemaID] where grammar {
                 let url = paths.shared.appendingPathComponent("\(schema).schema.yaml")
                 let text = try String(contentsOf: url, encoding: .utf8)
