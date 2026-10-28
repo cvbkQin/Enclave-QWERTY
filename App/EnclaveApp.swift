@@ -192,6 +192,17 @@ final class AppRouter: ObservableObject {
     @Published var showsPrivacyWelcome = PrivacyConsent.needsPrompt
     /// 首次启动引导（OB1–OB7）：隐私同意之后弹一次；首页「跟着教程设置」从选服务商开始再打开。
     @Published var setupGuide: SetupGuidePage?
+    /// 教程选的服务商（TU0）。
+    @Published var guideProvider: Provider = .deepseek
+    /// 从接口页「配置教程」打开时是哪一页（Key 填回那一页）；引导里打开为 nil。
+    @Published var guideTarget: GuideTarget?
+
+    /// 接口页格子右下角「配置教程」（TA1、TA2）：只走这一家的 4 步，右上是 ×。
+    func openTutorial(_ provider: Provider, answer: Bool) {
+        guideProvider = provider
+        guideTarget = answer ? .answer : .rewrite
+        setupGuide = .step(1)
+    }
 
     /// 隐私说明关掉后：同意了、引导没看过、接口也没配，就接着弹引导。
     func showSetupGuideIfNeeded(configured: Bool) {
@@ -239,6 +250,9 @@ final class AppRouter: ObservableObject {
             case "seen": SetupGuide.seen = true
             case "open": setupGuide = .intro
             case "deepseek": setupGuide = .step(4)
+            case "kimi", "qwen", "glm":
+                guideProvider = ["kimi": .kimi, "qwen": .qwen, "glm": .glm][args[i + 1]] ?? .deepseek
+                setupGuide = .step(1)
             case "done": setupGuide = .done
             default: break
             }

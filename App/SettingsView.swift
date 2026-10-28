@@ -172,6 +172,8 @@ enum Provider: CaseIterable, Identifiable {
     static let shown: [Provider] = [.deepseek, .kimi, .qwen, .ollama]
     /// 问答页的服务商：前三家能联网（千问、Kimi、智谱），DeepSeek 不能联网。都是国内已备案的服务商。
     static let answerShown: [Provider] = [.qwen, .kimi, .glm, .deepseek]
+    /// 引导里选服务商（TU0）：前四家有分步教程，Ollama、其他直接去接口页。
+    static let guideShown: [Provider] = [.deepseek, .kimi, .qwen, .glm, .ollama, .custom]
 
     /// 现在填的地址和模型对得上哪个预设：地址和模型都和预设一样才算；Ollama 只认 11434 端口（IP 本来就要改）。
     /// 对不上时返回 nil（四个都不选中）。answer：按问答页的预设比（Kimi 问答用 K3）。
@@ -680,7 +682,8 @@ struct ModelSettingsView: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 ForEach(items) { item in
                     ProviderCard(provider: item, selected: selected == item,
-                                 badge: badges ? (item.canSearch ? .web : .noWeb) : nil) { choose(item) }
+                                 badge: badges ? (item.canSearch ? .web : .noWeb) : nil,
+                                 tutorial: GuideTutorial.of(item) == nil ? nil : { router.openTutorial(item, answer: answer) }) { choose(item) }
                 }
             }
         }
@@ -917,6 +920,8 @@ private struct ProviderCard: View {
     var provider: Provider
     var selected: Bool
     var badge: Badge? = nil
+    /// 右下角「配置教程」（有教程的四家）；点它不选中这一格。
+    var tutorial: (() -> Void)? = nil
     var action: () -> Void
 
     var body: some View {
@@ -928,7 +933,12 @@ private struct ProviderCard: View {
                     if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(DashColor.ai) }
                 }
                 Text(provider.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                if let badge { badgeView(badge).padding(.top, 5) }
+                // 问答页：可联网标签和「配置教程」同一行；改写页没有标签，也留出这一行。
+                if let badge {
+                    badgeView(badge).padding(.top, 5)
+                } else if tutorial != nil {
+                    Color.clear.frame(height: 18).padding(.top, 5)
+                }
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -936,6 +946,24 @@ private struct ProviderCard: View {
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(DashColor.ai, lineWidth: selected ? 2 : 0))
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .bottomTrailing) {
+            if let tutorial {
+                // 12.5pt semibold #5B4BE8，前面 12pt 书本图标。
+                Button(action: tutorial) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "book").font(.system(size: 12, weight: .semibold))
+                        Text(L("配置教程", "Setup guide", "設定ガイド")).font(.system(size: 12.5, weight: .semibold))
+                    }
+                    .foregroundStyle(Color(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255))
+                    .frame(height: 18)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L("\(provider.title) 配置教程", "\(provider.title) setup guide", "\(provider.title) 設定ガイド"))
+            }
+        }
     }
 
     /// 可联网：#E3F4EA 底、#248A3D 字；不联网：#F2F2F7 底、#8E8E93 字。高 18、圆角 5、11pt semibold。
