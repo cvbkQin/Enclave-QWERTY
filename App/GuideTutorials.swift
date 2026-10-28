@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 /// 每个预设服务商的分步教程（OB3–OB6 的写法）：前三步在服务商网站上做，第 4 步回到 App 粘贴 Key 并测试。
