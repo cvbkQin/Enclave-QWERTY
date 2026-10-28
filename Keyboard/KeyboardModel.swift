@@ -1339,16 +1339,17 @@ final class KeyboardModel: ObservableObject {
     }
 
     /// 分词面板的「插入」：直接把字放进输入框，面板淡出。不动结果卡左边的键（不出用过的小绿勾动画）。
-    func insertWords(_ text: String) {
+    /// close：「插入/复制后关闭」开着时插完关面板，关着时面板留着（BT2）。
+    func insertWords(_ text: String, close: Bool = true) {
         guard !text.isEmpty, let proxy = editProxy else { return }
         markAskUsed()
         proxy.insertText(text)
         keyFeedback(for: .space)
-        closeWordPanel()
+        if close { closeWordPanel() }
     }
 
     /// 分词面板的「复制」：复制选中的词，右边复制图标照旧提示一下，面板淡出。
-    func copyWords(_ text: String) {
+    func copyWords(_ text: String, close: Bool = true) {
         guard !text.isEmpty else { return }
         markAskUsed()
         UIPasteboard.general.string = text
@@ -1357,7 +1358,7 @@ final class KeyboardModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             withAnimation(.easeIn(duration: 0.2)) { self?.copied = false }
         }
-        closeWordPanel()
+        if close { closeWordPanel() }
     }
 
     /// 分词面板 0.15 秒淡出，淡完再收起、键盘高度和结果卡回到打开前。

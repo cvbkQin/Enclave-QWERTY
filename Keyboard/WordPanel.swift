@@ -50,6 +50,11 @@ struct WordPanel: View {
     @ObservedObject var model: KeyboardModel
     @State private var tokens: [WordToken] = []
     @State private var selected: Set<Int> = []
+    /// 「插入/复制后关闭」（BT1），默认开，键盘和 App 共用。
+    @AppStorage("pick.autoClose", store: SharedStorage.defaults) private var autoClose = true
+    /// 开关关着时插入、复制后左上角的「已插入 / 已复制 N 个」，1.5 秒后换回提示。
+    @State private var doneNote: String?
+    @State private var doneToken = 0
 
     var body: some View {
         VStack(spacing: 8) {
@@ -64,22 +69,72 @@ struct WordPanel: View {
     }
 
     private var hintRow: some View {
-        HStack {
-            Text(selected.isEmpty
-                 ? L("点选，或按住横着划选；竖着划是滚动", "Tap or drag sideways to select; swipe up and down to scroll", "タップか横になぞって選択、縦はスクロール")
-                 : L("已选 \(selected.count) 个", "\(selected.count) selected", "\(selected.count) 個選択"))
-            Spacer(minLength: 8)
-            Text(L("长按结果卡打开", "Long-press the result to open", "結果を長押しで開く"))
+        HStack(spacing: 8) {
+            Group {
+                if let doneNote {
+                    Text(doneNote).fontWeight(.semibold).foregroundStyle(Brand.deepPurple)
+                } else {
+                    Text(selected.isEmpty
+                         ? L("点选，或按住横着划选；竖着划是滚动", "Tap or drag sideways to select; swipe up and down to scroll", "タップか横になぞって選択、縦はスクロール")
+                         : L("已选 \(selected.count) 个", "\(selected.count) selected", "\(selected.count) 個選択"))
+                    .foregroundStyle(Color.secondary)
+                }
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            // VoiceOver 读不了「划选」：换成能照着做的一句。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(doneNote ?? (selected.isEmpty
+                ? L("分词面板。轻点两下选中一个词，再点插入或复制", "Word panel. Double-tap words to select them, then Insert or Copy", "単語パネル。ダブルタップで単語を選び、挿入かコピーを押します")
+                : L("已选 \(selected.count) 个", "\(selected.count) selected", "\(selected.count) 個選択")))
+            Spacer(minLength: 0)
+            autoCloseToggle
         }
         .font(.system(size: 12.5))
-        .foregroundStyle(Color.secondary)
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
-        // VoiceOver 读不了「划选」：换成能照着做的一句。
+    }
+
+    /// 右边「插入/复制后关闭」+ 34×20 的开关（BT1）：开 #5B4BE8，关 #D1D1D6 / 深色 #48484A；圆钮 16 白色，0.2 秒滑动，切换时轻触感。
+    private var autoCloseToggle: some View {
+        Button {
+            if model.hasFullAccess { model.haptic.impactOccurred() }
+            withAnimation(.easeInOut(duration: 0.2)) { autoClose.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Text(L("插入/复制后关闭", "Close after insert/copy", "挿入・コピー後に閉じる"))
+                    .foregroundStyle(Color.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .layoutPriority(1)
+                ZStack(alignment: autoClose ? .trailing : .leading) {
+                    Capsule().fill(autoClose ? Brand.pickToggleOn : Brand.pickToggleOff)
+                    Circle().fill(Color.white)
+                        .frame(width: 16, height: 16)
+                        .shadow(color: .black.opacity(0.25), radius: 1, y: 1)
+                        .padding(2)
+                }
+                .frame(width: 34, height: 20)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(selected.isEmpty
-            ? L("分词面板。轻点两下选中一个词，再点插入或复制", "Word panel. Double-tap words to select them, then Insert or Copy", "単語パネル。ダブルタップで単語を選び、挿入かコピーを押します")
-            : L("已选 \(selected.count) 个", "\(selected.count) selected", "\(selected.count) 個選択"))
+        .accessibilityLabel(L("插入或复制后关闭面板", "Close panel after insert or copy", "挿入・コピー後にパネルを閉じる"))
+        .accessibilityValue(autoClose ? L("开", "On", "オン") : L("关", "Off", "オフ"))
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// 开关关着：面板留着，选中清空，左上角显示「已插入 / 已复制 N 个」1.5 秒，读屏读一次。
+    private func showDone(inserted: Bool, count: Int) {
+        let note = inserted ? L("已插入 \(count) 个", "Inserted \(count)", "\(count) 個挿入しました")
+                            : L("已复制 \(count) 个", "Copied \(count)", "\(count) 個コピーしました")
+        selected = []
+        doneNote = note
+        doneToken += 1
+        let token = doneToken
+        UIAccessibility.post(notification: .announcement, argument: note)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            if token == doneToken { doneNote = nil }
+        }
     }
 
     private var chosenText: String {
@@ -95,9 +150,17 @@ struct WordPanel: View {
             let all = !tokens.isEmpty && selected.count == tokens.count
             HStack(spacing: gap) {
                 barButton(L("插入", "Insert", "挿入"), fill: AnyShapeStyle(LinearGradient(colors: Brand.insertGradient, startPoint: .topLeading, endPoint: .bottomTrailing)),
-                          text: .white, width: unit * 1.5, enabled: !empty) { model.insertWords(chosenText) }
+                          text: .white, width: unit * 1.5, enabled: !empty) {
+                    let count = selected.count
+                    model.insertWords(chosenText, close: autoClose)
+                    if !autoClose { showDone(inserted: true, count: count) }
+                }
                 barButton(L("复制", "Copy", "コピー"), fill: AnyShapeStyle(LinearGradient(colors: Brand.copyGradient, startPoint: .topLeading, endPoint: .bottomTrailing)),
-                          text: .white, width: unit * 1.5, enabled: !empty) { model.copyWords(chosenText) }
+                          text: .white, width: unit * 1.5, enabled: !empty) {
+                    let count = selected.count
+                    model.copyWords(chosenText, close: autoClose)
+                    if !autoClose { showDone(inserted: false, count: count) }
+                }
                 barButton(all ? L("全不选", "None", "全解除") : L("全选", "All", "全選択"), fill: AnyShapeStyle(KeyStyle.charKey),
                           text: .primary, width: unit, enabled: !tokens.isEmpty) {
                     selected = all ? [] : Set(tokens.map(\.id))
