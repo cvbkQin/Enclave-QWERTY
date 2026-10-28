@@ -574,35 +574,33 @@ private struct TourHand: View {
 
     private var flipped: Bool { rect.midX > bounds.width / 2 }
 
-    /// FT10 一轮 2 秒：按下 0.2 秒 → 进度环 0.5 秒转满 → 闭合时闪一下、停住 → 抬手淡出。
+    /// FT10 一轮 2 秒，和宣传视频一样：按下 0.2 秒 → 指尖一圈天蓝进度环 0.5 秒转满（圈里的底色跟着变深）→
+    /// 闭合时环往外撑大、0.35 秒淡掉 → 手停一下再淡出。
     private static let holdPeriod = 2.0
+    private static let holdRing = Color(hex: 0x0EA5E9)
+    private static let holdTrack = Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
 
     private func holdFrame(_ h: CGFloat) -> some View {
         let center = CGPoint(x: rect.midX, y: rect.midY)
         let press = min(h / 0.1, 1)
-        // 0.1–0.35（0.5 秒）转满。
         let fill = min(max((h - 0.1) / 0.25, 0), 1)
-        let closed = h >= 0.35
-        let flash = closed ? max(0, 1 - (h - 0.35) / 0.15) : 0
-        let fade: Double = h < 0.8 ? 1 : Double(1 - (h - 0.8) / 0.2)
+        let pop = min(max((h - 0.35) / 0.175, 0), 1)
+        let radius: CGFloat = 24 + 10 * pop
+        let fade: Double = h < 0.75 ? 1 : max(0, Double(1 - (h - 0.75) / 0.15))
         return ZStack {
-            Circle()
-                .stroke(Self.rippleColor.opacity(0.22), lineWidth: 4)
-                .frame(width: 46, height: 46)
+            if h >= 0.1 && pop < 1 {
+                ZStack {
+                    Circle().fill(Self.holdTrack.opacity(0.12 + 0.2 * Double(fill)))
+                    Circle().stroke(Self.holdTrack.opacity(0.25), lineWidth: 4)
+                    Circle()
+                        .trim(from: 0, to: fill)
+                        .stroke(Self.holdRing, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                .frame(width: radius * 2, height: radius * 2)
+                .opacity(Double(1 - pop))
                 .position(center)
-            Circle()
-                .trim(from: 0, to: fill)
-                .stroke(Self.rippleColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .frame(width: 46, height: 46)
-                .scaleEffect(1 + 0.18 * flash)
-                .position(center)
-            // 按下的灰点。
-            Circle()
-                .fill(Self.rippleColor.opacity(0.18 + 0.2 * Double(flash)))
-                .frame(width: 30, height: 30)
-                .scaleEffect(1.2 - 0.2 * press)
-                .position(center)
+            }
             hand(tip: CGPoint(x: center.x, y: center.y + 4 - 3 * press), ripple: nil)
         }
         .opacity(fade)
@@ -627,10 +625,10 @@ private struct TourHand: View {
             // 走过的路：一道渐亮的紫线，头上一个箭头。
             if move > 0 {
                 Path { p in p.move(to: start); p.addLine(to: point) }
-                    .stroke(Self.rippleColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .opacity(0.55)
+                    .stroke(Self.rippleColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .opacity(0.85)
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 13, weight: .heavy))
+                    .font(.system(size: 16, weight: .heavy))
                     .foregroundStyle(Self.rippleColor)
                     .position(x: point.x, y: point.y - 24)
                     .opacity(move < 1 ? 1 : 0)
@@ -643,10 +641,10 @@ private struct TourHand: View {
                 .frame(width: 34, height: 34)
                 .scaleEffect(1.25 - 0.25 * press + (holding ? 0.06 * sin((d - 0.12) / 0.18 * .pi) : 0))
                 .position(point)
-            // 手斜着从右下伸过来，不挡放大镜正下方的「问答」。
+            // 手从右边斜着伸过来，按下时也不压放大镜正下方的「问答」。
             let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
-            CoachHandShape.hand(flipped: false, angle: -28)
-                .position(x: point.x + 6 + size.width / 2 - fingertip.x, y: point.y + 10 + size.height / 2 - fingertip.y)
+            CoachHandShape.hand(flipped: false, angle: -55)
+                .position(x: point.x + 20 + size.width / 2 - fingertip.x, y: point.y + 2 + size.height / 2 - fingertip.y)
         }
         .opacity(fade)
     }
@@ -948,8 +946,8 @@ private struct TourKeyboard: View {
                 .foregroundStyle(GuideColor.text)
                 .lineLimit(1)
                 .truncationMode(.head)
-                // FT7 放大镜正上方要冒出「改写」气泡：字往右让开，不被挡住。
-                .padding(.leading, step == 7 ? 64 : 0)
+                // FT5 小手指着「切换」、FT7 放大镜正上方冒出「改写」气泡：字往右让开，不被挡住。
+                .padding(.leading, step == 5 || step == 7 ? 64 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if state.searched {
                 Label("已联网 · Kimi", systemImage: "globe").font(.system(size: 12)).foregroundStyle(GuideColor.secondary).fixedSize()
