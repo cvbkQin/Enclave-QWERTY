@@ -773,13 +773,14 @@ private struct TourKeyboard: View {
                 }
             }
             .frame(width: 20, height: 20)
-            .padding(.trailing, 6)
+            .padding(.trailing, 7)
             .tourTarget(.sparkle)
-            Text("润色").font(.system(size: 13.5, weight: .semibold)).padding(.trailing, 4)
+            Text("润色").font(.system(size: 13.5, weight: .semibold))
+            divider.padding(.horizontal, 3)
             Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 12)
+        .padding(.leading, 12).padding(.trailing, 9)
         .frame(height: 34)
         .background(NebulaFill(palette: .join).clipShape(Capsule()))
         .contentShape(Capsule())
@@ -834,16 +835,22 @@ private struct TourKeyboard: View {
         .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 
+    /// 名字和 ▾ 之间的竖线，和键盘一样（FB）。
+    private var divider: some View {
+        Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
+    }
+
     /// 润色 ▾（紫色星团）、直击要害 ▾（蓝色星团）；回答卡上是哪种结果，那颗亮边框。
     private func styleKey(answer: Bool) -> some View {
         let active = state.card != nil && state.cardAnswer == answer
-        return HStack(spacing: 4) {
+        return HStack(spacing: 3) {
             Image(systemName: answer ? "questionmark.circle" : "pencil").font(.system(size: 14, weight: .semibold))
             Text(answer ? "直击要害" : "润色").font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            divider
             Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
         }
         .foregroundStyle(.white)
-        .padding(.leading, 9).padding(.trailing, 8)
+        .padding(.leading, 7).padding(.trailing, 6)
         .frame(height: 34)
         .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()))
         .overlay(Capsule().strokeBorder(answer ? Color(hex: 0x7DD3FC) : Color(hex: 0xC4B5FD), lineWidth: active ? 1.5 : 0))

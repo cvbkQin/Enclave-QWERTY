@@ -391,7 +391,7 @@ struct AIBarMorph: View, Animatable {
         let starX = 22 + 12 * pull + (m.midX - 34) * back
         let reveal = Self.clamp((ms - 150) / 80)
         let pen = Self.clamp((ms - 150) / 80)
-        let textStart = 38 + (wM + gap + 9 + 16 + 4 - 38) * e
+        let textStart = 39 + (wM + gap + 7 + 16 + 3 - 39) * e
         let answerText = Self.clamp((ms - 60) / 100)
 
         return ZStack(alignment: .topLeading) {
@@ -428,23 +428,24 @@ struct AIBarMorph: View, Animatable {
                 .rotationEffect(.degrees(180 * back))
                 .opacity(1 - back)
                 .position(x: starX, y: h / 2)
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
                 Text(rewriteTitle)
                     .font(.system(size: 13.5, weight: .semibold))
                     .lineLimit(1)
                     .frame(width: StyleKey.textWidth(rewriteTitle))
+                StyleKey.chevronDivider
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .semibold))
                     .frame(width: 10)
             }
             .foregroundStyle(.white)
-            .position(x: textStart + (StyleKey.textWidth(rewriteTitle) + 14) / 2, y: h / 2)
+            .position(x: textStart + (StyleKey.textWidth(rewriteTitle) + 17) / 2, y: h / 2)
             Image(systemName: "pencil")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.white)
                 .scaleEffect(pen)
                 .opacity(pen)
-                .position(x: textStart - 12, y: h / 2)
+                .position(x: textStart - 11, y: h / 2)
         }
         .frame(width: total, height: h, alignment: .topLeading)
     }
@@ -639,8 +640,8 @@ struct PolishButton: View {
     /// 点 ✨ 和点「润色 ▾」的分界：✨ 右边缘。
     static let joinedSplit: CGFloat = 46
 
-    /// 12 + ✨ 20 + 6 + 字 + 4 + ▾ 10 + 12。
-    static func joinedWidth(_ title: String) -> CGFloat { 64 + StyleKey.textWidth(title) }
+    /// 12 + ✨ 20 + 7 + 字 + 3 + 竖线 1 + 3 + ▾ 10 + 9（FB1）。
+    static func joinedWidth(_ title: String) -> CGFloat { 65 + StyleKey.textWidth(title) }
 
     /// 合成那一颗的样子（AI 栏分裂动画的第一帧也用它）。
     static func joinedFace<Star: View>(title: String, open: Bool = false, stop: Bool = false, faded: Bool = false, star: Star) -> some View {
@@ -653,19 +654,20 @@ struct PolishButton: View {
                 }
             }
             .frame(width: 20, height: 20)
-            .padding(.trailing, 6)
+            .padding(.trailing, 7)
             Text(title)
                 .font(.system(size: 13.5, weight: .semibold))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(width: StyleKey.textWidth(title))
-                .padding(.trailing, 4)
+            StyleKey.chevronDivider.padding(.horizontal, 3)
             Image(systemName: open ? "chevron.up" : "chevron.down")
                 .font(.system(size: 10, weight: .semibold))
                 .frame(width: 10)
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 12)
+        .padding(.leading, 12)
+        .padding(.trailing, 9)
         .frame(width: joinedWidth(title), height: KeyboardMetrics.chipHeight)
         .background(NebulaFill(palette: .join).clipShape(Capsule()).opacity(faded ? 0.35 : 1))
     }
