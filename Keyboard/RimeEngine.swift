@@ -85,6 +85,8 @@ final class RimeEngine: InputEngine {
                 enclave_rime_finalize()
                 session = 0
             }
+            // 内测包自带整句模型：App 升级后包路径变了，先把用户目录里的链接指回来。
+            if version.hasPrefix("shared:") { GrammarModel.linkBundled() }
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
             source = version

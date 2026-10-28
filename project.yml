@@ -10,6 +10,8 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: "5.0"
+    # 两个 Run Script 要读 Vendor/ 和 Local.xcconfig 传来的设置。
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
     # 版本号：从 0.1 起每次改动加 0.1，正式发布时才改成 1.0。CURRENT_PROJECT_VERSION 同时加 1。
     MARKETING_VERSION: "0.90"
     CURRENT_PROJECT_VERSION: "90"
@@ -54,6 +56,13 @@ targets:
       - path: Vendor/RimeData
         type: folder
         buildPhase: resources
+    # 内测包的 Key（混淆）和证书指纹，生成到 DERIVED_FILE_DIR；别的包生成空的。也检查内测、公测开关没同时打开。
+    preBuildScripts:
+      - name: Builtin secrets
+        script: python3 "$SRCROOT/scripts/gen-builtin-secrets.py"
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/BuiltinSecrets.swift
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave
@@ -75,15 +84,14 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         EnclaveAppGroup: $(APP_GROUP_ID)
-        # 内测版自带的接口（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值，原文只在 Mac 的 Local.xcconfig 里。
+        # 内测版自带的接口地址和模型（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值。
+        # Key 不放这里，由 scripts/gen-builtin-secrets.py 混淆后编进代码。
         EnclaveInternalBuild: $(INTERNAL_BUILD)
         EnclavePublicBuild: $(PUBLIC_BUILD)
         EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
         EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
-        EnclaveBuiltinKey: $(ENCLAVE_BUILTIN_KEY)
         EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
         EnclaveBuiltinAnswerModel: $(ENCLAVE_BUILTIN_ANSWER_MODEL)
-        EnclaveBuiltinAnswerKey: $(ENCLAVE_BUILTIN_ANSWER_KEY)
         CFBundleURLTypes:
           - CFBundleURLName: enclave
             CFBundleURLSchemes: [enclave]
@@ -106,6 +114,18 @@ targets:
       - path: Vendor/RimeBuild
         type: folder
         buildPhase: resources
+    # 内测包的 Key（混淆）和证书指纹，生成到 DERIVED_FILE_DIR；别的包生成空的。也检查内测、公测开关没同时打开。
+    preBuildScripts:
+      - name: Builtin secrets
+        script: python3 "$SRCROOT/scripts/gen-builtin-secrets.py"
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/BuiltinSecrets.swift
+        basedOnDependencyAnalysis: false
+    # 内测包自带整句模型：从 Vendor/Grammar/ 拷进扩展包（先运行 scripts/fetch-grammar.sh）。
+    postCompileScripts:
+      - name: Embed grammar
+        script: bash "$SRCROOT/scripts/embed-grammar.sh"
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave.keyboard
@@ -120,15 +140,14 @@ targets:
         CFBundleDevelopmentRegion: zh-Hans
         CFBundleLocalizations: [zh-Hans, en, ja]
         EnclaveAppGroup: $(APP_GROUP_ID)
-        # 内测版自带的接口（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值，原文只在 Mac 的 Local.xcconfig 里。
+        # 内测版自带的接口地址和模型（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值。
+        # Key 不放这里，由 scripts/gen-builtin-secrets.py 混淆后编进代码。
         EnclaveInternalBuild: $(INTERNAL_BUILD)
         EnclavePublicBuild: $(PUBLIC_BUILD)
         EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
         EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
-        EnclaveBuiltinKey: $(ENCLAVE_BUILTIN_KEY)
         EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
         EnclaveBuiltinAnswerModel: $(ENCLAVE_BUILTIN_ANSWER_MODEL)
-        EnclaveBuiltinAnswerKey: $(ENCLAVE_BUILTIN_ANSWER_KEY)
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true

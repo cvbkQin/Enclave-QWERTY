@@ -1588,7 +1588,19 @@ struct PinyinView: View {
                     Button(L("取消", "Cancel", "キャンセル")) { grammar.cancel() }
                         .font(.system(size: 15, weight: .semibold))
                 default:
-                    if grammar.installed {
+                    if GrammarModel.isBundled {
+                        // 内测包自带：只能停用，不能删、不用下载。
+                        DashBigNumber(value: GrammarModel.installedSize.map { "\($0 / 1_000_000)" } ?? "380",
+                                        unit: grammar.enabled ? L("MB · 已内置", "MB · Built in", "MB · 内蔵") : L("MB · 已内置 · 已停用", "MB · Built in · Off", "MB · 内蔵 · オフ"))
+                        Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
+                               isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
+                            .tint(AppColor.purple)
+                            .disabled(deployer.state == .deploying)
+                        Text(L("内测版已自带整句模型，不用下载，也不能删除；不想用可以停用。",
+                               "The beta comes with the sentence model built in. It can't be deleted, but you can turn it off.",
+                               "ベータ版には文章モデルが内蔵されています。削除はできませんが、オフにできます。"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                    } else if grammar.installed {
                         DashBigNumber(value: GrammarModel.installedSize.map { "\($0 / 1_000_000)" } ?? "–",
                                         unit: grammar.enabled ? L("MB · 已下载", "MB · Downloaded", "MB · ダウンロード済み") : L("MB · 已下载 · 已关闭", "MB · Downloaded · Off", "MB · ダウンロード済み · オフ"))
                         // 关掉时模型留着，随时再打开，方便对比。切换后重新部署词库。

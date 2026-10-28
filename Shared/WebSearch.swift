@@ -64,7 +64,7 @@ struct WebSearch {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
         request.httpBody = try JSONEncoder().encode(Request(text_query: query, limit: 5, timeout_seconds: 15))
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await BuiltinAPI.session(for: apiKey).data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw LLMError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
         }

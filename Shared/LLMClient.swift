@@ -236,9 +236,10 @@ struct LLMClient {
 
         let activity = Activity()
         let firstLimit = firstDataLimit
+        let session = BuiltinAPI.session(for: apiKey)
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
-                let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                let (bytes, response) = try await session.bytes(for: request)
                 activity.touch()
                 let http = response as? HTTPURLResponse
                 if let http, !(200..<300).contains(http.statusCode) {

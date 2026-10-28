@@ -21,8 +21,9 @@ final class CrashLog: NSObject, MXMetricManagerSubscriber {
     }
 
     static let shared = CrashLog()
-    /// 最多留这么多条，旧的删掉。
-    private static let limit = 50
+    /// 最多留 30 条、30 天，旧的删掉。
+    private static let limit = 30
+    private static let maxAge: TimeInterval = 30 * 24 * 3600
     private static let indexName = "index.json"
 
     private var source = "app"
@@ -115,8 +116,10 @@ final class CrashLog: NSObject, MXMetricManagerSubscriber {
     private static func save(_ entries: [Entry]) {
         guard let folder else { return }
         let sorted = entries.sorted { $0.date > $1.date }
-        let kept = Array(sorted.prefix(limit))
-        for old in sorted.dropFirst(limit) {
+        let cutoff = Date().addingTimeInterval(-maxAge)
+        let kept = Array(sorted.filter { $0.date > cutoff }.prefix(limit))
+        let keptFiles = Set(kept.map(\.file))
+        for old in sorted where !keptFiles.contains(old.file) {
             try? FileManager.default.removeItem(at: folder.appendingPathComponent(old.file))
         }
         if let data = try? JSONEncoder().encode(kept) {

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// 内测版（版本号后缀 .0）自带的接口：邀请来的人装上就能用，不用自己申请 Key。
@@ -17,10 +18,21 @@ enum BuiltinAPI {
 
     static let baseURL = value("EnclaveBuiltinBaseURL")
     static let model = value("EnclaveBuiltinModel")
-    static let apiKey = value("EnclaveBuiltinKey")
+    /// Key 不在 Info.plist 里：编译时混淆拆段（scripts/gen-builtin-secrets.py），这里才拼回来。
+    static let apiKey = reveal(BuiltinSecrets.keyParts, BuiltinSecrets.keyMasks)
     static let answerBaseURL = value("EnclaveBuiltinAnswerBaseURL")
     static let answerModel = value("EnclaveBuiltinAnswerModel")
-    static let answerApiKey = value("EnclaveBuiltinAnswerKey")
+    static let answerApiKey = reveal(BuiltinSecrets.answerKeyParts, BuiltinSecrets.answerKeyMasks)
+
+    private static func reveal(_ parts: [[UInt8]], _ masks: [[UInt8]]) -> String {
+        let bytes = zip(parts, masks).flatMap { zip($0, $1).map { $0 ^ $1 } }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    /// 发请求用的 URLSession：用内置 Key 的走证书绑定的那个，别的（自己填的接口）照常。
+    static func session(for key: String?) -> URLSession {
+        isBuiltin(key) && !BuiltinSecrets.pins.isEmpty ? PinnedSession.shared : .shared
+    }
 
     static var available: Bool { !baseURL.isEmpty && !model.isEmpty && !apiKey.isEmpty }
     static var answerAvailable: Bool { !answerBaseURL.isEmpty && !answerModel.isEmpty && !answerApiKey.isEmpty }
@@ -77,5 +89,27 @@ enum BuiltinAPI {
         kind == .polish
             ? L("内测接口今天的润色次数（100 次）用完了，明天再来。", "The beta's built-in API has used today's 100 rewrites. Try again tomorrow.", "内蔵 API の今日の書き換え（100 回）を使い切りました。また明日お使いください。")
             : L("内测接口今天的问答次数（50 次）用完了，明天再来。", "The beta's built-in API has used today's 50 answers. Try again tomorrow.", "内蔵 API の今日の回答（50 回）を使い切りました。また明日お使いください。")
+    }
+}
+
+/// 内置接口的证书绑定：系统先照常验证证书，再要求证书链里至少有一张（中间证书或根证书）在编译时记下的指纹里，
+/// 对不上就拒绝连接，抓包工具装的证书过不了。
+private final class PinnedSession: NSObject, URLSessionDelegate {
+    static let shared: URLSession = URLSession(configuration: .default, delegate: PinnedSession(), delegateQueue: nil)
+
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust else {
+            return completionHandler(.performDefaultHandling, nil)
+        }
+        guard SecTrustEvaluateWithError(trust, nil), let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate] else {
+            return completionHandler(.cancelAuthenticationChallenge, nil)
+        }
+        let matched = chain.dropFirst().contains { cert in
+            let digest = SHA256.hash(data: SecCertificateCopyData(cert) as Data)
+            return BuiltinSecrets.pins.contains(digest.map { String(format: "%02x", $0) }.joined())
+        }
+        completionHandler(matched ? .useCredential : .cancelAuthenticationChallenge, matched ? URLCredential(trust: trust) : nil)
     }
 }
