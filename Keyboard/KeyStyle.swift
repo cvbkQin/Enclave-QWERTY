@@ -312,7 +312,7 @@ enum Brand {
     static let askSelection = dynamic(0xD8D4F8, 0x5E56A0)
     static let askClearFill = dynamic(0xE2E2E7, 0x3A3A3C)
     static let askClearIcon = dynamic(0x6B6B73, 0xAEAEB2)
-    /// ✨ 在识意展开时的三种底：自动是蓝紫星团（NebulaFill），改写 #4F46E5→#7C3AED，问答 #0284C7→#38BDF8。
+    /// ✨ 在识意展开时的三种底：自动是蓝紫柔和混色（NebulaFill），改写 #4F46E5→#7C3AED，问答 #0284C7→#38BDF8。
     /// 放大镜里那颗星：#7C3AED → #38BDF8 → #8B5CF6（MG2）。
     static let askAutoColors = [Color(rgb(0x7C3AED)), Color(rgb(0x38BDF8)), Color(rgb(0x8B5CF6))]
     static let askRewriteColors = [gradient[0], gradient[1]]

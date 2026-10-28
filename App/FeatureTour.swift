@@ -787,7 +787,7 @@ private struct TourKeyboard: View {
         .onTapGesture(coordinateSpace: .local) { point in point.x < 46 ? tap(.sparkle) : wrong() }
     }
 
-    /// 展开：蓝紫星团的放大镜。FT7 按住往上拖，正上方「改写」、正下方「问答」。
+    /// 展开：蓝紫混色的放大镜。FT7 按住往上拖，正上方「改写」、正下方「问答」。
     private var magnifier: some View {
         HStack(spacing: 5) {
             if processing && target == .magnifier {
@@ -840,7 +840,7 @@ private struct TourKeyboard: View {
         Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
     }
 
-    /// 润色 ▾（紫色星团）、直击要害 ▾（蓝色星团）；回答卡上是哪种结果，那颗亮边框。
+    /// 润色 ▾（紫色）、直击要害 ▾（蓝色），柔和混色、扁平；回答卡上是哪种结果，那颗亮边框加 3pt 淡外圈。
     private func styleKey(answer: Bool) -> some View {
         let active = state.card != nil && state.cardAnswer == answer
         return HStack(spacing: 3) {
@@ -854,7 +854,7 @@ private struct TourKeyboard: View {
         .frame(height: 34)
         .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()))
         .overlay(Capsule().strokeBorder(answer ? Color(hex: 0x7DD3FC) : Color(hex: 0xC4B5FD), lineWidth: active ? 1.5 : 0))
-        .shadow(color: active ? (answer ? Color(hex: 0x0EA5E9) : Color(hex: 0x7C3AED)).opacity(0.5) : .clear, radius: 6)
+        .background(Capsule().fill((answer ? Color(hex: 0x0EA5E9) : Color(hex: 0x7C3AED)).opacity(active ? 0.25 : 0)).padding(-3))
         .fixedSize()
         .contentShape(Capsule())
         .onTapGesture { wrong() }

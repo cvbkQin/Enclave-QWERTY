@@ -405,7 +405,7 @@ struct AIBarMorph: View, Animatable {
                 .mask(Capsule().frame(width: a.width, height: h).position(x: a.midX, y: h / 2)
                     .frame(width: total, height: h, alignment: .topLeading))
                 .scaleEffect(aScale, anchor: UnitPoint(x: a.midX / total, y: 0.5))
-            // 放大镜、润色：开始都是紫色，靠形状分开；放大镜的蓝紫星团从星星的位置用圆形遮罩扩开。
+            // 放大镜、润色：开始都是紫色，靠形状分开；放大镜的蓝紫混色从星星的位置用圆形遮罩扩开。
             blob(m, h: h, total: total, left: nil, right: (mr, neck), palette: .rewrite)
             NebulaFill(palette: .ask)
                 .frame(width: m.width, height: h)
@@ -450,7 +450,7 @@ struct AIBarMorph: View, Animatable {
         .frame(width: total, height: h, alignment: .topLeading)
     }
 
-    /// 一颗胶囊加两边的半截颈，填对应的星团底。颈从胶囊端头圆心伸到两颗中间那条线。坐标都按整块的左上角算。
+    /// 一颗胶囊加两边的半截颈，填对应的混色底。颈从胶囊端头圆心伸到两颗中间那条线。坐标都按整块的左上角算。
     private func blob(_ span: Span, h: CGFloat, total: CGFloat, left: (x: CGFloat, half: CGFloat)?, right: (x: CGFloat, half: CGFloat)?,
                       palette: NebulaFill.Palette) -> some View {
         NebulaFill(palette: palette)
@@ -593,7 +593,7 @@ struct PolishButton: View {
 
     // MARK: 收着：✨ 和润色合成一颗（AB1）
 
-    /// 收着时 AI 栏里只有这一颗：join 星团底，左边黄色 ✨ 20pt，右边白字风格名 + ▾。
+    /// 收着时 AI 栏里只有这一颗：join 混色底，左边黄色 ✨ 20pt，右边白字风格名 + ▾。
     /// 点 ✨ 那半边（到 x≈46）快速润色；点「润色 ▾」那半边打开改写风格一排。生成中整颗点了都是停止。
     private var joinedButton: some View {
         let title = StyleKey.title(model, answer: false)
@@ -807,7 +807,7 @@ struct PolishButton: View {
     // MARK: 外观
 
     /// 58×34 的胶囊：生成中深灰底白色方块，流光描边按这次的颜色。
-    /// nebula：识意自动时的蓝紫星团底（MG2）。
+    /// nebula：识意自动时的蓝紫柔和混色底（MG2、FB）。
     private func face<Label: View>(fill: AnyShapeStyle, nebula: Bool = false, ring: [Color], @ViewBuilder label: () -> Label) -> some View {
         let shape = Capsule()
         return Group {
@@ -818,6 +818,12 @@ struct PolishButton: View {
             }
         }
         .frame(width: KeyboardMetrics.polishButtonWidth, height: KeyboardMetrics.chipHeight)
+        .background {
+            // 生成中外面 3pt 淡外圈 rgba(99,102,241,.25)（FB，取代左右两团彩色光）。
+            if model.isRunning {
+                shape.fill(Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255).opacity(0.25)).padding(-3)
+            }
+        }
         .background {
             if nebula {
                 NebulaFill().clipShape(shape)

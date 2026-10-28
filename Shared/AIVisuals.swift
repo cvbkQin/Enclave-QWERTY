@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// App 和键盘共用的 AI 画面零件：星团底、识意放大镜图标、✨ 星星组、四角星。
+/// App 和键盘共用的 AI 画面零件：混色底、识意放大镜图标、✨ 星星组、四角星。
 /// App 里的功能演示（模拟键盘）也用它们，和真键盘长得一样。
 enum AIVisuals {
     /// 金色 #FDE68A（和 Brand.gold 一样）。
@@ -11,58 +11,38 @@ enum AIVisuals {
                           Color(red: 0x8B / 255, green: 0x5C / 255, blue: 0xF6 / 255)]
 }
 
-/// 星团底：线性底上叠四团椭圆光和三粒小白星，照稿子的 CSS 换成多层径向渐变（百分比相对按钮自己的宽高）。
-/// ask 是识意自动时 ✨ 的蓝紫（MG2–MG5）；rewrite、answer 是两颗风格键，join 是收着时合成的那一颗（AB1–AB3）。
+/// 柔和混色底（0.91 FB，方案 B）：亮一点的 115° 线性底上叠两团大而淡的椭圆光，照稿子的 CSS 换成径向渐变（百分比相对按钮自己的宽高）。
+/// 扁平：没有小白星、顶上水光和外圈光。
+/// ask 是识意自动时 ✨ 的蓝紫（MG2–MG5）；rewrite、answer 是两颗风格键，join 是收着时合成的那一颗（AB1–AB3，和 rewrite 同色）。
 struct NebulaFill: View {
     enum Palette { case ask, rewrite, answer, join }
 
     /// 椭圆光：横竖半径（占宽高的比例）、中心、颜色、透明度。CSS 里写在前面的在上层，这里按 CSS 顺序列，画的时候倒过来。
     private typealias Glow = (rx: CGFloat, ry: CGFloat, x: CGFloat, y: CGFloat, color: UInt32, alpha: Double)
-    /// 小白星：位置、透明度、半径。
-    private typealias Star = (x: CGFloat, y: CGFloat, alpha: Double, r: CGFloat)
 
     var palette: Palette = .ask
 
     private var glows: [Glow] {
         switch palette {
         case .ask:
-            return [(0.60, 0.75, 0.18, 0.28, 0x8B5CF6, 1), (0.55, 0.80, 0.62, 0.18, 0x38BDF8, 1),
-                    (0.50, 0.70, 0.40, 0.88, 0x0EA5E9, 1), (0.55, 0.80, 0.90, 0.70, 0xA855F7, 1)]
-        case .rewrite:
-            return [(0.60, 0.75, 0.18, 0.28, 0xA855F7, 1), (0.50, 0.70, 0.66, 0.16, 0xC084FC, 0.75),
-                    (0.50, 0.70, 0.42, 0.90, 0x7C3AED, 1), (0.55, 0.80, 0.92, 0.72, 0x9333EA, 1)]
+            return [(0.70, 0.90, 0.16, 0.30, 0xA855F7, 0.8), (0.65, 0.90, 0.86, 0.72, 0x0EA5E9, 0.75)]
+        case .rewrite, .join:
+            return [(0.70, 0.90, 0.18, 0.30, 0xA855F7, 0.7), (0.60, 0.90, 0.86, 0.74, 0x6366F1, 0.55)]
         case .answer:
-            return [(0.60, 0.75, 0.18, 0.28, 0x38BDF8, 1), (0.50, 0.70, 0.66, 0.16, 0x67E8F9, 0.70),
-                    (0.50, 0.70, 0.42, 0.90, 0x0EA5E9, 1), (0.55, 0.80, 0.92, 0.72, 0x3B82F6, 1)]
-        case .join:
-            return [(0.40, 0.75, 0.14, 0.30, 0x8B5CF6, 1), (0.40, 0.70, 0.50, 0.14, 0xA855F7, 0.80),
-                    (0.45, 0.70, 0.70, 0.90, 0x7C3AED, 1), (0.35, 0.80, 0.94, 0.70, 0x9333EA, 1)]
+            return [(0.70, 0.90, 0.18, 0.30, 0x38BDF8, 0.7), (0.60, 0.90, 0.86, 0.74, 0x3B82F6, 0.5)]
         }
     }
 
-    private var stars: [Star] {
-        switch palette {
-        case .ask: return [(0.74, 0.30, 0.85, 0.6), (0.22, 0.72, 0.70, 0.5), (0.88, 0.78, 0.60, 0.5)]
-        case .rewrite: return [(0.74, 0.30, 0.8, 0.6), (0.24, 0.74, 0.8, 0.5), (0.88, 0.80, 0.8, 0.5)]
-        case .answer: return [(0.72, 0.28, 0.8, 0.6), (0.26, 0.76, 0.8, 0.5), (0.90, 0.78, 0.8, 0.5)]
-        case .join: return [(0.30, 0.22, 0.8, 0.6), (0.62, 0.78, 0.8, 0.5), (0.84, 0.30, 0.8, 0.5)]
-        }
-    }
-
-    /// 底：ask、rewrite、answer 是 115°，join 是 90°。
+    /// 底：都是 115°。
     private var base: LinearGradient {
-        let angled = (UnitPoint(x: 0, y: 0.25), UnitPoint(x: 1, y: 0.75))
-        func stops(_ list: [(UInt32, CGFloat)]) -> [Gradient.Stop] { list.map { .init(color: Self.color($0.0), location: $0.1) } }
+        let ends: (UInt32, UInt32)
         switch palette {
-        case .ask:
-            return LinearGradient(stops: stops([(0x5B21B6, 0), (0x4338CA, 0.4), (0x1E40AF, 0.65), (0x6D28D9, 1)]), startPoint: angled.0, endPoint: angled.1)
-        case .rewrite:
-            return LinearGradient(stops: stops([(0x4C1D95, 0), (0x5B21B6, 0.4), (0x6D28D9, 0.7), (0x4C1D95, 1)]), startPoint: angled.0, endPoint: angled.1)
-        case .answer:
-            return LinearGradient(stops: stops([(0x0C4A6E, 0), (0x075985, 0.4), (0x0369A1, 0.65), (0x1E3A8A, 1)]), startPoint: angled.0, endPoint: angled.1)
-        case .join:
-            return LinearGradient(stops: stops([(0x4C1D95, 0), (0x6D28D9, 1)]), startPoint: .leading, endPoint: .trailing)
+        case .ask: ends = (0x7C3AED, 0x2563EB)
+        case .rewrite, .join: ends = (0x7C3AED, 0x6D5BF0)
+        case .answer: ends = (0x0284C7, 0x0B8FD8)
         }
+        return LinearGradient(colors: [Self.color(ends.0), Self.color(ends.1)],
+                              startPoint: UnitPoint(x: 0, y: 0.25), endPoint: UnitPoint(x: 1, y: 0.75))
     }
 
     static func color(_ hex: UInt32) -> Color {
@@ -72,7 +52,7 @@ struct NebulaFill: View {
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
-            let glows = self.glows, stars = self.stars
+            let glows = self.glows
             ZStack(alignment: .topLeading) {
                 base
                 ForEach(0..<glows.count, id: \.self) { k in
@@ -82,19 +62,6 @@ struct NebulaFill: View {
                                        center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
                         .frame(width: 2 * g.rx * w, height: 2 * g.ry * h)
                         .position(x: g.x * w, y: g.y * h)
-                }
-                ForEach(0..<stars.count, id: \.self) { k in
-                    let star = stars[k]
-                    Circle().fill(Color.white.opacity(star.alpha))
-                        .frame(width: 2 * star.r, height: 2 * star.r)
-                        .position(x: star.x * w, y: star.y * h)
-                }
-                if palette != .ask {
-                    // 顶上一道淡淡的水光：宽 60%、高 9、白 22%。
-                    EllipticalGradient(stops: [.init(color: .white.opacity(0.22), location: 0), .init(color: .white.opacity(0), location: 1)],
-                                       center: .center, startRadiusFraction: 0, endRadiusFraction: 0.5)
-                        .frame(width: 0.6 * w, height: 9)
-                        .position(x: w / 2, y: 1 + 4.5)
                 }
             }
         }
