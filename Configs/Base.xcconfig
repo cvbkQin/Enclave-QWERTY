@@ -6,6 +6,8 @@ CODE_SIGN_STYLE = Automatic
 
 // 内测版自带的接口：Local.xcconfig 里填 INTERNAL_* 那几项，打内测包时命令行加 INTERNAL_BUILD=YES 才会编进去。
 // 开发者版、公测版（INTERNAL_BUILD=NO）这几项都是空的。
+// 公测包（版本后缀 .1）打包时命令行加 PUBLIC_BUILD=YES：首页「摘要」旁显示「公测版」。
+PUBLIC_BUILD = NO
 INTERNAL_BUILD = NO
 INTERNAL_BASE_URL =
 INTERNAL_MODEL =

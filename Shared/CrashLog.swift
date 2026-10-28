@@ -43,7 +43,7 @@ final class CrashLog: NSObject, MXMetricManagerSubscriber {
         guard !payloads.isEmpty, let folder = Self.folder else { return }
         let source = source
         queue.async {
-            var entries = Self.load()
+            var entries = Self.entries()
             let known = Set(entries.map(\.file))
             for payload in payloads {
                 let data = payload.jsonRepresentation()
@@ -95,7 +95,7 @@ final class CrashLog: NSObject, MXMetricManagerSubscriber {
     }
 
     /// 新的在前。
-    static func load() -> [Entry] {
+    static func entries() -> [Entry] {
         guard let url = folder?.appendingPathComponent(indexName), let data = try? Data(contentsOf: url) else { return [] }
         let entries = (try? JSONDecoder().decode([Entry].self, from: data)) ?? []
         return entries.sorted { $0.date > $1.date }

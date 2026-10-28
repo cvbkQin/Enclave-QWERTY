@@ -77,6 +77,7 @@ targets:
         EnclaveAppGroup: $(APP_GROUP_ID)
         # 内测版自带的接口（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值，原文只在 Mac 的 Local.xcconfig 里。
         EnclaveInternalBuild: $(INTERNAL_BUILD)
+        EnclavePublicBuild: $(PUBLIC_BUILD)
         EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
         EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
         EnclaveBuiltinKey: $(ENCLAVE_BUILTIN_KEY)
@@ -121,6 +122,7 @@ targets:
         EnclaveAppGroup: $(APP_GROUP_ID)
         # 内测版自带的接口（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值，原文只在 Mac 的 Local.xcconfig 里。
         EnclaveInternalBuild: $(INTERNAL_BUILD)
+        EnclavePublicBuild: $(PUBLIC_BUILD)
         EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
         EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
         EnclaveBuiltinKey: $(ENCLAVE_BUILTIN_KEY)

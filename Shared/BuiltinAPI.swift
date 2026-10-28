@@ -12,6 +12,8 @@ enum BuiltinAPI {
 
     /// 内测包（打包时 INTERNAL_BUILD=YES）：接口页只能看。
     static let isInternalBuild = value("EnclaveInternalBuild") == "YES"
+    /// 公测包（打包时 PUBLIC_BUILD=YES）：只用来在首页标「公测版」。
+    static let isPublicBuild = value("EnclavePublicBuild") == "YES"
 
     static let baseURL = value("EnclaveBuiltinBaseURL")
     static let model = value("EnclaveBuiltinModel")
