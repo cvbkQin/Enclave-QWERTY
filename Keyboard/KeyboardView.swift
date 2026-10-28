@@ -208,6 +208,7 @@ struct KeyboardView: View {
         .overlay(alignment: .leading) {
             if hidden && !reduceMotion {
                 AIBarMorph(u: barMorphU,
+                           closing: !model.aiExpanded,
                            rewriteTitle: StyleKey.title(model, answer: false),
                            answerTitle: StyleKey.title(model, answer: true))
                     .padding(.leading, inset + 44 + 6)
@@ -226,7 +227,7 @@ struct KeyboardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 和回答卡同一条 ease-out：动画本身按时间匀速推进，曲线在 AIBarMorph 里算。
-    /// 展开多跑 60 ms 给「直击要害」回弹；收起合上那一下轻触感一次，展开不震。
+    /// 展开多跑 60 ms 给「直击要害」回弹；收起合上那一下轻触感一次（三颗刚好并成一颗时），展开不震。
     private func morphBar(_ expanded: Bool) {
         barMorphToken += 1
         let token = barMorphToken
@@ -241,7 +242,7 @@ struct KeyboardView: View {
         let duration = expanded ? 0.31 : 0.25
         withAnimation(.linear(duration: duration)) { barMorphU = target }
         if !expanded {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration - 0.03) {
                 guard token == barMorphToken, model.hasFullAccess else { return }
                 model.haptic.impactOccurred()
             }
@@ -320,10 +321,13 @@ struct KeyboardView: View {
 /// 抽屉开收时，合成的一颗和展开后的三颗（放大镜、润色、直击要害）之间的过渡。只在开收那一下画，平时是真按钮。
 /// u 是时间进度：0 收着，1 是 250 ms，展开时跑到 end（310 ms）给「直击要害」冲过头再回弹的尾巴。
 /// 形状不用模糊滤镜：相邻两颗胶囊之间连一截颈，颈的半高从 17 掐到 0（约 150 ms 断开），两边各画半截。
+/// 收起不是把展开倒着放（那样头 60 ms 只有回弹在倒退，接着又是先慢后快，比回答卡收起慢半拍）：
+/// 三颗从第一帧就一起往回收、先快后慢，颈、星星、文字按位置对回展开时同一刻的样子。
 struct AIBarMorph: View, Animatable {
     static let end: CGFloat = 1.24
 
     var u: CGFloat
+    var closing = false
     var rewriteTitle: String
     var answerTitle: String
 
@@ -355,8 +359,16 @@ struct AIBarMorph: View, Animatable {
 
     var body: some View {
         let h = KeyboardMetrics.chipHeight
-        let ms = u * 250
-        let e = 1 - pow(1 - Self.clamp(u), 3)
+        // 收起：t 是走过的时间比例，位置 e = (1 − t)²；ms 换算成展开时位置相同的那一刻。
+        let e: CGFloat, ms: CGFloat
+        if closing {
+            let left = Self.clamp(u / Self.end)
+            e = left * left
+            ms = 250 * (1 - pow(1 - e, 1.0 / 3))
+        } else {
+            ms = u * 250
+            e = 1 - pow(1 - Self.clamp(u), 3)
+        }
         let gap: CGFloat = 6
         let wJ = PolishButton.joinedWidth(rewriteTitle)
         let wM = KeyboardMetrics.polishButtonWidth
@@ -365,7 +377,7 @@ struct AIBarMorph: View, Animatable {
         let m = Span.lerp(Span(minX: 0, maxX: split), Span(minX: 0, maxX: wM), e)
         let r = Span.lerp(Span(minX: split, maxX: wJ), Span(minX: wM + gap, maxX: wM + gap + wR), e)
         let a0 = Span(minX: wJ - h, maxX: wJ), a1 = Span(minX: wM + 2 * gap + wR, maxX: wM + 2 * gap + wR + wA)
-        let bounce = Self.overshoot(ms)
+        let bounce = closing ? 0 : Self.overshoot(ms)
         var a = Span.lerp(a0, a1, e)
         a.minX += bounce
         a.maxX += bounce

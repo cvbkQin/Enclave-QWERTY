@@ -312,15 +312,15 @@ enum Brand {
     static let askSelection = dynamic(0xD8D4F8, 0x5E56A0)
     static let askClearFill = dynamic(0xE2E2E7, 0x3A3A3C)
     static let askClearIcon = dynamic(0x6B6B73, 0xAEAEB2)
-    /// ✨ 在识意展开时的三种底：自动是蓝紫星团（NebulaFill），改写 #4F46E5→#7C3AED，问答 #0284C7→#38BDF8。
+    /// ✨ 在识意展开时的三种底，都是扁平纯色：自动 #6366F1（NebulaFill.flatColor），改写 #7C3AED，问答 #0284C7。
     /// 放大镜里那颗星：#7C3AED → #38BDF8 → #8B5CF6（MG2）。
     static let askAutoColors = [Color(rgb(0x7C3AED)), Color(rgb(0x38BDF8)), Color(rgb(0x8B5CF6))]
-    static let askRewriteColors = [gradient[0], gradient[1]]
+    static let askRewriteColors = [gradient[1], gradient[1]]
     /// 识意自动生成中 ✨ 的流光描边：靛蓝、紫、天蓝（MG2 生成中外圈）。
     static let nebulaRing = [Color(rgb(0x6366F1)), Color(rgb(0x8B5CF6)),
                              Color(rgb(0x0EA5E9)), Color(rgb(0x38BDF8))]
     static let askAnswerColors = [Color(UIColor(red: 0x02 / 255, green: 0x84 / 255, blue: 0xC7 / 255, alpha: 1)),
-                                  Color(UIColor(red: 0x38 / 255, green: 0xBD / 255, blue: 0xF8 / 255, alpha: 1))]
+                                  Color(UIColor(red: 0x02 / 255, green: 0x84 / 255, blue: 0xC7 / 255, alpha: 1))]
     /// 问答结果卡的天蓝边 #38BDF8 / 深色 #7DD3FC；改写结果卡紫边 #8B7CF6。
     static let answerBorder = dynamic(0x38BDF8, 0x7DD3FC)
     /// 结果卡左边模式控件（SW4）：改写 底 #ECEAFD 字 #4A3BD6（深色 #4E4875 / #E4DFFF），问答 底 #E0F2FE 字 #0369A1（深色 #0C4A6E / #BAE6FD）。

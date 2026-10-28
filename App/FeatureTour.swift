@@ -834,7 +834,7 @@ private struct TourKeyboard: View {
         .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
     }
 
-    /// 润色 ▾（紫色星团）、直击要害 ▾（蓝色星团）；回答卡上是哪种结果，那颗亮边框。
+    /// 润色 ▾（紫色）、直击要害 ▾（蓝色），和键盘一样是扁平纯色；回答卡上是哪种结果，那颗亮边框。
     private func styleKey(answer: Bool) -> some View {
         let active = state.card != nil && state.cardAnswer == answer
         return HStack(spacing: 4) {
@@ -847,7 +847,6 @@ private struct TourKeyboard: View {
         .frame(height: 34)
         .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()))
         .overlay(Capsule().strokeBorder(answer ? Color(hex: 0x7DD3FC) : Color(hex: 0xC4B5FD), lineWidth: active ? 1.5 : 0))
-        .shadow(color: active ? (answer ? Color(hex: 0x0EA5E9) : Color(hex: 0x7C3AED)).opacity(0.5) : .clear, radius: 6)
         .fixedSize()
         .contentShape(Capsule())
         .onTapGesture { wrong() }

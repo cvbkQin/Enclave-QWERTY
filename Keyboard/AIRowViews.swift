@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - AI 栏的两颗风格键（MG1–MG5）
 
-/// 改写风格键、问答风格键（AB2）：展开时才有，紫色 / 蓝色星团底、白字白图标。
-/// 回答卡上是哪一种结果，那一颗就激活：1.5pt 浅色边框、两小段白光沿边框转（3 秒一圈）、外面一圈 10pt 的光。
+/// 改写风格键、问答风格键（AB2）：展开时才有，紫色 / 蓝色扁平纯色底、白字白图标。
+/// 回答卡上是哪一种结果，那一颗就激活：1.5pt 浅色边框、两小段白光沿边框转（3 秒一圈）；扁平化后外面不再加光晕。
 struct StyleKey: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
@@ -17,12 +17,6 @@ struct StyleKey: View {
         let active = !locked && isActive
         Button { locked ? model.showFullAccessTip() : model.toggleRow(row) } label: {
             Self.face(answer: answer, title: Self.title(model, answer: answer), open: open)
-            .background {
-                // 激活：外面一圈 10pt 光，润色 rgba(124,58,237,.55)、直击要害 rgba(14,165,233,.55)。
-                if active {
-                    Capsule().fill(answer ? Self.answerGlow : Self.rewriteGlow).padding(-3).blur(radius: 5)
-                }
-            }
             .overlay {
                 if active || open {
                     Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5)
@@ -47,10 +41,8 @@ struct StyleKey: View {
 
     static let rewriteBorder = NebulaFill.color(0xC4B5FD)
     static let answerBorder = NebulaFill.color(0x7DD3FC)
-    static let rewriteGlow = Color(red: 124 / 255, green: 58 / 255, blue: 237 / 255).opacity(0.55)
-    static let answerGlow = Color(red: 14 / 255, green: 165 / 255, blue: 233 / 255).opacity(0.55)
 
-    /// 星团底、白字白图标（AB2）：高 34、左内边 9、右内边 8；15pt 图标、13.5pt 600 风格名（最宽 76）、10pt ▾。
+    /// 扁平纯色底、白字白图标（AB2）：高 34、左内边 9、右内边 8；15pt 图标、13.5pt 600 风格名（最宽 76）、10pt ▾。
     /// 宽度按字算死，AI 栏分裂动画里画的那几颗和这里一样宽。
     static func face(answer: Bool, title: String, open: Bool = false, filled: Bool = true) -> some View {
         HStack(spacing: 4) {
