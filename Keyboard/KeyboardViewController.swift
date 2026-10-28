@@ -10,6 +10,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        CrashLog.shared.start(source: "keyboard")
         let host = UIHostingController(rootView: KeyboardView(model: model))
         // 铺一层不透明的键盘底色，不再几乎透明：在 Chrome 里从系统键盘（英文、日文等）切回来时，
         // 系统键盘的按键会残留在我们下面，透明的话从键缝里透出来。不透明也保证键缝能接到触摸。

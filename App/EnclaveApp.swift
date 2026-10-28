@@ -7,6 +7,8 @@ struct EnclaveApp: App {
     @StateObject private var store = AppStore()
 
     init() {
+        // 内测版：收崩溃、卡死记录，只存本机。
+        CrashLog.shared.start(source: "app")
         #if DEBUG
         // 模拟器截图用：-keyboardDebug "expanded,nine,compose:nihao" 让键盘直接显示某个状态。
         let args = ProcessInfo.processInfo.arguments
