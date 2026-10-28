@@ -4,7 +4,18 @@ import SwiftUI
 /// 识意展开时 ✨ 按框里的话执行：模型先判断是改写还是问答，问答展开抽屉看回答，改写跟着快速模式走。
 extension KeyboardModel {
     /// 不在卡片里改字时打字去哪：识意展开着就进识意框，否则进对方的输入框。
-    var restingTarget: InputTarget { aiExpanded ? .instruction : .host }
+    var restingTarget: InputTarget { aiExpanded && !hostFocused ? .instruction : .host }
+
+    /// 对方输入框的光标变了（用户点了上面的输入框）：抽屉开着、正打进识意框时，打字换回对方输入框。
+    /// 键盘自己刚插过字、替换过的不算；在卡片里改字时不动。
+    func hostSelectionChanged() {
+        guard aiExpanded, target == .instruction, Date().timeIntervalSince(lastProxyUse) > 0.5 else { return }
+        if isComposing { finishComposition() }
+        if aiRow != nil { aiRow = nil }
+        if askSelected { askSelected = false }
+        hostFocused = true
+        target = .host
+    }
 
     /// 点 AI 栏的风格键：展开时整块下半格换成这一种的风格一排，收起时浮在 AI 栏上面；再点自己换回来。
     func toggleRow(_ row: AIRow) {
@@ -19,6 +30,7 @@ extension KeyboardModel {
         if target == .card { finishCardEdit() }
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
+        hostFocused = false
         if target != .instruction { target = .instruction }
     }
 

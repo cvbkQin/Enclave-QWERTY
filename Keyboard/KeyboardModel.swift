@@ -128,6 +128,7 @@ final class KeyboardModel: ObservableObject {
         didSet {
             if aiExpanded { unseenResult = false }
             if aiExpanded != oldValue {
+                hostFocused = false
                 if aiRow != nil { aiRow = nil }
                 // 换打字的地方之前，正在拼的先上屏到原来的地方。
                 if target != .card, isComposing { finishComposition() }
@@ -224,7 +225,14 @@ final class KeyboardModel: ObservableObject {
         QueuedEngine.shared.willSync = { [weak self] in self?.applyEngineResults(wait: true) }
     }
 
-    var proxy: UITextDocumentProxy? { controller?.textDocumentProxy }
+    var proxy: UITextDocumentProxy? {
+        lastProxyUse = Date()
+        return controller?.textDocumentProxy
+    }
+    /// 键盘自己最后一次碰对方输入框的时间：之后不久的光标变化是我们插字、替换带出来的，不算用户点了输入框。
+    var lastProxyUse = Date.distantPast
+    /// 抽屉开着时用户点了对方的输入框：打字回到对方输入框，点识意框再回来。
+    var hostFocused = false
 
     enum ResultUse { case replaced, inserted }
 

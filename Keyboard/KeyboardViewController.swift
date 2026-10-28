@@ -83,6 +83,8 @@ final class KeyboardViewController: UIInputViewController {
     /// 换到别的输入框、移动光标时也更新一下发送键（有没有字、回车键类型）。
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
+        // 先判断再读输入框：读一下也算键盘碰过输入框。
+        model.hostSelectionChanged()
         model.refreshHostState()
         // 挪了光标，英文补全按新位置重算。
         if !model.chineseMode { model.updateEnglishSuggestions() }
