@@ -6,7 +6,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PREFIX="$(sed -n 's/^BUNDLE_ID_PREFIX *= *//p' "$ROOT/Configs/Local.xcconfig" 2>/dev/null | tail -1)"
+# 没有 Local.xcconfig 时（参数给了 bundle id）也要能跑：sed 读不到文件不算失败。
+PREFIX="$( (sed -n 's/^BUNDLE_ID_PREFIX *= *//p' "$ROOT/Configs/Local.xcconfig" 2>/dev/null || true) | tail -1)"
 BUNDLE="${1:-${PREFIX:-com.example}.enclave}"
 GROUP_ID="group.${BUNDLE}"
 
