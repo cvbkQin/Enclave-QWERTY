@@ -322,13 +322,18 @@ extension KeyboardModel {
         case .space: spaceKey()
         case .returnKey: returnKey()
         case .toggleChinese: toggleChinese()
-        case .layer(let layer): switchLayer(layer)
+        // 打字时左列 123 / #@¥ 还在：先把拼音原样上屏（同「确认」），再切过去。
+        case .layer(let layer):
+            if isComposing { returnKey() }
+            switchLayer(layer)
         case .digitPunct: typeSymbol(".")
         case .digitsMore: digitsMore.toggle()
         case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
-        // 「常用」只在没打拼音时露出来；万一打字时触发，不打开，免得丢掉没上屏的拼音。
-        case .quickWords: if !isComposing { openPanel(.quickWords) }
+        // 「常用」打字时也在：先把拼音原样上屏，再打开。
+        case .quickWords:
+            if isComposing { returnKey() }
+            openPanel(.quickWords)
         case .globe: break
         }
     }
@@ -546,10 +551,25 @@ extension KeyboardModel {
         return (selected, String(open[...lastLetter]), rest)
     }
 
-    /// 第一段没定的数字可以拼成的音节，长的在前；最后是这个数字键上的单个字母。
+    /// 第一个还没定的字的读法，长的在前；最后是这个数字键上的单个字母。首选候选的读法排第一（94664 的「中」：zhong 在 xiong 前面）。
     var pinyinOptions: [String] {
         guard showsNineKey, isComposing else { return [] }
-        return PinyinSyllables.options(forDigits: String(pinyinSplit.rest.prefix(while: \.isNumber)))
+        let split = pinyinSplit
+        var options = PinyinSyllables.options(forDigits: String(split.rest.prefix(while: \.isNumber)))
+        if let top = firstOpenSyllable(fixed: split.fixed), let index = options.firstIndex(of: top), index > 0 {
+            options.insert(options.remove(at: index), at: 0)
+        }
+        return options
+    }
+
+    /// 首选候选在第一个没定的字上的读法：拼写栏是首选的拼音（「你好ma」「mi hao」），去掉前面选过的词和已经定下的音节。
+    private func firstOpenSyllable(fixed: String) -> String? {
+        let spelling = composition.drop { !$0.isASCII }
+        let syllables = spelling.split(whereSeparator: { $0 == " " || $0 == "'" })
+        let fixedCount = fixed.isEmpty ? 0 : fixed.split(separator: "'").count
+        guard syllables.count > fixedCount else { return nil }
+        let syllable = String(syllables[fixedCount])
+        return syllable.allSatisfy(\.isLetter) ? syllable.lowercased() : nil
     }
 
     /// 分段选过、还没上屏的词（拼音栏顶上显示）。
@@ -882,6 +902,8 @@ extension KeyboardModel {
         // 没变的不设：@Published 设一次就让整个键盘重画一遍。
         let newComposition = engine.composition
         if newComposition != composition { composition = newComposition }
+        let row = showsNineKey && layer == .letters && !composition.isEmpty
+        if row != pinyinRowShown { pinyinRowShown = row }
         let newCandidates = engine.candidates
         if newCandidates != candidates { candidates = newCandidates }
         if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }

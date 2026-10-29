@@ -189,7 +189,7 @@ enum KeyLayout {
     /// #@¥   GHI   JKL   MNO   ^^（打拼音时是重输）
     /// 常用  PQRS  TUV   WXYZ  换行
     /// 😀/地球 中/英 空格（两格）   （换行占两行）
-    /// 打拼音时左列上三格换成拼音选择栏。中/英放在底排第二格，和全键盘的位置大体一致。
+    /// 中/英放在底排第二格，和全键盘的位置大体一致。
     private static func nineKey(_ state: State, size: CGSize) -> KeyLayoutResult {
         let slot = KeyboardMetrics.nineRowPitch
         let top = KeyboardMetrics.nineTopOffset
@@ -212,21 +212,17 @@ enum KeyLayout {
                 add("n\(digit)", .nine(digit == "1" ? "'" : digit), col: col + 1, row: row)
             }
         }
-        var pinyinColumn: CGRect?
-        if state.composing {
-            pinyinColumn = CGRect(x: edge, y: top, width: column, height: slot * 3)
-        } else {
-            add("layer", .layer(.digits), col: 0, row: 0)
-            add("symbols", .layer(.numbers), col: 0, row: 1)
-            add("quickWords", .quickWords, col: 0, row: 2)
-        }
+        // 打拼音时左列照平时留着，拼音选择在候选栏上面一行（PY1）。
+        add("layer", .layer(.digits), col: 0, row: 0)
+        add("symbols", .layer(.numbers), col: 0, row: 1)
+        add("quickWords", .quickWords, col: 0, row: 2)
         add(state.needsGlobeKey ? "globe" : "emoji", state.needsGlobeKey ? .globe : .emoji, col: 0, row: 3)
         add("chinese", .toggleChinese, col: 1, row: 3)
         add("space", .space, col: 2, row: 3, cols: 2)
         add("delete", .delete, col: 4, row: 0)
         add("emoticon", .emoticon, col: 4, row: 1)
         add("return", .returnKey, col: 4, row: 2, rows: 2)
-        return KeyLayoutResult(keys: keys, pinyinColumn: pinyinColumn)
+        return KeyLayoutResult(keys: keys, pinyinColumn: nil)
     }
 
     /// 九宫格数字键盘，照 iOS 26：

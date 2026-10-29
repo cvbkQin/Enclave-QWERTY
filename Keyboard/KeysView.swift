@@ -20,14 +20,9 @@ struct KeysView: View {
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
                 } else if model.candidatesExpanded {
-                    // 九宫格展开候选时左边留着拼音栏（拉满四行），可以接着选下一段的拼音。
-                    let column = model.nineGrid ? layout.pinyinColumn : nil
-                    CandidateGrid(model: model, leading: column?.maxX ?? 0)
+                    // 九宫格的拼音行在候选栏上面，展开时也留着；整页候选铺满按键区。
+                    CandidateGrid(model: model)
                         .frame(width: geo.size.width, height: geo.size.height)
-                    if let column {
-                        PinyinColumn(model: model, frame: CGRect(x: column.minX, y: column.minY,
-                                                                 width: column.width, height: column.height / 3 * 4))
-                    }
                 } else {
                     ForEach(layout.keys) { key in
                         KeyCapCell(presses: model.keyPresses, context: context, key: key)
@@ -36,9 +31,6 @@ struct KeysView: View {
                     }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)
-                    if let column = layout.pinyinColumn {
-                        PinyinColumn(model: model, frame: column)
-                    }
                     if let column = layout.operatorColumn {
                         OperatorColumn(model: model, frame: column)
                     }

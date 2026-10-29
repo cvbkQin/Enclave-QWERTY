@@ -217,42 +217,38 @@ struct QuickWordsPanel: View {
     }
 }
 
-/// 九宫格打拼音时左列的音节栏，和系统一样上下滑动，点一个定下这一段的拼音。
-/// 分段选过词时，最上面一格是选过的词（紫色），点它退回最后选的那个词，下面接着选剩下这段的拼音。
-struct PinyinColumn: View {
+/// 九宫格打拼音时候选栏上面的拼音行（照 iOS 原生，PY1）：只列第一个还没定的字的读法，后面跟这个键的单个字母。
+/// 不加底色、不预选；点一项定下这个字的音，拼音行换成下一个字的读法。放不下就左右滑，右边渐隐。
+struct PinyinRow: View {
     @ObservedObject var model: KeyboardModel
-    let frame: CGRect
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                let selected = model.selectedWords
-                if !selected.isEmpty {
-                    Button { model.unselectLastWord() } label: {
-                        Text(selected).font(.system(size: 17, weight: .medium)).foregroundStyle(Brand.purpleText)
-                            .lineLimit(1).minimumScaleFactor(0.6).truncationMode(.head)
-                            .padding(.horizontal, 4)
-                            .frame(maxWidth: .infinity, minHeight: KeyboardMetrics.pinyinCellHeight).contentShape(Rectangle())
-                    }
-                    .buttonStyle(KeyPressStyle())
-                    Divider().padding(.horizontal, 8)
-                }
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
                 ForEach(model.pinyinOptions, id: \.self) { syllable in
                     Button { model.choosePinyin(syllable) } label: {
                         Text(syllable).font(.system(size: 17)).foregroundStyle(Color.primary)
-                            .frame(maxWidth: .infinity, minHeight: KeyboardMetrics.pinyinCellHeight).contentShape(Rectangle())
+                            .padding(.horizontal, 13)
+                            .frame(maxHeight: .infinity)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(KeyPressStyle())
                 }
             }
+            .padding(.leading, 3)
+            .padding(.trailing, 36)
         }
         .hidingScrollEdgeEffect()
-        .background(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous).fill(KeyStyle.charKey))
-        .clipShape(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous))
-        .padding(.horizontal, KeyboardMetrics.nineKeyInsetX)
-        .padding(.vertical, KeyboardMetrics.nineKeyInsetY)
-        .frame(width: frame.width, height: frame.height)
-        .offset(x: frame.minX, y: frame.minY)
+        .mask(HStack(spacing: 0) {
+            Color.black
+            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 36)
+        })
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
+                ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+                : UIColor(red: 0xE2 / 255, green: 0xE2 / 255, blue: 0xE7 / 255, alpha: 1) }))
+                .frame(height: 1)
+        }
     }
 }
 

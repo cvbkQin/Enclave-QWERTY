@@ -34,6 +34,10 @@ enum KeyboardMetrics {
     /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝（横屏 25.6）。
     static var pinyinCellHeight: CGFloat { landscape ? (nineKeyHeight * 3 + nineRowGap * 2) / 4 : 38 }
 
+    /// 九宫格打拼音时候选栏上面的拼音行（照 iOS 原生，PY1）：高 32，上面留 6；打字时键盘长高 38。
+    static var pinyinRowHeight: CGFloat { landscape ? 28 : 32 }
+    static var pinyinRowGap: CGFloat { landscape ? 4 : 6 }
+
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     static var topRow: CGFloat { landscape ? 34 : 44 }
     /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 30）。
@@ -83,8 +87,9 @@ enum KeyboardMetrics {
     static let wordPanelExtra: CGFloat = 40
 
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
-                       reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false) -> CGFloat {
-        var height = topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
+                       reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false,
+                       pinyinRow: Bool = false) -> CGFloat {
+        var height = topRow + keysHeight + (wordPanel ? wordPanelExtra : 0) + (pinyinRow ? pinyinRowGap + pinyinRowHeight : 0)
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
