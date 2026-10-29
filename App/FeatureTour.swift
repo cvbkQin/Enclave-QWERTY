@@ -630,38 +630,22 @@ private final class TourModel: ObservableObject {
         try await stream(text)
     }
 
-    /// 演示接口按词吐字：中文 2–4 个字一段，英文一个词一段；和真键盘出字差不多快（约 90 字/秒），标点后多停 0.04 秒。
+    /// 演示接口出字：和写进输入框一样快，0.25–0.4 秒从左往右打出来（cvbk 10-29：回答卡里出字要快）。
     private func stream(_ text: String) async throws {
         if reduceMotion {
             withAnimation(.easeInOut(duration: 0.2)) { card = text }
             return
         }
         card = ""
-        for chunk in Self.chunks(text) {
-            card = (card ?? "") + chunk
-            let punctuation = chunk.last.map { "，。！？、：；,.!?:;".contains($0) } ?? false
-            try await pause(Double(chunk.count) / 90 * Double.random(in: 0.7...1.3) + (punctuation ? 0.04 : 0))
+        let ticks = max(Int(Self.typeDuration(text) * 60), 1)
+        for i in 1...ticks {
+            card = String(text.prefix(text.count * i / ticks))
+            try await pause(Self.typeDuration(text) / Double(ticks))
         }
     }
 
-    static func chunks(_ text: String) -> [String] {
-        let cjk = text.unicodeScalars.contains { $0.value >= 0x3000 }
-        var out: [String] = []
-        var current = ""
-        var size = Int.random(in: 2...4)
-        for char in text {
-            current.append(char)
-            let breakHere = cjk
-                ? current.count >= size || "，。！？、：；".contains(char)
-                : char == " "
-            if breakHere {
-                out.append(current)
-                current = ""
-                size = Int.random(in: 2...4)
-            }
-        }
-        if !current.isEmpty { out.append(current) }
-        return out
+    static func typeDuration(_ text: String) -> Double {
+        min(0.25 + Double(text.count) * 0.0015, 0.4)
     }
 
     /// 结果写进输入框：原文变淡 0.15 秒，新字从左往右打出来（0.25–0.4 秒，按字数，和真键盘写入一样快）。
@@ -674,7 +658,7 @@ private final class TourModel: ObservableObject {
         try await pause(0.15)
         self[keyPath: path] = ""
         fieldDim = false
-        try await type(path, text, duration: min(0.25 + Double(text.count) * 0.0015, 0.4))
+        try await type(path, text, duration: Self.typeDuration(text))
     }
 
     /// 撤销、换内容：当前文字从尾往前删掉 0.25 秒，再打出新的 0.35 秒。
@@ -1425,14 +1409,17 @@ private struct TourKeyboard: View {
     private var joined: some View {
         let name = promptNames[min(model.selectedPrompt, promptNames.count - 1)]
         return HStack(spacing: 0) {
-            PolishStars(size: 20, running: model.sparkRunning, glowing: !reduceMotion, doneAt: model.sparkDone, tint: AIVisuals.gold)
-                .frame(width: 20, height: 20)
-                .padding(.trailing, 7)
-                .padding(.leading, 12)
-                .frame(maxHeight: .infinity)
-                .tourPress(.sparkle, model: model)
+            // ✨ 和名字一起算点 ✨（cvbk 10-29：点到「润色」也要能触发），竖线和箭头算开关提示词一排。
             HStack(spacing: 0) {
+                PolishStars(size: 20, running: model.sparkRunning, glowing: !reduceMotion, doneAt: model.sparkDone, tint: AIVisuals.gold)
+                    .frame(width: 20, height: 20)
+                    .padding(.trailing, 7)
                 Text(name).font(.system(size: 13.5, weight: .semibold)).lineLimit(1)
+            }
+            .padding(.leading, 12)
+            .frame(maxHeight: .infinity)
+            .tourPress(.sparkle, model: model)
+            HStack(spacing: 0) {
                 divider.padding(.horizontal, 3)
                 Image(systemName: model.promptsOpen ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold))
             }
@@ -1756,14 +1743,18 @@ private struct TourKeyboard: View {
                     wordChip(index, word, hint: script.hints.contains(index) && model.picked.isEmpty, script: script)
                 }
             }
+            .contentShape(Rectangle())
             .coordinateSpace(name: "tourWords")
             .onPreferenceChange(TourWordFramesKey.self) { wordFrames = $0 }
-            .gesture(DragGesture(minimumDistance: 8, coordinateSpace: .named("tourWords"))
+            // 点和横划用同一个手势：按下的第一块没选就一路选上，已选就一路取消；词之间的空隙也算（各外扩 3pt）。
+            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("tourWords"))
                 .onChanged { value in
-                    if let hit = wordFrames.first(where: { $0.value.contains(value.location) })?.key {
-                        model.toggleWord(hit, on: true)
-                    }
-                })
+                    guard let hit = wordFrames.first(where: { $0.value.insetBy(dx: -3, dy: -3).contains(value.location) })?.key else { return }
+                    let select = dragSelect ?? !model.picked.contains(hit)
+                    dragSelect = select
+                    model.toggleWord(hit, on: select)
+                }
+                .onEnded { _ in dragSelect = nil })
             Spacer(minLength: 4)
             HStack(spacing: 8) {
                 Label(L("插入", "Insert", "挿入"), systemImage: "text.insert")
@@ -1792,6 +1783,8 @@ private struct TourKeyboard: View {
     }
 
     @State private var wordFrames: [Int: CGRect] = [:]
+    /// 这一下手势是在选还是在取消。
+    @State private var dragSelect: Bool?
 
     private func wordChip(_ index: Int, _ word: String, hint: Bool, script: TourScript) -> some View {
         let picked = model.picked.contains(index)
@@ -1806,7 +1799,6 @@ private struct TourKeyboard: View {
             .background(GeometryReader { proxy in
                 Color.clear.preference(key: TourWordFramesKey.self, value: [index: proxy.frame(in: .named("tourWords"))])
             })
-            .onTapGesture { model.toggleWord(index) }
             .modifier(TourWordAnchor(index: index, hints: script.hints))
     }
 }
