@@ -719,7 +719,7 @@ struct PolishButton: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: timer)
                 }
                 let dy = value.translation.height
-                // 和九宫格按住划（KeyTouchView.flickDistance）一样：手指离开按下点超过 16pt 立刻弹出并选中那一个，不用先等。
+                // 手指离开按下点超过 16pt 立刻弹出并选中那一个，不用先等。
                 if !holding, canHold, hypot(value.translation.width, dy) > Self.flickDistance {
                     holdTimer?.cancel()
                     holdTimer = nil
