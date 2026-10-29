@@ -939,35 +939,66 @@ struct FeatureTourView: View {
 
     // MARK: FT20 完成
 
-    private static var summary: [(String, String)] { [
-        (L("一键润色", "One-tap Polish", "ワンタップで整える"), L("收起状态下点击 ✨，可撤销", "Tap ✨ when collapsed; undo anytime", "閉じた状態で ✨、元に戻せる")),
-        (L("识意改写", "Ask: Rewrite", "識意：書き換え"), L("写下要求，点击放大镜；按住上滑改写、下滑问答", "Write an instruction and tap the magnifier; hold and slide up to rewrite, down to answer", "指示を書いて虫めがね。長押しで上は書き換え、下は回答")),
-        (L("自定义提示词", "Custom Prompts", "プロンプトの追加"), L("常用要求存成提示词，切过去点 ✨", "Save instructions you use often, pick one and tap ✨", "よく使う指示を保存し、選んで ✨")),
-        (L("识意问答", "Ask: Answer", "識意：回答"), L("识意框留空，放大镜自动判断", "Leave the Ask field empty and the magnifier decides", "識意欄が空なら虫めがねが自動で判断")),
-        (L("切换、替换与联网查询", "Switch, Replace and Web Search", "切替・置換・ウェブ検索"), L("结果先显示在回答卡中，确认后再写入", "Results show in the card first; you choose what goes in", "結果はまずカードに表示、確認してから反映")),
-        (L("问答风格", "Answer Styles", "回答スタイル"), L("点「直击要害 ▾」换成详细、列要点、通俗", "Tap To the point ▾ for Detailed, Key points or Plain words", "「要点だけ ▾」で 詳しく・要点を列挙・やさしく に")),
-        (L("分词插入", "Pick and Insert Words", "単語を選んで挿入"), L("长按结果卡，选取部分词语", "Hold the result card to pick words", "結果カードを長押しして単語を選ぶ")),
+    /// 五章各一行，和首页对应。
+    private static var summary: [(TourChapter, String, String)] { [
+        (.polish, L("一键润色", "One-tap Polish", "ワンタップで整える"),
+         L("点击 ✨ 润色，可撤销、重做", "Tap ✨ to polish; undo or redo", "✨ で整え、元に戻す・やり直し")),
+        (.rewrite, L("识意 · 改写", "Ask: Rewrite", "識意：書き換え"),
+         L("写下要求改写；按住放大镜上下拖", "Write an instruction; hold and slide 🔍", "指示で書き換え。虫めがねを上下に")),
+        (.prompt, L("提示词", "Prompts", "プロンプト"),
+         L("在提示词页添加，建议标签、AI 优化", "Add on the Prompts page; tags, AI help", "プロンプトページで追加、候補・AI 改善")),
+        (.answer, L("识意 · 问答", "Ask: Answer", "識意：回答"),
+         L("自动判断，可切换、展开、联网、换风格", "Auto mode; switch, expand, search, style", "自動判断、切替・展開・検索・スタイル")),
+        (.words, L("分词插入", "Pick and Insert Words", "単語を選んで挿入"),
+         L("长按结果卡，选取部分词语", "Hold the result card to pick words", "結果カードを長押しして単語を選ぶ")),
     ] }
 
+    /// 完成页一屏放下，不滚动（iPhone SE 也一样）：和首页同一套版式，更紧。
     private var finished: some View {
-        GuidePage {
-            VStack(alignment: .leading, spacing: 22) {
-                GuideAppMark(size: 64, corner: 18).padding(.top, 70)
-                GuideTitle(L("演示完成", "Tour complete", "デモ完了"),
-                           subtitle: L("以上结果均为预设演示。配置 API 后，即可在任意 App 中使用这些功能。",
-                                       "These results were preset. Set up an API to use these features in any app.",
-                                       "以上の結果はデモ用に用意したものです。API を設定すると、どのアプリでもこれらの機能を使えます。"))
+        GeometryReader { proxy in
+            let compact = proxy.size.height < 700
+            VStack(alignment: .leading, spacing: compact ? 14 : 18) {
+                HStack(alignment: .center, spacing: 12) {
+                    GuideAppMark(size: 44, corner: 13)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L("演示完成", "Tour complete", "デモ完了"))
+                            .font(.system(size: 26, weight: .bold)).foregroundStyle(GuideColor.text)
+                            .frame(height: 32)
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+                            Text(L("19 步全部完成", "All 19 steps done", "19 ステップ完了")).font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundStyle(Color(light: 0x047857, dark: 0x6EE7B7))
+                        .padding(.horizontal, 9).frame(height: 22)
+                        .background(Capsule().fill(Color(light: 0xD1FAE5, dark: 0x063B2C)))
+                        .overlay(Capsule().strokeBorder(Color(light: 0xA7F3D0, dark: 0x0B5A43), lineWidth: 1))
+                    }
+                }
+                Text(L("配置 API 后，即可在任意 App 中使用这些功能。",
+                       "Set up an API to use these features in any app.",
+                       "API を設定すると、どのアプリでも使えます。"))
+                    .font(.system(size: 14.5)).foregroundStyle(GuideColor.secondary)
+                    .lineLimit(1).minimumScaleFactor(0.9)
                 GuideCard {
                     ForEach(Array(Self.summary.enumerated()), id: \.offset) { index, row in
-                        if index > 0 { GuideDivider() }
-                        summaryRow(row.0, row.1)
+                        if index > 0 { Rectangle().fill(GuideColor.divider).frame(height: 1).padding(.horizontal, 14) }
+                        summaryRow(row.0, row.1, row.2, compact)
                             .opacity(index < summaryShown ? 1 : 0)
                     }
                 }
+                Spacer(minLength: 8)
+                VStack(spacing: compact ? 8 : 12) {
+                    Text(L("以后可在「设置」里再次打开演示", "You can replay the tour in Settings", "デモは「設定」からもう一度見られます"))
+                        .font(.system(size: 12.5)).foregroundStyle(Color(hex: 0x9A96AA))
+                        .frame(maxWidth: .infinity)
+                    GuidePrimaryButton(L("配置 API", "Set Up API", "API を設定")) { exit(.setup) }
+                    GuideSecondaryButton(L("暂不配置，仅使用打字", "Not Now, Typing Only", "今は設定せず入力のみ使う")) { exit(.later) }
+                }
             }
-        } bottom: {
-            GuidePrimaryButton(L("配置 API", "Set Up API", "API を設定")) { exit(.setup) }
-            GuideSecondaryButton(L("暂不配置，仅使用打字", "Not Now, Typing Only", "今は設定せず入力のみ使う")) { exit(.later) }
+            .padding(.horizontal, 24)
+            .padding(.top, compact ? 24 : 58)
+            .padding(.bottom, compact ? 16 : 30)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
         }
         .onAppear {
             FeatureTour.seen = true
@@ -978,21 +1009,23 @@ struct FeatureTourView: View {
         }
     }
 
-    private func summaryRow(_ title: String, _ detail: String) -> some View {
+    private func summaryRow(_ chapter: TourChapter, _ title: String, _ detail: String, _ compact: Bool) -> some View {
         HStack(spacing: 14) {
             Image(systemName: "checkmark")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(Color(hex: 0x30A46C))
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(Color(hex: 0x30A46C).opacity(0.14)))
-            VStack(alignment: .leading, spacing: 2) {
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(chapter.text)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(chapter.fill))
+            VStack(alignment: .leading, spacing: 0) {
                 Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(GuideColor.text)
+                    .lineLimit(1).frame(height: 19)
                 Text(detail).font(.system(size: 12.5)).foregroundStyle(GuideColor.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1).frame(height: 17)
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16).padding(.vertical, 11)
+        .frame(height: compact ? 48 : 52)
+        .padding(.horizontal, 14)
     }
 
     // MARK: FT1–FT19
