@@ -225,8 +225,9 @@ extension KeyboardModel {
         keyFeedback(for: .space)
         applyEngineResults(wait: true)
         guard engine.rawInput == undo.raw, let index = engine.candidates.firstIndex(of: undo.word) else { return }
+        let kept = engine.selections
         _ = engine.select(index)
-        engine.replaceInput(undo.raw)
+        engine.replaceInput(undo.raw, keeping: kept)
         syncEngine()
     }
 
@@ -241,8 +242,9 @@ extension KeyboardModel {
     private func refreshCandidatesAfterPhraseChange() {
         applyEngineResults(wait: true)
         let raw = engine.rawInput
+        let kept = engine.selections
         reloadCommonWords()
-        if !raw.isEmpty { engine.replaceInput(raw) }
+        if !raw.isEmpty { engine.replaceInput(raw, keeping: kept) }
         syncEngine()
     }
 
@@ -529,12 +531,16 @@ extension KeyboardModel {
 
     // MARK: - 选拼音
 
-    /// 九宫格原始输入拆成两段：最后一个字母为止是已经选定的拼音，后面是还没定的数字（可能带分词符）。
-    private var pinyinSplit: (fixed: String, rest: Substring) {
+    /// 九宫格原始输入拆成三段：分段选过词的部分（原样留着），之后到最后一个字母为止是已经选定的拼音，
+    /// 后面是还没定的数字（可能带分词符）。拼音栏接着选的是最后一段。原始输入只有数字、字母和分词符，一个字符一个字节。
+    private var pinyinSplit: (selected: String, fixed: String, rest: Substring) {
         let raw = engine.rawInput
-        guard let lastLetter = raw.lastIndex(where: \.isLetter) else { return ("", Substring(raw)) }
-        let rest = raw[raw.index(after: lastLetter)...].drop { $0 == "'" }
-        return (String(raw[...lastLetter]), rest)
+        let end = min(engine.selections.last?.end ?? 0, raw.count)
+        let open = raw.dropFirst(end).drop { $0 == "'" }
+        let selected = String(raw.prefix(end))
+        guard let lastLetter = open.lastIndex(where: \.isLetter) else { return (selected, "", open) }
+        let rest = open[open.index(after: lastLetter)...].drop { $0 == "'" }
+        return (selected, String(open[...lastLetter]), rest)
     }
 
     /// 第一段没定的数字可以拼成的音节，长的在前；最后是这个数字键上的单个字母。
@@ -543,16 +549,30 @@ extension KeyboardModel {
         return PinyinSyllables.options(forDigits: String(pinyinSplit.rest.prefix(while: \.isNumber)))
     }
 
-    /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼。
+    /// 分段选过、还没上屏的词（拼音栏顶上显示）。
+    var selectedWords: String {
+        guard showsNineKey, isComposing else { return "" }
+        return engine.selections.map(\.text).joined()
+    }
+
+    /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼；分段选过的词重输后选回来。
     func choosePinyin(_ syllable: String) {
         // 拼音栏按的是已经算完的输入，后面还排着的数字先算完再拆。
         applyEngineResults(wait: true)
-        let (fixed, rest) = pinyinSplit
-        var raw = fixed.isEmpty ? syllable : fixed + "'" + syllable
+        let kept = engine.selections
+        let (selected, fixed, rest) = pinyinSplit
+        var open = fixed.isEmpty ? syllable : fixed + "'" + syllable
         let remaining = rest.dropFirst(syllable.count)
-        if !remaining.isEmpty { raw += (remaining.hasPrefix("'") ? "" : "'") + remaining }
-        engine.replaceInput(raw)
+        if !remaining.isEmpty { open += (remaining.hasPrefix("'") ? "" : "'") + remaining }
+        let raw = selected.isEmpty || selected.hasSuffix("'") ? selected + open : selected + "'" + open
+        engine.replaceInput(raw, keeping: kept)
         syncEngine()
+    }
+
+    /// 拼音栏顶上点已选的词：退回最后选的那个词，和按删除一样。
+    func unselectLastWord() {
+        applyEngineResults(wait: true)
+        deleteKey()
     }
 
     // MARK: - 长按备选

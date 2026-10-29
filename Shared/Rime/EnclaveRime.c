@@ -152,3 +152,9 @@ bool enclave_rime_delete_candidate(uint64_t session, size_t index) {
   if (!RIME_API_AVAILABLE(api, delete_candidate)) return false;
   return api->delete_candidate(session, index);
 }
+
+char *enclave_rime_get_property(uint64_t session, const char *name) {
+  char value[1024] = "";
+  if (!rime_get_api()->get_property(session, name, value, sizeof(value))) return NULL;
+  return copy_string(value);
+}

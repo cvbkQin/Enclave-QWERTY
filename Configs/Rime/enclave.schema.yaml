@@ -48,6 +48,8 @@ translator:
   enable_user_dict: true
   # 按错相邻键也能出字（librime 自带的全键盘同排邻键纠错，比如 nihap 也出「你好」），排在正确拼写之后。
   enable_correction: true
+  # 有整句模型时，按前文（分段选过的词、刚上屏的字）给后面的候选排序；没有模型时不起作用。
+  contextual_suggestions: true
   preedit_format:
     - xform/([jqxy])v/$1u/
 

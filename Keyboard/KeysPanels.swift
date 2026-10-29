@@ -218,6 +218,7 @@ struct QuickWordsPanel: View {
 }
 
 /// 九宫格打拼音时左列的音节栏，和系统一样上下滑动，点一个定下这一段的拼音。
+/// 分段选过词时，最上面一格是选过的词（紫色），点它退回最后选的那个词，下面接着选剩下这段的拼音。
 struct PinyinColumn: View {
     @ObservedObject var model: KeyboardModel
     let frame: CGRect
@@ -225,6 +226,17 @@ struct PinyinColumn: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: 0) {
+                let selected = model.selectedWords
+                if !selected.isEmpty {
+                    Button { model.unselectLastWord() } label: {
+                        Text(selected).font(.system(size: 17, weight: .medium)).foregroundStyle(Brand.purpleText)
+                            .lineLimit(1).minimumScaleFactor(0.6).truncationMode(.head)
+                            .padding(.horizontal, 4)
+                            .frame(maxWidth: .infinity, minHeight: KeyboardMetrics.pinyinCellHeight).contentShape(Rectangle())
+                    }
+                    .buttonStyle(KeyPressStyle())
+                    Divider().padding(.horizontal, 8)
+                }
                 ForEach(model.pinyinOptions, id: \.self) { syllable in
                     Button { model.choosePinyin(syllable) } label: {
                         Text(syllable).font(.system(size: 17)).foregroundStyle(Color.primary)

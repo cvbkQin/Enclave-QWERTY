@@ -13,6 +13,7 @@ final class QueuedEngine: InputEngine {
         var composition = ""
         var candidates: [String] = []
         var rawInput = ""
+        var selections: [InputSelection] = []
     }
 
     /// 后台算完的一个按键。
@@ -53,6 +54,7 @@ final class QueuedEngine: InputEngine {
     var composition: String { state.composition }
     var candidates: [String] { state.candidates }
     var rawInput: String { state.rawInput }
+    var selections: [InputSelection] { state.selections }
 
     // MARK: - 后台
 
@@ -161,7 +163,7 @@ final class QueuedEngine: InputEngine {
         queue.async { [inner] in inner.reset() }
     }
 
-    func replaceInput(_ raw: String) { run { $0.replaceInput(raw) } }
+    func replaceInput(_ raw: String, keeping selections: [InputSelection]) { run { $0.replaceInput(raw, keeping: selections) } }
 
     func loadMoreCandidates() {
         // 还有键没算完：候选马上就要换，不用补。
@@ -177,6 +179,7 @@ final class QueuedEngine: InputEngine {
     }
 
     private static func snapshot(of engine: RimeEngine) -> Snapshot {
-        Snapshot(composition: engine.composition, candidates: engine.candidates, rawInput: engine.rawInput)
+        Snapshot(composition: engine.composition, candidates: engine.candidates, rawInput: engine.rawInput,
+                 selections: engine.selections)
     }
 }

@@ -33,5 +33,7 @@ size_t enclave_rime_get_candidates_from(uint64_t session, char **out, size_t sta
 bool enclave_rime_select_candidate(uint64_t session, size_t index);
 // 删掉用户词库里学到的这个候选（librime 的 delete_candidate）。词库自带的词删不掉，只会降回原来的位置。
 bool enclave_rime_delete_candidate(uint64_t session, size_t index);
+/// 读 context 的属性（方案里的 lua 写的），返回值用 free() 释放；没有或为空时返回 NULL。
+char *enclave_rime_get_property(uint64_t session, const char *name);
 
 #endif
