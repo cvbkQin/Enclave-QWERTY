@@ -854,8 +854,9 @@ private enum TourColor {
     static let ring = Color(hex: 0x8B7CF6)
     static let answerRing = Color(hex: 0x38BDF8)
     static let bubble = Color(light: 0xF2F1F7, dark: 0x2C2C2E)
-    static let field = Color(light: 0xF6F5FA, dark: 0x2C2C2E)
-    static let fieldStroke = Color(light: 0xE6E3F0, dark: 0x3A3A3C)
+    /// 回复输入框：白底加一圈深一点的边，和灰底的对方气泡分开。
+    static let field = Color(light: 0xFFFFFF, dark: 0x1C1C1E)
+    static let fieldStroke = Color(light: 0xC7C7CC, dark: 0x48484A)
     static let hostCaret = Color(hex: 0x34C759)
     static let progressOn = Color(light: 0x5B4BE8, dark: 0xB4A9FF)
     static let progressOff = Color(light: 0xDDD9EE, dark: 0x35304D)
@@ -2027,24 +2028,38 @@ private struct TourKeyboard: View {
                     .frame(width: 34, height: 20)
                     .overlay(alignment: .trailing) { Circle().fill(.white).frame(width: 16, height: 16).padding(.trailing, 2) }
             }
-            FlowLayout(spacing: 6) {
-                ForEach(Array(script.words.enumerated()), id: \.offset) { index, word in
-                    wordChip(index, word, hint: script.hints.contains(index) && model.picked.isEmpty, script: script)
+            // 词多（问答的回答切出来二三十块）时面板放不下：词这一块在面板里上下滚，插入一排始终在底部，不顶出面板。
+            ScrollView(.vertical, showsIndicators: true) {
+                FlowLayout(spacing: 6) {
+                    ForEach(Array(script.words.enumerated()), id: \.offset) { index, word in
+                        wordChip(index, word, hint: script.hints.contains(index) && model.picked.isEmpty, script: script)
+                    }
                 }
+                .contentShape(Rectangle())
+                .coordinateSpace(name: "tourWords")
+                .onPreferenceChange(TourWordFramesKey.self) { wordFrames = $0 }
+                // 点和横划用同一个手势：按下的第一块没选就一路选上，已选就一路取消；词之间的空隙也算（各外扩 3pt）。
+                // 放在滚动区里：一开始竖着拖的算滚动，不选词；没怎么动就松手算点选。
+                .simultaneousGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("tourWords"))
+                    .onChanged { value in
+                        let dx = abs(value.translation.width), dy = abs(value.translation.height)
+                        if dragScrolling { return }
+                        if dragSelect == nil {
+                            if dy > 8, dy > dx { dragScrolling = true; return }
+                            guard dx > 6 else { return }
+                        }
+                        pick(at: value.startLocation)
+                        pick(at: value.location)
+                    }
+                    .onEnded { value in
+                        if !dragScrolling, dragSelect == nil, hypot(value.translation.width, value.translation.height) < 8 {
+                            pick(at: value.location)
+                        }
+                        dragSelect = nil
+                        dragScrolling = false
+                    })
             }
-            .contentShape(Rectangle())
-            .coordinateSpace(name: "tourWords")
-            .onPreferenceChange(TourWordFramesKey.self) { wordFrames = $0 }
-            // 点和横划用同一个手势：按下的第一块没选就一路选上，已选就一路取消；词之间的空隙也算（各外扩 3pt）。
-            .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("tourWords"))
-                .onChanged { value in
-                    guard let hit = wordFrames.first(where: { $0.value.insetBy(dx: -3, dy: -3).contains(value.location) })?.key else { return }
-                    let select = dragSelect ?? !model.picked.contains(hit)
-                    dragSelect = select
-                    model.toggleWord(hit, on: select)
-                }
-                .onEnded { _ in dragSelect = nil })
-            Spacer(minLength: 4)
+            .frame(maxHeight: .infinity)
             HStack(spacing: 8) {
                 Label(L("插入", "Insert", "挿入"), systemImage: "text.insert")
                     .font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
@@ -2074,6 +2089,16 @@ private struct TourKeyboard: View {
     @State private var wordFrames: [Int: CGRect] = [:]
     /// 这一下手势是在选还是在取消。
     @State private var dragSelect: Bool?
+    /// 这一下是竖着拖、在滚词，不选词。
+    @State private var dragScrolling = false
+
+    /// 手指下的那一块：第一块决定这一下是选还是取消。
+    private func pick(at location: CGPoint) {
+        guard let hit = wordFrames.first(where: { $0.value.insetBy(dx: -3, dy: -3).contains(location) })?.key else { return }
+        let select = dragSelect ?? !model.picked.contains(hit)
+        dragSelect = select
+        model.toggleWord(hit, on: select)
+    }
 
     private func wordChip(_ index: Int, _ word: String, hint: Bool, script: TourScript) -> some View {
         let picked = model.picked.contains(index)
