@@ -90,9 +90,10 @@ struct SetupGuideView: View {
         .animation(.easeInOut(duration: 0.22), value: page)
     }
 
-    /// 功能演示结束：首次打开的接着进 OB1（已配好接口的跳过就直接关）；使用指引里再玩的直接关。
+    /// 功能演示结束：首次打开的接着进 OB1（已配好接口的跳过就直接关）；
+    /// 从设置、使用指引里再玩的，完成页点「配置 API」也进 OB1，跳过、暂不配置直接关。
     private func tourExit(_ exit: FeatureTourView.Exit) {
-        if page == .tourReplay { return router.setupGuide = nil }
+        if page == .tourReplay, exit != .setup { return router.setupGuide = nil }
         switch exit {
         case .setup: page = .intro
         case .skip: if store.settings.isConfigured { finish() } else { page = .intro }
