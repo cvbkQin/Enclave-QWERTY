@@ -267,7 +267,7 @@ struct LabView: View {
                         .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
                             .fill(LinearGradient(colors: [Color(hex: 0x8A7BFF), Color(hex: 0x5B4BE8)], startPoint: .topLeading, endPoint: .bottomTrailing)))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(L("功能演示 · 约 3 分钟", "Feature Tour · About 3 min", "機能デモ · 約 3 分")).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        Text(L("功能演示 · 约 3 分半", "Feature Tour · About 3½ min", "機能デモ · 約 3 分半")).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
                         Text(L("用模拟键盘把润色、改写、提示词、问答、分词插入点一遍，不调用 API", "Try Polish, Rewrite, Prompts, Answer and word picking on a simulated keyboard. No API calls", "模擬キーボードで整える・書き換え・プロンプト・回答・単語挿入を試せます。API は使いません")).font(.footnote).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
