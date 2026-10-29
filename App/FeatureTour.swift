@@ -886,6 +886,8 @@ struct FeatureTourView: View {
     @State private var summaryShown = 0
     /// 对话区里气泡排起来的总高度：超出限高时顶上渐隐。
     @State private var messagesHeight: CGFloat = 0
+    /// 对话区实际露出来的高度（矮屏放不下时比 limit 还小）。
+    @State private var messagesShown: CGFloat = 0
     /// 矮屏（iPhone SE 等）：演示页收紧上边距、聊天只留最新一条，免得键盘把顶栏挤出屏幕。
     /// 按屏幕高度判断：页面本身超高时量出来的是内容高度，不准。
     private var compact: Bool { UIScreen.main.bounds.height < 700 }
@@ -1218,11 +1220,16 @@ struct FeatureTourView: View {
                 Color.clear.onAppear { messagesHeight = geo.size.height }
                     .onChange(of: geo.size.height) { messagesHeight = $0 }
             })
-            .frame(maxHeight: limit, alignment: .bottom)
+            // 矮屏整张卡放不下时先压对话区（minHeight 0），不把卡片顶边和联系人一行裁掉。
+            .frame(minHeight: 0, maxHeight: limit, alignment: .bottom)
+            .background(GeometryReader { geo in
+                Color.clear.onAppear { messagesShown = geo.size.height }
+                    .onChange(of: geo.size.height) { messagesShown = $0 }
+            })
             .clipped()
             .mask(VStack(spacing: 0) {
                 LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                    .frame(height: messagesHeight > limit ? 24 : 0)
+                    .frame(height: messagesHeight > messagesShown + 0.5 ? min(24, messagesShown) : 0)
                 Color.black
             })
             Group {
