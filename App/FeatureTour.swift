@@ -491,7 +491,7 @@ private final class TourModel: ObservableObject {
         switch n {
         case ...6: messages = [Message(text: s.peerMessage, note: s.peerMessageNote)]
         case 7...10: messages = [Message(text: s.shorter, mine: true), Message(text: s.peerReply, note: s.peerReplyNote)]
-        case 11: messages = [Message(text: s.peerReply, note: s.peerReplyNote)]
+        case 11: messages = [Message(text: s.shorter, mine: true), Message(text: s.peerReply, note: s.peerReplyNote)]
         default: messages = []
         }
         if n >= 13 { messages = [Message(text: s.riddleMessage)] }
@@ -884,6 +884,8 @@ struct FeatureTourView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = TourModel()
     @State private var summaryShown = 0
+    /// 对话区里气泡排起来的总高度：超出限高时顶上渐隐。
+    @State private var messagesHeight: CGFloat = 0
     /// 矮屏（iPhone SE 等）：演示页收紧上边距、聊天只留最新一条，免得键盘把顶栏挤出屏幕。
     /// 按屏幕高度判断：页面本身超高时量出来的是内容高度，不准。
     private var compact: Bool { UIScreen.main.bounds.height < 700 }
@@ -1203,11 +1205,26 @@ struct FeatureTourView: View {
                         .background(Capsule().fill(TourColor.bubble))
                 }
             }
-            // 结果卡展开以后只留最新一条，免得被长高的键盘挡住。
-            ForEach(model.messages.suffix(model.cardTall || compact ? 1 : 2)) { message in
-                bubble(message)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            // 发出去的消息都留在对话里；对话区限高，放不下时最早的从顶上滚出去、顶上 24 渐隐，输入框始终露出来。
+            let limit: CGFloat = model.cardTall || compact ? 64 : 132
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(model.messages.suffix(4)) { message in
+                    bubble(message)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
+            .fixedSize(horizontal: false, vertical: true)
+            .background(GeometryReader { geo in
+                Color.clear.onAppear { messagesHeight = geo.size.height }
+                    .onChange(of: geo.size.height) { messagesHeight = $0 }
+            })
+            .frame(maxHeight: limit, alignment: .bottom)
+            .clipped()
+            .mask(VStack(spacing: 0) {
+                LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                    .frame(height: messagesHeight > limit ? 24 : 0)
+                Color.black
+            })
             Group {
                 if model.field.isEmpty {
                     (Text(peer ? script.peerPlaceholder : script.placeholder).foregroundColor(GuideColor.secondary.opacity(0.7))
@@ -1237,8 +1254,9 @@ struct FeatureTourView: View {
     @ViewBuilder
     private func bubble(_ message: TourModel.Message) -> some View {
         if message.mine {
+            // 我方：靠右、实心紫底白字、右下小尾巴，最宽约八成。
             HStack {
-                Spacer(minLength: 40)
+                Spacer(minLength: 56)
                 Text(message.text)
                     .font(.system(size: 14.5)).foregroundStyle(.white)
                     .padding(.horizontal, 12).padding(.vertical, 8)
@@ -1266,7 +1284,8 @@ struct FeatureTourView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(UnevenRoundedRect(radius: 16, corner: 5, right: false).fill(TourColor.bubble))
-                Spacer(minLength: 24)
+                // 对方：靠左、浅灰底、左下小尾巴，最宽约八成。
+                Spacer(minLength: 56)
             }
         }
     }
