@@ -12,9 +12,9 @@ final class KeyboardViewController: UIInputViewController {
         super.viewDidLoad()
         CrashLog.shared.start(source: "keyboard")
         let host = UIHostingController(rootView: KeyboardView(model: model))
-        // 铺一层不透明的键盘底色，不再几乎透明：在 Chrome 里从系统键盘（英文、日文等）切回来时，
-        // 系统键盘的按键会残留在我们下面，透明的话从键缝里透出来。不透明也保证键缝能接到触摸。
-        host.view.backgroundColor = Brand.keyboardBackUI
+        // 底色由 KeyboardView 自己画：拼音行以下不透明（Chrome 从系统键盘切回来时，系统按键会残留在我们下面，
+        // 透明的话从键缝里透出来；不透明也保证键缝能接到触摸），最上面拼音行那截渐变接上系统液态玻璃。
+        host.view.backgroundColor = .clear
         // 键盘区域不需要安全区留白，否则预览区内容会被额外内边距推开。
         if #available(iOS 16.4, *) {
             host.safeAreaRegions = []

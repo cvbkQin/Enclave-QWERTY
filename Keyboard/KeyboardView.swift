@@ -111,6 +111,7 @@ struct KeyboardView: View {
         .padding(.horizontal, model.landscape ? KeyboardMetrics.landscapeSideMargin : 0)
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background(boardBackground)
         // 使用指引「一键应用」后的小手指，画在键盘里面。
         .coachHandOverlay(model)
         // 键盘里拉不起 App 时（有的系统版本、有的 App 里不让）：请人自己打开。
@@ -135,6 +136,26 @@ struct KeyboardView: View {
             if !edges.isEmpty, edges != chipEdges { chipEdges = edges }
         }
         .clipped()
+    }
+
+    /// 键盘底色。拼音行在最上面时，这一截（连同系统多给的高度）从上往下由透明渐变到不透明，
+    /// 接上系统键盘顶上那截液态玻璃，不留硬边；拼音行以下全是不透明底色，盖住 Chrome 切回时系统按键的残影（GL1）。
+    /// 回答卡、风格一排、提示卡在最上面时整块不透明。
+    private var boardBackground: some View {
+        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder
+        return VStack(spacing: 0) {
+            LinearGradient(stops: [
+                .init(color: Brand.keyboardBack.opacity(0), location: 0),
+                .init(color: Brand.keyboardBack.opacity(0.28), location: 0.30),
+                .init(color: Brand.keyboardBack.opacity(0.72), location: 0.65),
+                .init(color: Brand.keyboardBack, location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+            .opacity(fades ? 1 : 0)
+            .background(fades ? Color.clear : Brand.keyboardBack)
+            Brand.keyboardBack
+                .frame(height: max(0, model.keyboardHeight - (fades ? KeyboardMetrics.pinyinRowHeight : model.keyboardHeight)))
+        }
+        .ignoresSafeArea()
     }
 
     /// 两颗风格键中线在键盘里的位置，尖角按它对齐。
