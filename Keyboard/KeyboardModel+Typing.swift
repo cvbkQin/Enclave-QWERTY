@@ -75,6 +75,7 @@ extension KeyboardModel {
     }
 
     func deleteKey() {
+        if undoLastChoice() { return }
         if engine.backspace() {
             syncEngine()
             return
@@ -130,10 +131,12 @@ extension KeyboardModel {
     func selectCandidate(_ index: Int) {
         // 选了候选：前面打的拼音键都没按错，算进手指习惯。
         TouchCalibration.confirm()
+        let before = choiceState
         let text = engine.select(index)
         if let text { commit(text) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
+        recordChoice(from: before)
         if let text, !isComposing, chineseMode { showPredictions(after: text) }
     }
 
@@ -565,14 +568,71 @@ extension KeyboardModel {
         let remaining = rest.dropFirst(syllable.count)
         if !remaining.isEmpty { open += (remaining.hasPrefix("'") ? "" : "'") + remaining }
         let raw = selected.isEmpty || selected.hasSuffix("'") ? selected + open : selected + "'" + open
+        let before = choiceState
         engine.replaceInput(raw, keeping: kept)
         syncEngine()
+        recordChoice(from: before)
     }
 
-    /// 拼音栏顶上点已选的词：退回最后选的那个词，和按删除一样。
+    // MARK: - 退格撤回上一步
+
+    /// 九宫格组字时的一个状态：原始输入和分段选过的词。
+    struct ChoiceState: Equatable {
+        var raw: String
+        var selections: [InputSelection]
+    }
+
+    /// 选了一次拼音或分段选了一个词：选之前、选之后的状态。
+    struct ChoiceStep {
+        var before: ChoiceState
+        var after: ChoiceState
+    }
+
+    /// 九宫格组字时现在的状态；不是九宫格或没在组字时为 nil。
+    private var choiceState: ChoiceState? {
+        guard showsNineKey, isComposing else { return nil }
+        applyEngineResults(wait: true)
+        return ChoiceState(raw: engine.rawInput, selections: engine.selections)
+    }
+
+    /// 选完还在组字（选的是拼音或词的一段）就记一步；上屏了就清空。
+    private func recordChoice(from before: ChoiceState?) {
+        guard let before, let after = choiceState, after != before else {
+            if !isComposing { choiceSteps = [] }
+            return
+        }
+        choiceSteps.append(ChoiceStep(before: before, after: after))
+    }
+
+    /// 退格和别的输入法一样分情况：刚选了词就取消这个词，刚选了拼音就退回数字，之后又打了键就先删键。
+    /// 状态正好停在最后一步选完的样子才撤回；之后打了键，先照常删键，删回那个样子再撤回。
+    /// Rime 自己的退格在分段选词后又打过键时会直接删掉前面的数字，不会取消选词，所以撤回由这里按记下的状态重输。
+    private func undoLastChoice() -> Bool {
+        // 还有键排着没算完：最后一步是打键，照常删键。
+        guard QueuedEngine.shared.pending == 0 else { return false }
+        guard let current = choiceState else {
+            choiceSteps = []
+            return false
+        }
+        // 已经删到这一步之前（或者 Rime 自己取消了选词）的步子不用再撤。
+        while let last = choiceSteps.last,
+              !(current.raw.hasPrefix(last.after.raw) && current.selections.starts(with: last.after.selections)) {
+            choiceSteps.removeLast()
+        }
+        guard let last = choiceSteps.last, last.after == current else { return false }
+        choiceSteps.removeLast()
+        engine.replaceInput(last.before.raw, keeping: last.before.selections)
+        syncEngine()
+        return true
+    }
+
+    /// 拼音栏顶上点已选的词：取消最后选的那个词（选过的拼音留着）。
     func unselectLastWord() {
         applyEngineResults(wait: true)
-        deleteKey()
+        let selections = engine.selections
+        guard !selections.isEmpty else { return }
+        engine.replaceInput(engine.rawInput, keeping: Array(selections.dropLast()))
+        syncEngine()
     }
 
     // MARK: - 长按备选
@@ -818,6 +878,7 @@ extension KeyboardModel {
     }
 
     func syncEngine() {
+        if !isComposing && !choiceSteps.isEmpty { choiceSteps = [] }
         // 没变的不设：@Published 设一次就让整个键盘重画一遍。
         let newComposition = engine.composition
         if newComposition != composition { composition = newComposition }
