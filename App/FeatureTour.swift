@@ -2048,31 +2048,41 @@ private struct TourKeyboard: View {
                     .overlay(alignment: .trailing) { Circle().fill(.white).frame(width: 16, height: 16).padding(.trailing, 2) }
             }
             // 词多（问答的回答切出来二三十块）时面板放不下：词这一块在面板里上下滚，插入一排始终在底部，不顶出面板。
-            ScrollView(.vertical, showsIndicators: true) {
+            // 自己滚，不用 ScrollView：选词手势按下就要接手，放进 ScrollView 会把它的滚动吃掉。
+            // 一开始竖着拖的算滚动、不选词；横着划连续选；没怎么动就松手算点选。
+            GeometryReader { box in
                 FlowLayout(spacing: 6) {
                     ForEach(Array(script.words.enumerated()), id: \.offset) { index, word in
                         wordChip(index, word, hint: script.hints.contains(index) && model.picked.isEmpty, script: script)
                     }
                 }
-                .contentShape(Rectangle())
                 .coordinateSpace(name: "tourWords")
                 .onPreferenceChange(TourWordFramesKey.self) { wordFrames = $0 }
-                // 点和横划用同一个手势：按下的第一块没选就一路选上，已选就一路取消；词之间的空隙也算（各外扩 3pt）。
-                // 放在滚动区里：一开始竖着拖的算滚动，不选词；没怎么动就松手算点选。
-                .simultaneousGesture(DragGesture(minimumDistance: 0, coordinateSpace: .named("tourWords"))
+                .background(GeometryReader { Color.clear.preference(key: TourWordsHeightKey.self, value: $0.size.height) })
+                .onPreferenceChange(TourWordsHeightKey.self) { wordsHeight = $0 }
+                .offset(y: wordsOffset)
+                .frame(width: box.size.width, height: box.size.height, alignment: .topLeading)
+                .clipped()
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0)
                     .onChanged { value in
                         let dx = abs(value.translation.width), dy = abs(value.translation.height)
-                        if dragScrolling { return }
-                        if dragSelect == nil {
-                            if dy > 8, dy > dx { dragScrolling = true; return }
-                            guard dx > 6 else { return }
+                        if dragSelect == nil, !dragScrolling, dy > 8, dy > dx {
+                            dragScrolling = true
+                            scrollBase = wordsOffset
                         }
-                        pick(at: value.startLocation)
-                        pick(at: value.location)
+                        if dragScrolling {
+                            let lowest = min(0, box.size.height - wordsHeight)
+                            wordsOffset = min(0, max(lowest, scrollBase + value.translation.height))
+                            return
+                        }
+                        if dragSelect == nil, dx <= 6 { return }
+                        pick(at: content(value.startLocation))
+                        pick(at: content(value.location))
                     }
                     .onEnded { value in
                         if !dragScrolling, dragSelect == nil, hypot(value.translation.width, value.translation.height) < 8 {
-                            pick(at: value.location)
+                            pick(at: content(value.location))
                         }
                         dragSelect = nil
                         dragScrolling = false
@@ -2110,6 +2120,15 @@ private struct TourKeyboard: View {
     @State private var dragSelect: Bool?
     /// 这一下是竖着拖、在滚词，不选词。
     @State private var dragScrolling = false
+    /// 词往上滚了多少（≤ 0）、这一下开始滚时的位置、词整块的高度。
+    @State private var wordsOffset: CGFloat = 0
+    @State private var scrollBase: CGFloat = 0
+    @State private var wordsHeight: CGFloat = 0
+
+    /// 手指在框里的位置换成词那一块里的位置（扣掉已经滚上去的）。
+    private func content(_ point: CGPoint) -> CGPoint {
+        CGPoint(x: point.x, y: point.y - wordsOffset)
+    }
 
     /// 手指下的那一块：第一块决定这一下是选还是取消。
     private func pick(at location: CGPoint) {
@@ -2134,6 +2153,11 @@ private struct TourKeyboard: View {
             })
             .modifier(TourWordAnchor(index: index, hints: script.hints))
     }
+}
+
+private struct TourWordsHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 private struct TourWordFramesKey: PreferenceKey {
