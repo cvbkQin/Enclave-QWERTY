@@ -247,7 +247,7 @@ struct PinyinRow: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
                 ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
-                : UIColor(red: 0xE2 / 255, green: 0xE2 / 255, blue: 0xE7 / 255, alpha: 1) }))
+                : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) }))
                 .frame(height: 1)
         }
     }
