@@ -778,7 +778,11 @@ extension KeyboardModel {
     func commit(_ text: String) {
         switch target {
         case .host:
-            clearMarkedText()
+            // 有组字时直接 insertText 替换标记区，不先清空再 unmark：
+            // 闲鱼等 Flutter 输入框会忽略空的 setMarkedText，unmark 时把拼音当正文留下
+            if hasMarkedText {
+                hasMarkedText = false
+            }
             editProxy?.insertText(text)
             updateAutoShift()
         case .instruction:
