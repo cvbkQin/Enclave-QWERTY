@@ -1187,7 +1187,7 @@ struct FeatureTourView: View {
         let peer = model.step <= 11
         return VStack(alignment: .leading, spacing: 10) {
             // 矮屏结果卡展开时键盘很高，省掉联系人这一行。
-            if !(compact && model.cardTall) {
+            if !(compact && (model.cardTall || model.expanded)) {
                 HStack(spacing: 8) {
                     Text(peer ? script.peerAvatar : script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
                         .frame(width: 22, height: 22)
@@ -1230,6 +1230,9 @@ struct FeatureTourView: View {
             .shadow(color: Color(hex: 0x3C28A0).opacity(0.07), radius: 14, y: 10))
     }
 
+    /// 矮屏且回答卡展开：聊天区很小，对方气泡只留一行原文，不显示译文。
+    private var tightChat: Bool { compact && model.expanded }
+
     @ViewBuilder
     private func bubble(_ message: TourModel.Message) -> some View {
         if message.mine {
@@ -1246,9 +1249,9 @@ struct FeatureTourView: View {
                     Text(message.typing ? L("正在输入…", "Typing…", "入力中…") : message.text)
                         .font(.system(size: 14.5))
                         .foregroundStyle(message.typing ? GuideColor.secondary : GuideColor.text)
-                        .lineLimit(3)
-                    // 像微信翻译：细线下面一行小「译」标签和译文。
-                    if let note = message.note, !message.typing {
+                        .lineLimit(tightChat ? 1 : 3)
+                    // 像微信翻译：细线下面一行小「译」标签和译文。矮屏展开回答卡时放不下，只留原文一行。
+                    if let note = message.note, !message.typing, !tightChat {
                         Rectangle().fill(TourColor.fieldStroke).frame(height: 1)
                         HStack(spacing: 6) {
                             Text(L("译", "Translated", "翻訳"))
@@ -1600,8 +1603,11 @@ private struct TourKeyboard: View {
 
     // MARK: AI 栏
 
+    /// 窄屏（iPhone SE 等 375pt）：英文、日文的风格键名字长，整行会比屏幕宽、把整页撑出去，收紧间距和撤销键。
+    private var narrow: Bool { UIScreen.main.bounds.width < 390 }
+
     private var aiBar: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: narrow ? 4 : 6) {
             Image(systemName: "rectangle.tophalf.inset.filled")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(model.expanded ? TourColor.purple : GuideColor.text)
@@ -1617,21 +1623,24 @@ private struct TourKeyboard: View {
                 joined
             }
             Spacer(minLength: 0)
-            HStack(spacing: 0) {
-                Image(systemName: "arrow.uturn.backward")
-                    .rotationEffect(.degrees(Double(model.undoTurns) * -180))
-                    .foregroundStyle(model.undoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .tourPress(.undo, model: model)
-                Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1).padding(.vertical, 9)
-                Image(systemName: "arrow.uturn.forward")
-                    .foregroundStyle(model.redoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .tourPress(.redo, model: model)
+            // 窄屏回答卡展开时省掉撤销 | 重做（演示只在润色那步用到），给风格键留出名字。
+            if !(narrow && model.expanded) {
+                HStack(spacing: 0) {
+                    Image(systemName: "arrow.uturn.backward")
+                        .rotationEffect(.degrees(Double(model.undoTurns) * -180))
+                        .foregroundStyle(model.undoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .tourPress(.undo, model: model)
+                    Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1).padding(.vertical, 9)
+                    Image(systemName: "arrow.uturn.forward")
+                        .foregroundStyle(model.redoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .tourPress(.redo, model: model)
+                }
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: narrow ? 62 : 76, height: 34)
+                .background(Capsule().fill(TourColor.key))
             }
-            .font(.system(size: 14, weight: .medium))
-            .frame(width: 76, height: 34)
-            .background(Capsule().fill(TourColor.key))
         }
     }
 
@@ -1740,6 +1749,7 @@ private struct TourKeyboard: View {
         return HStack(spacing: 3) {
             Image(systemName: answer ? "questionmark.circle" : "pencil").font(.system(size: 14, weight: .semibold))
             Text(answer ? Self.answerStyles[model.answerStyle] : L("润色", "Rewrite", "書き換え")).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                .minimumScaleFactor(0.8)
             divider
             Image(systemName: answer && model.answerStylesOpen ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold))
         }
@@ -1750,7 +1760,8 @@ private struct TourKeyboard: View {
         .overlay(Capsule().strokeBorder(answer ? Color(hex: 0x7DD3FC) : Color(hex: 0xC4B5FD), lineWidth: active ? 1.5 : 0))
         .background(Capsule().fill((answer ? Color(hex: 0x0EA5E9) : Color(hex: 0x7C3AED)).opacity(active ? 0.25 : 0)).padding(-3))
         .animation(.easeOut(duration: 0.25), value: active)
-        .fixedSize()
+        // 窄屏放不下时名字略缩小，不撑宽整行。
+        .fixedSize(horizontal: !narrow, vertical: false)
         .contentShape(Capsule())
         // FT18「直击要害 ▾」打开问答风格一排；改写风格键演示里不用。
         .tourPress(answer ? .answerStyle : .redo, model: model)
