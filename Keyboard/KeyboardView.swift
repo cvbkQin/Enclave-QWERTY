@@ -1543,7 +1543,8 @@ struct ResultCard: View {
             accept = L("允许", "Allow", "許可")
         } else {
             title = L("要联网搜索吗？", "Search the web?", "ウェブで検索しますか？")
-            detail = L("发给 \(name) 搜索 · 约 ¥0.01", "Sends to \(name) search", "\(name) の検索に送信")
+            let modelName = model.settings.forAnswers.searchModelLabel
+            detail = L("调用 \(modelName) 联网搜索 · 约 ¥0.01", "Searches with \(modelName)", "\(modelName) でウェブ検索")
             decline = L("拒绝", "Don't allow", "許可しない")
             accept = L("允许", "Allow", "許可")
         }

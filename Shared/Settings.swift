@@ -385,6 +385,12 @@ extension EnclaveSettings {
         if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
         return nil
     }
+    /// 联网确认卡上写的模型名：服务商预设的模型写模型名，自己改过的写「自定义模型」。
+    var searchModelLabel: String {
+        let name = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let presets: Set<String> = ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed", "qwen-plus", "glm-5.3"]
+        return presets.contains(name) ? name : L("自定义模型", "custom model", "カスタムモデル")
+    }
     /// 识意问答联网用哪一家：问答走的接口能联网就有（三档里选了禁止也有，要联网时提示去开启）。
     var answerSearch: SearchProvider? { forAnswers.searchProvider }
 
