@@ -554,16 +554,15 @@ struct CandidateGrid: View {
             // 平时只取了第一屏候选，展开整页时补全；展开着选拼音、分段选词后候选换了，也再补全。
             .onAppear { model.loadMoreCandidates() }
             .onChange(of: model.composition) { _ in model.loadMoreCandidates() }
+            // 收起用候选栏右边的箭头；这里只放退格和重输，上下平分整列。
             VStack(spacing: 0) {
-                FunctionKey(systemImage: "chevron.up") { model.candidatesExpanded = false }
-                    .frame(height: KeyboardMetrics.slotHeight)
                 RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                    .frame(height: KeyboardMetrics.slotHeight)
+                    .frame(maxHeight: .infinity)
                 FunctionKey(title: "重输") { model.clearComposition() }
-                    .frame(height: KeyboardMetrics.slotHeight)
-                Spacer(minLength: 0)
+                    .frame(maxHeight: .infinity)
             }
             .frame(width: 64)
+            .frame(maxHeight: .infinity)
         }
     }
 }
