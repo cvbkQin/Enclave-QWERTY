@@ -310,7 +310,10 @@ struct KeyboardView: View {
             Button {
                 if predicting { model.dismissPredictions() } else { model.candidatesExpanded.toggle() }
             } label: {
-                Image(systemName: predicting ? "xmark" : (model.candidatesExpanded ? "chevron.up" : "chevron.down"))
+                // 展开、收起是同一个箭头转半圈，不换图。
+                Image(systemName: predicting ? "xmark" : "chevron.down")
+                    .rotationEffect(.degrees(!predicting && model.candidatesExpanded ? 180 : 0))
+                    .animation(.easeInOut(duration: 0.2), value: model.candidatesExpanded)
                     // 联想时的关闭键小一号、灰色：联想只是建议，关闭键不和字抢眼（UI 稿 KP1）。
                     .font(.system(size: predicting ? 15 : 17, weight: predicting ? .medium : .regular))
                     .foregroundStyle(predicting ? Color.secondary : Color.primary)
