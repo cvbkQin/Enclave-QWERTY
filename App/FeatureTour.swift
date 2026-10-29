@@ -3,6 +3,7 @@ import SwiftUI
 // 首次打开的功能演示（FT0–FT20）：隐私同意之后、配置接口（OB1）之前，用 App 里画的模拟键盘把润色、改写、提示词、问答、分词各点一遍。
 // 结果全是预设内容：不调用 API、不联网、不扣次数、不计入统计；演示里加的提示词也不写进真的提示词列表。
 // 0.93 起按「功能演示动效方案」：每一步是连续过程（按下、处理中、出字、打字替换、删字重打），不再整块换图；19 步版：提示词去模拟的 App 页添加，问答用新加坡天气。
+// 润色、改写、提示词三章的对方是说英文的同事 Alex（英文界面是说中文的同事），气泡下带译文；改写、提示词两章各发送一次。
 // 小手只做示范；用户自己点了才触发，抬起那一帧才算。
 
 enum FeatureTour {
@@ -18,11 +19,21 @@ enum FeatureTour {
 // MARK: - 预设内容
 
 /// 剧本：三种界面语言各一套。改写和提示词的目标语言：中文、日文版翻成英文，英文版翻成中文。
+/// 润色、改写、提示词三章（FT1–FT11）的对方说另一种语言（peer，气泡下带译文，像微信翻译）；问答一章（FT12 起）换回 contact。
 private struct TourScript {
+    var peer: String
+    var peerAvatar: String
+    var peerPlaceholder: String
+    var peerMessage: String
+    var peerMessageNote: String
+    /// FT6 发出后对方的回复；FT11 发出后对方的道谢。
+    var peerReply: String
+    var peerReplyNote: String
+    var peerThanks: String
+    var peerThanksNote: String
     var contact: String
     var avatar: String
     var placeholder: String
-    var message1: String
     var original: String
     var polished: String
     var askRewrite: String
@@ -62,8 +73,11 @@ private struct TourScript {
     }
 
     static let zh = TourScript(
+        peer: "Alex", peerAvatar: "A", peerPlaceholder: "Reply to Alex",
+        peerMessage: "Checked the file? Not sure about page 3.", peerMessageNote: "文件看过了吗？第三页我不太确定。",
+        peerReply: "You're right. Can you resend it today?", peerReplyNote: "你说得对。今天能改好再发我吗？",
+        peerThanks: "Perfect, thanks!", peerThanksNote: "太好了，谢谢！",
         contact: "小林", avatar: "林", placeholder: "回复 小林",
-        message1: "文件看过了吗？第三页的数据我不太确定。",
         original: "那个文件我看了一下大概没啥问题就是第三页有个数好像不太对你再看看",
         polished: "文件我看过了，整体没问题。第三页有个数字好像不太对，麻烦再核对一下。",
         askRewrite: "翻成英文",
@@ -91,8 +105,11 @@ private struct TourScript {
         hints: [5, 6, 7], joiner: "")
 
     static let en = TourScript(
+        peer: "Wang Lei", peerAvatar: "王", peerPlaceholder: "Reply to Wang Lei",
+        peerMessage: "文件看过了吗？第三页我不太确定。", peerMessageNote: "Checked the file? Not sure about page 3.",
+        peerReply: "你说得对。今天能改好再发我吗？", peerReplyNote: "You're right. Can you resend it today?",
+        peerThanks: "太好了，谢谢！", peerThanksNote: "Perfect, thanks!",
         contact: "Alex", avatar: "A", placeholder: "Reply to Alex",
-        message1: "Did you get a chance to check the file? I'm not sure about the numbers on page 3.",
         original: "yeah i looked at the file its mostly fine but theres a number on page 3 that looks off can u check again",
         polished: "I've reviewed the file and it looks fine overall. One number on page 3 seems off. Could you double-check it?",
         askRewrite: "Translate into Chinese",
@@ -121,8 +138,11 @@ private struct TourScript {
         hints: [5, 6, 7], joiner: " ")
 
     static let ja = TourScript(
+        peer: "Alex", peerAvatar: "A", peerPlaceholder: "Alex に返信",
+        peerMessage: "Checked the file? Not sure about page 3.", peerMessageNote: "資料、見てもらえました？3ページ目がちょっと気になって。",
+        peerReply: "You're right. Can you resend it today?", peerReplyNote: "確かに。今日中に直して送ってもらえますか？",
+        peerThanks: "Perfect, thanks!", peerThanksNote: "助かります、ありがとう！",
         contact: "佐藤さん", avatar: "佐", placeholder: "佐藤さんに返信",
-        message1: "資料、見てもらえましたか？3ページ目の数字に少し自信がなくて。",
         original: "資料見たよだいたい大丈夫だけど3ページ目の数字がなんか変な気がするからもう一回見てくれる",
         polished: "資料を確認しました。全体的には問題ありませんが、3ページ目の数字が少し気になります。もう一度ご確認いただけますか。",
         askRewrite: "英語に翻訳",
@@ -202,7 +222,7 @@ private enum TourChapter {
     }
 }
 
-/// 一步的章节、序号、标题、说明。FT11 分前后两段（part 1：随时换回）。
+/// 一步的章节、序号、标题、说明。FT6 分两段（part 1：替换后发送）；FT11 分三段（part 1：发送，part 2：随时换回）。
 private struct TourStep {
     var chapter: TourChapter
     var index: Int
@@ -229,6 +249,9 @@ private struct TourStep {
         case 5: return TourStep(chapter: .rewrite, index: 3, total: 4,
                                 title: L("点击「替换」，应用结果", "Tap Replace to use the result", "「置換」で結果を反映"),
                                 detail: L("改写结果显示在回答卡中。点击「替换」写入输入框；按住上滑可改为「插入」，保留原文。", "The rewrite appears in the card. Tap Replace to put it in the input field; hold and slide up for Insert to keep the original.", "書き換え結果はカードに表示されます。「置換」で入力欄に反映し、長押しして上にスライドすると元の文章を残す「挿入」になります。"))
+        case 6 where part == 1: return TourStep(chapter: .rewrite, index: 4, total: 4,
+                                title: L("按住放大镜，上下拖动", "Hold the magnifier and slide", "虫めがねを長押しして上下にスライド"),
+                                detail: L("满意后点击「替换」，再点击「发送」。", "Happy with it? Tap Replace, then Send.", "よければ「置換」、続いて「送信」をタップします。"))
         case 6: return TourStep(chapter: .rewrite, index: 4, total: 4,
                                 title: L("按住放大镜，上下拖动", "Hold the magnifier and slide", "虫めがねを長押しして上下にスライド"),
                                 detail: L("可预先指定处理方式：上滑为改写，下滑为问答，松手即执行。请按住放大镜向上拖动。", "Choose the mode in advance: slide up to rewrite, down to answer, and release to run. Hold the magnifier and slide up.", "上で書き換え、下で回答を指定し、指を離すと実行します。虫めがねを長押しして上にスライドしてください。"))
@@ -247,6 +270,9 @@ private struct TourStep {
         case 11 where part == 0: return TourStep(chapter: .prompt, index: 5, total: 5,
                                  title: L("切到「英文」，点 ✨ 直接出英文", "Pick Chinese, then tap ✨", "「英語」を選んで ✨"),
                                  detail: L("点击「英文」，再点击 ✨，输入框里的中文直接改成英文。", "Tap Chinese, then ✨. Your text turns into Chinese right in the input field.", "「英語」を選んで ✨ をタップすると、入力欄の文章がそのまま英語になります。"))
+        case 11 where part == 1: return TourStep(chapter: .prompt, index: 5, total: 5,
+                                 title: L("发给对方", "Send it", "相手に送る"),
+                                 detail: L("点击「发送」，发给对方。", "Tap Send to send it.", "「送信」をタップして相手に送ります。"))
         case 11: return TourStep(chapter: .prompt, index: 5, total: 5,
                                  title: L("随时换回", "Switch back anytime", "いつでも戻せます"),
                                  detail: L("点击「润色」即可换回。", "Tap Polish to switch back.", "「整える」をタップすると元に戻ります。"))
@@ -288,6 +314,8 @@ private final class TourModel: ObservableObject {
     struct Message: Identifiable, Equatable {
         let id = UUID()
         var text: String
+        /// 对方消息下面的译文。
+        var note: String?
         var mine = false
         var typing = false
     }
@@ -460,8 +488,13 @@ private final class TourModel: ObservableObject {
 
     private func applyStart(_ n: Int) {
         let s = script
-        messages = [Message(text: s.message1)]
-        if n >= 13 { messages.append(Message(text: s.riddleMessage)) }
+        switch n {
+        case ...6: messages = [Message(text: s.peerMessage, note: s.peerMessageNote)]
+        case 7...10: messages = [Message(text: s.shorter, mine: true), Message(text: s.peerReply, note: s.peerReplyNote)]
+        case 11: messages = [Message(text: s.peerReply, note: s.peerReplyNote)]
+        default: messages = []
+        }
+        if n >= 13 { messages = [Message(text: s.riddleMessage)] }
         if n >= 15 {
             messages = [Message(text: s.riddleMessage), Message(text: s.riddleRewrite, mine: true), Message(text: s.riddleReply)]
         }
@@ -471,9 +504,7 @@ private final class TourModel: ObservableObject {
         case ...1: field = s.original
         case 2: field = s.polished
         case 3...5: field = s.original
-        case 6, 7: field = s.rewritten
-        case 8...11: field = s.shorter
-        case 12: field = s.nineResult
+        case 6: field = s.rewritten
         case 13, 14: field = s.riddleField
         default: field = ""
         }
@@ -553,11 +584,17 @@ private final class TourModel: ObservableObject {
             try await retype(\.ask, to: s.askShorter)
             try await wait(.magnifier)
             try await generate(.rewrite, s.shorter)
+            try await pause(0.4)
+            withAnimation(.easeOut(duration: 0.25)) { part = 1 }
+            try await wait(.replace)
+            try await typeReplace(\.field, to: s.shorter)
+            withAnimation(.easeOut(duration: 0.2)) { sendReady = true }
+            try await wait(.send)
+            try await send(reply: s.peerReply, note: s.peerReplyNote)
         case 7:
             try await pause(0.4)
             withAnimation(.easeOut(duration: 0.25)) { expanded = false }
             try await pause(0.3)
-            try await typeReplace(\.field, to: s.shorter)
             try await wait(.chevron)
             withAnimation(.easeOut(duration: 0.25)) { promptsOpen = true }
             try await pause(0.3)
@@ -608,8 +645,13 @@ private final class TourModel: ObservableObject {
             withAnimation(.easeOut(duration: 0.15)) { selectedPrompt = 5 }
             try await wait(.sparkle)
             try await polish(to: s.nineResult)
-            try await pause(0.6)
+            try await pause(0.4)
             withAnimation(.easeOut(duration: 0.25)) { part = 1 }
+            withAnimation(.easeOut(duration: 0.2)) { sendReady = true }
+            try await wait(.send)
+            try await send(reply: s.peerThanks, note: s.peerThanksNote)
+            try await pause(0.4)
+            withAnimation(.easeOut(duration: 0.25)) { part = 2 }
             try await wait(.pill(0))
             withAnimation(.easeOut(duration: 0.15)) { selectedPrompt = 0 }
             try await pause(0.2)
@@ -630,14 +672,7 @@ private final class TourModel: ObservableObject {
             try await typeReplace(\.field, to: s.riddleRewrite)
             withAnimation(.easeOut(duration: 0.2)) { sendReady = true }
             try await wait(.send)
-            let sent = field
-            withAnimation(.easeOut(duration: 0.3)) {
-                sendReady = false
-                field = ""
-                messages.append(Message(text: sent, mine: true))
-            }
-            try await pause(0.8)
-            withAnimation(.easeOut(duration: 0.3)) { messages.append(Message(text: s.riddleReply)) }
+            try await send(reply: s.riddleReply)
         case 15:
             try await incoming(s.weatherMessage)
             try await retype(\.ask, to: s.askWeather)
@@ -785,13 +820,25 @@ private final class TourModel: ObservableObject {
         }
     }
 
+    /// 点了「发送」：输入框清空，气泡上移进对话；0.8 秒后对方回复。
+    private func send(reply: String, note: String? = nil) async throws {
+        let sent = field
+        withAnimation(.easeOut(duration: 0.3)) {
+            sendReady = false
+            field = ""
+            messages.append(Message(text: sent, mine: true))
+        }
+        try await pause(0.8)
+        try await incoming(reply, note: note)
+    }
+
     /// 对方发来新消息：「正在输入…」0.6 秒再弹出。
-    private func incoming(_ text: String) async throws {
+    private func incoming(_ text: String, note: String? = nil) async throws {
         withAnimation(.easeOut(duration: 0.25)) { messages.append(Message(text: "", typing: true)) }
         try await pause(0.6)
         withAnimation(.easeOut(duration: 0.25)) {
             messages.removeAll { $0.typing }
-            messages.append(Message(text: text))
+            messages.append(Message(text: text, note: note))
         }
         try await pause(0.3)
     }
@@ -1136,14 +1183,18 @@ struct FeatureTourView: View {
     /// 对话卡：对方的消息（最多留两条）、自己发出的气泡、宿主输入框（绿色光标）。
     private var chat: some View {
         let script = model.script
+        // 润色、改写、提示词三章和说另一种语言的同事聊，问答一章换回原来的联系人。
+        let peer = model.step <= 11
         return VStack(alignment: .leading, spacing: 10) {
             // 矮屏结果卡展开时键盘很高，省掉联系人这一行。
             if !(compact && model.cardTall) {
                 HStack(spacing: 8) {
-                    Text(script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                    Text(peer ? script.peerAvatar : script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
                         .frame(width: 22, height: 22)
-                        .background(Circle().fill(LinearGradient(colors: [Color(hex: 0xFDBA74), Color(hex: 0xF97316)], startPoint: .top, endPoint: .bottom)))
-                    Text(script.contact).font(.system(size: 13)).foregroundStyle(GuideColor.secondary)
+                        .background(Circle().fill(LinearGradient(colors: peer ? [Color(hex: 0x7DD3FC), Color(hex: 0x2563EB)] : [Color(hex: 0xFDBA74), Color(hex: 0xF97316)], startPoint: .top, endPoint: .bottom)))
+                        .id(peer)
+                        .transition(.opacity)
+                    Text(peer ? script.peer : script.contact).font(.system(size: 13)).foregroundStyle(GuideColor.secondary)
                     Spacer()
                     Text(L("演示内容 · 不会发送", "Demo content · Not sent", "デモ内容 · 送信されません"))
                         .font(.system(size: 10.5)).foregroundStyle(GuideColor.secondary)
@@ -1158,7 +1209,7 @@ struct FeatureTourView: View {
             }
             Group {
                 if model.field.isEmpty {
-                    (Text(script.placeholder).foregroundColor(GuideColor.secondary.opacity(0.7))
+                    (Text(peer ? script.peerPlaceholder : script.placeholder).foregroundColor(GuideColor.secondary.opacity(0.7))
                         + Text(model.expanded ? "" : "▏").foregroundColor(TourColor.hostCaret))
                 } else {
                     // 识意框激活时宿主没有光标。
@@ -1190,12 +1241,29 @@ struct FeatureTourView: View {
                     .background(UnevenRoundedRect(radius: 16, corner: 5, right: true).fill(TourColor.purple))
             }
         } else {
-            Text(message.typing ? L("正在输入…", "Typing…", "入力中…") : message.text)
-                .font(.system(size: 14.5))
-                .foregroundStyle(message.typing ? GuideColor.secondary : GuideColor.text)
-                .lineLimit(3)
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(message.typing ? L("正在输入…", "Typing…", "入力中…") : message.text)
+                        .font(.system(size: 14.5))
+                        .foregroundStyle(message.typing ? GuideColor.secondary : GuideColor.text)
+                        .lineLimit(3)
+                    // 像微信翻译：细线下面一行小「译」标签和译文。
+                    if let note = message.note, !message.typing {
+                        Rectangle().fill(TourColor.fieldStroke).frame(height: 1)
+                        HStack(spacing: 6) {
+                            Text(L("译", "Translated", "翻訳"))
+                                .font(.system(size: 10.5, weight: .semibold)).foregroundStyle(Color(hex: 0x9A96AA))
+                                .padding(.horizontal, 4).frame(height: 16)
+                                .background(RoundedRectangle(cornerRadius: 4).fill(TourColor.field))
+                            Text(note).font(.system(size: 13)).foregroundStyle(GuideColor.secondary).lineLimit(2)
+                        }
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(UnevenRoundedRect(radius: 16, corner: 5, right: false).fill(TourColor.bubble))
+                Spacer(minLength: 24)
+            }
         }
     }
 
