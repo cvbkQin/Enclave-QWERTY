@@ -778,12 +778,17 @@ extension KeyboardModel {
     func commit(_ text: String) {
         switch target {
         case .host:
-            // 有组字时直接 insertText 替换标记区，不先清空再 unmark：
-            // 闲鱼等 Flutter 输入框会忽略空的 setMarkedText，unmark 时把拼音当正文留下
-            if hasMarkedText {
+            // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
+            // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下（「hao de好的」）；
+            // 非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
+            if hasMarkedText, !text.isEmpty {
+                editProxy?.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
+                editProxy?.unmarkText()
                 hasMarkedText = false
+            } else {
+                clearMarkedText()
+                editProxy?.insertText(text)
             }
-            editProxy?.insertText(text)
             updateAutoShift()
         case .instruction:
             insertInInstruction(text)
