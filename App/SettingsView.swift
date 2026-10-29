@@ -77,7 +77,7 @@ struct SettingsView: View {
                 Section {
                 } header: {
                     VStack(spacing: 12) {
-                        TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.version)", title: L("设置", "Settings", "設定"))
+                        TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
                         // 整张卡可点，不要列表行的箭头。
                         // 内测版没有试用和解锁：换成内置接口今天的用量。
                         if BuiltinAPI.isInternalBuild {
@@ -138,7 +138,7 @@ struct SettingsView: View {
                                 value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.about) {
-                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.version)
+                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.devLabel ?? AboutView.version)
                     }
                 }
             }

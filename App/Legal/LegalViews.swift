@@ -261,6 +261,11 @@ struct AboutView: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
     }
 
+    /// 开发版标签（0.93_1 这样），正式、内测、公测包为空。
+    static var devLabel: String? {
+        (Bundle.main.object(forInfoDictionaryKey: "EnclaveDevLabel") as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     var body: some View {
         List {
             Section {
@@ -270,7 +275,8 @@ struct AboutView: View {
                         .frame(width: 72, height: 72)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     Text(L("飞地输入法", "Enclave", "Enclave")).font(.system(size: 20, weight: .bold))
-                    Text(L("版本 \(Self.version)（\(Self.build)）", "Version \(Self.version) (\(Self.build))", "バージョン \(Self.version)（\(Self.build)）"))
+                    Text(Self.devLabel.map { L("开发版 \($0)（\(Self.build)）", "Dev \($0) (\(Self.build))", "開発版 \($0)（\(Self.build)）") }
+                         ?? L("版本 \(Self.version)（\(Self.build)）", "Version \(Self.version) (\(Self.build))", "バージョン \(Self.version)（\(Self.build)）"))
                         .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                 }
