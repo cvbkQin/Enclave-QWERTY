@@ -836,6 +836,9 @@ struct FeatureTourView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = TourModel()
     @State private var summaryShown = 0
+    /// 矮屏（iPhone SE 等）：演示页收紧上边距、聊天只留最新一条，免得键盘把顶栏挤出屏幕。
+    /// 按屏幕高度判断：页面本身超高时量出来的是内容高度，不准。
+    private var compact: Bool { UIScreen.main.bounds.height < 700 }
 
     var body: some View {
         ZStack {
@@ -999,17 +1002,26 @@ struct FeatureTourView: View {
             topBar
             header
                 .padding(.horizontal, 20)
-                .padding(.top, 14)
+                .padding(.top, compact ? 4 : 14)
             if model.appPage != nil {
                 // FT8–FT10：键盘下沉，模拟的 App 提示词页升起。
                 Spacer(minLength: 8)
                 TourAppPage(model: model)
                     .transition(.move(edge: .bottom))
             } else {
-                chat
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                Spacer(minLength: 8)
+                if compact {
+                    // 矮屏放不下时聊天卡从上面收，留住最新一条和输入框，顶栏不被键盘挤出屏幕。
+                    chat
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+                        .frame(minHeight: 0, maxHeight: .infinity, alignment: .bottom)
+                        .clipped()
+                } else {
+                    chat
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                    Spacer(minLength: 8)
+                }
                 TourKeyboard(model: model)
                     .transition(.move(edge: .bottom))
             }
@@ -1051,8 +1063,8 @@ struct FeatureTourView: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 20)
-        .frame(height: 50)
-        .padding(.top, 8)
+        .frame(height: compact ? 40 : 50)
+        .padding(.top, compact ? 0 : 8)
     }
 
     private var header: some View {
@@ -1075,7 +1087,7 @@ struct FeatureTourView: View {
             }
             VStack(alignment: .leading, spacing: 8) {
                 Text(info.title)
-                    .font(.system(size: 24, weight: .bold)).foregroundStyle(GuideColor.text)
+                    .font(.system(size: compact ? 21 : 24, weight: .bold)).foregroundStyle(GuideColor.text)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(info.detail)
                     .font(.system(size: 15)).lineSpacing(4).foregroundStyle(GuideColor.secondary)
@@ -1092,19 +1104,22 @@ struct FeatureTourView: View {
     private var chat: some View {
         let script = model.script
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text(script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 22, height: 22)
-                    .background(Circle().fill(LinearGradient(colors: [Color(hex: 0xFDBA74), Color(hex: 0xF97316)], startPoint: .top, endPoint: .bottom)))
-                Text(script.contact).font(.system(size: 13)).foregroundStyle(GuideColor.secondary)
-                Spacer()
-                Text(L("演示内容 · 不会发送", "Demo content · Not sent", "デモ内容 · 送信されません"))
-                    .font(.system(size: 10.5)).foregroundStyle(GuideColor.secondary)
-                    .padding(.horizontal, 7).frame(height: 18)
-                    .background(Capsule().fill(TourColor.bubble))
+            // 矮屏结果卡展开时键盘很高，省掉联系人这一行。
+            if !(compact && model.cardTall) {
+                HStack(spacing: 8) {
+                    Text(script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(LinearGradient(colors: [Color(hex: 0xFDBA74), Color(hex: 0xF97316)], startPoint: .top, endPoint: .bottom)))
+                    Text(script.contact).font(.system(size: 13)).foregroundStyle(GuideColor.secondary)
+                    Spacer()
+                    Text(L("演示内容 · 不会发送", "Demo content · Not sent", "デモ内容 · 送信されません"))
+                        .font(.system(size: 10.5)).foregroundStyle(GuideColor.secondary)
+                        .padding(.horizontal, 7).frame(height: 18)
+                        .background(Capsule().fill(TourColor.bubble))
+                }
             }
             // 结果卡展开以后只留最新一条，免得被长高的键盘挡住。
-            ForEach(model.messages.suffix(model.cardTall ? 1 : 2)) { message in
+            ForEach(model.messages.suffix(model.cardTall || compact ? 1 : 2)) { message in
                 bubble(message)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -1126,7 +1141,7 @@ struct FeatureTourView: View {
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourColor.field))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(TourColor.fieldStroke, lineWidth: 1))
         }
-        .padding(12)
+        .padding(compact ? 9 : 12)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(GuideColor.card)
             .shadow(color: Color(hex: 0x3C28A0).opacity(0.07), radius: 14, y: 10))
     }
@@ -2022,7 +2037,8 @@ private struct TourAppPage: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .clipped()
         }
-        .frame(height: 560)
+        // 矮屏少 80：上面还有顶栏和说明，560 会把顶栏挤出屏幕。
+        .frame(height: UIScreen.main.bounds.height < 700 ? 480 : 560)
         .background(TopRounded(radius: 22).fill(GuideColor.page).ignoresSafeArea(edges: .bottom))
         .animation(.easeOut(duration: 0.3), value: model.appPage)
     }
