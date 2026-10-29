@@ -152,8 +152,8 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var unseenResult = false
     var showsNewResult: Bool { unseenResult && !aiExpanded && hasResult }
     @Published var composition = ""
-    /// 九宫格打拼音时候选栏上面的拼音行（PY1）：出现、收回时键盘跟着长高、变矮。
-    @Published var pinyinRowShown = false { didSet { if pinyinRowShown != oldValue { heightMayChange?() } } }
+    /// 打拼音时候选栏上面的拼音行有内容（PY7）。这一行一直占位，键盘高度不变。
+    @Published var pinyinRowShown = false
     @Published var candidates: [String] = []
     /// 联想：上屏后候选栏接着显示的下一个词，按别的键就收起。
     @Published var predictions: [String] = []
@@ -350,7 +350,7 @@ final class KeyboardModel: ObservableObject {
     var keyboardHeight: CGFloat {
         KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: aiRow != nil, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
-                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: pinyinRowShown)
+                               freeEdit: target == .card, wordPanel: keysPanel == .words)
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。

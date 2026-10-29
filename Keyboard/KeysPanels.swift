@@ -217,25 +217,26 @@ struct QuickWordsPanel: View {
     }
 }
 
-/// 九宫格打拼音时候选栏上面的拼音行（照 iOS 原生，PY1）：只列第一个还没定的字的读法，后面跟这个键的单个字母。
-/// 不加底色、不预选；点一项定下这个字的音，拼音行换成下一个字的读法。放不下就左右滑，右边渐隐。
+/// 候选栏上面的拼音行（照 iOS 原生，PY1、PY7）。九宫格只列第一个还没定的字的读法，后面跟这个键的单个字母，
+/// 点一项定下这个字的音；全键盘列正在拼的拼音的几种切法，点一个换切法。不加底色、不预选；放不下就左右滑，右边渐隐。
 struct PinyinRow: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
+        let nine = model.showsNineKey
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(model.pinyinOptions, id: \.self) { syllable in
-                    Button { model.choosePinyin(syllable) } label: {
-                        Text(syllable).font(.system(size: 17)).foregroundStyle(Color.primary)
-                            .padding(.horizontal, 13)
+                ForEach(nine ? model.pinyinOptions : model.pinyinSegmentations, id: \.self) { syllable in
+                    Button { nine ? model.choosePinyin(syllable) : model.chooseSegmentation(syllable) } label: {
+                        Text(syllable).font(.system(size: 16)).foregroundStyle(Color.primary)
+                            .padding(.horizontal, 12)
                             .frame(maxHeight: .infinity)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(KeyPressStyle())
                 }
             }
-            .padding(.leading, 3)
+            .padding(.leading, 4)
             .padding(.trailing, 36)
         }
         .hidingScrollEdgeEffect()

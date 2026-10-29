@@ -62,12 +62,12 @@ struct KeyboardView: View {
                     .padding(.horizontal, inset)
                     .padding(.top, KeyboardMetrics.panelTop)
             }
-            if model.pinyinRowShown {
-                PinyinRow(model: model)
-                    .frame(height: KeyboardMetrics.pinyinRowHeight)
-                    .padding(.top, KeyboardMetrics.pinyinRowGap)
-                    .transition(.opacity.animation(.easeOut(duration: 0.15)))
+            // 拼音行一直占位，平时空着；打字时出拼音和细线，键盘高度不变（PY7）。
+            ZStack {
+                if model.pinyinRowShown { PinyinRow(model: model) }
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: KeyboardMetrics.pinyinRowHeight)
             ZStack {
                 // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
                 candidateBar

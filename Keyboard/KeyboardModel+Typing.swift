@@ -562,6 +562,26 @@ extension KeyboardModel {
         return options
     }
 
+    /// 全键盘：正在拼的拼音有几种切法时并列（xi'an、xian），现在这种在前；只有一种就只显示这一种。
+    /// 分段选过词（拼写栏开头是汉字）时不列，免得重输把选过的词冲掉。
+    var pinyinSegmentations: [String] {
+        guard !showsNineKey, isComposing, composition.allSatisfy(\.isASCII) else { return [] }
+        let letters = engine.rawInput.filter(\.isLetter).lowercased()
+        let current = composition.split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'").lowercased()
+        guard !letters.isEmpty, letters.count <= 16 else { return current.isEmpty ? [] : [current] }
+        var options = PinyinSyllables.segmentations(letters)
+        guard !options.isEmpty else { return current.isEmpty ? [] : [current] }
+        if let index = options.firstIndex(of: current) { options.insert(options.remove(at: index), at: 0) }
+        return options
+    }
+
+    /// 全键盘点了一种切法：按这种切法重输。
+    func chooseSegmentation(_ segmentation: String) {
+        applyEngineResults(wait: true)
+        engine.replaceInput(segmentation, keeping: [])
+        syncEngine()
+    }
+
     /// 首选候选在第一个没定的字上的读法：拼写栏是首选的拼音（「你好ma」「mi hao」），去掉前面选过的词和已经定下的音节。
     private func firstOpenSyllable(fixed: String) -> String? {
         let spelling = composition.drop { !$0.isASCII }
@@ -902,7 +922,7 @@ extension KeyboardModel {
         // 没变的不设：@Published 设一次就让整个键盘重画一遍。
         let newComposition = engine.composition
         if newComposition != composition { composition = newComposition }
-        let row = showsNineKey && layer == .letters && !composition.isEmpty
+        let row = layer == .letters && !composition.isEmpty
         if row != pinyinRowShown { pinyinRowShown = row }
         let newCandidates = engine.candidates
         if newCandidates != candidates { candidates = newCandidates }
