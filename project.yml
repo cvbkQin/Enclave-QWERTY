@@ -16,8 +16,8 @@ settings:
     # 开发版每次装机测试记作 0.93_1、0.93_2…：系统版本号不能带下划线，仍写 0.93，构建号写 9301、9302…，
     # DEV_LABEL 写「0.93_N」显示在关于页。测好合并进 main 时 DEV_LABEL 清空、构建号改回 93。
     MARKETING_VERSION: "0.93"
-    CURRENT_PROJECT_VERSION: "9312"
-    DEV_LABEL: "0.93_12"
+    CURRENT_PROJECT_VERSION: "9313"
+    DEV_LABEL: "0.93_13"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。

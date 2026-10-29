@@ -109,7 +109,7 @@ struct SettingsView: View {
                     Button { router.setupGuide = .tourReplay } label: {
                         HStack(spacing: 12) {
                             DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
-                                    value: L("约 3 分半", "About 3½ min", "約 3 分半"))
+                                    value: L("约 4 分钟", "About 4 min", "約 4 分"))
                             Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                         }
                         .contentShape(Rectangle())
