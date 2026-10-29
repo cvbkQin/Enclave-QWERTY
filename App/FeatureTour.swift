@@ -856,7 +856,7 @@ private enum TourColor {
     static let bubble = Color(light: 0xF2F1F7, dark: 0x2C2C2E)
     /// 回复输入框：白底加一圈深一点的边，和灰底的对方气泡分开。
     static let field = Color(light: 0xFFFFFF, dark: 0x1C1C1E)
-    static let fieldStroke = Color(light: 0xD4D0E2, dark: 0x48484A)
+    static let fieldStroke = Color(light: 0xC7C7CC, dark: 0x48484A)
     static let hostCaret = Color(hex: 0x34C759)
     static let progressOn = Color(light: 0x5B4BE8, dark: 0xB4A9FF)
     static let progressOff = Color(light: 0xDDD9EE, dark: 0x35304D)
