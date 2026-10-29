@@ -223,8 +223,8 @@ private struct TourStep {
                                  title: L("点击放大镜，自动判断", "Tap the magnifier to let it decide", "虫めがねで自動判断"),
                                  detail: L("识意框留空时，放大镜会根据输入框中的文字判断是修改还是回答。", "With the Ask field empty, the magnifier looks at the text in the input field and decides whether to rewrite it or answer it.", "識意欄が空のときは、入力欄の文章から修正か回答かを判断します。"))
         case 11: return TourStep(chapter: .answer, index: 2, total: 5,
-                                 title: L("想发送原句时，点击「切换」", "Meant to send it? Tap Switch", "送りたい文なら「切替」"),
-                                 detail: L("这句话其实是要发给对方的。点击「切换」，改为润色这句话，而不是回答它。", "You actually want to send this to your friend. Tap Switch to polish the sentence instead of answering it.", "この文は相手に送るものです。「切替」をタップすると、回答ではなく文章を整えます。"))
+                                 title: L("判断有误？可快速切换", "Wrong guess? Switch in one tap", "判断違い？すぐ切り替え"),
+                                 detail: L("放大镜把这句当成问题回答了，其实你是想发给对方。点击「切换」，改为润色这句话。", "The magnifier answered this as a question, but you meant to send it. Tap Switch to polish the sentence instead.", "虫めがねが質問として回答しましたが、本当は相手に送る文です。「切替」をタップすると、文章を整える処理に切り替わります。"))
         case 12: return TourStep(chapter: .answer, index: 3, total: 5,
                                  title: L("替换后发送", "Replace, then send", "置換して送信"),
                                  detail: L("点击「替换」写入输入框，再点击「发送」。", "Tap Replace to put it in the input field, then tap Send.", "「置換」で入力欄に反映し、「送信」をタップします。"))
