@@ -38,8 +38,6 @@ speller:
     - abbrev/^([zcs]h).+$/$1/
     - derive/^([nl])ve$/$1ue/
     - derive/^([jqxy])u/$1v/
-    # 常见的手误：后鼻音 ng 打成 gn（fang 按成 fagn）。九宫格的数字串歧义多，用 fuzz 排在正确拼写之后（十年 7446426 不会变成「情感」）。
-    - fuzz/([aeio])ng$/$1gn/
     - derive/ong$/on/
     - derive/[abc]/2/
     - derive/[def]/3/

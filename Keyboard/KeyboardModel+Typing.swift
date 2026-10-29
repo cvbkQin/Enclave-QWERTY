@@ -83,7 +83,6 @@ extension KeyboardModel {
         switch target {
         case .host:
             editProxy?.deleteBackward()
-            notePickDeleted()
             updateAutoShift()
         case .instruction:
             deleteInInstruction()
@@ -133,16 +132,11 @@ extension KeyboardModel {
         // 选了候选：前面打的拼音键都没按错，算进手指习惯。
         TouchCalibration.confirm()
         let before = choiceState
-        let segmented = !engine.selections.isEmpty
         let text = engine.select(index)
         if let text { commit(text) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
         recordChoice(from: before)
-        // 一次点完、不是首选的词才记：首选本来就排第一，分段选的上屏的是几段拼起来的字。
-        if let text, index > 0, !segmented, !isComposing, chineseMode, target == .host {
-            recentPick = RecentPick(word: text, left: text.count, time: Date())
-        }
         if let text, !isComposing, chineseMode { showPredictions(after: text) }
     }
 
@@ -154,48 +148,6 @@ extension KeyboardModel {
         let deleted = engine.deleteCandidate(index)
         syncEngine()
         return deleted
-    }
-
-    // MARK: - 点错的候选
-
-    struct RecentPick {
-        let word: String
-        /// 还剩几个字没被删。
-        var left: Int
-        let time: Date
-    }
-
-    struct RejectedPick {
-        let word: String
-        let time: Date
-    }
-
-    /// 点了候选后马上退格：删完整个词（中间没打别的、没挪光标）就当是点错了。
-    /// librime 选一次就把词提到第一（点错「触达」后，再打 chu da 首选就成了「触达」），记下来等它再出现时忘掉。
-    func notePickDeleted() {
-        guard var pick = recentPick else { return }
-        pick.left -= 1
-        guard pick.left <= 0 else {
-            recentPick = pick
-            return
-        }
-        recentPick = nil
-        if Date().timeIntervalSince(pick.time) < 20 {
-            rejectedPick = RejectedPick(word: pick.word, time: Date())
-        }
-    }
-
-    /// 点错删掉的词又排到了第一：删掉学到的记录，词库自带的词回到原来的位置（和长按候选「删除」一样）。
-    /// 两分钟内没再打出来就算了。
-    private func forgetRejectedPick() {
-        guard let rejected = rejectedPick, QueuedEngine.shared.pending == 0 else { return }
-        guard Date().timeIntervalSince(rejected.time) < 120 else {
-            rejectedPick = nil
-            return
-        }
-        guard candidates.first == rejected.word, !commonWordTexts.contains(rejected.word) else { return }
-        rejectedPick = nil
-        deleteLearnedCandidate(0)
     }
 
     // MARK: - 候选长按（CL1–CL4）
@@ -472,7 +424,6 @@ extension KeyboardModel {
     }
 
     func moveCursor(by offset: Int) {
-        recentPick = nil
         switch target {
         case .host: editProxy?.adjustTextPosition(byCharacterOffset: offset)
         case .card: moveCardCaret(by: offset)
@@ -905,8 +856,6 @@ extension KeyboardModel {
     // MARK: - 内部
 
     func commit(_ text: String) {
-        // 上屏了别的字，之前点的候选就不是「点了马上删」了。
-        recentPick = nil
         switch target {
         case .host:
             // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
@@ -934,8 +883,7 @@ extension KeyboardModel {
         let newComposition = engine.composition
         if newComposition != composition { composition = newComposition }
         let newCandidates = engine.candidates
-        let candidatesChanged = newCandidates != candidates
-        if candidatesChanged { candidates = newCandidates }
+        if newCandidates != candidates { candidates = newCandidates }
         if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
         if target == .host && isComposing {
@@ -944,7 +892,6 @@ extension KeyboardModel {
         } else {
             clearMarkedText()
         }
-        if candidatesChanged { forgetRejectedPick() }
     }
 
     func clearMarkedText() {
