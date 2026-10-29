@@ -630,7 +630,7 @@ private final class TourModel: ObservableObject {
         try await stream(text)
     }
 
-    /// 演示接口按词吐字：中文 2–4 个字一段，英文一个词一段；约 30 字/秒，标点后多停 0.12 秒。
+    /// 演示接口按词吐字：中文 2–4 个字一段，英文一个词一段；和真键盘出字差不多快（约 90 字/秒），标点后多停 0.04 秒。
     private func stream(_ text: String) async throws {
         if reduceMotion {
             withAnimation(.easeInOut(duration: 0.2)) { card = text }
@@ -640,7 +640,7 @@ private final class TourModel: ObservableObject {
         for chunk in Self.chunks(text) {
             card = (card ?? "") + chunk
             let punctuation = chunk.last.map { "，。！？、：；,.!?:;".contains($0) } ?? false
-            try await pause(Double(chunk.count) / 30 * Double.random(in: 0.7...1.3) + (punctuation ? 0.12 : 0))
+            try await pause(Double(chunk.count) / 90 * Double.random(in: 0.7...1.3) + (punctuation ? 0.04 : 0))
         }
     }
 
@@ -664,7 +664,7 @@ private final class TourModel: ObservableObject {
         return out
     }
 
-    /// 结果写进输入框：原文变淡 0.15 秒，新字从左往右打出来（0.6–0.9 秒，按字数）。
+    /// 结果写进输入框：原文变淡 0.15 秒，新字从左往右打出来（0.25–0.4 秒，按字数，和真键盘写入一样快）。
     private func typeReplace(_ path: ReferenceWritableKeyPath<TourModel, String>, to text: String) async throws {
         if reduceMotion {
             withAnimation(.easeInOut(duration: 0.2)) { self[keyPath: path] = text }
@@ -674,7 +674,7 @@ private final class TourModel: ObservableObject {
         try await pause(0.15)
         self[keyPath: path] = ""
         fieldDim = false
-        try await type(path, text, duration: min(max(0.6 + Double(text.count) * 0.004, 0.6), 0.9))
+        try await type(path, text, duration: min(0.25 + Double(text.count) * 0.0015, 0.4))
     }
 
     /// 撤销、换内容：当前文字从尾往前删掉 0.25 秒，再打出新的 0.35 秒。
