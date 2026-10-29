@@ -164,7 +164,7 @@ struct KeyboardView: View {
                     .minimumScaleFactor(0.7)
                     .foregroundStyle(.white)
                     .frame(width: 104, height: KeyboardMetrics.chipHeight)
-                    .background(Capsule().fill(LinearGradient(colors: Brand.gradient, startPoint: .leading, endPoint: .trailing)))
+                    .background(Capsule().fill(LinearGradient(colors: Brand.insertGradient, startPoint: .leading, endPoint: .trailing)))
             }
             .buttonStyle(KeyPressStyle())
         }
@@ -1586,7 +1586,7 @@ struct ResultCard: View {
                     .padding(.horizontal, 11)
                     .frame(height: 32)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
+                        .fill(LinearGradient(colors: Brand.insertGradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
             }
             .buttonStyle(.plain)
         }
@@ -1963,7 +1963,7 @@ struct ResultCard: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 12)
                                 .frame(height: 24)
-                                .background(Capsule().fill(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
+                                .background(Capsule().fill(LinearGradient(colors: Brand.insertGradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
                         }
                         .buttonStyle(KeyPressStyle())
                     }
@@ -1989,7 +1989,7 @@ struct ResultCard: View {
                 .padding(.horizontal, 11)
                 .frame(height: 32)
                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(primary ? AnyShapeStyle(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(primary ? AnyShapeStyle(LinearGradient(colors: Brand.insertGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
                           : AnyShapeStyle(Brand.searchDeclineFill)))
         }
         .buttonStyle(.plain)
