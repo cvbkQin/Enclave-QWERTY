@@ -46,11 +46,21 @@ final class ProviderTests: XCTestCase {
         XCTAssertNil(Provider.custom.preset)
     }
 
+    /// 问答页四家都能联网（0.93 起去掉了不能联网的 DeepSeek）。
+    func testAnswerProvidersCanSearch() {
+        XCTAssertTrue(Provider.answerShown.allSatisfy(\.canSearch))
+        XCTAssertEqual(Provider.hunyuan.answerPreset?.model, "hy3")
+        var settings = EnclaveSettings()
+        settings.baseURL = Provider.hunyuanURL
+        XCTAssertEqual(settings.searchProvider, .hunyuan)
+    }
+
     func testDetect() {
         XCTAssertEqual(Provider.detect("https://api.deepseek.com/v1"), .deepseek)
         XCTAssertEqual(Provider.detect("https://api.moonshot.ai/v1"), .kimi)
         XCTAssertEqual(Provider.detect("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"), .qwen)
         XCTAssertEqual(Provider.detect("https://api.z.ai/api/paas/v4"), .glm)
+        XCTAssertEqual(Provider.detect("https://tokenhub.tencentmaas.com/v1"), .hunyuan)
         XCTAssertEqual(Provider.detect("http://192.168.1.5:11434/v1"), .ollama)
         XCTAssertEqual(Provider.detect("https://example.com/v1"), .custom)
         XCTAssertEqual(ProviderName.of("https://example.com/v1"), "example.com")

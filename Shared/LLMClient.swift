@@ -133,7 +133,11 @@ struct LLMClient {
         var search_options: SearchOptions?
         /// 智谱联网：内置的 web_search 工具。
         var tools: [Tool]?
+        /// 腾讯混元（TokenHub）联网：{"enable": true}。
+        var web_search_options: HunyuanSearch?
     }
+
+    private struct HunyuanSearch: Encodable { var enable = true }
 
     private struct SearchOptions: Encodable { var forced_search = true }
 
@@ -228,10 +232,12 @@ struct LLMClient {
             stream: true,
             temperature: kimiModel == nil ? settings.temperature : nil,
             max_tokens: settings.maxTokens,
-            reasoning_effort: kimiModel?.hasPrefix("kimi-k3") == true ? "low" : nil,
+            // 混元 hy3 默认会先思考：键盘里要快，发 no_think。
+            reasoning_effort: kimiModel?.hasPrefix("kimi-k3") == true ? "low" : settings.searchProvider == .hunyuan ? "no_think" : nil,
             enable_search: webSearch && settings.searchProvider == .qwen ? true : nil,
             search_options: webSearch && settings.searchProvider == .qwen ? SearchOptions() : nil,
-            tools: webSearch && settings.searchProvider == .glm ? [Tool()] : nil
+            tools: webSearch && settings.searchProvider == .glm ? [Tool()] : nil,
+            web_search_options: webSearch && settings.searchProvider == .hunyuan ? HunyuanSearch() : nil
         ))
 
         let activity = Activity()

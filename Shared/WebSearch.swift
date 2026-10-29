@@ -41,6 +41,8 @@ struct WebSearch {
             return L("联网会调用通义千问的搜索：只把你的问题发给千问，由阿里云根据问题生成搜索词去搜，按次计费，从你的阿里云百炼账户扣。", "Web search uses Qwen search: only your question is sent to Qwen, and Alibaba Cloud searches with terms based on it, billed per search to your Model Studio account.", "ウェブ検索には Qwen の検索を使います。質問だけを Qwen に送り、Alibaba Cloud が質問から検索語を作って検索します。回数ごとに Model Studio アカウントに課金されます。")
         case .glm:
             return L("联网会调用智谱的搜索：只把你的问题发给智谱，由智谱根据问题生成搜索词去搜，每次约 0.01 元，从你的智谱账户扣。", "Web search uses Zhipu search: only your question is sent to Zhipu, which searches with terms based on it, about ¥0.01 per search from your Zhipu account.", "ウェブ検索には Zhipu の検索を使います。質問だけを Zhipu に送り、Zhipu が質問から検索語を作って検索します。1 回約 0.01 元が Zhipu アカウントから引かれます。")
+        case .hunyuan:
+            return L("联网会调用腾讯混元的搜索：只把你的问题发给腾讯云，由腾讯根据问题生成搜索词去搜，按次计费，从你的腾讯云账户扣。", "Web search uses Tencent Hunyuan search: only your question is sent to Tencent Cloud, which searches with terms based on it, billed per search to your Tencent Cloud account.", "ウェブ検索には Tencent Hunyuan の検索を使います。質問だけを Tencent Cloud に送り、Tencent が質問から検索語を作って検索します。回数ごとに Tencent Cloud アカウントに課金されます。")
         }
     }
 

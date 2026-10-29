@@ -105,7 +105,7 @@ private struct TourStep {
         TourStep(chapter: .ask, index: 6, total: 7, title: "输入问题，点击放大镜",
                  detail: "放大镜会自动判断：修改文字，或回答问题。", target: .magnifier, processes: true),
         TourStep(chapter: .ask, index: 7, total: 7, title: "需要实时信息时，联网查询",
-                 detail: "默认回答基于模型已有知识。点击「使用联网查询」获取最新信息（通义千问、Kimi、智谱 GLM 支持）。", target: .search, processes: true),
+                 detail: "默认回答基于模型已有知识。点击「使用联网查询」获取最新信息（通义千问、Kimi、智谱 GLM、腾讯混元支持）。", target: .search, processes: true),
         TourStep(chapter: .words, index: 1, total: 1, title: "长按结果卡，选词插入",
                  detail: "只需部分内容时，长按结果卡，选中词语后点击「插入」。", target: .card, processes: false),
     ]

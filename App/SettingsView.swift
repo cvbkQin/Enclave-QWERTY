@@ -168,7 +168,7 @@ struct SettingsView: View {
 
 /// 接口页（AP1–AP5）：顶上分段「改写 · 润色 | 问答」，两页各自一张状态卡；两页都有「我的预设」。
 /// 改写页：状态卡 → 我的预设 → 服务商（DeepSeek、Kimi、千问、Ollama）→ 连接（地址 / 模型 / Key / 生成参数）。
-/// 问答页：状态卡 →「和改写用同一个接口」→ 我的预设 → 服务商（千问、Kimi、智谱可联网，DeepSeek 不联网）→ 连接 → 联网调用。
+/// 问答页：状态卡 →「和改写用同一个接口」→ 我的预设 → 服务商（千问、Kimi、智谱、腾讯混元，都能联网）→ 连接 → 联网调用。
 struct ModelSettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -535,7 +535,7 @@ struct ModelSettingsView: View {
     private func webSearchFooter(_ provider: SearchProvider?) -> String {
         guard let provider else {
             let name = ProviderName.of(store.settings.forAnswers.baseURL)
-            return L("\(name) 不能联网，问答只用模型自己的知识。想联网，请选通义千问、Kimi 或智谱 GLM。", "\(name) can't search the web, so answers use only the model's own knowledge. To search, choose Qwen, Kimi or Zhipu GLM.", "\(name) はウェブ検索できないため、回答はモデル自身の知識だけを使います。検索するには Qwen・Kimi・Zhipu GLM を選んでください。")
+            return L("\(name) 不能联网，问答只用模型自己的知识。想联网，请选通义千问、Kimi、智谱 GLM 或腾讯混元。", "\(name) can't search the web, so answers use only the model's own knowledge. To search, choose Qwen, Kimi, Zhipu GLM or Tencent Hunyuan.", "\(name) はウェブ検索できないため、回答はモデル自身の知識だけを使います。検索するには Qwen・Kimi・Zhipu GLM・Tencent Hunyuan を選んでください。")
         }
         let lead = L("由模型自己判断这个问题要不要联网（问天气、新闻、价格这类才会搜）。", "The model decides whether a question needs the web (only things like weather, news or prices). ", "質問にウェブが必要かはモデルが判断します（天気・ニュース・価格などのときだけ検索）。")
         let mode: String
