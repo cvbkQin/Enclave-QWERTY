@@ -105,6 +105,16 @@ struct SettingsView: View {
                 }
                 // 键盘、拼音词库和常用词从首页进。
                 Section {
+                    // 再玩一次首次打开时的功能演示（模拟键盘、预设结果，不调用 API）。
+                    Button { router.setupGuide = .tourReplay } label: {
+                        HStack(spacing: 12) {
+                            DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
+                                    value: L("约 3 分半", "About 3½ min", "約 3 分半"))
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
                         // 测过并且失败时 AI 这一步不算完成，和设置向导页一致。
                         let left = Readiness.remainingSteps(apiConfigured: store.settings.isConfigured && store.lastTestOK != false)
