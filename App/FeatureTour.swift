@@ -1143,11 +1143,12 @@ struct FeatureTourView: View {
                         Image(systemName: "key").font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Color(light: 0x5B4BE8, dark: 0xB4A9FF))
                         Text(L("配置 API 后，即可在任意 App 中使用这些功能", "Set up an API to use these in any app", "API を設定すると、どのアプリでも使えます"))
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.system(size: compact ? 13 : 14, weight: .semibold))
                             .foregroundStyle(Color(light: 0x3B2FC9, dark: 0xDCD6FF))
-                            .lineLimit(1)
+                            // 矮屏（SE）一行放不下时略缩小，不出省略号。
+                            .lineLimit(1).minimumScaleFactor(0.85)
                     }
-                    .padding(.horizontal, 16).frame(height: 38)
+                    .padding(.horizontal, compact ? 12 : 16).frame(height: 38)
                     .background(Capsule().fill(Color(light: 0xECEAFD, dark: 0x25204F)))
                     GuidePrimaryButton(L("配置 API", "Set Up API", "API を設定")) { exit(.setup) }
                     GuideSecondaryButton(L("暂不配置，仅使用打字", "Not Now, Typing Only", "今は設定せず入力のみ使う")) { exit(.later) }
@@ -1192,11 +1193,12 @@ struct FeatureTourView: View {
                 .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(chapter.fill))
             VStack(alignment: .leading, spacing: compact ? 3 : 5) {
                 Text(title).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(GuideColor.text).lineLimit(1)
-                HStack(spacing: 4) {
+                HStack(spacing: compact ? 3 : 4) {
                     ForEach(tags, id: \.self) { tag in
+                        // 标签不截断：SE 上「问答」一行五个标签，收紧间距放下。
                         Text(tag)
-                            .font(.system(size: 11.5)).foregroundStyle(GuideColor.secondary).lineLimit(1)
-                            .padding(.horizontal, compact ? 5 : 7).frame(height: 20)
+                            .font(.system(size: 11.5)).foregroundStyle(GuideColor.secondary).lineLimit(1).fixedSize()
+                            .padding(.horizontal, compact ? 4 : 7).frame(height: 20)
                             .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(light: 0xF2F2F7, dark: 0x2C2C2E)))
                     }
                 }
