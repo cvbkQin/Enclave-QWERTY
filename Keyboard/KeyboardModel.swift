@@ -181,6 +181,10 @@ final class KeyboardModel: ObservableObject {
     var candidateUndoTimer: DispatchWorkItem?
     /// 九宫格选过的拼音、分段选过的词，按先后排；退格先撤回最后一步（见 undoLastChoice）。
     var choiceSteps: [ChoiceStep] = []
+    /// 刚从候选里点了不是首选的词上屏；接着被退格整个删掉，就当是点错了（见 notePickDeleted）。
+    var recentPick: RecentPick?
+    /// 点错又删掉的词：引擎已经学到了它，再打同样的拼音时会排第一，那时把这次学的忘掉。
+    var rejectedPick: RejectedPick?
     /// 盖在按键区上的面板：表情、颜文字、常用词。
     @Published var keysPanel: KeysPanel? {
         didSet {
