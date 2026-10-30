@@ -335,7 +335,8 @@ final class RimeEngine: InputEngine {
         guard nineKey ? Self.correctsNineKey : Self.correctsQwerty,
               let corrector = nineKey ? digitCorrector : letterCorrector else { return }
         let raw = rawInput
-        guard !CorrectionMemory.isRejected(raw), let guess = corrector.guess(raw, extraMargin: CorrectionMemory.bias(raw)) else { return }
+        guard !CorrectionMemory.isRejected(raw),
+              let guess = corrector.guess(raw, extraMargin: CorrectionMemory.bias(raw), touches: TouchTrail.offsets(for: raw)) else { return }
         let probed = probeInput(guess.corrected)
         guard let merged = CorrectionMerge.merge(candidates, input: raw, guess: guess, correctedTop: probed?.top) else { return }
         candidates = merged.candidates
