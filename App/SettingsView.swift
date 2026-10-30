@@ -76,7 +76,6 @@ struct SettingsView: View {
                 Section {
                 } header: {
                     VStack(spacing: 12) {
-                        TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
                         // 整张卡可点，不要列表行的箭头。
                         // 内测版没有试用和解锁：换成内置接口今天的用量。
                         if BuiltinAPI.isInternalBuild {
@@ -189,6 +188,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .pinnedTabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
             .navigationTitle(L("设置", "Settings", "設定"))
             .tabRootPage()
             .navigationDestination(for: AppRouter.SettingsPage.self) { page in
@@ -966,7 +966,6 @@ struct KeyboardSettingsView: View {
             Section {
             } header: {
                 VStack(alignment: .leading, spacing: 12) {
-                    TabTitle(caption: caption, title: L("键盘", "Keyboard", "キーボード"))
                     if KeyboardStatus.fullAccess == false { NotSyncedBanner() }
                 }
                 .id(refresh)
@@ -1077,6 +1076,7 @@ struct KeyboardSettingsView: View {
             }
         }
         .tint(AppColor.purple)
+        .pinnedTabTitle(caption: caption, title: L("键盘", "Keyboard", "キーボード"))
         .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .tabRootPage()
         .onAppear {

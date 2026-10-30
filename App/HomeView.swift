@@ -15,16 +15,16 @@ struct HomeView: View {
                 if WelcomeSetup.Progress(store: store).allDone(privacyAgreed: router.privacyAgreed) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
-                            TabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
-                                     title: L("摘要", "Summary", "概要"), showsBuildBadge: true)
-                                .padding(.top, 8)
                             Dashboard()
                         }
+                        .padding(.top, 8)
                         // 左右 20，和提示词、接口、设置三页的分组卡片对齐。
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
                     }
                     .background(Color(.systemGroupedBackground))
+                    .pinnedTabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
+                                    title: L("摘要", "Summary", "概要"), showsBuildBadge: true)
                 } else {
                     WelcomeSetupView(inGuide: false)
                 }
