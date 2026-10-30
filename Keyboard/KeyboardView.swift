@@ -138,8 +138,9 @@ struct KeyboardView: View {
         .clipped()
     }
 
-    /// 键盘底色。拼音行在最上面时，这一截（连同系统多给的高度）从上往下由透明渐变到不透明，
-    /// 接上系统键盘顶上那截液态玻璃，不留硬边；拼音行以下全是不透明底色，盖住 Chrome 切回时系统按键的残影（GL1）。
+    /// 键盘底色。拼音行在最上面时，键盘最顶上一截（拼音行那么高）从上往下由透明渐变到不透明，
+    /// 接上系统键盘顶上那截液态玻璃，不留硬边；再往下全是不透明底色，盖住 Chrome 切回时系统按键的残影（GL1）。
+    /// 系统给的高度比 keyboardHeight 多时，渐变不跟着拉长：多出来的那截和拼音行一样是不透明底色，不露一截渐变空白。
     /// 回答卡、风格一排、提示卡在最上面时整块不透明。
     private var boardBackground: some View {
         let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder
@@ -152,8 +153,8 @@ struct KeyboardView: View {
             ], startPoint: .top, endPoint: .bottom)
             .opacity(fades ? 1 : 0)
             .background(fades ? Color.clear : Brand.keyboardBack)
+            .frame(height: KeyboardMetrics.pinyinRowHeight)
             Brand.keyboardBack
-                .frame(height: max(0, model.keyboardHeight - (fades ? KeyboardMetrics.pinyinRowHeight : model.keyboardHeight)))
         }
         .ignoresSafeArea()
     }
