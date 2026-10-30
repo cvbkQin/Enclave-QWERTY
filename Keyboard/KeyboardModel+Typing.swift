@@ -85,10 +85,12 @@ extension KeyboardModel {
                 return
             }
         }
-        if isComposing, let first = engine.select(0) { commit(first) }
+        // 首选和符号一起上屏：分两次（先把标记区换成首选、马上再 insertText 符号）时，输入框会把符号插到首选前面（「。壹元整」）。
+        var text = symbol
+        if isComposing, let first = engine.select(0) { text = first + symbol }
+        commit(text)
         engine.reset()
         syncEngine()
-        commit(symbol)
         if symbol == "=" || symbol == "＝", chineseMode, target == .host,
            let before = proxy?.documentContextBeforeInput, let result = QuickInput.calculate(before: before) {
             predictions = [result]
@@ -1088,7 +1090,8 @@ extension KeyboardModel {
         // 没变的不设：@Published 设一次就让整个键盘重画一遍。
         let newComposition = engine.composition
         if newComposition != composition { composition = newComposition }
-        let row = layer == .letters && !composition.isEmpty
+        // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
+        let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
         if row != pinyinRowShown { pinyinRowShown = row }
         let newCandidates = engine.candidates
         let candidatesChanged = newCandidates != candidates
