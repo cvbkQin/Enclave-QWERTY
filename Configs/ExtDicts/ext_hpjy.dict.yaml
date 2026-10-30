@@ -1,0 +1,16 @@
+# 飞地输入法扩展词库 · 来源：飞地输入法整理
+# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
+---
+name: ext_hpjy
+version: "2026-10-30"
+sort: by_weight
+...
+吃鸡	chi ji	9
+空投	kong tou	9
+三级头	san ji tou	8
+三级甲	san ji jia	8
+信号圈	xin hao quan	7
+雨林地图	yu lin di tu	7
+海岛地图	hai dao di tu	6
+平底锅	ping di guo	5
+决赛圈	jue sai quan	3

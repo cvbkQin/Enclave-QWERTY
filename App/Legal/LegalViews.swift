@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 import UIKit
 
@@ -375,6 +376,27 @@ struct LicensesView: View {
                         .foregroundStyle(.secondary)
                     Link("creativecommons.org/licenses/by/4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
                         .font(.footnote)
+                }
+                .padding(.vertical, 4)
+            }
+            // 扩展词库（B6）的署名：THUOCL（MIT）、百科词库（CC BY-SA 4.0）。
+            Section(L("扩展词库", "Extra dictionaries", "拡張辞書")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("THUOCL 清华大学开放中文词库", "THUOCL (Tsinghua Open Chinese Lexicon)", "THUOCL 清華大学オープン中国語辞書")).font(.headline)
+                    Text(ExtDictAttribution.thuocl).font(.subheadline)
+                    Text(L("内置的成语、地名、IT、财经，和在线的医学、法律、诗词、历史名人词库。", "Built-in idioms, place names, IT and finance, and the online medicine, law, poetry and historical figures dictionaries.", "内蔵の成語・地名・IT・財経と、オンラインの医学・法律・詩詞・歴史上の人物の辞書。"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Link("github.com/thunlp/THUOCL", destination: URL(string: "https://github.com/thunlp/THUOCL/blob/master/LICENSE")!).font(.footnote)
+                }
+                .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(Storefront.isMainlandChina ? L("百科词库", "Encyclopedia dictionary", "百科辞書") : L("维基百科词库", "Wikipedia dictionary", "ウィキペディア辞書")).font(.headline)
+                    Text(ExtDictAttribution.wiki).font(.subheadline)
+                    Text(L("原作品按现状提供，不附带任何担保；改动由飞地输入法做出，与原作者无关。",
+                           "The original work is provided as is, without warranty of any kind. Changes were made by Enclave and are not endorsed by the original authors.",
+                           "原著作物は現状のまま提供され、いかなる保証もありません。変更は Enclave によるもので、原作者とは関係ありません。"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Link("creativecommons.org/licenses/by-sa/4.0", destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!).font(.footnote)
                 }
                 .padding(.vertical, 4)
             }

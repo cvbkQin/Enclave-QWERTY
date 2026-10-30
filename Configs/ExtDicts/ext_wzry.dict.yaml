@@ -1,0 +1,20 @@
+# 飞地输入法扩展词库 · 来源：飞地输入法整理
+# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
+---
+name: ext_wzry
+version: "2026-10-30"
+sort: by_weight
+...
+鲁班七号	lu ban qi hao	9
+孙尚香	sun shang xiang	9
+后羿	hou yi	9
+妲己	da ji	8
+亚瑟	ya se	8
+李白	li bai	8
+韩信	han xin	7
+貂蝉	diao chan	7
+诸葛亮	zhu ge liang	6
+王昭君	wang zhao jun	6
+王者峡谷	wang zhe xia gu	5
+暴君	bao jun	4
+主宰	zhu zai	3

@@ -16,8 +16,8 @@ settings:
     # 开发版每次装机测试记作 0.95_1、0.95_2…：系统版本号不能带下划线，仍写 0.95，构建号写 9501、9502…，
     # DEV_LABEL 写「0.95_N」显示在关于页。测好合并进 main 时 DEV_LABEL 清空、构建号改回 95。
     MARKETING_VERSION: "0.95"
-    CURRENT_PROJECT_VERSION: "95"
-    DEV_LABEL: ""
+    CURRENT_PROJECT_VERSION: "9504"
+    DEV_LABEL: "0.95_4"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。
@@ -60,6 +60,10 @@ targets:
       - path: Generated/Enclave/BuiltinSecrets.swift
         optional: true
       - path: Vendor/RimeData
+        type: folder
+        buildPhase: resources
+      # 内置扩展词库（B6）：scripts/build-ext-dicts.py 生成，部署时接进拼音词库。
+      - path: Configs/ExtDicts
         type: folder
         buildPhase: resources
     # 内测包的 Key（混淆）和证书指纹，生成到 Generated/<target>/BuiltinSecrets.swift（不进 Git）；别的包生成空的。也检查内测、公测开关没同时打开。

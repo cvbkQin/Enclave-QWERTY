@@ -172,6 +172,9 @@ final class AppRouter: ObservableObject {
     /// 键盘标签里的二级页：模糊拼音、词库、常用词、键盘常用语、按键判定。
     enum KeyboardPage: String, Hashable { case fuzzy, pinyin, commonWords, keyboardWords, touch }
 
+    /// 词库页里点一个扩展词库进详情。
+    struct ExtDictPage: Hashable { let id: String }
+
     /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮。
     enum AIPage: Hashable { case api(answer: Bool), resultKey }
 
@@ -311,6 +314,10 @@ final class AppRouter: ObservableObject {
             default:
                 if let page = KeyboardPage(rawValue: name) {
                     openKeyboard(page)
+                } else if name.hasPrefix("ext:") {
+                    // -appPage ext:diming：词库页里某个扩展词库的详情。
+                    openKeyboard(.pinyin)
+                    keyboardPath.append(ExtDictPage(id: String(name.dropFirst(4))))
                 } else {
                     let pages = name.split(separator: "/").compactMap { SettingsPage(rawValue: String($0)) }
                     if !pages.isEmpty {

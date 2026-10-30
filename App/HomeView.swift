@@ -225,9 +225,12 @@ private struct Dashboard: View {
         return L("\(value) 秒", "\(value) s", "\(value) 秒")
     }
 
-    /// 拼音词库格子的状态：已就绪绿点、需要重新部署橙点、部署中灰字；开了整句模型后面加「· 整句模型」。
+    /// 拼音词库格子的状态：已就绪绿点、需要重新部署橙点、部署中灰字；开了整句模型后面加「· 整句模型」，
+    /// 开着扩展词库再加「· 扩展 N」。
     private var pinyinStatus: (text: String, dot: Color?) {
-        let grammarTag = GrammarModel.isActive ? L(" · 整句模型", " · Sentence model", "・文章モデル") : ""
+        let ext = ExtDict.activeCount
+        let grammarTag = (GrammarModel.isActive ? L(" · 整句模型", " · Sentence model", "・文章モデル") : "")
+            + (ext > 0 ? L(" · 扩展 \(ext)", " · +\(ext) extra", "・拡張 \(ext)") : "")
         switch deployer.state {
         case .deploying: return (L("部署中…", "Installing…", "インストール中…"), nil)
         case .failed: return (L("部署失败", "Install failed", "インストール失敗"), .red)
