@@ -176,9 +176,9 @@ final class QueuedEngine: InputEngine {
             let extras = Self.extras(of: engine)
             if let extra = extras.first(where: { $0.index == index }) {
                 switch extra.kind {
-                // 选 emoji = 选首选（Rime 照常学词），上屏的换成 emoji。
-                case .emoji(let word):
-                    let commit = engine.select(0)
+                // 选 emoji = 选它前面那个词（Rime 照常学词），上屏的换成 emoji。
+                case .emoji(let word, let source):
+                    let commit = engine.select(source)
                     return commit == word ? extra.text : commit
                 case .text:
                     engine.reset()
@@ -198,10 +198,11 @@ final class QueuedEngine: InputEngine {
         }
     }
 
-    /// 插进 Rime 候选里的：emoji（首选正好是 emoji 词表里的词，见 EmojiTable），rq、sj、xq 的日期时间（见 QuickInput）。
+    /// 插进 Rime 候选里的：emoji（紧跟在前几个候选里第一个 emoji 词表里的词后面，见 EmojiTable），rq、sj、xq 的日期时间（见 QuickInput）。
     /// index 是在候选栏上的位置，按从小到大排。
     private struct Extra {
-        enum Kind { case emoji(word: String), text }
+        /// emoji：word 是它跟着的那个词，source 是那个词在 Rime 候选里的下标。
+        enum Kind { case emoji(word: String, source: Int), text }
         var index: Int
         var text: String
         var kind: Kind
@@ -215,9 +216,11 @@ final class QueuedEngine: InputEngine {
                 result.append(Extra(index: min(1 + offset, count), text: text, kind: .text))
                 count += 1
             }
-        } else if engine.offersEmoji, let top = engine.candidates.first, let emoji = EmojiTable.emoji(for: top),
+        } else if engine.offersEmoji,
+                  let source = engine.candidates.prefix(EmojiTable.lookahead).firstIndex(where: { EmojiTable.emoji(for: $0) != nil }),
+                  let emoji = EmojiTable.emoji(for: engine.candidates[source]),
                   !engine.candidates.contains(emoji) {
-            result.append(Extra(index: min(EmojiTable.position, count), text: emoji, kind: .emoji(word: top)))
+            result.append(Extra(index: source + 1, text: emoji, kind: .emoji(word: engine.candidates[source], source: source)))
         }
         return result
     }

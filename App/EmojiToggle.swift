@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 设置 · 拼音「emoji 候选」开关（0.95 A5）：打出开心、猫、生日这类词时，候选第三个给一个 emoji。
+/// 设置 · 拼音「emoji 候选」开关（0.95 A5）：打出开心、猫、生日这类词时，在那个词后面给一个 emoji。
 struct EmojiToggle: View {
     @State private var enabled = EmojiSuggestions.isEnabled
 
