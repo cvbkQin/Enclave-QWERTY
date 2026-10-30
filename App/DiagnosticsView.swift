@@ -1,4 +1,3 @@
-import MessageUI
 import SwiftUI
 import UIKit
 
@@ -276,47 +275,4 @@ enum FeedbackInfo {
     }
 
     static let attachmentName = L("诊断记录.json", "diagnostics.json", "診断記録.json")
-}
-
-/// 系统写邮件页（反馈接口发不出去时的兜底）。
-struct MailComposer: UIViewControllerRepresentable {
-    let subject: String
-    let body: String
-    let attachment: Data?
-    @Environment(\.dismiss) var dismiss
-
-    func makeUIViewController(context: Context) -> MFMailComposeViewController {
-        let controller = MFMailComposeViewController()
-        controller.mailComposeDelegate = context.coordinator
-        controller.setToRecipients([LegalInfo.email])
-        controller.setSubject(subject)
-        controller.setMessageBody(body, isHTML: false)
-        if let attachment {
-            controller.addAttachmentData(attachment, mimeType: "application/json", fileName: FeedbackInfo.attachmentName)
-        }
-        return controller
-    }
-
-    func updateUIViewController(_ controller: MFMailComposeViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
-
-    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
-        let dismiss: DismissAction
-        init(dismiss: DismissAction) { self.dismiss = dismiss }
-
-        func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
-            dismiss()
-        }
-    }
-}
-
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

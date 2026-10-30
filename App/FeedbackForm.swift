@@ -1,4 +1,3 @@
-import MessageUI
 import PhotosUI
 import SwiftUI
 
@@ -23,7 +22,7 @@ enum FeedbackAPI {
         case tooLarge
         /// 429：发得太频繁。
         case rateLimited
-        /// 502（服务器转发失败）、其他服务器错误。
+        /// 502（服务器转发失败）、其他服务器错误。不给「改用邮件」：开发者邮箱不在反馈里显示（cvbk）。
         case server
         /// 网络不通、超时。
         case network
@@ -157,7 +156,6 @@ struct FeedbackFormView: View {
     @State private var failure: FeedbackAPI.Failure?
     @State private var sent = false
     @State private var sentWithContact = false
-    @State private var showsMail = false
     @State private var showsPolicy = false
     @FocusState private var focused: Bool
 
@@ -169,7 +167,6 @@ struct FeedbackFormView: View {
         }
         .navigationTitle(L("反馈问题", "Send Feedback", "フィードバック"))
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showsMail) { mailFallback }
         .sheet(isPresented: $showsPolicy) { NavigationStack { PrivacyPolicyView() } }
     }
 
@@ -270,11 +267,6 @@ struct FeedbackFormView: View {
                 .disabled(trimmed.isEmpty || sending)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
-                if failure == .server || failure == .network {
-                    Button(L("改用邮件发送", "Send by Email Instead", "メールで送る")) { showsMail = true }
-                        .frame(maxWidth: .infinity)
-                        .listRowBackground(Color.clear)
-                }
             } footer: {
                 Button { showsPolicy = true } label: {
                     (Text(L("提交即表示你同意按", "By sending, you agree that this is handled under the ", "送信すると、"))
@@ -444,21 +436,6 @@ struct FeedbackFormView: View {
         }
         .frame(maxWidth: .infinity)
         .background(Color(.systemGroupedBackground))
-    }
-
-    // MARK: 服务器发不出去时的兜底：改用邮件
-
-    @ViewBuilder
-    private var mailFallback: some View {
-        let body = trimmed + "\n\n" + FeedbackAPI.meta.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
-        let attachment = attachDiagnostics ? FeedbackInfo.attachment(entries: entries) : nil
-        if MFMailComposeViewController.canSendMail() {
-            MailComposer(subject: L("飞地输入法反馈 · ", "Enclave feedback · ", "Enclave フィードバック · ") + FeedbackInfo.version,
-                         body: body, attachment: attachment)
-                .ignoresSafeArea()
-        } else {
-            ShareSheet(items: [LegalInfo.email + "\n\n" + body])
-        }
     }
 }
 
