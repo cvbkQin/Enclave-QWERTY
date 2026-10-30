@@ -10,6 +10,8 @@ final class RimeEngine: InputEngine {
     private(set) var selections: [InputSelection] = []
     /// 分段选词后接着整句的剩下部分（见 select），排在候选第一个；Rime 自己的候选从 candidates[hintOffset] 开始。
     private var remainder: String?
+    /// 候选能不能插 emoji：没有分段选过的词、首选不是整句剩下的部分（选首选就是整段上屏）。
+    var offersEmoji: Bool { remainder == nil && selections.isEmpty }
     private var hintOffset: Int { remainder == nil ? 0 : 1 }
     /// 纠错层（0.94）插进候选的纠正词；选它时把输入换成改过的串再选（见 selectCorrection）。
     private var correction: Correction?

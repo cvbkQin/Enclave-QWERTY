@@ -1157,6 +1157,7 @@ struct KeyboardSettingsView: View {
                     }
                     CorrectionToggles()
                     PredictionToggle()
+                    EmojiToggle()
                 } header: {
                     Text(L("拼音", "Pinyin", "ピンイン"))
                 } footer: {

@@ -144,12 +144,30 @@ final class QueuedEngine: InputEngine {
 
     func select(_ index: Int) -> String? {
         guard !idle else { return nil }
-        return run { $0.select(index) }
+        return run { engine in
+            guard let slot = Self.emojiSlot(of: engine) else { return engine.select(index) }
+            // 选 emoji = 选首选（Rime 照常学词），上屏的换成 emoji。
+            if index == slot.index {
+                let commit = engine.select(0)
+                return commit == slot.word ? slot.emoji : commit
+            }
+            return engine.select(index > slot.index ? index - 1 : index)
+        }
     }
 
     func deleteCandidate(_ index: Int) -> Bool {
         guard !idle else { return false }
-        return run { $0.deleteCandidate(index) }
+        return run { engine in
+            guard let slot = Self.emojiSlot(of: engine) else { return engine.deleteCandidate(index) }
+            return index != slot.index && engine.deleteCandidate(index > slot.index ? index - 1 : index)
+        }
+    }
+
+    /// 首选正好是 emoji 词表里的词时，emoji 放在候选第几个、是哪个（见 EmojiTable）。
+    private static func emojiSlot(of engine: RimeEngine) -> (index: Int, emoji: String, word: String)? {
+        guard engine.offersEmoji, let top = engine.candidates.first, let emoji = EmojiTable.emoji(for: top),
+              !engine.candidates.contains(emoji) else { return nil }
+        return (min(EmojiTable.position, engine.candidates.count), emoji, top)
     }
 
     func commitComposition() -> String? {
@@ -183,7 +201,9 @@ final class QueuedEngine: InputEngine {
     }
 
     private static func snapshot(of engine: RimeEngine) -> Snapshot {
-        Snapshot(composition: engine.composition, candidates: engine.candidates, rawInput: engine.rawInput,
+        var candidates = engine.candidates
+        if let slot = emojiSlot(of: engine) { candidates.insert(slot.emoji, at: slot.index) }
+        return Snapshot(composition: engine.composition, candidates: candidates, rawInput: engine.rawInput,
                  selections: engine.selections, lastCorrection: engine.lastCorrection,
                  pendingCorrection: engine.pendingCorrection)
     }
