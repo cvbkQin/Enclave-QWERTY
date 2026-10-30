@@ -116,7 +116,8 @@ enum ExtDictFormat {
     static func normalizeCode(_ code: String) -> String? {
         // 先拆开组合字符，ü、ǜ 这类都变成 u + 分音符，再换成 v；剩下的声调符号去掉。
         let folded = code.decomposedStringWithCanonicalMapping
-            .replacingOccurrences(of: "u\u{308}", with: "v").replacingOccurrences(of: "U\u{308}", with: "v")
+            // .literal：按 Unicode 标量比，不然 ǜ 拆成的 u + ¨ + ` 是一个字形，「u + ¨」匹配不上。
+            .replacingOccurrences(of: "u\u{308}", with: "v", options: .literal).replacingOccurrences(of: "U\u{308}", with: "v", options: .literal)
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
             .lowercased()
             .split(whereSeparator: { $0 == " " || $0 == "'" })
@@ -135,6 +136,8 @@ enum ExtDictFormat {
     /// 词频压到 1–9：按对数，最常用的 9。万象基础词库的词频都在 60 以上，扩展词不抢首选。
     static func weight(freq: Int, top: Int) -> Int {
         guard top > 1 else { return 5 }
+        // 词频都在 1–9 以内：已经是压过的（自己写出的扩展词库），原样留着，读回来不变。
+        if top <= 9 { return max(1, freq) }
         let scaled = 1 + 8 * log(Double(max(freq, 0) + 1)) / log(Double(top + 1))
         return max(1, min(9, Int(scaled.rounded())))
     }
