@@ -202,7 +202,7 @@ struct FeedbackFormView: View {
                         }
                 }
                 .overlay(alignment: .bottomTrailing) {
-                    Text("\(message.count) / \(FeedbackAPI.maxMessage)").font(.caption).foregroundStyle(.secondary)
+                    Text(verbatim: "\(message.count) / \(FeedbackAPI.maxMessage)").font(.caption).foregroundStyle(.secondary)
                 }
             } header: {
                 Text(L("说明", "Description", "内容"))
