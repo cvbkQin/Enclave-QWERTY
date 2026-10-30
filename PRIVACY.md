@@ -70,7 +70,7 @@
 
 ### （七）反馈
 
-**仅在您在“反馈问题”页面主动填写并点击提交时**，本应用会通过加密连接（HTTPS）将以下信息发送至我们位于中国大陆的服务器（enclavekb.cn）：您填写的反馈内容和反馈类型；您选填的联系方式（用于回复您）；App 版本、设备型号、系统版本、界面语言和 App Store 地区；以及在您选择附上时，本机的诊断记录（闪退、卡顿记录，不含您输入的文字）。
+**仅在您在“反馈问题”页面主动填写并点击提交时**，本应用会通过加密连接（HTTPS）将以下信息发送至我们位于中国大陆的服务器（enclavekb.cn）：您填写的反馈内容和反馈类型；您选填的联系方式（用于回复您）；您选择附上的截图（最多 3 张）；App 版本、设备型号、系统版本、界面语言和 App Store 地区；以及在您选择附上时，本机的诊断记录（闪退、卡顿记录，不含您输入的文字）。
 
 服务器收到后立即通过邮件服务（腾讯 QQ 邮箱）转发给我们，**服务器上不保存反馈内容**。为防止滥用，服务器会按 IP 地址限制提交频率，计数仅保存在内存中，24 小时内清除。反馈邮件保存在我们的邮箱中，仅用于处理您的问题和改进本应用，处理完毕后最长保存 12 个月；您可以随时发邮件至 cvbk.qin@gmail.com 要求删除。不提交反馈不影响您使用本应用的任何功能。
 
@@ -186,7 +186,7 @@ The App offers a 14-day free trial. After the trial, AI features can be used a l
 
 ### Feedback
 
-**Only when you fill in and submit the form on the Send Feedback page**, the App sends the following over an encrypted connection (HTTPS) to our server in mainland China (enclavekb.cn): your feedback and its category; the contact details you choose to add, so we can reply; the App version, device model, OS version, interface language and App Store region; and, if you choose to attach them, the diagnostic records on your device (crash and hang records, which never include what you type).
+**Only when you fill in and submit the form on the Send Feedback page**, the App sends the following over an encrypted connection (HTTPS) to our server in mainland China (enclavekb.cn): your feedback and its category; the contact details you choose to add, so we can reply; any screenshots you choose to attach (up to 3); the App version, device model, OS version, interface language and App Store region; and, if you choose to attach them, the diagnostic records on your device (crash and hang records, which never include what you type).
 
 The server forwards it to us by email right away (sent through Tencent QQ Mail) and **does not store your feedback**. To prevent abuse, the server limits how often each IP address can submit; these counts are kept only in memory and cleared within 24 hours. The feedback email stays in our mailbox, is used only to handle your request and improve the App, and is kept for at most 12 months after your request is handled. You can ask us to delete it at any time by writing to cvbk.qin@gmail.com. You can use every feature of the App without sending feedback.
 
@@ -291,7 +291,7 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 ### フィードバック
 
-**「フィードバックを送る」画面でお客様が入力して送信した場合に限り**、本アプリは暗号化された通信（HTTPS）で、中国本土にある当方のサーバー（enclavekb.cn）へ次の情報を送信します：フィードバックの内容と種類、返信用に任意で入力された連絡先、アプリのバージョン・端末の機種・OS のバージョン・表示言語・App Store の地域、および添付を選んだ場合は端末内の診断記録（クラッシュやフリーズの記録で、入力した文字は含みません）。
+**「フィードバックを送る」画面でお客様が入力して送信した場合に限り**、本アプリは暗号化された通信（HTTPS）で、中国本土にある当方のサーバー（enclavekb.cn）へ次の情報を送信します：フィードバックの内容と種類、返信用に任意で入力された連絡先、添付を選んだスクリーンショット（最大 3 枚）、アプリのバージョン・端末の機種・OS のバージョン・表示言語・App Store の地域、および添付を選んだ場合は端末内の診断記録（クラッシュやフリーズの記録で、入力した文字は含みません）。
 
 サーバーは受け取った内容をすぐにメール（Tencent QQ メール経由）で当方へ転送し、**フィードバックの内容をサーバーに保存しません**。不正利用を防ぐため、IP アドレスごとに送信回数を制限しますが、この記録はメモリ上にのみ保持し、24 時間以内に消去します。フィードバックのメールは当方のメールボックスに保管され、お問い合わせへの対応と本アプリの改善にのみ使い、対応完了後最長 12 か月で削除します。削除のご依頼は cvbk.qin@gmail.com までいつでもどうぞ。フィードバックを送らなくても、本アプリのすべての機能をご利用いただけます。
 

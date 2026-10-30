@@ -6,6 +6,8 @@
 配置从环境变量读（systemd 的 EnvironmentFile=/etc/enclave-feedback.env）：
   SMTP_HOST SMTP_PORT(默认 465) SMTP_USER SMTP_PASS MAIL_TO [MAIL_FROM] [LISTEN_PORT 默认 8081]
 """
+import base64
+import binascii
 import json
 import os
 import re
@@ -18,7 +20,10 @@ from email.message import EmailMessage
 from email.utils import formataddr, make_msgid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-MAX_BODY = 512 * 1024
+MAX_BODY = 6 * 1024 * 1024
+MAX_IMAGES = 3
+MAX_IMAGE_BYTES = 1536 * 1024
+IMAGE_TYPES = {b"\xff\xd8\xff": ("jpeg", "jpg"), b"\x89PNG": ("png", "png")}
 MAX_MESSAGE = 5000
 MAX_CONTACT = 200
 MAX_META_KEYS = 20
@@ -80,10 +85,23 @@ def parse(body):
         raise ValueError("meta must be an object with at most 20 keys")
     meta = {clean(k, 40): clean(v, MAX_META_VALUE) for k, v in meta.items()}
     diagnostics = data.get("diagnostics")
-    return category, message, contact, meta, diagnostics
+    images = data.get("images") or []
+    if not isinstance(images, list) or len(images) > MAX_IMAGES:
+        raise ValueError("images must be a list of at most 3")
+    decoded = []
+    for item in images:
+        try:
+            raw = base64.b64decode(item, validate=True)
+        except (binascii.Error, TypeError):
+            raise ValueError("images must be base64")
+        kind = next((v for k, v in IMAGE_TYPES.items() if raw.startswith(k)), None)
+        if not kind or len(raw) > MAX_IMAGE_BYTES:
+            raise ValueError("each image must be JPEG or PNG, at most 1.5MB")
+        decoded.append((raw, kind))
+    return category, message, contact, meta, diagnostics, decoded
 
 
-def send_mail(category, message, contact, meta, diagnostics):
+def send_mail(category, message, contact, meta, diagnostics, images=()):
     env = os.environ
     msg = EmailMessage()
     sender = env.get("MAIL_FROM") or env["SMTP_USER"]
@@ -101,6 +119,8 @@ def send_mail(category, message, contact, meta, diagnostics):
     if diagnostics:
         payload = json.dumps(diagnostics, ensure_ascii=False, indent=2).encode("utf-8")
         msg.add_attachment(payload, maintype="application", subtype="json", filename="diagnostics.json")
+    for i, (raw, (subtype, ext)) in enumerate(images, 1):
+        msg.add_attachment(raw, maintype="image", subtype=subtype, filename=f"screenshot-{i}.{ext}")
     port = int(env.get("SMTP_PORT", "465"))
     ctx = ssl.create_default_context()
     if port == 465:

@@ -3,7 +3,7 @@
 腾讯云上海轻量服务器（Ubuntu）上跑两样东西，都在 nginx 后面：
 
 - `/grammar/`：整句模型 `wanxiang-lts-zh-hans.gram` 的静态下载，支持 HTTPS 和 Range（断点续传）。中国大陆店面的默认下载地址。
-- `/api/feedback`：App 内反馈的接收接口（`feedback.py`，只用 Python 标准库）。收到后转成邮件发出，不写盘；同一 IP 每分钟 1 条、每天 20 条，全站每天 300 条。
+- `/api/feedback`：App 内反馈的接收接口（`feedback.py`，只用 Python 标准库），可带最多 3 张截图。收到后转成邮件发出，不写盘；同一 IP 每分钟 1 条、每天 20 条，全站每天 300 条。
 
 请求格式、返回码和合规说明见项目文件 `compliance/A3-A4-服务器与反馈合规.md`。
 
