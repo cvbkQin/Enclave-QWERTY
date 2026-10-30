@@ -1382,7 +1382,8 @@ struct FeatureTourView: View {
                     .onChange(of: geo.size.height) { messagesHeight = $0 }
             })
             // 矮屏整张卡放不下时先压对话区（minHeight 0），不把卡片顶边和联系人一行裁掉。
-            .frame(minHeight: 0, maxHeight: limit, alignment: .bottom)
+            // 上限取内容高和 limit 里小的那个：消息少时对话区跟着内容收，不在气泡上面空一截。
+            .frame(minHeight: 0, maxHeight: min(messagesHeight, limit), alignment: .bottom)
             .background(GeometryReader { geo in
                 Color.clear.onAppear { messagesShown = geo.size.height }
                     .onChange(of: geo.size.height) { messagesShown = $0 }
@@ -1410,6 +1411,8 @@ struct FeatureTourView: View {
             // 最多露 3 行，再多像聊天 App 一样在框里往上滚，露出最新的字。
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxHeight: 62, alignment: .bottom)
+            // 只问理想高度：一两行时框跟着字收，不撑满 62 在字上面空一截。
+            .fixedSize(horizontal: false, vertical: true)
             .clipped()
             .padding(.horizontal, 12).padding(.vertical, 10)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourColor.field))
