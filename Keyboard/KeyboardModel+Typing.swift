@@ -623,14 +623,29 @@ extension KeyboardModel {
     }
 
     /// 第一个还没定的字的读法，长的在前；最后是这个数字键上的单个字母。首选候选的读法排第一（94664 的「中」：zhong 在 xiong 前面）。
+    /// 一样长的读法按它能打出的最常用词排（纠错用的可能性表，0.94 方案第 6 步），没有表时按字母顺序。
     var pinyinOptions: [String] {
         guard showsNineKey, isComposing else { return [] }
         let split = pinyinSplit
-        var options = PinyinSyllables.options(forDigits: String(split.rest.prefix(while: \.isNumber)))
+        var options = Self.rankedByLikelihood(PinyinSyllables.options(forDigits: String(split.rest.prefix(while: \.isNumber))))
         if let top = firstOpenSyllable(fixed: split.fixed), let index = options.firstIndex(of: top), index > 0 {
             options.insert(options.remove(at: index), at: 0)
         }
         return options
+    }
+
+    /// 主线程用的一份全键盘可能性表（和引擎队列上的分开，KeyLM 不是线程安全的）。
+    private static let syllableLM = KeyLM.bundled(nineKey: false)
+
+    /// 一样长的音节按「以它开头的最常用词」排，长的仍在前、单个字母仍在最后。排序是稳定的：分数一样时保持原来的字母顺序。
+    static func rankedByLikelihood(_ options: [String]) -> [String] {
+        guard let lm = syllableLM else { return options }
+        let cost = Dictionary(options.map { ($0, lm.lookup(Array($0.utf8)[...]).prefix ?? .infinity) }, uniquingKeysWith: { a, _ in a })
+        return options.enumerated().sorted { a, b in
+            if a.element.count != b.element.count { return a.offset < b.offset }
+            let ca = cost[a.element]!, cb = cost[b.element]!
+            return ca != cb ? ca < cb : a.offset < b.offset
+        }.map(\.element)
     }
 
     /// 全键盘：正在拼的拼音有几种切法时并列（xi'an、xian），现在这种在前；只有一种就只显示这一种。
