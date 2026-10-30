@@ -67,6 +67,13 @@ extension KeyboardModel {
         if engine.candidates.count != candidates.count { candidates = engine.candidates }
     }
 
+    /// 拼写是 v（或 v 后已接了数字）：切到 123 页时不上屏。
+    private var keepsNumberComposition: Bool {
+        guard let queued = engine as? QueuedEngine else { return false }
+        applyEngineResults(wait: true)
+        return queued.acceptsNumberKey("0")
+    }
+
     /// 数字、标点等非字母键：先把正在组的字上屏。全键盘打了 v 之后的数字接在拼写后面（快捷输入的大写金额，见 QuickInput）。
     /// 打完「1+2=」这样的算式，候选栏给出结果。
     func typeSymbol(_ symbol: String) {
@@ -405,8 +412,9 @@ extension KeyboardModel {
         case .returnKey: returnKey()
         case .toggleChinese: toggleChinese()
         // 打字时左列 123 / #@¥ 还在：先把拼音原样上屏（同「确认」），再切过去。
+        // 全键盘打了 v 再切到 123 页：留着拼写，接着打的数字出大写金额（见 QuickInput）。
         case .layer(let layer):
-            if isComposing { returnKey() }
+            if isComposing && !(layer == .numbers && keepsNumberComposition) { returnKey() }
             switchLayer(layer)
         case .digitPunct: typeSymbol(".")
         case .digitsMore: digitsMore.toggle()
