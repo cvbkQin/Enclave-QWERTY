@@ -45,8 +45,8 @@ SMTP_HOST=smtp.qq.com
 SMTP_PORT=465
 SMTP_USER=
 SMTP_PASS=
-# 反馈发到哪个邮箱。建议用国内邮箱（可以就填上面的 QQ 邮箱）：发到 Gmail 等境外邮箱属于个人信息出境，要另做告知和单独同意
-MAIL_TO=
+# 反馈发到哪个邮箱（隐私政策里写的联系邮箱，已在政策里告知出境）
+MAIL_TO=cvbk.qin@gmail.com
 ENV
     chmod 600 /etc/enclave-feedback.env
     echo "已生成 /etc/enclave-feedback.env，填好 SMTP_USER 和 SMTP_PASS 后运行：systemctl restart enclave-feedback"
