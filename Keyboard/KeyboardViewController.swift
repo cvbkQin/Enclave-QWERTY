@@ -72,22 +72,36 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private var hostInactive = false
-    /// 退后台时输入框里还挂着拼音，没清成，回来再清。
-    private var staleMarkedText = false
 
-    /// 回前台后清掉退后台时没清成的下划线拼音；这时又打了字就不用清，新拼音已经把它换掉了。
+    /// 退后台时输入框里还挂着、没清成的拼音，记下的时间。放在实例外面：回前台时系统常新建一个 KeyboardViewController，
+    /// 旧实例的 textDocumentProxy 已经断开、随后被释放，只有新实例清得掉（bug #15）。
+    private static var staleMarkedAt: Date?
+    private var staleClearScheduled = false
+
+    /// 回前台后清掉退后台时没清成的下划线拼音：没选中字、没在打字时清一次标记区，隔 0.3 秒、1 秒再清两次（宿主刚回前台可能还没接上）。
+    /// 光标前的字靠不住（信息不算标记区、空框给 nil），不拿它判断；宿主已经把拼音落成正文的，就只能留着，绝不按长度往回删。
+    /// 记录只给退后台后 60 秒内第一个弹出的实例用一次，排完就丢。
     private func clearStaleMarkedText() {
-        guard staleMarkedText else { return }
-        staleMarkedText = false
-        guard !model.isComposing else { return }
-        model.hasMarkedText = true
-        model.clearMarkedText()
+        // 只给正显示着的实例用：旧实例回前台也会收到 didBecomeActive，但已经不在窗口里，别让它把记录用掉。
+        guard let at = Self.staleMarkedAt, !staleClearScheduled, view.window != nil else { return }
+        Self.staleMarkedAt = nil
+        guard Date().timeIntervalSince(at) < 60 else { return }
+        staleClearScheduled = true
+        for delay in [0, 0.3, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                // 又开始打字、或者选中了字（空的 setMarkedText 会把选中的字换掉）：不清。
+                guard let self, !self.hostInactive, !self.model.isComposing,
+                      (self.textDocumentProxy.selectedText ?? "").isEmpty else { return }
+                self.model.hasMarkedText = true
+                self.model.clearMarkedText()
+            }
+        }
     }
 
     /// 清掉组字、关掉 Rime 会话：收起和退后台都走这里。下次弹出（selectEngine）或按键时重建。
     private func releaseEngine() {
         // 只在对方退后台时记：正常收起时清得掉；而且下次弹出可能已经换了输入框，那边没拼音可清。
-        if hostInactive, model.hasMarkedText { staleMarkedText = true }
+        if hostInactive, model.hasMarkedText { Self.staleMarkedAt = Date() }
         model.engine.reset()
         QueuedEngine.shared.closeSession()
         model.syncEngine()
