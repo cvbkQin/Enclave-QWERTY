@@ -56,17 +56,8 @@ struct AIView: View {
             List {
                 Section {
                 } header: {
-                    VStack(alignment: .leading, spacing: 12) {
-                        TabTitle(caption: caption, title: "AI")
-                        Picker("", selection: $pageRaw) {
-                            Text(L("润色", "Polish", "整える")).tag("main")
-                            Text(L("问答", "Q&A", "質問")).tag("answer")
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(height: 34)
-                        apiCard
-                    }
-                    .dashFormCard()
+                    apiCard
+                        .dashFormCard()
                 }
                 if answer {
                     Section {
@@ -82,6 +73,14 @@ struct AIView: View {
             .tint(DashColor.ai)
             .onAppear { openAnswerWebSearch(proxy) }
             .onChange(of: router.showsAnswerWebSearch) { _ in openAnswerWebSearch(proxy) }
+        }
+        .pinnedTabTitle(caption: caption, title: "AI") {
+            Picker("", selection: $pageRaw) {
+                Text(L("润色", "Polish", "整える")).tag("main")
+                Text(L("问答", "Q&A", "質問")).tag("answer")
+            }
+            .pickerStyle(.segmented)
+            .frame(height: 34)
         }
         .navigationTitle("AI")
         .tabRootPage()
