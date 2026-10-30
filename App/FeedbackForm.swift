@@ -1,13 +1,17 @@
 import MessageUI
+import PhotosUI
 import SwiftUI
 
 // MARK: - 反馈问题：App 内填表提交（FB1–FB8，执行清单 A4）
 
 /// 提交到 enclavekb.cn 的反馈接口（05 定的约定，见 compliance/A3-A4-服务器与反馈合规.md 第 2 节）：
-/// POST JSON，整个请求不超过 512KB；服务器转成邮件发给开发者，正文不留存。
+/// POST JSON，整个请求不超过 6MB；截图放 images（base64 的 JPEG，最多 3 张，每张不超过 1.5MB）。
+/// 服务器转成邮件发给开发者，正文不留存。
 enum FeedbackAPI {
     static let url = URL(string: "https://enclavekb.cn/api/feedback")!
-    static let maxBytes = 512 * 1024
+    static let maxBytes = 6 * 1024 * 1024
+    static let maxImageBytes = 1_500_000
+    static let maxImages = 3
     static let maxMessage = 1000
 
     enum Category: String { case bug, suggestion }
@@ -15,7 +19,7 @@ enum FeedbackAPI {
     enum Failure: Error, Equatable {
         /// 400：内容为空或太长。
         case invalid
-        /// 413：超过 512KB，去掉诊断记录再试。
+        /// 413：超过上限，少放截图或去掉诊断记录再试。
         case tooLarge
         /// 429：发得太频繁。
         case rateLimited
@@ -26,13 +30,14 @@ enum FeedbackAPI {
     }
 
     /// 发一次。成功返回；失败抛 Failure。
-    static func submit(category: Category, message: String, contact: String, diagnostics: Any?) async throws {
+    static func submit(category: Category, message: String, contact: String, images: [Data], diagnostics: Any?) async throws {
         var body: [String: Any] = [
             "category": category.rawValue,
             "message": message,
             "meta": meta,
         ]
         if !contact.isEmpty { body["contact"] = contact }
+        if !images.isEmpty { body["images"] = images.map { $0.base64EncodedString() } }
         if let diagnostics { body["diagnostics"] = diagnostics }
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { throw Failure.invalid }
         guard data.count <= maxBytes else { throw Failure.tooLarge }
@@ -84,6 +89,20 @@ enum FeedbackAPI {
         #endif
     }
 
+    /// 截图压成长边 1600 的 JPEG；还超过 1.5MB 就降质量再压。
+    static func compress(_ image: UIImage) -> Data? {
+        let longSide = max(image.size.width, image.size.height)
+        let scale = min(1, 1600 / max(longSide, 1))
+        let size = CGSize(width: (image.size.width * scale).rounded(), height: (image.size.height * scale).rounded())
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let resized = UIGraphicsImageRenderer(size: size, format: format).image { _ in image.draw(in: CGRect(origin: .zero, size: size)) }
+        for quality in [0.8, 0.6, 0.4, 0.25] {
+            if let data = resized.jpegData(compressionQuality: quality), data.count <= maxImageBytes { return data }
+        }
+        return nil
+    }
+
     #if DEBUG
     /// 模拟器测试（接口要等 enclavekb.cn 网站备案后才打得开）：-feedbackMock ok / invalid / 413 / 429 / 502 / network。
     static var mockResult: (() async throws -> Void)? {
@@ -131,6 +150,9 @@ struct FeedbackFormView: View {
     @State private var contact = ""
     /// 附上诊断记录：默认关（合规要求），注明不含输入文字。
     @State private var attachDiagnostics = false
+    /// 截图（选填，最多 3 张）：缩略图和压好的 JPEG。从相册选（PhotosPicker，不要相册权限）。
+    @State private var screenshots: [Screenshot] = []
+    @State private var picked: [PhotosPickerItem] = []
     @State private var sending = false
     @State private var failure: FeedbackAPI.Failure?
     @State private var sent = false
@@ -184,6 +206,12 @@ struct FeedbackFormView: View {
                 }
             } header: {
                 Text(L("说明", "Description", "内容"))
+            }
+            .disabled(sending)
+            Section {
+                screenshotRow
+            } header: {
+                Text(L("截图（选填，最多 3 张）", "Screenshots (optional, up to 3)", "スクリーンショット（任意、3 枚まで）"))
             }
             .disabled(sending)
             Section {
@@ -263,6 +291,57 @@ struct FeedbackFormView: View {
         .animation(.easeInOut(duration: 0.2), value: failure)
     }
 
+    private var screenshotRow: some View {
+        HStack(spacing: 12) {
+            ForEach(screenshots) { shot in
+                Image(uiImage: shot.thumbnail)
+                    .resizable().scaledToFill()
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        Button { screenshots.removeAll { $0.id == shot.id } } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 20))
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, Color(.systemGray))
+                        }
+                        .buttonStyle(.plain)
+                        .offset(x: 8, y: -8)
+                        .accessibilityLabel(L("删除截图", "Remove screenshot", "スクリーンショットを削除"))
+                    }
+            }
+            if screenshots.count < FeedbackAPI.maxImages {
+                PhotosPicker(selection: $picked, maxSelectionCount: FeedbackAPI.maxImages - screenshots.count,
+                             matching: .images) {
+                    VStack(spacing: 2) {
+                        Image(systemName: "plus").font(.system(size: 16, weight: .medium))
+                        Text(L("添加", "Add", "追加")).font(.caption2)
+                    }
+                    .foregroundStyle(.secondary)
+                    .frame(width: 60, height: 60)
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3])).foregroundStyle(.tertiary))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 6)
+        .onChange(of: picked) { items in
+            guard !items.isEmpty else { return }
+            picked = []
+            Task {
+                for item in items {
+                    guard screenshots.count < FeedbackAPI.maxImages,
+                          let data = try? await item.loadTransferable(type: Data.self),
+                          let image = UIImage(data: data),
+                          let jpeg = FeedbackAPI.compress(image) else { continue }
+                    screenshots.append(Screenshot(thumbnail: image.preparingThumbnail(of: CGSize(width: 180, height: 180)) ?? image, jpeg: jpeg))
+                }
+            }
+        }
+    }
+
     private var placeholder: String {
         category == .bug
             ? L("说说遇到了什么：在哪个 App 里、做了什么、出了什么问题", "What happened: which app, what you did, what went wrong", "どの App で、何をして、何が起きたか")
@@ -298,9 +377,9 @@ struct FeedbackFormView: View {
         case .rateLimited:
             return L("提交太频繁，稍后再试。", "Too many submissions. Try again later.", "送信が多すぎます。後でお試しください。")
         case .tooLarge:
-            return L("没发出去：内容太大。关掉「附上最近的诊断记录」再试。", "Not sent: too large. Turn off Attach recent diagnostics and try again.", "送信できませんでした：サイズが大きすぎます。「最近の診断記録を添付」をオフにしてお試しください。")
+            return L("没发出去：内容太大。少放几张截图，或关掉「附上最近的诊断记录」再试。", "Not sent: too large. Remove a screenshot or turn off Attach recent diagnostics and try again.", "送信できませんでした：サイズが大きすぎます。スクリーンショットを減らすか、「最近の診断記録を添付」をオフにしてお試しください。")
         case .invalid:
-            return L("没发出去：说明是空的或太长，改一下再提交。", "Not sent: the description is empty or too long.", "送信できませんでした：内容が空か長すぎます。")
+            return L("没发出去：说明是空的或太长，或者截图格式不对，改一下再提交。", "Not sent: the description is empty or too long, or a screenshot couldn't be read.", "送信できませんでした：内容が空か長すぎるか、スクリーンショットを読み取れませんでした。")
         }
     }
 
@@ -314,10 +393,12 @@ struct FeedbackFormView: View {
             : nil
         do {
             try await FeedbackAPI.submit(category: category, message: trimmed,
-                                         contact: contact.trimmingCharacters(in: .whitespacesAndNewlines), diagnostics: diagnostics)
+                                         contact: contact.trimmingCharacters(in: .whitespacesAndNewlines),
+                                         images: screenshots.map(\.jpeg), diagnostics: diagnostics)
             sentWithContact = !contact.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             message = ""
             contact = ""
+            screenshots = []
             attachDiagnostics = false
             sent = true
         } catch {
@@ -375,4 +456,11 @@ struct FeedbackFormView: View {
             ShareSheet(items: [LegalInfo.email + "\n\n" + body])
         }
     }
+}
+
+/// 一张截图：缩略图给表单看，jpeg 是压好要上传的。
+private struct Screenshot: Identifiable {
+    let id = UUID()
+    let thumbnail: UIImage
+    let jpeg: Data
 }
