@@ -2,8 +2,8 @@
 
 # 飞地输入法隐私政策
 
-生效日期：2026 年 10 月 29 日  
-版本：3
+生效日期：2026 年 10 月 30 日  
+版本：4
 
 ## 引言
 
@@ -15,7 +15,7 @@
 
 ## 一、核心原则
 
-1. **本应用不设账号体系，我们没有为本应用设置任何接收用户数据的服务器，不收集、不上传您的个人信息和输入内容。**
+1. **本应用不设账号体系。您的 AI 请求由设备直接发送给您选择的服务商，无第三方中转；我们不收集、不上传您的输入内容。我们的服务器仅用于接收您主动提交的反馈（见第二条第（七）项）和提供可选的词库文件下载。**
 2. 打字、候选词计算和输入习惯学习全部在您的设备本地完成。
 3. 只有在您主动使用 AI 功能时，相关文字才会发送到**您自己填写**的模型服务接口，且不经过我们。
 
@@ -25,7 +25,7 @@
 
 拼音输入、候选词计算、联想预测和输入习惯学习均在您的设备本地完成，不通过网络传输任何内容。
 
-如您在拼音设置中主动选择下载“整句模型”等词库文件，本应用会从公开的文件服务器下载该文件，下载请求不包含您的输入内容或其他个人信息。
+如您在拼音设置中主动选择下载“整句模型”等词库文件，本应用会从文件服务器（中国大陆店面为我们的服务器 enclavekb.cn，其他地区为 GitHub）下载该文件。下载请求不包含您的输入内容；我们的服务器会依法记录访问日志（IP 地址、时间、请求地址、设备标识），保存 6 个月后删除。
 
 ### （二）AI 功能（点 ✨ 执行提示词，例如润色、翻译、改写）
 
@@ -68,6 +68,12 @@
 
 为了在 App 首页向您展示使用情况，本应用按天记录 AI 使用次数、常用词上屏次数等计数，**只保存在您的设备上，保留 30 天，不上传**。计数不包含您输入的具体内容。
 
+### （七）反馈
+
+**仅在您在“反馈问题”页面主动填写并点击提交时**，本应用会通过加密连接（HTTPS）将以下信息发送至我们位于中国大陆的服务器（enclavekb.cn）：您填写的反馈内容和反馈类型；您选填的联系方式（用于回复您）；App 版本、设备型号、系统版本、界面语言和 App Store 地区；以及在您选择附上时，本机的诊断记录（闪退、卡顿记录，不含您输入的文字）。
+
+服务器收到后立即通过邮件服务（腾讯 QQ 邮箱）转发给我们，**服务器上不保存反馈内容**。为防止滥用，服务器会按 IP 地址限制提交频率，计数仅保存在内存中，24 小时内清除。反馈邮件保存在我们的邮箱中，仅用于处理您的问题和改进本应用，处理完毕后最长保存 12 个月；您可以随时发邮件至 cvbk.qin@gmail.com 要求删除。不提交反馈不影响您使用本应用的任何功能。
+
 ## 三、在设备本地存储的信息
 
 以下信息仅保存在您的设备上：
@@ -95,6 +101,7 @@
 2. AI 功能所使用的模型服务由您自行选择和配置，您与该服务提供方之间的数据处理关系受其服务条款和隐私政策约束。
 3. 如您开启识意问答联网，联网搜索由您选择的问答服务商（千问、Kimi、智谱或腾讯混元）完成，适用该服务商的服务条款和隐私政策。
 4. 购买由 Apple 的 App Store 处理，适用 Apple 的隐私政策。
+5. 您提交的反馈通过腾讯 QQ 邮箱的发信服务转发给我们，适用腾讯的隐私政策。
 
 ## 六、您的权利
 
@@ -125,8 +132,8 @@ ICP 备案号：皖ICP备2026038401号-1A
 
 # Enclave Privacy Policy
 
-Effective date: October 29, 2026  
-Version 3
+Effective date: October 30, 2026  
+Version 4
 
 ## Introduction
 
@@ -134,13 +141,15 @@ Enclave (the "App") is provided by Gengyun Qin ("we", "us"). This Privacy Policy
 
 ## 1. Information We Collect
 
-The App has no user accounts. We do not collect or store your personal information, and we do not upload it to any server we operate. We operate no server for receiving user data.
+The App has no user accounts. Your AI requests go straight from your device to the provider you chose, with no third-party relay, and we never collect or upload what you type. Our own server is used only to receive feedback you choose to send (see "Feedback" below) and to offer optional dictionary downloads.
 
 ## 2. How Each Feature Handles Information
 
 ### Typing
 
 Pinyin input, candidate generation and input learning are performed entirely on your device. No content is transmitted over the network.
+
+If you choose to download an optional dictionary file such as the sentence model in the Pinyin settings, the App downloads it from a file server (our server enclavekb.cn for the mainland China storefront, GitHub elsewhere). The download request contains nothing you type; our server keeps access logs (IP address, time, requested address, device identifier) for 6 months as required by law, then deletes them.
 
 ### AI Polish
 
@@ -175,6 +184,12 @@ When web search is Off, or you decline it in the answer box, your question goes 
 
 The App offers a 14-day free trial. After the trial, AI features can be used a limited number of times per day for free, or unlocked with a one-time purchase on the App Store. Payment is handled by Apple, and we never receive your payment details. The App uses Apple's interfaces to read the App's original download date and your purchase record, to calculate the trial and confirm the purchase. Daily usage counts are stored only on your device.
 
+### Feedback
+
+**Only when you fill in and submit the form on the Send Feedback page**, the App sends the following over an encrypted connection (HTTPS) to our server in mainland China (enclavekb.cn): your feedback and its category; the contact details you choose to add, so we can reply; the App version, device model, OS version, interface language and App Store region; and, if you choose to attach them, the diagnostic records on your device (crash and hang records, which never include what you type).
+
+The server forwards it to us by email right away (sent through Tencent QQ Mail) and **does not store your feedback**. To prevent abuse, the server limits how often each IP address can submit; these counts are kept only in memory and cleared within 24 hours. The feedback email stays in our mailbox, is used only to handle your request and improve the App, and is kept for at most 12 months after your request is handled. You can ask us to delete it at any time by writing to cvbk.qin@gmail.com. You can use every feature of the App without sending feedback.
+
 ## 3. Information Stored on Your Device
 
 The following is stored only on your device:
@@ -195,7 +210,7 @@ You can clear the polish history and the input learning data under Settings › 
 
 ## 5. Third-Party Services
 
-The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi, Zhipu or Tencent Hunyuan) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy.
+The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi, Zhipu or Tencent Hunyuan) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy. Feedback you send is forwarded to us through Tencent QQ Mail under Tencent's privacy policy.
 
 ## 6. Your Rights
 
@@ -222,8 +237,8 @@ We will respond within 15 business days.
 
 # Enclave プライバシーポリシー
 
-施行日：2026 年 10 月 29 日  
-バージョン：3
+施行日：2026 年 10 月 30 日  
+バージョン：4
 
 ## はじめに
 
@@ -231,13 +246,15 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 ## 1. 収集する情報
 
-本アプリにはアカウント機能がなく、当方はお客様の個人情報を収集・保存せず、当方のサーバーへ送信することもありません。本アプリのためにユーザーデータを受け取るサーバーは運用していません。
+本アプリにはアカウント機能がありません。AI へのリクエストは端末から選択したサービスへ直接送信され、第三者の中継はありません。入力内容を当方が収集・送信することはありません。当方のサーバーは、お客様が送信したフィードバックの受け取り（下記「フィードバック」）と任意の辞書ファイルの配布にのみ使います。
 
 ## 2. 機能ごとの情報の取り扱い
 
 ### 文字入力
 
 ピンイン入力、候補の生成、入力の学習はすべてお客様の端末上で行われ、内容がネットワークで送信されることはありません。
+
+ピンイン設定で整句モデルなどの辞書ファイルをダウンロードすることを選んだ場合、本アプリはファイルサーバー（中国本土のストアは当方の enclavekb.cn、その他の地域は GitHub）からダウンロードします。リクエストに入力内容は含まれません。当方のサーバーは法令に基づきアクセスログ（IP アドレス、日時、リクエスト先、端末識別情報）を 6 か月保存した後に削除します。
 
 ### AI 機能
 
@@ -272,6 +289,12 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 本アプリには 14 日間の無料体験があり、終了後も AI 機能は 1 日に一定回数まで無料で使えます。App Store での買い切り購入で回数制限がなくなります。支払いは Apple が処理し、当方がお支払い情報を受け取ることはありません。無料体験の期間計算と購入の確認のため、本アプリは Apple の仕組みを通じて初回ダウンロード日と購入履歴を読み取ります。1 日の使用回数はお客様の端末にのみ記録されます。
 
+### フィードバック
+
+**「フィードバックを送る」画面でお客様が入力して送信した場合に限り**、本アプリは暗号化された通信（HTTPS）で、中国本土にある当方のサーバー（enclavekb.cn）へ次の情報を送信します：フィードバックの内容と種類、返信用に任意で入力された連絡先、アプリのバージョン・端末の機種・OS のバージョン・表示言語・App Store の地域、および添付を選んだ場合は端末内の診断記録（クラッシュやフリーズの記録で、入力した文字は含みません）。
+
+サーバーは受け取った内容をすぐにメール（Tencent QQ メール経由）で当方へ転送し、**フィードバックの内容をサーバーに保存しません**。不正利用を防ぐため、IP アドレスごとに送信回数を制限しますが、この記録はメモリ上にのみ保持し、24 時間以内に消去します。フィードバックのメールは当方のメールボックスに保管され、お問い合わせへの対応と本アプリの改善にのみ使い、対応完了後最長 12 か月で削除します。削除のご依頼は cvbk.qin@gmail.com までいつでもどうぞ。フィードバックを送らなくても、本アプリのすべての機能をご利用いただけます。
+
 ## 3. 端末に保存される情報
 
 次の情報はお客様の端末にのみ保存されます。
@@ -292,7 +315,7 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 ## 5. 第三者のサービス
 
-本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu・Tencent Hunyuan）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。
+本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu・Tencent Hunyuan）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。送信されたフィードバックは Tencent QQ メールの送信サービスを通じて当方へ転送され、Tencent のプライバシーポリシーが適用されます。
 
 ## 6. お客様の権利
 
