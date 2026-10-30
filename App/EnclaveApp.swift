@@ -28,18 +28,11 @@ struct EnclaveApp: App {
         // -promptsDebug missing / empty / optimized：提示词页截图（删掉两条预设、空提示词的编辑页、AI 优化结果）。
         if let index = args.firstIndex(of: "-promptsDebug"), args.indices.contains(index + 1) {
             PromptsDebug.scene = args[index + 1]
-            AppRouter.shared.tab = .styles
+            AppRouter.shared.openAI(answer: false)
         }
         // -storefront CHN：按中国大陆店面显示（接口页服务商）。
         if let index = args.firstIndex(of: "-storefront"), args.indices.contains(index + 1) {
             Storefront.debugOverride(args[index + 1])
-        }
-        // -appPage keyboard / pinyin / api：直接打开设置 › 键盘、词库页或接口页。
-        if let index = args.firstIndex(of: "-appPage"), args.indices.contains(index + 1) {
-            switch args[index + 1] {
-            case "api": AppRouter.shared.tab = .model
-            case let page: if let page = AppRouter.SettingsPage(rawValue: page) { AppRouter.shared.openSettings(page) }
-            }
         }
         // -keyboardWords "张三丰,me@example.com" 写进键盘常用语。
         if let index = args.firstIndex(of: "-keyboardWords"), args.indices.contains(index + 1) {
@@ -82,26 +75,23 @@ struct EnclaveApp: App {
                                 UIApplication.shared.open(settings)
                             }
                         }
-                    // 键盘里要联网但已禁止时的「去开启」：接口 › 问答页，滚到「联网调用」。
-                    // 键盘出错卡的「去设置」：接口页（改写那一页）。
+                    // 键盘出错卡的「去设置」：AI 标签，进当前那页的接口详情（问答和润色用同一个时进润色的）。
                     case "api":
-                        UserDefaults.standard.set("main", forKey: "apiPage")
-                        router.tab = .model
+                        router.openAI(detail: true, sharedAnswer: !store.settings.separateAnswer)
+                    // 键盘里要联网但已禁止时的「去开启」：AI › 问答，滚到「联网搜索」。
                     case "api-answer":
-                        router.tab = .model
+                        router.openAI(answer: true)
                         router.showsAnswerWebSearch = true
                     case "privacy-policy":
                         router.settingsPath = [.privacy, .privacyPolicy]
                         router.tab = .settings
                     // 键盘提示卡「去解锁」。
                     case "unlock": router.openSettings(.unlock)
-                    // 键盘风格一排最右的「+」：去提示词页对应那一段（改写 / 问答）。
+                    // 键盘风格一排最右的「+」：AI 标签对应那一页（润色 / 问答）的提示词。
                     case "prompts", "prompts-answer":
-                        UserDefaults.standard.set(url.host == "prompts-answer" ? "answer" : "rewrite", forKey: "promptsPage")
-                        router.tab = .styles
+                        router.openAI(answer: url.host == "prompts-answer")
                     case "common-words":
-                        router.tab = .home
-                        router.homePath = NavigationPath([AppRouter.HomePage.commonWords])
+                        router.openKeyboard(.commonWords)
                     default: break
                     }
                 }
@@ -109,7 +99,7 @@ struct EnclaveApp: App {
     }
 }
 
-/// 底部四个标签：首页、提示词、接口、设置。
+/// 底部四个标签：首页、键盘、AI、设置。
 struct RootView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
@@ -154,12 +144,12 @@ struct RootView: View {
             HomeView()
                 .tabItem { Label(L("首页", "Home", "ホーム"), systemImage: "house") }
                 .tag(AppRouter.Tab.home)
-            StylesTab()
-                .tabItem { Label(L("提示词", "Prompts", "プロンプト"), systemImage: "sparkles") }
-                .tag(AppRouter.Tab.styles)
-            NavigationStack { ModelSettingsView() }
-                .tabItem { Label(L("接口", "API", "API"), systemImage: "cpu") }
-                .tag(AppRouter.Tab.model)
+            KeyboardTab()
+                .tabItem { Label(L("键盘", "Keyboard", "キーボード"), systemImage: "keyboard") }
+                .tag(AppRouter.Tab.keyboard)
+            AITab()
+                .tabItem { Label("AI", systemImage: "sparkles") }
+                .tag(AppRouter.Tab.ai)
             SettingsView()
                 .tabItem { Label(L("设置", "Settings", "設定"), systemImage: "gearshape") }
                 .tag(AppRouter.Tab.settings)
@@ -172,14 +162,18 @@ struct RootView: View {
 final class AppRouter: ObservableObject {
     static let shared = AppRouter()
 
-    enum Tab: Hashable { case home, styles, model, settings }
+    enum Tab: Hashable { case home, keyboard, ai, settings }
 
+    /// 设置里的二级页。setup：首次设置（欢迎页四步）；firstScene：使用指引的第一个场景（enclave://playground）。
     enum SettingsPage: String, Hashable {
-        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback
+        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools
     }
 
-    /// 首页里的二级页：键盘、常用词（全部 / 键盘标签）、使用指引和其中一个场景。
-    enum HomePage: Hashable { case keyboard, pinyin, commonWords, keyboardWords, lab, scene(Int) }
+    /// 键盘标签里的二级页：模糊拼音、词库、常用词、键盘常用语、按键判定。
+    enum KeyboardPage: String, Hashable { case fuzzy, pinyin, commonWords, keyboardWords, touch }
+
+    /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮。
+    enum AIPage: Hashable { case api(answer: Bool), resultKey }
 
     @Published var tab: Tab = .home { didSet { markScreen() } }
     /// 界面语言，改了马上存进 App Group，整个界面按新语言重画（导航位置保留）。
@@ -187,9 +181,10 @@ final class AppRouter: ObservableObject {
         didSet { Loc.setting = language }
     }
     @Published var settingsPath: [SettingsPage] = [] { didSet { markScreen() } }
-    /// 接口页切到「问答」并滚到「联网调用」（键盘「去开启」）。接口页处理完清掉。
+    /// AI 标签切到「问答」并滚到「联网搜索」（键盘「去开启」）。AI 页处理完清掉。
     @Published var showsAnswerWebSearch = false
-    @Published var homePath = NavigationPath()
+    @Published var keyboardPath = NavigationPath() { didSet { markScreen() } }
+    @Published var aiPath = NavigationPath() { didSet { markScreen() } }
     /// 隐私政策同意情况（CP1–CP5）：首次打开整页说明，设置 › 隐私里「阅读并同意」也打开它。
     @Published var privacyAgreed = PrivacyConsent.isAgreed
     @Published var showsPrivacyWelcome = PrivacyConsent.needsPrompt
@@ -221,7 +216,7 @@ final class AppRouter: ObservableObject {
     /// 内测版诊断记录用的「当时界面」：哪个标签、设置里哪一页。
     func markScreen(_ detail: String? = nil) {
         guard CrashLog.isEnabled else { return }
-        let names: [Tab: String] = [.home: "首页", .styles: "提示词", .model: "接口", .settings: "设置"]
+        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "AI", .settings: "设置"]
         var parts = [names[tab] ?? ""]
         if tab == .settings, let page = settingsPath.last { parts.append(page.rawValue) }
         if let detail { parts.append(detail) }
@@ -291,36 +286,73 @@ final class AppRouter: ObservableObject {
         // -rimeEval：纠错测试，词库部署好后把测试输入喂给引擎，结果写进 Documents（见 RimeEval）。
         if args.contains("-rimeEval") { RimeEval.runWhenDeployed() }
         #endif
-        if args.contains("-playground") { homePath = NavigationPath([HomePage.lab, HomePage.scene(0)]) }
+        if args.contains("-playground") { openPlayground() }
+        // 旧的 -homePage 参数：键盘那几页现在在键盘标签，使用指引在设置。
         if let i = args.firstIndex(of: "-homePage"), args.indices.contains(i + 1) {
-            let page: HomePage? = ["keyboard": .keyboard, "commonWords": .commonWords, "keyboardWords": .keyboardWords, "lab": .lab][args[i + 1]]
-            if let page { homePath = NavigationPath([page]) }
+            switch args[i + 1] {
+            case "keyboard": openKeyboard()
+            case "lab": openSettings(.playground)
+            case let name: if let page = KeyboardPage(rawValue: name) { openKeyboard(page) }
+            }
         }
         if let i = args.firstIndex(of: "-appTab"), args.indices.contains(i + 1) {
-            tab = ["styles": .styles, "model": .model, "settings": .settings][args[i + 1]] ?? .home
+            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "model": .ai, "settings": .settings][args[i + 1]] ?? .home
         }
+        // -appPage keyboard / pinyin / api / api-answer / testTools / privacy/privacyPolicy：直接打开某一页。
         if let i = args.firstIndex(of: "-appPage"), args.indices.contains(i + 1) {
-            let pages = args[i + 1].split(separator: "/").compactMap { SettingsPage(rawValue: String($0)) }
-            if !pages.isEmpty {
-                tab = .settings
-                settingsPath = pages
+            let name = args[i + 1]
+            switch name {
+            case "keyboard": openKeyboard()
+            case "api", "api-main": openAI(answer: false, detail: true)
+            case "api-answer": openAI(answer: true, detail: true)
+            case "resultKey":
+                openAI()
+                aiPath.append(AIPage.resultKey)
+            default:
+                if let page = KeyboardPage(rawValue: name) {
+                    openKeyboard(page)
+                } else {
+                    let pages = name.split(separator: "/").compactMap { SettingsPage(rawValue: String($0)) }
+                    if !pages.isEmpty {
+                        tab = .settings
+                        settingsPath = pages
+                    }
+                }
             }
         }
     }
 
     /// enclave://playground：打开使用指引的第一个场景，进去自动弹键盘。
     func openPlayground() {
-        tab = .home
-        homePath = NavigationPath([HomePage.lab, HomePage.scene(0)])
+        settingsPath = [.playground, .firstScene]
+        tab = .settings
     }
 
-    func openHome(_ page: HomePage) {
-        homePath.append(page)
+    /// 首页小卡：切到键盘标签，page 为 nil 时停在顶部。
+    func openKeyboard(_ page: KeyboardPage? = nil) {
+        keyboardPath = NavigationPath()
+        if let page { keyboardPath.append(page) }
+        tab = .keyboard
     }
 
-    /// 从首页卡片跳到「接口」标签。
-    func openModel() {
-        tab = .model
+    /// AI 标签记住上次停的那页（润色 / 问答）。
+    static var aiShowsAnswer: Bool {
+        get { UserDefaults.standard.string(forKey: "apiPage") == "answer" }
+        set { UserDefaults.standard.set(newValue ? "answer" : "main", forKey: "apiPage") }
+    }
+
+    /// 跳到 AI 标签。answer 为 nil 时停在上次那页；detail 再推入那页的接口详情。
+    /// sharedAnswer：问答和润色用同一个接口，问答页没有详情，进润色的。
+    func openAI(answer: Bool? = nil, detail: Bool = false, sharedAnswer: Bool = false) {
+        if let answer { Self.aiShowsAnswer = answer }
+        aiPath = NavigationPath()
+        if detail { aiPath.append(AIPage.api(answer: Self.aiShowsAnswer && !sharedAnswer)) }
+        tab = .ai
+    }
+
+    /// 从首页接口卡、欢迎页、解锁页跳到 AI 标签（填 Key 的进润色接口详情）。
+    func openModel(answer: Bool = false, detail: Bool = false) {
+        openAI(answer: answer, detail: detail)
     }
 
     /// 从首页卡片跳到设置里的某一页。

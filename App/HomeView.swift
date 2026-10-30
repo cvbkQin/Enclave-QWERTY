@@ -9,7 +9,7 @@ struct HomeView: View {
     @State private var refresh = UUID()
 
     var body: some View {
-        NavigationStack(path: $router.homePath) {
+        NavigationStack {
             Group {
                 // 欢迎页四步（WL4）没全好时整页显示它，没有「跳过」；四步都好换回摘要。只用基础打字的只看前两步。
                 if WelcomeSetup.Progress(store: store).allDone(privacyAgreed: router.privacyAgreed) {
@@ -33,20 +33,6 @@ struct HomeView: View {
             // 自己画大标题，导航栏标题写「首页」，这样二级页的返回按钮叫「首页」。
             .navigationTitle(L("首页", "Home", "ホーム"))
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: AppRouter.HomePage.self) { page in
-                switch page {
-                case .keyboard: KeyboardSettingsView()
-                case .pinyin: PinyinView()
-                case .commonWords: CommonWordsView()
-                case .keyboardWords: KeyboardPhrasesView()
-                case .lab: LabView()
-                case .scene(let index): SceneView(index: index)
-                }
-            }
-            // 键盘页里的「模糊拼音」。
-            .navigationDestination(for: AppRouter.SettingsPage.self) { page in
-                if page == .fuzzy { FuzzyPinyinView() }
-            }
             .onChange(of: scenePhase) { if $0 == .active { refresh = UUID() } }
         }
     }
@@ -96,7 +82,8 @@ private struct TrialBanner: View {
     }
 }
 
-/// 首页（PB1 + PH1，B 数据仪表盘）：AI 今天执行了几次和 7 天柱状图，接口一整行，2×2 的键盘 / 拼音词库 / 常用词 / 键盘常用语，最后是使用指引入口。
+/// 首页（PB1 + PH1 + IA1）：AI 今天执行了几次和 7 天柱状图，接口卡（润色、问答两行），2×2 的键盘 / 词库 / 常用词 / 键盘常用语。
+/// 小卡点了切到键盘标签对应那一页；使用指引在 设置 › 上手。
 private struct Dashboard: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -106,6 +93,7 @@ private struct Dashboard: View {
     @ObservedObject private var grammar = GrammarDownloader.shared
     @State private var stats = AIStats.load()
     @State private var lastRequest = UsageStats.polishRecent.last
+    @State private var lastAnswer = UsageStats.answerRecent.last
 
     var body: some View {
         if !SharedStorage.isShared { SharedConfigBanner() }
@@ -116,26 +104,26 @@ private struct Dashboard: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
             GridCard(icon: "keyboard", title: L("键盘", "Keyboard", "キーボード"), color: DashColor.input,
                      value: store.settings.keyboardLayout.shortTitle,
-                     detail: store.settings.fuzzyPinyin.isEmpty ? L("模糊拼音未开", "Fuzzy pinyin off", "あいまい入力オフ") : L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "Fuzzy pinyin: \(store.settings.fuzzyPinyin.count)", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組")) { router.openHome(.keyboard) }
+                     detail: store.settings.fuzzyPinyin.isEmpty ? L("模糊拼音未开", "Fuzzy pinyin off", "あいまい入力オフ") : L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "Fuzzy pinyin: \(store.settings.fuzzyPinyin.count)", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組")) { router.openKeyboard() }
             // 词库：拼音（万象，要部署）和英文（内置）两份，圆点看拼音的状态。
             GridCard(icon: "book.closed", title: L("词库", "Dictionaries", "辞書"), color: DashColor.input,
                      // 英文关掉时只写「拼音」；下一行只放拼音状态，窄屏上放得下。
                      value: Predictor.englishEnabled ? L("拼音 · 英文", "Pinyin · English", "ピンイン · 英語") : L("拼音", "Pinyin", "ピンイン"),
                      detail: pinyinStatus.text,
-                     dot: pinyinStatus.dot) { router.openHome(.pinyin) }
+                     dot: pinyinStatus.dot) { router.openKeyboard(.pinyin) }
             GridCard(icon: "text.book.closed", title: L("常用词", "My Words", "ユーザ辞書"), color: DashColor.input,
-                     value: "\(words.all.count)", detail: wordsDetail) { router.openHome(.commonWords) }
+                     value: "\(words.all.count)", detail: wordsDetail) { router.openKeyboard(.commonWords) }
             GridCard(icon: "star.fill", title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), color: DashColor.phrase,
                      value: "\(phrases.phrases.count)",
-                     detail: phrases.phrases.isEmpty ? L("还没有，点进去添加", "None yet. Tap to add", "まだありません。タップして追加") : phrases.phrases.prefix(2).joined(separator: " · ")) { router.openHome(.keyboardWords) }
+                     detail: phrases.phrases.isEmpty ? L("还没有，点进去添加", "None yet. Tap to add", "まだありません。タップして追加") : phrases.phrases.prefix(2).joined(separator: " · ")) { router.openKeyboard(.keyboardWords) }
         }
-        labEntry
-            .onAppear {
-                words.reload()
-                phrases.reload()
-                stats = AIStats.load()
-                lastRequest = UsageStats.polishRecent.last
-            }
+        .onAppear {
+            words.reload()
+            phrases.reload()
+            stats = AIStats.load()
+            lastRequest = UsageStats.polishRecent.last
+            lastAnswer = UsageStats.answerRecent.last
+        }
     }
 
     /// 还没连上 AI（OB8）：同意了隐私政策，接口没配好或者上次测试失败。连接测试通过后就不显示。
@@ -166,12 +154,12 @@ private struct Dashboard: View {
         }
     }
 
-    /// 接口一整行：左上「接口」、右上连接状态，大字服务商，后面灰字「模型 · 最近一次 0.8 秒」。
+    /// 接口卡（IA1）：左上「接口」、右上连接状态（两边看，哪边连不上显示哪边），下面润色、问答各一行。点了去 AI 标签。
     private var apiCard: some View {
-        Button { router.openModel() } label: {
+        Button { router.openAI() } label: {
             DashCard {
                 HStack(spacing: 6) {
-                    DashCardHeader(icon: "cpu", title: L("接口", "API", "API"), color: DashColor.ai)
+                    DashCardHeader(icon: "sparkles", title: L("接口", "API", "API"), color: DashColor.ai)
                     HStack(spacing: 4) {
                         if let dot = modelStatus.dot { Circle().fill(dot).frame(width: 6, height: 6) }
                         Text(modelStatus.text)
@@ -181,29 +169,60 @@ private struct Dashboard: View {
                     .lineLimit(1)
                     .fixedSize()
                 }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(store.settings.isConfigured ? ProviderName.of(store.settings.baseURL) : L("还没设置", "Not set up", "未設定"))
-                        .font(.system(size: 22, weight: .bold)).lineLimit(1).fixedSize()
-                    if store.settings.isConfigured {
-                        Text(apiDetail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                    } else {
+                if store.settings.isConfigured {
+                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 6) {
+                        GridRow {
+                            Text(L("润色", "Polish", "整える")).font(.system(size: 15, weight: .semibold))
+                            apiLine(ProviderName.of(store.settings.baseURL), polishDetail)
+                        }
+                        GridRow {
+                            Text(L("问答", "Q&A", "質問")).font(.system(size: 15, weight: .semibold))
+                            if store.settings.usesAnswerEndpoint {
+                                apiLine(ProviderName.of(store.settings.answerBaseURL), answerDetail)
+                            } else {
+                                Text(L("和润色用同一个", "Same as Polish", "整えると同じ"))
+                                    .font(.system(size: 15)).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
+                    }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(L("还没设置", "Not set up", "未設定")).font(.system(size: 22, weight: .bold)).lineLimit(1).fixedSize()
                         Text(L("填好 API Key 才能用 AI", "Add an API key to use AI", "API キーを入れると AI が使えます"))
                             .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
                 }
             }
         }
         .buttonStyle(.plain)
     }
 
-    private var apiDetail: String {
-        var parts = [store.settings.model]
-        if let lastRequest, lastRequest.ok {
-            let seconds = String(format: "%.1f", Double(lastRequest.ms) / 1000)
-            parts.append(L("最近一次 \(seconds) 秒", "Last \(seconds) s", "前回 \(seconds) 秒"))
+    private func apiLine(_ name: String, _ detail: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(name).font(.system(size: 17, weight: .medium)).lineLimit(1).fixedSize()
+            Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 0)
         }
+    }
+
+    /// 润色那行的灰字：「模型 · 0.8 秒」。
+    private var polishDetail: String {
+        var parts = [store.settings.model]
+        if let lastRequest, lastRequest.ok { parts.append(Self.seconds(lastRequest.ms)) }
         return parts.joined(separator: " · ")
+    }
+
+    /// 问答那行的灰字：「可联网 · 1.4 秒」。
+    private var answerDetail: String {
+        var parts = [store.settings.answerSearch != nil ? L("可联网", "Web search", "検索可") : L("不联网", "No web search", "検索なし")]
+        if let lastAnswer, lastAnswer.ok { parts.append(Self.seconds(lastAnswer.ms)) }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func seconds(_ ms: Int) -> String {
+        let value = String(format: "%.1f", Double(ms) / 1000)
+        return L("\(value) 秒", "\(value) s", "\(value) 秒")
     }
 
     /// 拼音词库格子的状态：已就绪绿点、需要重新部署橙点、部署中灰字；开了整句模型后面加「· 整句模型」。
@@ -218,40 +237,30 @@ private struct Dashboard: View {
                 : (L("已就绪", "Ready", "準備完了") + grammarTag, DashColor.ok)
         }
     }
-    private var labEntry: some View {
-        Button { router.openHome(.lab) } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "flask").font(.system(size: 20, weight: .medium))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L("使用指引", "Guide", "使い方ガイド")).font(.headline)
-                    Text(L("\(LabScene.all.count) 个场景，学会快速、替换和插入", "\(LabScene.all.count) scenes: Quick, Replace and Insert", "\(LabScene.all.count) 個のシーンでクイック・置き換え・挿入")).font(.footnote).opacity(0.85)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(.subheadline.weight(.semibold))
-            }
-            .foregroundStyle(.white)
-            .padding(16)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(AppColor.heroGradient))
-        }
-        .buttonStyle(.plain)
-    }
-
     /// 测试过才知道连不连得上；没配好写灰字「未设置」，没测过写灰字「还没测试」。
+    /// 问答单独配了接口时两边都看：哪边连不上就写「问答连接失败」这样带上是哪边。
     private var modelStatus: (text: String, dot: Color?) {
         guard store.settings.isConfigured else { return (L("未设置", "Not set up", "未設定"), nil) }
         let ok = (L("连接正常", "Connected", "接続済み"), Optional(DashColor.ok))
-        let failed = (L("连接失败", "Connection failed", "接続失敗"), Optional(Color.red))
+        let separate = store.settings.usesAnswerEndpoint
+        let polishFailed = (separate ? L("润色连接失败", "Polish failed", "整える接続失敗") : L("连接失败", "Connection failed", "接続失敗"), Optional(Color.red))
+        let answerFailed = (L("问答连接失败", "Q&A failed", "質問接続失敗"), Optional(Color.red))
+        if store.test == .running || store.answerTest == .running { return (L("正在测试", "Testing", "テスト中"), .orange) }
+        let polishOK: Bool?
         switch store.test {
-        case .success: return ok
-        case .failure: return failed
-        case .running: return (L("正在测试", "Testing", "テスト中"), .orange)
-        case .idle:
-            switch store.lastTestOK {
-            case true?: return ok
-            case false?: return failed
-            case nil: return (L("还没测试", "Not tested", "未テスト"), nil)
+        case .success: polishOK = true
+        case .failure: polishOK = false
+        default: polishOK = store.lastTestOK
+        }
+        if polishOK == false { return polishFailed }
+        if separate {
+            switch store.answerTest {
+            case .failure: return answerFailed
+            case .idle: if lastAnswer?.ok == false { return answerFailed }
+            default: break
             }
         }
+        return polishOK == true ? ok : (L("还没测试", "Not tested", "未テスト"), nil)
     }
 
     private var wordsDetail: String {
@@ -371,7 +380,7 @@ struct AISetupCard: View {
                         .frame(maxWidth: .infinity).frame(height: 40)
                         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white))
                 }
-                Button { router.openModel() } label: {
+                Button { router.openModel(detail: true) } label: {
                     Text(L("已有 Key", "I Have a Key", "キーがある"))
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
                         .padding(.horizontal, 16).frame(height: 40)

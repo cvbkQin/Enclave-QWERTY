@@ -2479,7 +2479,7 @@ private struct TourAppPage: View {
                 .font(.system(size: 12)).foregroundStyle(GuideColor.secondary)
             Text(L("提示词", "Prompts", "プロンプト")).font(.system(size: 26, weight: .bold)).foregroundStyle(GuideColor.text)
             HStack(spacing: 0) {
-                Text(L("改写 · 润色", "Rewrite · Polish", "書き換え · 整える"))
+                Text(L("润色", "Polish", "整える"))
                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(GuideColor.text)
                     .frame(maxWidth: .infinity).frame(height: 28)
                     .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(GuideColor.card))

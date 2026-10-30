@@ -207,7 +207,7 @@ struct UnlockView: View {
                             .labelStyle(.titleAndIcon)
                     }
                 }
-                Button { router.openModel() } label: {
+                Button { router.openModel(detail: true) } label: {
                     Text(L("换个模型", "Change model", "モデルを変更"))
                         .font(.system(size: 15, weight: .semibold))
                         .frame(maxWidth: .infinity)

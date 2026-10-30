@@ -219,7 +219,6 @@ struct LabModeLabel: View {
 struct LabView: View {
     @EnvironmentObject private var router: AppRouter
     @State private var tried = UsageStats.labTried
-    @State private var lastTest = TypingTestRecord.load().first
 
     private var next: LabScene? { LabScene.all.first { !tried.contains(String($0.id)) } }
 
@@ -228,7 +227,6 @@ struct LabView: View {
             tourCard
             progressCard
             modesCard
-            if BuiltinAPI.showsTesterTools { stressCard }
             ForEach(LabScene.Category.allCases, id: \.self) { category in
                 let scenes = LabScene.all.filter { $0.category == category }
                 if !scenes.isEmpty {
@@ -251,7 +249,6 @@ struct LabView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             tried = UsageStats.labTried
-            lastTest = TypingTestRecord.load().first
         }
     }
 
@@ -326,8 +323,17 @@ struct LabView: View {
             Spacer(minLength: 0)
         }
     }
+}
 
-    private var stressCard: some View {
+/// 测试工具 › 压力测试（原使用指引页底部那张卡）：「开始测试」进 TypingTestView。
+struct StressTestCard: View {
+    @State private var lastTest = TypingTestRecord.load().first
+
+    var body: some View {
+        card.onAppear { lastTest = TypingTestRecord.load().first }
+    }
+
+    private var card: some View {
         NavigationLink {
             TypingTestView()
         } label: {

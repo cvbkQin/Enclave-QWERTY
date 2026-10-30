@@ -152,8 +152,8 @@ struct WelcomeSetupView: View {
             row(3, progress, title: L("问答接口", "Answer API", "回答 API"), detail: answerDetail(progress)) {
                 if progress.state(3) == .current { answerHint }
                 if progress.state(3) == .done && inGuide {
-                    Button { finish(); router.tab = .model } label: {
-                        Text(L("可在接口页改", "Change on the API tab", "API ページで変更できます"))
+                    Button { finish(); router.openAI(answer: true) } label: {
+                        Text(L("可在 AI 页改", "Change on the AI tab", "AI タブで変更できます"))
                             .font(.system(size: 12, weight: .semibold)).foregroundStyle(GuideColor.chipText)
                             .padding(.horizontal, 8).frame(height: 22)
                             .background(Capsule().fill(GuideColor.chipFill))
@@ -413,8 +413,7 @@ struct WelcomeSetupView: View {
 
     private func openAPI() {
         if inGuide { finish() }
-        UserDefaults.standard.set("main", forKey: "apiPage")
-        router.openModel()
+        router.openModel(detail: true)
     }
 
     private func openPrivacy() {
