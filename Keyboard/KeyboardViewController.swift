@@ -72,21 +72,51 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private var hostInactive = false
-    /// 退后台时输入框里还挂着拼音，没清成，回来再清。
-    private var staleMarkedText = false
+
+    /// 退后台时输入框里还挂着、没清成的拼音。放在实例外面：回前台时系统常新建一个 KeyboardViewController，
+    /// 旧实例的 textDocumentProxy 已经断开、随后被释放，只有新实例清得掉（bug #15）。
+    private struct StaleMarkedText {
+        /// 当时的拼音（标记区里的字）。
+        let text: String
+        /// 当时光标前的最后一截（含拼音），回来后还是这样就说明拼音没清掉、被宿主落成了正文。
+        let tail: String
+        /// 清标记区的时间（nil 还没清过）。
+        var markClearedAt: Date?
+    }
+    private static var staleMarkedText: StaleMarkedText?
+    private var staleClearScheduled = false
 
     /// 回前台后清掉退后台时没清成的下划线拼音；这时又打了字就不用清，新拼音已经把它换掉了。
-    /// 刚回前台时有的宿主（模拟器上的信息）还没接上，第一次清会被丢掉：隔 0.3 秒、1 秒再各清一次，三次后才算清完。
+    /// 先清标记区；有的宿主（信息）回来时已经把拼音落成了正文，标记区清不掉，再按长度往回删。
+    /// 刚回前台时宿主可能还没接上：隔 0.3 秒、1 秒再看，光标前不再是当时那截就算清完。
     private func clearStaleMarkedText() {
-        guard staleMarkedText else { return }
-        staleMarkedText = false
+        // viewDidAppear 和 didBecomeActive 都会走到这里，一个实例只排一轮。
+        guard Self.staleMarkedText != nil, !staleClearScheduled else { return }
+        staleClearScheduled = true
         for delay in [0, 0.3, 1.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                // 这时选中了字就不清：空的 setMarkedText 会把选中的字换掉。
-                guard let self, !self.model.isComposing, !self.hostInactive,
-                      (self.textDocumentProxy.selectedText ?? "").isEmpty else { return }
-                self.model.hasMarkedText = true
-                self.model.clearMarkedText()
+                guard let self, let stale = Self.staleMarkedText, !self.hostInactive else { return }
+                // 又开始打字、或者选中了字（空的 setMarkedText 会把选中的字换掉）：不再清。
+                guard !self.model.isComposing, (self.textDocumentProxy.selectedText ?? "").isEmpty else {
+                    Self.staleMarkedText = nil
+                    return
+                }
+                guard let before = self.textDocumentProxy.documentContextBeforeInput else { return }
+                guard before.hasSuffix(stale.tail) else {
+                    Self.staleMarkedText = nil
+                    return
+                }
+                // 第一次只清标记区；读回来的光标前文字要等宿主回话才更新，所以下一次再看：还在就是被落成了正文，往回删。
+                if let clearedAt = stale.markClearedAt {
+                    // 刚清完读回来的可能还是旧的，等宿主回过话再删，免得删掉前面的正文。
+                    guard Date().timeIntervalSince(clearedAt) > 0.25 else { return }
+                    for _ in stale.text { self.textDocumentProxy.deleteBackward() }
+                    Self.staleMarkedText = nil
+                } else {
+                    self.model.hasMarkedText = true
+                    self.model.clearMarkedText()
+                    Self.staleMarkedText?.markClearedAt = Date()
+                }
             }
         }
     }
@@ -94,7 +124,12 @@ final class KeyboardViewController: UIInputViewController {
     /// 清掉组字、关掉 Rime 会话：收起和退后台都走这里。下次弹出（selectEngine）或按键时重建。
     private func releaseEngine() {
         // 只在对方退后台时记：正常收起时清得掉；而且下次弹出可能已经换了输入框，那边没拼音可清。
-        if hostInactive, model.hasMarkedText { staleMarkedText = true }
+        // 读不到光标前的字时只拿拼音本身对照。
+        if hostInactive, model.hasMarkedText, !model.composition.isEmpty {
+            let before = textDocumentProxy.documentContextBeforeInput ?? ""
+            let tail = before.hasSuffix(model.composition) ? String(before.suffix(model.composition.count + 12)) : model.composition
+            Self.staleMarkedText = StaleMarkedText(text: model.composition, tail: tail)
+        }
         model.engine.reset()
         QueuedEngine.shared.closeSession()
         model.syncEngine()
