@@ -1228,7 +1228,7 @@ struct FeatureTourView: View {
             topBar
                 .modifier(TourOutro(gone: model.outro >= 1))
             header
-                .padding(.horizontal, 20)
+                .padding(.horizontal, side)
                 .padding(.top, compact ? 4 : 14)
                 .modifier(TourOutro(gone: model.outro >= 2))
             if model.appPage != nil {
@@ -1240,8 +1240,8 @@ struct FeatureTourView: View {
                 if compact {
                     // 矮屏放不下时聊天卡从上面收，留住最新一条和输入框，顶栏不被键盘挤出屏幕。
                     chat
-                        .padding(.horizontal, 20)
-                        .padding(.top, 6)
+                        .padding(.horizontal, side)
+                        .padding(.top, 10)
                         .frame(minHeight: 0, maxHeight: .infinity, alignment: .bottom)
                         .clipped()
                         .modifier(TourOutro(gone: model.outro >= 3))
@@ -1294,10 +1294,13 @@ struct FeatureTourView: View {
                 .font(.system(size: 15)).foregroundStyle(GuideColor.secondary)
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 20)
-        .frame(height: compact ? 40 : 50)
+        .padding(.horizontal, side)
+        .frame(height: compact ? 30 : 50)
         .padding(.top, compact ? 0 : 8)
     }
+
+    /// 步骤页左右边距：矮屏 16（SE 规格），其余 20。
+    private var side: CGFloat { compact ? 16 : 20 }
 
     private var header: some View {
         let info = TourStep.info(model.step, part: model.part)
@@ -1318,12 +1321,21 @@ struct FeatureTourView: View {
                     .overlay(Capsule().stroke(GuideColor.divider, lineWidth: 1))
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text(info.title)
-                    .font(.system(size: compact ? 21 : 24, weight: .bold)).foregroundStyle(GuideColor.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(info.detail)
-                    .font(.system(size: 15)).lineSpacing(4).foregroundStyle(GuideColor.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if compact {
+                    // 矮屏（SE 等）只留一行标题，说明不显示，给对话卡让地方；读屏照样读完整说明。
+                    Text(info.title)
+                        .font(.system(size: 20, weight: .bold)).foregroundStyle(GuideColor.text)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .frame(height: 26)
+                        .accessibilityLabel(info.title + "。" + info.detail)
+                } else {
+                    Text(info.title)
+                        .font(.system(size: 24, weight: .bold)).foregroundStyle(GuideColor.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(info.detail)
+                        .font(.system(size: 15)).lineSpacing(4).foregroundStyle(GuideColor.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             .id("\(model.step)-\(model.part)")
             .transition(reduceMotion ? .opacity : .asymmetric(insertion: .offset(y: 8).combined(with: .opacity), removal: .opacity))
@@ -1339,7 +1351,8 @@ struct FeatureTourView: View {
         let peer = model.step <= 11
         return VStack(alignment: .leading, spacing: 10) {
             // 矮屏结果卡展开时键盘很高，省掉联系人这一行。
-            if !(compact && (model.cardTall || model.expanded)) {
+            // 矮屏不要联系人这一行，只留气泡和输入框。
+            if !compact {
                 HStack(spacing: 8) {
                     Text(peer ? script.peerAvatar : script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
                         .frame(width: 22, height: 22)
@@ -1355,7 +1368,8 @@ struct FeatureTourView: View {
                 }
             }
             // 发出去的消息都留在对话里；对话区限高，放不下时最早的从顶上滚出去、顶上 24 渐隐，输入框始终露出来。
-            let limit: CGFloat = model.cardTall || compact ? 64 : 132
+            // 矮屏不定死高度：整张卡放不下时由外面压对话区（minHeight 0），能露几条露几条。
+            let limit: CGFloat = model.cardTall && !compact ? 64 : 132
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(model.messages.suffix(4)) { message in
                     bubble(message)
@@ -1401,7 +1415,7 @@ struct FeatureTourView: View {
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourColor.field))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(TourColor.fieldStroke, lineWidth: 1))
         }
-        .padding(compact ? 9 : 12)
+        .padding(compact ? 10 : 12)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(GuideColor.card)
             .shadow(color: Color(hex: 0x3C28A0).opacity(0.07), radius: 14, y: 10))
     }
@@ -1711,6 +1725,9 @@ private struct TourKeyboard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let side: CGFloat = 6
+    /// 矮屏（SE 等）：按键行高 42 → 36，分词面板跟着矮，给对话卡让地方。
+    private var compact: Bool { UIScreen.main.bounds.height < 700 }
+    private var keyHeight: CGFloat { compact ? 36 : 42 }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -1746,7 +1763,7 @@ private struct TourKeyboard: View {
         .frame(maxWidth: .infinity)
         .background(
             TourColor.keyboard
-                .clipShape(TopRounded(radius: 26))
+                .clipShape(TopRounded(radius: compact ? 22 : 26))
                 .contentShape(Rectangle())
                 .onTapGesture { model.wrong() })
         .animation(.easeOut(duration: 0.25), value: model.expanded)
@@ -2187,7 +2204,7 @@ private struct TourKeyboard: View {
     // MARK: 按键
 
     private var keys: some View {
-        let gap: CGFloat = 6, height: CGFloat = 42
+        let gap: CGFloat = 6, height = keyHeight
         return HStack(alignment: .top, spacing: gap) {
             Grid(horizontalSpacing: gap, verticalSpacing: gap) {
                 keyRow(["123", "，。?!", "ABC", "DEF"], height: height)
@@ -2267,7 +2284,8 @@ private struct TourKeyboard: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Text(model.picked.isEmpty
-                     ? L("点选，或按住横着划选", "Tap, or hold and swipe across", "タップ、または長押しして横になぞる")
+                     ? (compact ? L("点选，或横着划选", "Tap or swipe across", "タップか横になぞる")
+                        : L("点选，或按住横着划选", "Tap, or hold and swipe across", "タップ、または長押しして横になぞる"))
                      : L("已选 \(model.picked.count) 个", "\(model.picked.count) selected", "\(model.picked.count) 個選択"))
                     .font(.system(size: 12.5)).foregroundStyle(GuideColor.secondary).lineLimit(1)
                 Spacer(minLength: 4)
@@ -2340,7 +2358,7 @@ private struct TourKeyboard: View {
             }
         }
         .padding(10)
-        .frame(height: 4 * 42 + 3 * 6)
+        .frame(height: 4 * keyHeight + 3 * 6)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(light: 0xF1F0FA, dark: 0x232325)))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(TourColor.ring.opacity(0.4), lineWidth: 1))
     }
