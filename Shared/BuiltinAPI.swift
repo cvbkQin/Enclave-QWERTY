@@ -15,6 +15,14 @@ enum BuiltinAPI {
     static let isInternalBuild = value("EnclaveInternalBuild") == "YES"
     /// 公测包（打包时 PUBLIC_BUILD=YES）：只用来在首页标「公测版」。
     static let isPublicBuild = value("EnclavePublicBuild") == "YES"
+    /// 测试用的页面（压力测试、打字速度）：开发版、内测包、公测包显示，正式版不显示。
+    static var showsTesterTools: Bool {
+        #if DEBUG
+        return true
+        #else
+        return isInternalBuild || isPublicBuild
+        #endif
+    }
 
     static let baseURL = value("EnclaveBuiltinBaseURL")
     static let model = value("EnclaveBuiltinModel")

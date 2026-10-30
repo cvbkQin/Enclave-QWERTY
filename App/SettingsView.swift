@@ -1522,7 +1522,7 @@ struct PinyinView: View {
             dictionaryCard
             grammarCard
             englishCard
-            speedCard
+            if BuiltinAPI.showsTesterTools { speedCard }
         }
         .navigationTitle(L("词库", "Dictionaries", "辞書"))
         .navigationBarTitleDisplayMode(.inline)

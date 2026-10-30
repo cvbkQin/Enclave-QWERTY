@@ -228,7 +228,7 @@ struct LabView: View {
             tourCard
             progressCard
             modesCard
-            stressCard
+            if BuiltinAPI.showsTesterTools { stressCard }
             ForEach(LabScene.Category.allCases, id: \.self) { category in
                 let scenes = LabScene.all.filter { $0.category == category }
                 if !scenes.isEmpty {
