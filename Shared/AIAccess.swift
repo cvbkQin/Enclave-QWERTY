@@ -70,10 +70,10 @@ enum AIAccess: Equatable {
         return .trial(daysLeft: max(left, 1), ends: ends)
     }
 
-    /// TestFlight 版写进这个值，App 和键盘都按已解锁处理（没有购买日期）。
+    /// 0.94 及以前的 TestFlight 版写过这个值（按已解锁处理，没有购买日期）；0.95 起不再写，App 启动时清掉。
     static let testFlightUnlock = "testflight"
 
-    /// 截图和测试用：-aiAccess expired / unlocked / days:2；TestFlight 版由 App 写入 testflight。
+    /// 截图和测试用：-aiAccess expired / unlocked / days:2。
     static func setDebug(_ value: String?) {
         SharedStorage.defaults.set(value, forKey: debugKey)
     }

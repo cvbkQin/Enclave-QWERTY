@@ -53,10 +53,9 @@ final class UnlockStore: ObservableObject {
         if case .verified(let app) = try? await AppTransaction.shared {
             AIAccess.recordTrialStart(app.originalPurchaseDate)
             #if !DEBUG
-            // TestFlight（沙盒）版直接算已解锁，测试的人不用付款；正式版清掉，按 App Store 的记录走。
-            if app.environment == .sandbox {
-                if AIAccess.debugValue != AIAccess.testFlightUnlock { AIAccess.setDebug(AIAccess.testFlightUnlock) }
-            } else if app.environment == .production, AIAccess.debugValue != nil {
+            // 沙盒（TestFlight、App 审核）也按 App Store 的记录走，不再自动算已解锁：审核要能看到试用和购买流程，
+            // 测试的人在沙盒里买是免费的。以前版本自动解锁时写下的状态清掉。
+            if app.environment == .production ? AIAccess.debugValue != nil : AIAccess.debugValue == AIAccess.testFlightUnlock {
                 AIAccess.setDebug(nil)
             }
             #endif

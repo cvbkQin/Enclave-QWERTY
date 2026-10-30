@@ -13,11 +13,11 @@ settings:
     # 两个 Run Script 要读 Vendor/ 和 Local.xcconfig 传来的设置。
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     # 版本号：从 0.1 起每次改动加 0.1，正式发布时才改成 1.0。CURRENT_PROJECT_VERSION 同时加 1。
-    # 开发版每次装机测试记作 0.94_1、0.94_2…：系统版本号不能带下划线，仍写 0.94，构建号写 9401、9402…，
-    # DEV_LABEL 写「0.94_N」显示在关于页。测好合并进 main 时 DEV_LABEL 清空、构建号改回 94。
-    MARKETING_VERSION: "0.94"
-    CURRENT_PROJECT_VERSION: "94"
-    DEV_LABEL: ""
+    # 开发版每次装机测试记作 0.95_1、0.95_2…：系统版本号不能带下划线，仍写 0.95，构建号写 9501、9502…，
+    # DEV_LABEL 写「0.95_N」显示在关于页。测好合并进 main 时 DEV_LABEL 清空、构建号改回 95。
+    MARKETING_VERSION: "0.95"
+    CURRENT_PROJECT_VERSION: "9501"
+    DEV_LABEL: "0.95_1"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。
