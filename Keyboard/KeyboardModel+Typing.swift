@@ -661,6 +661,62 @@ extension KeyboardModel {
         return options
     }
 
+    /// 拼音行上纠错层给出的读法（0.94 纠错显示规格）：text 是「jin'tian」，marked 是改过的字母在 text 里的位置（浅紫底），
+    /// place 和候选里一样（1 首选、2 第二）。九宫格拿不到完整拼写、全键盘拼写对不上改过的键时不列。
+    struct CorrectedReading: Equatable {
+        var text: String
+        var marked: Set<Int>
+        var place: Int
+    }
+
+    var correctedReading: CorrectedReading? {
+        guard isComposing, let correction = engine.pendingCorrection else { return nil }
+        let spelled = correction.reading.lowercased().split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'")
+        let letters = spelled.filter { $0 != "'" }
+        let text: String
+        if showsNineKey {
+            guard !letters.isEmpty, letters.allSatisfy({ $0.isASCII && $0.isLetter }),
+                  PinyinSyllables.digits(of: letters) == correction.corrected else { return nil }
+            text = spelled
+        } else if letters == correction.corrected {
+            text = spelled
+        } else {
+            text = PinyinSyllables.segmentations(correction.corrected, limit: 1).first ?? correction.corrected
+        }
+        // 改过的键：去掉和原样相同的开头、结尾，剩下的就是按反、换掉、补进的字母（多打删掉的没法标）。
+        let typed = Array(correction.typed), fixed = Array(correction.corrected)
+        var head = 0
+        while head < min(typed.count, fixed.count), typed[head] == fixed[head] { head += 1 }
+        var tail = 0
+        while tail < min(typed.count, fixed.count) - head, typed[typed.count - 1 - tail] == fixed[fixed.count - 1 - tail] { tail += 1 }
+        let changed = head..<max(head, fixed.count - tail)
+        var marked = Set<Int>()
+        var key = 0
+        for (offset, char) in text.enumerated() where char != "'" {
+            if changed.contains(key) { marked.insert(offset) }
+            key += 1
+        }
+        return CorrectedReading(text: text, marked: marked, place: correction.place)
+    }
+
+    /// 全键盘拼音行的各项：原样的切法，加上纠正读法（拼不成时排第一，拼得成时排第二）。
+    var pinyinRowSegmentations: [String] {
+        var options = pinyinSegmentations
+        guard let reading = correctedReading else { return options }
+        options.removeAll { $0 == reading.text }
+        options.insert(reading.text, at: reading.place == 1 ? 0 : min(1, options.count))
+        return options
+    }
+
+    /// 点了纠正读法：按改过的串重输，候选换成按它出（九宫格记一步，按删除能退回）。
+    func chooseCorrectedReading(_ reading: String) {
+        applyEngineResults(wait: true)
+        let before = choiceState
+        engine.replaceInput(reading, keeping: [])
+        syncEngine()
+        recordChoice(from: before)
+    }
+
     /// 全键盘点了一种切法：按这种切法重输。
     func chooseSegmentation(_ segmentation: String) {
         applyEngineResults(wait: true)

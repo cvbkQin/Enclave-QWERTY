@@ -21,7 +21,10 @@ final class RimeEngine: InputEngine {
         var input: String
         /// Rime 原来候选里和它重复、被拿掉的那个的位置（Rime 自己的编号）。
         var removed: Int?
+        /// 给拼音行的：原样按的键、放第几位、改过的串的拼写。
+        var shown: PendingCorrection
     }
+    var pendingCorrection: PendingCorrection? { correction?.shown }
     /// 全键盘、九宫格各一个纠错器（词库自带的表没生成时为 nil，就不纠）。
     private lazy var letterCorrector: Corrector? = Corrector.bundled(nineKey: false)
     private lazy var digitCorrector: Corrector? = Corrector.bundled(nineKey: true)
@@ -331,13 +334,15 @@ final class RimeEngine: InputEngine {
               let corrector = nineKey ? digitCorrector : letterCorrector else { return }
         let raw = rawInput
         guard !CorrectionMemory.isRejected(raw), let guess = corrector.guess(raw, extraMargin: CorrectionMemory.bias(raw)) else { return }
-        guard let merged = CorrectionMerge.merge(candidates, input: raw, guess: guess, correctedTop: probeTop(guess.corrected)) else { return }
+        let probed = probeInput(guess.corrected)
+        guard let merged = CorrectionMerge.merge(candidates, input: raw, guess: guess, correctedTop: probed?.top) else { return }
         candidates = merged.candidates
-        correction = Correction(index: merged.index, text: candidates[merged.index], input: guess.corrected, removed: merged.removed)
+        let shown = PendingCorrection(typed: raw, corrected: guess.corrected, place: guess.place, reading: probed?.spelling ?? "")
+        correction = Correction(index: merged.index, text: candidates[merged.index], input: guess.corrected, removed: merged.removed, shown: shown)
     }
 
-    /// 在第二个会话里打一遍改过的串，看首选是什么。
-    private func probeTop(_ input: String) -> String? {
+    /// 在第二个会话里打一遍改过的串，看首选是什么、拼写是什么。
+    private func probeInput(_ input: String) -> (top: String, spelling: String)? {
         // 换过方案（全键盘 ↔ 九宫格）就换一个会话。
         if probe != 0, probeSchema != schema || !enclave_rime_session_alive(probe) {
             enclave_rime_destroy_session(probe)
@@ -353,11 +358,12 @@ final class RimeEngine: InputEngine {
         for scalar in input.unicodeScalars {
             enclave_rime_process_key(probe, Int32(scalar.value), 0)
         }
+        let spelling = takeString(enclave_rime_get_preedit(probe)) ?? ""
         var buffer = [UnsafeMutablePointer<CChar>?](repeating: nil, count: 1)
         let count = enclave_rime_get_candidates(probe, &buffer, 1)
         let top = count > 0 ? takeString(buffer[0]) : nil
         enclave_rime_clear(probe)
-        return top
+        return top.map { ($0, spelling) }
     }
 
     /// 九宫格方案的 enclave_t9_state.lua 写的：每行「结束位置<Tab>文字」。全键盘方案没有，是空的。
