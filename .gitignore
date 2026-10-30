@@ -26,3 +26,6 @@ builds/
 
 # 内测 Key（混淆后）和证书指纹，编译时由 scripts/gen-builtin-secrets.py 生成
 Generated/
+
+# 纠错测试跑出来的结果，scripts/correction/run-eval.sh 放进来
+Tests/Correction/results/

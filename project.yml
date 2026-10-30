@@ -13,10 +13,10 @@ settings:
     # 两个 Run Script 要读 Vendor/ 和 Local.xcconfig 传来的设置。
     ENABLE_USER_SCRIPT_SANDBOXING: NO
     # 版本号：从 0.1 起每次改动加 0.1，正式发布时才改成 1.0。CURRENT_PROJECT_VERSION 同时加 1。
-    # 开发版每次装机测试记作 0.93_1、0.93_2…：系统版本号不能带下划线，仍写 0.93，构建号写 9301、9302…，
-    # DEV_LABEL 写「0.93_N」显示在关于页。测好合并进 main 时 DEV_LABEL 清空、构建号改回 93。
-    MARKETING_VERSION: "0.93"
-    CURRENT_PROJECT_VERSION: "93"
+    # 开发版每次装机测试记作 0.94_1、0.94_2…：系统版本号不能带下划线，仍写 0.94，构建号写 9401、9402…，
+    # DEV_LABEL 写「0.94_N」显示在关于页。测好合并进 main 时 DEV_LABEL 清空、构建号改回 94。
+    MARKETING_VERSION: "0.94"
+    CURRENT_PROJECT_VERSION: "94"
     DEV_LABEL: ""
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
@@ -124,6 +124,11 @@ targets:
       - path: Vendor/RimeBuild
         type: folder
         buildPhase: resources
+      # 纠错用的按键串可能性表（全键盘 qw、九宫格 t9），由 scripts/fetch-rime.sh 生成；没生成时不纠错。
+      - path: Vendor/KeyLM
+        type: folder
+        buildPhase: resources
+        optional: true
     # 内测包的 Key（混淆）和证书指纹，生成到 Generated/<target>/BuiltinSecrets.swift（不进 Git）；别的包生成空的。也检查内测、公测开关没同时打开。
     preBuildScripts:
       - name: Builtin secrets

@@ -29,6 +29,7 @@ extension KeyboardModel {
 
     /// 字母、九宫格数字交给拼音引擎。拼音引擎在后台算，这里不等，算完由 applyEngineResults 上屏、更新候选。
     func feedEngine(_ key: String) {
+        recentCorrection = nil
         dismissCandidateMenu()
         closeCandidateUndo()
         guard let queued = engine as? QueuedEngine else {
@@ -75,6 +76,7 @@ extension KeyboardModel {
     }
 
     func deleteKey() {
+        if undoCorrection() { return }
         if undoLastChoice() { return }
         if engine.backspace() {
             syncEngine()
@@ -83,6 +85,7 @@ extension KeyboardModel {
         switch target {
         case .host:
             editProxy?.deleteBackward()
+            notePickDeleted()
             updateAutoShift()
         case .instruction:
             deleteInInstruction()
@@ -132,11 +135,20 @@ extension KeyboardModel {
         // 选了候选：前面打的拼音键都没按错，算进手指习惯。
         TouchCalibration.confirm()
         let before = choiceState
+        let segmented = !engine.selections.isEmpty
         let text = engine.select(index)
         if let text { commit(text) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
         recordChoice(from: before)
+        // 一次点完、不是首选的词才记：首选本来就排第一，分段选的上屏的是几段拼起来的字。
+        if let text, index > 0, !segmented, !isComposing, chineseMode, target == .host {
+            recentPick = RecentPick(word: text, left: text.count, time: Date())
+        }
+        if let text, let corrected = engine.lastCorrection, corrected.text == text, !isComposing, target == .host {
+            recentCorrection = corrected
+            recentPick = nil
+        }
         if let text, !isComposing, chineseMode { showPredictions(after: text) }
     }
 
@@ -148,6 +160,63 @@ extension KeyboardModel {
         let deleted = engine.deleteCandidate(index)
         syncEngine()
         return deleted
+    }
+
+    // MARK: - 撤回纠错
+
+    /// 纠正的词上屏后马上按删除：删掉这几个字，恢复成原样按的拼音，和 iOS 撤销自动更正一样；
+    /// 同样的输入以后不再纠（CorrectionMemory.reject）。
+    func undoCorrection() -> Bool {
+        guard let undo = recentCorrection else { return false }
+        recentCorrection = nil
+        guard target == .host, !isComposing else { return false }
+        for _ in 0..<undo.text.count { editProxy?.deleteBackward() }
+        CorrectionMemory.reject(undo.typed)
+        engine.replaceInput(undo.typed, keeping: [])
+        syncEngine()
+        return true
+    }
+
+    // MARK: - 点错的候选
+
+    struct RecentPick {
+        let word: String
+        /// 还剩几个字没被删。
+        var left: Int
+        let time: Date
+    }
+
+    struct RejectedPick {
+        let word: String
+        let time: Date
+    }
+
+    /// 点了候选后马上退格：删完整个词（中间没打别的、没挪光标）就当是点错了。
+    /// librime 选一次就把词提到第一（点错「触达」后，再打 chu da 首选就成了「触达」），记下来等它再出现时忘掉。
+    func notePickDeleted() {
+        guard var pick = recentPick else { return }
+        pick.left -= 1
+        guard pick.left <= 0 else {
+            recentPick = pick
+            return
+        }
+        recentPick = nil
+        if Date().timeIntervalSince(pick.time) < 20 {
+            rejectedPick = RejectedPick(word: pick.word, time: Date())
+        }
+    }
+
+    /// 点错删掉的词又排到了第一：删掉学到的记录，词库自带的词回到原来的位置（和长按候选「删除」一样）。
+    /// 两分钟内没再打出来就算了。
+    private func forgetRejectedPick() {
+        guard let rejected = rejectedPick, QueuedEngine.shared.pending == 0 else { return }
+        guard Date().timeIntervalSince(rejected.time) < 120 else {
+            rejectedPick = nil
+            return
+        }
+        guard candidates.first == rejected.word, !commonWordTexts.contains(rejected.word) else { return }
+        rejectedPick = nil
+        deleteLearnedCandidate(0)
     }
 
     // MARK: - 候选长按（CL1–CL4）
@@ -429,6 +498,8 @@ extension KeyboardModel {
     }
 
     func moveCursor(by offset: Int) {
+        recentPick = nil
+        recentCorrection = nil
         switch target {
         case .host: editProxy?.adjustTextPosition(byCharacterOffset: offset)
         case .card: moveCardCaret(by: offset)
@@ -552,14 +623,29 @@ extension KeyboardModel {
     }
 
     /// 第一个还没定的字的读法，长的在前；最后是这个数字键上的单个字母。首选候选的读法排第一（94664 的「中」：zhong 在 xiong 前面）。
+    /// 一样长的读法按它能打出的最常用词排（纠错用的可能性表，0.94 方案第 6 步），没有表时按字母顺序。
     var pinyinOptions: [String] {
         guard showsNineKey, isComposing else { return [] }
         let split = pinyinSplit
-        var options = PinyinSyllables.options(forDigits: String(split.rest.prefix(while: \.isNumber)))
+        var options = Self.rankedByLikelihood(PinyinSyllables.options(forDigits: String(split.rest.prefix(while: \.isNumber))))
         if let top = firstOpenSyllable(fixed: split.fixed), let index = options.firstIndex(of: top), index > 0 {
             options.insert(options.remove(at: index), at: 0)
         }
         return options
+    }
+
+    /// 主线程用的一份全键盘可能性表（和引擎队列上的分开，KeyLM 不是线程安全的）。
+    private static let syllableLM = KeyLM.bundled(nineKey: false)
+
+    /// 一样长的音节按「以它开头的最常用词」排，长的仍在前、单个字母仍在最后。排序是稳定的：分数一样时保持原来的字母顺序。
+    static func rankedByLikelihood(_ options: [String]) -> [String] {
+        guard let lm = syllableLM else { return options }
+        let cost = Dictionary(options.map { ($0, lm.lookup(Array($0.utf8)[...]).prefix ?? .infinity) }, uniquingKeysWith: { a, _ in a })
+        return options.enumerated().sorted { a, b in
+            if a.element.count != b.element.count { return a.offset < b.offset }
+            let ca = cost[a.element]!, cb = cost[b.element]!
+            return ca != cb ? ca < cb : a.offset < b.offset
+        }.map(\.element)
     }
 
     /// 全键盘：正在拼的拼音有几种切法时并列（xi'an、xian），现在这种在前；只有一种就只显示这一种。
@@ -573,6 +659,62 @@ extension KeyboardModel {
         guard !options.isEmpty else { return current.isEmpty ? [] : [current] }
         if let index = options.firstIndex(of: current) { options.insert(options.remove(at: index), at: 0) }
         return options
+    }
+
+    /// 拼音行上纠错层给出的读法（0.94 纠错显示规格）：text 是「jin'tian」，marked 是改过的字母在 text 里的位置（浅紫底），
+    /// place 和候选里一样（1 首选、2 第二）。九宫格拿不到完整拼写、全键盘拼写对不上改过的键时不列。
+    struct CorrectedReading: Equatable {
+        var text: String
+        var marked: Set<Int>
+        var place: Int
+    }
+
+    var correctedReading: CorrectedReading? {
+        guard isComposing, let correction = engine.pendingCorrection else { return nil }
+        let spelled = correction.reading.lowercased().split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'")
+        let letters = spelled.filter { $0 != "'" }
+        let text: String
+        if showsNineKey {
+            guard !letters.isEmpty, letters.allSatisfy({ $0.isASCII && $0.isLetter }),
+                  PinyinSyllables.digits(of: letters) == correction.corrected else { return nil }
+            text = spelled
+        } else if letters == correction.corrected {
+            text = spelled
+        } else {
+            text = PinyinSyllables.segmentations(correction.corrected, limit: 1).first ?? correction.corrected
+        }
+        // 改过的键：去掉和原样相同的开头、结尾，剩下的就是按反、换掉、补进的字母（多打删掉的没法标）。
+        let typed = Array(correction.typed), fixed = Array(correction.corrected)
+        var head = 0
+        while head < min(typed.count, fixed.count), typed[head] == fixed[head] { head += 1 }
+        var tail = 0
+        while tail < min(typed.count, fixed.count) - head, typed[typed.count - 1 - tail] == fixed[fixed.count - 1 - tail] { tail += 1 }
+        let changed = head..<max(head, fixed.count - tail)
+        var marked = Set<Int>()
+        var key = 0
+        for (offset, char) in text.enumerated() where char != "'" {
+            if changed.contains(key) { marked.insert(offset) }
+            key += 1
+        }
+        return CorrectedReading(text: text, marked: marked, place: correction.place)
+    }
+
+    /// 全键盘拼音行的各项：原样的切法，加上纠正读法（拼不成时排第一，拼得成时排第二）。
+    var pinyinRowSegmentations: [String] {
+        var options = pinyinSegmentations
+        guard let reading = correctedReading else { return options }
+        options.removeAll { $0 == reading.text }
+        options.insert(reading.text, at: reading.place == 1 ? 0 : min(1, options.count))
+        return options
+    }
+
+    /// 点了纠正读法：按改过的串重输，候选换成按它出（九宫格记一步，按删除能退回）。
+    func chooseCorrectedReading(_ reading: String) {
+        applyEngineResults(wait: true)
+        let before = choiceState
+        engine.replaceInput(reading, keeping: [])
+        syncEngine()
+        recordChoice(from: before)
     }
 
     /// 全键盘点了一种切法：按这种切法重输。
@@ -896,6 +1038,9 @@ extension KeyboardModel {
     // MARK: - 内部
 
     func commit(_ text: String) {
+        // 上屏了别的字，之前点的候选、纠正的词就不是「点了马上删」了。
+        recentPick = nil
+        recentCorrection = nil
         switch target {
         case .host:
             // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
@@ -925,7 +1070,8 @@ extension KeyboardModel {
         let row = layer == .letters && !composition.isEmpty
         if row != pinyinRowShown { pinyinRowShown = row }
         let newCandidates = engine.candidates
-        if newCandidates != candidates { candidates = newCandidates }
+        let candidatesChanged = newCandidates != candidates
+        if candidatesChanged { candidates = newCandidates }
         if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
         if target == .host && isComposing {
@@ -934,6 +1080,7 @@ extension KeyboardModel {
         } else {
             clearMarkedText()
         }
+        if candidatesChanged { forgetRejectedPick() }
     }
 
     func clearMarkedText() {

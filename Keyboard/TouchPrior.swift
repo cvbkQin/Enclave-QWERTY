@@ -12,10 +12,19 @@ enum TouchPrior {
     private static let extendsWeight = 1.0
     private static let startsWeight = 0.55
     private static let impossibleWeight = 0.08
+    /// 落在命中键中间这一块（离校准后的中心横向不到 1/4 键宽、纵向不到 0.3 键高）就不换：
+    /// 拼不成拼音的字母（wifi 的 i）权重低，没有这条按正中间也会输给隔壁。按偏了交给纠错层。
+    private static let centerX = 0.25
+    private static let centerY = 0.3
 
     /// 落点 point、原本命中的键 hit；只在字母键之间换。raw：已经打了、还没上屏的拼音，不在打拼音时为空（只按手指习惯校准）。
     static func resolve(point: CGPoint, hit: KeySpec, keys: [KeySpec], raw: String?) -> KeySpec {
-        guard let mode = Mode(hit), symbol(of: hit, mode) != nil else { return hit }
+        guard let mode = Mode(hit), let hitChar = symbol(of: hit, mode) else { return hit }
+        let hitShift = TouchCalibration.shift(for: calibrationKey(hitChar, mode))
+        if abs(Double((point.x - hit.frame.midX) / hit.frame.width) - hitShift.dx) < centerX,
+           abs(Double((point.y - hit.frame.midY) / hit.frame.height) - hitShift.dy) < centerY {
+            return hit
+        }
         let neighbors = keys.filter { key in
             guard symbol(of: key, mode) != nil else { return false }
             let dx = abs(point.x - key.frame.midX) / key.frame.width

@@ -129,6 +129,7 @@ enum PrivacyPolicy {
 
 开发者：{developer}（个人开发者）
 电子邮箱：{email}
+ICP 备案号：皖ICP备2026038401号-1A
 
 我们将在收到您的反馈后 15 个工作日内答复。如您对我们的答复不满意，可以向网信、工信等有关主管部门投诉或举报。
 """
@@ -220,6 +221,7 @@ We may update this Privacy Policy from time to time. Updates will be published i
 ## 9. Contact Us
 
 Email: {email}
+ICP filing: 皖ICP备2026038401号-1A
 
 We will respond within 15 business days.
 """
@@ -311,6 +313,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 ## 9. お問い合わせ
 
 メール：{email}
+ICP 届出番号：皖ICP备2026038401号-1A
 
 お問い合わせには 15 営業日以内に回答します。
 """
@@ -322,6 +325,6 @@ enum LegalInfo {
     /// 中文政策（大陆备案版）里写中文姓名。
     static let developerZh = "秦耕耘"
     static let email = "cvbk.qin@gmail.com"
-    /// ICP 备案号，例如「沪ICP备XXXXXXXX号-1A」。拿到之前留空，关于页那一行不显示。
-    static let icpNumber = ""
+    /// ICP 备案号（App 备案，2026-10-30 通过）。关于页显示，点开工信部备案网站。
+    static let icpNumber = "皖ICP备2026038401号-1A"
 }

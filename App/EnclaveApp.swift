@@ -287,6 +287,8 @@ final class AppRouter: ObservableObject {
         if let i = args.firstIndex(of: "-diag"), args.indices.contains(i + 1) {
             args[i + 1] == "sample" ? CrashLog.addSamples() : CrashLog.clear()
         }
+        // -rimeEval：纠错测试，词库部署好后把测试输入喂给引擎，结果写进 Documents（见 RimeEval）。
+        if args.contains("-rimeEval") { RimeEval.runWhenDeployed() }
         #endif
         if args.contains("-playground") { homePath = NavigationPath([HomePage.lab, HomePage.scene(0)]) }
         if let i = args.firstIndex(of: "-homePage"), args.indices.contains(i + 1) {

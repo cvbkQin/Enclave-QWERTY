@@ -219,21 +219,26 @@ struct QuickWordsPanel: View {
 
 /// 候选栏上面的拼音行（照 iOS 原生，PY1、PY7）。九宫格只列第一个还没定的字的读法，后面跟这个键的单个字母，
 /// 点一项定下这个字的音；全键盘列正在拼的拼音的几种切法，点一个换切法。不加底色、不预选；放不下就左右滑，右边渐隐。
+/// 有纠正时（0.94 纠错显示规格 CR1–CR4）列出纠正读法，改过的字母主色字、浅紫底：全键盘作为一种切法并列
+/// （拼不成排第一、拼得成排第二）；九宫格放在最前，后面一道细竖线再接第一个字的读法。
 struct PinyinRow: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
         let nine = model.showsNineKey
+        let reading = model.correctedReading
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
-                ForEach(nine ? model.pinyinOptions : model.pinyinSegmentations, id: \.self) { syllable in
-                    Button { nine ? model.choosePinyin(syllable) : model.chooseSegmentation(syllable) } label: {
-                        Text(syllable).font(.system(size: 16)).foregroundStyle(Color.primary)
-                            .padding(.horizontal, 12)
-                            .frame(maxHeight: .infinity)
-                            .contentShape(Rectangle())
+                if nine, let reading {
+                    item(reading.text, marked: reading.marked) { model.chooseCorrectedReading(reading.text) }
+                    Rectangle().fill(Self.dividerColor).frame(width: 1, height: 16).padding(.horizontal, 2)
+                }
+                ForEach(nine ? model.pinyinOptions : model.pinyinRowSegmentations, id: \.self) { syllable in
+                    if !nine, let reading, syllable == reading.text {
+                        item(syllable, marked: reading.marked) { model.chooseCorrectedReading(syllable) }
+                    } else {
+                        item(syllable, marked: []) { nine ? model.choosePinyin(syllable) : model.chooseSegmentation(syllable) }
                     }
-                    .buttonStyle(KeyPressStyle())
                 }
             }
             .padding(.leading, 4)
@@ -251,6 +256,48 @@ struct PinyinRow: View {
                 .frame(height: 1)
         }
     }
+}
+
+extension PinyinRow {
+    private func item(_ text: String, marked: Set<Int>, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            label(text, marked: marked)
+                .padding(.horizontal, 12)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+    }
+
+    /// 改过的字母连成几段，每段主色字、浅紫底（圆角 4，底往两边各出 1，字距不变）。
+    private func label(_ text: String, marked: Set<Int>) -> some View {
+        var runs: [(text: String, marked: Bool)] = []
+        for (offset, char) in text.enumerated() {
+            let isMarked = marked.contains(offset)
+            if let last = runs.last, last.marked == isMarked {
+                runs[runs.count - 1].text.append(char)
+            } else {
+                runs.append((String(char), isMarked))
+            }
+        }
+        return HStack(spacing: 0) {
+            ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
+                Text(run.text).font(.system(size: 16))
+                    .foregroundStyle(run.marked ? Self.markedText : Color.primary)
+                    .background(run.marked ? RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Self.markedFill).padding(.horizontal, -1) : nil)
+            }
+        }
+    }
+
+    private static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
+        func color(_ hex: UInt32) -> UIColor {
+            UIColor(red: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
+    }
+    static let markedText = dynamic(0x5B4BE8, 0xB4A9FF)
+    static let markedFill = dynamic(0xE4E0FC, 0x2E2766)
+    static let dividerColor = dynamic(0xAEAEB2, 0x8E8E93)
 }
 
 /// 九宫格数字键盘点「更多」后左列的运算符，和拼音栏一样上下滑动，第一个浅紫高亮。

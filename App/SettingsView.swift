@@ -1146,7 +1146,7 @@ struct KeyboardSettingsView: View {
                 } footer: {
                     Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
                 }
-                Section(L("拼音", "Pinyin", "ピンイン")) {
+                Section {
                     NavigationLink(value: AppRouter.SettingsPage.fuzzy) {
                         HStack {
                             Text(L("模糊拼音", "Fuzzy pinyin", "あいまい入力"))
@@ -1155,7 +1155,12 @@ struct KeyboardSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    CorrectionToggles()
                     PredictionToggle()
+                } header: {
+                    Text(L("拼音", "Pinyin", "ピンイン"))
+                } footer: {
+                    Text(CorrectionToggles.footnote)
                 }
             }
             Section(L("英文", "English", "英語")) {
