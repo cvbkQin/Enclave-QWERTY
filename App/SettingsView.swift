@@ -1156,6 +1156,7 @@ struct KeyboardSettingsView: View {
                         }
                     }
                     PredictionToggle()
+                    CorrectionToggles()
                 }
             }
             Section(L("英文", "English", "英語")) {

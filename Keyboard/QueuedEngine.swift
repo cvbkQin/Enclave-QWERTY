@@ -14,6 +14,7 @@ final class QueuedEngine: InputEngine {
         var candidates: [String] = []
         var rawInput = ""
         var selections: [InputSelection] = []
+        var lastCorrection: CommittedCorrection?
     }
 
     /// 后台算完的一个按键。
@@ -55,6 +56,7 @@ final class QueuedEngine: InputEngine {
     var candidates: [String] { state.candidates }
     var rawInput: String { state.rawInput }
     var selections: [InputSelection] { state.selections }
+    var lastCorrection: CommittedCorrection? { state.lastCorrection }
 
     // MARK: - 后台
 
@@ -180,6 +182,6 @@ final class QueuedEngine: InputEngine {
 
     private static func snapshot(of engine: RimeEngine) -> Snapshot {
         Snapshot(composition: engine.composition, candidates: engine.candidates, rawInput: engine.rawInput,
-                 selections: engine.selections)
+                 selections: engine.selections, lastCorrection: engine.lastCorrection)
     }
 }

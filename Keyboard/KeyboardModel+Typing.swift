@@ -29,6 +29,7 @@ extension KeyboardModel {
 
     /// 字母、九宫格数字交给拼音引擎。拼音引擎在后台算，这里不等，算完由 applyEngineResults 上屏、更新候选。
     func feedEngine(_ key: String) {
+        recentCorrection = nil
         dismissCandidateMenu()
         closeCandidateUndo()
         guard let queued = engine as? QueuedEngine else {
@@ -75,6 +76,7 @@ extension KeyboardModel {
     }
 
     func deleteKey() {
+        if undoCorrection() { return }
         if undoLastChoice() { return }
         if engine.backspace() {
             syncEngine()
@@ -143,6 +145,10 @@ extension KeyboardModel {
         if let text, index > 0, !segmented, !isComposing, chineseMode, target == .host {
             recentPick = RecentPick(word: text, left: text.count, time: Date())
         }
+        if let text, let corrected = engine.lastCorrection, corrected.text == text, !isComposing, target == .host {
+            recentCorrection = corrected
+            recentPick = nil
+        }
         if let text, !isComposing, chineseMode { showPredictions(after: text) }
     }
 
@@ -154,6 +160,21 @@ extension KeyboardModel {
         let deleted = engine.deleteCandidate(index)
         syncEngine()
         return deleted
+    }
+
+    // MARK: - 撤回纠错
+
+    /// 纠正的词上屏后马上按删除：删掉这几个字，恢复成原样按的拼音，和 iOS 撤销自动更正一样；
+    /// 同样的输入以后不再纠（CorrectionMemory.reject）。
+    func undoCorrection() -> Bool {
+        guard let undo = recentCorrection else { return false }
+        recentCorrection = nil
+        guard target == .host, !isComposing else { return false }
+        for _ in 0..<undo.text.count { editProxy?.deleteBackward() }
+        CorrectionMemory.reject(undo.typed)
+        engine.replaceInput(undo.typed, keeping: [])
+        syncEngine()
+        return true
     }
 
     // MARK: - 点错的候选
@@ -478,6 +499,7 @@ extension KeyboardModel {
 
     func moveCursor(by offset: Int) {
         recentPick = nil
+        recentCorrection = nil
         switch target {
         case .host: editProxy?.adjustTextPosition(byCharacterOffset: offset)
         case .card: moveCardCaret(by: offset)
@@ -945,8 +967,9 @@ extension KeyboardModel {
     // MARK: - 内部
 
     func commit(_ text: String) {
-        // 上屏了别的字，之前点的候选就不是「点了马上删」了。
+        // 上屏了别的字，之前点的候选、纠正的词就不是「点了马上删」了。
         recentPick = nil
+        recentCorrection = nil
         switch target {
         case .host:
             // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：

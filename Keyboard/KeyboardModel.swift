@@ -181,6 +181,8 @@ final class KeyboardModel: ObservableObject {
     var candidateUndoTimer: DispatchWorkItem?
     /// 九宫格选过的拼音、分段选过的词，按先后排；退格先撤回最后一步（见 undoLastChoice）。
     var choiceSteps: [ChoiceStep] = []
+    /// 刚选了纠正的词上屏；紧接着按删除就撤回成原样的拼音（见 undoCorrection）。
+    var recentCorrection: CommittedCorrection?
     /// 刚从候选里点了不是首选的词上屏；接着被退格整个删掉，就当是点错了（见 notePickDeleted）。
     var recentPick: RecentPick?
     /// 点错又删掉的词：引擎已经学到了它，再打同样的拼音时会排第一，那时把这次学的忘掉。
@@ -373,6 +375,8 @@ final class KeyboardModel: ObservableObject {
 
     func reload() {
         settings = SettingsStore.load()
+        RimeEngine.correctsQwerty = CorrectionMemory.isEnabled(nineKey: false)
+        RimeEngine.correctsNineKey = CorrectionMemory.isEnabled(nineKey: true)
         refreshSearchPrompt()
         session = SessionStore.load()
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""

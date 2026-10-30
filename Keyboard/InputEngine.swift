@@ -27,6 +27,14 @@ protocol InputEngine: AnyObject {
     func loadMoreCandidates()
     /// 候选长按「删除」：删掉用户词库里学到的这个词，候选跟着刷新。删不了（词库自带的词、没有词库）返回 false。
     func deleteCandidate(_ index: Int) -> Bool
+    /// 刚选了纠错层的纠正词、整段上屏时：原样按的键和上屏的字。
+    var lastCorrection: CommittedCorrection? { get }
+}
+
+/// 纠正的词上屏了：typed 是原样按的键，text 是上屏的字。
+struct CommittedCorrection: Equatable {
+    var typed: String
+    var text: String
 }
 
 extension InputEngine {
@@ -36,6 +44,7 @@ extension InputEngine {
     var selections: [InputSelection] { [] }
     func loadMoreCandidates() {}
     func deleteCandidate(_ index: Int) -> Bool { false }
+    var lastCorrection: CommittedCorrection? { nil }
 }
 
 /// 分段选定的一个词：end 是它在原始输入里结束的位置（字节下标，可能带上后面的分词符）。

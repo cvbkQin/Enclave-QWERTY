@@ -40,7 +40,8 @@ final class Corrector {
     }
 
     /// 这个输入要不要纠、纠成什么。带分词符的、全是声母的（简拼）不纠。
-    func guess(_ input: String) -> Guess? {
+    /// extraMargin：这个输入学到的门槛调整（CorrectionMemory.bias），正的更难纠。
+    func guess(_ input: String, extraMargin: Double = 0) -> Guess? {
         let keys = Array(input.utf8)
         guard !keys.isEmpty, keys.allSatisfy(isKey) else { return nil }
         if !nineKey && keys.allSatisfy({ !Self.vowels.contains($0) }) { return nil }
@@ -77,7 +78,7 @@ final class Corrector {
             let score = lm.score(variant) + found[variant]!
             if best.map({ score < $0.score }) ?? true { best = (variant, score) }
         }
-        guard let best, best.score < original - Self.margin else { return nil }
+        guard let best, best.score < original - Self.margin - extraMargin else { return nil }
         return Guess(corrected: String(decoding: best.keys, as: UTF8.self), place: place)
     }
 

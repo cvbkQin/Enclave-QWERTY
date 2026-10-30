@@ -30,7 +30,11 @@ final class RimeEngine: InputEngine {
     private var probeSchema = ""
     /// 选纠正词时重输改过的串，这期间不再纠。
     private var correcting = false
-    static var correctionEnabled = true
+    /// 设置里的「自动纠错」开关（键盘弹出时从 CorrectionMemory 读）。
+    static var correctsQwerty = true
+    static var correctsNineKey = true
+    /// 刚选了纠正的词上屏：原样按的键和上屏的字。紧接着按删除就撤回（见 KeyboardModel.undoCorrection）。
+    private(set) var lastCorrection: CommittedCorrection?
     private var session: UInt64 = 0
     private var loadedVersion: String?
     private var schema = RimeStore.schemaID
@@ -144,6 +148,7 @@ final class RimeEngine: InputEngine {
 
     func input(_ letter: String) -> String? {
         remainder = nil
+        lastCorrection = nil
         guard ensureSession() else { return letter }
         var handled = false
         for scalar in letter.unicodeScalars {
@@ -169,7 +174,10 @@ final class RimeEngine: InputEngine {
     func select(_ index: Int) -> String? {
         guard session != 0, index >= 0 else { return nil }
         if remainder != nil && index == 0 { return selectRemainder() }
+        lastCorrection = nil
         if let correction, index == correction.index { return selectCorrection(correction) }
+        // 纠正的词放在首选，却选了原样的首选（在第二位）：这个输入以后难纠一点。
+        if let correction, correction.index == 0, index == 1 { CorrectionMemory.declined(rawInput) }
         let top = candidates.first
         let chosen = candidates.indices.contains(index) ? candidates[index] : nil
         let rimeIndex = self.rimeIndex(index)
@@ -208,13 +216,17 @@ final class RimeEngine: InputEngine {
 
     /// 选了纠正词：把输入换成改过的串，在它的候选里选同样的字（Rime 照常学词、上屏）。
     private func selectCorrection(_ chosen: Correction) -> String? {
+        let typed = rawInput
+        CorrectionMemory.accepted(typed)
         correcting = true
         defer { correcting = false }
         replaceInput(chosen.input, keeping: [])
         loadMoreCandidates()
         guard let index = candidates.firstIndex(of: chosen.text) else { return nil }
         enclave_rime_select_candidate(session, index)
-        return refresh()
+        let commit = refresh()
+        if let commit, composition.isEmpty { lastCorrection = CommittedCorrection(typed: typed, text: commit) }
+        return commit
     }
 
     /// 候选栏上的位置换成 Rime 自己的编号：扣掉前面插进去的整句剩余、纠正词，补上被拿掉的重复词。
@@ -296,6 +308,7 @@ final class RimeEngine: InputEngine {
         selections = []
         remainder = nil
         correction = nil
+        lastCorrection = nil
     }
 
     /// 读出上屏文字、拼写和候选词。
@@ -312,10 +325,12 @@ final class RimeEngine: InputEngine {
     /// 输入像打错了：纠正的词插进候选（拼不成时放首选，拼得成但改一处像话得多时放第二位），按的键不改。
     /// 分段选过词、带分词符的不纠（Corrector 里也挡了分词符；九宫格选过拼音的，输入里有字母，也不纠）。
     private func applyCorrection() {
-        guard Self.correctionEnabled, !correcting, selections.isEmpty, !candidates.isEmpty else { return }
-        guard let corrector = schema == RimeStore.nineKeySchemaID ? digitCorrector : letterCorrector else { return }
+        guard !correcting, selections.isEmpty, !candidates.isEmpty else { return }
+        let nineKey = schema == RimeStore.nineKeySchemaID
+        guard nineKey ? Self.correctsNineKey : Self.correctsQwerty,
+              let corrector = nineKey ? digitCorrector : letterCorrector else { return }
         let raw = rawInput
-        guard let guess = corrector.guess(raw) else { return }
+        guard !CorrectionMemory.isRejected(raw), let guess = corrector.guess(raw, extraMargin: CorrectionMemory.bias(raw)) else { return }
         guard let merged = CorrectionMerge.merge(candidates, input: raw, guess: guess, correctedTop: probeTop(guess.corrected)) else { return }
         candidates = merged.candidates
         correction = Correction(index: merged.index, text: candidates[merged.index], input: guess.corrected, removed: merged.removed)
