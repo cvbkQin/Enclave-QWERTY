@@ -46,8 +46,9 @@ speller:
 translator:
   dictionary: enclave
   enable_user_dict: true
-  # 按错相邻键也能出字（librime 自带的全键盘同排邻键纠错，比如 nihap 也出「你好」），排在正确拼写之后。
-  enable_correction: true
+  # librime 自带的邻键纠错关掉（0.94）：266 段整句测试里它把打对的拼音改坏 30 段（ceshihuanjingbutaiwending → 测试环境不要稳定），
+  # 一段也没帮上；关掉后正常输入首选打对 76% → 87%。按到邻键交给 App 里的纠错层。
+  enable_correction: false
   # 有整句模型时，按前文（分段选过的词、刚上屏的字）给后面的候选排序；没有模型时不起作用。
   contextual_suggestions: true
   preedit_format:
