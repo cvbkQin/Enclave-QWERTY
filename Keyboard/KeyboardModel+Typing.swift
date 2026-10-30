@@ -67,12 +67,25 @@ extension KeyboardModel {
         if engine.candidates.count != candidates.count { candidates = engine.candidates }
     }
 
-    /// 数字、标点等非字母键：先把正在组的字上屏。
+    /// 数字、标点等非字母键：先把正在组的字上屏。全键盘打了 v 之后的数字接在拼写后面（快捷输入的大写金额，见 QuickInput）。
+    /// 打完「1+2=」这样的算式，候选栏给出结果。
     func typeSymbol(_ symbol: String) {
+        if isComposing, let queued = engine as? QueuedEngine {
+            applyEngineResults(wait: true)
+            if queued.acceptsNumberKey(symbol) {
+                queued.inputNumberKey(symbol)
+                syncEngine()
+                return
+            }
+        }
         if isComposing, let first = engine.select(0) { commit(first) }
         engine.reset()
         syncEngine()
         commit(symbol)
+        if symbol == "=" || symbol == "＝", chineseMode, target == .host,
+           let before = proxy?.documentContextBeforeInput, let result = QuickInput.calculate(before: before) {
+            predictions = [result]
+        }
     }
 
     func deleteKey() {
