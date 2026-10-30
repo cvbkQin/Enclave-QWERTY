@@ -42,7 +42,7 @@ struct GuideTutorial {
         case .kimi: return china ? kimiChina : kimiGlobal
         case .qwen: return china ? qwenChina : qwenGlobal
         case .glm: return china ? glmChina : glmGlobal
-        case .ollama, .openai, .custom: return nil
+        case .hunyuan, .ollama, .openai, .custom: return nil
         }
     }
 

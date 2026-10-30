@@ -371,6 +371,7 @@ extension EnclaveSettings {
         if base.contains("moonshot.") { return "Kimi" }
         if base.contains("dashscope") { return L("通义千问", "Qwen", "Qwen") }
         if base.contains("bigmodel.cn") || base.contains("api.z.ai") { return L("智谱", "Zhipu", "Zhipu") }
+        if base.contains("tokenhub.tencentmaas.com") { return L("腾讯混元", "Tencent Hunyuan", "Tencent Hunyuan") }
         if base.contains("api.openai.com") { return "OpenAI" }
         if base.contains(":11434") { return "Ollama" }
         return URL(string: baseURL.trimmingCharacters(in: .whitespaces))?.host ?? baseURL
@@ -383,7 +384,14 @@ extension EnclaveSettings {
         if isKimi { return .kimi }
         if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
         if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
+        if baseURL.contains("tokenhub.tencentmaas.com") { return .hunyuan }
         return nil
+    }
+    /// 联网确认卡上写的模型名：服务商预设的模型写模型名，自己改过的写「自定义模型」。
+    var searchModelLabel: String {
+        let name = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let presets: Set<String> = ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed", "qwen-plus", "glm-5.3", "hy3"]
+        return presets.contains(name) ? name : L("自定义模型", "custom model", "カスタムモデル")
     }
     /// 识意问答联网用哪一家：问答走的接口能联网就有（三档里选了禁止也有，要联网时提示去开启）。
     var answerSearch: SearchProvider? { forAnswers.searchProvider }
@@ -425,13 +433,14 @@ enum WebSearchMode: String, Codable, CaseIterable, Identifiable {
 /// Kimi：键盘拿问题原文调 Kimi 的搜索接口（/tools/search），再带上资料问一次。
 /// 千问（enable_search + forced_search）、智谱（web_search 工具）：服务商自带联网，只带问题原文再问一次，搜索词由服务商根据问题生成。
 enum SearchProvider: String {
-    case kimi, qwen, glm
+    case kimi, qwen, glm, hunyuan
 
     var name: String {
         switch self {
         case .kimi: return "Kimi"
         case .qwen: return L("通义千问", "Qwen", "Qwen")
         case .glm: return L("智谱", "Zhipu GLM", "Zhipu GLM")
+        case .hunyuan: return L("腾讯混元", "Tencent Hunyuan", "Tencent Hunyuan")
         }
     }
 
@@ -441,6 +450,7 @@ enum SearchProvider: String {
         case .kimi: return "北京月之暗面科技有限公司"
         case .qwen: return "阿里云"
         case .glm: return "北京智谱华章科技股份有限公司"
+        case .hunyuan: return "深圳市腾讯计算机系统有限公司"
         }
     }
 

@@ -77,7 +77,7 @@ struct SettingsView: View {
                 Section {
                 } header: {
                     VStack(spacing: 12) {
-                        TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.version)", title: L("设置", "Settings", "設定"))
+                        TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
                         // 整张卡可点，不要列表行的箭头。
                         // 内测版没有试用和解锁：换成内置接口今天的用量。
                         if BuiltinAPI.isInternalBuild {
@@ -105,6 +105,16 @@ struct SettingsView: View {
                 }
                 // 键盘、拼音词库和常用词从首页进。
                 Section {
+                    // 再玩一次首次打开时的功能演示（模拟键盘、预设结果，不调用 API）。
+                    Button { router.setupGuide = .tourReplay } label: {
+                        HStack(spacing: 12) {
+                            DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
+                                    value: L("约 4 分钟", "About 4 min", "約 4 分"))
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     NavigationLink(value: AppRouter.SettingsPage.guide) {
                         // 测过并且失败时 AI 这一步不算完成，和设置向导页一致。
                         let left = Readiness.remainingSteps(apiConfigured: store.settings.isConfigured && store.lastTestOK != false)
@@ -138,7 +148,7 @@ struct SettingsView: View {
                                 value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
                     }
                     NavigationLink(value: AppRouter.SettingsPage.about) {
-                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.version)
+                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.devLabel ?? AboutView.version)
                     }
                 }
             }
@@ -168,7 +178,7 @@ struct SettingsView: View {
 
 /// 接口页（AP1–AP5）：顶上分段「改写 · 润色 | 问答」，两页各自一张状态卡；两页都有「我的预设」。
 /// 改写页：状态卡 → 我的预设 → 服务商（DeepSeek、Kimi、千问、Ollama）→ 连接（地址 / 模型 / Key / 生成参数）。
-/// 问答页：状态卡 →「和改写用同一个接口」→ 我的预设 → 服务商（千问、Kimi、智谱可联网，DeepSeek 不联网）→ 连接 → 联网调用。
+/// 问答页：状态卡 →「和改写用同一个接口」→ 我的预设 → 服务商（千问、Kimi、智谱、腾讯混元，都能联网）→ 连接 → 联网调用。
 struct ModelSettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -535,7 +545,7 @@ struct ModelSettingsView: View {
     private func webSearchFooter(_ provider: SearchProvider?) -> String {
         guard let provider else {
             let name = ProviderName.of(store.settings.forAnswers.baseURL)
-            return L("\(name) 不能联网，问答只用模型自己的知识。想联网，请选通义千问、Kimi 或智谱 GLM。", "\(name) can't search the web, so answers use only the model's own knowledge. To search, choose Qwen, Kimi or Zhipu GLM.", "\(name) はウェブ検索できないため、回答はモデル自身の知識だけを使います。検索するには Qwen・Kimi・Zhipu GLM を選んでください。")
+            return L("\(name) 不能联网，问答只用模型自己的知识。想联网，请选通义千问、Kimi、智谱 GLM 或腾讯混元。", "\(name) can't search the web, so answers use only the model's own knowledge. To search, choose Qwen, Kimi, Zhipu GLM or Tencent Hunyuan.", "\(name) はウェブ検索できないため、回答はモデル自身の知識だけを使います。検索するには Qwen・Kimi・Zhipu GLM・Tencent Hunyuan を選んでください。")
         }
         let lead = L("由模型自己判断这个问题要不要联网（问天气、新闻、价格这类才会搜）。", "The model decides whether a question needs the web (only things like weather, news or prices). ", "質問にウェブが必要かはモデルが判断します（天気・ニュース・価格などのときだけ検索）。")
         let mode: String

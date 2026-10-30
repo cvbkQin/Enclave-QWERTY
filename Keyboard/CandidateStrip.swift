@@ -21,6 +21,9 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     private var commonWords: Set<String> = []
     private let highlight = CALayer()
     private var highlighted: Int?
+    /// 第一个候选（按空格上屏的那个）垫一块按键白的浅色块，同原生：高 34、圆角 9、底部 1px 阴影（PY1）。
+    private let firstBlock = CALayer()
+    private var showsFirstBlock = false
     private static let font = UIFont.systemFont(ofSize: 20)
     private static let padding: CGFloat = 11
     private static let leading: CGFloat = 2
@@ -45,6 +48,13 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         highlight.cornerRadius = 6
         highlight.isHidden = true
         layer.insertSublayer(highlight, at: 0)
+        firstBlock.cornerRadius = 9
+        firstBlock.shadowOffset = CGSize(width: 0, height: 1)
+        firstBlock.shadowRadius = 0
+        firstBlock.shadowOpacity = 1
+        firstBlock.isHidden = true
+        firstBlock.actions = ["position": NSNull(), "bounds": NSNull(), "hidden": NSNull()]
+        layer.insertSublayer(firstBlock, at: 0)
         let press = UILongPressGestureRecognizer(target: self, action: #selector(longPress(_:)))
         press.minimumPressDuration = 0.45
         press.cancelsTouchesInView = false
@@ -82,7 +92,7 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     /// 换了一组候选：新的拼音从头显示，只是往后多取了候选就保持滚动位置。
-    func update(words newWords: [String], firstColor: UIColor, commonWords newCommon: Set<String>) {
+    func update(words newWords: [String], firstBlock block: Bool, commonWords newCommon: Set<String>) {
         let continued = !words.isEmpty && newWords.count > words.count && Array(newWords.prefix(words.count)) == words
         if newWords != words {
             words = newWords
@@ -107,7 +117,10 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
             if !continued { contentOffset = .zero }
             setNeedsLayout()
         }
-        self.firstColor = firstColor
+        if block != showsFirstBlock {
+            showsFirstBlock = block
+            placeFirstBlock()
+        }
         if newCommon != commonWords {
             commonWords = newCommon
             for index in 0..<min(filled, words.count) { placeDot(index) }
@@ -138,7 +151,6 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         }
     }
 
-    private var firstColor: UIColor = .label
     /// 前面这么多个候选已经填好了字。快打时每个键都换一组候选，一次只填看得见的（加上往后一屏），
     /// 后面的滑过去时再填：给 60 个词设字、排字是候选栏最慢的地方。
     private var filled = 0
@@ -146,8 +158,7 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     /// 没变就不设：设一次就要重画这个词。
     private func style(_ index: Int) {
         let label = labels[index]
-        let color = index == 0 ? firstColor : .label
-        if label.textColor != color { label.textColor = color }
+        if label.textColor != .label { label.textColor = .label }
         let alpha: CGFloat = index == pressed ? 0.45 : 1
         if label.alpha != alpha { label.alpha = alpha }
     }
@@ -188,6 +199,7 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
             }
             highlighted = nil
             highlight.isHidden = true
+            placeFirstBlock()
             contentSize = CGSize(width: x, height: bounds.height)
         }
         fill(upTo: contentOffset.x + bounds.width * 2)
@@ -195,6 +207,23 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
             // 这次没填到的（包括上一组多出来的）先藏起来，免得滑过去看到上一组的词。
             for label in labels.dropFirst(filled) where !label.isHidden { label.isHidden = true }
         }
+    }
+
+    private func placeFirstBlock() {
+        guard showsFirstBlock, let frame = frames.first, !words.isEmpty else {
+            firstBlock.isHidden = true
+            return
+        }
+        let height = min(34, bounds.height - 4)
+        firstBlock.frame = CGRect(x: frame.minX, y: (bounds.height - height) / 2, width: frame.width, height: height)
+        firstBlock.backgroundColor = UIColor(KeyStyle.charKey).resolvedColor(with: traitCollection).cgColor
+        firstBlock.shadowColor = UIColor(white: 0, alpha: traitCollection.userInterfaceStyle == .dark ? 0.35 : 0.18).cgColor
+        firstBlock.isHidden = false
+    }
+
+    override func traitCollectionDidChange(_ previous: UITraitCollection?) {
+        super.traitCollectionDidChange(previous)
+        placeFirstBlock()
     }
 
     /// 把右边到 maxX 为止的候选填上字。
@@ -295,15 +324,14 @@ struct CandidateStrip: UIViewRepresentable {
     }
 
     func updateUIView(_ view: CandidateStripView, context: Context) {
-        // 没在打拼音时显示联想：不标常用词；开了「空格连续联想」时第一个也变色，和打字时一样提示按空格上屏的是它。
+        // 没在打拼音时显示联想：不标常用词；开了「空格连续联想」时第一个也垫浅色块，和打字时一样提示按空格上屏的是它。
         guard model.isComposing else {
-            view.update(words: model.predictions, firstColor: Predictor.spaceChains && model.chineseMode ? UIColor(Brand.purpleText) : .label,
-                        commonWords: [])
+            view.update(words: model.predictions, firstBlock: Predictor.spaceChains && model.chineseMode, commonWords: [])
             view.setHighlighted(nil)
             return
         }
         let words = Array(model.candidates.prefix(60))
-        view.update(words: words, firstColor: UIColor(Brand.purpleText), commonWords: model.commonWordTexts)
+        view.update(words: words, firstBlock: true, commonWords: model.commonWordTexts)
         view.setHighlighted(model.candidateMenu?.index)
     }
 }

@@ -16,12 +16,13 @@ enum ProviderName {
 /// 所有地区都列 DeepSeek、Kimi、通义千问，加上跑在自己电脑上的 Ollama（0.86 起，原来只有中国大陆店面这样）；
 /// 没有「自定义」卡片，自己改了地址或模型就四个都不选中，算自定义。OpenAI 和自定义只留着认旧设置的地址。
 enum Provider: CaseIterable, Identifiable {
-    case deepseek, openai, kimi, qwen, glm, ollama, custom
+    case deepseek, openai, kimi, qwen, glm, hunyuan, ollama, custom
 
     /// 服务商卡片按这个顺序排，2×2。
     static let shown: [Provider] = [.deepseek, .kimi, .qwen, .ollama]
-    /// 问答页的服务商：前三家能联网（千问、Kimi、智谱），DeepSeek 不能联网。都是国内已备案的服务商。
-    static let answerShown: [Provider] = [.qwen, .kimi, .glm, .deepseek]
+    /// 问答页的服务商：四家都能联网（千问、Kimi、智谱、腾讯混元）。都是国内已备案的服务商。
+    /// DeepSeek 不能联网，0.93 起问答页不再列（cvbk）；已经填了 DeepSeek 的照样能用，只是四个都不选中。
+    static let answerShown: [Provider] = [.qwen, .kimi, .glm, .hunyuan]
     /// 引导里选服务商（TU0）：前四家有分步教程，Ollama、其他直接去接口页。
     static let guideShown: [Provider] = [.deepseek, .kimi, .qwen, .glm, .ollama, .custom]
 
@@ -54,6 +55,7 @@ enum Provider: CaseIterable, Identifiable {
         case .kimi: return "Kimi"
         case .qwen: return L("通义千问", "Qwen", "Qwen")
         case .glm: return L("智谱 GLM", "Zhipu GLM", "Zhipu GLM")
+        case .hunyuan: return L("腾讯混元", "Tencent Hunyuan", "Tencent Hunyuan")
         case .ollama: return "Ollama"
         case .custom: return L("自定义", "Custom", "カスタム")
         }
@@ -67,6 +69,7 @@ enum Provider: CaseIterable, Identifiable {
         case .kimi: return L("月之暗面开放平台", "Moonshot AI platform", "Moonshot AI プラットフォーム")
         case .qwen: return L("阿里云百炼", "Alibaba Cloud Model Studio", "Alibaba Cloud Model Studio")
         case .glm: return L("智谱开放平台", "Z.ai platform", "Z.ai プラットフォーム")
+        case .hunyuan: return L("腾讯云 TokenHub", "Tencent Cloud TokenHub", "Tencent Cloud TokenHub")
         case .ollama: return L("自己电脑上", "Your own computer", "自分のパソコン")
         case .custom: return "vLLM、LM Studio"
         }
@@ -83,6 +86,8 @@ enum Provider: CaseIterable, Identifiable {
     /// 智谱：国内开放平台（open.bigmodel.cn）和国际站 Z.ai。
     static let glmChina = "https://open.bigmodel.cn/api/paas/v4"
     static let glmGlobal = "https://api.z.ai/api/paas/v4"
+    /// 腾讯混元：腾讯云 TokenHub 的 OpenAI 兼容接口，只有一个站。
+    static let hunyuanURL = "https://tokenhub.tencentmaas.com/v1"
 
     var preset: (baseURL: String, model: String)? {
         switch self {
@@ -91,6 +96,7 @@ enum Provider: CaseIterable, Identifiable {
         case .kimi: return (Storefront.isMainlandChina ? Self.kimiChina : Self.kimiGlobal, "kimi-k3.1-pro-highspeed")
         case .qwen: return (Storefront.isMainlandChina ? Self.qwenChina : Self.qwenGlobal, "qwen-plus")
         case .glm: return (Storefront.isMainlandChina ? Self.glmChina : Self.glmGlobal, "glm-5.3")
+        case .hunyuan: return (Self.hunyuanURL, "hy3")
         case .ollama: return ("http://192.168.1.100:11434/v1", "qwen2.5:7b")
         case .custom: return nil
         }
@@ -102,8 +108,8 @@ enum Provider: CaseIterable, Identifiable {
         return self == .kimi ? (preset.baseURL, Self.kimiAnswerModel) : preset
     }
 
-    /// 问答能联网（千问、Kimi、智谱）。
-    var canSearch: Bool { self == .kimi || self == .qwen || self == .glm }
+    /// 问答能联网（千问、Kimi、智谱、腾讯混元）。
+    var canSearch: Bool { self == .kimi || self == .qwen || self == .glm || self == .hunyuan }
 
     /// 选这个服务商时最大输出填多少（Kimi K3、智谱会先思考，思考也算在里面）。
     var maxTokens: Int { self == .kimi || self == .glm ? 4096 : EnclaveSettings().maxTokens }
@@ -114,6 +120,7 @@ enum Provider: CaseIterable, Identifiable {
         if baseURL.contains("api.moonshot.cn") || baseURL.contains("api.moonshot.ai") { return .kimi }
         if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
         if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
+        if baseURL.contains("tokenhub.tencentmaas.com") { return .hunyuan }
         if baseURL.contains(":11434") { return .ollama }
         return .custom
     }

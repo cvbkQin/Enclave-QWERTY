@@ -7,6 +7,10 @@ final class RimeEngine: InputEngine {
 
     private(set) var composition = ""
     private(set) var candidates: [String] = []
+    private(set) var selections: [InputSelection] = []
+    /// 分段选词后接着整句的剩下部分（见 select），排在候选第一个；Rime 自己的候选从 candidates[hintOffset] 开始。
+    private var remainder: String?
+    private var hintOffset: Int { remainder == nil ? 0 : 1 }
     private var session: UInt64 = 0
     private var loadedVersion: String?
     private var schema = RimeStore.schemaID
@@ -118,6 +122,7 @@ final class RimeEngine: InputEngine {
     }
 
     func input(_ letter: String) -> String? {
+        remainder = nil
         guard ensureSession() else { return letter }
         var handled = false
         for scalar in letter.unicodeScalars {
@@ -131,20 +136,58 @@ final class RimeEngine: InputEngine {
 
     func backspace() -> Bool {
         guard isComposing, session != 0 else { return false }
+        remainder = nil
+        // 分段选过词时，Rime 的删除先把最后选的词退回成拼音。
         enclave_rime_process_key(session, Self.backspaceKey, 0)
         _ = refresh()
         return true
     }
 
+    /// 选了首选整句的开头一段（「天道酬勤」里选「天道」）时，Rime 会把剩下的输入当成新的一段重新组词，和前文无关；
+    /// 这时把整句剩下的「酬勤」放在候选第一个，选它就照原来的整句上屏。
     func select(_ index: Int) -> String? {
         guard session != 0, index >= 0 else { return nil }
-        enclave_rime_select_candidate(session, index)
-        return refresh()
+        if remainder != nil && index == 0 { return selectRemainder() }
+        let top = candidates.first
+        let chosen = candidates.indices.contains(index) ? candidates[index] : nil
+        let rimeIndex = index - hintOffset
+        remainder = nil
+        enclave_rime_select_candidate(session, rimeIndex)
+        let commit = refresh()
+        if commit == nil, !composition.isEmpty, let top, let chosen, !chosen.isEmpty, top.count > chosen.count, top.hasPrefix(chosen) {
+            let rest = String(top.dropFirst(chosen.count))
+            if candidates.first != rest {
+                remainder = rest
+                candidates.insert(rest, at: 0)
+            }
+        }
+        return commit
+    }
+
+    /// 选「整句剩下的部分」：在 Rime 的候选里一段段选出同样的字（先挑最长的），学词、上屏都照常走 Rime。
+    /// 中途找不到对应的字就停下，已经选到的留着，剩下的照常显示候选。
+    private func selectRemainder() -> String? {
+        guard var rest = remainder else { return nil }
+        remainder = nil
+        _ = refresh()
+        var commit = ""
+        while !rest.isEmpty && !composition.isEmpty {
+            loadMoreCandidates()
+            let match = candidates.enumerated()
+                .filter { !$0.element.isEmpty && rest.hasPrefix($0.element) }
+                .max { $0.element.count < $1.element.count }
+            guard let match else { break }
+            enclave_rime_select_candidate(session, match.offset)
+            if let text = refresh() { commit += text }
+            rest.removeFirst(match.element.count)
+        }
+        return commit.isEmpty ? nil : commit
     }
 
     func deleteCandidate(_ index: Int) -> Bool {
-        guard session != 0, index >= 0 else { return false }
-        let deleted = enclave_rime_delete_candidate(session, index)
+        guard session != 0, index >= hintOffset else { return false }
+        let deleted = enclave_rime_delete_candidate(session, index - hintOffset)
+        remainder = nil
         _ = refresh()
         return deleted
     }
@@ -156,6 +199,7 @@ final class RimeEngine: InputEngine {
             ? composition.filter { $0 != " " && $0 != "'" }
             : takeString(enclave_rime_get_input(session))
         enclave_rime_clear(session)
+        remainder = nil
         _ = refresh()
         return raw
     }
@@ -165,13 +209,22 @@ final class RimeEngine: InputEngine {
         return takeString(enclave_rime_get_input(session)) ?? ""
     }
 
-    func replaceInput(_ raw: String) {
+    func replaceInput(_ raw: String, keeping kept: [InputSelection]) {
         guard session != 0 else { return }
+        remainder = nil
         enclave_rime_clear(session)
         for scalar in raw.unicodeScalars {
             enclave_rime_process_key(session, Int32(scalar.value), 0)
         }
         _ = refresh()
+        // 把分段选过的词按原来的位置再选一遍：同样的字、选完停在原来的位置（后面多了分词符也算）。
+        for selection in kept {
+            loadMoreCandidates()
+            guard let index = candidates.firstIndex(of: selection.text) else { break }
+            enclave_rime_select_candidate(session, index)
+            _ = refresh()
+            guard let last = selections.last, last.text == selection.text, last.end >= selection.end else { break }
+        }
     }
 
     /// 键盘收起时关掉会话：用户词库（LevelDB 的 *.userdb）在 App Group 里，开着就一直锁着 LOCK 文件，
@@ -184,12 +237,16 @@ final class RimeEngine: InputEngine {
         }
         composition = ""
         candidates = []
+        selections = []
+        remainder = nil
     }
 
     func reset() {
         if session != 0 { enclave_rime_clear(session) }
         composition = ""
         candidates = []
+        selections = []
+        remainder = nil
     }
 
     /// 读出上屏文字、拼写和候选词。
@@ -197,14 +254,26 @@ final class RimeEngine: InputEngine {
         let commit = takeString(enclave_rime_get_commit(session))
         composition = takeString(enclave_rime_get_preedit(session)) ?? ""
         candidates = composition.isEmpty ? [] : fetchCandidates(from: 0, limit: Self.firstPage)
+        selections = composition.isEmpty ? [] : readSelections()
+        if let remainder { candidates.insert(remainder, at: 0) }
         return commit
+    }
+
+    /// 九宫格方案的 enclave_t9_state.lua 写的：每行「结束位置<Tab>文字」。全键盘方案没有，是空的。
+    private func readSelections() -> [InputSelection] {
+        guard let value = takeString(enclave_rime_get_property(session, "enclave_selected")) else { return [] }
+        return value.split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: "\t", maxSplits: 1)
+            guard parts.count == 2, let end = Int(parts[0]) else { return nil }
+            return InputSelection(end: end, text: String(parts[1]))
+        }
     }
 
     /// 候选栏滑到头、展开整页时调用：在已经取到的后面接着取，一共到 candidateLimit 个。
     func loadMoreCandidates() {
-        guard session != 0, !composition.isEmpty, candidates.count >= Self.firstPage,
-              candidates.count < Self.candidateLimit else { return }
-        candidates += fetchCandidates(from: candidates.count, limit: Self.candidateLimit - candidates.count)
+        let loaded = candidates.count - hintOffset
+        guard session != 0, !composition.isEmpty, loaded >= Self.firstPage, loaded < Self.candidateLimit else { return }
+        candidates += fetchCandidates(from: loaded, limit: Self.candidateLimit - loaded)
     }
 
     private func fetchCandidates(from start: Int, limit: Int) -> [String] {

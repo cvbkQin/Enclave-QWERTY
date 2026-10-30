@@ -217,30 +217,39 @@ struct QuickWordsPanel: View {
     }
 }
 
-/// 九宫格打拼音时左列的音节栏，和系统一样上下滑动，点一个定下这一段的拼音。
-struct PinyinColumn: View {
+/// 候选栏上面的拼音行（照 iOS 原生，PY1、PY7）。九宫格只列第一个还没定的字的读法，后面跟这个键的单个字母，
+/// 点一项定下这个字的音；全键盘列正在拼的拼音的几种切法，点一个换切法。不加底色、不预选；放不下就左右滑，右边渐隐。
+struct PinyinRow: View {
     @ObservedObject var model: KeyboardModel
-    let frame: CGRect
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                ForEach(model.pinyinOptions, id: \.self) { syllable in
-                    Button { model.choosePinyin(syllable) } label: {
-                        Text(syllable).font(.system(size: 17)).foregroundStyle(Color.primary)
-                            .frame(maxWidth: .infinity, minHeight: KeyboardMetrics.pinyinCellHeight).contentShape(Rectangle())
+        let nine = model.showsNineKey
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(nine ? model.pinyinOptions : model.pinyinSegmentations, id: \.self) { syllable in
+                    Button { nine ? model.choosePinyin(syllable) : model.chooseSegmentation(syllable) } label: {
+                        Text(syllable).font(.system(size: 16)).foregroundStyle(Color.primary)
+                            .padding(.horizontal, 12)
+                            .frame(maxHeight: .infinity)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(KeyPressStyle())
                 }
             }
+            .padding(.leading, 4)
+            .padding(.trailing, 36)
         }
         .hidingScrollEdgeEffect()
-        .background(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous).fill(KeyStyle.charKey))
-        .clipShape(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous))
-        .padding(.horizontal, KeyboardMetrics.nineKeyInsetX)
-        .padding(.vertical, KeyboardMetrics.nineKeyInsetY)
-        .frame(width: frame.width, height: frame.height)
-        .offset(x: frame.minX, y: frame.minY)
+        .mask(HStack(spacing: 0) {
+            Color.black
+            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 36)
+        })
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
+                ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+                : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) }))
+                .frame(height: 1)
+        }
     }
 }
 

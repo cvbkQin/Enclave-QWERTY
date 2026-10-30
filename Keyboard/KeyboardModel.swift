@@ -152,6 +152,8 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var unseenResult = false
     var showsNewResult: Bool { unseenResult && !aiExpanded && hasResult }
     @Published var composition = ""
+    /// 打拼音时候选栏上面的拼音行有内容（PY7）。这一行一直占位，键盘高度不变。
+    @Published var pinyinRowShown = false
     @Published var candidates: [String] = []
     /// 联想：上屏后候选栏接着显示的下一个词，按别的键就收起。
     @Published var predictions: [String] = []
@@ -177,6 +179,8 @@ final class KeyboardModel: ObservableObject {
     /// 删了候选后候选栏换成「✓ 已删除「xx」 撤销」（CL4），3 秒后或继续打字时真的删。
     @Published var candidateUndo: CandidateUndo?
     var candidateUndoTimer: DispatchWorkItem?
+    /// 九宫格选过的拼音、分段选过的词，按先后排；退格先撤回最后一步（见 undoLastChoice）。
+    var choiceSteps: [ChoiceStep] = []
     /// 盖在按键区上的面板：表情、颜文字、常用词。
     @Published var keysPanel: KeysPanel? {
         didSet {

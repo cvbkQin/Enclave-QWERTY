@@ -33,8 +33,10 @@ final class KeyTouchView: UIView {
     /// 触控板每移一个字要划的距离：慢划和快划。
     private static let trackpadSlowStep: CGFloat = 10
     private static let trackpadFastStep: CGFloat = 4
-    /// 九宫格按住划出多远算方向划。
-    private static let flickDistance: CGFloat = 16
+    /// 九宫格按住划出多远算方向划：至少 24pt，键宽的四成（竖屏约 30pt）。
+    /// 原来固定 16pt，打得快时手指往下一个键带一下就超过，打出的是划出来的字母而不是数字。
+    private static let flickMinDistance: CGFloat = 24
+    private static let flickWidthRatio: CGFloat = 0.4
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -164,7 +166,8 @@ final class KeyTouchView: UIView {
             }
             // 九宫格和原生一样：按住直接往上下左右划，不用等长按，十字马上出来并选中那个方向。
             if !state.fired, state.key.kind.flicks(composing: model.isComposing),
-               hypot(point.x - state.start.x, point.y - state.start.y) > Self.flickDistance,
+               hypot(point.x - state.start.x, point.y - state.start.y)
+                > max(Self.flickMinDistance, state.key.frame.width * Self.flickWidthRatio),
                model.showAlternates(for: state.key, containerWidth: bounds.width, origin: state.start) {
                 state.timer?.invalidate()
                 state.alternates = true

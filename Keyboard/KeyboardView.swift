@@ -62,6 +62,12 @@ struct KeyboardView: View {
                     .padding(.horizontal, inset)
                     .padding(.top, KeyboardMetrics.panelTop)
             }
+            // 拼音行一直占位，平时空着；打字时出拼音和细线，键盘高度不变（PY7）。
+            ZStack {
+                if model.pinyinRowShown { PinyinRow(model: model) }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: KeyboardMetrics.pinyinRowHeight)
             ZStack {
                 // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
                 candidateBar
@@ -98,11 +104,14 @@ struct KeyboardView: View {
                         Color.black.opacity(0.001).onTapGesture { model.dismissCandidateMenu() }
                     }
                 }
+                // 长按弹出的十字 / 备选 / 布局菜单会伸到上面一排：这时按键区整块盖在 AI 栏和回答卡上面，不被 ✨、风格键压住。
+                .zIndex(model.cross != nil || model.alternates != nil || model.layoutMenu != nil ? 4 : 0)
         }
         // 横屏两边各留 48 给刘海 / 灵动岛。
         .padding(.horizontal, model.landscape ? KeyboardMetrics.landscapeSideMargin : 0)
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .background(boardBackground)
         // 使用指引「一键应用」后的小手指，画在键盘里面。
         .coachHandOverlay(model)
         // 键盘里拉不起 App 时（有的系统版本、有的 App 里不让）：请人自己打开。
@@ -127,6 +136,26 @@ struct KeyboardView: View {
             if !edges.isEmpty, edges != chipEdges { chipEdges = edges }
         }
         .clipped()
+    }
+
+    /// 键盘底色。拼音行在最上面时，这一截（连同系统多给的高度）从上往下由透明渐变到不透明，
+    /// 接上系统键盘顶上那截液态玻璃，不留硬边；拼音行以下全是不透明底色，盖住 Chrome 切回时系统按键的残影（GL1）。
+    /// 回答卡、风格一排、提示卡在最上面时整块不透明。
+    private var boardBackground: some View {
+        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder
+        return VStack(spacing: 0) {
+            LinearGradient(stops: [
+                .init(color: Brand.keyboardBack.opacity(0), location: 0),
+                .init(color: Brand.keyboardBack.opacity(0.28), location: 0.30),
+                .init(color: Brand.keyboardBack.opacity(0.72), location: 0.65),
+                .init(color: Brand.keyboardBack, location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+            .opacity(fades ? 1 : 0)
+            .background(fades ? Color.clear : Brand.keyboardBack)
+            Brand.keyboardBack
+                .frame(height: max(0, model.keyboardHeight - (fades ? KeyboardMetrics.pinyinRowHeight : model.keyboardHeight)))
+        }
+        .ignoresSafeArea()
     }
 
     /// 两颗风格键中线在键盘里的位置，尖角按它对齐。
@@ -164,7 +193,7 @@ struct KeyboardView: View {
                     .minimumScaleFactor(0.7)
                     .foregroundStyle(.white)
                     .frame(width: 104, height: KeyboardMetrics.chipHeight)
-                    .background(Capsule().fill(LinearGradient(colors: Brand.gradient, startPoint: .leading, endPoint: .trailing)))
+                    .background(Capsule().fill(LinearGradient(colors: Brand.insertGradient, startPoint: .leading, endPoint: .trailing)))
             }
             .buttonStyle(KeyPressStyle())
         }
@@ -308,7 +337,10 @@ struct KeyboardView: View {
             Button {
                 if predicting { model.dismissPredictions() } else { model.candidatesExpanded.toggle() }
             } label: {
-                Image(systemName: predicting ? "xmark" : (model.candidatesExpanded ? "chevron.up" : "chevron.down"))
+                // 展开、收起是同一个箭头转半圈，不换图。
+                Image(systemName: predicting ? "xmark" : "chevron.down")
+                    .rotationEffect(.degrees(!predicting && model.candidatesExpanded ? 180 : 0))
+                    .animation(.easeInOut(duration: 0.2), value: model.candidatesExpanded)
                     // 联想时的关闭键小一号、灰色：联想只是建议，关闭键不和字抢眼（UI 稿 KP1）。
                     .font(.system(size: predicting ? 15 : 17, weight: predicting ? .medium : .regular))
                     .foregroundStyle(predicting ? Color.secondary : Color.primary)
@@ -714,7 +746,7 @@ struct PolishButton: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: timer)
                 }
                 let dy = value.translation.height
-                // 和九宫格按住划（KeyTouchView.flickDistance）一样：手指离开按下点超过 16pt 立刻弹出并选中那一个，不用先等。
+                // 手指离开按下点超过 16pt 立刻弹出并选中那一个，不用先等。
                 if !holding, canHold, hypot(value.translation.width, dy) > Self.flickDistance {
                     holdTimer?.cancel()
                     holdTimer = nil
@@ -1543,7 +1575,8 @@ struct ResultCard: View {
             accept = L("允许", "Allow", "許可")
         } else {
             title = L("要联网搜索吗？", "Search the web?", "ウェブで検索しますか？")
-            detail = L("发给 \(name) 搜索 · 约 ¥0.01", "Sends to \(name) search", "\(name) の検索に送信")
+            let modelName = model.settings.forAnswers.searchModelLabel
+            detail = L("调用 \(modelName) 联网搜索 · 约 ¥0.01", "Searches with \(modelName)", "\(modelName) でウェブ検索")
             decline = L("拒绝", "Don't allow", "許可しない")
             accept = L("允许", "Allow", "許可")
         }
@@ -1586,7 +1619,7 @@ struct ResultCard: View {
                     .padding(.horizontal, 11)
                     .frame(height: 32)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
+                        .fill(LinearGradient(colors: Brand.insertGradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
             }
             .buttonStyle(.plain)
         }
@@ -1963,7 +1996,7 @@ struct ResultCard: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 12)
                                 .frame(height: 24)
-                                .background(Capsule().fill(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
+                                .background(Capsule().fill(LinearGradient(colors: Brand.insertGradient, startPoint: .topLeading, endPoint: .bottomTrailing)))
                         }
                         .buttonStyle(KeyPressStyle())
                     }
@@ -1989,7 +2022,7 @@ struct ResultCard: View {
                 .padding(.horizontal, 11)
                 .frame(height: 32)
                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(primary ? AnyShapeStyle(LinearGradient(colors: Brand.gradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(primary ? AnyShapeStyle(LinearGradient(colors: Brand.insertGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
                           : AnyShapeStyle(Brand.searchDeclineFill)))
         }
         .buttonStyle(.plain)

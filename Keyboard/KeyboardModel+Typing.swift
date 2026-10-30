@@ -75,6 +75,7 @@ extension KeyboardModel {
     }
 
     func deleteKey() {
+        if undoLastChoice() { return }
         if engine.backspace() {
             syncEngine()
             return
@@ -130,10 +131,12 @@ extension KeyboardModel {
     func selectCandidate(_ index: Int) {
         // 选了候选：前面打的拼音键都没按错，算进手指习惯。
         TouchCalibration.confirm()
+        let before = choiceState
         let text = engine.select(index)
         if let text { commit(text) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
+        recordChoice(from: before)
         if let text, !isComposing, chineseMode { showPredictions(after: text) }
     }
 
@@ -225,8 +228,9 @@ extension KeyboardModel {
         keyFeedback(for: .space)
         applyEngineResults(wait: true)
         guard engine.rawInput == undo.raw, let index = engine.candidates.firstIndex(of: undo.word) else { return }
+        let kept = engine.selections
         _ = engine.select(index)
-        engine.replaceInput(undo.raw)
+        engine.replaceInput(undo.raw, keeping: kept)
         syncEngine()
     }
 
@@ -241,8 +245,9 @@ extension KeyboardModel {
     private func refreshCandidatesAfterPhraseChange() {
         applyEngineResults(wait: true)
         let raw = engine.rawInput
+        let kept = engine.selections
         reloadCommonWords()
-        if !raw.isEmpty { engine.replaceInput(raw) }
+        if !raw.isEmpty { engine.replaceInput(raw, keeping: kept) }
         syncEngine()
     }
 
@@ -317,13 +322,18 @@ extension KeyboardModel {
         case .space: spaceKey()
         case .returnKey: returnKey()
         case .toggleChinese: toggleChinese()
-        case .layer(let layer): switchLayer(layer)
+        // 打字时左列 123 / #@¥ 还在：先把拼音原样上屏（同「确认」），再切过去。
+        case .layer(let layer):
+            if isComposing { returnKey() }
+            switchLayer(layer)
         case .digitPunct: typeSymbol(".")
         case .digitsMore: digitsMore.toggle()
         case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
-        // 「常用」只在没打拼音时露出来；万一打字时触发，不打开，免得丢掉没上屏的拼音。
-        case .quickWords: if !isComposing { openPanel(.quickWords) }
+        // 「常用」打字时也在：先把拼音原样上屏，再打开。
+        case .quickWords:
+            if isComposing { returnKey() }
+            openPanel(.quickWords)
         case .globe: break
         }
     }
@@ -529,29 +539,139 @@ extension KeyboardModel {
 
     // MARK: - 选拼音
 
-    /// 九宫格原始输入拆成两段：最后一个字母为止是已经选定的拼音，后面是还没定的数字（可能带分词符）。
-    private var pinyinSplit: (fixed: String, rest: Substring) {
+    /// 九宫格原始输入拆成三段：分段选过词的部分（原样留着），之后到最后一个字母为止是已经选定的拼音，
+    /// 后面是还没定的数字（可能带分词符）。拼音栏接着选的是最后一段。原始输入只有数字、字母和分词符，一个字符一个字节。
+    private var pinyinSplit: (selected: String, fixed: String, rest: Substring) {
         let raw = engine.rawInput
-        guard let lastLetter = raw.lastIndex(where: \.isLetter) else { return ("", Substring(raw)) }
-        let rest = raw[raw.index(after: lastLetter)...].drop { $0 == "'" }
-        return (String(raw[...lastLetter]), rest)
+        let end = min(engine.selections.last?.end ?? 0, raw.count)
+        let open = raw.dropFirst(end).drop { $0 == "'" }
+        let selected = String(raw.prefix(end))
+        guard let lastLetter = open.lastIndex(where: \.isLetter) else { return (selected, "", open) }
+        let rest = open[open.index(after: lastLetter)...].drop { $0 == "'" }
+        return (selected, String(open[...lastLetter]), rest)
     }
 
-    /// 第一段没定的数字可以拼成的音节，长的在前；最后是这个数字键上的单个字母。
+    /// 第一个还没定的字的读法，长的在前；最后是这个数字键上的单个字母。首选候选的读法排第一（94664 的「中」：zhong 在 xiong 前面）。
     var pinyinOptions: [String] {
         guard showsNineKey, isComposing else { return [] }
-        return PinyinSyllables.options(forDigits: String(pinyinSplit.rest.prefix(while: \.isNumber)))
+        let split = pinyinSplit
+        var options = PinyinSyllables.options(forDigits: String(split.rest.prefix(while: \.isNumber)))
+        if let top = firstOpenSyllable(fixed: split.fixed), let index = options.firstIndex(of: top), index > 0 {
+            options.insert(options.remove(at: index), at: 0)
+        }
+        return options
     }
 
-    /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼。
+    /// 全键盘：正在拼的拼音有几种切法时并列（xi'an、xian），现在这种在前；只有一种就只显示这一种。
+    /// 分段选过词（拼写栏开头是汉字）时不列，免得重输把选过的词冲掉。
+    var pinyinSegmentations: [String] {
+        guard !showsNineKey, isComposing, composition.allSatisfy(\.isASCII) else { return [] }
+        let letters = engine.rawInput.filter(\.isLetter).lowercased()
+        let current = composition.split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'").lowercased()
+        guard !letters.isEmpty, letters.count <= 16 else { return current.isEmpty ? [] : [current] }
+        var options = PinyinSyllables.segmentations(letters)
+        guard !options.isEmpty else { return current.isEmpty ? [] : [current] }
+        if let index = options.firstIndex(of: current) { options.insert(options.remove(at: index), at: 0) }
+        return options
+    }
+
+    /// 全键盘点了一种切法：按这种切法重输。
+    func chooseSegmentation(_ segmentation: String) {
+        applyEngineResults(wait: true)
+        engine.replaceInput(segmentation, keeping: [])
+        syncEngine()
+    }
+
+    /// 首选候选在第一个没定的字上的读法：拼写栏是首选的拼音（「你好ma」「mi hao」），去掉前面选过的词和已经定下的音节。
+    private func firstOpenSyllable(fixed: String) -> String? {
+        let spelling = composition.drop { !$0.isASCII }
+        let syllables = spelling.split(whereSeparator: { $0 == " " || $0 == "'" })
+        let fixedCount = fixed.isEmpty ? 0 : fixed.split(separator: "'").count
+        guard syllables.count > fixedCount else { return nil }
+        let syllable = String(syllables[fixedCount])
+        return syllable.allSatisfy(\.isLetter) ? syllable.lowercased() : nil
+    }
+
+    /// 分段选过、还没上屏的词（拼音栏顶上显示）。
+    var selectedWords: String {
+        guard showsNineKey, isComposing else { return "" }
+        return engine.selections.map(\.text).joined()
+    }
+
+    /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼；分段选过的词重输后选回来。
     func choosePinyin(_ syllable: String) {
         // 拼音栏按的是已经算完的输入，后面还排着的数字先算完再拆。
         applyEngineResults(wait: true)
-        let (fixed, rest) = pinyinSplit
-        var raw = fixed.isEmpty ? syllable : fixed + "'" + syllable
+        let kept = engine.selections
+        let (selected, fixed, rest) = pinyinSplit
+        var open = fixed.isEmpty ? syllable : fixed + "'" + syllable
         let remaining = rest.dropFirst(syllable.count)
-        if !remaining.isEmpty { raw += (remaining.hasPrefix("'") ? "" : "'") + remaining }
-        engine.replaceInput(raw)
+        if !remaining.isEmpty { open += (remaining.hasPrefix("'") ? "" : "'") + remaining }
+        let raw = selected.isEmpty || selected.hasSuffix("'") ? selected + open : selected + "'" + open
+        let before = choiceState
+        engine.replaceInput(raw, keeping: kept)
+        syncEngine()
+        recordChoice(from: before)
+    }
+
+    // MARK: - 退格撤回上一步
+
+    /// 九宫格组字时的一个状态：原始输入和分段选过的词。
+    struct ChoiceState: Equatable {
+        var raw: String
+        var selections: [InputSelection]
+    }
+
+    /// 选了一次拼音或分段选了一个词：选之前、选之后的状态。
+    struct ChoiceStep {
+        var before: ChoiceState
+        var after: ChoiceState
+    }
+
+    /// 九宫格组字时现在的状态；不是九宫格或没在组字时为 nil。
+    private var choiceState: ChoiceState? {
+        guard showsNineKey, isComposing else { return nil }
+        applyEngineResults(wait: true)
+        return ChoiceState(raw: engine.rawInput, selections: engine.selections)
+    }
+
+    /// 选完还在组字（选的是拼音或词的一段）就记一步；上屏了就清空。
+    private func recordChoice(from before: ChoiceState?) {
+        guard let before, let after = choiceState, after != before else {
+            if !isComposing { choiceSteps = [] }
+            return
+        }
+        choiceSteps.append(ChoiceStep(before: before, after: after))
+    }
+
+    /// 退格和别的输入法一样分情况：刚选了词就取消这个词，刚选了拼音就退回数字，之后又打了键就先删键。
+    /// 状态正好停在最后一步选完的样子才撤回；之后打了键，先照常删键，删回那个样子再撤回。
+    /// Rime 自己的退格在分段选词后又打过键时会直接删掉前面的数字，不会取消选词，所以撤回由这里按记下的状态重输。
+    private func undoLastChoice() -> Bool {
+        // 还有键排着没算完：最后一步是打键，照常删键。
+        guard QueuedEngine.shared.pending == 0 else { return false }
+        guard let current = choiceState else {
+            choiceSteps = []
+            return false
+        }
+        // 已经删到这一步之前（或者 Rime 自己取消了选词）的步子不用再撤。
+        while let last = choiceSteps.last,
+              !(current.raw.hasPrefix(last.after.raw) && current.selections.starts(with: last.after.selections)) {
+            choiceSteps.removeLast()
+        }
+        guard let last = choiceSteps.last, last.after == current else { return false }
+        choiceSteps.removeLast()
+        engine.replaceInput(last.before.raw, keeping: last.before.selections)
+        syncEngine()
+        return true
+    }
+
+    /// 拼音栏顶上点已选的词：取消最后选的那个词（选过的拼音留着）。
+    func unselectLastWord() {
+        applyEngineResults(wait: true)
+        let selections = engine.selections
+        guard !selections.isEmpty else { return }
+        engine.replaceInput(engine.rawInput, keeping: Array(selections.dropLast()))
         syncEngine()
     }
 
@@ -778,8 +898,17 @@ extension KeyboardModel {
     func commit(_ text: String) {
         switch target {
         case .host:
-            clearMarkedText()
-            editProxy?.insertText(text)
+            // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
+            // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下（「hao de好的」）；
+            // 非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
+            if hasMarkedText, !text.isEmpty {
+                editProxy?.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
+                editProxy?.unmarkText()
+                hasMarkedText = false
+            } else {
+                clearMarkedText()
+                editProxy?.insertText(text)
+            }
             updateAutoShift()
         case .instruction:
             insertInInstruction(text)
@@ -789,9 +918,12 @@ extension KeyboardModel {
     }
 
     func syncEngine() {
+        if !isComposing && !choiceSteps.isEmpty { choiceSteps = [] }
         // 没变的不设：@Published 设一次就让整个键盘重画一遍。
         let newComposition = engine.composition
         if newComposition != composition { composition = newComposition }
+        let row = layer == .letters && !composition.isEmpty
+        if row != pinyinRowShown { pinyinRowShown = row }
         let newCandidates = engine.candidates
         if newCandidates != candidates { candidates = newCandidates }
         if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }

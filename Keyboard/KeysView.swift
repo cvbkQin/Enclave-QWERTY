@@ -20,6 +20,7 @@ struct KeysView: View {
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
                 } else if model.candidatesExpanded {
+                    // 九宫格的拼音行在候选栏上面，展开时也留着；整页候选铺满按键区。
                     CandidateGrid(model: model)
                         .frame(width: geo.size.width, height: geo.size.height)
                 } else {
@@ -30,9 +31,6 @@ struct KeysView: View {
                     }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)
-                    if let column = layout.pinyinColumn {
-                        PinyinColumn(model: model, frame: column)
-                    }
                     if let column = layout.operatorColumn {
                         OperatorColumn(model: model, frame: column)
                     }
@@ -509,45 +507,113 @@ struct PopupShape: Shape {
 }
 
 /// 候选词展开后铺满按键区，和系统键盘一样可以上下滑着挑。
+/// 每格最小 64pt；长词按字数占两三格甚至整行，不截断成省略号（排法见 CandidateRows）。
 struct CandidateGrid: View {
     @ObservedObject var model: KeyboardModel
+    /// 左边让给九宫格拼音栏的宽度。
+    var leading: CGFloat = 0
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 0)], spacing: 0) {
-                    ForEach(Array(model.candidates.enumerated()), id: \.offset) { index, word in
-                        Button { model.selectCandidate(index) } label: {
-                            Text(word)
-                                .font(.system(size: 20))
-                                .foregroundStyle(Color.primary)
-                                .lineLimit(1)
-                                .padding(.horizontal, 6)
-                                .frame(maxWidth: .infinity, minHeight: 46)
-                                .contentShape(Rectangle())
+            GeometryReader { geo in
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(CandidateRows.rows(model.candidates, width: geo.size.width)) { row in
+                            HStack(spacing: 0) {
+                                ForEach(row.cells, id: \.index) { cell in
+                                    Button { model.selectCandidate(cell.index) } label: {
+                                        Text(cell.word)
+                                            .font(.system(size: CandidateRows.fontSize))
+                                            .foregroundStyle(Color.primary)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.5)
+                                            .padding(.horizontal, CandidateRows.padding)
+                                            .frame(width: cell.width)
+                                            .frame(minHeight: 46)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(KeyPressStyle())
+                                }
+                                Spacer(minLength: 0)
+                            }
                         }
-                        .buttonStyle(KeyPressStyle())
                     }
                 }
             }
+            .padding(.leading, leading)
             .frame(maxWidth: .infinity)
             .hidingScrollEdgeEffect()
-            // 平时只取了第一屏候选，展开整页时补全。
+            // 平时只取了第一屏候选，展开整页时补全；展开着选拼音、分段选词后候选换了，也再补全。
             .onAppear { model.loadMoreCandidates() }
+            .onChange(of: model.composition) { _ in model.loadMoreCandidates() }
+            // 收起用候选栏右边的箭头；这里只放退格和重输，上下平分整列。
             VStack(spacing: 0) {
-                FunctionKey(systemImage: "chevron.up") { model.candidatesExpanded = false }
-                    .frame(height: KeyboardMetrics.slotHeight)
                 RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                    .frame(height: KeyboardMetrics.slotHeight)
+                    .frame(maxHeight: .infinity)
                 FunctionKey(title: "重输") { model.clearComposition() }
-                    .frame(height: KeyboardMetrics.slotHeight)
-                Spacer(minLength: 0)
+                    .frame(maxHeight: .infinity)
             }
             .frame(width: 64)
+            .frame(maxHeight: .infinity)
         }
     }
 }
 
+
+/// 展开候选的排法：先按一格 64pt 算出一行几格，每个词按自己的宽度占整数格，放不下就换行；
+/// 换行前把这一行按比例拉宽到撑满（最后一行不拉，靠左）。
+enum CandidateRows {
+    static let fontSize: CGFloat = 20
+    static let padding: CGFloat = 6
+    private static let minimumCell: CGFloat = 64
+    private static let font = UIFont.systemFont(ofSize: fontSize)
+    private static var widthCache: [String: CGFloat] = [:]
+
+    struct Cell {
+        let index: Int
+        let word: String
+        let width: CGFloat
+    }
+
+    struct Row: Identifiable {
+        let id: Int
+        let cells: [Cell]
+    }
+
+    static func rows(_ words: [String], width: CGFloat) -> [Row] {
+        guard width > 0 else { return [] }
+        let columns = max(1, Int(width / minimumCell))
+        let unit = width / CGFloat(columns)
+        var rows: [Row] = []
+        var pending: [(index: Int, word: String, span: Int)] = []
+        var used = 0
+        func flush(stretch: Bool) {
+            guard !pending.isEmpty else { return }
+            let scale = stretch ? CGFloat(columns) / CGFloat(used) : 1
+            rows.append(Row(id: pending[0].index, cells: pending.map {
+                Cell(index: $0.index, word: $0.word, width: floor(CGFloat($0.span) * unit * scale))
+            }))
+            pending = []
+            used = 0
+        }
+        for (index, word) in words.enumerated() {
+            let span = min(columns, max(1, Int(ceil(textWidth(word) / unit))))
+            if used + span > columns { flush(stretch: true) }
+            pending.append((index, word, span))
+            used += span
+        }
+        flush(stretch: false)
+        return rows
+    }
+
+    private static func textWidth(_ word: String) -> CGFloat {
+        if let cached = widthCache[word] { return cached }
+        if widthCache.count > 1000 { widthCache.removeAll() }
+        let width = ceil((word as NSString).size(withAttributes: [.font: font]).width) + padding * 2
+        widthCache[word] = width
+        return width
+    }
+}
 
 /// 长按「中/英」的拼音布局菜单（P11）：白底圆角 12、柔和投影；选中项淡紫底深紫字加勾；按住的键描紫边。
 struct LayoutMenuView: View {

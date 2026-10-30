@@ -90,9 +90,10 @@ struct SetupGuideView: View {
         .animation(.easeInOut(duration: 0.22), value: page)
     }
 
-    /// 功能演示结束：首次打开的接着进 OB1（已配好接口的跳过就直接关）；使用指引里再玩的直接关。
+    /// 功能演示结束：首次打开的接着进 OB1（已配好接口的跳过就直接关）；
+    /// 从设置、使用指引里再玩的，完成页点「配置 API」也进 OB1，跳过、暂不配置直接关。
     private func tourExit(_ exit: FeatureTourView.Exit) {
-        if page == .tourReplay { return router.setupGuide = nil }
+        if page == .tourReplay, exit != .setup { return router.setupGuide = nil }
         switch exit {
         case .setup: page = .intro
         case .skip: if store.settings.isConfigured { finish() } else { page = .intro }
@@ -952,6 +953,7 @@ private struct GuideProviderCard: View {
         case .kimi: return "K"
         case .qwen: return L("通", "Q", "Q")
         case .glm: return "Z"
+        case .hunyuan: return L("混", "H", "H")
         case .ollama: return "O"
         case .custom: return "+"
         }
@@ -964,6 +966,7 @@ private struct GuideProviderCard: View {
         case .qwen: colors = [Color(hex: 0x8A6BFF), Color(hex: 0x5B4BE8)]
         case .kimi: colors = [Color(hex: 0x2B2B33), Color(hex: 0x0B0B12)]
         case .glm: colors = [Color(hex: 0x4F7BFF), Color(hex: 0x2D55E0)]
+        case .hunyuan: colors = [Color(hex: 0x3D8BFF), Color(hex: 0x0052D9)]
         case .openai, .ollama: colors = [Color(hex: 0x3A3A3C), Color(hex: 0x111111)]
         case .custom: colors = [Color(hex: 0xC7C2DD), Color(hex: 0xA39DBE)]
         }
@@ -977,6 +980,7 @@ private struct GuideProviderCard: View {
         case .qwen: return L("阿里云百炼 · 新人有免费额度", "Alibaba Cloud Model Studio · free quota for new users", "Alibaba Cloud Model Studio・新規は無料枠あり")
         case .kimi: return L("月之暗面 · 问答可以联网", "Moonshot AI · can search the web for answers", "Moonshot AI・回答でウェブ検索できる")
         case .glm: return L("智谱开放平台 · 问答可以联网", "Zhipu / Z.ai · can search the web for answers", "Zhipu / Z.ai・回答でウェブ検索できる")
+        case .hunyuan: return L("腾讯云 TokenHub · 问答可以联网", "Tencent Cloud TokenHub · can search the web for answers", "Tencent Cloud TokenHub・回答でウェブ検索できる")
         case .openai: return L("OpenAI 账号", "OpenAI account", "OpenAI のアカウント")
         case .ollama: return L("在自己电脑上跑 · 自己填地址，没有教程", "Runs on your own computer · enter the address yourself, no guide", "自分のパソコンで動かす・アドレスは自分で入力、ガイドなし")
         case .custom: return L("填 API 地址、模型名和 Key", "Enter the API URL, model and key", "API の URL、モデル名、キーを入力")

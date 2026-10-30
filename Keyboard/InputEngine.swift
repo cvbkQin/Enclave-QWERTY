@@ -19,8 +19,10 @@ protocol InputEngine: AnyObject {
     func reset()
     /// 引擎收到的原始按键（九宫格是数字，选过拼音的部分是字母）。
     var rawInput: String { get }
-    /// 整段换掉原始输入，用于九宫格在拼音列里选拼音。
-    func replaceInput(_ raw: String)
+    /// 整段换掉原始输入，用于九宫格在拼音列里选拼音。分段选过的词（selections）重输后再选回来。
+    func replaceInput(_ raw: String, keeping selections: [InputSelection])
+    /// 分段选过、还没上屏的词，按顺序（九宫格）。
+    var selections: [InputSelection] { get }
     /// 候选只先取了第一屏；滑到头或展开整页时再往后取。
     func loadMoreCandidates()
     /// 候选长按「删除」：删掉用户词库里学到的这个词，候选跟着刷新。删不了（词库自带的词、没有词库）返回 false。
@@ -30,9 +32,16 @@ protocol InputEngine: AnyObject {
 extension InputEngine {
     var isComposing: Bool { !composition.isEmpty }
     var rawInput: String { "" }
-    func replaceInput(_ raw: String) {}
+    func replaceInput(_ raw: String, keeping selections: [InputSelection]) {}
+    var selections: [InputSelection] { [] }
     func loadMoreCandidates() {}
     func deleteCandidate(_ index: Int) -> Bool { false }
+}
+
+/// 分段选定的一个词：end 是它在原始输入里结束的位置（字节下标，可能带上后面的分词符）。
+struct InputSelection: Equatable {
+    var end: Int
+    var text: String
 }
 
 /// 字母原样上屏，用于英文模式，也是接入拼音之前的默认引擎。
