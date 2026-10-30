@@ -17,8 +17,8 @@ struct CorrectionToggles: View {
         Toggle(isOn: Binding(get: { nineKey }, set: { nineKey = $0; CorrectionMemory.setEnabled($0, nineKey: true) })) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(L("九宫格自动纠错", "9-key autocorrect", "9 キーの自動修正"))
-                Text(L("纠正的词上屏后马上按删除，可以恢复成原样的拼音", "Press delete right after a correction to get back what you typed",
-                       "修正された語の直後に削除を押すと、入力したピンインに戻ります"))
+                Text(L("两种键盘都一样：纠正的词上屏后马上按删除，恢复成原样的拼音", "On either keyboard, press delete right after a correction to get back what you typed",
+                       "どちらのキーボードでも、修正された語の直後に削除を押すと入力したピンインに戻ります"))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
