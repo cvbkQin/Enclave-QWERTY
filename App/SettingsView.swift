@@ -90,20 +90,6 @@ struct SettingsView: View {
                     }
                     .dashFormCard()
                 }
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.language) {
-                        DashRow(icon: "globe", color: DashColor.input, title: L("语言", "Language", "言語"),
-                                value: router.language == .system ? L("跟随 iPhone", "iPhone", "iPhone に従う") : router.language.nativeName)
-                    }
-                    Picker(selection: $store.settings.appearance) {
-                        ForEach(Appearance.allCases) { Text($0.title).tag($0) }
-                    } label: {
-                        DashRow(icon: "circle.lefthalf.filled", color: DashColor.input, title: L("日间 / 夜间", "Appearance", "外観"))
-                    }
-                    .pickerStyle(.menu)
-                } footer: {
-                    Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
-                }
                 // 上手：首次设置（欢迎页四步）、功能演示、使用指引。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.setup) {
