@@ -81,7 +81,7 @@ struct UnlockView: View {
                     FlowNode(icon: "server.rack", title: L("你的模型接口", "Your model API", "あなたのモデル API"),
                              subtitle: L("api.你的服务商", "api.your-provider", "api.ご利用のサービス"))
                 }
-                Text(L("中间没有飞地输入法服务器", "No Enclave server in between", "間に Enclave のサーバーはありません"))
+                Text(L("无第三方中转", "No third-party relay", "第三者の中継なし"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12)
@@ -101,8 +101,8 @@ struct UnlockView: View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
             PointCard(icon: "lock.shield", color: Color(hex: 0x34C759),
                       title: L("文字不经过我们", "Your text skips us", "文章は Enclave を通りません"),
-                      detail: L("飞地输入法没有服务器，不收集、不保存你写的东西", "Enclave has no servers. Nothing you write is collected or stored",
-                                "Enclave にはサーバーがなく、書いた内容を収集・保存しません"))
+                      detail: L("无第三方中转，不收集、不保存你写的东西", "No third-party relay. Nothing you write is collected or stored",
+                                "第三者の中継なし。書いた内容を収集・保存しません"))
             PointCard(icon: "yensign.circle", color: Color(hex: 0xFF9500),
                       title: L("用多少付多少", "Pay only for what you use", "使った分だけ"),
                       detail: L("模型费用直接付给服务商，飞地输入法不加价、不抽成", "Model fees go straight to your provider, with no markup",

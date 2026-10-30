@@ -2,7 +2,7 @@ import MessageUI
 import SwiftUI
 import UIKit
 
-// 内测版：诊断与反馈（DF1–DF5）。记录由 Shared/CrashLog.swift 收；这里列出来、看详情、发反馈邮件。
+// 内测版：诊断与反馈（DF1–DF5）。记录由 Shared/CrashLog.swift 收；这里列出来、看详情，反馈走 App 内的表单（FB8）。
 // 只在内测版（INTERNAL_BUILD=YES）出现。
 
 /// 内测版设置页顶上的 AI 卡（DF1）：内置接口今天的用量，不显示试用和解锁。
@@ -100,10 +100,8 @@ struct DiagnosticsRow: View {
 // MARK: - 诊断与反馈页（DF2 / DF5）
 
 struct DiagnosticsView: View {
-    @EnvironmentObject private var store: AppStore
     @State private var entries = CrashLog.entries()
     @State private var confirmClear = false
-    @State private var feedback: Feedback?
 
     var body: some View {
         List {
@@ -114,9 +112,9 @@ struct DiagnosticsView: View {
                             "This lists app and keyboard crashes, closures by iOS, and freezes from the last 30 days, to help track down problems. Records stay on this iPhone, ",
                             "App とキーボードの直近 30 日のクラッシュ、システムによる終了、フリーズを記録し、問題の調査に使います。記録はこの iPhone だけに保存され、"))
                      + Text(L("不会自动上传", "are never uploaded automatically", "自動でアップロードされることはなく")).bold()
-                     + Text(L("，也不包含你输入的任何文字。只有你点「反馈问题」并亲自发送邮件时，才会附上。",
-                              ", and contain nothing you typed. They're attached only when you tap Send Feedback and send the email yourself.",
-                              "、入力した文字も含みません。「フィードバック」から自分でメールを送るときだけ添付されます。")))
+                     + Text(L("，也不包含你输入的任何文字。只有你在「反馈问题」里打开「附上最近的诊断记录」并提交时，才会附上。",
+                              ", and contain nothing you typed. They're attached only when you turn on Attach recent diagnostics in Send Feedback and send it.",
+                              "、入力した文字も含みません。「フィードバック」で「最近の診断記録を添付」をオンにして送信したときだけ添付されます。")))
                         .font(.subheadline)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -141,7 +139,7 @@ struct DiagnosticsView: View {
                 Section {
                     ForEach(entries) { entry in
                         NavigationLink {
-                            DiagnosticDetailView(entry: entry) { feedback = Feedback(entries: [entry]) }
+                            DiagnosticDetailView(entry: entry)
                         } label: {
                             EntryRow(entry: entry)
                         }
@@ -151,7 +149,7 @@ struct DiagnosticsView: View {
                 }
             }
             Section {
-                Button { feedback = Feedback(entries: entries) } label: {
+                NavigationLink { FeedbackFormView(entries: entries) } label: {
                     Label(L("反馈问题", "Send feedback", "フィードバック"), systemImage: "envelope")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.white)
@@ -165,9 +163,9 @@ struct DiagnosticsView: View {
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             } footer: {
-                Text(L("将打开邮件，自动附上版本号、机型、系统版本和最近的记录。你可以补充说明和截图，确认后再发送。",
-                       "Opens an email with the version, device, iOS version and recent records attached. Add details and screenshots, then send it yourself.",
-                       "バージョン、機種、iOS バージョン、最近の記録を添付したメールを開きます。説明やスクリーンショットを追加して、自分で送信してください。"))
+                Text(L("在 App 里填好直接提交给开发者，不用打开邮件。可以选择附上最近的记录。",
+                       "Fill it in and send it to the developer right in the app, no email needed. You can choose to attach recent records.",
+                       "App 内で入力してそのまま開発者に送れます。メールは不要です。最近の記録を添付することもできます。"))
             }
             if !entries.isEmpty {
                 Section {
@@ -185,7 +183,6 @@ struct DiagnosticsView: View {
                 entries = []
             }
         }
-        .sheet(item: $feedback) { FeedbackSheet(feedback: $0, settings: store.settings) }
     }
 }
 
@@ -208,7 +205,6 @@ private struct EntryRow: View {
 
 private struct DiagnosticDetailView: View {
     let entry: CrashLog.Entry
-    var report: () -> Void
 
     var body: some View {
         List {
@@ -239,8 +235,8 @@ private struct DiagnosticDetailView: View {
                        "iOS（MetricKit）が生成した、アプリの動作情報のみです。入力内容は含みません。"))
             }
             Section {
-                Button(action: report) {
-                    Label(L("反馈这条记录", "Report this record", "この記録をフィードバック"), systemImage: "envelope")
+                NavigationLink { FeedbackFormView(entries: [entry]) } label: {
+                    Label(L("反馈这一条", "Report this record", "この記録をフィードバック"), systemImage: "envelope")
                         .font(.system(size: 17, weight: .semibold))
                         .frame(maxWidth: .infinity)
                 }
@@ -251,12 +247,7 @@ private struct DiagnosticDetailView: View {
     }
 }
 
-// MARK: - 反馈邮件（DF4）
-
-struct Feedback: Identifiable {
-    let id = UUID()
-    var entries: [CrashLog.Entry]
-}
+// MARK: - 反馈附带的信息
 
 enum FeedbackInfo {
     static var version: String { "\(AboutView.version) (\(AboutView.build))" }
@@ -267,32 +258,6 @@ enum FeedbackInfo {
         var info = utsname()
         uname(&info)
         return withUnsafeBytes(of: &info.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
-    }
-
-    static func subject() -> String {
-        L("飞地输入法内测反馈 · ", "Enclave beta feedback · ", "Enclave ベータフィードバック · ") + version
-    }
-
-    /// 正文：留给用户写的地方 + 自动附上的信息（不写接口地址和 Key）。
-    static func body(entries: [CrashLog.Entry], settings: EnclaveSettings) -> String {
-        let rewrite = Provider.detect(settings.baseURL).title
-        let answer = settings.separateAnswer ? Provider.detect(settings.answerBaseURL).title : rewrite
-        var lines = [
-            L("请描述遇到的问题（在什么 App 里、做了什么操作）：", "Please describe the problem (which app, what you did):", "問題の内容（どの App で何をしたか）："),
-            "", "", "",
-            L("—— 以下由飞地输入法自动附上，可删改 ——", "—— Added by Enclave; feel free to edit ——", "—— 以下は Enclave が自動で追加しました。編集できます ——"),
-            L("版本：", "Version: ", "バージョン：") + version + L(" 内测版", " beta", " ベータ"),
-            L("机型：", "Device: ", "機種：") + "\(device) · \(os)",
-            L("键盘：", "Keyboard: ", "キーボード：") + "\(settings.keyboardLayout.title) · "
-                + L("改写接口 ", "rewrite ", "書き換え ") + rewrite + " · " + L("问答接口 ", "answers ", "回答 ") + answer,
-        ]
-        if entries.isEmpty {
-            lines.append(L("最近记录：无", "Recent records: none", "最近の記録：なし"))
-        } else {
-            lines.append(L("最近记录（\(entries.count) 条）：", "Recent records (\(entries.count)):", "最近の記録（\(entries.count) 件）："))
-            lines += entries.enumerated().map { "\($0.offset + 1). \($0.element.mailLine)" }
-        }
-        return lines.joined(separator: "\n")
     }
 
     /// 附件「诊断记录.json」：每条的摘要和系统给的完整诊断。
@@ -313,37 +278,12 @@ enum FeedbackInfo {
     static let attachmentName = L("诊断记录.json", "diagnostics.json", "診断記録.json")
 }
 
-/// 有邮件账号用系统写邮件页；没有就用分享面板（文字 + 附件）。
-private struct FeedbackSheet: View {
-    let feedback: Feedback
-    let settings: EnclaveSettings
-
-    var body: some View {
-        let text = FeedbackInfo.body(entries: feedback.entries, settings: settings)
-        let attachment = FeedbackInfo.attachment(entries: feedback.entries)
-        if MFMailComposeViewController.canSendMail() {
-            MailComposer(subject: FeedbackInfo.subject(), body: text, attachment: attachment)
-                .ignoresSafeArea()
-        } else {
-            ShareSheet(items: shareItems(body: text, attachment: attachment))
-        }
-    }
-
-    private func shareItems(body: String, attachment: Data?) -> [Any] {
-        var items: [Any] = [FeedbackInfo.subject() + "\n" + LegalInfo.email + "\n\n" + body]
-        if let attachment {
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent(FeedbackInfo.attachmentName)
-            if (try? attachment.write(to: url, options: .atomic)) != nil { items.append(url) }
-        }
-        return items
-    }
-}
-
-private struct MailComposer: UIViewControllerRepresentable {
+/// 系统写邮件页（反馈接口发不出去时的兜底）。
+struct MailComposer: UIViewControllerRepresentable {
     let subject: String
     let body: String
     let attachment: Data?
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
 
     func makeUIViewController(context: Context) -> MFMailComposeViewController {
         let controller = MFMailComposeViewController()
@@ -371,7 +311,7 @@ private struct MailComposer: UIViewControllerRepresentable {
     }
 }
 
-private struct ShareSheet: UIViewControllerRepresentable {
+struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {

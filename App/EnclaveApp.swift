@@ -59,6 +59,7 @@ struct EnclaveApp: App {
                 .submitLabel(.done)
                 .onAppear { KeyboardDismiss.shared.install() }
                 .task { RimeDeployer.shared.deployIfNeeded() }
+                .task { WelcomeSetup.migrate(configured: store.settings.isConfigured) }
                 .task { await UnlockStore.shared.refresh() }
                 .task {
                     await Storefront.refreshCountry()
@@ -174,7 +175,7 @@ final class AppRouter: ObservableObject {
     enum Tab: Hashable { case home, styles, model, settings }
 
     enum SettingsPage: String, Hashable {
-        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics
+        case keyboard, fuzzy, pinyin, guide, playground, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback
     }
 
     /// 首页里的二级页：键盘、常用词（全部 / 键盘标签）、使用指引和其中一个场景。
@@ -207,13 +208,13 @@ final class AppRouter: ObservableObject {
     }
 
     /// 隐私说明关掉后：同意了、引导没看过、接口也没配，就接着弹引导。
-    /// 先放功能演示（没看过的），演示走完再进 OB1。
+    /// 先放功能演示（没看过的），演示走完再进欢迎页。
     func showSetupGuideIfNeeded(configured: Bool) {
         guard privacyAgreed else { return }
         if !FeatureTour.seen {
             setupGuide = .tour
         } else if !SetupGuide.seen, !configured {
-            setupGuide = .intro
+            setupGuide = .welcome
         }
     }
 
@@ -265,7 +266,7 @@ final class AppRouter: ObservableObject {
             switch args[i + 1] {
             case "reset": SetupGuide.seen = false
             case "seen": SetupGuide.seen = true
-            case "open": setupGuide = .intro
+            case "open": setupGuide = .welcome
             case "deepseek": setupGuide = .step(4)
             case "kimi", "qwen", "glm":
                 guideProvider = ["kimi": .kimi, "qwen": .qwen, "glm": .glm][args[i + 1]] ?? .deepseek

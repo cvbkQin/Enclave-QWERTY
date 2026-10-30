@@ -21,13 +21,16 @@ enum SetupGuide {
 enum GuideTarget { case rewrite, answer }
 
 enum SetupGuidePage: Identifiable, Hashable {
-    /// tour：首次打开的功能演示，走完进 OB1；tourReplay：使用指引里再玩一次，走完关掉。
-    case tour, tourReplay, intro, provider, step(Int), done
+    /// tour：首次打开的功能演示，走完进欢迎页；tourReplay：使用指引里再玩一次，走完关掉。
+    /// welcome：欢迎页四步（WL1–WL9）；answerProvider：第 4 步「配一个能联网的」选问答服务商。
+    case tour, tourReplay, welcome, intro, provider, answerProvider, step(Int), done
 
     var id: String {
         switch self {
         case .tour: return "tour"
         case .tourReplay: return "tourReplay"
+        case .welcome: return "welcome"
+        case .answerProvider: return "answerProvider"
         case .intro: return "intro"
         case .provider: return "provider"
         case .step(let n): return "step\(n)"
@@ -67,6 +70,7 @@ struct SetupGuideView: View {
     @Environment(\.openURL) private var openURL
     @State private var page: SetupGuidePage
     @State private var history: [SetupGuidePage] = []
+    @State private var answerProvider: Provider = .qwen
     private var provider: Provider { router.guideProvider }
 
     init(start: SetupGuidePage) {
@@ -78,7 +82,7 @@ struct SetupGuideView: View {
             if page == .tour || page == .tourReplay {
                 FeatureTourView { tourExit($0) }
             } else {
-                GuideBackground(glow: page == .intro || page == .provider || page == .done)
+                GuideBackground(glow: ([.welcome, .intro, .provider, .answerProvider, .done] as [SetupGuidePage]).contains(page))
                 VStack(spacing: 0) {
                     if page != .intro && page != .done { topBar }
                     content
@@ -90,13 +94,13 @@ struct SetupGuideView: View {
         .animation(.easeInOut(duration: 0.22), value: page)
     }
 
-    /// 功能演示结束：首次打开的接着进 OB1（已配好接口的跳过就直接关）；
-    /// 从设置、使用指引里再玩的，完成页点「配置 API」也进 OB1，跳过、暂不配置直接关。
+    /// 功能演示结束：首次打开的接着进欢迎页（已配好接口的跳过就直接关）；
+    /// 从设置、使用指引里再玩的，完成页点「开始设置」也进欢迎页，跳过、暂不配置直接关。
     private func tourExit(_ exit: FeatureTourView.Exit) {
         if page == .tourReplay, exit != .setup { return router.setupGuide = nil }
         switch exit {
-        case .setup: page = .intro
-        case .skip: if store.settings.isConfigured { finish() } else { page = .intro }
+        case .setup: page = .welcome
+        case .skip: if store.settings.isConfigured { finish() } else { page = .welcome }
         case .later: finish()
         }
     }
@@ -142,11 +146,13 @@ struct SetupGuideView: View {
     private var content: some View {
         switch page {
         case .tour, .tourReplay: EmptyView()
+        case .welcome: WelcomeSetupView(inGuide: true, openGuidePage: { go($0) }, finish: finish)
         case .intro: intro
         case .provider: providerPage
+        case .answerProvider: answerProviderPage
         case .step(let n):
-            GuideStepView(step: n, provider: provider, target: router.guideTarget, next: {
-                if n < 4 { go(.step(n + 1)) } else if router.guideTarget != nil { finish() } else { go(.done) }
+            GuideStepView(step: n, provider: provider, target: router.guideTarget, backToWelcome: fromWelcome, next: {
+                if n < 4 { go(.step(n + 1)) } else if router.guideTarget != nil { backToWelcomeOrFinish() } else { go(.done) }
             }, store: store)
         case .done: done
         }
@@ -160,9 +166,9 @@ struct SetupGuideView: View {
                 GuideAppMark(size: 64, corner: 19)
                     .padding(.top, 40)
                 GuideTitle(L("AI 润色需要\n你自己的 API Key", "AI needs\nyour own API key", "AI 機能には\n自分の API キーが必要です"),
-                           subtitle: L("飞地输入法不自带 AI，也没有服务器。填一个你自己申请的 Key 才能用润色、翻译和按要求改；不填，AI 功能用不了。",
-                                       "Enclave has no built-in AI and no servers. Add a key you got yourself to polish, translate and rewrite. Without one, AI features don't work.",
-                                       "Enclave には AI もサーバーもありません。自分で取得したキーを入れると、整える・翻訳・指示どおりの書き換えが使えます。入れないと AI 機能は使えません。"))
+                           subtitle: L("飞地输入法不自带 AI，无第三方中转。填一个你自己申请的 Key 才能用润色、翻译和按要求改；不填，AI 功能用不了。",
+                                       "Enclave has no built-in AI and no third-party relay. Add a key you got yourself to polish, translate and rewrite. Without one, AI features don't work.",
+                                       "Enclave には AI が内蔵されておらず、第三者の中継もありません。自分で取得したキーを入れると、整える・翻訳・指示どおりの書き換えが使えます。入れないと AI 機能は使えません。"))
                 GuideCard {
                     GuideRow(icon: "keyboard", color: Color(hex: 0x0A84FF),
                              title: L("打字不用任何配置", "Typing needs no setup", "入力は設定なしで使えます"),
@@ -203,46 +209,54 @@ struct SetupGuideView: View {
         }
     }
 
-    // MARK: OB7 完成
+    // MARK: 欢迎页第 4 步「配一个能联网的」：选问答服务商（千问、Kimi、智谱有教程，腾讯混元去接口页）
+
+    private var answerProviderPage: some View {
+        GuidePage {
+            VStack(alignment: .leading, spacing: 20) {
+                GuideTitle(L("选一个能联网的", "Pick one that can search", "検索できるものを選ぶ"),
+                           subtitle: L("问答用它，查天气、新闻这类最新消息。", "Answers use it to look up the latest weather, news and more.", "回答に使い、天気やニュースなどの最新情報を調べます。"))
+                VStack(spacing: 12) {
+                    ForEach(Provider.answerShown) { item in
+                        GuideProviderCard(provider: item, selected: answerProvider == item) { answerProvider = item }
+                    }
+                }
+            }
+            .padding(.top, 4)
+        } bottom: {
+            GuidePrimaryButton(L("继续", "Continue", "続ける")) { chooseAnswerProvider() }
+        }
+    }
+
+    // MARK: OB7 完成：润色已经连上，试一次润色（WL5–WL7）
 
     private var done: some View {
         GuidePage {
             VStack(spacing: 20) {
                 ZStack(alignment: .bottomTrailing) {
-                    GuideAppMark(size: 80, corner: 40)
+                    GuideAppMark(size: 64, corner: 32)
                     Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 24, height: 24)
                         .background(Circle().fill(Color(hex: 0x30A46C)))
                         .overlay(Circle().stroke(GuideColor.card, lineWidth: 3))
                         .offset(x: 4, y: 4)
                 }
-                .padding(.top, 90)
-                VStack(spacing: 10) {
-                    Text(L("AI 已经连上", "AI is connected", "AI につながりました"))
+                .padding(.top, 60)
+                VStack(spacing: 8) {
+                    Text(L("润色已经连上", "Polish is connected", "整えるがつながりました"))
                         .font(.system(size: 30, weight: .bold)).kerning(-0.4)
                         .foregroundStyle(GuideColor.text)
-                    Text(ProviderName.of(store.settings.baseURL) + " · " + store.settings.model + "\n"
-                         + L("最后把键盘加上，就能在任何 App 里用了", "Add the keyboard and you can use it in any app", "最後にキーボードを追加すれば、どの App でも使えます"))
-                        .font(.system(size: 16)).lineSpacing(4)
+                    Text(ProviderName.of(store.settings.baseURL) + " · " + store.settings.model)
+                        .font(.system(size: 16))
                         .foregroundStyle(GuideColor.secondary)
                         .multilineTextAlignment(.center)
                 }
-                GuideCard {
-                    GuideNumberRow(1, L("添加飞地输入法", "Add Enclave", "Enclave を追加"),
-                                   L("系统设置 › 通用 › 键盘", "Settings › General › Keyboard", "設定 › 一般 › キーボード"))
-                    GuideDivider()
-                    GuideNumberRow(2, L("允许完全访问", "Allow Full Access", "フルアクセスを許可"),
-                                   L("AI 联网时要用", "Needed to reach your AI", "AI への接続に必要"))
-                }
+                TryPolishCard(store: store)
             }
         } bottom: {
-            GuidePrimaryButton(L("去添加键盘", "Add Keyboard", "キーボードを追加")) {
-                finish()
-                AppSettings.open()
-            }
-            GuideSecondaryButton(L("稍后", "Later", "あとで")) { finish() }
+            GuidePrimaryButton(L("下一步：问答接口", "Next: Answer API", "次へ：回答 API")) { backToWelcomeOrFinish() }
         }
     }
 
@@ -256,6 +270,35 @@ struct SetupGuideView: View {
     private func back() {
         guard let previous = history.popLast() else { return }
         page = previous
+    }
+
+    /// 这次是从欢迎页走进来的：教程、选服务商做完回欢迎页。
+    private var fromWelcome: Bool { history.contains(.welcome) }
+
+    /// 教程做完：从欢迎页进来的回欢迎页（看下一步），从首页、接口页打开的关掉。
+    private func backToWelcomeOrFinish() {
+        guard fromWelcome else { return finish() }
+        router.guideTarget = nil
+        history = []
+        page = .welcome
+    }
+
+    /// 问答服务商：有教程的走这一家的 4 步，Key 填进问答页；腾讯混元没有教程，填好预设去接口 › 问答页。
+    private func chooseAnswerProvider() {
+        if GuideTutorial.of(answerProvider) != nil {
+            router.guideProvider = answerProvider
+            router.guideTarget = .answer
+            go(.step(1))
+        } else {
+            if let preset = answerProvider.answerPreset {
+                store.settings.separateAnswer = true
+                store.settings.answerBaseURL = preset.baseURL
+                store.settings.answerModel = preset.model
+            }
+            finish()
+            UserDefaults.standard.set("answer", forKey: "apiPage")
+            router.openModel()
+        }
     }
 
     /// 走完或跳过：记下看过，关掉引导。从接口页打开的教程关掉后回到接口页。
@@ -289,6 +332,8 @@ private struct GuideStepView: View {
     let provider: Provider
     /// 从接口页打开时是哪一页；引导里为 nil。
     let target: GuideTarget?
+    /// 从欢迎页第 4 步进来的问答教程：做完回欢迎页，不是回接口页。
+    var backToWelcome = false
     let next: () -> Void
     @ObservedObject var store: AppStore
     @Environment(\.openURL) private var openURL
@@ -322,7 +367,7 @@ private struct GuideStepView: View {
             if step < 4 {
                 GuidePrimaryButton(L("下一步", "Next", "次へ"), action: next)
             } else {
-                GuidePrimaryButton(target != nil ? L("完成，回到接口", "Done, back to API", "完了して API に戻る") : L("完成", "Done", "完了"),
+                GuidePrimaryButton(target != nil && !backToWelcome ? L("完成，回到接口", "Done, back to API", "完了して API に戻る") : L("完成", "Done", "完了"),
                                    enabled: answer ? store.answerTest.isSuccess : store.test.isSuccess, action: next)
             }
         }
@@ -1039,7 +1084,7 @@ struct GuideSecondaryButton: View {
 
 // MARK: - 设置向导（设置 › 设置向导，GD2–GD4）
 
-/// 添加键盘、允许完全访问、连上 AI 三步，和首页 OnboardingSteps 用同一份完成状态。
+/// 添加键盘、允许完全访问、连上 AI 三步（设置 › 设置向导）。
 struct SetupWizardView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter

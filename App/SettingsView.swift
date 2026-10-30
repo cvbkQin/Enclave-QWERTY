@@ -130,6 +130,16 @@ struct SettingsView: View {
                                 value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
                     }
                 }
+                // 正式版、公测版（FB1）；内测版用下面的「诊断与反馈」，两者不同时出现。
+                if !CrashLog.isEnabled {
+                    Section {
+                        NavigationLink(value: AppRouter.SettingsPage.feedback) {
+                            DashRow(icon: "envelope", color: DashColor.ai, title: L("反馈问题", "Send Feedback", "フィードバック"))
+                        }
+                    } footer: {
+                        Text(L("在 App 里填好直接提交给开发者，不用打开邮件。", "Fill it in and send it to the developer right here, no email needed.", "App 内で入力してそのまま開発者に送れます。メールは不要です。"))
+                    }
+                }
                 if CrashLog.isEnabled {
                     Section {
                         NavigationLink(value: AppRouter.SettingsPage.diagnostics) { DiagnosticsRow() }
@@ -168,6 +178,7 @@ struct SettingsView: View {
                 case .privacyPolicy: PrivacyPolicyView()
                 case .licenses: LicensesView()
                 case .diagnostics: DiagnosticsView()
+                case .feedback: FeedbackFormView()
                 }
             }
         }
@@ -1876,8 +1887,8 @@ private struct ConsentSheet: View {
                           L("直接发到上面这个地址，由服务商按它的隐私政策处理。", "Straight to the address above, handled under the provider's privacy policy.",
                             "上のアドレスに直接送られ、サービスのプライバシーポリシーに従って処理されます。"))
                     point("lock.shield", L("飞地输入法不经手", "Enclave never sees it", "Enclave は関与しません"),
-                          L("飞地输入法没有自己的服务器，不收集、不保存你的文字。", "Enclave has no servers and doesn't collect or keep your text.",
-                            "Enclave はサーバーを持たず、文章を収集・保存しません。"))
+                          L("无第三方中转，守护数据隐私：你的文字直接发给你选的服务商，飞地输入法不收集、不保存。", "No third-party relay. Your text goes straight to the provider you chose; Enclave never collects or keeps it.",
+                            "第三者の中継なし。文章は選んだサービスへ直接送られ、Enclave は収集・保存しません。"))
                 }
                 Button(action: agree) {
                     Text(L("同意", "Allow", "同意する"))

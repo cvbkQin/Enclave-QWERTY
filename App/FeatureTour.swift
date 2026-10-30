@@ -966,7 +966,7 @@ struct FeatureTourView: View {
     enum Exit {
         /// 「开始演示」前跳过、任意一步「跳过」。
         case skip
-        /// 完成页「配置 API」。
+        /// 完成页「开始设置」。
         case setup
         /// 完成页「暂不配置，仅使用打字」。
         case later
@@ -1142,7 +1142,7 @@ struct FeatureTourView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "key").font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Color(light: 0x5B4BE8, dark: 0xB4A9FF))
-                        Text(L("配置 API 后，即可在任意 App 中使用这些功能", "Set up an API to use these in any app", "API を設定すると、どのアプリでも使えます"))
+                        Text(L("设置好后，即可在任意 App 中使用这些功能", "Finish setup to use these in any app", "設定が終われば、どのアプリでも使えます"))
                             .font(.system(size: compact ? 13 : 14, weight: .semibold))
                             .foregroundStyle(Color(light: 0x3B2FC9, dark: 0xDCD6FF))
                             // 矮屏（SE）一行放不下时略缩小，不出省略号。
@@ -1150,7 +1150,7 @@ struct FeatureTourView: View {
                     }
                     .padding(.horizontal, compact ? 12 : 16).frame(height: 38)
                     .background(Capsule().fill(Color(light: 0xECEAFD, dark: 0x25204F)))
-                    GuidePrimaryButton(L("配置 API", "Set Up API", "API を設定")) { exit(.setup) }
+                    GuidePrimaryButton(L("开始设置", "Start Setup", "設定をはじめる")) { exit(.setup) }
                     GuideSecondaryButton(L("暂不配置，仅使用打字", "Not Now, Typing Only", "今は設定せず入力のみ使う")) { exit(.later) }
                 }
                 .offset(y: doneShown || reduceMotion ? 0 : 12)

@@ -10,25 +10,26 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack(path: $router.homePath) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    // 键盘两步做完就进摘要；接口没填由摘要顶上的「AI 还没连上」卡片（OB8）引导。
-                    if Readiness.remainingSteps(apiConfigured: true) == 0 {
-                        TabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
-                                 title: L("摘要", "Summary", "概要"), showsBuildBadge: true)
-                            .padding(.top, 8)
-                        Dashboard()
-                    } else {
-                        Text(L("欢迎使用", "Welcome", "ようこそ")).font(.largeTitle.bold()).padding(.top, 8)
-                        OnboardingSteps()
+            Group {
+                // 欢迎页四步（WL4）没全好时整页显示它，没有「跳过」；四步都好换回摘要。只用基础打字的只看前两步。
+                if WelcomeSetup.Progress(store: store).allDone(privacyAgreed: router.privacyAgreed) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            TabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
+                                     title: L("摘要", "Summary", "概要"), showsBuildBadge: true)
+                                .padding(.top, 8)
+                            Dashboard()
+                        }
+                        // 左右 20，和提示词、接口、设置三页的分组卡片对齐。
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
                     }
+                    .background(Color(.systemGroupedBackground))
+                } else {
+                    WelcomeSetupView(inGuide: false)
                 }
-                // 左右 20，和提示词、接口、设置三页的分组卡片对齐。
-                .padding(.horizontal, 20)
-                .padding(.bottom, 24)
-                .id(refresh)
             }
-            .background(Color(.systemGroupedBackground))
+            .id(refresh)
             // 自己画大标题，导航栏标题写「首页」，这样二级页的返回按钮叫「首页」。
             .navigationTitle(L("首页", "Home", "ホーム"))
             .toolbar(.hidden, for: .navigationBar)
@@ -303,106 +304,6 @@ private struct GridCard: View {
             .frame(maxHeight: .infinity, alignment: .top)
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// 开启键盘的三步：添加键盘、允许完全访问、配置模型接口；下面是词库部署进度。首页和「开启键盘指南」共用。
-struct OnboardingSteps: View {
-    @EnvironmentObject private var store: AppStore
-    @EnvironmentObject private var router: AppRouter
-    @ObservedObject private var deployer = RimeDeployer.shared
-
-    var body: some View {
-        let done = [Readiness.keyboardAdded, Readiness.fullAccess == true, store.settings.isConfigured]
-        let remaining = done.filter { !$0 }.count
-        let current = done.firstIndex(of: false)
-        VStack(alignment: .leading, spacing: 12) {
-            Text(remaining == 0 ? L("三步都完成了，键盘可以用了。", "All three steps are done. Your keyboard is ready.", "3 つのステップが完了しました。キーボードが使えます。") : L("还差 \(remaining) 步就能用 AI 润色，打字现在就能用。", "\(remaining) more steps to use AI Polish. You can already type.", "あと \(remaining) ステップで AI 機能が使えます。入力はすぐに使えます。"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            ProgressView(value: Double(3 - remaining), total: 3).tint(AppColor.purple)
-            if !SharedStorage.isShared { SharedConfigBanner() }
-            StepCard(number: 1, title: L("添加飞地输入法", "Add the Enclave keyboard", "Enclave キーボードを追加"), done: done[0], current: current == 0) {
-                Text(L("打开系统设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选飞地输入法。", "Open Settings › General › Keyboard › Keyboards › Add New Keyboard, then choose Enclave.", "設定 › 一般 › キーボード › キーボード › 新しいキーボードを追加 で Enclave を選びます。"))
-            }
-            StepCard(number: 2, title: L("允许完全访问", "Allow Full Access", "フルアクセスを許可"), done: done[1], current: current == 1) {
-                Text(L("键盘要联网才能调用你的模型。进入飞地输入法设置 › 键盘，打开「允许完全访问」。", "The keyboard needs network access to reach your model. Go to Enclave settings › Keyboards and turn on Allow Full Access.", "モデルを使うにはキーボードの通信が必要です。Enclave の設定 › キーボード で「フルアクセスを許可」をオンにします。"))
-                Button(L("打开飞地输入法设置", "Open Enclave Settings", "Enclave の設定を開く")) { AppSettings.open() }
-                    .buttonStyle(StepButtonStyle(prominent: current == 1))
-                Text(Readiness.fullAccess == false ? L("键盘上次出现时完全访问还没打开。", "Full Access was still off the last time the keyboard appeared.", "前回キーボードを表示したとき、フルアクセスはオフでした。") : L("用一次键盘后，这里会自动打勾。", "This gets checked after you use the keyboard once.", "キーボードを一度使うと、自動でチェックが付きます。"))
-                    .font(.caption)
-                    .foregroundStyle(Readiness.fullAccess == false ? Color.orange : Color.secondary)
-            }
-            StepCard(number: 3, title: L("配置模型接口", "Set up your model API", "モデル API を設定"), done: done[2], current: current == 2) {
-                Text(SharedStorage.usesClipboardConfig
-                     ? L("填 API 地址和 Key，或者从剪贴板导入配置。", "Enter the API URL and key, or import settings from the clipboard.", "API の URL とキーを入力するか、クリップボードから設定を読み込みます。")
-                     : L("填 API 地址和 Key。", "Enter the API URL and key.", "API の URL とキーを入力します。"))
-                if router.privacyAgreed {
-                    HStack(spacing: 10) {
-                        Button(L("跟着教程设置", "Follow the Guide", "ガイドに沿って設定")) { router.setupGuide = .provider }
-                            .buttonStyle(StepButtonStyle(prominent: current == 2))
-                        Button(L("已有 Key", "I Have a Key", "キーを持っている")) { router.openModel() }
-                            .buttonStyle(StepButtonStyle(prominent: false))
-                    }
-                } else {
-                    Button(L("去配置", "Set up", "設定する")) { router.openModel() }
-                        .buttonStyle(StepButtonStyle(prominent: current == 2))
-                }
-            }
-            DeployCard()
-        }
-    }
-}
-
-private struct StepCard<Content: View>: View {
-    var number: Int
-    var title: String
-    var done: Bool
-    var current: Bool
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                if done {
-                    Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(.green)
-                } else {
-                    Text("\(number)")
-                        .font(.footnote.bold())
-                        .foregroundStyle(current ? .white : .secondary)
-                        .frame(width: 22, height: 22)
-                        .background(Circle().fill(current ? AppColor.purple : Color.clear))
-                        .overlay(Circle().strokeBorder(current ? Color.clear : Color.secondary.opacity(0.5)))
-                }
-                Text(title).font(.headline).foregroundStyle(done ? .secondary : .primary)
-            }
-            if !done {
-                VStack(alignment: .leading, spacing: 10) { content }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 32)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .strokeBorder(AppColor.purple, lineWidth: current ? 1.5 : 0))
-    }
-}
-
-/// 当前这一步是实心紫色按钮，后面的步骤是淡紫底。
-private struct StepButtonStyle: ButtonStyle {
-    var prominent: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(prominent ? Color.white : AppColor.purple)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(prominent ? AppColor.purple : AppColor.softFill))
-            .opacity(configuration.isPressed ? 0.7 : 1)
     }
 }
 
