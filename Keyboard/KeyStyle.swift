@@ -34,8 +34,9 @@ enum KeyboardMetrics {
     /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝（横屏 25.6）。
     static var pinyinCellHeight: CGFloat { landscape ? (nineKeyHeight * 3 + nineRowGap * 2) / 4 : 38 }
 
-    /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 28 高（比原生的 35 小一点），平时空着，键盘总高不随打字变化。
-    static var pinyinRowHeight: CGFloat { landscape ? 24 : 28 }
+    /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 36 高（横屏 28，和原生差不多），平时空着，键盘总高不随打字变化。
+    /// 竖屏收着时总高 36 + 44 + 216 = 296。
+    static var pinyinRowHeight: CGFloat { landscape ? 28 : 36 }
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     static var topRow: CGFloat { landscape ? 34 : 44 }

@@ -203,6 +203,18 @@ final class KeyboardViewController: UIInputViewController {
         updateGlobeKey()
     }
 
+    #if DEBUG
+    private static var lastLoggedHeight: CGFloat = 0
+    /// 系统给的高度一变就记一条：查键盘顶边有时高出约 17pt（拼音行 + 候选行固定高度规格）。
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        let height = view.bounds.height
+        guard height != Self.lastLoggedHeight else { return }
+        Self.lastLoggedHeight = height
+        heightLog("layout")
+    }
+    #endif
+
     /// 只在变了的时候设：needsGlobeKey 是 @Published，设一次（哪怕值一样）整个键盘就重画一遍、高度也要重算，
     /// 而每次布局都会走到这里，弹出动画途中会连着重画好多次，看起来就是卡。
     private func updateGlobeKey() {
@@ -236,10 +248,17 @@ extension KeyboardViewController {
     /// 真机上不用 root 也能用 devicectl 拷出来。
     func heightLog(_ stage: String) {
         let inWindow = view.window.map { view.convert(view.bounds, to: $0) } ?? .zero
-        let line = String(format: "%@ EnclaveHeight %@: view %.1f, target %.1f, inWindow y %.1f h %.1f, window h %.1f, safe top %.1f, iOS %@",
+        // 往上几层父视图的高度：看系统多给的那截是在我们的 view 里，还是在外面的容器（键盘玻璃底）里。
+        var supers: [String] = []
+        var parent = view.superview
+        while let p = parent, supers.count < 4 {
+            supers.append(String(format: "%@ %.1f", String(describing: type(of: p)), p.bounds.height))
+            parent = p.superview
+        }
+        let line = String(format: "%@ EnclaveHeight %@: view %.1f, target %.1f, inWindow y %.1f h %.1f, window h %.1f, safe top %.1f, supers [%@], iOS %@",
                           ISO8601DateFormatter().string(from: Date()), stage, view.bounds.height, model.keyboardHeight,
                           inWindow.minY, inWindow.height, view.window?.bounds.height ?? -1, view.safeAreaInsets.top,
-                          UIDevice.current.systemVersion)
+                          supers.joined(separator: ", "), UIDevice.current.systemVersion)
         NSLog("%@", line)
         guard let id = SharedStorage.appGroupID,
               let dir = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: id) else { return }
