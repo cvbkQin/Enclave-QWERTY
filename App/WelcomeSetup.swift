@@ -331,14 +331,11 @@ struct WelcomeSetupView: View {
         .padding(.top, 6)
     }
 
-    /// 「和润色用同一个」：问答页复制润色的地址、模型、Key。自己的模型再测一次连通。
+    /// 「和润色用同一个」：直接打开 AI › 问答的「和润色用同一个接口」（润色那一步已经测过连通）。
+    /// 问答接口原来填的地址、模型、Key 留着，以后关掉开关还能用。
     private func useSameForAnswers() {
-        store.settings.separateAnswer = true
-        store.settings.answerBaseURL = store.settings.baseURL
-        store.settings.answerModel = store.settings.model
-        store.answerApiKey = store.apiKey
+        store.settings.separateAnswer = false
         WelcomeSetup.answerDecided = true
-        if case .own = polishKind { Task { await store.runAnswerTest() } }
         refresh = UUID()
     }
 
