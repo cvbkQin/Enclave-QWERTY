@@ -42,11 +42,6 @@ enum Readiness {
 
     /// 键盘出现时记下来的；nil 表示键盘还没用过。
     static var fullAccess: Bool? { KeyboardStatus.fullAccess }
-
-    /// 还没完成的步骤数（添加键盘、完全访问、模型接口）。
-    static func remainingSteps(apiConfigured: Bool) -> Int {
-        [keyboardAdded, fullAccess == true, apiConfigured].filter { !$0 }.count
-    }
 }
 
 /// 设置列表行前面的彩色方块图标。

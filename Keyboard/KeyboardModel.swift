@@ -377,6 +377,7 @@ final class KeyboardModel: ObservableObject {
         settings = SettingsStore.load()
         RimeEngine.correctsQwerty = CorrectionMemory.isEnabled(nineKey: false)
         RimeEngine.correctsNineKey = CorrectionMemory.isEnabled(nineKey: true)
+        EmojiTable.enabled = EmojiSuggestions.isEnabled
         refreshSearchPrompt()
         session = SessionStore.load()
         instruction = SharedStorage.defaults.string(forKey: Self.instructionKey) ?? ""

@@ -66,7 +66,17 @@ final class KeyTouchView: UIView {
     }
 
     /// 打出一个键：字母键记下落点（之后没被删掉才算进手指习惯），删除键撤掉上一个，别的键确认前面的都没打错。
+    /// 落点同时记进 TouchTrail，纠错按它判断是不是按到了邻键。
     private func noteFired(_ key: KeySpec, at point: CGPoint) {
+        if let entry = TouchPrior.trailEntry(for: key, at: point) {
+            TouchTrail.record(entry.0, entry.1)
+        } else {
+            switch key.kind {
+            case .delete: TouchTrail.dropLast()
+            case .shift, .layer, .globe: break
+            default: TouchTrail.clear()
+            }
+        }
         switch key.kind {
         case .delete: TouchCalibration.undo()
         case .shift, .layer, .globe: break

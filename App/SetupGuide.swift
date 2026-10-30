@@ -21,13 +21,16 @@ enum SetupGuide {
 enum GuideTarget { case rewrite, answer }
 
 enum SetupGuidePage: Identifiable, Hashable {
-    /// tour：首次打开的功能演示，走完进 OB1；tourReplay：使用指引里再玩一次，走完关掉。
-    case tour, tourReplay, intro, provider, step(Int), done
+    /// tour：首次打开的功能演示，走完进欢迎页；tourReplay：使用指引里再玩一次，走完关掉。
+    /// welcome：欢迎页四步（WL1–WL9）；answerProvider：第 4 步「配一个能联网的」选问答服务商。
+    case tour, tourReplay, welcome, intro, provider, answerProvider, step(Int), done
 
     var id: String {
         switch self {
         case .tour: return "tour"
         case .tourReplay: return "tourReplay"
+        case .welcome: return "welcome"
+        case .answerProvider: return "answerProvider"
         case .intro: return "intro"
         case .provider: return "provider"
         case .step(let n): return "step\(n)"
@@ -67,6 +70,7 @@ struct SetupGuideView: View {
     @Environment(\.openURL) private var openURL
     @State private var page: SetupGuidePage
     @State private var history: [SetupGuidePage] = []
+    @State private var answerProvider: Provider = .qwen
     private var provider: Provider { router.guideProvider }
 
     init(start: SetupGuidePage) {
@@ -78,7 +82,7 @@ struct SetupGuideView: View {
             if page == .tour || page == .tourReplay {
                 FeatureTourView { tourExit($0) }
             } else {
-                GuideBackground(glow: page == .intro || page == .provider || page == .done)
+                GuideBackground(glow: ([.welcome, .intro, .provider, .answerProvider, .done] as [SetupGuidePage]).contains(page))
                 VStack(spacing: 0) {
                     if page != .intro && page != .done { topBar }
                     content
@@ -90,13 +94,13 @@ struct SetupGuideView: View {
         .animation(.easeInOut(duration: 0.22), value: page)
     }
 
-    /// 功能演示结束：首次打开的接着进 OB1（已配好接口的跳过就直接关）；
-    /// 从设置、使用指引里再玩的，完成页点「配置 API」也进 OB1，跳过、暂不配置直接关。
+    /// 功能演示结束：首次打开的接着进欢迎页（已配好接口的跳过就直接关）；
+    /// 从设置、使用指引里再玩的，完成页点「开始设置」也进欢迎页，跳过、暂不配置直接关。
     private func tourExit(_ exit: FeatureTourView.Exit) {
         if page == .tourReplay, exit != .setup { return router.setupGuide = nil }
         switch exit {
-        case .setup: page = .intro
-        case .skip: if store.settings.isConfigured { finish() } else { page = .intro }
+        case .setup: page = .welcome
+        case .skip: if store.settings.isConfigured { finish() } else { page = .welcome }
         case .later: finish()
         }
     }
@@ -142,11 +146,13 @@ struct SetupGuideView: View {
     private var content: some View {
         switch page {
         case .tour, .tourReplay: EmptyView()
+        case .welcome: WelcomeSetupView(inGuide: true, openGuidePage: { go($0) }, finish: finish)
         case .intro: intro
         case .provider: providerPage
+        case .answerProvider: answerProviderPage
         case .step(let n):
-            GuideStepView(step: n, provider: provider, target: router.guideTarget, next: {
-                if n < 4 { go(.step(n + 1)) } else if router.guideTarget != nil { finish() } else { go(.done) }
+            GuideStepView(step: n, provider: provider, target: router.guideTarget, backToWelcome: fromWelcome, next: {
+                if n < 4 { go(.step(n + 1)) } else if router.guideTarget != nil { backToWelcomeOrFinish() } else { go(.done) }
             }, store: store)
         case .done: done
         }
@@ -160,9 +166,9 @@ struct SetupGuideView: View {
                 GuideAppMark(size: 64, corner: 19)
                     .padding(.top, 40)
                 GuideTitle(L("AI 润色需要\n你自己的 API Key", "AI needs\nyour own API key", "AI 機能には\n自分の API キーが必要です"),
-                           subtitle: L("飞地输入法不自带 AI，也没有服务器。填一个你自己申请的 Key 才能用润色、翻译和按要求改；不填，AI 功能用不了。",
-                                       "Enclave has no built-in AI and no servers. Add a key you got yourself to polish, translate and rewrite. Without one, AI features don't work.",
-                                       "Enclave には AI もサーバーもありません。自分で取得したキーを入れると、整える・翻訳・指示どおりの書き換えが使えます。入れないと AI 機能は使えません。"))
+                           subtitle: L("飞地输入法不自带 AI，无第三方中转。填一个你自己申请的 Key 才能用润色、翻译和按要求改；不填，AI 功能用不了。",
+                                       "Enclave has no built-in AI and no third-party relay. Add a key you got yourself to polish, translate and rewrite. Without one, AI features don't work.",
+                                       "Enclave には AI が内蔵されておらず、第三者の中継もありません。自分で取得したキーを入れると、整える・翻訳・指示どおりの書き換えが使えます。入れないと AI 機能は使えません。"))
                 GuideCard {
                     GuideRow(icon: "keyboard", color: Color(hex: 0x0A84FF),
                              title: L("打字不用任何配置", "Typing needs no setup", "入力は設定なしで使えます"),
@@ -203,46 +209,54 @@ struct SetupGuideView: View {
         }
     }
 
-    // MARK: OB7 完成
+    // MARK: 欢迎页第 4 步「配一个能联网的」：选问答服务商（千问、Kimi、智谱有教程，腾讯混元去接口页）
+
+    private var answerProviderPage: some View {
+        GuidePage {
+            VStack(alignment: .leading, spacing: 20) {
+                GuideTitle(L("选一个能联网的", "Pick one that can search", "検索できるものを選ぶ"),
+                           subtitle: L("问答用它，查天气、新闻这类最新消息。", "Answers use it to look up the latest weather, news and more.", "回答に使い、天気やニュースなどの最新情報を調べます。"))
+                VStack(spacing: 12) {
+                    ForEach(Provider.answerShown) { item in
+                        GuideProviderCard(provider: item, selected: answerProvider == item) { answerProvider = item }
+                    }
+                }
+            }
+            .padding(.top, 4)
+        } bottom: {
+            GuidePrimaryButton(L("继续", "Continue", "続ける")) { chooseAnswerProvider() }
+        }
+    }
+
+    // MARK: OB7 完成：润色已经连上，试一次润色（WL5–WL7）
 
     private var done: some View {
         GuidePage {
             VStack(spacing: 20) {
                 ZStack(alignment: .bottomTrailing) {
-                    GuideAppMark(size: 80, corner: 40)
+                    GuideAppMark(size: 64, corner: 32)
                     Image(systemName: "checkmark")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
+                        .frame(width: 24, height: 24)
                         .background(Circle().fill(Color(hex: 0x30A46C)))
                         .overlay(Circle().stroke(GuideColor.card, lineWidth: 3))
                         .offset(x: 4, y: 4)
                 }
-                .padding(.top, 90)
-                VStack(spacing: 10) {
-                    Text(L("AI 已经连上", "AI is connected", "AI につながりました"))
+                .padding(.top, 60)
+                VStack(spacing: 8) {
+                    Text(L("润色已经连上", "Polish is connected", "整えるがつながりました"))
                         .font(.system(size: 30, weight: .bold)).kerning(-0.4)
                         .foregroundStyle(GuideColor.text)
-                    Text(ProviderName.of(store.settings.baseURL) + " · " + store.settings.model + "\n"
-                         + L("最后把键盘加上，就能在任何 App 里用了", "Add the keyboard and you can use it in any app", "最後にキーボードを追加すれば、どの App でも使えます"))
-                        .font(.system(size: 16)).lineSpacing(4)
+                    Text(ProviderName.of(store.settings.baseURL) + " · " + store.settings.model)
+                        .font(.system(size: 16))
                         .foregroundStyle(GuideColor.secondary)
                         .multilineTextAlignment(.center)
                 }
-                GuideCard {
-                    GuideNumberRow(1, L("添加飞地输入法", "Add Enclave", "Enclave を追加"),
-                                   L("系统设置 › 通用 › 键盘", "Settings › General › Keyboard", "設定 › 一般 › キーボード"))
-                    GuideDivider()
-                    GuideNumberRow(2, L("允许完全访问", "Allow Full Access", "フルアクセスを許可"),
-                                   L("AI 联网时要用", "Needed to reach your AI", "AI への接続に必要"))
-                }
+                TryPolishCard(store: store)
             }
         } bottom: {
-            GuidePrimaryButton(L("去添加键盘", "Add Keyboard", "キーボードを追加")) {
-                finish()
-                AppSettings.open()
-            }
-            GuideSecondaryButton(L("稍后", "Later", "あとで")) { finish() }
+            GuidePrimaryButton(L("下一步：问答接口", "Next: Answer API", "次へ：回答 API")) { backToWelcomeOrFinish() }
         }
     }
 
@@ -256,6 +270,34 @@ struct SetupGuideView: View {
     private func back() {
         guard let previous = history.popLast() else { return }
         page = previous
+    }
+
+    /// 这次是从欢迎页走进来的：教程、选服务商做完回欢迎页。
+    private var fromWelcome: Bool { history.contains(.welcome) }
+
+    /// 教程做完：从欢迎页进来的回欢迎页（看下一步），从首页、接口页打开的关掉。
+    private func backToWelcomeOrFinish() {
+        guard fromWelcome else { return finish() }
+        router.guideTarget = nil
+        history = []
+        page = .welcome
+    }
+
+    /// 问答服务商：有教程的走这一家的 4 步，Key 填进问答页；腾讯混元没有教程，填好预设去 AI › 问答接口详情。
+    private func chooseAnswerProvider() {
+        if GuideTutorial.of(answerProvider) != nil {
+            router.guideProvider = answerProvider
+            router.guideTarget = .answer
+            go(.step(1))
+        } else {
+            if let preset = answerProvider.answerPreset {
+                store.settings.separateAnswer = true
+                store.settings.answerBaseURL = preset.baseURL
+                store.settings.answerModel = preset.model
+            }
+            finish()
+            router.openModel(answer: true, detail: true)
+        }
     }
 
     /// 走完或跳过：记下看过，关掉引导。从接口页打开的教程关掉后回到接口页。
@@ -277,7 +319,7 @@ struct SetupGuideView: View {
             go(.step(1))
         } else {
             finish()
-            router.openModel()
+            router.openModel(detail: true)
         }
     }
 }
@@ -289,6 +331,8 @@ private struct GuideStepView: View {
     let provider: Provider
     /// 从接口页打开时是哪一页；引导里为 nil。
     let target: GuideTarget?
+    /// 从欢迎页第 4 步进来的问答教程：做完回欢迎页，不是回接口页。
+    var backToWelcome = false
     let next: () -> Void
     @ObservedObject var store: AppStore
     @Environment(\.openURL) private var openURL
@@ -322,7 +366,7 @@ private struct GuideStepView: View {
             if step < 4 {
                 GuidePrimaryButton(L("下一步", "Next", "次へ"), action: next)
             } else {
-                GuidePrimaryButton(target != nil ? L("完成，回到接口", "Done, back to API", "完了して API に戻る") : L("完成", "Done", "完了"),
+                GuidePrimaryButton(target != nil && !backToWelcome ? L("完成，回到接口", "Done, back to API", "完了して API に戻る") : L("完成", "Done", "完了"),
                                    enabled: answer ? store.answerTest.isSuccess : store.test.isSuccess, action: next)
             }
         }
@@ -409,7 +453,7 @@ private struct GuideKeyStep: View {
                         if let target {
                             // TA2：从接口页来，右上角是蓝色胶囊「填进：问答接口 / 改写接口」。
                             Text(target == .answer ? L("填进：问答接口", "Goes to: Answer API", "入力先：回答 API")
-                                                   : L("填进：改写接口", "Goes to: Rewrite API", "入力先：書き換え API"))
+                                                   : L("填进：润色接口", "Goes to: Polish API", "入力先：整える API"))
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(Color(hex: 0x0A84FF))
                                 .padding(.horizontal, 9)
@@ -1032,197 +1076,6 @@ struct GuideSecondaryButton: View {
         Button(action: action) {
             Text(title).font(.system(size: 15.5)).foregroundStyle(GuideColor.secondary)
                 .frame(maxWidth: .infinity).frame(height: 44)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - 设置向导（设置 › 设置向导，GD2–GD4）
-
-/// 添加键盘、允许完全访问、连上 AI 三步，和首页 OnboardingSteps 用同一份完成状态。
-struct SetupWizardView: View {
-    @EnvironmentObject private var store: AppStore
-    @EnvironmentObject private var router: AppRouter
-    @Environment(\.scenePhase) private var scenePhase
-    @ObservedObject private var deployer = RimeDeployer.shared
-    /// 从系统设置回来时重新读一遍键盘状态。
-    @State private var refresh = UUID()
-
-    private static let green = Color(hex: 0x2BB673)
-
-    var body: some View {
-        let done = [Readiness.keyboardAdded, Readiness.fullAccess == true, aiReady]
-        let remaining = done.filter { !$0 }.count
-        let current = done.firstIndex(of: false)
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                GuideTitle(L("设置向导", "Setup Guide", "設定ガイド"),
-                           subtitle: remaining == 0
-                               ? L("都设置好了，在任何 App 里切到飞地输入法就能用 AI。", "All set. Switch to Enclave in any app to use AI.", "設定完了。どの App でも Enclave に切り替えれば AI が使えます。")
-                               : L("三步做完，就能在任何 App 里用 AI。打字现在就能用。", "Finish three steps to use AI in any app. You can already type.", "3 ステップで、どの App でも AI が使えます。入力はすぐに使えます。"))
-                progress(done: done, remaining: remaining)
-                    .padding(.top, 22)
-                GuideCard {
-                    stepRow(0, done: done[0], current: current == 0,
-                            title: L("添加飞地输入法", "Add the Enclave keyboard", "Enclave キーボードを追加"),
-                            detail: done[0] ? L("已添加", "Added", "追加済み")
-                                : L("系统设置 › 通用 › 键盘 › 添加新键盘，选飞地输入法", "Settings › General › Keyboard › Add New Keyboard, then choose Enclave", "設定 › 一般 › キーボード › 新しいキーボードを追加 で Enclave を選択"))
-                    stepDivider
-                    stepRow(1, done: done[1], current: current == 1,
-                            title: L("允许完全访问", "Allow Full Access", "フルアクセスを許可"),
-                            detail: done[1] ? L("已打开", "On", "オン")
-                                : fullAccessOff ? L("键盘上次出现时还没打开。AI 要联网才能用。", "It was still off the last time the keyboard appeared. AI needs network access.", "前回キーボードを表示したときはオフでした。AI には通信が必要です。")
-                                : L("AI 要联网才能用。用一次键盘后这里会自动打勾。", "AI needs network access. This gets checked after you use the keyboard once.", "AI には通信が必要です。キーボードを一度使うと自動でチェックが付きます。"),
-                            warns: !done[1] && fullAccessOff) {
-                        if !done[1] {
-                            pill(L("打开系统设置", "Open Settings", "設定を開く"), prominent: current == 1) { AppSettings.open() }
-                        }
-                    }
-                    stepDivider
-                    stepRow(2, done: done[2], current: current == 2,
-                            title: L("连上 AI", "Connect AI", "AI を接続"),
-                            detail: done[2] || testFailed ? aiSummary
-                                : L("填你自己的 API Key，跟着教程大约 3 分钟。", "Add your own API key. About 3 minutes with the guide.", "自分の API キーを入れます。ガイドに沿って約 3 分。"),
-                            warns: testFailed) {
-                        if testFailed {
-                            HStack(spacing: 8) {
-                                pill(store.test == .running ? L("测试中…", "Testing…", "テスト中…") : L("重新测试", "Test Again", "再テスト"),
-                                     prominent: current == 2) { Task { await store.runTest() } }
-                                    .disabled(store.test == .running)
-                                pill(L("重新设置 AI", "Set Up AI Again", "AI を設定し直す"), prominent: false) { openGuide() }
-                            }
-                        } else if done[2] {
-                            pill(L("重新设置 AI", "Set Up AI Again", "AI を設定し直す"), prominent: false) { openGuide() }
-                        } else {
-                            HStack(spacing: 8) {
-                                pill(L("跟着教程设置", "Follow the Guide", "ガイドで設定"), prominent: current == 2) { openGuide() }
-                                pill(L("已有 Key", "I Have a Key", "キーがある"), prominent: false) { router.openModel() }
-                            }
-                        }
-                    }
-                }
-                .padding(.top, 16)
-                if !done[1] && fullAccessOff {
-                    Text(L("系统设置 › 飞地输入法 › 键盘，打开「允许完全访问」。用一次键盘后这里会自动打勾。",
-                           "Settings › Enclave › Keyboards, then turn on Allow Full Access. This gets checked after you use the keyboard once.",
-                           "設定 › Enclave › キーボード で「フルアクセスを許可」をオンにします。キーボードを一度使うと自動でチェックが付きます。"))
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(GuideColor.secondary.opacity(0.8))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 4)
-                        .padding(.top, 12)
-                }
-                if deployer.state != .done && (deployer.state != .idle || deployer.needsDeploy) {
-                    DeployCard().padding(.top, 16)
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            .padding(.bottom, 24)
-            .id(refresh)
-        }
-        .background(GuideBackground(glow: true))
-        // 导航栏透明、不写标题，大标题在页面里。
-        .navigationTitle(L("设置向导", "Setup Guide", "設定ガイド"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .onChange(of: scenePhase) { if $0 == .active { refresh = UUID() } }
-    }
-
-    private var fullAccessOff: Bool { Readiness.fullAccess == false }
-
-    /// 配好了就算完成；只有测过并且失败才算没完成（和首页「AI 还没连上」卡一致）。
-    private var aiReady: Bool { store.settings.isConfigured && store.lastTestOK != false }
-    private var testFailed: Bool { store.settings.isConfigured && store.lastTestOK == false }
-
-    private var stepDivider: some View {
-        Rectangle().fill(GuideColor.divider).frame(height: 1).padding(.horizontal, 18)
-    }
-
-    /// 「DeepSeek · deepseek-flash · 连接正常」
-    private var aiSummary: String {
-        let state: String
-        switch store.lastTestOK {
-        case true?: state = L("连接正常", "Connected", "接続 OK")
-        case false?: state = L("上次测试失败", "Last test failed", "前回のテストは失敗")
-        case nil: state = L("还没测试", "Not tested", "未テスト")
-        }
-        return [ProviderName.of(store.settings.baseURL), store.settings.model, state].joined(separator: " · ")
-    }
-
-    /// 从选服务商开始，已有的 Key 不动。
-    private func openGuide() {
-        if router.privacyAgreed { router.setupGuide = .provider } else { router.settingsPath.append(.privacy) }
-    }
-
-    private func progress(done: [Bool], remaining: Int) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(remaining == 0 ? L("三步都做完了", "All three steps done", "3 ステップ完了") : L("还差 \(remaining) 步", "\(remaining) left", "あと \(remaining) ステップ"))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(remaining == 0 ? Self.green : GuideColor.chipText)
-            HStack(spacing: 5) {
-                // 哪一步做完哪一段上色，不按顺序填。
-                ForEach(0..<3, id: \.self) { i in
-                    Capsule()
-                        .fill(remaining == 0 ? Self.green : done[i] ? GuideColor.purple : GuideColor.progressOff)
-                        .frame(height: 4)
-                }
-            }
-        }
-    }
-
-    private func stepRow(_ index: Int, done: Bool, current: Bool, title: String, detail: String, warns: Bool = false) -> some View {
-        stepRow(index, done: done, current: current, title: title, detail: detail, warns: warns) { EmptyView() }
-    }
-
-    private func stepRow<Actions: View>(_ index: Int, done: Bool, current: Bool, title: String, detail: String, warns: Bool = false,
-                                        @ViewBuilder actions: () -> Actions) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            stepMark(index, done: done, current: current)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(done ? GuideColor.secondary : GuideColor.text)
-                Text(detail).font(.system(size: 13.5))
-                    .foregroundStyle(warns ? Color(hex: 0xD97706) : GuideColor.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                actions().padding(.top, 8)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
-    }
-
-    @ViewBuilder
-    private func stepMark(_ index: Int, done: Bool, current: Bool) -> some View {
-        Group {
-            if done {
-                Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 28, height: 28).background(Circle().fill(Self.green))
-            } else if current {
-                Text("\(index + 1)").font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 28, height: 28).background(Circle().fill(GuideColor.purple))
-                    .shadow(color: GuideColor.purple.opacity(0.35), radius: 8, y: 4)
-            } else {
-                Text("\(index + 1)").font(.system(size: 14, weight: .semibold)).foregroundStyle(GuideColor.secondary)
-                    .frame(width: 28, height: 28).overlay(Circle().strokeBorder(GuideColor.divider, lineWidth: 1.5))
-            }
-        }
-    }
-
-    private func pill(_ title: String, prominent: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(prominent ? Color.white : GuideColor.chipText)
-                .padding(.horizontal, 16)
-                .frame(height: 36)
-                .background(Capsule().fill(prominent
-                    ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x7B6BFA), Color(hex: 0x5B4BE8), Color(hex: 0x4A3BD6)],
-                                                   startPoint: .topLeading, endPoint: .bottomTrailing))
-                    : AnyShapeStyle(GuideColor.chipFill)))
-                .shadow(color: GuideColor.purple.opacity(prominent ? 0.3 : 0), radius: 8, y: 5)
         }
         .buttonStyle(.plain)
     }

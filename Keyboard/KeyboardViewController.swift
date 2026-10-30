@@ -46,6 +46,51 @@ final class KeyboardViewController: UIInputViewController {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateHeight() }
             .store(in: &cancellables)
+
+        // 键盘开着时对方 App 退到后台（上滑回桌面、切 App），系统不一定调 viewDidDisappear，扩展直接被挂起；
+        // Rime 会话还开着就还锁着 App Group 里的用户词库，挂起时被杀（0xDEAD10CC）。退后台时也关掉，回前台再建。
+        NotificationCenter.default.publisher(for: .NSExtensionHostDidEnterBackground)
+            .sink { [weak self] _ in self?.releaseEngine() }
+            .store(in: &cancellables)
+        // 对方要退后台了：这之后（包括随后的 viewDidDisappear）清输入框里下划线拼音那一下会被丢掉，见 releaseEngine。
+        NotificationCenter.default.publisher(for: .NSExtensionHostWillResignActive)
+            .sink { [weak self] _ in self?.hostInactive = true }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: .NSExtensionHostDidBecomeActive)
+            .sink { [weak self] _ in
+                self?.hostInactive = false
+                // 真机上回前台不一定再走 viewDidAppear，这里也清一次。
+                DispatchQueue.main.async { self?.clearStaleMarkedText() }
+            }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: .NSExtensionHostWillEnterForeground)
+            .sink { [weak self] _ in
+                guard let self, self.view.window != nil else { return }
+                self.model.selectEngine()
+            }
+            .store(in: &cancellables)
+    }
+
+    private var hostInactive = false
+    /// 退后台时输入框里还挂着拼音，没清成，回来再清。
+    private var staleMarkedText = false
+
+    /// 回前台后清掉退后台时没清成的下划线拼音；这时又打了字就不用清，新拼音已经把它换掉了。
+    private func clearStaleMarkedText() {
+        guard staleMarkedText else { return }
+        staleMarkedText = false
+        guard !model.isComposing else { return }
+        model.hasMarkedText = true
+        model.clearMarkedText()
+    }
+
+    /// 清掉组字、关掉 Rime 会话：收起和退后台都走这里。下次弹出（selectEngine）或按键时重建。
+    private func releaseEngine() {
+        // 只在对方退后台时记：正常收起时清得掉；而且下次弹出可能已经换了输入框，那边没拼音可清。
+        if hostInactive, model.hasMarkedText { staleMarkedText = true }
+        model.engine.reset()
+        QueuedEngine.shared.closeSession()
+        model.syncEngine()
     }
 
     /// 横屏用简版尺寸。键盘扩展里拿不到界面方向：有窗口时按屏幕宽高比，还没进窗口时看竖向尺寸类（iPhone 横屏是 compact）。
@@ -129,6 +174,7 @@ final class KeyboardViewController: UIInputViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.heightLog("settled") }
         #endif
         TypingStats.noteLaunchAppeared()
+        clearStaleMarkedText()
         // 常用词要读系统文本替换和通讯录、可能重写词库里的短语表，不影响键盘长什么样，放到弹出以后再做，
         // 不占弹出前的那一段主线程。
         model.refreshCommonWords()
@@ -136,10 +182,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        model.engine.reset()
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
-        QueuedEngine.shared.closeSession()
-        model.syncEngine()
+        releaseEngine()
         model.pressedKeys = []
         model.trackpadActive = false
         TypingStats.flush()

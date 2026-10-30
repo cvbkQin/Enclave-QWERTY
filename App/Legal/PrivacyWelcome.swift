@@ -48,8 +48,8 @@ struct PrivacyWelcomeView: View {
                               L("AI 只连你自己的接口", "AI only talks to your own API", "AI はあなたの API にだけ接続"),
                               L("只有你主动用 AI 时，选中的文字才会发到你自己填写的模型接口。", "Only when you use AI is the selected text sent, to the model API you set up yourself.", "AI を使ったときだけ、選んだ文章をあなたが設定したモデルの API に送ります。"))
                         point(Image(systemName: "server.rack"), color: .green, slashed: true,
-                              L("我们没有服务器", "We have no servers", "サーバーはありません"),
-                              L("开发者不收集你输入的任何内容。", "The developer collects nothing you type.", "開発者は入力内容を一切収集しません。"))
+                              L("无第三方中转", "No third-party relay", "第三者の中継なし"),
+                              L("AI 请求直接发给你选的服务商，开发者不收集你输入的任何内容。", "AI requests go straight to the provider you chose. The developer collects nothing you type.", "AI へのリクエストは選んだサービスへ直接送られます。開発者は入力内容を一切収集しません。"))
                         point(Image(systemName: "key"), color: .orange,
                               L("「允许完全访问」只用来", "Allow Full Access is only for", "「フルアクセスを許可」の用途"),
                               L("联网调用你配置的接口、按键震动、和 App 共享设置。", "Calling the API you set up, key haptics, and sharing settings with the app.", "設定した API への接続、キーの振動、アプリとの設定共有だけです。"))
@@ -126,7 +126,7 @@ struct PrivacyWelcomeView: View {
                 .font(.system(size: 19))
                 .foregroundStyle(color)
                 .overlay {
-                    // 「没有服务器」：服务器图标上画一道斜线。
+                    // 「无第三方中转」：服务器图标上画一道斜线。
                     if slashed {
                         Capsule().fill(color).frame(width: 2, height: 26).rotationEffect(.degrees(-45))
                     }

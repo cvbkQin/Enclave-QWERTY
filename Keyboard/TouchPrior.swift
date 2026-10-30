@@ -51,6 +51,14 @@ enum TouchPrior {
         return best
     }
 
+    /// 纠错的触点解码（TouchTrail）：这个键打出的字母（小写）或数字，和落点相对（按手指习惯挪过的）键中心的偏移。别的键为 nil。
+    static func trailEntry(for key: KeySpec, at point: CGPoint) -> (Character, TouchTrail.Offset)? {
+        guard let mode = Mode(key), let char = symbol(of: key, mode) else { return nil }
+        let shift = TouchCalibration.shift(for: calibrationKey(char, mode))
+        return (char, TouchTrail.Offset(dx: Double((point.x - key.frame.midX) / key.frame.width) - Double(shift.dx),
+                                        dy: Double((point.y - key.frame.midY) / key.frame.height) - Double(shift.dy)))
+    }
+
     /// 校准用的键名：全键盘和九宫格分开记。别的键不校准。
     static func calibrationKey(for key: KeySpec) -> String? {
         guard let mode = Mode(key), let char = symbol(of: key, mode) else { return nil }
