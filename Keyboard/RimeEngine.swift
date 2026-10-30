@@ -11,7 +11,7 @@ final class RimeEngine: InputEngine {
     /// 分段选词后接着整句的剩下部分（见 select），排在候选第一个；Rime 自己的候选从 candidates[hintOffset] 开始。
     private var remainder: String?
     private var hintOffset: Int { remainder == nil ? 0 : 1 }
-    /// 纠错层（0.94，先只开全键盘）插进候选的纠正词；选它时把输入换成改过的串再选（见 selectCorrection）。
+    /// 纠错层（0.94）插进候选的纠正词；选它时把输入换成改过的串再选（见 selectCorrection）。
     private var correction: Correction?
     private struct Correction {
         /// 在 candidates 里的位置。
@@ -22,8 +22,9 @@ final class RimeEngine: InputEngine {
         /// Rime 原来候选里和它重复、被拿掉的那个的位置（Rime 自己的编号）。
         var removed: Int?
     }
-    /// 全键盘的纠错器（词库自带的表没生成时为 nil，就不纠）。
-    private lazy var corrector: Corrector? = Corrector.bundled(nineKey: false)
+    /// 全键盘、九宫格各一个纠错器（词库自带的表没生成时为 nil，就不纠）。
+    private lazy var letterCorrector: Corrector? = Corrector.bundled(nineKey: false)
+    private lazy var digitCorrector: Corrector? = Corrector.bundled(nineKey: true)
     /// 纠错时用来问「改过的串打出什么」的第二个会话，不动用户正在打的那个。
     private var probe: UInt64 = 0
     /// 选纠正词时重输改过的串，这期间不再纠。
@@ -308,10 +309,10 @@ final class RimeEngine: InputEngine {
     }
 
     /// 输入像打错了：纠正的词插进候选（拼不成时放首选，拼得成但改一处像话得多时放第二位），按的键不改。
-    /// 分段选过词、带分词符的不纠（Corrector 里也挡了分词符）。
+    /// 分段选过词、带分词符的不纠（Corrector 里也挡了分词符；九宫格选过拼音的，输入里有字母，也不纠）。
     private func applyCorrection() {
-        guard Self.correctionEnabled, !correcting, schema == RimeStore.schemaID, selections.isEmpty, !candidates.isEmpty,
-              let corrector else { return }
+        guard Self.correctionEnabled, !correcting, selections.isEmpty, !candidates.isEmpty else { return }
+        guard let corrector = schema == RimeStore.nineKeySchemaID ? digitCorrector : letterCorrector else { return }
         let raw = rawInput
         guard let guess = corrector.guess(raw) else { return }
         guard let merged = CorrectionMerge.merge(candidates, input: raw, guess: guess, correctedTop: probeTop(guess.corrected)) else { return }
