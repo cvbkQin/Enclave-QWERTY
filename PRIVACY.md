@@ -117,6 +117,7 @@
 
 开发者：秦耕耘（个人开发者）
 电子邮箱：cvbk.qin@gmail.com
+ICP 备案号：皖ICP备2026038401号-1A
 
 我们将在收到您的反馈后 15 个工作日内答复。如您对我们的答复不满意，可以向网信、工信等有关主管部门投诉或举报。
 
@@ -213,6 +214,7 @@ We may update this Privacy Policy from time to time. Updates will be published i
 ## 9. Contact Us
 
 Email: cvbk.qin@gmail.com
+ICP filing: 皖ICP备2026038401号-1A
 
 We will respond within 15 business days.
 
@@ -309,5 +311,6 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 ## 9. お問い合わせ
 
 メール：cvbk.qin@gmail.com
+ICP 届出番号：皖ICP备2026038401号-1A
 
 お問い合わせには 15 営業日以内に回答します。
