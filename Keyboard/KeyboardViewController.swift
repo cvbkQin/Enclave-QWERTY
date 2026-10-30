@@ -76,12 +76,19 @@ final class KeyboardViewController: UIInputViewController {
     private var staleMarkedText = false
 
     /// 回前台后清掉退后台时没清成的下划线拼音；这时又打了字就不用清，新拼音已经把它换掉了。
+    /// 刚回前台时有的宿主（模拟器上的信息）还没接上，第一次清会被丢掉：隔 0.3 秒、1 秒再各清一次，三次后才算清完。
     private func clearStaleMarkedText() {
         guard staleMarkedText else { return }
         staleMarkedText = false
-        guard !model.isComposing else { return }
-        model.hasMarkedText = true
-        model.clearMarkedText()
+        for delay in [0, 0.3, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                // 这时选中了字就不清：空的 setMarkedText 会把选中的字换掉。
+                guard let self, !self.model.isComposing, !self.hostInactive,
+                      (self.textDocumentProxy.selectedText ?? "").isEmpty else { return }
+                self.model.hasMarkedText = true
+                self.model.clearMarkedText()
+            }
+        }
     }
 
     /// 清掉组字、关掉 Rime 会话：收起和退后台都走这里。下次弹出（selectEngine）或按键时重建。
