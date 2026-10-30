@@ -962,14 +962,16 @@ struct KeyboardSettingsView: View {
 
     var body: some View {
         Form {
+            // 读一下 refresh：从系统设置回来时 body 重算，完全访问的横幅跟着出现或消失。
+            let _ = refresh
             // B 卡片放在 Section 的 header 里，分组的大圆角裁不到，四角完整（见 dashFormCard）。
-            Section {
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    if KeyboardStatus.fullAccess == false { NotSyncedBanner() }
+            // 只在没开完全访问时放这一组：空的 header 会在标题下面多出约 40pt 空白。
+            if KeyboardStatus.fullAccess == false {
+                Section {
+                } header: {
+                    NotSyncedBanner()
+                        .dashFormCard()
                 }
-                .id(refresh)
-                .dashFormCard()
             }
             // 主要语言（EM1/EM2）：小标题 + 白卡里的三段选择，脚注随选项变。
             Section {
