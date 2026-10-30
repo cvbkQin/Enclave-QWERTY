@@ -1,0 +1,3837 @@
+# 飞地输入法扩展词库 · 来源：THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2016 THUNLP
+# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
+---
+name: ext_caijing
+version: "2026-10-30"
+sort: by_weight
+...
+发展	fa zhan	9
+部门	bu men	9
+政府	zheng fu	9
+经济	jing ji	9
+服务	fu wu	9
+公司	gong si	9
+实现	shi xian	9
+市场	shi chang	9
+评论	ping lun	9
+支持	zhi chi	9
+机构	ji gou	9
+能力	neng li	9
+资源	zi yuan	9
+计划	ji hua	9
+系统	xi tong	8
+分享	fen xiang	8
+产品	chan pin	8
+网络	wang luo	8
+提升	ti sheng	8
+报告	bao gao	8
+产业	chan ye	8
+执行	zhi xing	8
+行业	hang ye	8
+需求	xu qiu	8
+调整	tiao zheng	8
+方案	fang an	8
+委员会	wei yuan hui	8
+集团	ji tuan	8
+利益	li yi	8
+主席	zhu xi	8
+经营	jing ying	8
+统计	tong ji	8
+时代	shi dai	8
+力度	li du	8
+收入	shou ru	8
+生态	sheng tai	8
+购买	gou mai	8
+机会	ji hui	8
+近年来	jin nian lai	8
+推出	tui chu	8
+规范	gui fan	8
+价值	jia zhi	8
+国务院	guo wu yuan	8
+有限公司	you xian gong si	8
+金融	jin rong	8
+出台	chu tai	8
+数量	shu liang	8
+银行	yin hang	8
+民生	min sheng	8
+费用	fei yong	8
+近期	jin qi	8
+风险	feng xian	8
+设立	she li	8
+通道	tong dao	8
+协议	xie yi	8
+创造	chuang zao	8
+强化	qiang hua	8
+操作	cao zuo	8
+升级	sheng ji	8
+消费	xiao fei	8
+救援	jiu yuan	8
+商业	shang ye	8
+财政	cai zheng	8
+美元	mei yuan	8
+损失	sun shi	8
+律师	lv shi	8
+优惠	you hui	8
+推荐	tui jian	8
+突破	tu po	8
+年度	nian du	8
+治理	zhi li	8
+注册	zhu ce	8
+标签	biao qian	8
+批准	pi zhun	8
+开通	kai tong	8
+上升	shang sheng	8
+渠道	qu dao	8
+查询	cha xun	8
+交易	jiao yi	8
+支付	zhi fu	8
+达成	da cheng	8
+承诺	cheng nuo	8
+淘宝	tao bao	8
+环保	huan bao	8
+登记	deng ji	8
+博客	bo ke	8
+趋势	qu shi	8
+配置	pei zhi	8
+论坛	lun tan	8
+违规	wei gui	8
+金额	jin e	8
+调研	diao yan	8
+机场	ji chang	8
+低于	di yu	8
+商品	shang pin	8
+贸易	mao yi	8
+工资	gong zi	8
+能源	neng yuan	8
+指标	zhi biao	8
+评估	ping gu	8
+保险	bao xian	8
+出口	chu kou	8
+退出	tui chu	8
+财产	cai chan	8
+专题	zhuan ti	8
+总经理	zong jing li	8
+环球	huan qiu	8
+合同	he tong	8
+研发	yan fa	8
+财经	cai jing	8
+上涨	shang zhang	8
+超标	chao biao	8
+董事长	dong shi zhang	8
+考核	kao he	8
+补贴	bu tie	8
+计算	ji suan	8
+现金	xian jin	8
+房地产	fang di chan	8
+上市	shang shi	8
+资本	zi ben	8
+贷款	dai kuan	8
+资产	zi chan	8
+行情	hang qing	8
+分配	fen pei	8
+理财	li cai	8
+投诉	tou su	8
+预期	yu qi	8
+信号	xin hao	8
+委托	wei tuo	8
+红包	hong bao	8
+鉴定	jian ding	8
+当事人	dang shi ren	8
+经理	jing li	8
+案例	an li	8
+预算	yu suan	8
+起诉	qi su	8
+客服	ke fu	8
+特权	te quan	8
+预测	yu ce	8
+差距	cha ju	8
+态势	tai shi	8
+高层	gao ceng	7
+进口	jin kou	7
+浮动	fu dong	7
+前景	qian jing	7
+微软	wei ruan	7
+总额	zong e	7
+披露	pi lu	7
+座谈会	zuo tan hui	7
+利润	li run	7
+竞价	jing jia	7
+支出	zhi chu	7
+竞争力	jing zheng li	7
+融资	rong zi	7
+繁荣	fan rong	7
+审核	shen he	7
+股份	gu fen	7
+收取	shou qu	7
+初始	chu shi	7
+指数	zhi shu	7
+效应	xiao ying	7
+福利	fu li	7
+补偿	bu chang	7
+潜力	qian li	7
+短期	duan qi	7
+季度	ji du	7
+品种	pin zhong	7
+级别	ji bie	7
+幅度	fu du	7
+出售	chu shou	7
+黄金	huang jin	7
+产权	chan quan	7
+期限	qi xian	7
+收益	shou yi	7
+营销	ying xiao	7
+商务	shang wu	7
+财富	cai fu	7
+顾客	gu ke	7
+发行	fa xing	7
+财务	cai wu	7
+账户	zhang hu	7
+投资者	tou zi zhe	7
+受损	shou sun	7
+缴纳	jiao na	7
+税收	shui shou	7
+主管部门	zhu guan bu men	7
+货币	huo bi	7
+研究员	yan jiu yuan	7
+基金会	ji jin hui	7
+百分点	bai fen dian	7
+物业	wu ye	7
+特区	te qu	7
+等级	deng ji	7
+日期	ri qi	7
+企业家	qi ye jia	7
+债务	zhai wu	7
+比重	bi zhong	7
+崛起	jue qi	7
+代理	dai li	7
+调控	tiao kong	7
+协同	xie tong	7
+业绩	ye ji	7
+本土	ben tu	7
+农产品	nong chan pin	7
+数额	shu e	7
+收购	shou gou	7
+租赁	zu lin	7
+储备	chu bei	7
+查获	cha huo	7
+组合	zu he	7
+周期	zhou qi	7
+着手	zhuo shou	7
+通讯	tong xun	7
+证券	zheng quan	7
+恶化	e hua	7
+友谊	you yi	7
+责任人	ze ren ren	7
+正规	zheng gui	7
+国际化	guo ji hua	7
+流通	liu tong	7
+奖金	jiang jin	7
+供给	gong ji	7
+财政部	cai zheng bu	7
+信用	xin yong	7
+备案	bei an	7
+捐款	juan kuan	7
+挂牌	gua pai	7
+筹备	chou bei	7
+下滑	xia hua	7
+上月	shang yue	7
+开发区	kai fa qu	7
+赚钱	zhuan qian	7
+个体	ge ti	7
+市场化	shi chang hua	7
+板块	ban kuai	7
+成交	cheng jiao	7
+中介	zhong jie	7
+下跌	xia die	7
+涨幅	zhang fu	7
+太平洋	tai ping yang	7
+受贿	shou hui	7
+初期	chu qi	7
+中小企业	zhong xiao qi ye	7
+达标	da biao	7
+产量	chan liang	7
+订单	ding dan	7
+均衡	jun heng	7
+存款	cun kuan	7
+经营者	jing ying zhe	7
+波动	bo dong	7
+招商	zhao shang	7
+华侨	hua qiao	7
+审计	shen ji	7
+电子商务	dian zi shang wu	7
+股票	gu piao	7
+份额	fen e	7
+遗产	yi chan	7
+结算	jie suan	7
+隔离	ge li	7
+业界	ye jie	7
+国企	guo qi	7
+促销	cu xiao	7
+签字	qian zi	7
+垄断	long duan	7
+利率	li lv	7
+社保	she bao	7
+招标	zhao biao	7
+额度	e du	7
+月薪	yue xin	7
+租金	zu jin	7
+合并	he bing	7
+定价	ding jia	7
+低价	di jia	7
+进出口	jin chu kou	7
+发改委	fa gai wei	7
+反弹	fan tan	7
+欧元	ou yuan	7
+控股	kong gu	7
+转让	zhuan rang	7
+担保	dan bao	7
+外资	wai zi	7
+伪造	wei zao	7
+指引	zhi yin	7
+瓶颈	ping jing	7
+定点	ding dian	7
+开办	kai ban	7
+股东	gu dong	7
+上游	shang you	7
+法人	fa ren	7
+专利	zhuan li	7
+收回	shou hui	7
+央行	yang hang	7
+形态	xing tai	7
+筹集	chou ji	7
+转换	zhuan huan	7
+信贷	xin dai	7
+银行卡	yin hang ka	7
+被盗	bei dao	7
+网点	wang dian	7
+走势	zou shi	7
+攀升	pan sheng	7
+仓库	cang ku	7
+工商局	gong shang ju	7
+厂房	chang fang	7
+结构性	jie gou xing	7
+缴费	jiao fei	7
+到期	dao qi	7
+混合	hun he	7
+招商引资	zhao shang yin zi	7
+步骤	bu zhou	7
+区间	qu jian	7
+参与者	can yu zhe	7
+商会	shang hui	7
+缺口	que kou	7
+国际上	guo ji shang	7
+产值	chan zhi	7
+宣告	xuan gao	7
+下调	xia tiao	7
+款项	kuan xiang	7
+利息	li xi	7
+国民经济	guo min jing ji	7
+获利	huo li	7
+安全性	an quan xing	7
+亏损	kui sun	7
+存放	cun fang	7
+低迷	di mi	7
+巨头	ju tou	7
+库存	ku cun	7
+吸纳	xi na	7
+恐慌	kong huang	7
+电网	dian wang	7
+上调	shang tiao	7
+类别	lei bie	7
+原告	yuan gao	7
+筛选	shai xuan	7
+华商	hua shang	7
+四大	si da	7
+亚太	ya tai	7
+多样化	duo yang hua	7
+合作社	he zuo she	7
+考量	kao liang	7
+报酬	bao chou	7
+增值	zeng zhi	7
+归还	gui huan	7
+流动性	liu dong xing	7
+索赔	suo pei	7
+财力	cai li	7
+测量	ce liang	7
+标注	biao zhu	7
+余额	yu e	7
+红利	hong li	7
+经销商	jing xiao shang	7
+赌博	du bo	7
+构筑	gou zhu	7
+模型	mo xing	7
+纳税人	na shui ren	7
+兼职	jian zhi	7
+拨款	bo kuan	7
+扣除	kou chu	7
+返还	fan huan	7
+首创	shou chuang	7
+付款	fu kuan	7
+偿还	chang huan	7
+集会	ji hui	7
+内需	nei xu	7
+议案	yi an	7
+挪用	nuo yong	7
+惯例	guan li	7
+突破口	tu po kou	7
+年会	nian hui	7
+副主席	fu zhu xi	7
+密度	mi du	7
+均价	jun jia	7
+闲置	xian zhi	7
+区域性	qu yu xing	7
+冻结	dong jie	7
+数据库	shu ju ku	7
+行长	hang zhang	7
+核准	he zhun	7
+一季度	yi ji du	7
+楼盘	lou pan	7
+债券	zhai quan	7
+观测	guan ce	7
+董事	dong shi	7
+凭证	ping zheng	7
+拖欠	tuo qian	7
+编号	bian hao	7
+团购	tuan gou	7
+欺骗	qi pian	7
+增长率	zeng zhang lv	7
+博弈	bo yi	7
+利好	li hao	7
+泡沫	pao mo	7
+世博	shi bo	7
+实战	shi zhan	7
+全国性	quan guo xing	7
+卖出	mai chu	7
+募集	mu ji	7
+透明度	tou ming du	7
+汇率	hui lv	7
+稳健	wen jian	7
+购房者	gou fang zhe	7
+信用卡	xin yong ka	7
+彩票	cai piao	7
+薪酬	xin chou	7
+社会保险	she hui bao xian	7
+折扣	zhe kou	7
+英镑	ying bang	7
+投标	tou biao	7
+进场	jin chang	7
+落下	luo xia	7
+成交量	cheng jiao liang	7
+日元	ri yuan	7
+交易所	jiao yi suo	7
+集合	ji he	7
+核定	he ding	7
+基准	ji zhun	7
+参保	can bao	7
+总收入	zong shou ru	7
+破产	po chan	7
+稳定性	wen ding xing	7
+规章	gui zhang	7
+修正	xiu zheng	7
+津贴	jin tie	7
+飙升	biao sheng	7
+免职	mian zhi	7
+油价	you jia	7
+查封	cha feng	7
+轮胎	lun tai	7
+开盘	kai pan	7
+走私	zou si	7
+外汇	wai hui	7
+免除	mian chu	7
+报价	bao jia	7
+失业率	shi ye lv	7
+打折	da zhe	7
+转账	zhuan zhang	7
+崩溃	beng kui	7
+保险公司	bao xian gong si	7
+宏观调控	hong guan tiao kong	7
+代理人	dai li ren	7
+弊端	bi duan	7
+信誉	xin yu	7
+升值	sheng zhi	7
+黑名单	hei ming dan	7
+有效期	you xiao qi	7
+石化	shi hua	7
+预留	yu liu	7
+操纵	cao zong	7
+长城	chang cheng	7
+股价	gu jia	7
+华夏	hua xia	7
+新京报	xin jing bao	7
+天价	tian jia	7
+违约	wei yue	7
+持续性	chi xu xing	7
+环球时报	huan qiu shi bao	7
+基调	ji diao	7
+附加	fu jia	7
+仲裁	zhong cai	7
+珠江	zhu jiang	7
+写字楼	xie zi lou	7
+董事会	dong shi hui	7
+激增	ji zeng	7
+杠杆	gang gan	7
+投资人	tou zi ren	7
+拨付	bo fu	7
+分割	fen ge	7
+跌幅	die fu	7
+席位	xi wei	7
+延期	yan qi	7
+央企	yang qi	7
+证监会	zheng jian hui	7
+兴业	xing ye	7
+匮乏	kui fa	7
+震荡	zhen dang	7
+总价	zong jia	7
+买单	mai dan	7
+增值税	zeng zhi shui	7
+所有权	suo you quan	7
+票据	piao ju	7
+期货	qi huo	7
+子公司	zi gong si	7
+金融业	jin rong ye	7
+汇款	hui kuan	7
+投资额	tou zi e	7
+多媒体	duo mei ti	7
+保证金	bao zheng jin	7
+价位	jia wei	6
+知情人	zhi qing ren	6
+筹资	chou zi	6
+按计划	an ji hua	6
+集装箱	ji zhuang xiang	6
+机电	ji dian	6
+抛出	pao chu	6
+产出	chan chu	6
+贬值	bian zhi	6
+分化	fen hua	6
+中标	zhong biao	6
+差价	cha jia	6
+同级	tong ji	6
+投机	tou ji	6
+合伙	he huo	6
+收盘	shou pan	6
+抽奖	chou jiang	6
+饱和	bao he	6
+阿里巴巴	a li ba ba	6
+解散	jie san	6
+获准	huo zhun	6
+经济危机	jing ji wei ji	6
+下落	xia luo	6
+停职	ting zhi	6
+赚取	zhuan qu	6
+审慎	shen shen	6
+生产能力	sheng chan neng li	6
+波音	bo yin	6
+关税	guan shui	6
+手续费	shou xu fei	6
+充斥	chong chi	6
+封顶	feng ding	6
+储蓄	chu xu	6
+复核	fu he	6
+监护人	jian hu ren	6
+暴涨	bao zhang	6
+分红	fen hong	6
+盘活	pan huo	6
+理赔	li pei	6
+社会团体	she hui tuan ti	6
+逆转	ni zhuan	6
+华尔街日报	hua er jie ri bao	6
+市值	shi zhi	6
+港元	gang yuan	6
+管理层	guan li ceng	6
+停滞	ting zhi	6
+万达	wan da	6
+评级	ping ji	6
+供不应求	gong bu ying qiu	6
+负债	fu zhai	6
+扣留	kou liu	6
+大盘	da pan	6
+赤字	chi zi	6
+深层次	shen ceng ci	6
+欧元区	ou yuan qu	6
+薪水	xin shui	6
+中信	zhong xin	6
+明珠	ming zhu	6
+手势	shou shi	6
+不动产	bu dong chan	6
+网购	wang gou	6
+国债	guo zhai	6
+托管	tuo guan	6
+不定期	bu ding qi	6
+清算	qing suan	6
+主业	zhu ye	6
+中国银行	zhong guo yin hang	6
+远东	yuan dong	6
+欠款	qian kuan	6
+协议书	xie yi shu	6
+偏离	pian li	6
+港币	gang bi	6
+白银	bai yin	6
+黄海	huang hai	6
+年薪	nian xin	6
+暴利	bao li	6
+撤回	che hui	6
+经纪人	jing ji ren	6
+收益率	shou yi lv	6
+房地产业	fang di chan ye	6
+宽带	kuan dai	6
+购进	gou jin	6
+境内外	jing nei wai	6
+计量	ji liang	6
+化验	hua yan	6
+国际贸易	guo ji mao yi	6
+废止	fei zhi	6
+圣地	sheng di	6
+联谊	lian yi	6
+赌场	du chang	6
+透支	tou zhi	6
+发起人	fa qi ren	6
+保费	bao fei	6
+上行	shang xing	6
+保值	bao zhi	6
+股份制	gu fen zhi	6
+中石化	zhong shi hua	6
+发货	fa huo	6
+南航	nan hang	6
+中关村	zhong guan cun	6
+交易额	jiao yi e	6
+补办	bu ban	6
+差额	cha e	6
+福彩	fu cai	6
+受惠	shou hui	6
+中小型	zhong xiao xing	6
+暴跌	bao die	6
+信托	xin tuo	6
+知情者	zhi qing zhe	6
+对外贸易	dui wai mao yi	6
+会计师	kuai ji shi	6
+井喷	jing pen	6
+本金	ben jin	6
+中欧	zhong ou	6
+成因	cheng yin	6
+净利润	jing li run	6
+精密	jing mi	6
+通货膨胀	tong huo peng zhang	6
+贴息	tie xi	6
+万里	wan li	6
+交易量	jiao yi liang	6
+券商	quan shang	6
+交易日	jiao yi ri	6
+跨国公司	kua guo gong si	6
+银监会	yin jian hui	6
+下单	xia dan	6
+大西洋	da xi yang	6
+套取	tao qu	6
+特许	te xu	6
+金融时报	jin rong shi bao	6
+债权	zhai quan	6
+开户	kai hu	6
+洗钱	xi qian	6
+代理商	dai li shang	6
+中海	zhong hai	6
+购买力	gou mai li	6
+筹码	chou ma	6
+财长	cai zhang	6
+经济圈	jing ji quan	6
+资本市场	zi ben shi chang	6
+股民	gu min	6
+孵化器	fu hua qi	6
+定金	ding jin	6
+单据	dan ju	6
+回扣	hui kou	6
+罢工	ba gong	6
+年报	nian bao	6
+盘中	pan zhong	6
+平价	ping jia	6
+华尔街	hua er jie	6
+报表	bao biao	6
+上浮	shang fu	6
+卖点	mai dian	6
+变数	bian shu	6
+房贷	fang dai	6
+专款	zhuan kuan	6
+建筑业	jian zhu ye	6
+中西	zhong xi	6
+互换	hu huan	6
+变卖	bian mai	6
+股指	gu zhi	6
+硅谷	gui gu	6
+技术改造	ji shu gai zao	6
+连云港	lian yun gang	6
+杂志社	za zhi she	6
+挤出	ji chu	6
+采样	cai yang	6
+债权人	zhai quan ren	6
+加息	jia xi	6
+保税	bao shui	6
+盗取	dao qu	6
+消费税	xiao fei shui	6
+完整性	wan zheng xing	6
+沃尔玛	wo er ma	6
+万科	wan ke	6
+市场部	shi chang bu	6
+介于	jie yu	6
+美联储	mei lian chu	6
+畅游	chang you	6
+契约	qi yue	6
+放贷	fang dai	6
+麦当劳	mai dang lao	6
+面值	mian zhi	6
+税务局	shui wu ju	6
+赔钱	pei qian	6
+福特	fu te	6
+共产主义	gong chan zhu yi	6
+按揭	an jie	6
+持卡	chi ka	6
+远期	yuan qi	6
+基点	ji dian	6
+按月	an yue	6
+炒股	chao gu	6
+工行	gong hang	6
+竞标	jing biao	6
+违约金	wei yue jin	6
+出局	chu ju	6
+中兴	zhong xing	6
+首席执行官	shou xi zhi xing guan	6
+独资	du zi	6
+铁道	tie dao	6
+硬币	ying bi	6
+跌破	die po	6
+插队	cha dui	6
+高利贷	gao li dai	6
+专营	zhuan ying	6
+估价	gu jia	6
+益处	yi chu	6
+工钱	gong qian	6
+推介会	tui jie hui	6
+回调	hui diao	6
+超值	chao zhi	6
+所有者	suo you zhe	6
+抵消	di xiao	6
+要价	yao jia	6
+黑手	hei shou	6
+短线	duan xian	6
+萧条	xiao tiao	6
+出逃	chu tao	6
+经理人	jing li ren	6
+出货	chu huo	6
+佣金	yong jin	6
+体彩	ti cai	6
+市场占有率	shi chang zhan you lv	6
+海尔	hai er	6
+东航	dong hang	6
+压低	ya di	6
+损耗	sun hao	6
+图形	tu xing	6
+仪表	yi biao	6
+后市	hou shi	6
+房款	fang kuan	6
+上证	shang zheng	6
+支票	zhi piao	6
+增资	zeng zi	6
+准备金率	zhun bei jin lv	6
+顶峰	ding feng	6
+发行量	fa xing liang	6
+淡出	dan chu	6
+收款	shou kuan	6
+开门红	kai men hong	6
+盗用	dao yong	6
+携程	xie cheng	6
+图表	tu biao	6
+古董	gu dong	6
+买方	mai fang	6
+摇摆	yao bai	6
+资本金	zi ben jin	6
+申购	shen gou	6
+接洽	jie qia	6
+大连港	da lian gang	6
+新世界	xin shi jie	6
+主营业务	zhu ying ye wu	6
+现货	xian huo	6
+回报率	hui bao lv	6
+澳元	ao yuan	6
+资本主义	zi ben zhu yi	6
+国有化	guo you hua	6
+批发商	pi fa shang	6
+涨跌	zhang die	6
+主板	zhu ban	6
+预热	yu re	6
+补助金	bu zhu jin	6
+顺差	shun cha	6
+诺基亚	nuo ji ya	6
+可信度	ke xin du	6
+租借	zu jie	6
+搜狐	sou hu	6
+锦江	jin jiang	6
+母公司	mu gong si	6
+周期性	zhou qi xing	6
+新台阶	xin tai jie	6
+外债	wai zhai	6
+最高点	zui gao dian	6
+公用事业	gong yong shi ye	6
+充值	chong zhi	6
+网银	wang yin	6
+王府井	wang fu jing	6
+抛售	pao shou	6
+薪金	xin jin	6
+亚马逊	ya ma xun	6
+卡号	ka hao	6
+保险业	bao xian ye	6
+质押	zhi ya	6
+套现	tao xian	6
+溢价	yi jia	6
+补足	bu zu	6
+收储	shou chu	6
+陆家嘴	lu jia zui	6
+可口可乐	ke kou ke le	6
+九州	jiu zhou	6
+徐家汇	xu jia hui	6
+私企	si qi	6
+年金	nian jin	6
+过热	guo re	6
+吃紧	chi jin	6
+本息	ben xi	6
+汇丰	hui feng	6
+倾销	qing xiao	6
+净值	jing zhi	6
+遗嘱	yi zhu	6
+遥遥领先	yao yao ling xian	6
+不容乐观	bu rong le guan	6
+入主	ru zhu	6
+失守	shi shou	6
+财团	cai tuan	6
+逆势	ni shi	6
+金牛	jin niu	6
+批文	pi wen	6
+谷底	gu di	6
+附加费	fu jia fei	6
+增发	zeng fa	6
+拒收	ju shou	6
+鄂尔多斯	e er duo si	6
+国安	guo an	6
+税金	shui jin	6
+南洋	nan yang	6
+总行	zong xing	6
+斩获	zhan huo	6
+财政赤字	cai zheng chi zi	6
+背书	bei shu	6
+贵金属	gui jin shu	6
+市场体系	shi chang ti xi	6
+暴富	bao fu	6
+委托书	wei tuo shu	6
+牛市	niu shi	6
+第一财经日报	di yi cai jing ri bao	6
+散户	san hu	6
+联通	lian tong	6
+停牌	ting pai	6
+海航	hai hang	6
+翻一番	fan yi fan	6
+中行	zhong hang	6
+救市	jiu shi	6
+股本	gu ben	6
+白云机场	bai yun ji chang	6
+存货	cun huo	6
+时效性	shi xiao xing	6
+逃税	tao shui	6
+静止	jing zhi	6
+网下	wang xia	6
+外币	wai bi	6
+金矿	jin kuang	6
+外销	wai xiao	6
+金条	jin tiao	6
+保监会	bao jian hui	6
+流动资金	liu dong zi jin	6
+盈余	ying yu	6
+比价	bi jia	6
+有价证券	you jia zheng quan	6
+天津港	tian jin gang	6
+保单	bao dan	6
+结清	jie qing	6
+首付款	shou fu kuan	6
+展期	zhan qi	6
+国民收入	guo min shou ru	6
+古玩	gu wan	6
+反转	fan zhuan	6
+联办	lian ban	6
+监事会	jian shi hui	6
+回购	hui gou	6
+一年期	yi nian qi	6
+意向书	yi xiang shu	6
+中小板	zhong xiao ban	6
+面额	mian e	6
+银联	yin lian	6
+国网	guo wang	6
+看涨	kan zhang	6
+经济参考报	jing ji can kao bao	6
+借款人	jie kuan ren	6
+广发	guang fa	6
+承租人	cheng zu ren	6
+百花	bai hua	6
+融通	rong tong	6
+放量	fang liang	6
+出纳	chu na	6
+白云山	bai yun shan	6
+准备金	zhun bei jin	6
+临界	lin jie	6
+逆差	ni cha	6
+偿债	chang zhai	6
+非公经济	fei gong jing ji	6
+退场	tui chang	6
+日内	ri nei	6
+颓势	tui shi	6
+投票权	tou piao quan	6
+测验	ce yan	6
+赎回	shu hui	6
+豁免	huo mian	6
+金融界	jin rong jie	6
+双开	shuang kai	6
+深交所	shen jiao suo	6
+通盘	tong pan	6
+金融街	jin rong jie	6
+清偿	qing chang	6
+打转	da zhuan	6
+钱币	qian bi	6
+高盛	gao sheng	6
+净资产	jing zi chan	6
+新经济	xin jing ji	6
+经济技术开发区	jing ji ji shu kai fa qu	6
+合金	he jin	6
+炒房	chao fang	6
+衍生品	yan sheng pin	6
+波浪	bo lang	6
+日照	ri zhao	6
+宝钢	bao gang	6
+监事	jian shi	6
+一触即发	yi chu ji fa	6
+金融办	jin rong ban	6
+中远	zhong yuan	6
+永安	yong an	6
+软着陆	ruan zhuo lu	6
+利空	li kong	6
+板材	ban cai	6
+金桥	jin qiao	6
+电讯	dian xun	6
+综述	zong shu	6
+摩根	mo gen	6
+动因	dong yin	6
+年审	nian shen	6
+雅虎	ya hu	6
+退市	tui shi	6
+人寿保险	ren shou bao xian	6
+中南财经政法大学	zhong nan cai jing zheng fa da xue	6
+三角形	san jiao xing	6
+托盘	tuo pan	6
+据传	ju chuan	6
+盎司	ang si	6
+出资人	chu zi ren	6
+中国银监会	zhong guo yin jian hui	6
+信贷资金	xin dai zi jin	6
+花旗	hua qi	6
+政府采购	zheng fu cai gou	6
+假定	jia ding	6
+富国	fu guo	6
+胜算	sheng suan	6
+抵押物	di ya wu	6
+国泰	guo tai	6
+特困户	te kun hu	6
+通胀率	tong zhang lv	6
+银行家	yin hang jia	6
+上汽	shang qi	6
+避风港	bi feng gang	6
+证券化	zheng quan hua	6
+变量	bian liang	6
+配售	pei shou	6
+折旧	zhe jiu	6
+新纪元	xin ji yuan	6
+买进	mai jin	6
+伊利	yi li	6
+经济日报	jing ji ri bao	6
+低点	di dian	6
+浦发	pu fa	6
+偿付	chang fu	6
+探底	tan di	6
+折价	zhe jia	6
+烽火	feng huo	6
+崩盘	beng pan	6
+沪指	hu zhi	6
+银山	yin shan	6
+寿险	shou xian	6
+上交所	shang jiao suo	6
+保额	bao e	6
+蓝筹股	lan chou gu	6
+珠峰	zhu feng	6
+硬指标	ying zhi biao	6
+金杯	jin bei	6
+热炒	re chao	6
+惠普	hui pu	6
+白金	bai jin	6
+天安	tian an	6
+雷声	lei sheng	6
+招商局	zhao shang ju	6
+交割	jiao ge	6
+买断	mai duan	6
+分期付款	fen qi fu kuan	6
+招行	zhao hang	6
+武钢	wu gang	5
+避税	bi shui	5
+趋同	qu tong	5
+英特尔	ying te er	5
+期权	qi quan	5
+评语	ping yu	5
+债务人	zhai wu ren	5
+无形资产	wu xing zi chan	5
+开拓进取	kai tuo jin qu	5
+货币化	huo bi hua	5
+强生	qiang sheng	5
+获批	huo pi	5
+星巴克	xing ba ke	5
+中国人民银行	zhong guo ren min yin hang	5
+钱庄	qian zhuang	5
+异动	yi dong	5
+进口商	jin kou shang	5
+预付款	yu fu kuan	5
+比索	bi suo	5
+盗刷	dao shua	5
+次月	ci yue	5
+财险	cai xian	5
+金鹰	jin ying	5
+销售一空	xiao shou yi kong	5
+国家外汇管理局	guo jia wai hui guan li ju	5
+港股	gang gu	5
+参保率	can bao lv	5
+中银	zhong yin	5
+游资	you zi	5
+投资方	tou zi fang	5
+三联	san lian	5
+印花税	yin hua shui	5
+交行	jiao hang	5
+存贷款	cun dai kuan	5
+金城	jin cheng	5
+中国经济周刊	zhong guo jing ji zhou kan	5
+物价指数	wu jia zhi shu	5
+担保人	dan bao ren	5
+光华	guang hua	5
+国泰君安	guo tai jun an	5
+黑钱	hei qian	5
+出口商	chu kou shang	5
+风控	feng kong	5
+仓位	cang wei	5
+国电	guo dian	5
+跨行	kua hang	5
+存单	cun dan	5
+纪念章	ji nian zhang	5
+拒付	ju fu	5
+统计学	tong ji xue	5
+京西	jing xi	5
+邮政储蓄	you zheng chu xu	5
+调回	diao hui	5
+扭亏为盈	niu kui wei ying	5
+卧龙	wo long	5
+财务部	cai wu bu	5
+发行价	fa xing jia	5
+消费类	xiao fei lei	5
+大中型企业	da zhong xing qi ye	5
+阿波罗	a bo luo	5
+还本付息	huan ben fu xi	5
+发行人	fa xing ren	5
+坏账	huai zhang	5
+中间商	zhong jian shang	5
+国药	guo yao	5
+价差	jia cha	5
+卖价	mai jia	5
+中文网	zhong wen wang	5
+商品市场	shang pin shi chang	5
+商品化	shang pin hua	5
+双汇	shuang hui	5
+优先权	you xian quan	5
+大人物	da ren wu	5
+总需求	zong xu qiu	5
+下陷	xia xian	5
+戴尔	dai er	5
+代销	dai xiao	5
+摘牌	zhai pai	5
+跌至	die zhi	5
+赌球	du qiu	5
+资产负债表	zi chan fu zhai biao	5
+利差	li cha	5
+灰色收入	hui se shou ru	5
+汇票	hui piao	5
+金库	jin ku	5
+金卡	jin ka	5
+净赚	jing zhuan	5
+月报	yue bao	5
+典当	dian dang	5
+风险投资	feng xian tou zi	5
+跌势	die shi	5
+投机者	tou ji zhe	5
+公平交易	gong ping jiao yi	5
+承兑	cheng dui	5
+动产	dong chan	5
+国货	guo huo	5
+到账	dao zhang	5
+当期	dang qi	5
+闲钱	xian qian	5
+每日经济新闻	mei ri jing ji xin wen	5
+清仓	qing cang	5
+联华	lian hua	5
+纪念币	ji nian bi	5
+报税	bao shui	5
+股票市场	gu piao shi chang	5
+创投	chuang tou	5
+滚雪球	gun xue qiu	5
+按日	an ri	5
+压价	ya jia	5
+外高桥	wai gao qiao	5
+牌价	pai jia	5
+熊市	xiong shi	5
+长阳	chang yang	5
+假钞	jia chao	5
+领票	ling piao	5
+汇出	hui chu	5
+另行通知	ling xing tong zhi	5
+张裕	zhang yu	5
+蓄势	xu shi	5
+缴款	jiao kuan	5
+亚信	ya xin	5
+国信	guo xin	5
+空头	kong tou	5
+投资性	tou zi xing	5
+营业执照	ying ye zhi zhao	5
+核战争	he zhan zheng	5
+四季度	si ji du	5
+汇市	hui shi	5
+合资企业	he zi qi ye	5
+催收	cui shou	5
+广厦	guang sha	5
+费率	fei lv	5
+贷款人	dai kuan ren	5
+普涨	pu zhang	5
+金融城	jin rong cheng	5
+科学城	ke xue cheng	5
+储蓄卡	chu xu ka	5
+股息	gu xi	5
+收市	shou shi	5
+战略家	zhan lve jia	5
+负债率	fu zhai lv	5
+汇兑	hui dui	5
+币值	bi zhi	5
+账簿	zhang bu	5
+套牢	tao lao	5
+康佳	kang jia	5
+盲目性	mang mu xing	5
+中华网	zhong hua wang	5
+出租人	chu zu ren	5
+点数	dian shu	5
+债市	zhai shi	5
+停板	ting ban	5
+交易区	jiao yi qu	5
+克拉	ke la	5
+黑金	hei jin	5
+买通	mai tong	5
+承销	cheng xiao	5
+华安	hua an	5
+操作员	cao zuo yuan	5
+典当行	dian dang hang	5
+早盘	zao pan	5
+炎黄	yan huang	5
+网商	wang shang	5
+持卡人	chi ka ren	5
+宝洁	bao jie	5
+信托公司	xin tuo gong si	5
+取现	qu xian	5
+放高利贷	fang gao li dai	5
+凌云	ling yun	5
+纯金	chun jin	5
+祁连山	qi lian shan	5
+公债	gong zhai	5
+变现	bian xian	5
+付息	fu xi	5
+度量	du liang	5
+外汇管理	wai hui guan li	5
+分销商	fen xiao shang	5
+遗产税	yi chan shui	5
+监事长	jian shi zhang	5
+融资额	rong zi e	5
+兼营	jian ying	5
+金融市场	jin rong shi chang	5
+最高价	zui gao jia	5
+贴现	tie xian	5
+美国银行	mei guo yin hang	5
+上海财经大学	shang hai cai jing da xue	5
+鞍钢	an gang	5
+撤资	che zi	5
+接盘	jie pan	5
+救世主	jiu shi zhu	5
+开卡	kai ka	5
+后撤	hou che	5
+阿胶	e jiao	5
+金融股	jin rong gu	5
+结汇	jie hui	5
+无息贷款	wu xi dai kuan	5
+营销部	ying xiao bu	5
+税基	shui ji	5
+对冲	dui chong	5
+海龙	hai long	5
+安信	an xin	5
+萤火虫	ying huo chong	5
+通联	tong lian	5
+步步高	bu bu gao	5
+规划委	gui hua wei	5
+中签	zhong qian	5
+收盘价	shou pan jia	5
+国际大厦	guo ji da sha	5
+机制性	ji zhi xing	5
+挤兑	ji dui	5
+比特	bi te	5
+开盘价	kai pan jia	5
+六合彩	liu he cai	5
+存款人	cun kuan ren	5
+平仓	ping cang	5
+全聚德	quan ju de	5
+公募	gong mu	5
+全面发力	quan mian fa li	5
+韵达	yun da	5
+鼎立	ding li	5
+银监局	yin jian ju	5
+中国联通	zhong guo lian tong	5
+乐视网	le shi wang	5
+中国经营报	zhong guo jing ying bao	5
+满堂红	man tang hong	5
+国投	guo tou	5
+选择权	xuan ze quan	5
+金马	jin ma	5
+出资额	chu zi e	5
+承销商	cheng xiao shang	5
+新卡	xin ka	5
+热钱	re qian	5
+经济基本面	jing ji ji ben mian	5
+通货紧缩	tong huo jin suo	5
+特别关注	te bie guan zhu	5
+币种	bi zhong	5
+银元	yin yuan	5
+通货	tong huo	5
+杀跌	sha die	5
+股份有限公司	gu fen you xian gong si	5
+自由竞争	zi you jing zheng	5
+新大陆	xin da lu	5
+资产负债率	zi chan fu zhai lv	5
+暂行办法	zan xing ban fa	5
+分理处	fen li chu	5
+涨跌幅	zhang die fu	5
+截止日	jie zhi ri	5
+所有权证	suo you quan zheng	5
+收进	shou jin	5
+债权国	zhai quan guo	5
+华新	hua xin	5
+天龙	tian long	5
+百事可乐	bai shi ke le	5
+农林牧渔	nong lin mu yu	5
+私募	si mu	5
+华西村	hua xi cun	5
+商誉	shang yu	5
+奇虎	qi hu	5
+银币	yin bi	5
+抄底	chao di	5
+实施细则	shi shi xi ze	5
+经济学界	jing ji xue jie	5
+减仓	jian cang	5
+信用证	xin yong zheng	5
+购回	gou hui	5
+卖主	mai zhu	5
+管理办法	guan li ban fa	5
+万事达	wan shi da	5
+交易商	jiao yi shang	5
+行话	hang hua	5
+随行就市	sui hang jiu shi	5
+领跌	ling die	5
+国华	guo hua	5
+投资家	tou zi jia	5
+包钢	bao gang	5
+信贷资产	xin dai zi chan	5
+汇源	hui yuan	5
+中长线	zhong chang xian	5
+包销	bao xiao	5
+方兴	fang xing	5
+公司制	gong si zhi	5
+水仙	shui xian	5
+长岭	chang ling	5
+嘉实	jia shi	5
+证券法	zheng quan fa	5
+新城市	xin cheng shi	5
+五环	wu huan	5
+尾盘	wei pan	5
+三农	san nong	5
+布告	bu gao	5
+中农	zhong nong	5
+组选	zu xuan	5
+城投	cheng tou	5
+跨年度	kua nian du	5
+五道口	wu dao kou	5
+文峰	wen feng	5
+翻两番	fan liang fan	5
+信贷员	xin dai yuan	5
+还本	huan ben	5
+均线	jun xian	5
+保护价	bao hu jia	5
+中国国航	zhong guo guo hang	5
+大东海	da dong hai	5
+大盘股	da pan gu	5
+商社	shang she	5
+北大荒	bei da huang	5
+信达	xin da	5
+总账	zong zhang	5
+杜邦	du bang	5
+重仓	zhong cang	5
+丹江	dan jiang	5
+普通股	pu tong gu	5
+香梨	xiang li	5
+聚酯	ju zhi	5
+分散化	fen san hua	5
+汇通	hui tong	5
+老凤祥	lao feng xiang	5
+资产评估	zi chan ping gu	5
+磁卡	ci ka	5
+个股	ge gu	5
+百大	bai da	5
+投资界	tou zi jie	5
+低开	di kai	5
+中北	zhong bei	5
+商业城	shang ye cheng	5
+气势如虹	qi shi ru hong	5
+中石油	zhong shi you	5
+扣款	kou kuan	5
+上证综指	shang zheng zong zhi	5
+仁和	ren he	5
+原始积累	yuan shi ji lei	5
+摩根大通	mo gen da tong	5
+验钞机	yan chao ji	5
+银行界	yin hang jie	5
+金融资产	jin rong zi chan	5
+审计师	shen ji shi	5
+广深铁路	guang shen tie lu	5
+追涨	zhui zhang	5
+储蓄率	chu xu lv	5
+波幅	bo fu	5
+流标	liu biao	5
+黑豹	hei bao	5
+日经指数	ri jing zhi shu	5
+加仓	jia cang	5
+寄放	ji fang	5
+中化	zhong hua	5
+南网	nan wang	5
+宽限期	kuan xian qi	5
+贵宾厅	gui bin ting	5
+估值	gu zhi	5
+合股	he gu	5
+商业周刊	shang ye zhou kan	5
+售楼部	shou lou bu	5
+金鼎	jin ding	5
+龙虎榜	long hu bang	5
+评估师	ping gu shi	5
+浦发银行	pu fa yin hang	5
+投资型	tou zi xing	5
+诡计	gui ji	5
+天保	tian bao	5
+万华	wan hua	5
+苏泊尔	su bo er	5
+超跌	chao die	5
+银质	yin zhi	5
+势态	shi tai	5
+当铺	dang pu	5
+净额	jing e	5
+安永	an yong	5
+天弘	tian hong	5
+中国证券报	zhong guo zheng quan bao	5
+古钱币	gu qian bi	5
+配股	pei gu	5
+爱立信	ai li xin	5
+急升	ji sheng	5
+金泰	jin tai	5
+狂跌	kuang die	5
+滞胀	zhi zhang	5
+抢单	qiang dan	5
+复利	fu li	5
+权证	quan zheng	5
+信用度	xin yong du	5
+白金卡	bai jin ka	5
+重估	chong gu	5
+流转税	liu zhuan shui	5
+长运	chang yun	5
+硬通货	ying tong huo	5
+华信	hua xin	5
+吴中	wu zhong	5
+华源	hua yuan	5
+中铁二局	zhong tie er ju	5
+耐克	nai ke	5
+产成品	chan cheng pin	5
+踏空	ta kong	5
+中集	zhong ji	5
+新鸿基	xin hong ji	5
+中科	zhong ke	5
+选股	xuan gu	5
+担保费	dan bao fei	5
+雅戈尔	ya ge er	5
+群聚	qun ju	5
+同城	tong cheng	5
+开仓	kai cang	5
+出清	chu qing	5
+高点	gao dian	5
+中信集团	zhong xin ji tuan	5
+波峰	bo feng	5
+风险系数	feng xian xi shu	5
+交银	jiao yin	5
+优先股	you xian gu	5
+网通	wang tong	5
+创智	chuang zhi	5
+新机制	xin ji zhi	5
+基本点	ji ben dian	5
+换汇	huan hui	5
+中标者	zhong biao zhe	5
+财智	cai zhi	5
+资助金	zi zhu jin	5
+实体经济	shi ti jing ji	5
+偏转	pian zhuan	5
+购汇	gou hui	5
+白猫	bai mao	5
+凤凰卫视	feng huang wei shi	5
+递延	di yan	5
+康达	kang da	5
+证券日报	zheng quan ri bao	5
+实得	shi de	5
+上海证券报	shang hai zheng quan bao	5
+三立	san li	5
+老千	lao qian	5
+控股有限公司	kong gu you xian gong si	5
+本票	ben piao	5
+基民	ji min	5
+跳空	tiao kong	5
+分界点	fen jie dian	5
+引开	yin kai	5
+大牛市	da niu shi	5
+收藏品	shou cang pin	5
+投标者	tou biao zhe	5
+民丰	min feng	5
+持仓	chi cang	5
+四通	si tong	5
+昌河	chang he	5
+亏损面	kui sun mian	5
+晨星	chen xing	5
+基价	ji jia	5
+代理制	dai li zhi	5
+电汇	dian hui	5
+中小盘股	zhong xiao pan gu	5
+资本密集型	zi ben mi ji xing	5
+虹桥机场	hong qiao ji chang	5
+中投公司	zhong tou gong si	5
+有偿转让	you chang zhuan rang	5
+满仓	man cang	5
+回收期	hui shou qi	5
+缩量	suo liang	5
+评估费	ping gu fei	5
+备付金	bei fu jin	5
+混业	hun ye	5
+财付通	cai fu tong	5
+银华	yin hua	5
+三元	san yuan	5
+华光	hua guang	5
+万家乐	wan jia le	5
+优酷网	you ku wang	4
+外汇管制	wai hui guan zhi	4
+外汇资金	wai hui zi jin	4
+空仓	kong cang	4
+货币流通	huo bi liu tong	4
+纸钞	zhi chao	4
+流动资产	liu dong zi chan	4
+外管局	wai guan ju	4
+横盘	heng pan	4
+兴发	xing fa	4
+止损	zhi sun	4
+艺龙	yi long	4
+九龙山	jiu long shan	4
+基期	ji qi	4
+中房	zhong fang	4
+瑞士法郎	rui shi fa lang	4
+晨鸣	chen ming	4
+建信	jian xin	4
+商网	shang wang	4
+做空	zuo kong	4
+长盛	chang sheng	4
+鸿基	hong ji	4
+建仓	jian cang	4
+外盘	wai pan	4
+纯银	chun yin	4
+持币	chi bi	4
+山航	shan hang	4
+注册费	zhu ce fei	4
+实盘	shi pan	4
+办税厅	ban shui ting	4
+体制性	ti zhi xing	4
+海纳	hai na	4
+大化	da hua	4
+安联	an lian	4
+黑卡	hei ka	4
+金陵饭店	jin ling fan dian	4
+摊销	tan xiao	4
+剩余价值	sheng yu jia zhi	4
+半年报	ban nian bao	4
+天士力	tian shi li	4
+抛盘	pao pan	4
+证券时报	zheng quan shi bao	4
+绿景	lv jing	4
+东阿阿胶	dong e e jiao	4
+龙卡	long ka	4
+耀华	yao hua	4
+补仓	bu cang	4
+绩优股	ji you gu	4
+股利	gu li	4
+市场报	shi chang bao	4
+提单	ti dan	4
+新材	xin cai	4
+春兰	chun lan	4
+创投公司	chuang tou gong si	4
+汇款人	hui kuan ren	4
+缴足	jiao zu	4
+售汇	shou hui	4
+分析师	fen xi shi	4
+控股权	kong gu quan	4
+冲销	chong xiao	4
+精算师	jing suan shi	4
+等价交换	deng jia jiao huan	4
+质押物	zhi ya wu	4
+祥龙	xiang long	4
+赛迪	sai di	4
+华讯	hua xun	4
+市盈率	shi ying lv	4
+里拉	li la	4
+领军者	ling jun zhe	4
+宁波港	ning bo gang	4
+交强险	jiao qiang xian	4
+邵氏	shao shi	4
+普跌	pu die	4
+国际银行	guo ji yin hang	4
+北京银行	bei jing yin hang	4
+定投	ding tou	4
+银行部	yin hang bu	4
+中纺	zhong fang	4
+波音公司	bo yin gong si	4
+莱钢	lai gang	4
+狮头	shi tou	4
+出超	chu chao	4
+星美	xing mei	4
+华鼎	hua ding	4
+丰华	feng hua	4
+对赌	dui du	4
+易宝	yi bao	4
+日照港	ri zhao gang	4
+宏观经济学	hong guan jing ji xue	4
+持有人	chi you ren	4
+扛住	kang zhu	4
+尾市	wei shi	4
+科达	ke da	4
+东盛	dong sheng	4
+法律部	fa lv bu	4
+具结	ju jie	4
+东信	dong xin	4
+宏业	hong ye	4
+金银币	jin yin bi	4
+单选	dan xuan	4
+武昌鱼	wu chang yu	4
+二季度	er ji du	4
+集资款	ji zi kuan	4
+天海	tian hai	4
+担保法	dan bao fa	4
+股改	gu gai	4
+收汇	shou hui	4
+财经网	cai jing wang	4
+波谷	bo gu	4
+发行额	fa xing e	4
+英达	ying da	4
+氯碱	lv jian	4
+汽油机	qi you ji	4
+担保金	dan bao jin	4
+小阳	xiao yang	4
+泰格	tai ge	4
+安全度	an quan du	4
+雷伊	lei yi	4
+赊销	she xiao	4
+湖山	hu shan	4
+金融部	jin rong bu	4
+受益人	shou yi ren	4
+花雕	hua diao	4
+入市	ru shi	4
+健民	jian min	4
+交易税	jiao yi shui	4
+金瑞	jin rui	4
+开户费	kai hu fei	4
+国民银行	guo min yin hang	4
+仓单	cang dan	4
+南化	nan hua	4
+工作方案	gong zuo fang an	4
+伪钞	wei chao	4
+外汇资产	wai hui zi chan	4
+华富	hua fu	4
+大元	da yuan	4
+淡马锡	dan ma xi	4
+中证	zhong zheng	4
+携程网	xie cheng wang	4
+古币	gu bi	4
+坏账率	huai zhang lv	4
+黄页	huang ye	4
+天鸿	tian hong	4
+三力	san li	4
+诺安	nuo an	4
+正常性	zheng chang xing	4
+港铁公司	gang tie gong si	4
+抬轿	tai jiao	4
+侨汇	qiao hui	4
+新高点	xin gao dian	4
+商业银行法	shang ye yin hang fa	4
+热点话题	re dian hua ti	4
+中国太保	zhong guo tai bao	4
+租购	zu gou	4
+黄金储备	huang jin chu bei	4
+百事	bai shi	4
+大摩	da mo	4
+记录员	ji lu yuan	4
+纪念钞	ji nian chao	4
+研究报告	yan jiu bao gao	4
+冲高	chong gao	4
+国际金融报	guo ji jin rong bao	4
+出口业	chu kou ye	4
+卡特尔	ka te er	4
+邮币卡	you bi ka	4
+新天	xin tian	4
+秋林	qiu lin	4
+追收	zhui shou	4
+地量	di liang	4
+金果	jin guo	4
+亚星	ya xing	4
+至高点	zhi gao dian	4
+复权	fu quan	4
+国库券	guo ku quan	4
+金融史	jin rong shi	4
+总成交量	zong cheng jiao liang	4
+农行卡	nong hang ka	4
+富国银行	fu guo yin hang	4
+摩根斯坦利	mo gen si tan li	4
+发行期	fa xing qi	4
+天香	tian xiang	4
+厦华	xia hua	4
+煤气化	mei qi hua	4
+国资局	guo zi ju	4
+探路者	tan lu zhe	4
+对价	dui jia	4
+抗跌	kang die	4
+卡包	ka bao	4
+金帝	jin di	4
+平均利润	ping jun li run	4
+中恒	zhong heng	4
+自然人	zi ran ren	4
+天方	tian fang	4
+法人股	fa ren gu	4
+簿册	bu ce	4
+点位	dian wei	4
+中国经济时报	zhong guo jing ji shi bao	4
+看跌	kan die	4
+国通	guo tong	4
+断点	duan dian	4
+法币	fa bi	4
+普天	pu tian	4
+达标者	da biao zhe	4
+中润	zhong run	4
+银泰百货	yin tai bai huo	4
+投资业	tou zi ye	4
+律师事务所	lv shi shi wu suo	4
+金交所	jin jiao suo	4
+大降	da jiang	4
+概念股	gai nian gu	4
+汇丰银行	hui feng yin hang	4
+套利	tao li	4
+中国企业家	zhong guo qi ye jia	4
+中联重科	zhong lian zhong ke	4
+货币战争	huo bi zhan zheng	4
+物物交换	wu wu jiao huan	4
+中恒集团	zhong heng ji tuan	4
+东软集团	dong ruan ji tuan	4
+削价	xue jia	4
+国富论	guo fu lun	4
+新大洲	xin da zhou	4
+景顺长城	jing shun chang cheng	4
+申赎	shen shu	4
+申报率	shen bao lv	4
+普卡	pu ka	4
+集资额	ji zi e	4
+管理学家	guan li xue jia	4
+即期	ji qi	4
+目标公司	mu biao gong si	4
+零存整取	ling cun zheng qu	4
+中华工商时报	zhong hua gong shang shi bao	4
+重仓股	zhong cang gu	4
+百花村	bai hua cun	4
+合作协议	he zuo xie yi	4
+金盘	jin pan	4
+金岭	jin ling	4
+海泰	hai tai	4
+加拿大元	jia na da yuan	4
+中小散户	zhong xiao san hu	4
+建设银行	jian she yin hang	4
+南京港	nan jing gang	4
+营口港	ying kou gang	4
+融资性	rong zi xing	4
+折旧率	zhe jiu lv	4
+日线	ri xian	4
+中青宝	zhong qing bao	4
+存定期	cun ding qi	4
+华南城	hua nan cheng	4
+宏盛	hong sheng	4
+雅虎公司	ya hu gong si	4
+联电	lian dian	4
+贝塔	bei ta	4
+展讯	zhan xun	4
+封盘	feng pan	4
+承销团	cheng xiao tuan	4
+保函	bao han	4
+信诺	xin nuo	4
+托收	tuo shou	4
+全局观	quan ju guan	4
+七乐彩	qi le cai	4
+云天化	yun tian hua	4
+人头税	ren tou shui	4
+销卡	xiao ka	4
+微观经济学	wei guan jing ji xue	4
+瑞银集团	rui yin ji tuan	4
+正兴	zheng xing	4
+上海机场	shang hai ji chang	4
+垃圾股	la ji gu	4
+伊泰	yi tai	4
+惠天	hui tian	4
+补充协议	bu chong xie yi	4
+君子协定	jun zi xie ding	4
+定税	ding shui	4
+掉期	diao qi	4
+国瓷	guo ci	4
+海富通	hai fu tong	4
+小盘股	xiao pan gu	4
+大通银行	da tong yin hang	4
+宜华	yi hua	4
+海普瑞	hai pu rui	4
+交易厅	jiao yi ting	4
+首局	shou ju	4
+国美电器	guo mei dian qi	4
+净收入	jing shou ru	4
+卡种	ka zhong	4
+投资量	tou zi liang	4
+万通地产	wan tong di chan	4
+新黄浦	xin huang pu	4
+最低值	zui di zhi	4
+唐山港	tang shan gang	4
+六渡桥	liu du qiao	4
+双马	shuang ma	4
+黄金宝	huang jin bao	4
+国发	guo fa	4
+威达	wei da	4
+中侨	zhong qiao	4
+泡沫经济	pao mo jing ji	4
+小肥羊	xiao fei yang	4
+南方公司	nan fang gong si	4
+限售股	xian shou gu	4
+同庆	tong qing	4
+罗莱家纺	luo lai jia fang	4
+汇划	hui hua	4
+超标者	chao biao zhe	4
+赌马	du ma	4
+瑞龙	rui long	4
+协调部	xie tiao bu	4
+跨国银行	kua guo yin hang	4
+公股	gong gu	4
+张江高科	zhang jiang gao ke	4
+重庆银行	chong qing yin hang	4
+禁止令	jin zhi ling	4
+天富	tian fu	4
+产业资本	chan ye zi ben	4
+九州通	jiu zhou tong	4
+思达	si da	4
+揽存	lan cun	4
+股权转让协议	gu quan zhuan rang xie yi	4
+南控	nan kong	4
+新鸿基地产	xin hong ji di chan	4
+江钻	jiang zuan	4
+麦考林	mai kao lin	4
+固定资本	gu ding zi ben	4
+卖空	mai kong	4
+补进	bu jin	4
+巴克莱银行	ba ke lai yin hang	4
+三普	san pu	4
+双币	shuang bi	4
+光明乳业	guang ming ru ye	4
+经手费	jing shou fei	4
+投资品	tou zi pin	4
+建通	jian tong	4
+浦银安盛	pu yin an sheng	4
+古越龙山	gu yue long shan	4
+中国建设银行	zhong guo jian she yin hang	4
+筑底	zhu di	4
+理财周报	li cai zhou bao	4
+煤炭股	mei tan gu	4
+证券市场周刊	zheng quan shi chang zhou kan	4
+抵押率	di ya lv	4
+税点	shui dian	4
+农化	nong hua	4
+涨停板	zhang ting ban	4
+美股	mei gu	4
+零首付	ling shou fu	4
+买价	mai jia	4
+中国石化	zhong guo shi hua	4
+中资银行	zhong zi yin hang	4
+套汇	tao hui	4
+飚升	biao sheng	4
+利息率	li xi lv	4
+汇丰集团	hui feng ji tuan	4
+企业集团	qi ye ji tuan	4
+蒙牛乳业	meng niu ru ye	4
+银建	yin jian	4
+转押	zhuan ya	4
+现值	xian zhi	4
+绩差	ji cha	4
+锦州港	jin zhou gang	4
+光亚	guang ya	4
+宝盈	bao ying	4
+北新路桥	bei xin lu qiao	4
+组织机构代码证	zu zhi ji gou dai ma zheng	4
+桐君阁	tong jun ge	4
+金地集团	jin di ji tuan	4
+海欣	hai xin	4
+国有股	guo you gu	4
+颈圈	jing quan	4
+中国商报	zhong guo shang bao	4
+护盘	hu pan	4
+铜城	tong cheng	4
+旭光	xu guang	4
+托普	tuo pu	4
+芝加哥商品交易所	zhi jia ge shang pin jiao yi suo	4
+发票管理办法	fa piao guan li ban fa	4
+动力源	dong li yuan	4
+换股	huan gu	4
+高息揽存	gao xi lan cun	4
+南顺	nan shun	4
+袁大头	yuan da tou	4
+公司章程	gong si zhang cheng	4
+三联商社	san lian shang she	4
+浦银	pu yin	4
+瑞士银行	rui shi yin hang	4
+投资学	tou zi xue	4
+华天酒店	hua tian jiu dian	4
+永大	yong da	4
+附单	fu dan	4
+华润集团	hua run ji tuan	4
+波段性	bo duan xing	4
+上海金融学院	shang hai jin rong xue yuan	4
+中国人民保险公司	zhong guo ren min bao xian gong si	4
+成都路桥	cheng du lu qiao	4
+博通	bo tong	4
+新财富	xin cai fu	4
+川大智胜	chuan da zhi sheng	4
+汇丰晋信	hui feng jin xin	4
+盘后	pan hou	4
+鲁泰	lu tai	4
+平邮	ping you	4
+江苏舜天	jiang su shun tian	4
+清华紫光	qing hua zi guang	4
+金健米业	jin jian mi ye	4
+恒立	heng li	4
+天宏	tian hong	4
+南京银行	nan jing yin hang	4
+国中	guo zhong	4
+物贸	wu mao	4
+拆伙	chai huo	4
+爱建	ai jian	4
+宝信	bao xin	4
+多伦股份	duo lun gu fen	4
+期货交易管理条例	qi huo jiao yi guan li tiao li	4
+承诺费	cheng nuo fei	4
+维加	wei jia	4
+空开	kong kai	4
+收购人	shou gou ren	4
+记账员	ji zhang yuan	4
+市净率	shi jing lv	4
+国联安	guo lian an	4
+违约率	wei yue lv	4
+福日	fu ri	4
+金普	jin pu	4
+浮动汇率制	fu dong hui lv zhi	4
+验旧	yan jiu	4
+斯达康	si da kang	4
+提货单	ti huo dan	4
+银率网	yin lv wang	4
+苏宁环球	su ning huan qiu	4
+浪莎	lang sha	4
+潮宏基	chao hong ji	4
+泸州老窖股份有限公司	lu zhou lao jiao gu fen you xian gong si	4
+到期日	dao qi ri	4
+宝光	bao guang	4
+罗克韦尔	luo ke wei er	4
+雪莱特	xue lai te	4
+中国宝安	zhong guo bao an	4
+成长性	cheng zhang xing	4
+保增长	bao zeng zhang	4
+中国信达资产管理公司	zhong guo xin da zi chan guan li gong si	4
+融资款	rong zi kuan	4
+大华银行	da hua yin hang	4
+圣方	sheng fang	4
+质押品	zhi ya pin	4
+保网	bao wang	4
+资本利得税	zi ben li de shui	4
+创业网	chuang ye wang	4
+企业所得税法	qi ye suo de shui fa	4
+申购款	shen gou kuan	4
+互联网周刊	hu lian wang zhou kan	4
+试点方案	shi dian fang an	4
+精伦	jing lun	4
+完税证	wan shui zheng	4
+方大特钢	fang da te gang	4
+借记	jie ji	4
+下轨	xia gui	4
+假账	jia zhang	4
+债务国	zhai wu guo	4
+统计系	tong ji xi	4
+计量经济学	ji liang jing ji xue	4
+朝华	chao hua	4
+国家统计局	guo jia tong ji ju	4
+业务线	ye wu xian	4
+衍生产品	yan sheng chan pin	4
+增资额	zeng zi e	4
+补价	bu jia	4
+中国网通	zhong guo wang tong	4
+康达尔	kang da er	4
+划断	hua duan	4
+万邦达	wan bang da	4
+洗盘	xi pan	4
+同济堂	tong ji tang	4
+广联达	guang lian da	4
+九龙仓集团	jiu long cang ji tuan	4
+收购者	shou gou zhe	4
+华联商厦	hua lian shang sha	4
+奖励金	jiang li jin	4
+信立泰	xin li tai	4
+超跌股	chao die gu	4
+经贸大学	jing mao da xue	4
+借出	jie chu	4
+万利达	wan li da	4
+澳优	ao you	4
+暴升	bao sheng	4
+累进税	lei jin shui	4
+合肥三洋	he fei san yang	4
+残余价值	can yu jia zhi	4
+汇丽	hui li	3
+新锦江	xin jin jiang	3
+方大集团	fang da ji tuan	3
+港股通	gang gu tong	3
+宝姿	bao zi	3
+新东方	xin dong fang	3
+昌源	chang yuan	3
+锌业	xin ye	3
+拓尔思	tuo er si	3
+公用科技	gong yong ke ji	3
+银行学	yin hang xue	3
+大北农	da bei nong	3
+口令卡	kou ling ka	3
+封闭期	feng bi qi	3
+信联	xin lian	3
+前手	qian shou	3
+存放处	cun fang chu	3
+双币卡	shuang bi ka	3
+南玻集团	nan bo ji tuan	3
+提额	ti e	3
+领购簿	ling gou bu	3
+出千	chu qian	3
+共保	gong bao	3
+除净	chu jing	3
+新秀丽	xin xiu li	3
+中彩网	zhong cai wang	3
+第一财经	di yi cai jing	3
+和讯	he xun	3
+信达资产	xin da zi chan	3
+泰达宏利基金	tai da hong li ji jin	3
+轮换制	lun huan zhi	3
+资本品	zi ben pin	3
+理财金	li cai jin	3
+转换费	zhuan huan fei	3
+股分	gu fen	3
+中国工商银行	zhong guo gong shang yin hang	3
+巨潮	ju chao	3
+回档	hui dang	3
+芜湖港	wu hu gang	3
+除息	chu xi	3
+嘉瑞	jia rui	3
+方源	fang yuan	3
+斩仓	zhan cang	3
+金元宝	jin yuan bao	3
+万年薪	wan nian xin	3
+中服	zhong fu	3
+美雅	mei ya	3
+快公司	kuai gong si	3
+验审	yan shen	3
+换手率	huan shou lv	3
+贴现率	tie xian lv	3
+冷却期	leng que qi	3
+香港交易所	xiang gang jiao yi suo	3
+银广夏	yin guang xia	3
+广发银行	guang fa yin hang	3
+贝因美	bei yin mei	3
+聚友	ju you	3
+华昌达	hua chang da	3
+龙建	long jian	3
+新股	xin gu	3
+屯积	tun ji	3
+生意宝	sheng yi bao	3
+仪化	yi hua	3
+皇台	huang tai	3
+买空卖空	mai kong mai kong	3
+奖励费	jiang li fei	3
+国祥	guo xiang	3
+运营部	yun ying bu	3
+豪盛	hao sheng	3
+下破	xia po	3
+招行卡	zhao hang ka	3
+拒批	ju pi	3
+康卡斯特	kang ka si te	3
+小盘	xiao pan	3
+总水平	zong shui ping	3
+指标体系	zhi biao ti xi	3
+甘化	gan hua	3
+流通股	liu tong gu	3
+负利率	fu li lv	3
+环球企业家	huan qiu qi ye jia	3
+德豪润达	de hao run da	3
+非现金	fei xian jin	3
+宝诚	bao cheng	3
+宝瑞通典当行	bao rui tong dian dang hang	3
+关联公司	guan lian gong si	3
+商通卡	shang tong ka	3
+源发	yuan fa	3
+合会	he hui	3
+先施	xian shi	3
+双底	shuang di	3
+楔形	xie xing	3
+新韩银行	xin han yin hang	3
+哈药集团	ha yao ji tuan	3
+通威股份	tong wei gu fen	3
+发展规划	fa zhan gui hua	3
+艾迪西	ai di xi	3
+欧洲货币	ou zhou huo bi	3
+济柴	ji chai	3
+反洗钱法	fan xi qian fa	3
+北海港	bei hai gang	3
+金融体制	jin rong ti zhi	3
+上市规则	shang shi gui ze	3
+中小板指	zhong xiao ban zhi	3
+五矿证券	wu kuang zheng quan	3
+租方	zu fang	3
+联邦存款保险公司	lian bang cun kuan bao xian gong si	3
+挂价	gua jia	3
+寰岛	huan dao	3
+投资协议	tou zi xie yi	3
+热门股	re men gu	3
+国海富兰克林	guo hai fu lan ke lin	3
+天津海运	tian jin hai yun	3
+哈尔斯	ha er si	3
+东方龙	dong fang long	3
+国能	guo neng	3
+海立	hai li	3
+四川双马	si chuan shuang ma	3
+安信信托	an xin xin tuo	3
+低价股	di jia gu	3
+博讯	bo xun	3
+解盘	jie pan	3
+押汇	ya hui	3
+投资期	tou zi qi	3
+家得宝	jia de bao	3
+辅币	fu bi	3
+泰达宏利	tai da hong li	3
+正泰电器	zheng tai dian qi	3
+货币主义	huo bi zhu yi	3
+东方国信	dong fang guo xin	3
+上海莱士	shang hai lai shi	3
+用卡	yong ka	3
+新华锦	xin hua jin	3
+钱经	qian jing	3
+新华百货	xin hua bai huo	3
+联益	lian yi	3
+劳埃德银行	lao ai de yin hang	3
+高新兴	gao xin xing	3
+海兰信	hai lan xin	3
+美丽华酒店	mei li hua jiu dian	3
+易货贸易	yi huo mao yi	3
+哈药股份	ha yao gu fen	3
+审计报告	shen ji bao gao	3
+安泰集团	an tai ji tuan	3
+华塑	hua su	3
+广州浪奇	guang zhou lang qi	3
+售楼处	shou lou chu	3
+新中基	xin zhong ji	3
+大有期货	da you qi huo	3
+金本位制	jin ben wei zhi	3
+中科三环	zhong ke san huan	3
+填权	tian quan	3
+诱空	you kong	3
+安达信	an da xin	3
+东方雨虹	dong fang yu hong	3
+中海油	zhong hai you	3
+收购方	shou gou fang	3
+联名卡	lian ming ka	3
+鲁银	lu yin	3
+半年期	ban nian qi	3
+欧比特	ou bi te	3
+东华软件	dong hua ruan jian	3
+龙科	long ke	3
+科华恒盛	ke hua heng sheng	3
+盛润	sheng run	3
+零息	ling xi	3
+环球财经	huan qiu cai jing	3
+金化	jin hua	3
+钛白	tai bai	3
+金葵花	jin kui hua	3
+宝丽华	bao li hua	3
+莫高股份	mo gao gu fen	3
+宝莱特	bao lai te	3
+经办员	jing ban yuan	3
+博信	bo xin	3
+中粮屯河	zhong liang tun he	3
+吉恩镍业	ji en nie ye	3
+青岛海信	qing dao hai xin	3
+利记	li ji	3
+启动资金	qi dong zi jin	3
+沙隆达	sha long da	3
+海能达	hai neng da	3
+航天长峰	hang tian chang feng	3
+海伦哲	hai lun zhe	3
+银之杰	yin zhi jie	3
+柯尼卡	ke ni ka	3
+洪都航空	hong du hang kong	3
+哈里伯顿	ha li bo dun	3
+安居宝	an ju bao	3
+苏宁电器	su ning dian qi	3
+广夏	guang xia	3
+报喜鸟	bao xi niao	3
+单币	dan bi	3
+诚信网	cheng xin wang	3
+拨回	bo hui	3
+中科英华	zhong ke ying hua	3
+交通银行	jiao tong yin hang	3
+航民	hang min	3
+夏新	xia xin	3
+大华股份	da hua gu fen	3
+冰熊	bing xiong	3
+联次	lian ci	3
+前笔	qian bi	3
+速贷通	su dai tong	3
+凯马	kai ma	3
+固定汇率制	gu ding hui lv zhi	3
+彩票点	cai piao dian	3
+九阳股份有限公司	jiu yang gu fen you xian gong si	3
+国际商报	guo ji shang bao	3
+让渡	rang du	3
+砸盘	za pan	3
+看盘	kan pan	3
+大华农	da hua nong	3
+创新高	chuang xin gao	3
+安彩	an cai	3
+环球集团	huan qiu ji tuan	3
+碧生源	bi sheng yuan	3
+非正常户	fei zheng chang hu	3
+汇通集团	hui tong ji tuan	3
+证券网	zheng quan wang	3
+盘感	pan gan	3
+现代传播	xian dai chuan bo	3
+营业日	ying ye ri	3
+中源	zhong yuan	3
+买方市场	mai fang shi chang	3
+渣打银行	zha da yin hang	3
+轻纺城	qing fang cheng	3
+单利	dan li	3
+华海药业	hua hai yao ye	3
+交割单	jiao ge dan	3
+回次	hui ci	3
+三季度	san ji du	3
+中国矿业	zhong guo kuang ye	3
+红宝丽	hong bao li	3
+新都酒店	xin du jiu dian	3
+运盛	yun sheng	3
+高溢价	gao yi jia	3
+配额制	pei e zhi	3
+中国公司	zhong guo gong si	3
+金路集团	jin lu ji tuan	3
+金融许可证	jin rong xu ke zheng	3
+全球资本市场	quan qiu zi ben shi chang	3
+钢镚儿	gang beng er	3
+中鲁	zhong lu	3
+低吸	di xi	3
+惨绿	can lv	3
+贵研铂业	gui yan bo ye	3
+交易规则	jiao yi gui ze	3
+电力股	dian li gu	3
+外国投资法	wai guo tou zi fa	3
+交货价	jiao huo jia	3
+自选股	zi xuan gu	3
+交易场	jiao yi chang	3
+海王集团	hai wang ji tuan	3
+买卖合同	mai mai he tong	3
+德棉	de mian	3
+中国电信	zhong guo dian xin	3
+民化	min hua	3
+改票	gai piao	3
+中国金融	zhong guo jin rong	3
+卡中心	ka zhong xin	3
+银期	yin qi	3
+海大集团	hai da ji tuan	3
+化工股	hua gong gu	3
+上港集团	shang gang ji tuan	3
+新华都	xin hua dou	3
+银基集团	yin ji ji tuan	3
+广州市广百股份有限公司	guang zhou shi guang bai gu fen you xian gong si	3
+房地产评估	fang di chan ping gu	3
+东富龙	dong fu long	3
+欧亚集团	ou ya ji tuan	3
+中冠	zhong guan	3
+南京新港	nan jing xin gang	3
+综合税	zong he shui	3
+厦门国际银行	xia men guo ji yin hang	3
+海联讯	hai lian xun	3
+重庆港九	chong qing gang jiu	3
+亿阳信通	yi yang xin tong	3
+中国人民建设银行	zhong guo ren min jian she yin hang	3
+伊立浦	yi li pu	3
+秦丰	qin feng	3
+华陶	hua tao	3
+金穗卡	jin sui ka	3
+授权书	shou quan shu	3
+福彩中心	fu cai zhong xin	3
+蒙发利	meng fa li	3
+试点办法	shi dian ban fa	3
+上海贝岭	shang hai bei ling	3
+平安集团	ping an ji tuan	3
+鑫光	xin guang	3
+飞力达	fei li da	3
+安纳达	an na da	3
+私营公司	si ying gong si	3
+中国国际	zhong guo guo ji	3
+新宙邦	xin zhou bang	3
+指数化	zhi shu hua	3
+上海分行	shang hai fen hang	3
+北矿	bei kuang	3
+广宇集团	guang yu ji tuan	3
+普利特	pu li te	3
+普民	pu min	3
+非融资性	fei rong zi xing	3
+中航三鑫	zhong hang san xin	3
+操作指南	cao zuo zhi nan	3
+五矿建设	wu kuang jian she	3
+上海证大	shang hai zheng da	3
+运通公司	yun tong gong si	3
+电子城	dian zi cheng	3
+中航精机	zhong hang jing ji	3
+山东新华制药股份有限公司	shan dong xin hua zhi yao gu fen you xian gong si	3
+绩差股	ji cha gu	3
+承担者	cheng dan zhe	3
+万丰奥威	wan feng ao wei	3
+天龙集团	tian long ji tuan	3
+万家	wan jia	3
+振业集团	zhen ye ji tuan	3
+美欣达	mei xin da	3
+信达证券	xin da zheng quan	3
+亨泰	heng tai	3
+飞行者	fei xing zhe	3
+信息技术	xin xi ji shu	3
+深赤湾	shen chi wan	3
+渤化	bo hua	3
+宏峰	hong feng	3
+净现值	jing xian zhi	3
+送配	song pei	3
+信托业	xin tuo ye	3
+服务协议	fu wu xie yi	3
+巨额交易	ju e jiao yi	3
+鲁证	lu zheng	3
+招标者	zhao biao zhe	3
+筑信	zhu xin	3
+添益宝	tian yi bao	3
+詹姆斯邦德	zhan mu si bang de	3
+资本化	zi ben hua	3
+仲裁规则	zhong cai gui ze	3
+外国银行	wai guo yin hang	3
+卡样	ka yang	3
+深万科	shen wan ke	3
+禾嘉	he jia	3
+海立美达	hai li mei da	3
+金通灵	jin tong ling	3
+兑付期	dui fu qi	3
+瑞和	rui he	3
+羊城通	yang cheng tong	3
+备用费	bei yong fei	3
+江力	jiang li	3
+如家	ru jia	3
+海药	hai yao	3
+天源迪科	tian yuan di ke	3
+内蒙君正	nei meng jun zheng	3
+华盛达	hua sheng da	3
+运通卡	yun tong ka	3
+中国经济网	zhong guo jing ji wang	3
+团办	tuan ban	3
+宏华集团	hong hua ji tuan	3
+华菱钢铁	hua ling gang tie	3
+中国财富	zhong guo cai fu	3
+总房价	zong fang jia	3
+收盘报	shou pan bao	3
+短融券	duan rong quan	3
+惠博普	hui bo pu	3
+中电投	zhong dian tou	3
+易方达	yi fang da	3
+资产评估报告	zi chan ping gu bao gao	3
+旗滨集团	qi bin ji tuan	3
+付息日	fu xi ri	3
+三房巷	san fang xiang	3
+新财经	xin cai jing	3
+组织图	zu zhi tu	3
+联想集团	lian xiang ji tuan	3
+挂帐	gua zhang	3
+鼎天	ding tian	3
+红鲱鱼	hong fei yu	3
+财经时报	cai jing shi bao	3
+民生证券	min sheng zheng quan	3
+康耐特	kang nai te	3
+丽珠集团	li zhu ji tuan	3
+斯普林特	si pu lin te	3
+储备头寸	chu bei tou cun	3
+金宇集团	jin yu ji tuan	3
+合肥美菱股份有限公司	he fei mei ling gu fen you xian gong si	3
+现金流量表	xian jin liu liang biao	3
+标金	biao jin	3
+京运通	jing yun tong	3
+圣莱达	sheng lai da	3
+海通集团	hai tong ji tuan	3
+三力士	san li shi	3
+完美世界	wan mei shi jie	3
+中国太平	zhong guo tai ping	3
+中国铁建	zhong guo tie jian	3
+浦东金桥	pu dong jin qiao	3
+上破	shang po	3
+颈线	jing xian	3
+持票人	chi piao ren	3
+空头头寸	kong tou tou cun	3
+五粮	wu liang	3
+锁仓	suo cang	3
+征用权	zheng yong quan	3
+修身堂	xiu shen tang	3
+残值	can zhi	3
+金宇车城	jin yu che cheng	3
+远东经济评论	yuan dong jing ji ping lun	3
+达尔曼	da er man	3
+销售合同	xiao shou he tong	3
+亚洲金融	ya zhou jin rong	3
+广为流传	guang wei liu chuan	3
+阳谷华泰	yang gu hua tai	3
+中国财经报	zhong guo cai jing bao	3
+汇添富	hui tian fu	3
+港华燃气	gang hua ran qi	3
+股市动态分析	gu shi dong tai fen xi	3
+广州白云山制药股份有限公司	guang zhou bai yun shan zhi yao gu fen you xian gong si	3
+紫光华宇	zi guang hua yu	3
+信息早报	xin xi zao bao	3
+回天胶业	hui tian jiao ye	3
+红太阳	hong tai yang	3
+保理商	bao li shang	3
+浙江海亮	zhe jiang hai liang	3
+国电南瑞	guo dian nan rui	3
+维达国际	wei da guo ji	3
+内盘	nei pan	3
+综合类	zong he lei	3
+报告期	bao gao qi	3
+零七股份	ling qi gu fen	3
+创业计划书	chuang ye ji hua shu	3
+世界经济	shi jie jing ji	3
+三全食品	san quan shi pin	3
+转期	zhuan qi	3
+异动股	yi dong gu	3
+金飞达	jin fei da	3
+上海地产	shang hai di chan	3
+佳兆业集团	jia zhao ye ji tuan	3
+艺术品投资	yi shu pin tou zi	3
+大冶特钢	da ye te gang	3
+中国移动	zhong guo yi dong	3
+全球商业经典	quan qiu shang ye jing dian	3
+重庆机电	chong qing ji dian	3
+百盛集团	bai sheng ji tuan	3
+经理费	jing li fei	3
+大行情	da hang qing	3
+评估办法	ping gu ban fa	3
+查库	cha ku	3
+中国南车	zhong guo nan che	3
+认购协议	ren gou xie yi	3
+中科软	zhong ke ruan	3
+望春花	wang chun hua	3
+专业版	zhuan ye ban	3
+科斯伍德	ke si wu de	3
+钢研高纳	gang yan gao na	3
+彩票网	cai piao wang	3
+石炼	shi lian	3
+大资金	da zi jin	3
+北玻股份	bei bo gu fen	3
+交易时间	jiao yi shi jian	3
+万力达	wan li da	3
+尤洛卡	you luo ka	3
+北辰实业	bei chen shi ye	3
+长城卡	chang cheng ka	3
+汤臣倍健	tang chen bei jian	3
+麦达斯	mai da si	3
+株冶集团	zhu ye ji tuan	3
+鲁润	lu run	3
+聚富	ju fu	3
+中南重工	zhong nan zhong gong	3
+背书人	bei shu ren	3
+石岘	shi xian	3
+北京利尔	bei jing li er	3
+二纺机	er fang ji	3
+易世达	yi shi da	3
+东风集团	dong feng ji tuan	3
+冠城大通	guan cheng da tong	3
+宏智	hong zhi	3
+仕奇	shi qi	3
+兰光	lan guang	3
+深圳智多盈	shen zhen zhi duo ying	3
+三元达	san yuan da	3
+中信海直	zhong xin hai zhi	3
+抵押合同	di ya he tong	3
+信汇	xin hui	3
+白页	bai ye	3
+赌彩	du cai	3
+精诚铜业	jing cheng tong ye	3
+融通领先	rong tong ling xian	3
+战略规划	zhan lve gui hua	3
+江苏宏宝	jiang su hong bao	3
+新疆天宏	xin jiang tian hong	3
+中银绒业	zhong yin rong ye	3
+四洲集团	si zhou ji tuan	3
+丰林集团	feng lin ji tuan	3
+苏宁环球股份有限公司	su ning huan qiu gu fen you xian gong si	3
+广州分行	guang zhou fen hang	3
+葛州坝	ge zhou ba	3
+三丰智能	san feng zhi neng	3
+深证成指	shen zheng cheng zhi	3
+自仪	zi yi	3
+保管人	bao guan ren	3
+先声药业	xian sheng yao ye	3
+良运	liang yun	3
+长电	zhang dian	3
+天津松江	tian jin song jiang	3
+广电运通	guang dian yun tong	3
+厦门钨业	xia men wu ye	3
+凯地	kai de	3
+集琦	ji qi	3
+沧州大化	cang zhou da hua	3
+英威腾	ying wei teng	3
+华兰生物工程股份有限公司	hua lan sheng wu gong cheng gu fen you xian gong si	3
+工银亚洲	gong yin ya zhou	3
+奥维通信	ao wei tong xin	3
+自然人股	zi ran ren gu	3
+海德股份	hai de gu fen	3
+粤水电	yue shui dian	3
+政策面	zheng ce mian	3
+上海钢联	shang hai gang lian	3
+振华港机	zhen hua gang ji	3
+财经周刊	cai jing zhou kan	3
+合臣	he chen	3
+九发	jiu fa	3
+奥普光电	ao pu guang dian	3
+七星电子	qi xing dian zi	3
+亚玛顿	ya ma dun	3
+棱光	leng guang	3
+承销额	cheng xiao e	3
+买空	mai kong	3
+海宁皮城	hai ning pi cheng	3
+定向增发	ding xiang zeng fa	3
+一德	yi de	3
+新开普	xin kai pu	3
+金利来集团	jin li lai ji tuan	3
+康赛	kang sai	3
+深安达	shen an da	3
+武汉凡谷	wu han fan gu	3
+南华集团	nan hua ji tuan	3
+齐翔腾达	qi xiang teng da	3
+许继电气	xu ji dian qi	3
+通行权	tong xing quan	3
+阜丰集团	fu feng ji tuan	3
+中信银行	zhong xin yin hang	3
+清华同方	qing hua tong fang	3
+中原信托	zhong yuan xin tuo	3
+航意险	hang yi xian	3
+信达资产管理公司	xin da zi chan guan li gong si	3
+洛玻	luo bo	3
+高斯达	gao si da	3
+贵绳	gui sheng	3
+售尽	shou jin	3
+吉林森工	ji lin sen gong	3
+亚洲货币	ya zhou huo bi	3
+富士银行	fu shi yin hang	3
+康得新	kang de xin	3
+天鸿宝业	tian hong bao ye	3
+康菲石油	kang fei shi you	3
+新和成	xin he cheng	3
+深发	shen fa	3
+闽福发	min fu fa	3
+通科	tong ke	3
+国泰金龙	guo tai jin long	3
+江中药业	jiang zhong yao ye	3
+办税员	ban shui yuan	3
+西王糖业	xi wang tang ye	3
+损失率	sun shi lv	3
+凯美特气	kai mei te qi	3
+无锡尚德	wu xi shang de	3
+国泰金鹰	guo tai jin ying	3
+虚涨	xu zhang	3
+工商银行	gong shang yin hang	3
+谭木匠	tan mu jiang	3
+法人银行	fa ren yin hang	3
+工银添颐	gong yin tian yi	3
+半仓	ban cang	3
+健康险	jian kang xian	3
+商界评论	shang jie ping lun	3
+山东铝业	shan dong lv ye	3
+华侨城	hua qiao cheng	3
+北京国投	bei jing guo tou	3
+康大食品	kang da shi pin	3
+地产股	di chan gu	3
+漫步者	man bu zhe	3
+亿安	yi an	3
+黄金投资	huang jin tou zi	3
+琼民源	qiong min yuan	2
+深国商	shen guo shang	2
+溢缴款	yi jiao kuan	2
+饱和点	bao huo dian	2
+罗普斯金	luo pu si jin	2
+东锅	dong guo	2
+三木集团	san mu ji tuan	2
+国泰金牛	guo tai jin niu	2
+海王英特龙	hai wang ying te long	2
+单币卡	dan bi ka	2
+国泰上证	guo tai shang zheng	2
+超声电子	chao sheng dian zi	2
+桂东电力	gui dong dian li	2
+炒高	chao gao	2
+玉源	yu yuan	2
+启明信息	qi ming xin xi	2
+卖方市场	mai fang shi chang	2
+钱串子	qian chuan zi	2
+东方航空	dong fang hang kong	2
+金融投资报	jin rong tou zi bao	2
+永亨银行	yong heng yin hang	2
+核准制	he zhun zhi	2
+商务周刊	shang wu zhou kan	2
+银承	yin cheng	2
+北旅	bei lv	2
+银债	yin zhai	2
+洛阳轴研科技股份有限公司	luo yang zhou yan ke ji gu fen you xian gong si	2
+国际金融	guo ji jin rong	2
+中信泰富	zhong xin tai fu	2
+发卡银行	fa ka yin hang	2
+华孚色纺	hua fu se fang	2
+达声	da sheng	2
+台积电	tai ji dian	2
+渝三峡	yu san xia	2
+银行卡号	yin hang ka hao	2
+补空	bu kong	2
+长盛同德	chang sheng tong de	2
+西单商场	xi dan shang chang	2
+哈高科	ha gao ke	2
+沪建	hu jian	2
+中化岩土	zhong hua yan tu	2
+追索权	zhui suo quan	2
+日科化学	ri ke hua xue	2
+华神集团	hua shen ji tuan	2
+华安宝利	hua an bao li	2
+康美药业	kang mei yao ye	2
+产业发展	chan ye fa zhan	2
+上海凯宝	shang hai kai bao	2
+工银添利	gong yin tian li	2
+华微电子	hua wei dian zi	2
+乐电	le dian	2
+奥克股份	ao ke gu fen	2
+供给区	gong ji qu	2
+财务管理	cai wu guan li	2
+麦科特	mai ke te	2
+威尔泰	wei er tai	2
+天仪	tian yi	2
+高金食品	gao jin shi pin	2
+浩宁达	hao ning da	2
+建行卡	jian hang ka	2
+泸州老窖	lu zhou lao jiao	2
+成功营销	cheng gong ying xiao	2
+贵州百灵	gui zhou bai ling	2
+利源铝业	li yuan lv ye	2
+审计结果	shen ji jie guo	2
+金融市	jin rong shi	2
+深原野	shen yuan ye	2
+上证股	shang zheng gu	2
+情况表	qing kuang biao	2
+高新发展	gao xin fa zhan	2
+中国医药	zhong guo yi yao	2
+利邦	li bang	2
+自主创新	zi zhu chuang xin	2
+圣雪绒	sheng xue rong	2
+扫盘	sao pan	2
+苏常柴	su chang chai	2
+锦江酒店	jin jiang jiu dian	2
+际华集团	ji hua ji tuan	2
+红阳能源	hong yang neng yuan	2
+众业达	zhong ye da	2
+扩仓	kuo cang	2
+广东新会美达锦纶股份有限公司	guang dong xin hui mei da jin lun gu fen you xian gong si	2
+深证综指	shen zheng zong zhi	2
+三特索道	san te suo dao	2
+被套	bei tao	2
+库藏股	ku cang gu	2
+实益达	shi yi da	2
+海南海药股份有限公司	hai nan hai yao gu fen you xian gong si	2
+久立特材	jiu li te cai	2
+深宝安	shen bao an	2
+华东医药股份有限公司	hua dong yi yao gu fen you xian gong si	2
+瓦轴	wa zhou	2
+三维丝	san wei si	2
+宝利来	bao li lai	2
+第三波	di san bo	2
+深大通	shen da tong	2
+控盘	kong pan	2
+华安宏利	hua an hong li	2
+浙江广厦	zhe jiang guang sha	2
+国泰进取	guo tai jin qu	2
+厦门信达	xia men xin da	2
+担保品	dan bao pin	2
+认同卡	ren tong ka	2
+顺诚	shun cheng	2
+房改房	fang gai fang	2
+打印单	da yin dan	2
+目标值	mu biao zhi	2
+裸币	luo bi	2
+新营销	xin ying xiao	2
+实卡	shi ka	2
+大盈	da ying	2
+吉纸	ji zhi	2
+益鑫泰	yi xin tai	2
+金融世界	jin rong shi jie	2
+总体而言	zong ti er yan	2
+富力地产	fu li di chan	2
+深天马	shen tian ma	2
+协会章程	xie hui zhang cheng	2
+合伙制	he huo zhi	2
+赣锋锂业	gan feng li ye	2
+英特集团	ying te ji tuan	2
+特变电工	te bian dian gong	2
+折现率	zhe xian lv	2
+技术面	ji shu mian	2
+国投瑞银	guo tou rui yin	2
+烽火通信	feng huo tong xin	2
+健康元	jian kang yuan	2
+常柴	chang chai	2
+厦门信达股份有限公司	xia men xin da gu fen you xian gong si	2
+华商银行	hua shang yin hang	2
+首席财务官	shou xi cai wu guan	2
+大众理财顾问	da zhong li cai gu wen	2
+保荐制	bao jian zhi	2
+哈慈	ha ci	2
+移仓	yi cang	2
+淡仓	dan cang	2
+报查	bao cha	2
+厦新	xia xin	2
+锦港	jin gang	2
+八一钢铁	ba yi gang tie	2
+息票	xi piao	2
+操作规范	cao zuo gui fan	2
+担保函	dan bao han	2
+金榜集团	jin bang ji tuan	2
+试行标准	shi xing biao zhun	2
+枪客	qiang ke	2
+富豪酒店	fu hao jiu dian	2
+南方建材股份有限公司	nan fang jian cai gu fen you xian gong si	2
+服务合同	fu wu he tong	2
+奥飞动漫	ao fei dong man	2
+股票机	gu piao ji	2
+南证	nan zheng	2
+路演	lu yan	2
+中集安瑞科	zhong ji an rui ke	2
+九九久	jiu jiu jiu	2
+畅丰车桥	chang feng che qiao	2
+国泰纳指	guo tai na zhi	2
+还款期	huan kuan qi	2
+华靖	hua jing	2
+中泰化学	zhong tai hua xue	2
+外国直接投资	wai guo zhi jie tou zi	2
+金辉集团	jin hui ji tuan	2
+英国金融时报	ying guo jin rong shi bao	2
+南百	nan bai	2
+逃汇	tao hui	2
+北京分行	bei jing fen hang	2
+酒鬼酒	jiu gui jiu	2
+增值税普通发票	zeng zhi shui pu tong fa piao	2
+万泽股份	wan ze gu fen	2
+东光集团	dong guang ji tuan	2
+中国经济	zhong guo jing ji	2
+超级大乐透	chao ji da le tou	2
+双平	shuang ping	2
+河化	he hua	2
+基金合同	ji jin he tong	2
+跌停板	die ting ban	2
+宝莫股份	bao mo gu fen	2
+外汇宝	wai hui bao	2
+商品期货	shang pin qi huo	2
+新兴市场	xin xing shi chang	2
+证券投资基金	zheng quan tou zi ji jin	2
+创兴银行	chuang xing yin hang	2
+西藏天路	xi zang tian lu	2
+焦作万方	jiao zuo wan fang	2
+科伦药业	ke lun yao ye	2
+天马精化	tian ma jing hua	2
+医疗保健	yi liao bao jian	2
+中银国际	zhong yin guo ji	2
+浙江富阳	zhe jiang fu yang	2
+包头铝业	bao tou lv ye	2
+购票员	gou piao yuan	2
+石炼化	shi lian hua	2
+天伦置业	tian lun zhi ye	2
+西藏旅游	xi zang lv you	2
+彼得林奇	bi de lin qi	2
+残值率	can zhi lv	2
+雄震	xiong zhen	2
+中金公司	zhong jin gong si	2
+中信实业银行	zhong xin shi ye yin hang	2
+汇多利	hui duo li	2
+北京天桥	bei jing tian qiao	2
+鄂绒	e rong	2
+皇朝家私	huang chao jia si	2
+碟型	die xing	2
+待评	dai ping	2
+银广厦	yin guang sha	2
+云南盐化股份有限公司	yun nan yan hua gu fen you xian gong si	2
+联油	lian you	2
+金利华电	jin li hua dian	2
+新鸿基公司	xin hong ji gong si	2
+汇通天下	hui tong tian xia	2
+中国农业银行	zhong guo nong ye yin hang	2
+炬力	ju li	2
+西南财经大学	xi nan cai jing da xue	2
+天目药业	tian mu yao ye	2
+上提	shang ti	2
+融资租赁合同	rong zi zu lin he tong	2
+证券投资分析	zheng quan tou zi fen xi	2
+通金	tong jin	2
+中国食品	zhong guo shi pin	2
+亚星化学	ya xing hua xue	2
+试盘	shi pan	2
+大中华集团	da zhong hua ji tuan	2
+魏桥纺织	wei qiao fang zhi	2
+长盛环球	chang sheng huan qiu	2
+恒泰大通	heng tai da tong	2
+科达机电	ke da ji dian	2
+中航科工	zhong hang ke gong	2
+西陇化工	xi long hua gong	2
+南宁糖业股份有限公司	nan ning tang ye gu fen you xian gong si	2
+深赛格	shen sai ge	2
+金枫酒业	jin feng jiu ye	2
+英化	ying hua	2
+鑫新	xin xin	2
+广发证券	guang fa zheng quan	2
+中国国际招标网	zhong guo guo ji zhao biao wang	2
+小牌	xiao pai	2
+银行券	yin hang quan	2
+长盛基金	chang sheng ji jin	2
+丽悦酒店	li yue jiu dian	2
+租契	zu qi	2
+兰铝	lan lv	2
+茉织华	mo zhi hua	2
+上海石化	shang hai shi hua	2
+新嘉联	xin jia lian	2
+松辽汽车	song liao qi che	2
+朗伯德街	lang bo de jie	2
+发票领购簿	fa piao ling gou bu	2
+深纺织	shen fang zhi	2
+限售期	xian shou qi	2
+苏物	su wu	2
+申银万国	shen yin wan guo	2
+雅虎财经	ya hu cai jing	2
+天然碱	tian ran jian	2
+研究简报	yan jiu jian bao	2
+交割日	jiao ge ri	2
+宜华地产	yi hua di chan	2
+新华银行	xin hua yin hang	2
+钱江摩托	qian jiang mo tuo	2
+收官日	shou guan ri	2
+重庆川仪	chong qing chuan yi	2
+美联集团	mei lian ji tuan	2
+新希望	xin xi wang	2
+万顺昌	wan shun chang	2
+通道制	tong dao zhi	2
+证券市场红周刊	zheng quan shi chang hong zhou kan	2
+美联银行	mei lian yin hang	2
+开放经济	kai fang jing ji	2
+还款计划	huan kuan ji hua	2
+豫能	yu neng	2
+中化国际	zhong hua guo ji	2
+金普卡	jin pu ka	2
+南京红太阳股份有限公司	nan jing hong tai yang gu fen you xian gong si	2
+国泰金鼎	guo tai jin ding	2
+实际控制人	shi ji kong zhi ren	2
+拓日新能	tuo ri xin neng	2
+宜华木业	yi hua mu ye	2
+购买区	gou mai qu	2
+通知期	tong zhi qi	2
+鲁泰纺织股份有限公司	lu tai fang zhi gu fen you xian gong si	2
+精工集团	jing gong ji tuan	2
+上海证券交易所	shang hai zheng quan jiao yi suo	2
+深物业	shen wu ye	2
+合富辉煌	he fu hui huang	2
+流动电讯	liu dong dian xun	2
+天津普林	tian jin pu lin	2
+海格通信	hai ge tong xin	2
+上海梅林	shang hai mei lin	2
+科新机电	ke xin ji dian	2
+雅天妮	ya tian ni	2
+中海达	zhong hai da	2
+物贸中心	wu mao zhong xin	2
+国际投资	guo ji tou zi	2
+上电	shang dian	2
+招商局国际	zhao shang ju guo ji	2
+西南合成	xi nan he cheng	2
+新奥燃气	xin ao ran qi	2
+实施标准	shi shi biao zhun	2
+上海金陵	shang hai jin ling	2
+梅花伞	mei hua san	2
+廉租房	lian zu fang	2
+机构投资者	ji gou tou zi zhe	2
+壹传媒	yi chuan mei	2
+易联众	yi lian zhong	2
+云南马龙	yun nan ma long	2
+经济观察网	jing ji guan cha wang	2
+中国联合商报	zhong guo lian he shang bao	2
+中科健	zhong ke jian	2
+区域型	qu yu xing	2
+龙头股	long tou gu	2
+中国商人	zhong guo shang ren	2
+手工票	shou gong piao	2
+中国建筑	zhong guo jian zhu	2
+波动性	bo dong xing	2
+中航光电	zhong hang guang dian	2
+兴达国际	xing da guo ji	2
+双账户	shuang zhang hu	2
+钛金卡	tai jin ka	2
+资本化率	zi ben hua lv	2
+佳纸	jia zhi	2
+拆股	chai gu	2
+重仪	zhong yi	2
+股歌	gu ge	2
+文印室	wen yin shi	2
+唐陶	tang tao	2
+新华基金	xin hua ji jin	2
+锦化	jin hua	2
+雅戈	ya ge	2
+当代金融家	dang dai jin rong jia	2
+三普药业	san pu yao ye	2
+西北轴承股份有限公司	xi bei zhou cheng gu fen you xian gong si	2
+平均利率	ping jun li lv	2
+东控	dong kong	2
+深华发	shen hua fa	2
+当代经理人	dang dai jing li ren	2
+湖北迈亚	hu bei mai ya	2
+万昌科技	wan chang ke ji	2
+广州国光	guang zhou guo guang	2
+中核钛白	zhong he tai bai	2
+经济导刊	jing ji dao kan	2
+受损者	shou sun zhe	2
+龙星化工	long xing hua gong	2
+泰京银行	tai jing yin hang	2
+中国石油	zhong guo shi you	2
+国泰金鹿	guo tai jin lu	2
+条形图	tiao xing tu	2
+浙江三花股份有限公司	zhe jiang san hua gu fen you xian gong si	2
+安凯客车	an kai ke che	2
+停业通知书	ting ye tong zhi shu	2
+中国重汽	zhong guo zhong qi	2
+国研网	guo yan wang	2
+金利通	jin li tong	2
+好时光	hao shi guang	2
+收益宝	shou yi bao	2
+永利带业	yong li dai ye	2
+深圳比克	shen zhen bi ke	2
+上海凤凰	shang hai feng huang	2
+权智	quan zhi	2
+天润曲轴	tian run qu zhou	2
+实德环球	shi de huan qiu	2
+新太	xin tai	2
+天利高新	tian li gao xin	2
+山东鲁阳股份有限公司	shan dong lu yang gu fen you xian gong si	2
+振新	zhen xin	2
+重单	zhong dan	2
+上海绿新	shang hai lv xin	2
+青鸟华光	qing niao hua guang	2
+绩差公司	ji cha gong si	2
+二纺	er fang	2
+安徽华星化工股份有限公司	an hui hua xing hua gong gu fen you xian gong si	2
+基金委员会	ji jin wei yuan hui	2
+投票门	tou piao men	2
+东吴嘉禾	dong wu jia he	2
+风险提示	feng xian ti shi	2
+新锦华	xin jin hua	2
+针线街	zhen xian jie	2
+中国国贸	zhong guo guo mao	2
+烟台氨纶股份有限公司	yan tai an lun gu fen you xian gong si	2
+东方明珠	dong fang ming zhu	2
+国际金融市场	guo ji jin rong shi chang	2
+北京君正	bei jing jun zheng	2
+认沽期权	ren gu qi quan	2
+清算协议	qing suan xie yi	2
+对照表	dui zhao biao	2
+评价体系	ping jia ti xi	2
+花旗银行	hua qi yin hang	2
+借报	jie bao	2
+几维鸟	ji wei niao	2
+深深房	shen shen fang	2
+管理有限公司	guan li you xian gong si	2
+计世网	ji shi wang	2
+广州冷机	guang zhou leng ji	2
+征管处	zheng guan chu	2
+东源电器	dong yuan dian qi	2
+汇通能源	hui tong neng yuan	2
+广东星湖	guang dong xing hu	2
+北京旅游	bei jing lv you	2
+亨通光电	heng tong guang dian	2
+成商集团	cheng shang ji tuan	2
+齐星铁塔	qi xing tie ta	2
+海外投资法	hai wai tou zi fa	2
+深圳市通产丽星股份有限公司	shen zhen shi tong chan li xing gu fen you xian gong si	2
+出票人	chu piao ren	2
+上海物贸	shang hai wu mao	2
+实股	shi gu	2
+上海科华生物工程股份有限公司	shang hai ke hua sheng wu gong cheng gu fen you xian gong si	2
+深泰	shen tai	2
+交货单	jiao huo dan	2
+常胜网	chang sheng wang	2
+通程控股	tong cheng kong gu	2
+短仓	duan cang	2
+上海电力	shang hai dian li	2
+山东威达	shan dong wei da	2
+泰复	tai fu	2
+厦门厦工	xia men xia gong	2
+渤海银行	bo hai yin hang	2
+大连冷冻机股份有限公司	da lian leng dong ji gu fen you xian gong si	2
+万向德农	wan xiang de nong	2
+炒汇者	chao hui zhe	2
+友达光电	you da guang dian	2
+南油物业	nan you wu ye	2
+期货公司	qi huo gong si	2
+双赔	shuang pei	2
+山东恒邦冶炼股份有限公司	shan dong heng bang ye lian gu fen you xian gong si	2
+出口人	chu kou ren	2
+迟付	chi fu	2
+投标书	tou biao shu	2
+评估标准	ping gu biao zhun	2
+钛金	tai jin	2
+国际融资	guo ji rong zi	2
+光大保德信	guang da bao de xin	2
+中瑞思创	zhong rui si chuang	2
+浦银安盛基金	pu yin an sheng ji jin	2
+海正药业	hai zheng yao ye	2
+胜景山河	sheng jing shan he	2
+送股	song gu	2
+明泰铝业	ming tai lv ye	2
+搜于特	sou yu te	2
+皖能	wan neng	2
+银证通	yin zheng tong	2
+合兴集团	he xing ji tuan	2
+吉林化纤	ji lin hua xian	2
+硅宝科技	gui bao ke ji	2
+复旦复华	fu dan fu hua	2
+云南白药	yun nan bai yao	2
+普天收益	pu tian shou yi	2
+认沽权证	ren gu quan zheng	2
+黑龙股份	hei long gu fen	2
+友阿股份	you a gu fen	2
+长盛同禧	chang sheng tong xi	2
+瀚宇博德	han yu bo de	2
+分配方案	fen pei fang an	2
+新龙国际	xin long guo ji	2
+中国平安	zhong guo ping an	2
+东方金钰	dong fang jin yu	2
+中辽	zhong liao	2
+吉利汽车	ji li qi che	2
+投资与合作	tou zi yu he zuo	2
+多佳	duo jia	2
+湖南海利	hu nan hai li	2
+中国投资	zhong guo tou zi	2
+海信电器	hai xin dian qi	2
+华北制药	hua bei zhi yao	2
+黑色星期五	hei se xing qi wu	2
+达创	da chuang	2
+龙双	long shuang	2
+英唐智控	ying tang zhi kong	2
+家润多	jia run duo	2
+中国忠旺	zhong guo zhong wang	2
+统计报告	tong ji bao gao	2
+对账单	dui zhang dan	2
+外汇通	wai hui tong	2
+信达期货	xin da qi huo	2
+上海建工	shang hai jian gong	2
+空中网	kong zhong wang	2
+雅居乐地产	ya ju le di chan	2
+兴业卡	xing ye ka	2
+信息披露制度	xin xi pi lu zhi du	2
+大银行	da yin hang	2
+奥运卡	ao yun ka	2
+骗线	pian xian	2
+普洛康裕	pu luo kang yu	2
+苏威孚	su wei fu	2
+经济发展	jing ji fa zhan	2
+山东矿机	shan dong kuang ji	2
+广百股份	guang bai gu fen	2
+证券周刊	zheng quan zhou kan	2
+投资者关系	tou zi zhe guan xi	2
+股票界	gu piao jie	2
+注销户	zhu xiao hu	2
+苏三山	su san shan	2
+皇朝家俬	huang chao jia si	2
+网付	wang fu	2
+白金版	bai jin ban	2
+按年	an nian	2
+年收益	nian shou yi	2
+中科合臣	zhong ke he chen	2
+天龙光电	tian long guang dian	2
+深华新	shen hua xin	2
+礼品税	li pin shui	2
+融资网	rong zi wang	2
+深圳机场	shen zhen ji chang	2
+个人理财	ge ren li cai	2
+新疆天业	xin jiang tian ye	2
+中国科技	zhong guo ke ji	2
+联动机制	lian dong ji zhi	2
+现代教育	xian dai jiao yu	2
+贷款协议	dai kuan xie yi	2
+京投银泰	jing tou yin tai	2
+融信达	rong xin da	2
+华鼎锦纶	hua ding jin lun	2
+洛阳玻璃	luo yang bo li	2
+海源机械	hai yuan ji xie	2
+普洛股份	pu luo gu fen	2
+吉诺尔	ji nuo er	2
+万家基金	wan jia ji jin	2
+海螺型材	hai luo xing cai	2
+兴利集团	xing li ji tuan	2
+不便宜	bu pian yi	2
+风险提示函	feng xian ti shi han	2
+中原特钢	zhong yuan te gang	2
+高银地产	gao yin di chan	2
+大萧条	da xiao tiao	2
+上海医药	shang hai yi yao	2
+国联信托	guo lian xin tuo	2
+通达卡	tong da ka	2
+哈投股份	ha tou gu fen	2
+新威国际	xin wei guo ji	2
+咨询报告	zi xun bao gao	2
+金业公司	jin ye gong si	2
+盐湖集团	yan hu ji tuan	2
+天桥百货	tian qiao bai huo	2
+中顺洁柔	zhong shun jie rou	2
+津劝业	jin quan ye	2
+奕达	yi da	2
+精工钢构	jing gong gang gou	2
+调查结果	diao cha jie guo	2
+安联集团	an lian ji tuan	2
+新北洋	xin bei yang	2
+云海金属	yun hai jin shu	2
+财富时报	cai fu shi bao	2
+发展战略	fa zhan zhan lve	2
+国泰金马	guo tai jin ma	2
+哈飞航空	ha fei hang kong	2
+中国科健股份有限公司	zhong guo ke jian gu fen you xian gong si	2
+粤宏远	yue hong yuan	2
+日线图	ri xian tu	2
+金瑞科技	jin rui ke ji	2
+中燕	zhong yan	2
+湖北宜化	hu bei yi hua	2
+业务发展	ye wu fa zhan	2
+上海科技	shang hai ke ji	2
+湖北沙隆达股份有限公司	hu bei sha long da gu fen you xian gong si	2
+对外资	dui wai zi	2
+金种子	jin zhong zi	2
+万威国际	wan wei guo ji	2
+警示教育	jing shi jiao yu	2
+易基	yi ji	2
+新疆金风科技股份有限公司	xin jiang jin feng ke ji gu fen you xian gong si	2
+采掘业	cai jue ye	2
+商务英语	shang wu ying yu	2
+免代理费	mian dai li fei	2
+中国国际信托投资公司	zhong guo guo ji xin tuo tou zi gong si	2
+南京港股份有限公司	nan jing gang gu fen you xian gong si	2
+授予者	shou yu zhe	2
+中国凤凰	zhong guo feng huang	2
+潞安环能	lu an huan neng	2
+指令部	zhi ling bu	2
+美利纸业	mei li zhi ye	2
+金融风暴	jin rong feng bao	2
+卡菲尔	ka fei er	2
+凤凰财经	feng huang cai jing	2
+拨用	bo yong	2
+转换价值	zhuan huan jia zhi	2
+中孚实业	zhong fu shi ye	2
+永嘉集团	yong jia ji tuan	2
+结算凭证	jie suan ping zheng	2
+航天科技	hang tian ke ji	2
+自偿性	zi chang xing	2
+宁波韵升	ning bo yun sheng	2
+创业教育	chuang ye jiao yu	2
+大富科技	da fu ke ji	2
+易方达基金	yi fang da ji jin	2
+宇信易诚	yu xin yi cheng	2
+杭汽轮	hang qi lun	2
+林州重机	lin zhou zhong ji	2
+三井银行	san jing yin hang	2
+中国有色金属	zhong guo you se jin shu	2
+华力创通	hua li chuang tong	2
+黑白菜	hei bai cai	2
+巨龙管业	ju long guan ye	2
+中央结算公司	zhong yang jie suan gong si	2
+经济增长	jing ji zeng zhang	2
+红利通知书	hong li tong zhi shu	2
+储蓄券	chu xu quan	2
+广东百灵信	guang dong bai ling xin	2
+云南盐化	yun nan yan hua	2
+杜约翰	du yue han	2
+特别措施	te bie cuo shi	2
+金融危机	jin rong wei ji	2
+华润锦华	hua run jin hua	2
+评价指标	ping jia zhi biao	2
+东方银星	dong fang yin xing	2
+利多消息	li duo xiao xi	2
+考核指标	kao he zhi biao	2
+经济学术	jing ji xue shu	2
+四川湖山	si chuan hu shan	2
+民丰特纸	min feng te zhi	2
+证券溢价	zheng quan yi jia	2
+出售方	chu shou fang	2
+格令	ge ling	2
+银河银泰	yin he yin tai	2
+德累斯顿银行	de lei si dun yin hang	2
+四川圣达	si chuan sheng da	2
+翻三番	fan san fan	2
+财经论坛	cai jing lun tan	2
+长控	zhang kong	2
+四川经济日报	si chuan jing ji ri bao	2
+中集集团	zhong ji ji tuan	2
+融资协议	rong zi xie yi	2
+浙江永强	zhe jiang yong qiang	2
+新浪财经	xin lang cai jing	2
+恒泰艾普	heng tai ai pu	2
+南方航空	nan fang hang kong	2
+信诚四季红	xin cheng si ji hong	2
+支取凭证	zhi qu ping zheng	2
+国信证券	guo xin zheng quan	2
+金马股份	jin ma gu fen	2
+新低点	xin di dian	2
+汇丰晋信龙腾	hui feng jin xin long teng	2
+理文集团	li wen ji tuan	2
+中国人寿	zhong guo ren shou	2
+中信控股	zhong xin kong gu	2
+投资参考	tou zi can kao	2
+有效市场假说	you xiao shi chang jia shuo	2
+评估方案	ping gu fang an	2
+东华能源	dong hua neng yuan	2
+货币银行学	huo bi yin hang xue	2
+深圳方大	shen zhen fang da	2
+上海辅仁	shang hai fu ren	2
+可用资产	ke yong zi chan	2
+联华合纤	lian hua he xian	2
+食品饮料	shi pin yin liao	2
+受托人	shou tuo ren	2
+攀渝钛业	pan yu tai ye	2
+深能	shen neng	2
+风险管理	feng xian guan li	2
+华融资产管理公司	hua rong zi chan guan li gong si	2
+中恒电气	zhong heng dian qi	2
+天广消防	tian guang xiao fang	2
+中国星集团	zhong guo xing ji tuan	2
+法郎区	fa lang qu	2
+苏州恒久	su zhou heng jiu	2
+全球商业	quan qiu shang ye	2
+金山软件	jin shan ruan jian	2
+中国西电	zhong guo xi dian	2
+价格改革	jia ge gai ge	2
+莱英达	lai ying da	2
+新华财经	xin hua cai jing	2
+浙江海纳	zhe jiang hai na	2
+上海海隆软件股份有限公司	shang hai hai long ruan jian gu fen you xian gong si	2
+辅导期	fu dao qi	2
+威胜集团	wei sheng ji tuan	2
+安全管理	an quan guan li	2
+上海新梅	shang hai xin mei	2
+损益表	sun yi biao	2
+平券	ping quan	2
+德信集团	de xin ji tuan	2
+环康集团	huan kang ji tuan	2
+创业板	chuang ye ban	2
+汤姆逊路透	tang mu xun lu tou	2
+深高	shen gao	2
+财经频道	cai jing pin dao	2
+广州珠江	guang zhou zhu jiang	2
+交易池	jiao yi chi	2
+财务报表	cai wu bao biao	2
+信德集团	xin de ji tuan	2
+万象集团	wan xiang ji tuan	2
+现手	xian shou	2
+深圳市海王生物工程股份有限公司	shen zhen shi hai wang sheng wu gong cheng gu fen you xian gong si	2
+分行制	fen hang zhi	2
+友邦华泰	you bang hua tai	2
+轧空	ga kong	2
+博软	bo ruan	2
+金瑞矿业	jin rui kuang ye	2
+明星电力	ming xing dian li	2
+邀会	yao hui	2
+四创	si chuang	2
+收费收据	shou fei shou ju	2
+南山铝业	nan shan lv ye	2
+管理公司	guan li gong si	2
+存款保险制度	cun kuan bao xian zhi du	2
+西祠胡同	xi ci hu tong	2
+长城集团	chang cheng ji tuan	2
+方正富邦	fang zheng fu bang	2
+深圳市证通电子股份有限公司	shen zhen shi zheng tong dian zi gu fen you xian gong si	2
+长百集团	chang bai ji tuan	2
+中银卡	zhong yin ka	2
+上海港机	shang hai gang ji	2
+国联安双禧	guo lian an shuang xi	2
+认购权证	ren gou quan zheng	2
+账户表	zhang hu biao	2
+解决方案	jie jue fang an	2
+山东鲁阳	shan dong lu yang	2
+农商社	nong shang she	2
+证券导报	zheng quan dao bao	2
+信托合同	xin tuo he tong	2
+新海宜	xin hai yi	2
+鲁石化	lu shi hua	2
+顺发恒业	shun fa heng ye	2
+北京华联	bei jing hua lian	2
+合肥百货	he fei bai huo	2
+购买美国	gou mai mei guo	2
+格式合同	ge shi he tong	2
+西安旅游	xi an lv you	2
+中国水务	zhong guo shui wu	2
+天弘永定	tian hong yong ding	2
+宏安集团	hong an ji tuan	2
+国星光电	guo xing guang dian	2
+渣打集团	zha da ji tuan	2
+南国置业	nan guo zhi ye	2
+广州万隆	guang zhou wan long	2
+龙源电力	long yuan dian li	2
+总负债	zong fu zhai	2
+操作流程	cao zuo liu cheng	2
+中核华原钛白股份有限公司	zhong he hua yuan tai bai gu fen you xian gong si	2
+焦点问题	jiao dian wen ti	2
+深特力	shen te li	2
+中国北车	zhong guo bei che	2
+东方银行	dong fang yin hang	2
+广汽长丰	guang qi chang feng	2
+武汉凯迪电力股份有限公司	wu han kai di dian li gu fen you xian gong si	2
+重庆桐君阁股份有限公司	chong qing tong jun ge gu fen you xian gong si	2
+赛格三星	sai ge san xing	2
+鹰美	ying mei	2
+华昌化工	hua chang hua gong	2
+招募说明书	zhao mu shuo ming shu	2
+股城网	gu cheng wang	2
+投资指南	tou zi zhi nan	2
+英飞拓	ying fei tuo	2
+鑫富药业	xin fu yao ye	2
+大东南	da dong nan	2
+东方保本	dong fang bao ben	2
+价内权证	jia nei quan zheng	2
+五矿发展	wu kuang fa zhan	2
+国阳新能	guo yang xin neng	2
+北满特钢	bei man te gang	2
+金海股份	jin hai gu fen	2
+江苏纺织	jiang su fang zhi	2
+华丰集团	hua feng ji tuan	2
+维科精华	wei ke jing hua	2
+福星晓程	fu xing xiao cheng	2
+卓悦控股	zhuo yue kong gu	2
+大秦铁路	da qin tie lu	2
+华远地产	hua yuan di chan	2
+金隅股份	jin yu gu fen	2
+鼎盛天工	ding sheng tian gong	2
+新闻集团	xin wen ji tuan	2
+川化股份有限公司	chuan hua gu fen you xian gong si	2
+代领人	dai ling ren	2
+厦门国贸	xia men guo mao	2
+技术条件	ji shu tiao jian	2
+金城股份	jin cheng gu fen	2
+深圳赤湾港航股份有限公司	shen zhen chi wan gang hang gu fen you xian gong si	2
+在线咨询	zai xian zi xun	2
+钱袋网	qian dai wang	2
+重点关注	zhong dian guan zhu	2
+汤臣集团	tang chen ji tuan	2
+可再生能源	ke zai sheng neng yuan	2
+罗平锌电	luo ping xin dian	2
+商业银行	shang ye yin hang	2
+流动资金量	liu dong zi jin liang	2
+安徽安纳达钛业股份有限公司	an hui an na da tai ye gu fen you xian gong si	2
+天津一汽夏利汽车股份有限公司	tian jin yi qi xia li qi che gu fen you xian gong si	2
+新疆屯河	xin jiang tun he	2
+百圆裤业	bai yuan ku ye	2
+亚夏汽车	ya xia qi che	2
+安泰科技	an tai ke ji	2
+问题解答	wen ti jie da	2
+三菱银行	san ling yin hang	2
+金马集团	jin ma ji tuan	2
+四方达	si fang da	2
+瑞立集团	rui li ji tuan	2
+伟易达集团	wei yi da ji tuan	2
+认定标准	ren ding biao zhun	2
+派息日	pai xi ri	2
+积成电子	ji cheng dian zi	2
+伦敦金	lun dun jin	2
+深圳海王星辰	shen zhen hai wang xing chen	2
+温商网	wen shang wang	2
+证券市场	zheng quan shi chang	2
+期权费	qi quan fei	2
+宝龙地产	bao long di chan	2
+机电股	ji dian gu	2
+卓越理财	zhuo yue li cai	2
+特区经济	te qu jing ji	2
+浙江海亮股份有限公司	zhe jiang hai liang gu fen you xian gong si	2
+员工持股计划	yuan gong chi gu ji hua	2
+泛海酒店	fan hai jiu dian	2
+风神股份	feng shen gu fen	2
+双色球	shuang se qiu	2
+凤竹纺织	feng zhu fang zhi	2
+经济政策	jing ji zheng ce	2
+济南柴油机股份有限公司	ji nan chai you ji gu fen you xian gong si	2
+金源米业	jin yuan mi ye	2
+天目药	tian mu yao	2
+重庆中药	chong qing zhong yao	2
+深宝恒	shen bao heng	2
+委托单	wei tuo dan	2
+四川电器	si chuan dian qi	2
+山煤国际	shan mei guo ji	2
+评价中心	ping jia zhong xin	2
+海王生物	hai wang sheng wu	2
+次新股	ci xin gu	2
+瑞士银行公司	rui shi yin hang gong si	2
+投资收藏	tou zi shou cang	2
+税收缴款书	shui shou jiao kuan shu	2
+重庆华亚	chong qing hua ya	2
+反馈单	fan kui dan	2
+齐鲁石化	qi lu shi hua	2
+澳新银行	ao xin yin hang	2
+把控	ba kong	2
+华商产业	hua shang chan ye	2
+斯伦贝榭	si lun bei xie	2
+高新张铜	gao xin zhang tong	2
+宏业集团	hong ye ji tuan	2
+开尔新材	kai er xin cai	2
+南天信息	nan tian xin xi	2
+南京新百	nan jing xin bai	2
+长盛中证	chang sheng zhong zheng	2
+中国经济报告	zhong guo jing ji bao gao	2
+国泰双利	guo tai shuang li	2
+现代商业银行	xian dai shang ye yin hang	2
+南宁糖业	nan ning tang ye	2
+宁夏恒力	ning xia heng li	2
+公营化	gong ying hua	2
+天合光能	tian he guang neng	2
+鲁政委	lu zheng wei	2
+信达地产	xin da di chan	2
+卖超	mai chao	2
+印子钱	yin zi qian	2
+深值	shen zhi	2
+深高速	shen gao su	2
+财务报告	cai wu bao gao	2
+产权导刊	chan quan dao kan	2
+财会信报	cai kuai xin bao	2
+上海电气	shang hai dian qi	2
+新设	xin she	2
+腾邦国际	teng bang guo ji	2
+封转开	feng zhuan kai	2
+私人银行	si ren yin hang	2
+备抵	bei di	2
+三安光电	san an guang dian	2
+焦点话题	jiao dian hua ti	2
+焦作万方铝业股份有限公司	jiao zuo wan fang lv ye gu fen you xian gong si	2
+华龙集团	hua long ji tuan	2
+大众交通	da zhong jiao tong	2
+上海机电	shang hai ji dian	2
+巢东股份	chao dong gu fen	2
+衍生权证	yan sheng quan zheng	2
+深圳国际	shen zhen guo ji	2
+交易密码	jiao yi mi ma	2
+财务会计	cai wu kuai ji	2
+北海集团	bei hai ji tuan	2
+民间借贷	min jian jie dai	2
+南方汇通股份有限公司	nan fang hui tong gu fen you xian gong si	2
+节能减排	jie neng jian pai	2
+净利润率	jing li run lv	2
+行业标准	hang ye biao zhun	2
+中江地产	zhong jiang di chan	2
+全权信托	quan quan xin tuo	2
+德国安联	de guo an lian	2
+北陆药业	bei lu yao ye	2
+中航重机	zhong hang zhong ji	2
+北亚集团	bei ya ji tuan	2
+买断型	mai duan xing	2
+江苏吴中	jiang su wu zhong	2
+保利达资产	bao li da zi chan	2
+浙大海纳	zhe da hai na	2
+经济杂志	jing ji za zhi	2
+三五互联	san wu hu lian	2
+招商局中国基金	zhao shang ju zhong guo ji jin	2
+投资有道	tou zi you dao	2
+金马投票	jin ma tou piao	2
+联华超市	lian hua chao shi	2
+哈动力	ha dong li	2
+华升股份	hua sheng gu fen	2
+银行行长	yin hang hang zhang	2
+转换价格	zhuan huan jia ge	2
+新规定	xin gui ding	2
+思捷环球	si jie huan qiu	2
+高盛集团	gao sheng ji tuan	2
+普天债券	pu tian zhai quan	2
+金朝阳集团	jin chao yang ji tuan	2
+北京科锐	bei jing ke rui	2
+资信证明	zi xin zheng ming	2
+产品介绍	chan pin jie shao	2
+中钨	zhong wu	2
+短的	duan de	2
+新野纺织	xin ye fang zhi	2
+中联债	zhong lian zhai	2
+信托投资	xin tuo tou zi	2
+金融大街	jin rong da jie	2
+太光	tai guang	2
+艾略特波浪理论	ai lve te bo lang li lun	2
+苏州固锝	su zhou gu de	2
+联邦破产法	lian bang po chan fa	2
+总成本	zong cheng ben	2
+侨兴环球	qiao xing huan qiu	2
+行权价	xing quan jia	2
+东方通信	dong fang tong xin	2
+融资方案	rong zi fang an	2
+圣阳股份	sheng yang gu fen	2
+汇宝集团	hui bao ji tuan	2
+内部资料	nei bu zi liao	2
+公司治理	gong si zhi li	2
+零售银行	ling shou yin hang	2
+中纺机	zhong fang ji	2
+大智慧	da zhi hui	2
+金固股份	jin gu gu fen	2
+不成文法	bu cheng wen fa	1
+股票市价	gu piao shi jia	1
+不可撤销	bu ke che xiao	1
+晋察冀边区银行	jin cha ji bian qu yin hang	1
+同洲电子	tong zhou dian zi	1
+力合股份有限公司	li he gu fen you xian gong si	1
+厦工股份	xia gong gu fen	1
+虚拟卡	xu ni ka	1
+华阳科技	hua yang ke ji	1
+龙涤股份	long di gu fen	1
+远望谷	yuan wang gu	1
+组合投资	zu he tou zi	1
+第一食品	di yi shi pin	1
+国统股份	guo tong gu fen	1
+国际结算	guo ji jie suan	1
+石化债	shi hua zhai	1
+康美债	kang mei zhai	1
+银行承兑汇票	yin hang cheng dui hui piao	1
+百利电气	bai li dian qi	1
+受理人	shou li ren	1
+中钢吉炭	zhong gang ji tan	1
+摩根财团	mo gen cai tuan	1
+海南航空	hai nan hang kong	1
+同花顺	tong hua shun	1
+湖北华新	hu bei hua xin	1
+吉峰农机	ji feng nong ji	1
+特许权税	te xu quan shui	1
+美元区	mei yuan qu	1
+大冷	da leng	1
+杨红革	yang hong ge	1
+南博网	nan bo wang	1
+东方电机	dong fang dian ji	1
+华润置地	hua run zhi di	1
+审计意见	shen ji yi jian	1
+太光电信	tai guang dian xin	1
+苏物贸	su wu mao	1
+履约保函	lv yue bao han	1
+金智科技	jin zhi ke ji	1
+石劝业	shi quan ye	1
+中国管理传播网	zhong guo guan li chuan bo wang	1
+华资实业	hua zi shi ye	1
+诚聘英才	cheng pin ying cai	1
+塑料钞	su liao chao	1
+金融体系	jin rong ti xi	1
+公司理财	gong si li cai	1
+投资组合	tou zi zu he	1
+吉林制药股份有限公司	ji lin zhi yao gu fen you xian gong si	1
+大众投资	da zhong tou zi	1
+中国有色金属报	zhong guo you se jin shu bao	1
+交钥匙	jiao yao shi	1
+中川国际	zhong chuan guo ji	1
+中国股市	zhong guo gu shi	1
+金宝通	jin bao tong	1
+岷电	min dian	1
+微利股	wei li gu	1
+渝钛白	yu tai bai	1
+山推股份	shan tui gu fen	1
+襄阳汽车轴承股份有限公司	xiang yang qi che zhou cheng gu fen you xian gong si	1
+凯迪电力	kai di dian li	1
+美国国际	mei guo guo ji	1
+广东科德	guang dong ke de	1
+深圳迈瑞	shen zhen mai rui	1
+霸王条款	ba wang tiao kuan	1
+哈特佛	ha te fo	1
+高特利	gao te li	1
+保利地产	bao li di chan	1
+生态农业	sheng tai nong ye	1
+经济统计	jing ji tong ji	1
+市场供求	shi chang gong qiu	1
+厦门路桥	xia men lu qiao	1
+抚顺特钢	fu shun te gang	1
+死股	si gu	1
+高价股	gao jia gu	1
+中国报告大厅	zhong guo bao gao da ting	1
+赛格达声	sai ge da sheng	1
+银基发展	yin ji fa zhan	1
+渝太地产	yu tai di chan	1
+发票领购本	fa piao ling gou ben	1
+浙商银行	zhe shang yin hang	1
+上海佳豪	shang hai jia hao	1
+温氏集团	wen shi ji tuan	1
+中房股份	zhong fang gu fen	1
+中盘股	zhong pan gu	1
+康盛股份	kang sheng gu fen	1
+国际收支	guo ji shou zhi	1
+注意力经济	zhu yi li jing ji	1
+财产保险	cai chan bao xian	1
+南开戈德	nan kai ge de	1
+日贷	ri dai	1
+安全边际	an quan bian ji	1
+东百集团	dong bai ji tuan	1
+深圳能源	shen zhen neng yuan	1
+新莱应材	xin lai ying cai	1
+签合同	qian he tong	1
+江苏旷达	jiang su kuang da	1
+转配股	zhuan pei gu	1
+服务营销	fu wu ying xiao	1
+四维图新	si wei tu xin	1
+鲁置业	lu zhi ye	1
+越秀投资	yue xiu tou zi	1
+中欧鼎利	zhong ou ding li	1
+青龙管业	qing long guan ye	1
+反洗钱	fan xi qian	1
+红杉资本	hong shan zi ben	1
+经营理念	jing ying li nian	1
+佳士科技	jia shi ke ji	1
+德盛增利	de sheng zeng li	1
+张铜	zhang tong	1
+中国中铁	zhong guo zhong tie	1
+政策工具	zheng ce gong ju	1
+内部控制	nei bu kong zhi	1
+湖南有色金属	hu nan you se jin shu	1
+汇丰晋信基金	hui feng jin xin ji jin	1
+证券资讯	zheng quan zi xun	1
+中国水业集团	zhong guo shui ye ji tuan	1
+普天债	pu tian zhai	1
+五洲明珠	wu zhou ming zhu	1
+双箭股份	shuang jian gu fen	1
+收结汇	shou jie hui	1
+上海金融	shang hai jin rong	1
+罚款率	fa kuan lv	1
+长城特钢	chang cheng te gang	1
+江海股份	jiang hai gu fen	1
+河北钢铁	he bei gang tie	1
+橡果国际	xiang guo guo ji	1
+银行管理	yin hang guan li	1
+中科创业	zhong ke chuang ye	1
+上海普天	shang hai pu tian	1
+中国资本市场	zhong guo zi ben shi chang	1
+社保基金	she bao ji jin	1
+苏常远东	su chang yuan dong	1
+中国远洋	zhong guo yuan yang	1
+长盛同瑞	chang sheng tong rui	1
+财信通	cai xin tong	1
+大庆华科	da qing hua ke	1
+中葡	zhong pu	1
+城投控股	cheng tou kong gu	1
+金风科技	jin feng ke ji	1
+莎拉李	sha la li	1
+卡夫食品	ka fu shi pin	1
+海南省信托投资公司	hai nan sheng xin tuo tou zi gong si	1
+入股协议	ru gu xie yi	1
+把握机遇	ba wo ji yu	1
+新动力	xin dong li	1
+南华期货	nan hua qi huo	1
+美元危机	mei yuan wei ji	1
+折子钱	zhe zi qian	1
+瑞福进取	rui fu jin qu	1
+欣龙无纺	xin long wu fang	1
+金融创新	jin rong chuang xin	1
+美菱股份	mei ling gu fen	1
+青山纸业	qing shan zhi ye	1
+持仓不动	chi cang bu dong	1
+三泰电子	san tai dian zi	1
+金山工业	jin shan gong ye	1
+黔凯涤	qian kai di	1
+阳光城	yang guang cheng	1
+资本预算	zi ben yu suan	1
+财务状况表	cai wu zhuang kuang biao	1
+华联综超	hua lian zong chao	1
+北海银行	bei hai yin hang	1
+表首	biao shou	1
+梅雁水电	mei yan shui dian	1
+腹空	fu kong	1
+主要措施	zhu yao cuo shi	1
+毒笔	du bi	1
+永大集团	yong da ji tuan	1
+福建工商时报	fu jian gong shang shi bao	1
+宁波银行	ning bo yin hang	1
+东北财经大学	dong bei cai jing da xue	1
+黄山金马股份有限公司	huang shan jin ma gu fen you xian gong si	1
+山东德棉股份有限公司	shan dong de mian gu fen you xian gong si	1
+桂林旅游	gui lin lv you	1
+云南城投	yun nan cheng tou	1
+陕西长安	shan xi chang an	1
+经纬纺机	jing wei fang ji	1
+恒基达鑫	heng ji da xin	1
+长盛同智	chang sheng tong zhi	1
+交银添利	jiao yin tian li	1
+准贷记卡	zhun dai ji ka	1
+债务危机	zhai wu wei ji	1
+史密森协定	shi mi sen xie ding	1
+卖空者	mai kong zhe	1
+凤凰股	feng huang gu	1
+航天机电	hang tian ji dian	1
+达力集团	da li ji tuan	1
+三一重工	san yi chong gong	1
+上海九百	shang hai jiu bai	1
+吉林化工	ji lin hua gong	1
+长航凤凰	chang hang feng huang	1
+主力资金	zhu li zi jin	1
+一汽金杯	yi qi jin bei	1
+隆基机械	long ji ji xie	1
+广州冷机股份有限公司	guang zhou leng ji gu fen you xian gong si	1
+黄金网	huang jin wang	1
+山东墨龙	shan dong mo long	1
+鼎泰新材	ding tai xin cai	1
+江苏法尔胜股份有限公司	jiang su fa er sheng gu fen you xian gong si	1
+再买	zai mai	1
+软通货	ruan tong huo	1
+青岛碱业	qing dao jian ye	1
+电广实业	dian guang shi ye	1
+看涨者	kan zhang zhe	1
+大通曼哈顿银行	da tong man ha dun yin hang	1
+兴业银行	xing ye yin hang	1
+益民红利	yi min hong li	1
+外汇交易	wai hui jiao yi	1
+深圳赛格股份有限公司	shen zhen sai ge gu fen you xian gong si	1
+上海有色金属网	shang hai you se jin shu wang	1
+科诺威德	ke nuo wei de	1
+税收完税证	shui shou wan shui zheng	1
+自买	zi mai	1
+交易指南	jiao yi zhi nan	1
+互太纺织	hu tai fang zhi	1
+软控股份	ruan kong gu fen	1
+销售代理协议	xiao shou dai li xie yi	1
+诺安平衡	nuo an ping heng	1
+一汽富维	yi qi fu wei	1
+雷鸣科化	lei ming ke hua	1
+中核科技	zhong he ke ji	1
+本实	ben shi	1
+红发集团	hong fa ji tuan	1
+南通科技	nan tong ke ji	1
+股市快讯	gu shi kuai xun	1
+国际视野	guo ji shi ye	1
+创新低	chuang xin di	1
+比亚迪股份	bi ya di gu fen	1
+一汽夏利	yi qi xia li	1
+世界银行	shi jie yin hang	1
+自助银行	zi zhu yin hang	1
+首创置业	shou chuang zhi ye	1
+监管政策	jian guan zheng ce	1
+平值	ping zhi	1
+协方差	xie fang cha	1
+珠江实业	zhu jiang shi ye	1
+贸易通	mao yi tong	1
+黑盒子	hei he zi	1
+合并资产负债表	he bing zi chan fu zhai biao	1
+盘活资产	pan huo zi chan	1
+信用评级	xin yong ping ji	1
+一本通	yi ben tong	1
+闽信集团	min xin ji tuan	1
+国泰金鹏	guo tai jin peng	1
+重新转向	chong xin zhuan xiang	1
+西昌电	xi chang dian	1
+上市公司	shang shi gong si	1
+超图软件	chao tu ruan jian	1
+高度关注	gao du guan zhu	1
+股权分置改革方案	gu quan fen zhi gai ge fang an	1
+工新	gong xin	1
+东方锆业	dong fang gao ye	1
+中国玻璃	zhong guo bo li	1
+郑州燃气	zheng zhou ran qi	1
+证券导刊	zheng quan dao kan	1
+东方报业集团	dong fang bao ye ji tuan	1
+福特赛	fu te sai	1
+山东如意	shan dong ru yi	1
+中国消防	zhong guo xiao fang	1
+金龙机电	jin long ji dian	1
+富华集团	fu hua ji tuan	1
+浦东建设	pu dong jian she	1
+天喻信息	tian yu xin xi	1
+发行方案	fa xing fang an	1
+零手	ling shou	1
+小股民	xiao gu min	1
+鲁商置业	lu shang zhi ye	1
+川金路	chuan jin lu	1
+嘉实恒生	jia shi heng sheng	1
+投资者教育	tou zi zhe jiao yu	1
+潍柴重机	wei chai zhong ji	1
+金利科技	jin li ke ji	1
+中国服装	zhong guo fu zhuang	1
+绿景地产	lv jing di chan	1
+黔中天	qian zhong tian	1
+苏福马	su fu ma	1
+财产安全	cai chan an quan	1
+空头换手	kong tou huan shou	1
+云南锗业	yun nan zhe ye	1
+自留额	zi liu e	1
+中信国安	zhong xin guo an	1
+天富热电	tian fu re dian	1
+深锦兴	shen jin xing	1
+陕西金叶	shan xi jin ye	1
+拉高均价	la gao jun jia	1
+华北银行	hua bei yin hang	1
+实际公司	shi ji gong si	1
+安泰科技股份有限公司	an tai ke ji gu fen you xian gong si	1
+赛格股份	sai ge gu fen	1
+雷柏科技	lei bo ke ji	1
+价税	jia shui	1
+点后	dian hou	1
+公积金率	gong ji jin lv	1
+旧股	jiu gu	1
+三星电气	san xing dian qi	1
+东华科技	dong hua ke ji	1
+飞马国际	fei ma guo ji	1
+广电信息	guang dian xin xi	1
+粤丽珠	yue li zhu	1
+共合网	gong he wang	1
+看跌者	kan die zhe	1
+沪科	hu ke	1
+华仁药业	hua ren yao ye	1
+华安富利	hua an fu li	1
+金融服务	jin rong fu wu	1
+咨询公司	zi xun gong si	1
+固额	gu e	1
+次贷危机	ci dai wei ji	1
+信托资产	xin tuo zi chan	1
+大亚科技股份有限公司	da ya ke ji gu fen you xian gong si	1
+销货清单	xiao huo qing dan	1
+黑牡丹	hei mu dan	1
+戴尔电脑	dai er dian nao	1
+受关注	shou guan zhu	1
+天马股份	tian ma gu fen	1
+中创信测	zhong chuang xin ce	1
+华芳纺织	hua fang fang zhi	1
+折价率	zhe jia lv	1
+工银保本	gong yin bao ben	1
+五年期以上	wu nian qi yi shang	1
+新宏信	xin hong xin	1
+持本单	chi ben dan	1
+跳动点	tiao dong dian	1
+白银铜城	bai yin tong cheng	1
+国际商务	guo ji shang wu	1
+收还	shou hai	1
+永辉超市	yong hui chao shi	1
+股东大会决议	gu dong da hui jue yi	1
+浦银红利	pu yin hong li	1
+追加保证金	zhui jia bao zheng jin	1
+中航地产	zhong hang di chan	1
+五矿期货	wu kuang qi huo	1
+项目融资	xiang mu rong zi	1
+交银施罗德	jiao yin shi luo de	1
+空换	kong huan	1
+内蒙宏峰	nei meng hong feng	1
+美罗药业	mei luo yao ye	1
+风险投资商	feng xian tou zi shang	1
+大莱卡	da lai ka	1
+深南光	shen nan guang	1
+重要公告	zhong yao gong gao	1
+纳税申报	na shui shen bao	1
+国富强债	guo fu qiang zhai	1
+知名银行	zhi ming yin hang	1
+深天地	shen tian di	1
+贷款难	dai kuan nan	1
+中西药业	zhong xi yao ye	1
+黄金集团	huang jin ji tuan	1
+广东广信	guang dong guang xin	1
+新龙头	xin long tou	1
+天虹商场	tian hong shang chang	1
+方兴地产	fang xing di chan	1
+海南海药	hai nan hai yao	1
+青岛海尔	qing dao hai er	1
+东安黑豹	dong an hei bao	1
+多氟多	duo fu duo	1
+观音币	guan yin bi	1
+凯诺科技	kai nuo ke ji	1
+锦州石化	jin zhou shi hua	1
+吉林炭素	ji lin tan su	1
+新五丰	xin wu feng	1
+卧龙地产	wo long di chan	1
+徐工科技	xu gong ke ji	1
+卓尔发展	zhuo er fa zhan	1
+天弘丰利	tian hong feng li	1
+沪铜	hu tong	1
+财政预算	cai zheng yu suan	1
+外高	wai gao	1
+广发华福	guang fa hua fu	1
+建研集团	jian yan ji tuan	1
+天原集团	tian yuan ji tuan	1
+拆细	chai xi	1
+联信永益	lian xin yong yi	1
+策略研究	ce lve yan jiu	1
+资产公司	zi chan gong si	1
+华夏通	hua xia tong	1
+京信通信	jing xin tong xin	1
+天治双盈	tian zhi shuang ying	1
+古汉集团	gu han ji tuan	1
+富国天成	fu guo tian cheng	1
+陇达	long da	1
+宁波富邦	ning bo fu bang	1
+法拉电子	fa la dian zi	1
+有关规定	you guan gui ding	1
+财华网	cai hua wang	1
+阿比银行	a bi yin hang	1
+指标股	zhi biao gu	1
+宁天龙	ning tian long	1
+荷兰万贝银行	he lan wan bei yin hang	1
+六福集团	liu fu ji tuan	1
+博耳电力	bo er dian li	1
+成长先锋	cheng zhang xian feng	1
+交银环球	jiao yin huan qiu	1
+国电南自	guo dian nan zi	1
+金融投资	jin rong tou zi	1
+注册会计师	zhu ce kuai ji shi	1
+安徽省皖能股份有限公司	an hui sheng wan neng gu fen you xian gong si	1
+江苏金智科技股份有限公司	jiang su jin zhi ke ji gu fen you xian gong si	1
+士兰微	shi lan wei	1
+鹏博士	peng bo shi	1
+国九条	guo jiu tiao	1
+新资本	xin zi ben	1
+履约率	lv yue lv	1
+信用额度	xin yong e du	1
+和而泰	he er tai	1
+上海证券	shang hai zheng quan	1
+中国医疗	zhong guo yi liao	1
+东方汇理银行	dong fang hui li yin hang	1
+巨星科技	ju xing ke ji	1
+梅花伞业股份有限公司	mei hua san ye gu fen you xian gong si	1
+中国民营经济周刊	zhong guo min ying jing ji zhou kan	1
+瓦房店轴承股份有限公司	wa fang dian zhou cheng gu fen you xian gong si	1
+东碳	dong tan	1
+华银电力	hua yin dian li	1
+资本运作	zi ben yun zuo	1

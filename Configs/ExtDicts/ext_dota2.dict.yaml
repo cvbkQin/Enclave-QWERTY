@@ -1,0 +1,17 @@
+# 飞地输入法扩展词库 · 来源：飞地输入法整理
+# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
+---
+name: ext_dota2
+version: "2026-10-30"
+sort: by_weight
+...
+斧王	fu wang	9
+帕吉	pa ji	9
+敌法师	di fa shi	8
+影魔	ying mo	8
+祈求者	qi qiu zhe	7
+肉山	rou shan	7
+不朽之守护	bu xiu zhi shou hu	6
+圣剑	sheng jian	6
+虚空假面	xu kong jia mian	5
+幻影刺客	huan ying ci ke	3

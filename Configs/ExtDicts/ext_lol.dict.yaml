@@ -1,0 +1,23 @@
+# 飞地输入法扩展词库 · 来源：飞地输入法整理
+# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
+---
+name: ext_lol
+version: "2026-10-30"
+sort: by_weight
+...
+亚索	ya suo	9
+盖伦	gai lun	9
+提莫	ti mo	9
+艾希	ai xi	8
+拉克丝	la ke si	8
+金克丝	jin ke si	8
+伊泽瑞尔	yi ze rui er	8
+易大师	yi da shi	8
+赵信	zhao xin	7
+德莱厄斯	de lai e si	7
+锐雯	rui wen	6
+永恩	yong en	6
+峡谷之巅	xia gu zhi dian	6
+召唤师峡谷	zhao huan shi xia gu	5
+大龙	da long	4
+小龙	xiao long	3

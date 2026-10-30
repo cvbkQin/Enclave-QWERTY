@@ -3,6 +3,7 @@
 腾讯云上海轻量服务器（Ubuntu）上跑两样东西，都在 nginx 后面：
 
 - `/grammar/`：整句模型 `wanxiang-lts-zh-hans.gram` 的静态下载，支持 HTTPS 和 Range（断点续传）。中国大陆店面的默认下载地址。
+- `/dicts/`：在线扩展词库（B6）的清单 `catalog.json` 和词库文件，原样是仓库里的 `server/dicts/`（由 `scripts/build-ext-dicts.py --online server/dicts` 生成）。
 - `/api/feedback`：App 内反馈的接收接口（`feedback.py`，只用 Python 标准库），可带最多 3 张截图。收到后转成邮件发出，不写盘；同一 IP 每分钟 1 条、每天 20 条，全站每天 300 条。
 
 请求格式、返回码和合规说明见项目文件 `compliance/A3-A4-服务器与反馈合规.md`。
@@ -18,7 +19,7 @@ sudo nano /etc/enclave-feedback.env  # 填发信邮箱和授权码
 sudo systemctl restart enclave-feedback
 ```
 
-整句模型放到 `/var/www/enclavekb/grammar/wanxiang-lts-zh-hans.gram`。
+整句模型放到 `/var/www/enclavekb/grammar/wanxiang-lts-zh-hans.gram`。在线词库：`sudo mkdir -p /var/www/enclavekb/dicts && sudo cp dicts/* /var/www/enclavekb/dicts/`（更新词库后重新拷一次）。
 
 ## 检查
 

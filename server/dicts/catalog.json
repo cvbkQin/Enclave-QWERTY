@@ -1,0 +1,79 @@
+{
+ "dicts": [
+  {
+   "id": "baike",
+   "name": {
+    "zh": "百科词库",
+    "en": "Wikipedia",
+    "ja": "ウィキペディア辞書"
+   },
+   "summary": {
+    "zh": "人名、地名、作品、游戏角色",
+    "en": "People, places, works and game characters",
+    "ja": "人名、地名、作品、ゲームキャラクター"
+   },
+   "license": "wiki",
+   "entries": 200000,
+   "size": 3100000,
+   "version": "",
+   "sha256": null,
+   "url": null
+  },
+  {
+   "id": "medical",
+   "name": {
+    "zh": "医学",
+    "en": "Medicine",
+    "ja": "医学"
+   },
+   "license": "thuocl",
+   "entries": 18749,
+   "size": 621167,
+   "version": "2026-10-30",
+   "sha256": "019387147cbb143cb0a8bec41a8dd00a04cabffe2338893c137b941a5e5cf746",
+   "url": "ext_medical.dict.yaml"
+  },
+  {
+   "id": "law",
+   "name": {
+    "zh": "法律",
+    "en": "Law",
+    "ja": "法律"
+   },
+   "license": "thuocl",
+   "entries": 9896,
+   "size": 586974,
+   "version": "2026-10-30",
+   "sha256": "f89e25b2c9a68a842959aa8af741e3e63bf768ac8eee647ded43b80c0b8e60fb",
+   "url": "ext_law.dict.yaml"
+  },
+  {
+   "id": "poem",
+   "name": {
+    "zh": "诗词",
+    "en": "Poetry",
+    "ja": "詩詞"
+   },
+   "license": "thuocl",
+   "entries": 13703,
+   "size": 633781,
+   "version": "2026-10-30",
+   "sha256": "a23dce91ac1b8c904bb647ef2caec96f5213ca148159518a3b5fd7c3f5f57ded",
+   "url": "ext_poem.dict.yaml"
+  },
+  {
+   "id": "lishimingren",
+   "name": {
+    "zh": "历史名人",
+    "en": "Historical figures",
+    "ja": "歴史上の人物"
+   },
+   "license": "thuocl",
+   "entries": 13658,
+   "size": 305942,
+   "version": "2026-10-30",
+   "sha256": "4b2b440223464f4c8a985bafbe3e4b3404e05eb65b067a8986cc7888b0555949",
+   "url": "ext_lishimingren.dict.yaml"
+  }
+ ]
+}

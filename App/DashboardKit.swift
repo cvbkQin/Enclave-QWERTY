@@ -283,6 +283,27 @@ extension View {
         }
     }
 
+    /// 标签页标题钉在顶上（PH1–PH4）：标题和 extra（AI 页的「润色 / 问答」分段）不跟着滚，只有下面的内容滚。
+    /// 底色和分组页一样，内容滚上去时从标题下面穿过。
+    func pinnedTabTitle<Extra: View>(caption: String, title: String, showsBuildBadge: Bool = false,
+                                     @ViewBuilder extra: () -> Extra) -> some View {
+        let header = VStack(alignment: .leading, spacing: 12) {
+            TabTitle(caption: caption, title: title, showsBuildBadge: showsBuildBadge)
+            extra()
+        }
+        return safeAreaInset(edge: .top, spacing: 0) {
+            header
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+                .background(Color(.systemGroupedBackground))
+        }
+    }
+
+    func pinnedTabTitle(caption: String, title: String, showsBuildBadge: Bool = false) -> some View {
+        pinnedTabTitle(caption: caption, title: title, showsBuildBadge: showsBuildBadge) { EmptyView() }
+    }
+
     /// 把 B 卡片放进 Form / List 的分组页：用作 Section 的 header（header 不会被系统按分组大圆角裁掉），
     /// 去掉 header 的缩进、大写和灰色小字，左右和其他分组对齐，卡片自己的 16 圆角和描边完整。
     /// 不要放成列表行：iOS 会按分组圆角（iOS 26 上约 26pt）裁这一行，外角和描边会被切。

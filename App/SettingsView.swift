@@ -76,7 +76,6 @@ struct SettingsView: View {
                 Section {
                 } header: {
                     VStack(spacing: 12) {
-                        TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
                         // 整张卡可点，不要列表行的箭头。
                         // 内测版没有试用和解锁：换成内置接口今天的用量。
                         if BuiltinAPI.isInternalBuild {
@@ -189,6 +188,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .pinnedTabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
             .navigationTitle(L("设置", "Settings", "設定"))
             .tabRootPage()
             .navigationDestination(for: AppRouter.SettingsPage.self) { page in
@@ -944,6 +944,9 @@ struct KeyboardTab: View {
                     case .touch: TouchCalibrationView()
                     }
                 }
+                .navigationDestination(for: AppRouter.ExtDictPage.self) { page in
+                    ExtDictDetailView(id: page.id)
+                }
         }
     }
 }
@@ -962,15 +965,16 @@ struct KeyboardSettingsView: View {
 
     var body: some View {
         Form {
+            // 读一下 refresh：从系统设置回来时 body 重算，完全访问的横幅跟着出现或消失。
+            let _ = refresh
             // B 卡片放在 Section 的 header 里，分组的大圆角裁不到，四角完整（见 dashFormCard）。
-            Section {
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    TabTitle(caption: caption, title: L("键盘", "Keyboard", "キーボード"))
-                    if KeyboardStatus.fullAccess == false { NotSyncedBanner() }
+            // 只在没开完全访问时放这一组：空的 header 会在标题下面多出约 40pt 空白。
+            if KeyboardStatus.fullAccess == false {
+                Section {
+                } header: {
+                    NotSyncedBanner()
+                        .dashFormCard()
                 }
-                .id(refresh)
-                .dashFormCard()
             }
             // 主要语言（EM1/EM2）：小标题 + 白卡里的三段选择，脚注随选项变。
             Section {
@@ -1077,6 +1081,7 @@ struct KeyboardSettingsView: View {
             }
         }
         .tint(AppColor.purple)
+        .pinnedTabTitle(caption: caption, title: L("键盘", "Keyboard", "キーボード"))
         .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .tabRootPage()
         .onAppear {
@@ -1482,12 +1487,20 @@ struct PinyinView: View {
     /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
     @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
 
+    /// 上面三张卡照旧；下面是扩展词库（B6）的三组，用列表才能左滑删除。
     var body: some View {
-        DashPage {
-            dictionaryCard
-            grammarCard
-            englishCard
+        List {
+            Section {} header: {
+                VStack(spacing: 12) {
+                    dictionaryCard
+                    grammarCard
+                    englishCard
+                }
+                .dashFormCard()
+            }
+            ExtDictSections()
         }
+        .extDictImporter()
         .navigationTitle(L("词库", "Dictionaries", "辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: deployer.state) {

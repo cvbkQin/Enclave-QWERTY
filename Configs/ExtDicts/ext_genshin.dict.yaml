@@ -1,0 +1,20 @@
+# 飞地输入法扩展词库 · 来源：飞地输入法整理
+# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
+---
+name: ext_genshin
+version: "2026-10-30"
+sort: by_weight
+...
+胡桃	hu tao	9
+钟离	zhong li	9
+雷电将军	lei dian jiang jun	9
+纳西妲	na xi da	8
+甘雨	gan yu	8
+温迪	wen di	8
+提瓦特	ti wa te	7
+蒙德	meng de	7
+璃月	li yue	6
+稻妻	dao qi	6
+须弥	xu mi	5
+枫丹	feng dan	4
+原石	yuan shi	3

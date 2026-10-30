@@ -231,7 +231,7 @@ struct PinyinRow: View {
             HStack(spacing: 0) {
                 if nine, let reading {
                     item(reading.text, marked: reading.marked) { model.chooseCorrectedReading(reading.text) }
-                    Rectangle().fill(Self.dividerColor).frame(width: 1, height: 16).padding(.horizontal, 2)
+                    Rectangle().fill(Self.dividerColor).frame(width: 1, height: 18).padding(.horizontal, 2)
                 }
                 ForEach(nine ? model.pinyinOptions : model.pinyinRowSegmentations, id: \.self) { syllable in
                     if !nine, let reading, syllable == reading.text {
@@ -261,9 +261,10 @@ struct PinyinRow: View {
 extension PinyinRow {
     private func item(_ text: String, marked: Set<Int>, action: @escaping () -> Void) -> some View {
         Button(action: action) {
+            // 每项左右 14、最窄 44（单字母 h、g、i 也好点中），点击区占满整行高。
             label(text, marked: marked)
-                .padding(.horizontal, 12)
-                .frame(maxHeight: .infinity)
+                .padding(.horizontal, 14)
+                .frame(minWidth: 44, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
         .buttonStyle(KeyPressStyle())
@@ -282,7 +283,7 @@ extension PinyinRow {
         }
         return HStack(spacing: 0) {
             ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
-                Text(run.text).font(.system(size: 16))
+                Text(run.text).font(.system(size: 17))
                     .foregroundStyle(run.marked ? Self.markedText : Color.primary)
                     .background(run.marked ? RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Self.markedFill).padding(.horizontal, -1) : nil)
             }
