@@ -27,6 +27,7 @@ final class RimeEngine: InputEngine {
     private lazy var digitCorrector: Corrector? = Corrector.bundled(nineKey: true)
     /// 纠错时用来问「改过的串打出什么」的第二个会话，不动用户正在打的那个。
     private var probe: UInt64 = 0
+    private var probeSchema = ""
     /// 选纠正词时重输改过的串，这期间不再纠。
     private var correcting = false
     static var correctionEnabled = true
@@ -322,9 +323,15 @@ final class RimeEngine: InputEngine {
 
     /// 在第二个会话里打一遍改过的串，看首选是什么。
     private func probeTop(_ input: String) -> String? {
-        if probe == 0 || !enclave_rime_session_alive(probe) {
+        // 换过方案（全键盘 ↔ 九宫格）就换一个会话。
+        if probe != 0, probeSchema != schema || !enclave_rime_session_alive(probe) {
+            enclave_rime_destroy_session(probe)
+            probe = 0
+        }
+        if probe == 0 {
             probe = enclave_rime_create_session(schema)
             guard probe != 0 else { return nil }
+            probeSchema = schema
             enclave_rime_set_option(probe, "ascii_mode", false)
         }
         enclave_rime_clear(probe)
