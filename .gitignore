@@ -29,3 +29,4 @@ Generated/
 
 # 纠错测试跑出来的结果，scripts/correction/run-eval.sh 放进来
 Tests/Correction/results/
+__pycache__/

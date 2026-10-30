@@ -1,8 +1,8 @@
 # Enclave keyboard
 
-A Chinese Pinyin keyboard for iOS whose AI features run on your own API. Connect any OpenAI-compatible endpoint or a model you host yourself. Nothing is sent until you tap Polish, and the developer runs no servers.
+A Chinese Pinyin keyboard for iOS whose AI features run on your own API. Connect any OpenAI-compatible endpoint or a model you host yourself. Nothing is sent until you tap Polish, and AI requests go straight to your provider with no third-party relay.
 
-Enclave 是一款 iOS 中文拼音输入法，最大的特点是 AI 功能用你自己的接口：填上任意 OpenAI 兼容接口，或者自己部署的模型，文字直接发给你选的服务，不经过任何中转服务器。
+Enclave 是一款 iOS 中文拼音输入法，最大的特点是 AI 功能用你自己的接口：填上任意 OpenAI 兼容接口，或者自己部署的模型，文字直接发给你选的服务，无第三方中转，守护数据隐私。
 
 - 支持页：https://cvbkqin.github.io/Enclave-QWERTY/
 - 隐私政策：https://cvbkqin.github.io/Enclave-QWERTY/privacy.html（全文也在 [PRIVACY.md](PRIVACY.md)）
