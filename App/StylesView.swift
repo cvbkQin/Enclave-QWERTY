@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 /// 「AI」标签（IA3、IA4，原「提示词」「接口」两个标签合成一个）：顶上分段「润色 | 问答」，记住上次停的那页（apiPage）。
