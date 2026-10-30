@@ -5,6 +5,7 @@ import Foundation
 /// 启动参数 -rimeEval：输入文件先放进 App 的 Documents/rime-eval-inputs.json（scripts/correction/run-eval.sh 会放），
 /// 结果写到 Documents/rime-eval.json，写完再放一个 rime-eval.done。
 /// 用临时的用户目录（链接到已编译的词库和整句模型），不读也不改用户词库，学到的词频不影响结果。
+/// 同时记两份：results 是引擎原样的候选，corrected 是加上纠错层（Corrector + CorrectionMerge，和键盘里一样）之后的。
 enum RimeEval {
     static let candidatesPerInput = 5
 
@@ -50,27 +51,30 @@ enum RimeEval {
         enclave_rime_finalize()
         _ = enclave_rime_start(paths.shared.path, user.path, nil)
         var results: [String: [String: [String]]] = [:]
+        var corrected: [String: [String: [String]]] = [:]
+        var correctorFound: [String: Bool] = [:]
         for (name, layout) in layouts {
             let session = enclave_rime_create_session(layout.schema)
             guard session != 0 else { continue }
             enclave_rime_set_option(session, "ascii_mode", false)
+            let corrector = Corrector.bundled(nineKey: layout.schema == RimeStore.nineKeySchemaID)
+            correctorFound[name] = corrector != nil
             var out: [String: [String]] = [:]
+            var fixed: [String: [String]] = [:]
             let inputs = Set(layout.cases.compactMap { $0.last } + layout.prefixes)
             for input in inputs.sorted() {
-                enclave_rime_clear(session)
-                for scalar in input.unicodeScalars {
-                    enclave_rime_process_key(session, Int32(scalar.value), 0)
-                }
-                var buffer = [UnsafeMutablePointer<CChar>?](repeating: nil, count: candidatesPerInput)
-                let count = enclave_rime_get_candidates(session, &buffer, candidatesPerInput)
-                out[input] = (0..<count).compactMap { index in
-                    guard let pointer = buffer[index] else { return nil }
-                    defer { free(pointer) }
-                    return String(cString: pointer)
+                let candidates = top(session, input, candidatesPerInput)
+                out[input] = candidates
+                fixed[input] = candidates
+                guard let guess = corrector?.guess(input) else { continue }
+                let correctedTop = top(session, guess.corrected, 1).first
+                if let merged = CorrectionMerge.merge(candidates, input: input, guess: guess, correctedTop: correctedTop) {
+                    fixed[input] = Array(merged.candidates.prefix(candidatesPerInput))
                 }
             }
             enclave_rime_destroy_session(session)
             results[name] = out
+            corrected[name] = fixed
         }
         enclave_rime_finalize()
 
@@ -80,11 +84,28 @@ enum RimeEval {
             "app": (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "",
             "seconds": Date().timeIntervalSince(started),
             "results": results,
+            "corrected": corrected,
+            "corrector": correctorFound,
         ]
         if let json = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]) {
             try? json.write(to: docs.appendingPathComponent("rime-eval.json"))
         }
         try? "ok".write(to: done, atomically: true, encoding: .utf8)
+    }
+
+    /// 清空、按一遍键，取前 limit 个候选。
+    private static func top(_ session: UInt64, _ input: String, _ limit: Int) -> [String] {
+        enclave_rime_clear(session)
+        for scalar in input.unicodeScalars {
+            enclave_rime_process_key(session, Int32(scalar.value), 0)
+        }
+        var buffer = [UnsafeMutablePointer<CChar>?](repeating: nil, count: limit)
+        let count = enclave_rime_get_candidates(session, &buffer, limit)
+        return (0..<count).compactMap { index in
+            guard let pointer = buffer[index] else { return nil }
+            defer { free(pointer) }
+            return String(cString: pointer)
+        }
     }
 }
 #endif

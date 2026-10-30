@@ -124,6 +124,11 @@ targets:
       - path: Vendor/RimeBuild
         type: folder
         buildPhase: resources
+      # 纠错用的按键串可能性表（全键盘 qw、九宫格 t9），由 scripts/fetch-rime.sh 生成；没生成时不纠错。
+      - path: Vendor/KeyLM
+        type: folder
+        buildPhase: resources
+        optional: true
     # 内测包的 Key（混淆）和证书指纹，生成到 Generated/<target>/BuiltinSecrets.swift（不进 Git）；别的包生成空的。也检查内测、公测开关没同时打开。
     preBuildScripts:
       - name: Builtin secrets

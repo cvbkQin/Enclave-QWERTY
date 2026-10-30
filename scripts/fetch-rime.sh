@@ -25,7 +25,21 @@ inputs_hash() {
     | shasum -a 256 | cut -d' ' -f1
 }
 WANT="$FRAMEWORKS_SHA256 $WANXIANG_COMMIT $(inputs_hash)"
+
+# 纠错用的「按键串 → 可能性」表（Vendor/KeyLM，打进键盘扩展），从整理好的词库生成；词库或生成脚本变了才重新生成。
+build_keylm() {
+  local want
+  want="$WANXIANG_COMMIT $(cd "$ROOT" && shasum -a 256 scripts/correction/build_keylm.py scripts/build-dict.py | shasum -a 256 | cut -d' ' -f1)"
+  if [[ -f "$VENDOR/.keylm-stamp" && "$(cat "$VENDOR/.keylm-stamp")" == "$want" && -f "$VENDOR/KeyLM/qw.eklm" ]]; then
+    return
+  fi
+  echo "生成纠错表…"
+  python3 -I "$ROOT/scripts/correction/build_keylm.py" "$VENDOR/RimeData/cn_dicts" "$VENDOR/KeyLM"
+  echo "$want" > "$VENDOR/.keylm-stamp"
+}
+
 if [[ -f "$STAMP" && "$(cat "$STAMP")" == "$WANT" ]]; then
+  build_keylm
   echo "Vendor/ 已是最新"
   exit 0
 fi
@@ -56,5 +70,6 @@ cp "$TMP/wanxiang/LICENSE" "$DATA/LICENSE-wanxiang"
 # App 用它判断词库要不要重新部署。
 echo "$WANXIANG_COMMIT-$(inputs_hash | cut -c1-8)" > "$DATA/data_version.txt"
 
+build_keylm
 echo "$WANT" > "$STAMP"
 echo "完成：$(du -sh "$VENDOR/Frameworks" | cut -f1) 引擎，$(du -sh "$DATA" | cut -f1) 词库"
