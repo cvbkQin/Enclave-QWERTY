@@ -62,6 +62,15 @@ def allow(ip):
         return True
 
 
+def refund(ip):
+    """发信失败时退回这次计数，用户重新提交不会被限流挡住。"""
+    with _lock:
+        if _hits[ip]:
+            _hits[ip].pop()
+        if _global:
+            _global.pop()
+
+
 def clean(text, limit):
     return "".join(ch for ch in str(text) if ch in "\n\t" or ch >= " ")[:limit]
 
@@ -168,7 +177,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"ok": False, "error": "invalid", "detail": str(e)[:100]})
         try:
             send_mail(*fields)
-        except Exception as e:  # 发信失败：App 提示稍后再试或改用邮件
+        except Exception as e:  # 发信失败：App 保留已填内容，让用户稍后重新提交
+            refund(ip)
             self.log_error("mail failed: %s", type(e).__name__)
             return self.reply(502, {"ok": False, "error": "mail_failed"})
         self.reply(200, {"ok": True})
