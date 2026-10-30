@@ -46,6 +46,25 @@ final class KeyboardViewController: UIInputViewController {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateHeight() }
             .store(in: &cancellables)
+
+        // 键盘开着时对方 App 退到后台（上滑回桌面、切 App），系统不一定调 viewDidDisappear，扩展直接被挂起；
+        // Rime 会话还开着就还锁着 App Group 里的用户词库，挂起时被杀（0xDEAD10CC）。退后台时也关掉，回前台再建。
+        NotificationCenter.default.publisher(for: .NSExtensionHostDidEnterBackground)
+            .sink { [weak self] _ in self?.releaseEngine() }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: .NSExtensionHostWillEnterForeground)
+            .sink { [weak self] _ in
+                guard let self, self.view.window != nil else { return }
+                self.model.selectEngine()
+            }
+            .store(in: &cancellables)
+    }
+
+    /// 清掉组字、关掉 Rime 会话：收起和退后台都走这里。下次弹出（selectEngine）或按键时重建。
+    private func releaseEngine() {
+        model.engine.reset()
+        QueuedEngine.shared.closeSession()
+        model.syncEngine()
     }
 
     /// 横屏用简版尺寸。键盘扩展里拿不到界面方向：有窗口时按屏幕宽高比，还没进窗口时看竖向尺寸类（iPhone 横屏是 compact）。
@@ -136,10 +155,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        model.engine.reset()
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
-        QueuedEngine.shared.closeSession()
-        model.syncEngine()
+        releaseEngine()
         model.pressedKeys = []
         model.trackpadActive = false
         TypingStats.flush()
