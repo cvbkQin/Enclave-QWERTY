@@ -1511,7 +1511,7 @@ struct PinyinView: View {
     @State private var typingStats: TypingStats.Summary?
     @ObservedObject private var grammar = GrammarDownloader.shared
     @State private var confirmDeleteGrammar = false
-    /// 整句模型的下载地址，空着就用默认的 GitHub 地址。
+    /// 整句模型的下载地址，空着就用默认地址（大陆店面 enclavekb.cn，其他 GitHub）。
     @State private var grammarURL = GrammarModel.customDownloadURL ?? ""
     /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
     @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
@@ -1619,9 +1619,9 @@ struct PinyinView: View {
                             .disabled(deployer.state == .deploying)
                     } else {
                         DashBigNumber(value: "380", unit: L("MB · 未下载", "MB · Not downloaded", "MB · 未ダウンロード"))
-                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。默认从万象的 GitHub 下载，断了会自动重试、接着下。",
-                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from Wanxiang's GitHub by default; if the connection drops it retries and picks up where it left off.",
-                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。デフォルトでは万象の GitHub からダウンロードし、途切れたら自動で再試行して続きから再開します。"))
+                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。\(Storefront.isMainlandChina ? "默认从飞地的国内服务器下载" : "默认从万象的 GitHub 下载")，断了会自动重试、接着下。",
+                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from \(Storefront.isMainlandChina ? "Enclave's server in mainland China" : "Wanxiang's GitHub") by default; if the connection drops it retries and picks up where it left off.",
+                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。デフォルトでは\(Storefront.isMainlandChina ? "Enclave の中国国内サーバー" : "万象の GitHub")からダウンロードし、途切れたら自動で再試行して続きから再開します。"))
                             .font(.system(size: 13)).foregroundStyle(.secondary)
                         Button(grammar.canResume ? L("继续下载", "Resume download", "続きから") : L("下载", "Download", "ダウンロード")) { grammar.download() }
                             .font(.system(size: 15, weight: .semibold))
@@ -1657,7 +1657,7 @@ struct PinyinView: View {
     private var grammarURLEditor: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(L("下载地址", "Download address", "ダウンロード元")).font(.system(size: 13, weight: .semibold))
-            TextField(GrammarModel.defaultDownloadURL.absoluteString, text: $grammarURL)
+            TextField(GrammarModel.defaultDownloadURL(mainland: Storefront.isMainlandChina).absoluteString, text: $grammarURL)
                 .font(.system(size: 12, design: .monospaced))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -1666,17 +1666,17 @@ struct PinyinView: View {
                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.tertiarySystemFill)))
                 .onSubmit { saveGrammarURL() }
                 .onChange(of: grammarURL) { _ in saveGrammarURL() }
-            Text(L("空着就用上面灰字的 GitHub 地址。下不动时可以换成镜像地址，文件要是同一个 .gram。",
-                   "Leave empty to use the GitHub address shown in gray. If it's too slow, use a mirror of the same .gram file.",
-                   "空欄なら灰色の GitHub のアドレスを使います。遅いときは同じ .gram ファイルのミラーを指定できます。"))
+            Text(L("空着就用上面灰字的默认地址。下不动时可以换成镜像地址，文件要是同一个 .gram。",
+                   "Leave empty to use the default address shown in gray. If it's too slow, use a mirror of the same .gram file.",
+                   "空欄なら灰色の既定のアドレスを使います。遅いときは同じ .gram ファイルのミラーを指定できます。"))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
 
     private func saveGrammarURL() {
-        let old = GrammarModel.downloadURL
+        let old = GrammarModel.downloadURL(mainland: Storefront.isMainlandChina)
         GrammarModel.customDownloadURL = grammarURL
-        if GrammarModel.downloadURL != old { grammar.discardProgress() }
+        if GrammarModel.downloadURL(mainland: Storefront.isMainlandChina) != old { grammar.discardProgress() }
     }
 
     // MARK: - 英文词库
