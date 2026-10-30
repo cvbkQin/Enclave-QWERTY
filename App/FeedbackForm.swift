@@ -377,6 +377,10 @@ struct FeedbackFormView: View {
         case .rateLimited:
             return L("提交太频繁，稍后再试。", "Too many submissions. Try again later.", "送信が多すぎます。後でお試しください。")
         case .tooLarge:
+            // 没有诊断记录时「附上最近的诊断记录」开关不显示，提示里也不提它。
+            if entries.isEmpty {
+                return L("没发出去：内容太大。少放几张截图再试。", "Not sent: too large. Remove a screenshot and try again.", "送信できませんでした：サイズが大きすぎます。スクリーンショットを減らしてお試しください。")
+            }
             return L("没发出去：内容太大。少放几张截图，或关掉「附上最近的诊断记录」再试。", "Not sent: too large. Remove a screenshot or turn off Attach recent diagnostics and try again.", "送信できませんでした：サイズが大きすぎます。スクリーンショットを減らすか、「最近の診断記録を添付」をオフにしてお試しください。")
         case .invalid:
             return L("没发出去：说明是空的或太长，或者截图格式不对，改一下再提交。", "Not sent: the description is empty or too long, or a screenshot couldn't be read.", "送信できませんでした：内容が空か長すぎるか、スクリーンショットを読み取れませんでした。")

@@ -444,6 +444,8 @@ final class AppStore: ObservableObject {
     func fakeTestSuccess() {
         testFailure = nil
         test = .success("你好", 0.8)
+        // 同真的测试一样记下结果：欢迎页第 3 步、首页接口卡看的是它。
+        SharedStorage.defaults.set(true, forKey: testKey)
     }
     #endif
 
