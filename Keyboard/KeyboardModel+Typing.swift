@@ -67,12 +67,34 @@ extension KeyboardModel {
         if engine.candidates.count != candidates.count { candidates = engine.candidates }
     }
 
-    /// 数字、标点等非字母键：先把正在组的字上屏。
+    /// 拼写是 v（或 v 后已接了数字）：切到 123 页时不上屏。
+    private var keepsNumberComposition: Bool {
+        guard let queued = engine as? QueuedEngine else { return false }
+        applyEngineResults(wait: true)
+        return queued.acceptsNumberKey("0")
+    }
+
+    /// 数字、标点等非字母键：先把正在组的字上屏。全键盘打了 v 之后的数字接在拼写后面（快捷输入的大写金额，见 QuickInput）。
+    /// 打完「1+2=」这样的算式，候选栏给出结果。
     func typeSymbol(_ symbol: String) {
-        if isComposing, let first = engine.select(0) { commit(first) }
+        if isComposing, let queued = engine as? QueuedEngine {
+            applyEngineResults(wait: true)
+            if queued.acceptsNumberKey(symbol) {
+                queued.inputNumberKey(symbol)
+                syncEngine()
+                return
+            }
+        }
+        // 首选和符号一起上屏：分两次（先把标记区换成首选、马上再 insertText 符号）时，输入框会把符号插到首选前面（「。壹元整」）。
+        var text = symbol
+        if isComposing, let first = engine.select(0) { text = first + symbol }
+        commit(text)
         engine.reset()
         syncEngine()
-        commit(symbol)
+        if symbol == "=" || symbol == "＝", chineseMode, target == .host,
+           let before = proxy?.documentContextBeforeInput, let result = QuickInput.calculate(before: before) {
+            predictions = [result]
+        }
     }
 
     func deleteKey() {
@@ -392,8 +414,9 @@ extension KeyboardModel {
         case .returnKey: returnKey()
         case .toggleChinese: toggleChinese()
         // 打字时左列 123 / #@¥ 还在：先把拼音原样上屏（同「确认」），再切过去。
+        // 全键盘打了 v 再切到 123 页：留着拼写，接着打的数字出大写金额（见 QuickInput）。
         case .layer(let layer):
-            if isComposing { returnKey() }
+            if isComposing && !(layer == .numbers && keepsNumberComposition) { returnKey() }
             switchLayer(layer)
         case .digitPunct: typeSymbol(".")
         case .digitsMore: digitsMore.toggle()
@@ -1067,7 +1090,8 @@ extension KeyboardModel {
         // 没变的不设：@Published 设一次就让整个键盘重画一遍。
         let newComposition = engine.composition
         if newComposition != composition { composition = newComposition }
-        let row = layer == .letters && !composition.isEmpty
+        // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
+        let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
         if row != pinyinRowShown { pinyinRowShown = row }
         let newCandidates = engine.candidates
         let candidatesChanged = newCandidates != candidates

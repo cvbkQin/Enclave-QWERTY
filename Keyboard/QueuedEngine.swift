@@ -53,9 +53,23 @@ final class QueuedEngine: InputEngine {
         self.inner = inner
     }
 
-    var composition: String { state.composition }
-    var candidates: [String] { state.candidates }
-    var rawInput: String { state.rawInput }
+    var composition: String { vDigits.map { "v" + $0 } ?? state.composition }
+    var candidates: [String] { vDigits.map(QuickInput.numberCandidates) ?? state.candidates }
+    var rawInput: String { vDigits.map { "v" + $0 } ?? state.rawInput }
+
+    /// 全键盘打了 v 之后接着打的数字（快捷输入的大写金额，见 QuickInput）；不在这个状态时为 nil。
+    /// 数字不进 Rime（Rime 里数字键是选第几个候选），在主线程这边记着，拼写和候选都换成数字的。
+    private var vDigits: String?
+
+    /// 数字页的键要不要接在拼写后面：全键盘只打了 v、或已经在打 v 后面的数字时，数字和小数点接上去。
+    func acceptsNumberKey(_ key: String) -> Bool {
+        guard pending == 0, QuickInput.isNumberKey(key) else { return false }
+        return vDigits != nil || state.rawInput == "v"
+    }
+
+    func inputNumberKey(_ key: String) {
+        vDigits = (vDigits ?? "") + key
+    }
     var selections: [InputSelection] { state.selections }
     var lastCorrection: CommittedCorrection? { state.lastCorrection }
     var pendingCorrection: PendingCorrection? { state.pendingCorrection }
@@ -65,6 +79,7 @@ final class QueuedEngine: InputEngine {
     /// 字母、九宫格数字：交给队列就返回，算完后 resultsReady 通知键盘来取。
     /// since：触摸事件的时刻（和 CACurrentMediaTime 同一个时钟），耗时从这里算。
     func inputLater(_ key: String, since: CFTimeInterval? = nil) {
+        vDigits = nil
         pending += 1
         queuedKeys.append(key)
         let queuedAt = since ?? CACurrentMediaTime()
@@ -113,6 +128,7 @@ final class QueuedEngine: InputEngine {
     /// 键盘收起：在队列上关掉 Rime 会话，放开 App Group 里用户词库的文件锁（见 RimeEngine.closeSession）。
     /// 用 performExpiringActivity 向系统要一点时间，关完再让扩展被挂起，不然挂起时还锁着就会被杀。
     func closeSession() {
+        vDigits = nil
         let done = DispatchSemaphore(value: 0)
         queue.async { [inner] in
             inner.closeSession()
@@ -135,29 +151,91 @@ final class QueuedEngine: InputEngine {
     /// 冷启动时 Rime 还在后台启动，这时按删除、标点、切中英，连键盘弹出、收起时的清空，都会被 queue.sync 卡住，直到引擎准备好。
     private var idle: Bool { pending == 0 && state.composition.isEmpty }
 
-    func input(_ letter: String) -> String? { run { $0.input(letter) } }
+    func input(_ letter: String) -> String? {
+        vDigits = nil
+        return run { $0.input(letter) }
+    }
 
     func backspace() -> Bool {
+        if let digits = vDigits {
+            vDigits = digits.count > 1 ? String(digits.dropLast()) : nil
+            return true
+        }
         guard !idle else { return false }
         return run { $0.backspace() }
     }
 
     func select(_ index: Int) -> String? {
+        if vDigits != nil {
+            let chosen = candidates.indices.contains(index) ? candidates[index] : nil
+            reset()
+            return chosen
+        }
         guard !idle else { return nil }
-        return run { $0.select(index) }
+        return run { engine in
+            let extras = Self.extras(of: engine)
+            if let extra = extras.first(where: { $0.index == index }) {
+                switch extra.kind {
+                // 选 emoji = 选它前面那个词（Rime 照常学词），上屏的换成 emoji。
+                case .emoji(let word, let source):
+                    let commit = engine.select(source)
+                    return commit == word ? extra.text : commit
+                case .text:
+                    engine.reset()
+                    return extra.text
+                }
+            }
+            return engine.select(index - extras.filter { $0.index < index }.count)
+        }
     }
 
     func deleteCandidate(_ index: Int) -> Bool {
-        guard !idle else { return false }
-        return run { $0.deleteCandidate(index) }
+        guard vDigits == nil, !idle else { return false }
+        return run { engine in
+            let extras = Self.extras(of: engine)
+            guard !extras.contains(where: { $0.index == index }) else { return false }
+            return engine.deleteCandidate(index - extras.filter { $0.index < index }.count)
+        }
+    }
+
+    /// 插进 Rime 候选里的：emoji（紧跟在前几个候选里第一个 emoji 词表里的词后面，见 EmojiTable），rq、sj、xq 的日期时间（见 QuickInput）。
+    /// index 是在候选栏上的位置，按从小到大排。
+    private struct Extra {
+        /// emoji：word 是它跟着的那个词，source 是那个词在 Rime 候选里的下标。
+        enum Kind { case emoji(word: String, source: Int), text }
+        var index: Int
+        var text: String
+        var kind: Kind
+    }
+
+    private static func extras(of engine: RimeEngine) -> [Extra] {
+        var result: [Extra] = []
+        var count = engine.candidates.count
+        if engine.offersEmoji, let dates = QuickInput.dateCandidates(for: engine.rawInput) {
+            for (offset, text) in dates.enumerated() where !engine.candidates.contains(text) {
+                result.append(Extra(index: min(1 + offset, count), text: text, kind: .text))
+                count += 1
+            }
+        } else if engine.offersEmoji,
+                  let source = engine.candidates.prefix(EmojiTable.lookahead).firstIndex(where: { EmojiTable.emoji(for: $0) != nil }),
+                  let emoji = EmojiTable.emoji(for: engine.candidates[source]),
+                  !engine.candidates.contains(emoji) {
+            result.append(Extra(index: source + 1, text: emoji, kind: .emoji(word: engine.candidates[source], source: source)))
+        }
+        return result
     }
 
     func commitComposition() -> String? {
+        if let digits = vDigits {
+            reset()
+            return digits
+        }
         guard !idle else { return nil }
         return run { $0.commitComposition() }
     }
 
     func reset() {
+        vDigits = nil
         guard idle else {
             run { $0.reset() }
             return
@@ -167,7 +245,10 @@ final class QueuedEngine: InputEngine {
         queue.async { [inner] in inner.reset() }
     }
 
-    func replaceInput(_ raw: String, keeping selections: [InputSelection]) { run { $0.replaceInput(raw, keeping: selections) } }
+    func replaceInput(_ raw: String, keeping selections: [InputSelection]) {
+        vDigits = nil
+        run { $0.replaceInput(raw, keeping: selections) }
+    }
 
     func loadMoreCandidates() {
         // 还有键没算完：候选马上就要换，不用补。
@@ -183,7 +264,9 @@ final class QueuedEngine: InputEngine {
     }
 
     private static func snapshot(of engine: RimeEngine) -> Snapshot {
-        Snapshot(composition: engine.composition, candidates: engine.candidates, rawInput: engine.rawInput,
+        var candidates = engine.candidates
+        for extra in extras(of: engine) { candidates.insert(extra.text, at: extra.index) }
+        return Snapshot(composition: engine.composition, candidates: candidates, rawInput: engine.rawInput,
                  selections: engine.selections, lastCorrection: engine.lastCorrection,
                  pendingCorrection: engine.pendingCorrection)
     }

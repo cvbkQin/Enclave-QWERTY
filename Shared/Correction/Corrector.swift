@@ -23,6 +23,11 @@ final class Corrector {
     static let secondEdit = 1.0
     /// 拼不成时只改拼不下去那个位置往前 5 个键以内。
     static let window = 5
+    /// 触点解码：手指落点的偏差（按键宽高算的标准差，和 TouchPrior 一样），
+    /// 换成邻键时罚分最多加 2（按在正中间）、最多减 1（明显偏向那个邻键）。
+    static let touchSigma = 0.45
+    static let touchMaxExtra = 2.0
+    static let touchMaxRelief = 1.0
 
     enum Edit { case swap, delete, substitute, insert }
 
@@ -41,9 +46,11 @@ final class Corrector {
 
     /// 这个输入要不要纠、纠成什么。带分词符的、全是声母的（简拼）不纠。
     /// extraMargin：这个输入学到的门槛调整（CorrectionMemory.bias），正的更难纠。
-    func guess(_ input: String, extraMargin: Double = 0) -> Guess? {
+    /// touches：每个键的落点（TouchTrail），没有时照固定罚分（和 0.94、参考实现一致）。
+    func guess(_ input: String, extraMargin: Double = 0, touches: [TouchTrail.Offset]? = nil) -> Guess? {
         let keys = Array(input.utf8)
         guard !keys.isEmpty, keys.allSatisfy(isKey) else { return nil }
+        let touches = touches?.count == keys.count ? touches : nil
         if !nineKey && keys.allSatisfy({ !Self.vowels.contains($0) }) { return nil }
         let original = lm.score(keys)
         let reach = strictPrefix(keys)
@@ -51,24 +58,25 @@ final class Corrector {
         let place: Int
         if reach < keys.count {
             // 拼不成：改一处够了就不试两处。
-            let first = edits(keys, from: reach - Self.window, to: reach + 1)
-            for (variant, edit) in first where strictPrefix(variant) == variant.count {
-                found[variant] = penalty[edit]!
+            let first = edits(keys, from: reach - Self.window, to: reach + 1, touches: touches)
+            for (variant, cost) in first where strictPrefix(variant) == variant.count {
+                found[variant] = cost
             }
             if found.isEmpty {
-                for (variant, edit) in first {
+                // 第二处改在改过的串上，位置对不上落点了，按固定罚分。
+                for (variant, firstCost) in first {
                     let reach2 = strictPrefix(variant)
-                    for (variant2, edit2) in edits(variant, from: reach2 - Self.window, to: reach2 + 1)
+                    for (variant2, secondCost) in edits(variant, from: reach2 - Self.window, to: reach2 + 1, touches: nil)
                     where strictPrefix(variant2) == variant2.count {
-                        let cost = penalty[edit]! + penalty[edit2]! + Self.secondEdit
+                        let cost = firstCost + secondCost + Self.secondEdit
                         if found[variant2].map({ cost < $0 }) ?? true { found[variant2] = cost }
                     }
                 }
             }
             place = 1
         } else {
-            for (variant, edit) in edits(keys, from: 0, to: keys.count) where strictPrefix(variant) == variant.count {
-                found[variant] = penalty[edit]!
+            for (variant, cost) in edits(keys, from: 0, to: keys.count, touches: touches) where strictPrefix(variant) == variant.count {
+                found[variant] = cost
             }
             place = 2
         }
@@ -92,12 +100,13 @@ final class Corrector {
         nineKey ? Self.digits.contains(key) : Self.letters.contains(key)
     }
 
-    /// 改一处，只改 [from, to) 这一段。同一个结果有几种改法时记第一种（顺序和参考实现相同）。
-    private func edits(_ keys: [UInt8], from: Int, to: Int) -> [([UInt8], Edit)] {
+    /// 改一处，只改 [from, to) 这一段，返回改过的串和罚分。同一个结果有几种改法时记第一种（顺序和参考实现相同）。
+    /// touches 和 keys 对齐时，换成邻键的罚分按落点调（touchAdjustment）。
+    private func edits(_ keys: [UInt8], from: Int, to: Int, touches: [TouchTrail.Offset]?) -> [([UInt8], Double)] {
         var seen: Set<[UInt8]> = [keys]
-        var out: [([UInt8], Edit)] = []
-        func add(_ variant: [UInt8], _ edit: Edit) {
-            if seen.insert(variant).inserted { out.append((variant, edit)) }
+        var out: [([UInt8], Double)] = []
+        func add(_ variant: [UInt8], _ edit: Edit, _ adjust: Double = 0) {
+            if seen.insert(variant).inserted { out.append((variant, penalty[edit]! + adjust)) }
         }
         let n = keys.count
         let low = max(0, from)
@@ -114,7 +123,7 @@ final class Corrector {
                 for neighbor in neighbors(keys[i]) {
                     var replaced = keys
                     replaced[i] = neighbor
-                    add(replaced, .substitute)
+                    add(replaced, .substitute, touches.map { touchAdjustment(keys[i], to: neighbor, at: $0[i]) } ?? 0)
                 }
             }
         }
@@ -166,6 +175,26 @@ final class Corrector {
 
     private func neighbors(_ key: UInt8) -> [UInt8] {
         (nineKey ? Self.digitNeighbors : Self.letterNeighbors)[key] ?? []
+    }
+
+    /// 邻键相对按下的键在哪（键宽、键高为单位）。
+    private func relative(_ neighbor: UInt8, from key: UInt8) -> (x: Double, y: Double)? {
+        if nineKey {
+            guard let a = Self.gridPosition[key], let b = Self.gridPosition[neighbor] else { return nil }
+            return (Double(b.x - a.x), Double(b.y - a.y))
+        }
+        guard let a = Self.keyPosition[key], let b = Self.keyPosition[neighbor] else { return nil }
+        return (b.x - a.x, Double(b.y - a.y))
+    }
+
+    /// 换成邻键的罚分调整（nats）：落点离邻键中心比离本键中心近多少，按高斯落点算对数似然比，取反后夹在范围里。
+    /// 按在正中间 ≈ +2（更难改成邻键），在两键正中线上 ≈ 0（同 0.94），明显偏向邻键 ≈ −1。
+    func touchAdjustment(_ key: UInt8, to neighbor: UInt8, at touch: TouchTrail.Offset) -> Double {
+        guard let n = relative(neighbor, from: key) else { return 0 }
+        let own = touch.dx * touch.dx + touch.dy * touch.dy
+        let other = (touch.dx - n.x) * (touch.dx - n.x) + (touch.dy - n.y) * (touch.dy - n.y)
+        let llr = (own - other) / (2 * Self.touchSigma * Self.touchSigma)
+        return -min(max(llr, -Self.touchMaxExtra), Self.touchMaxRelief)
     }
 
     // MARK: 拼不拼得成

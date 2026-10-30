@@ -1,99 +1,518 @@
+import StoreKit
 import SwiftUI
 
-/// 「提示词」标签（原「风格」）。
-struct StylesTab: View {
-    @EnvironmentObject private var store: AppStore
+/// 「AI」标签（IA3、IA4，原「提示词」「接口」两个标签合成一个）：顶上分段「润色 | 问答」，记住上次停的那页（apiPage）。
+/// 润色页：润色接口卡 → 提示词 → 键盘里的 AI。
+/// 问答页：问答接口卡 →「和润色用同一个接口」→ 问答风格 → 联网搜索（联网调用 + 调用偏好）→ 键盘里的 AI。
+struct AITab: View {
+    @EnvironmentObject private var router: AppRouter
 
     var body: some View {
-        NavigationStack {
-            StylesView(settings: $store.settings)
+        NavigationStack(path: $router.aiPath) {
+            AIView()
+                .navigationDestination(for: AppRouter.AIPage.self) { page in
+                    switch page {
+                    case .api(let answer): ModelSettingsView(answer: answer)
+                    case .resultKey: ResultKeySettingsView()
+                    }
+                }
         }
     }
 }
 
 #if DEBUG
-/// 截图用（-promptsDebug）：提示词页停在某个样子。
+/// 截图用（-promptsDebug）：提示词停在某个样子。
 enum PromptsDebug {
     static var scene: String?
 }
 #endif
 
-/// 提示词（PR1，原「风格」）：顶上分段「改写 · 润色 | 问答」（QP0、QP1）。
-/// 改写那页：顶部说明小卡、全部提示词（每行本周次数）、添加、恢复默认；左滑删除，「编辑」拖动排序，顺序就是键盘紫色风格键里的顺序。
-/// 问答那页：联网倾向条、问答风格列表、添加。存储都是 StylePreset。
-struct StylesView: View {
-    @Binding var settings: EnclaveSettings
-    /// 当前分段：rewrite / answer。键盘风格一排的「＋」打开对应那一页。
-    @AppStorage("promptsPage") private var page = "rewrite"
-    @State private var confirmReset = false
-    /// 每条提示词本周执行的次数，进页面时读一次。
-    @State private var weekCounts: [UUID: Int] = [:]
-    @State private var answerCounts: [UUID: Int] = [:]
+struct AIView: View {
+    @EnvironmentObject private var store: AppStore
+    @EnvironmentObject private var router: AppRouter
+    /// 当前分段：main（润色）/ answer（问答）。沿用原接口页的键。
+    @AppStorage("apiPage") private var pageRaw = "main"
+    /// 没同意隐私政策时点「测试连接」：先去同意。
+    @State private var needsPrivacy = false
+    /// 大陆店面从「禁止」改成「开 / 每次询问」前的确认框（AP4）：选的那一档。
+    @State private var pendingWebMode: WebSearchMode?
+    /// 测试连接成功、这个地址还没同意过时弹出的确认（P05）。
+    @State private var consentEndpoint: ConsentPrompt?
+    @State private var recent: [UsageStats.Request] = []
+    @State private var answerRecent: [UsageStats.Request] = []
     /// 截图用：直接打开这一条的编辑页。
     @State private var debugEditing: UUID?
 
+    private struct ConsentPrompt: Identifiable {
+        let endpoint: String
+        var id: String { endpoint }
+    }
+
+    private var answer: Bool { pageRaw == "answer" }
+    private var locked: Bool { BuiltinAPI.isInternalBuild }
+
     var body: some View {
-        List {
-            Section {
-                if page == "answer" {
-                    SearchTendencyCard(settings: $settings)
-                        .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14))
-                } else {
-                    HowItWorksCard(name: settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える"))
-                        .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
-                }
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    TabTitle(caption: caption, title: L("提示词", "Prompts", "プロンプト"))
-                    Picker("", selection: $page) {
-                        Text(L("改写 · 润色", "Rewrite · Polish", "書き換え · 整える")).tag("rewrite")
-                        Text(L("问答", "Answers", "質問への回答")).tag("answer")
+        ScrollViewReader { proxy in
+            List {
+                Section {
+                } header: {
+                    VStack(alignment: .leading, spacing: 12) {
+                        TabTitle(caption: caption, title: "AI")
+                        Picker("", selection: $pageRaw) {
+                            Text(L("润色", "Polish", "整える")).tag("main")
+                            Text(L("问答", "Q&A", "質問")).tag("answer")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(height: 34)
+                        apiCard
                     }
-                    .pickerStyle(.segmented)
-                    .frame(height: 34)
+                    .dashFormCard()
                 }
-                // 标题到第一张卡片和首页一样约 18pt。
-                .padding(.bottom, 11)
-                .dashFormCard()
-            } footer: {
-                if page == "answer" {
-                    Text(L("只管模型「想不想」联网；能不能联网仍看 设置 › 联网（开 / 每次询问 / 禁止）。概念解释、写作、翻译、计算、建议、闲聊在哪一档都不联网；改写从不联网。",
-                           "This only sets how keen the model is to search. Whether it can is still set in Settings › Web search (On / Ask each time / Off). Explanations, writing, translation, math, advice and chat never search at any level, and rewrites never do.",
-                           "モデルがどれだけ検索したがるかだけを決めます。検索できるかどうかは 設定 › ウェブ検索（オン / 毎回確認 / オフ）のままです。概念の説明・作文・翻訳・計算・アドバイス・雑談はどの段階でも検索せず、書き換えは検索しません。"))
+                if answer {
+                    Section {
+                        SameAPIToggle(locked: locked)
+                    }
+                    AnswerStyleSections(settings: $store.settings)
+                    webSearchSection
+                } else {
+                    PolishPromptSections(settings: $store.settings)
                 }
+                KeyboardAISection()
             }
-            if page == "answer" {
-                answerSections
-            } else {
-                rewriteSections
-            }
+            .tint(DashColor.ai)
+            .onAppear { openAnswerWebSearch(proxy) }
+            .onChange(of: router.showsAnswerWebSearch) { _ in openAnswerWebSearch(proxy) }
         }
-        .tint(DashColor.ai)
-        .confirmationDialog(L("恢复成默认的 5 条提示词？你改过和添加的会被删掉。", "Restore the 5 default prompts? Prompts you changed or added will be removed.", "デフォルトの 5 つのプロンプトに戻しますか？変更・追加したものは削除されます。"), isPresented: $confirmReset, titleVisibility: .visible) {
-            Button(L("恢复默认提示词", "Restore default prompts", "デフォルトのプロンプトに戻す"), role: .destructive) {
-                settings.styles = StylePreset.defaults
-                settings.selectedStyleID = nil
-            }
-        }
-        .navigationTitle(L("提示词", "Prompts", "プロンプト"))
+        .navigationTitle("AI")
         .tabRootPage()
         .onAppear {
-            weekCounts = Dictionary(uniqueKeysWithValues: settings.styles.map { ($0.id, UsageStats.week("polish.style.\($0.id.uuidString)")) })
-            answerCounts = Dictionary(uniqueKeysWithValues: settings.answerStyles.map { ($0.id, UsageStats.week("answer.style.\($0.id.uuidString)")) })
+            recent = UsageStats.polishRecent
+            answerRecent = UsageStats.answerRecent
             #if DEBUG
             applyDebugScene()
             #endif
         }
+        .onChange(of: store.test) { _ in recent = UsageStats.polishRecent }
+        .onChange(of: store.answerTest) { _ in answerRecent = UsageStats.answerRecent }
+        .onChange(of: store.test) { test in
+            guard case .success = test, let endpoint = ConsentStore.endpoint(of: store.settings.baseURL),
+                  !ConsentStore.isConsented(endpoint) else { return }
+            consentEndpoint = ConsentPrompt(endpoint: endpoint)
+        }
+        .sheet(item: $consentEndpoint) { prompt in
+            ConsentSheet(provider: Provider.detect(store.settings.baseURL).title, endpoint: prompt.endpoint) {
+                ConsentStore.grant(prompt.endpoint)
+                consentEndpoint = nil
+            } later: {
+                consentEndpoint = nil
+            }
+            .presentationDetents([.large])
+        }
+        .alert(L("打开联网调用？", "Turn on web search?", "ウェブ検索をオンにしますか？"), isPresented: Binding(
+            get: { pendingWebMode != nil }, set: { if !$0 { pendingWebMode = nil } })) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) { pendingWebMode = nil }
+            Button(L("打开", "Turn On", "オンにする")) {
+                store.settings.webSearchMode = pendingWebMode
+                pendingWebMode = nil
+            }
+        } message: {
+            if let provider = store.settings.answerSearch {
+                Text(L("需要联网时，问题会发给 \(provider.name) 的搜索服务（\(provider.company)）。每次约 0.01 元，从你的 \(provider.name) 账户扣。可以随时改回「禁止」。",
+                       "When the web is needed, your question goes to \(provider.name) search (\(provider.company)), billed to your \(provider.name) account. You can switch back to Off at any time.",
+                       "ウェブが必要なとき、質問は \(provider.name) の検索サービス（\(provider.company)）に送られ、\(provider.name) のアカウントに課金されます。いつでも「オフ」に戻せます。"))
+            }
+        }
+        .alert(L("用 AI 之前，先同意隐私政策", "Agree to the Privacy Policy to use AI", "AI を使う前にプライバシーポリシーに同意してください"), isPresented: $needsPrivacy) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+            Button(L("阅读并同意", "Read and Agree", "読んで同意する")) { router.showsPrivacyWelcome = true }
+        } message: {
+            Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
+        }
         .navigationDestination(isPresented: Binding(get: { debugEditing != nil }, set: { if !$0 { debugEditing = nil } })) {
-            if let index = settings.styles.firstIndex(where: { $0.id == debugEditing }) {
-                StyleEditor(style: $settings.styles[index], settings: $settings)
+            if let index = store.settings.styles.firstIndex(where: { $0.id == debugEditing }) {
+                StyleEditor(style: $store.settings.styles[index], settings: $store.settings)
             }
         }
     }
 
-    /// 问答那页（QP1）：问答风格列表、添加。
-    @ViewBuilder
-    private var answerSections: some View {
+    /// 键盘「去开启」：切到问答页，滚到「联网搜索」。
+    private func openAnswerWebSearch(_ proxy: ScrollViewProxy) {
+        guard router.showsAnswerWebSearch else { return }
+        router.showsAnswerWebSearch = false
+        pageRaw = "answer"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation { proxy.scrollTo("webSearch", anchor: .center) }
+        }
+    }
+
+    /// 标题上的灰字：「润色 DeepSeek · 问答 Kimi」，同一个接口时「润色、问答都用 DeepSeek」。
+    private var caption: String {
+        guard store.settings.isConfigured else { return L("还没设置", "Not set up", "未設定") }
+        let main = ProviderName.of(store.settings.baseURL)
+        guard store.settings.usesAnswerEndpoint else {
+            return L("润色、问答都用 \(main)", "Polish & Q&A: \(main)", "整える・質問とも \(main)")
+        }
+        let ask = ProviderName.of(store.settings.answerBaseURL)
+        return L("润色 \(main) · 问答 \(ask)", "Polish \(main) · Q&A \(ask)", "整える \(main)・質問 \(ask)")
+    }
+
+    // MARK: 接口卡
+
+    /// 接口卡：小字「润色接口 / 问答接口」+ 右上状态；大字服务商 + 灰字模型；问答页多一行能不能联网；「测试连接」「更改接口 ›」。
+    /// 问答和润色用同一个时显示润色那家，写「和润色用同一个」，没有「更改接口」。内测版只有「测试连接」。
+    private var apiCard: some View {
+        let ownAnswer = answer && store.settings.separateAnswer
+        let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
+        let baseURL = ownAnswer ? store.settings.answerBaseURL : store.settings.baseURL
+        let model = ownAnswer ? store.settings.answerModel : store.settings.model
+        let state = ownAnswer ? store.answerTest : store.test
+        let status = self.status(ownAnswer)
+        let missing = ownAnswer ? store.answerMissingModel : store.missingModel
+        return DashCard {
+            HStack(spacing: 6) {
+                Text(answer ? L("问答接口", "Q&A API", "質問の API") : L("润色接口", "Polish API", "整える API"))
+                    .font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                HStack(spacing: 4) {
+                    Circle().fill(status.color).frame(width: 7, height: 7)
+                    Text(status.text).lineLimit(1)
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(status.color)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(configured ? ProviderName.of(baseURL) : L("还没设置", "Not set up", "未設定"))
+                    .font(.system(size: 26, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+                if configured {
+                    Text(model).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            if answer {
+                if !store.settings.separateAnswer {
+                    Text(L("和润色用同一个", "Same as Polish", "整えると同じ")).font(.footnote).foregroundStyle(.secondary)
+                }
+                if configured {
+                    if store.settings.answerSearch != nil {
+                        HStack(spacing: 5) {
+                            Circle().fill(Color(hex: 0x0A84FF)).frame(width: 7, height: 7)
+                            Text(L("可以联网搜索", "Can search the web", "ウェブ検索できます"))
+                        }
+                        .font(.footnote).foregroundStyle(Color(hex: 0x0A84FF))
+                    } else {
+                        Text(L("不能联网搜索", "Can't search the web", "ウェブ検索はできません")).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if let error = status.error {
+                Text(error).font(.footnote).foregroundStyle(.red).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 10) {
+                cardButton {
+                    HStack(spacing: 6) {
+                        if state == .running { ProgressView().controlSize(.small) }
+                        Text(L("测试连接", "Test", "接続テスト"))
+                    }
+                } action: {
+                    if router.privacyAgreed {
+                        Task { ownAnswer ? await store.runAnswerTest() : await store.runTest() }
+                    } else {
+                        needsPrivacy = true
+                    }
+                }
+                .disabled(!configured || state == .running)
+                // 和润色用同一个时问答页没有自己的接口详情。
+                if !locked && (!answer || store.settings.separateAnswer) {
+                    cardButton {
+                        Text(configured ? L("更改接口 ›", "Change ›", "API を変更 ›") : L("去设置 ›", "Set Up ›", "設定する ›"))
+                    } action: {
+                        router.aiPath.append(AppRouter.AIPage.api(answer: answer))
+                    }
+                }
+            }
+            if !locked, let missing {
+                missingModelTip(missing) { router.aiPath.append(AppRouter.AIPage.api(answer: ownAnswer)) }
+            }
+        }
+    }
+
+    private func cardButton<Label: View>(@ViewBuilder label: () -> Label, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            label()
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(DashColor.ai)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DashColor.ai.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 右上状态：● 连接正常 · 0.8 秒 / 连不上 / 还没测试。测试刚失败时下面红字写原因。
+    private func status(_ ownAnswer: Bool) -> (text: String, color: Color, error: String?) {
+        let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
+        guard configured else { return (L("未设置", "Not set up", "未設定"), DashColor.system, nil) }
+        let state = ownAnswer ? store.answerTest : store.test
+        let requests = ownAnswer ? answerRecent : recent
+        func connected(_ seconds: Double?) -> (String, Color, String?) {
+            let text = L("连接正常", "Connected", "接続 OK")
+            guard let seconds else { return (text, DashColor.ok, nil) }
+            return (text + " · " + L("\(String(format: "%.1f", seconds)) 秒", "\(String(format: "%.1f", seconds)) s", "\(String(format: "%.1f", seconds)) 秒"), DashColor.ok, nil)
+        }
+        let failed = L("连不上", "Can't connect", "接続できません")
+        switch state {
+        case .running: return (L("正在测试…", "Testing…", "テスト中…"), .orange, nil)
+        case .failure(let message): return (failed, .red, message)
+        case .success(_, let seconds): return connected(seconds)
+        case .idle: break
+        }
+        if let last = requests.last {
+            return last.ok ? connected(Double(last.ms) / 1000) : (L("最近一次失败", "Last request failed", "直近は失敗"), .red, nil)
+        }
+        if !ownAnswer {
+            switch store.lastTestOK {
+            case true?: return connected(nil)
+            case false?: return (failed, .red, nil)
+            case nil: break
+            }
+        }
+        return (L("还没测试", "Not tested", "未テスト"), DashColor.system, nil)
+    }
+
+    /// 接口卡里的橙色提示（ML5）：连得上，但服务商的列表里已经没有这个模型。「选择其他模型」进接口详情。
+    private func missingModelTip(_ model: String, choose: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Color(hex: 0xFF9500))
+                Text(L("服务商的模型列表里没有 \(model)，这个模型可能已下线。现在仍能连接，但随时可能停止服务。",
+                       "\(model) isn't in the provider's model list and may be retired. It still connects for now but could stop working anytime.",
+                       "サービスのモデル一覧に \(model) がありません。提供終了の可能性があります。今は接続できますが、いつ停止するかわかりません。"))
+                    .font(.footnote)
+                    .foregroundStyle(Color(light: 0x7C2D12, dark: 0xFDBA74))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button(action: choose) {
+                Text(L("选择其他模型", "Choose another model", "別のモデルを選ぶ"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color(hex: 0xC2410C))
+                    .padding(.horizontal, 14)
+                    .frame(height: 32)
+                    .background(Capsule().fill(Color(.systemBackground)))
+                    .overlay(Capsule().stroke(Color(hex: 0xFF9500), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(light: 0xFFF4E5, dark: 0x3A2810)))
+    }
+
+    // MARK: 联网搜索
+
+    /// 联网搜索（AP2–AP4 + QP1）：上面「联网调用」三段，下面「调用偏好」5 档条。问答接口不能联网时整组变灰，设置值保留。
+    private var webSearchSection: some View {
+        let provider = store.settings.answerSearch
+        return Section {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(L("联网调用", "Web search", "ウェブ検索")).font(.system(size: 17, weight: .semibold))
+                    Picker("", selection: Binding(
+                        get: { store.settings.webSearchMode ?? .off },
+                        set: { mode in
+                            // 大陆店面从「禁止」改成可以联网，先确认；改回「禁止」不用。
+                            if Storefront.isMainlandChina, mode != .off, (store.settings.webSearchMode ?? .off) == .off {
+                                pendingWebMode = mode
+                            } else {
+                                store.settings.webSearchMode = mode
+                            }
+                        })) {
+                        ForEach(WebSearchMode.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Divider()
+                SearchTendencyCard(settings: $store.settings)
+            }
+            .padding(.vertical, 6)
+            .opacity(provider == nil ? 0.45 : 1)
+            .disabled(provider == nil)
+        } header: {
+            Text(L("联网搜索", "Web search", "ウェブ検索"))
+        } footer: {
+            Text(webSearchFooter(provider))
+        }
+        .id("webSearch")
+    }
+
+    private func webSearchFooter(_ provider: SearchProvider?) -> String {
+        guard let provider else {
+            let name = ProviderName.of(store.settings.forAnswers.baseURL)
+            return L("\(name) 不能联网，问答只用模型自己的知识。想联网，请选通义千问、Kimi、智谱 GLM 或腾讯混元。", "\(name) can't search the web, so answers use only the model's own knowledge. To search, choose Qwen, Kimi, Zhipu GLM or Tencent Hunyuan.", "\(name) はウェブ検索できないため、回答はモデル自身の知識だけを使います。検索するには Qwen・Kimi・Zhipu GLM・Tencent Hunyuan を選んでください。")
+        }
+        let lead = L("由模型自己判断这个问题要不要联网，「调用偏好」定它多爱查；概念解释、写作、翻译、计算、建议、闲聊在哪一档都不联网。", "The model decides whether a question needs the web, and Search preference sets how keen it is. Explanations, writing, translation, math, advice and chat never search. ", "質問にウェブが必要かはモデルが判断し、「検索の頻度」でその積極さを決めます。説明・作文・翻訳・計算・アドバイス・雑談は検索しません。")
+        let mode: String
+        switch store.settings.webSearchMode ?? .off {
+        case .on: mode = L("需要联网时直接搜；第一次用这家服务商时，键盘上先问你一次。", "When it does, it searches right away; the first time with a provider, the keyboard asks you once.", "必要なときはそのまま検索します。そのサービスを初めて使うときは、キーボードで一度確認します。")
+        case .ask: mode = L("需要联网时，键盘上先问你一次，点「允许」才搜。", "When it does, the keyboard asks you first and searches only if you tap Allow.", "必要なときはキーボードで先に確認し、「許可」したときだけ検索します。")
+        case .off: mode = L("不联网。遇到要最新信息的问题，键盘上会提示你，可以去开启，也可以直接回答。", "No web search. When a question needs current info, the keyboard tells you, and you can turn it on or answer anyway.", "ウェブ検索はしません。最新情報が必要な質問では、キーボードでお知らせします。オンにするか、そのまま回答できます。")
+        }
+        let tail = L("\n每次搜索把问题发给 \(provider.name) 的搜索服务，约 ¥0.01，从你的 \(provider.name) 账户扣。润色不调用联网搜索。", "\nEach search sends your question to \(provider.name) search, billed to your \(provider.name) account. Polish never calls web search.", "\n検索のたびに質問を \(provider.name) の検索サービスに送り、\(provider.name) のアカウントに課金されます。整えるではウェブ検索を使いません。")
+        return lead + mode + tail
+    }
+
+    #if DEBUG
+    private func applyDebugScene() {
+        guard let scene = PromptsDebug.scene else { return }
+        PromptsDebug.scene = scene == "optimized" ? scene : nil
+        store.settings.styles = StylePreset.defaults
+        switch scene {
+        case "missing":
+            store.settings.styles.removeAll { $0.name == "正式" || $0.name == "结构" }
+        case "empty":
+            let blank = StylePreset(name: L("新提示词", "New prompt", "新しいプロンプト"), prompt: "")
+            store.settings.styles.append(blank)
+            debugEditing = blank.id
+        case "optimized":
+            let custom = StylePreset(name: "客户", prompt: "发给客户的，客气点，别太啰嗦")
+            store.settings.styles.append(custom)
+            debugEditing = custom.id
+        default: break
+        }
+    }
+    #endif
+}
+
+/// AI › 润色页的提示词（原提示词页「改写」那页）：列表、勾选、添加、删掉的预设、恢复默认；左滑删除，「编辑」拖动排序，顺序就是键盘紫色风格键里的顺序。
+struct PolishPromptSections: View {
+    @Binding var settings: EnclaveSettings
+    @State private var confirmReset = false
+
+    var body: some View {
+        Section {
+            ForEach($settings.styles) { $style in
+                NavigationLink {
+                    StyleEditor(style: $style, settings: $settings)
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(style.displayName).font(.body)
+                                if style.id == settings.selectedStyle?.id {
+                                    DashTag(text: L("默认", "Default", "デフォルト"), color: DashColor.ai)
+                                }
+                            }
+                            Text(Self.summary(style))
+                                .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        Text(L("\(UsageStats.week("polish.style.\(style.id.uuidString)")) 次", "\(UsageStats.week("polish.style.\(style.id.uuidString)"))×", "\(UsageStats.week("polish.style.\(style.id.uuidString)")) 回"))
+                            .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                    }
+                    .padding(.vertical, 2)
+                    // 分隔线都从名字左边开始，不要有的通栏。
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                }
+            }
+            .onDelete { settings.styles.remove(atOffsets: $0) }
+            .onMove { settings.styles.move(fromOffsets: $0, toOffset: $1) }
+        } header: {
+            HStack {
+                Text(L("提示词 · 点 ✨ 时用当前这条", "Prompts · ✨ uses the current one", "プロンプト・✨ で今のものを使う"))
+                Spacer()
+                // 系统的编辑按钮（PH2 挪到分组标题右边）：自己管 editMode 时拖过一次后再拖、点 ⊖ 都没反应。
+                EditButton()
+                    .font(.system(size: 15))
+                    .tint(DashColor.ai)
+                    .environment(\.locale, Loc.locale)
+                    .textCase(nil)
+            }
+        } footer: {
+            Text(L("顺序就是键盘「\(settings.selectedStyle?.displayName ?? "润色") ▾」里的顺序。次数是本周的。",
+                   "This is the order in the keyboard's \(settings.selectedStyle?.displayName ?? "Polish") ▾ menu. Counts are for this week.",
+                   "キーボードの「\(settings.selectedStyle?.displayName ?? "整える") ▾」もこの順番です。回数は今週の分です。"))
+        }
+
+        if !missingDefaults.isEmpty {
+            Section {
+                ForEach(missingDefaults) { preset in
+                    Button {
+                        // 换个新 id：本周次数从 0 算，不和删掉的那条混在一起。
+                        settings.styles.append(StylePreset(name: preset.name, prompt: preset.prompt))
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(preset.displayName).font(.body).foregroundStyle(Color.primary)
+                                Text(Self.summary(preset)).font(.footnote).foregroundStyle(Color.secondary).lineLimit(1)
+                            }
+                            Spacer(minLength: 8)
+                            Label(L("加回", "Restore", "戻す"), systemImage: "arrow.uturn.backward")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(DashColor.ai)
+                        }
+                        .contentShape(Rectangle())
+                        // 分隔线从名字左边开始，和「全部提示词」一样。
+                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
+                    }
+                    // 只有「↶ 加回」是紫色，名字和说明跟上面的列表一样黑、灰。
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text(L("删掉的预设", "Deleted presets", "削除したプリセット"))
+            } footer: {
+                Text(L("加回到列表最后，内容是默认的；你自己的提示词不受影响。", "Adds it back at the end with its default text. Your own prompts stay as they are.", "デフォルトの内容でリストの最後に戻します。自分のプロンプトはそのままです。"))
+            }
+        }
+        Section {
+            Button {
+                settings.styles.append(StylePreset(name: L("新提示词", "New prompt", "新しいプロンプト"), prompt: ""))
+            } label: {
+                Label(L("添加提示词", "Add prompt", "プロンプトを追加"), systemImage: "plus")
+            }
+        }
+        Section {
+            Button(L("恢复默认提示词", "Restore default prompts", "デフォルトのプロンプトに戻す")) { confirmReset = true }
+                .confirmationDialog(L("恢复成默认的 5 条提示词？你改过和添加的会被删掉。", "Restore the 5 default prompts? Prompts you changed or added will be removed.", "デフォルトの 5 つのプロンプトに戻しますか？変更・追加したものは削除されます。"), isPresented: $confirmReset, titleVisibility: .visible) {
+                    Button(L("恢复默认提示词", "Restore default prompts", "デフォルトのプロンプトに戻す"), role: .destructive) {
+                        settings.styles = StylePreset.defaults
+                        settings.selectedStyleID = nil
+                    }
+                }
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+        }
+    }
+
+    /// 自带的 5 条里被删掉的：名字和内容都找不到了才算（改了名或改了内容的还在列表里）。
+    /// 「润色」默认内容为空：列表里还有任何一条内容为空就算没删，免得改名后加回变成两条空的。
+    private var missingDefaults: [StylePreset] {
+        StylePreset.defaults.filter { preset in
+            !settings.styles.contains { $0.name == preset.name || $0.prompt == preset.prompt }
+        }
+    }
+
+    /// 一句说明：自带的 5 条用固定的说明，自己加的显示提示词内容。
+    static func summary(_ style: StylePreset) -> String {
+        if let builtIn = StyleSuggestions.builtIn(style), builtIn.prompt == style.prompt {
+            switch style.name {
+            case "润色": return L("不加额外要求，按原文的语气改顺、改通", "No extra instructions. Smooths the text in its own tone", "追加の指示なし。元の語調のまま読みやすく整えます")
+            case "正式": return L("书面、得体、礼貌，适合工作沟通和对外发送", "Written, polite and proper, for work and outside contacts", "書き言葉で丁寧に。仕事や社外向けに")
+            case "口语": return L("像本人平时说话一样自然随意", "Natural and casual, the way you talk", "普段話すように自然でカジュアルに")
+            case "简短": return L("只留核心意思，能一句说清就一句", "Just the point, in one sentence if possible", "要点だけ。できれば一文で")
+            case "结构": return L("提炼关键信息，整理成编号要点", "Pulls out the key points as a numbered list", "要点を抜き出して番号付きで整理")
+            default: break
+            }
+        }
+        return style.prompt.isEmpty ? L("不加额外要求，按原文的语气改顺、改通", "No extra instructions. Smooths the text in its own tone", "追加の指示なし。元の語調のまま読みやすく整えます") : style.prompt
+    }
+}
+
+/// AI › 问答页的问答风格（原提示词页问答那页）：列表、添加。存储都是 StylePreset。
+struct AnswerStyleSections: View {
+    @Binding var settings: EnclaveSettings
+
+    var body: some View {
         Section {
             ForEach($settings.answerStyles) { $style in
                 NavigationLink {
@@ -111,7 +530,7 @@ struct StylesView: View {
                                 .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Spacer(minLength: 8)
-                        Text(L("\(answerCounts[style.id] ?? 0) 次", "\(answerCounts[style.id] ?? 0)×", "\(answerCounts[style.id] ?? 0) 回"))
+                        Text(L("\(UsageStats.week("answer.style.\(style.id.uuidString)")) 次", "\(UsageStats.week("answer.style.\(style.id.uuidString)"))×", "\(UsageStats.week("answer.style.\(style.id.uuidString)")) 回"))
                             .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
                     }
                     .padding(.vertical, 2)
@@ -148,167 +567,6 @@ struct StylesView: View {
     }
 
     static let answerFallback = L("简短直接，几句话说清楚", "Brief and direct, in a few sentences", "短く率直に、数文で")
-
-    /// 改写那页（QP0）：原来的提示词列表。
-    @ViewBuilder
-    private var rewriteSections: some View {
-            Section {
-                ForEach($settings.styles) { $style in
-                    NavigationLink {
-                        StyleEditor(style: $style, settings: $settings)
-                    } label: {
-                        HStack(spacing: 10) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                HStack(spacing: 6) {
-                                    Text(style.displayName).font(.body)
-                                    if style.id == settings.selectedStyle?.id {
-                                        DashTag(text: L("默认", "Default", "デフォルト"), color: DashColor.ai)
-                                    }
-                                }
-                                Text(Self.summary(style))
-                                    .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            Spacer(minLength: 8)
-                            Text(L("\(weekCounts[style.id] ?? 0) 次", "\(weekCounts[style.id] ?? 0)×", "\(weekCounts[style.id] ?? 0) 回"))
-                                .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-                        }
-                        .padding(.vertical, 2)
-                        // 分隔线都从名字左边开始，不要有的通栏。
-                        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
-                    }
-                }
-                .onDelete { settings.styles.remove(atOffsets: $0) }
-                .onMove { settings.styles.move(fromOffsets: $0, toOffset: $1) }
-            } header: {
-                HStack {
-                    Text(L("全部提示词", "All prompts", "すべてのプロンプト"))
-                    Spacer()
-                    // 系统的编辑按钮（PH2 挪到分组标题右边）：自己管 editMode 时拖过一次后再拖、点 ⊖ 都没反应。
-                    EditButton()
-                        .font(.system(size: 15))
-                        .tint(DashColor.ai)
-                        .environment(\.locale, Loc.locale)
-                        .textCase(nil)
-                }
-            } footer: {
-                Text(L("顺序就是键盘「\(settings.selectedStyle?.displayName ?? "润色") ▾」里的顺序。次数是本周的。",
-                       "This is the order in the keyboard's \(settings.selectedStyle?.displayName ?? "Polish") ▾ menu. Counts are for this week.",
-                       "キーボードの「\(settings.selectedStyle?.displayName ?? "整える") ▾」もこの順番です。回数は今週の分です。"))
-            }
-
-            if !missingDefaults.isEmpty {
-                Section {
-                    ForEach(missingDefaults) { preset in
-                        Button {
-                            // 换个新 id：本周次数从 0 算，不和删掉的那条混在一起。
-                            settings.styles.append(StylePreset(name: preset.name, prompt: preset.prompt))
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(preset.displayName).font(.body).foregroundStyle(Color.primary)
-                                    Text(Self.summary(preset)).font(.footnote).foregroundStyle(Color.secondary).lineLimit(1)
-                                }
-                                Spacer(minLength: 8)
-                                Label(L("加回", "Restore", "戻す"), systemImage: "arrow.uturn.backward")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(DashColor.ai)
-                            }
-                            .contentShape(Rectangle())
-                            // 分隔线从名字左边开始，和「全部提示词」一样。
-                            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                        }
-                        // 只有「↶ 加回」是紫色，名字和说明跟上面的列表一样黑、灰。
-                        .buttonStyle(.plain)
-                    }
-                } header: {
-                    Text(L("删掉的预设", "Deleted presets", "削除したプリセット"))
-                } footer: {
-                    Text(L("加回到列表最后，内容是默认的；你自己的提示词不受影响。", "Adds it back at the end with its default text. Your own prompts stay as they are.", "デフォルトの内容でリストの最後に戻します。自分のプロンプトはそのままです。"))
-                }
-            }
-            Section {
-                Button {
-                    settings.styles.append(StylePreset(name: L("新提示词", "New prompt", "新しいプロンプト"), prompt: ""))
-                } label: {
-                    Label(L("添加提示词", "Add prompt", "プロンプトを追加"), systemImage: "plus")
-                }
-            }
-            Section {
-                Button(L("恢复默认提示词", "Restore default prompts", "デフォルトのプロンプトに戻す")) { confirmReset = true }
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
-            }
-    }
-
-    #if DEBUG
-    private func applyDebugScene() {
-        guard let scene = PromptsDebug.scene else { return }
-        PromptsDebug.scene = scene == "optimized" ? scene : nil
-        settings.styles = StylePreset.defaults
-        switch scene {
-        case "missing":
-            settings.styles.removeAll { $0.name == "正式" || $0.name == "结构" }
-        case "empty":
-            let blank = StylePreset(name: L("新提示词", "New prompt", "新しいプロンプト"), prompt: "")
-            settings.styles.append(blank)
-            debugEditing = blank.id
-        case "optimized":
-            let custom = StylePreset(name: "客户", prompt: "发给客户的，客气点，别太啰嗦")
-            settings.styles.append(custom)
-            debugEditing = custom.id
-        default: break
-        }
-    }
-    #endif
-
-    /// 自带的 5 条里被删掉的：名字和内容都找不到了才算（改了名或改了内容的还在列表里）。
-    /// 「润色」默认内容为空：列表里还有任何一条内容为空就算没删，免得改名后加回变成两条空的。
-    private var missingDefaults: [StylePreset] {
-        StylePreset.defaults.filter { preset in
-            !settings.styles.contains { $0.name == preset.name || $0.prompt == preset.prompt }
-        }
-    }
-
-    /// 标题上的灰字：「5 条 · 默认「润色」」；问答那页按问答风格算。
-    private var caption: String {
-        let answer = page == "answer"
-        let name = (answer ? settings.selectedAnswerStyle?.displayName : settings.selectedStyle?.displayName) ?? L("润色", "Polish", "整える")
-        let count = answer ? settings.answerStyles.count : settings.styles.count
-        return L("\(count) 条 · 默认「\(name)」", "\(count) prompts · Default: \(name)", "\(count) 件 · デフォルト「\(name)」")
-    }
-
-    /// 一句说明：自带的 5 条用固定的说明，自己加的显示提示词内容。
-    static func summary(_ style: StylePreset) -> String {
-        if let builtIn = StyleSuggestions.builtIn(style), builtIn.prompt == style.prompt {
-            switch style.name {
-            case "润色": return L("不加额外要求，按原文的语气改顺、改通", "No extra instructions. Smooths the text in its own tone", "追加の指示なし。元の語調のまま読みやすく整えます")
-            case "正式": return L("书面、得体、礼貌，适合工作沟通和对外发送", "Written, polite and proper, for work and outside contacts", "書き言葉で丁寧に。仕事や社外向けに")
-            case "口语": return L("像本人平时说话一样自然随意", "Natural and casual, the way you talk", "普段話すように自然でカジュアルに")
-            case "简短": return L("只留核心意思，能一句说清就一句", "Just the point, in one sentence if possible", "要点だけ。できれば一文で")
-            case "结构": return L("提炼关键信息，整理成编号要点", "Pulls out the key points as a numbered list", "要点を抜き出して番号付きで整理")
-            default: break
-            }
-        }
-        return style.prompt.isEmpty ? L("不加额外要求，按原文的语气改顺、改通", "No extra instructions. Smooths the text in its own tone", "追加の指示なし。元の語調のまま読みやすく整えます") : style.prompt
-    }
-}
-
-/// 顶部说明小卡：左边画键盘上的「✨ + 润色▾」，右边一句怎么用。
-private struct HowItWorksCard: View {
-    var name: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            KeyboardChipPreview(name: name)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.systemGray6)))
-            Text(L("点 ✨，用当前这条提示词改输入框里的话；点名字换一条。", "Tap ✨ to run the current prompt on your text. Tap the name to switch.", "✨ で、いまのプロンプトを入力欄の文章に使います。名前をタップで切り替え。"))
-                .font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
 }
 
 /// 键盘 AI 栏上的「✨」和「名字 ▾」的小样，提示词页和编辑页用。
@@ -626,7 +884,7 @@ enum AnswerColor {
     static let soft = Color(hex: 0xE0F2FE)
 }
 
-/// 联网倾向卡（QP1–QP4）：5 档的条，只能停在档上；下面说明框跟着档位换。设置 › 联网是「禁止」时整张变灰、不能拖。
+/// 调用偏好（QP1–QP4，原「联网倾向」）：5 档的条，只能停在档上；下面说明框跟着档位换。联网调用是「禁止」时整张变灰、不能拖。
 struct SearchTendencyCard: View {
     @Binding var settings: EnclaveSettings
     @Environment(\.colorScheme) private var colorScheme
@@ -646,7 +904,7 @@ struct SearchTendencyCard: View {
                     .foregroundStyle(accent)
                     .frame(width: 28, height: 28)
                     .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(off ? Color(.systemGray5) : AnswerColor.soft))
-                Text(L("联网倾向", "Web search tendency", "ウェブ検索の積極さ"))
+                Text(L("调用偏好", "Search preference", "検索の頻度"))
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(off ? .secondary : .primary)
                 Spacer(minLength: 8)
@@ -684,7 +942,7 @@ struct SearchTendencyCard: View {
 
     private var detail: String {
         if off {
-            return L("联网设成了「禁止」，这根条不起作用。到 设置 › 联网 打开", "Web search is set to Off, so this has no effect. Turn it on in Settings › Web search.", "ウェブ検索が「オフ」なので、この設定は効きません。設定 › ウェブ検索 でオンにしてください")
+            return L("联网调用是「禁止」，这根条不起作用。在上面改成「开」或「每次询问」", "Web search is Off, so this has no effect. Switch it to On or Ask each time above.", "ウェブ検索が「オフ」なので、この設定は効きません。上で「オン」か「毎回確認」にしてください")
         }
         switch level {
         case 0: return L("直接回答，不去搜。想查时点回答旁边的「使用联网查询」", "Answers without searching. To look something up, tap Search the web next to the answer.", "検索せずに答えます。調べたいときは回答の横の「ウェブで調べる」をタップ")
@@ -738,7 +996,7 @@ private struct TendencySlider: View {
         }
         .opacity(disabled ? 0.6 : 1)
         .accessibilityElement()
-        .accessibilityLabel(L("联网倾向", "Web search tendency", "ウェブ検索の積極さ"))
+        .accessibilityLabel(L("调用偏好", "Search preference", "検索の頻度"))
         .accessibilityValue(SearchTendencyCard.names[level])
         .accessibilityAdjustableAction { direction in
             guard !disabled else { return }
@@ -775,7 +1033,7 @@ private struct AnswerStyleEditor: View {
                     .frame(minHeight: 120)
                     .overlay(alignment: .topLeading) {
                         if style.prompt.isEmpty {
-                            Text(StylesView.answerFallback)
+                            Text(AnswerStyleSections.answerFallback)
                                 .foregroundStyle(.tertiary)
                                 .padding(.top, 8)
                                 .padding(.leading, 5)

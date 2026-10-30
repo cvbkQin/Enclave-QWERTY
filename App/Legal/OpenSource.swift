@@ -11,7 +11,7 @@ enum OpenSource {
     }
 
     enum License {
-        case bsd3, bsd2, mit, boost, apache2
+        case bsd3, bsd2, mit, boost, apache2, unicode3
 
         var name: String {
             switch self {
@@ -20,6 +20,7 @@ enum OpenSource {
             case .mit: return "MIT"
             case .boost: return "Boost 1.0"
             case .apache2: return "Apache 2.0"
+            case .unicode3: return "Unicode License v3"
             }
         }
 
@@ -30,6 +31,7 @@ enum OpenSource {
             case .mit: return copyright + "\n\n" + Self.mitText
             case .boost: return Self.boostText
             case .apache2: return copyright + "\n\n" + Self.apacheText
+            case .unicode3: return copyright + "\n\n" + Self.unicodeText
             }
         }
 
@@ -53,6 +55,20 @@ enum OpenSource {
         3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
         THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        """
+
+        private static let unicodeText = """
+        NOTICE TO USER: Carefully read the following legal agreement. BY DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
+
+        Permission is hereby granted, free of charge, to any person obtaining a copy of data files and any associated documentation (the "Data Files") or software and any associated documentation (the "Software") to deal in the Data Files or Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, and/or sell copies of the Data Files or Software, and to permit persons to whom the Data Files or Software are furnished to do so, provided that either (a) this copyright and permission notice appear with all copies of the Data Files or Software, or (b) this copyright and permission notice appear in associated Documentation.
+
+        THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY RIGHTS.
+
+        IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA FILES OR SOFTWARE.
+
+        Except as contained in this notice, the name of a copyright holder shall not be used in advertising or otherwise to promote the sale, use or other dealings in these Data Files or Software without prior written authorization of the copyright holder.
+
+        SPDX-License-Identifier: Unicode-3.0
         """
 
         private static let mitText = """
@@ -119,6 +135,9 @@ enum OpenSource {
                   url: "https://www.lua.org"),
         Component(name: "OpenCC", copyright: "Copyright (c) 2010-2020 Carbo Kuo and contributors", license: .apache2,
                   url: "https://github.com/BYVoid/OpenCC"),
+        // emoji 候选的中文关键词（scripts/build-emoji.py 生成 zh_emoji.tsv）。
+        Component(name: "Unicode CLDR", copyright: "Copyright © 2004-2024 Unicode, Inc.", license: .unicode3,
+                  url: "https://github.com/unicode-org/cldr"),
         Component(name: "Boost", copyright: "Copyright (c) Boost contributors", license: .boost,
                   url: "https://www.boost.org"),
         Component(name: "glog", copyright: "Copyright (c) 2008, Google Inc.", license: .bsd3,
