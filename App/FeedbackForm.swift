@@ -1,4 +1,5 @@
 import PhotosUI
+import StoreKit
 import SwiftUI
 
 // MARK: - 反馈问题：App 内填表提交（FB1–FB8，执行清单 A4）
@@ -157,6 +158,10 @@ struct FeedbackFormView: View {
     @State private var sent = false
     @State private var sentWithContact = false
     @State private var showsPolicy = false
+    /// 中国大陆店面：收件邮箱在境外（Google），按个人信息保护法第 39 条要单独同意。每次提交都要勾，不和隐私政策同意合在一起。
+    @State private var agreesOverseas = false
+    private var needsOverseasConsent: Bool { Storefront.isMainlandChina }
+    private var canSubmit: Bool { !trimmed.isEmpty && !sending && (!needsOverseasConsent || agreesOverseas) }
     @FocusState private var focused: Bool
 
     private var trimmed: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -247,6 +252,7 @@ struct FeedbackFormView: View {
                        "問題の調査に使います。API キー、API のアドレス、入力した文字は送信しません。"))
             }
             Section {
+                if needsOverseasConsent { overseasConsent }
                 if let failure { failureBanner(failure) }
                 Button { Task { await submit() } } label: {
                     HStack(spacing: 8) {
@@ -261,10 +267,10 @@ struct FeedbackFormView: View {
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(
                         LinearGradient(colors: [Color(hex: 0x7B6BFA), Color(hex: 0x5B4BE8), Color(hex: 0x4A3BD6)],
                                        startPoint: .topLeading, endPoint: .bottomTrailing)))
-                    .opacity(trimmed.isEmpty || sending ? 0.5 : 1)
+                    .opacity(canSubmit || sending ? 1 : 0.5)
                 }
                 .buttonStyle(.plain)
-                .disabled(trimmed.isEmpty || sending)
+                .disabled(!canSubmit)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
             } footer: {
@@ -334,6 +340,31 @@ struct FeedbackFormView: View {
         }
     }
 
+    /// 必勾项：不显示邮箱地址，措辞和隐私政策「反馈」一节的境外说明一致。
+    private var overseasConsent: some View {
+        Button { agreesOverseas.toggle() } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: agreesOverseas ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 20))
+                    .foregroundStyle(agreesOverseas ? GuideColor.purple : Color.secondary)
+                Text(L("我同意将以上反馈信息传输至境外，由开发者使用的 Google 邮箱（Google LLC，美国）接收处理。",
+                       "I agree that this feedback is sent outside mainland China, to the developer's Google mailbox (Google LLC, USA).",
+                       "上記のフィードバックが中国本土の外へ送られ、開発者が使う Google のメール（Google LLC、米国）で受け取られることに同意します。"))
+                    .font(.footnote)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(sending)
+        .accessibilityAddTraits(agreesOverseas ? .isSelected : [])
+        .listRowInsets(EdgeInsets(top: 0, leading: 4, bottom: 12, trailing: 4))
+        .listRowBackground(Color.clear)
+    }
+
     private var placeholder: String {
         category == .bug
             ? L("说说遇到了什么：在哪个 App 里、做了什么、出了什么问题", "What happened: which app, what you did, what went wrong", "どの App で、何をして、何が起きたか")
@@ -380,7 +411,7 @@ struct FeedbackFormView: View {
     }
 
     private func submit() async {
-        guard !trimmed.isEmpty, !sending else { return }
+        guard canSubmit else { return }
         focused = false
         sending = true
         failure = nil
@@ -396,6 +427,7 @@ struct FeedbackFormView: View {
             contact = ""
             screenshots = []
             attachDiagnostics = false
+            agreesOverseas = false
             sent = true
         } catch {
             failure = error as? FeedbackAPI.Failure ?? .network
