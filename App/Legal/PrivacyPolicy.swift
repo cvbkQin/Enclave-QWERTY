@@ -84,7 +84,7 @@ enum PrivacyPolicy {
 
 **仅在您在“反馈问题”页面主动填写并点击提交时**，本应用会通过加密连接（HTTPS）将以下信息发送至我们位于中国大陆的服务器（enclavekb.cn）：您填写的反馈内容和反馈类型；您选填的联系方式（用于回复您）；您选择附上的截图（最多 3 张）；App 版本、设备型号、系统版本、界面语言和 App Store 地区；以及在您选择附上时，本机的诊断记录（闪退、卡顿记录，不含您输入的文字）。
 
-服务器收到后立即通过邮件服务（腾讯 QQ 邮箱）转发给我们，**服务器上不保存反馈内容**。为防止滥用，服务器会按 IP 地址限制提交频率，计数仅保存在内存中，24 小时内清除。反馈邮件保存在我们的邮箱中，仅用于处理您的问题和改进本应用，处理完毕后最长保存 12 个月；您可以随时发邮件至 {email} 要求删除。我们使用的收件邮箱由 Google LLC（美国）提供，**您的反馈信息将传输至中国境外**；提交前本应用会就此单独征得您的同意，您不同意的，可以不提交反馈。不提交反馈不影响您使用本应用的任何功能。
+服务器收到后立即通过邮件服务（腾讯 QQ 邮箱）转发给我们，**服务器上不保存反馈内容**。为防止滥用，服务器会按 IP 地址限制提交频率，计数仅保存在内存中，24 小时内清除。反馈邮件保存在我们的邮箱中，仅用于处理您的问题和改进本应用，处理完毕后最长保存 12 个月；您可以随时发邮件至 {email} 要求删除。**您的反馈信息将传输至中国境外，由我们使用的 Google 邮箱（Google LLC，美国）接收处理**；在中国大陆店面，提交前本应用会以单独勾选的方式征得您的同意，您不勾选的，无法提交反馈。不提交反馈不影响您使用本应用的任何功能。
 
 ## 三、在设备本地存储的信息
 
@@ -195,7 +195,7 @@ The App offers a 14-day free trial. After the trial, AI features can be used a l
 
 **Only when you fill in and submit the form on the Send Feedback page**, the App sends the following over an encrypted connection (HTTPS) to our server in mainland China (enclavekb.cn): your feedback and its category; the contact details you choose to add, so we can reply; any screenshots you choose to attach (up to 3); the App version, device model, OS version, interface language and App Store region; and, if you choose to attach them, the diagnostic records on your device (crash and hang records, which never include what you type).
 
-The server forwards it to us by email right away (sent through Tencent QQ Mail) and **does not store your feedback**. To prevent abuse, the server limits how often each IP address can submit; these counts are kept only in memory and cleared within 24 hours. The feedback email stays in our mailbox, is used only to handle your request and improve the App, and is kept for at most 12 months after your request is handled. You can ask us to delete it at any time by writing to {email}. Our mailbox is provided by Google LLC (United States), so your feedback is transferred outside mainland China; the App asks for your separate consent to this before you submit. You can use every feature of the App without sending feedback.
+The server forwards it to us by email right away (sent through Tencent QQ Mail) and **does not store your feedback**. To prevent abuse, the server limits how often each IP address can submit; these counts are kept only in memory and cleared within 24 hours. The feedback email stays in our mailbox, is used only to handle your request and improve the App, and is kept for at most 12 months after your request is handled. You can ask us to delete it at any time by writing to {email}. Your feedback is received and handled in our Google mailbox (Google LLC, United States). For the mainland China storefront, this means it is transferred outside mainland China, and the App asks you to tick a separate consent box before you can submit. You can use every feature of the App without sending feedback.
 
 ## 3. Information Stored on Your Device
 
@@ -295,7 +295,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 **「フィードバックを送る」画面でお客様が入力して送信した場合に限り**、本アプリは暗号化された通信（HTTPS）で、中国本土にある当方のサーバー（enclavekb.cn）へ次の情報を送信します：フィードバックの内容と種類、返信用に任意で入力された連絡先、添付を選んだスクリーンショット（最大 3 枚）、アプリのバージョン・端末の機種・OS のバージョン・表示言語・App Store の地域、および添付を選んだ場合は端末内の診断記録（クラッシュやフリーズの記録で、入力した文字は含みません）。
 
-サーバーは受け取った内容をすぐにメール（Tencent QQ メール経由）で当方へ転送し、**フィードバックの内容をサーバーに保存しません**。不正利用を防ぐため、IP アドレスごとに送信回数を制限しますが、この記録はメモリ上にのみ保持し、24 時間以内に消去します。フィードバックのメールは当方のメールボックスに保管され、お問い合わせへの対応と本アプリの改善にのみ使い、対応完了後最長 12 か月で削除します。削除のご依頼は {email} までいつでもどうぞ。当方のメールボックスは Google LLC（米国）が提供しているため、フィードバックは中国本土の外へ移転されます。送信前にこの点について別途同意をお願いします。フィードバックを送らなくても、本アプリのすべての機能をご利用いただけます。
+サーバーは受け取った内容をすぐにメール（Tencent QQ メール経由）で当方へ転送し、**フィードバックの内容をサーバーに保存しません**。不正利用を防ぐため、IP アドレスごとに送信回数を制限しますが、この記録はメモリ上にのみ保持し、24 時間以内に消去します。フィードバックのメールは当方のメールボックスに保管され、お問い合わせへの対応と本アプリの改善にのみ使い、対応完了後最長 12 か月で削除します。削除のご依頼は {email} までいつでもどうぞ。フィードバックは当方が使用する Google のメールボックス（Google LLC、米国）で受信・処理されます。中国本土のストアでは中国本土の外への移転となるため、送信前に別途同意のチェックをお願いしています。フィードバックを送らなくても、本アプリのすべての機能をご利用いただけます。
 
 ## 3. 端末に保存される情報
 
