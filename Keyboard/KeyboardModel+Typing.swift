@@ -580,9 +580,8 @@ extension KeyboardModel {
         heightMayChange?()
     }
 
-    /// 收起侧边模式的拼音格子 / 拼音键弹层。
+    /// 收起侧边模式全键盘拼音键的下拉框。
     func closePinyinPickers() {
-        if pinyinGridOpen { pinyinGridOpen = false }
         if pinyinPopoverOpen { pinyinPopoverOpen = false }
     }
 
