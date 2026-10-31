@@ -292,13 +292,18 @@ private struct ExtDictDeployBanner: View {
 /// 文件选择器、导入确认和失败卡，挂在导入的词库页的 List 上。
 private struct ExtDictImporter: ViewModifier {
     @ObservedObject private var store = ExtDictStore.shared
+    #if DEBUG
+    private static var debugImportShown = false
+    #endif
 
     func body(content: Content) -> some View {
         content
             .task {
                 #if DEBUG
                 // 模拟器截图、测导入：-extDictImport /path/to/file.scel 直接弹出导入确认（或「没能导入」）。
-                if let path = UserDefaults.standard.string(forKey: "extDictImport"), store.draft == nil, store.failedFile == nil {
+                // 每次启动只弹一次：从详情页返回时这页又出现，不再弹。
+                if !Self.debugImportShown, let path = UserDefaults.standard.string(forKey: "extDictImport"), store.draft == nil, store.failedFile == nil {
+                    Self.debugImportShown = true
                     let url = URL(fileURLWithPath: path)
                     if let parsed = ExtDictStore.readImport(url) { store.draft = parsed } else { store.failedFile = url.lastPathComponent }
                 }
