@@ -1059,6 +1059,15 @@ struct KeyboardSettingsView: View {
                     PredictionToggle()
                     EmojiToggle()
                     // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
+                    // B1 剪贴板第一步：真机实测读剪贴板会不会弹「允许粘贴」（临时，测完删）。
+                    Toggle(isOn: $store.settings.clipboardProbe) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("剪贴板实测（临时）", "Clipboard probe (temporary)", "クリップボード検証（一時）"))
+                            Text(L("键盘顶上出一条测试条，三个按钮分别读剪贴板，看会不会弹「允许粘贴」", "Shows a test strip on the keyboard with three buttons that read the clipboard in different ways",
+                                   "キーボード上部にテスト用の帯を出し、3 つのボタンでクリップボードを読みます"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                     Toggle(isOn: $store.settings.keyboardGlass) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L("毛玻璃背景（测试）", "Frosted background (test)", "すりガラス背景（テスト）"))
