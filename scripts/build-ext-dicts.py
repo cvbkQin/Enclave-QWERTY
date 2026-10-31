@@ -14,6 +14,7 @@ import hashlib
 import json
 import math
 import re
+import shutil
 import sys
 import unicodedata
 from datetime import date
@@ -143,20 +144,20 @@ def weight(freq, top):
 def build(pack, kind, path, words, chars, blocklist, out):
     rows = read_words(kind, path)
     top = max((f for _, f in rows), default=1)
-    seen, kept, skipped, blocked = set(), [], 0, 0
+    seen, kept, skipped, blocked = set(), [], 0, []
     for word, freq in rows:
         if word in seen:
             continue
         seen.add(word)
-        if any(b in word for b in blocklist):
-            blocked += 1
+        if word in blocklist:
+            blocked.append(word)
             continue
         code = pinyin(word, words, chars)
         if not code or not re.fullmatch(r"[a-z]+( [a-z]+)*", code):
             skipped += 1
             continue
         kept.append((word, code, weight(freq, top)))
-    source = "THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2016 THUNLP" \
+    source = "THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2018 THUNLP" \
         if kind == "thuocl" else "飞地输入法整理"
     version = date.today().isoformat()
     target = out / f"ext_{pack}.dict.yaml"
@@ -165,7 +166,7 @@ def build(pack, kind, path, words, chars, blocklist, out):
         f.write(f"---\nname: ext_{pack}\nversion: \"{version}\"\nsort: by_weight\n...\n")
         for word, code, w in kept:
             f.write(f"{word}\t{code}\t{w}\n")
-    print(f"  {pack}: {len(kept)} 条（查不到读音 {skipped}，过滤 {blocked}）")
+    print(f"  {pack}: {len(kept)} 条（查不到读音 {skipped}，过滤 {len(blocked)}{'：' + '、'.join(blocked) if blocked else ''}）")
     return {"id": pack, "entries": len(kept), "version": version, "size": target.stat().st_size}
 
 
@@ -181,9 +182,11 @@ def main():
     online_dir = option("--online")
     block_path = option("--blocklist")
     wanxiang, thuocl = Path(args[0]), Path(args[1])
-    blocklist = []
+    blocklist = set()
     if block_path:
-        blocklist = [l.strip() for l in Path(block_path).read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
+        # 整词精确匹配：词和表里一模一样才删，不做包含匹配（见 05 的敏感词表说明）。# 开头是注释，空行跳过。
+        blocklist = {l.strip() for l in Path(block_path).read_text(encoding="utf-8").splitlines()
+                     if l.strip() and not l.strip().startswith("#")}
     else:
         print("提醒：没给 --blocklist，没过敏感词过滤，只能用于开发测试。")
     words, chars = load_readings(wanxiang)
@@ -205,6 +208,8 @@ def main():
             catalog.append({"id": pack, "name": ONLINE_NAMES[pack], "license": kind, "entries": info["entries"],
                             "size": info["size"], "version": info["version"],
                             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "url": path.name})
+        # THUOCL 的 MIT 许可原文跟在线词包放在一起分发。
+        shutil.copyfile(OUT / "LICENSE-THUOCL.txt", out / "LICENSE-THUOCL.txt")
         (out / "catalog.json").write_text(json.dumps({"dicts": catalog}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
 
 

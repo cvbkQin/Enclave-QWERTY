@@ -2,7 +2,7 @@
 # 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
 ---
 name: ext_lol
-version: "2026-10-30"
+version: "2026-10-31"
 sort: by_weight
 ...
 亚索	ya suo	9

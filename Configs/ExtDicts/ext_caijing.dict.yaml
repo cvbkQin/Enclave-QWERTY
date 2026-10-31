@@ -1,8 +1,8 @@
-# 飞地输入法扩展词库 · 来源：THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2016 THUNLP
+# 飞地输入法扩展词库 · 来源：THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2018 THUNLP
 # 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
 ---
 name: ext_caijing
-version: "2026-10-30"
+version: "2026-10-31"
 sort: by_weight
 ...
 发展	fa zhan	9
@@ -1050,7 +1050,6 @@ sort: by_weight
 代销	dai xiao	5
 摘牌	zhai pai	5
 跌至	die zhi	5
-赌球	du qiu	5
 资产负债表	zi chan fu zhai biao	5
 利差	li cha	5
 灰色收入	hui se shou ru	5
@@ -1183,7 +1182,6 @@ sort: by_weight
 挤兑	ji dui	5
 比特	bi te	5
 开盘价	kai pan jia	5
-六合彩	liu he cai	5
 存款人	cun kuan ren	5
 平仓	ping cang	5
 全聚德	quan ju de	5

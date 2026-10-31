@@ -15,4 +15,4 @@ python3 scripts/build-ext-dicts.py <万象 dicts 目录> <THUOCL data 目录> --
 万象 dicts 目录是 rime_wanxiang 仓库的 `dicts/`（带声调的原版，用来标拼音）；THUOCL data 目录是 github.com/thunlp/THUOCL 的 `data/`。
 `server/dicts/` 里是在线词库和清单 `catalog.json`，拷到服务器 `/var/www/enclavekb/dicts/`。百科词库还没生成：要先过敏感词过滤、精简到 20 万条，清单里它的 `url` 现在是 null，App 显示「准备中」。
 
-许可：THUOCL 是 MIT（Copyright (c) 2016 THUNLP），分发时附上 `Configs/ExtDicts/LICENSE-THUOCL.txt`。
+许可：THUOCL 是 MIT（Copyright (c) 2018 THUNLP），分发时附上 `Configs/ExtDicts/LICENSE-THUOCL.txt`。

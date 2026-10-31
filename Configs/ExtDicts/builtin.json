@@ -1,65 +1,65 @@
 {
- "filtered": false,
+ "filtered": true,
  "dicts": [
   {
    "id": "lol",
    "entries": 16,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 544
   },
   {
    "id": "wzry",
    "entries": 13,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 475
   },
   {
    "id": "genshin",
    "entries": 13,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 449
   },
   {
    "id": "dota2",
    "entries": 10,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 437
   },
   {
    "id": "hpjy",
    "entries": 9,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 415
   },
   {
    "id": "meme",
    "entries": 9,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 439
   },
   {
    "id": "chengyu",
    "entries": 8519,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 276828
   },
   {
    "id": "diming",
    "entries": 44803,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 1263123
   },
   {
    "id": "it",
    "entries": 12854,
-   "version": "2026-10-30",
+   "version": "2026-10-31",
    "size": 412746
   },
   {
    "id": "caijing",
-   "entries": 3830,
-   "version": "2026-10-30",
-   "size": 98972
+   "entries": 3828,
+   "version": "2026-10-31",
+   "size": 98933
   }
  ]
 }

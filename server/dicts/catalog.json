@@ -29,8 +29,8 @@
    "license": "thuocl",
    "entries": 18749,
    "size": 621167,
-   "version": "2026-10-30",
-   "sha256": "019387147cbb143cb0a8bec41a8dd00a04cabffe2338893c137b941a5e5cf746",
+   "version": "2026-10-31",
+   "sha256": "153c8ba4c5838c437b6709ecda8bab73f06b840c389e254896e3c33f3cde1308",
    "url": "ext_medical.dict.yaml"
   },
   {
@@ -43,8 +43,8 @@
    "license": "thuocl",
    "entries": 9896,
    "size": 586974,
-   "version": "2026-10-30",
-   "sha256": "f89e25b2c9a68a842959aa8af741e3e63bf768ac8eee647ded43b80c0b8e60fb",
+   "version": "2026-10-31",
+   "sha256": "d2fab8b28a34ad14973878cac4c41a4652c1faf051b9a0698135387af7dcac10",
    "url": "ext_law.dict.yaml"
   },
   {
@@ -57,8 +57,8 @@
    "license": "thuocl",
    "entries": 13703,
    "size": 633781,
-   "version": "2026-10-30",
-   "sha256": "a23dce91ac1b8c904bb647ef2caec96f5213ca148159518a3b5fd7c3f5f57ded",
+   "version": "2026-10-31",
+   "sha256": "ec2a77293f093a8e4e9bdc2fec22343bfd7d4ed8373dc94d4b8d32f75a4c9d6e",
    "url": "ext_poem.dict.yaml"
   },
   {
@@ -69,10 +69,10 @@
     "ja": "歴史上の人物"
    },
    "license": "thuocl",
-   "entries": 13658,
-   "size": 305942,
-   "version": "2026-10-30",
-   "sha256": "4b2b440223464f4c8a985bafbe3e4b3404e05eb65b067a8986cc7888b0555949",
+   "entries": 13654,
+   "size": 305860,
+   "version": "2026-10-31",
+   "sha256": "2febbd243969069e02c40bf51b43d98567d8580479ed8810f0ec0e1c89a55d67",
    "url": "ext_lishimingren.dict.yaml"
   }
  ]

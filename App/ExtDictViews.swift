@@ -698,9 +698,9 @@ struct ExtDictDetailView: View {
 /// 署名文字：详情页和「关于 › 开源许可」共用（05 许可结论）。
 enum ExtDictAttribution {
     static var thuocl: String {
-        L("来自 THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），飞地输入法转换为 Rime 格式。\n\nCopyright (c) 2016 THUNLP。以 MIT 许可发布。",
-          "From THUOCL, the Tsinghua Open Chinese Lexicon (github.com/thunlp/THUOCL), converted to Rime format by Enclave.\n\nCopyright (c) 2016 THUNLP. Released under the MIT License.",
-          "THUOCL 清華大学オープン中国語辞書（github.com/thunlp/THUOCL）から、Enclave が Rime 形式に変換しました。\n\nCopyright (c) 2016 THUNLP。MIT ライセンスで公開。")
+        L("来自 THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），飞地输入法转换为 Rime 格式。\n\nCopyright (c) 2018 THUNLP。以 MIT 许可发布。",
+          "From THUOCL, the Tsinghua Open Chinese Lexicon (github.com/thunlp/THUOCL), converted to Rime format by Enclave.\n\nCopyright (c) 2018 THUNLP. Released under the MIT License.",
+          "THUOCL 清華大学オープン中国語辞書（github.com/thunlp/THUOCL）から、Enclave が Rime 形式に変換しました。\n\nCopyright (c) 2018 THUNLP。MIT ライセンスで公開。")
     }
 
     static var wiki: String {
