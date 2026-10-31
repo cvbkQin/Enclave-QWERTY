@@ -92,6 +92,9 @@ private enum SidePinyinStyle {
     static let divider = dynamic(0xE2E2E7, 0x3A3A3C)
     static let hint = dynamic(0x8E8E93, 0x8E8E93)
     static let cellHeight: CGFloat = 38
+    /// 拼音键下拉框：浅色白底；深色 #48484A，比键盘底色（#2C2C2E 一带）亮一档，尖角也看得见。
+    static let popoverFill = dynamic(0xFFFFFF, 0x48484A)
+    static let popoverStroke = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.12) : .clear })
 }
 
 /// 一项的字：改过的字母浅紫底主色字（同拼音行）。
@@ -136,14 +139,13 @@ struct SidePinyinColumn: View {
         ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    Button { model.performSidePinyin(item.action) } label: {
-                        SidePinyinLabel(item: item, emphasized: index == 0 && !item.word)
-                            .padding(.horizontal, 4)
-                            .frame(maxWidth: .infinity, minHeight: SidePinyinStyle.cellHeight)
-                            .background(index == 0 && !item.word ? SidePinyinStyle.firstFill : Color.clear)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(KeyPressStyle())
+                    // 用点按手势、不用 Button：上下滑列表时 Button 在键盘里偶尔把松手算成点了一项（模拟器上滑动把 yu 换成了 zuo）。
+                    SidePinyinLabel(item: item, emphasized: index == 0 && !item.word)
+                        .padding(.horizontal, 4)
+                        .frame(maxWidth: .infinity, minHeight: SidePinyinStyle.cellHeight)
+                        .background(index == 0 && !item.word ? SidePinyinStyle.firstFill : Color.clear)
+                        .contentShape(Rectangle())
+                        .onTapGesture { model.performSidePinyin(item.action) }
                     if item.corrected || item.word {
                         Rectangle().fill(SidePinyinStyle.divider).frame(height: 1).padding(.horizontal, 12)
                     }
@@ -221,11 +223,13 @@ struct PinyinKeyPopover: View {
         }
         .padding(6)
         .frame(width: Self.width, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Brand.panelFill)
+        .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(SidePinyinStyle.popoverFill)
             .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.18), radius: 12, y: 6))
+        // 深色下和键盘底色太接近：加一圈细边。
+        .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(SidePinyinStyle.popoverStroke, lineWidth: 0.5))
         // 顶上的小尖角对着拼音键。
         .overlay(alignment: .topLeading) {
-            PopoverPointer().fill(Brand.panelFill).frame(width: 16, height: 8).offset(x: 30, y: -8)
+            PopoverPointer().fill(SidePinyinStyle.popoverFill).frame(width: 16, height: 8).offset(x: 30, y: -8)
         }
     }
 
