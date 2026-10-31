@@ -2,15 +2,35 @@
 # 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
 ---
 name: ext_hpjy
-version: "2026-10-30"
+version: "2026-10-31"
 sort: by_weight
 ...
 吃鸡	chi ji	9
 空投	kong tou	9
-三级头	san ji tou	8
-三级甲	san ji jia	8
-信号圈	xin hao quan	7
-雨林地图	yu lin di tu	7
-海岛地图	hai dao di tu	6
-平底锅	ping di guo	5
-决赛圈	jue sai quan	3
+三级头	san ji tou	9
+三级甲	san ji jia	9
+信号圈	xin hao quan	9
+决赛圈	jue sai quan	9
+平底锅	ping di guo	8
+海岛地图	hai dao di tu	8
+雨林地图	yu lin di tu	8
+李恩菲尔德狙击枪	li en fei er de ju ji qiang	8
+赤霄突击步枪	chi xiao tu ji bu qiang	8
+沙漠之鹰	sha mo zhi ying	8
+狙击枪	ju ji qiang	8
+突击步枪	tu ji bu qiang	8
+轻机枪	qing ji qiang	8
+冲锋枪	chong feng qiang	7
+射手步枪	she shou bu qiang	7
+手枪	shou qiang	7
+狙击步枪	ju ji bu qiang	7
+霰弹枪	xian dan qiang	7
+渣土车	zha tu che	6
+挖掘机	wa jue ji	6
+电动巴士	dian dong ba shi	6
+有蓬皮卡	you peng pi ka	6
+轿车	jiao che	5
+迷你巴士	mi ni ba shi	5
+三轮摩托	san lun mo tuo	4
+吉普车	ji pu che	4
+防弹吉普	fang dan ji pu	3

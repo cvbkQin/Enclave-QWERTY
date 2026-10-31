@@ -34,29 +34,53 @@ struct AlternatesPopup: Equatable {
 
 /// 长按「中/英」的拼音布局菜单（P11）：宽 168，小标题 + 「九宫格」「全键盘」两项，手指滑到哪项选哪项。
 struct LayoutMenuPopup: Equatable {
+    /// 菜单里的一项：拼音布局（九宫格 / 全键盘）或拼音显示（上方一行 / 侧边，F12）。
+    enum Option: Equatable {
+        case layout(KeyboardLayout)
+        case display(PinyinDisplay)
+    }
+
     let key: KeySpec
     let containerWidth: CGFloat
-    var selected: KeyboardLayout?
+    let currentLayout: KeyboardLayout
+    let currentDisplay: PinyinDisplay
+    /// 手指停在哪一项上；松手时只改这一项，离开菜单为 nil 时什么都不改。
+    var hover: Option?
 
     static let width: CGFloat = 168
     static let titleHeight: CGFloat = 26
     static let rowHeight: CGFloat = 36
     static let padding: CGFloat = 6
-    static let options: [KeyboardLayout] = [.nineKey, .qwerty]
-    static var height: CGFloat { padding * 2 + titleHeight + rowHeight * CGFloat(options.count) }
+    /// 两组之间的细线（上下各留 4）。
+    static let dividerHeight: CGFloat = 9
+    static let options: [Option] = [.layout(.nineKey), .layout(.qwerty), .display(.row), .display(.side)]
+    static var height: CGFloat { padding * 2 + titleHeight * 2 + dividerHeight + rowHeight * CGFloat(options.count) }
 
     var frame: CGRect {
         let x = min(max(key.cap.minX, 4), max(containerWidth - Self.width - 4, 0))
-        return CGRect(x: x, y: max(key.cap.minY - Self.height - 6, 0), width: Self.width, height: Self.height)
+        // 两组放不下时往上伸到候选栏 / AI 栏那一排（按键区这时整块盖在最上层）。
+        return CGRect(x: x, y: max(key.cap.minY - Self.height - 6, -KeyboardMetrics.topRow), width: Self.width, height: Self.height)
     }
 
     func rowFrame(_ index: Int) -> CGRect {
-        CGRect(x: frame.minX + Self.padding, y: frame.minY + Self.padding + Self.titleHeight + CGFloat(index) * Self.rowHeight,
-               width: Self.width - Self.padding * 2, height: Self.rowHeight)
+        let groupOffset = index >= 2 ? Self.dividerHeight + Self.titleHeight : 0
+        return CGRect(x: frame.minX + Self.padding,
+                      y: frame.minY + Self.padding + Self.titleHeight + CGFloat(index) * Self.rowHeight + groupOffset,
+                      width: Self.width - Self.padding * 2, height: Self.rowHeight)
+    }
+
+    /// 这一项显示成选中：手指停在同一组的某项上时按手指，否则按现在的设置。
+    func isChecked(_ option: Option) -> Bool {
+        switch (option, hover) {
+        case (.layout(let layout), .layout(let hovered)?): return layout == hovered
+        case (.display(let display), .display(let hovered)?): return display == hovered
+        case (.layout(let layout), _): return layout == currentLayout
+        case (.display(let display), _): return display == currentDisplay
+        }
     }
 
     /// 手指在哪一项上；离菜单太远（横向超出、或回到键上）时不选。
-    func option(at point: CGPoint) -> KeyboardLayout? {
+    func option(at point: CGPoint) -> Option? {
         for (index, option) in Self.options.enumerated() {
             let row = rowFrame(index).insetBy(dx: -12, dy: 0)
             if row.contains(point) { return option }

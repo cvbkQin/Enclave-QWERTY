@@ -33,10 +33,12 @@ extension KeyboardModel {
         dismissCandidateMenu()
         closeCandidateUndo()
         guard let queued = engine as? QueuedEngine else {
-            if let output = engine.input(key) { commit(output) }
+            if let output = engine.input(key) { commit(outputText(output)) }
             syncEngine()
             return
         }
+        // 能按到键的就是看得见的那个页面：结果交给它（见 bindEngine）。
+        bindEngine()
         queued.inputLater(key, since: keyEventTime)
         keyEventTime = nil
     }
@@ -47,7 +49,7 @@ extension KeyboardModel {
         let results = wait ? queued.drain() : queued.takeResults()
         guard !results.isEmpty else { return }
         for result in results {
-            if let text = result.commit { commit(text) }
+            if let text = result.commit { commit(outputText(text)) }
         }
         syncEngine()
         // 下一轮主循环时界面已经按新候选画完，这时记耗时。
@@ -87,7 +89,7 @@ extension KeyboardModel {
         }
         // 首选和符号一起上屏：分两次（先把标记区换成首选、马上再 insertText 符号）时，输入框会把符号插到首选前面（「。壹元整」）。
         var text = symbol
-        if isComposing, let first = engine.select(0) { text = first + symbol }
+        if isComposing, let first = engine.select(0) { text = outputText(first) + symbol }
         commit(text)
         engine.reset()
         syncEngine()
@@ -159,7 +161,7 @@ extension KeyboardModel {
         let before = choiceState
         let segmented = !engine.selections.isEmpty
         let text = engine.select(index)
-        if let text { commit(text) }
+        if let text { commit(outputText(text)) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
         recordChoice(from: before)
@@ -355,7 +357,7 @@ extension KeyboardModel {
         guard predictions.indices.contains(index) else { return }
         if !chineseMode { return selectEnglishSuggestion(index) }
         let word = predictions[index]
-        commit(word)
+        commit(outputText(word))
         // 点联想词省掉的字数（首页「联想帮你少打了 N 个字」）。
         DailyStats.add("prediction.tapped")
         DailyStats.add("prediction.chars", word.count)
@@ -371,7 +373,7 @@ extension KeyboardModel {
     var layoutState: KeyLayout.State {
         KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
                         englishOnly: settings.inputLanguage == .englishOnly,
-                        composing: isComposing, digitsMore: digitsMore)
+                        composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide)
     }
 
     func perform(_ kind: KeyKind) {
@@ -571,6 +573,19 @@ extension KeyboardModel {
     }
 
     var showsNineKey: Bool { activeLayout == .nineKey && pinyinReady }
+
+    /// 换拼音显示方式（长按中/英的菜单、或 App 键盘页）：高度跟着变（侧边不留拼音行）。
+    func setPinyinDisplay(_ display: PinyinDisplay) {
+        guard display != settings.pinyinDisplay else { return }
+        updateSettings { $0.pinyinDisplay = display }
+        closePinyinPickers()
+        heightMayChange?()
+    }
+
+    /// 收起侧边模式全键盘拼音键的下拉框。
+    func closePinyinPickers() {
+        if pinyinPopoverOpen { pinyinPopoverOpen = false }
+    }
 
     func setLayout(_ layout: KeyboardLayout) {
         updateSettings { $0.keyboardLayout = layout }
@@ -857,15 +872,16 @@ extension KeyboardModel {
 
     /// 长按「中/英」：弹出拼音布局菜单，先选中当前的布局。
     func showLayoutMenu(for key: KeySpec, containerWidth: CGFloat) {
-        layoutMenu = LayoutMenuPopup(key: key, containerWidth: containerWidth, selected: settings.keyboardLayout)
+        layoutMenu = LayoutMenuPopup(key: key, containerWidth: containerWidth,
+                                     currentLayout: settings.keyboardLayout, currentDisplay: settings.pinyinDisplay)
         keyFeedback(for: .space)
     }
 
     func moveAlternates(to point: CGPoint) {
         if var menu = layoutMenu {
             let option = menu.option(at: point)
-            if option != menu.selected {
-                menu.selected = option
+            if option != menu.hover {
+                menu.hover = option
                 layoutMenu = menu
                 if option != nil { keyFeedback(for: .space) }
             }
@@ -893,9 +909,16 @@ extension KeyboardModel {
         if let menu = layoutMenu {
             layoutMenu = nil
             // 布局存在键盘这边，开了完全访问时和 App 里的设置是同一份，以最后一次改的为准。
-            if let layout = menu.selected, layout != settings.keyboardLayout {
-                if !chineseMode { toggleChinese() }
-                setLayout(layout)
+            switch menu.hover {
+            case .layout(let layout)?:
+                if layout != settings.keyboardLayout {
+                    if !chineseMode { toggleChinese() }
+                    setLayout(layout)
+                }
+            case .display(let display)?:
+                setPinyinDisplay(display)
+            case nil:
+                break
             }
             return
         }
@@ -980,6 +1003,11 @@ extension KeyboardModel {
     func selectEngine() {
         engine.reset()
         let queued = QueuedEngine.shared
+        bindEngine()
+        // 拼音引擎是整个键盘进程共用的，不跟着键盘页面走（#21）：宿主 App 在前台被直接杀掉时，系统不调 viewDidDisappear、
+        // 也不发退后台通知，上一个页面没机会清，里面还留着没选字的拼音；新页面接过来再 syncEngine 就把旧拼音放回输入框。
+        // 当前用的不是它时它里面的东西都不是这个页面的，先清掉。
+        if engine !== queued { queued.reset() }
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
         TypingStats.modelInUse = useShared && RimeStore.isDeployed
@@ -1058,6 +1086,19 @@ extension KeyboardModel {
         syncEngine()
     }
 
+    // MARK: - 繁体输出（B5）
+
+    /// 开了繁体输出时，拼音打出的字转成繁体再上屏；引擎、学到的词、联想都还按简体走（传给它们的仍是简体）。
+    /// 只用在拼音候选、联想上屏的地方，AI 的结果、英文、符号不经过这里。
+    func outputText(_ text: String) -> String {
+        settings.traditionalOutput ? TraditionalChinese.convert(text) : text
+    }
+
+    /// 候选栏、整页候选显示用：和 candidates 一一对应（下标不变），只是换成繁体。
+    func displayWords(_ words: [String]) -> [String] {
+        settings.traditionalOutput ? words.map(TraditionalChinese.convert) : words
+    }
+
     // MARK: - 内部
 
     func commit(_ text: String) {
@@ -1093,6 +1134,7 @@ extension KeyboardModel {
         // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
         let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
         if row != pinyinRowShown { pinyinRowShown = row }
+        if !row { closePinyinPickers() }
         let newCandidates = engine.candidates
         let candidatesChanged = newCandidates != candidates
         if candidatesChanged { candidates = newCandidates }
@@ -1185,6 +1227,9 @@ extension KeyboardModel {
             case "expanded": aiExpanded = true
             case "nine": if settings.keyboardLayout != .nineKey { setLayout(.nineKey) }
             case "qwerty": if settings.keyboardLayout != .qwerty { setLayout(.qwerty) }
+            // 拼音显示（F12）：side 侧边、row 上方一行。
+            case "side": setPinyinDisplay(.side)
+            case "row": setPinyinDisplay(.row)
             case "numbers": layer = .numbers
             case "symbols": layer = .symbols
             case "digits": layer = .digits

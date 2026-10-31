@@ -60,6 +60,16 @@ enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     var shortTitle: String { self == .qwerty ? L("全键盘", "QWERTY", "QWERTY") : L("九宫格", "10-key", "10キー") }
 }
 
+/// 中文打字时拼音显示在哪（F12）：上方一行（候选栏上面，照 iOS 原生，默认）；侧边（九宫格左列上三格换成拼音列，
+/// 全键盘候选栏最左边一颗拼音键）。侧边模式不留拼音行，键盘矮 36。
+enum PinyinDisplay: String, Codable, CaseIterable, Identifiable {
+    case row, side
+
+    var id: String { rawValue }
+
+    var title: String { self == .row ? L("上方一行", "Row above", "上の行") : L("侧边", "Side", "横") }
+}
+
 /// 日间 / 夜间：跟随 iPhone，或者固定浅色、深色。只管 App；键盘跟着正在打字的 App 走，和系统键盘一样。
 enum Appearance: String, Codable, CaseIterable, Identifiable {
     case system, light, dark
@@ -131,6 +141,13 @@ struct EnclaveSettings: Codable, Equatable {
     // 键盘
     var inputLanguage: InputLanguage = .chinese
     var keyboardLayout: KeyboardLayout = .qwerty
+    var pinyinDisplay: PinyinDisplay = .row
+    /// 键盘底色用系统毛玻璃（#19 测试版）：顶边、底边都和系统那截玻璃接上，不留硬线。关掉回到不透明底色。
+    var keyboardGlass: Bool = true
+    /// 剪贴板实测（B1 第一步，临时）：键盘顶上出一条测试条，分别读 changeCount / hasStrings / 内容，看会不会弹「允许粘贴」。
+    var clipboardProbe: Bool = false
+    /// 繁体输出（B5）：候选、联想和上屏转成繁体；词库和学到的词照旧按简体存，AI 的结果不转。默认关。
+    var traditionalOutput: Bool = false
     /// 按键震动（需要打开完全访问）。
     var keyHaptics: Bool = true
     /// 按键声音（手机静音时不响）。
@@ -160,7 +177,7 @@ struct EnclaveSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, clipboardProbe, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
     }
 
@@ -211,6 +228,10 @@ extension EnclaveSettings {
         searchTendency = try? c.decodeIfPresent(Int.self, forKey: .searchTendency)
         inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
+        pinyinDisplay = (try? c.decodeIfPresent(PinyinDisplay.self, forKey: .pinyinDisplay)) ?? pinyinDisplay
+        keyboardGlass = (try? c.decodeIfPresent(Bool.self, forKey: .keyboardGlass)) ?? keyboardGlass
+        clipboardProbe = (try? c.decodeIfPresent(Bool.self, forKey: .clipboardProbe)) ?? clipboardProbe
+        traditionalOutput = (try? c.decodeIfPresent(Bool.self, forKey: .traditionalOutput)) ?? traditionalOutput
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
         autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize

@@ -85,6 +85,9 @@ enum SavedAPIStore {
         write(list)
     }
 
+    /// 恢复备份时整份换掉（Key 另外恢复）。
+    static func replaceAll(_ list: [SavedAPI]) { write(list) }
+
     static func delete(_ id: UUID) {
         var list = all
         guard let index = list.firstIndex(where: { $0.id == id }) else { return }

@@ -154,6 +154,10 @@ final class KeyboardModel: ObservableObject {
     @Published var composition = ""
     /// 打拼音时候选栏上面的拼音行有内容（PY7）。这一行一直占位，键盘高度不变。
     @Published var pinyinRowShown = false
+    /// 拼音显示在侧边（F12）：九宫格打字时左列上三格是拼音列，全键盘候选栏最左边一颗拼音键；不留拼音行。
+    var pinyinSide: Bool { settings.pinyinDisplay == .side }
+    /// 侧边模式全键盘点了候选栏左边的拼音键：弹出切法和纠正读法，点一个就收。
+    @Published var pinyinPopoverOpen = false
     @Published var candidates: [String] = []
     /// 联想：上屏后候选栏接着显示的下一个词，按别的键就收起。
     @Published var predictions: [String] = []
@@ -249,6 +253,14 @@ final class KeyboardModel: ObservableObject {
 
     init(controller: UIInputViewController) {
         self.controller = controller
+        bindEngine()
+    }
+
+    /// 让共用拼音引擎算完的结果交给这个键盘页面。
+    /// 系统有时同时建两个键盘页面（刚装好、刚切到键盘时常见），后建的那个在 init 里把回调抢走：
+    /// 拼音照样进了输入框（另一个页面的 proxy 也能写），但看得见的这个页面候选栏不出来、还显示 AI 栏，
+    /// 点 ⌄ 被藏着的候选条接走直接上屏首选。所以每次弹出（selectEngine）都重新绑一次。
+    func bindEngine() {
         QueuedEngine.shared.resultsReady = { [weak self] in self?.applyEngineResults() }
         QueuedEngine.shared.willSync = { [weak self] in self?.applyEngineResults(wait: true) }
     }
@@ -354,9 +366,9 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: aiRow != nil, gate: gate,
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
-                               freeEdit: target == .card, wordPanel: keysPanel == .words)
+                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide)
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
@@ -374,7 +386,10 @@ final class KeyboardModel: ObservableObject {
     }
 
     func reload() {
+        let display = settings.pinyinDisplay
         settings = SettingsStore.load()
+        // App 里换了拼音显示（F12）：高度跟着变。
+        if settings.pinyinDisplay != display { heightMayChange?() }
         RimeEngine.correctsQwerty = CorrectionMemory.isEnabled(nineKey: false)
         RimeEngine.correctsNineKey = CorrectionMemory.isEnabled(nineKey: true)
         EmojiTable.enabled = EmojiSuggestions.isEnabled
@@ -667,7 +682,9 @@ final class KeyboardModel: ObservableObject {
         target = restingTarget
         let text = cardDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var session, !text.isEmpty, cardDraft != session.current else { return }
+        let from = session.currentIndex
         session.append(cardDraft, edited: true)
+        session.noteEdit(from: from)
         self.session = session
         resultUse = nil
         resultUses = []
@@ -762,15 +779,20 @@ final class KeyboardModel: ObservableObject {
         if askKind != nil { askKind = nil }
         let started = Date()
         let styleID = settings.selectedStyle?.id
+        let styleName = settings.selectedStyle?.displayName
         let answerStyle = settings.selectedAnswerStyle
         let tendency = settings.tendency
         // 仪表盘的统计：耗时按毫秒记。
         // 最后是问答接口回答的（单独设了问答接口）：不进接口页的小曲线，那里只看主接口。
         let separateAnswer = settings.usesAnswerEndpoint
         var answeredByAnswerAPI = ask?.forced == .answer && separateAnswer
-        func record(ok: Bool) {
+        // 「最近 20 次」页每一行：提示词（问答写问答风格）、模型、失败原因、联网搜索用时。
+        var webSearchMs: Int?
+        func record(ok: Bool, error: String? = nil) {
             UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID,
-                                    mainAPI: !answeredByAnswerAPI)
+                                    mainAPI: !answeredByAnswerAPI,
+                                    styleName: ask == nil ? styleName : (answeredByAnswerAPI ? answerStyle?.displayName : nil),
+                                    model: client.settings.model, error: error, webSearchMs: webSearchMs)
         }
         task = Task { [weak self] in
             var raw = ""
@@ -781,6 +803,13 @@ final class KeyboardModel: ObservableObject {
             // 点了「使用联网查询」：第一轮不问模型，直接去搜。
             var forceNow = ask?.forceSearch == true && ask?.search != nil
             var searchedBy: String?
+            // 历史时间线：联网搜索开始的时间、是不是自动联网（没在键盘上问）。
+            var searchAt: Date?
+            var searchAuto: Bool?
+            // 换问答模型重问、联网、不联网改问：这几轮一定是问答。模型（尤其服务商自带联网）常常不写第一行「问答」，
+            // 这时不能按原来的 fallback（输入框有字就当改写）判成改写，标签和风格键都会错（#20）。
+            var answerLocked = ask?.forced == .answer
+            func decide(_ split: (answer: Bool, body: String)) -> AskMode { answerLocked || split.answer ? .answer : .rewrite }
             do {
                 while true {
                     raw = ""
@@ -816,10 +845,11 @@ final class KeyboardModel: ObservableObject {
                         let text = ModelOutput.clean(raw)
                         if let ask {
                             // 等第一行写出「改写 / 问答」再显示正文。
-                            guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
-                            self.askDecided(split.answer ? .answer : .rewrite)
+                            guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer || answerLocked) else { continue }
+                            let kind = decide(split)
+                            self.askDecided(kind)
                             // 快模型判断是问答：停下，交给问答模型重新回答。
-                            if split.answer && mayHandOff { handOff = true; break }
+                            if kind == .answer && mayHandOff { handOff = true; break }
                             guard show || self.aiExpanded else { continue }
                             shownAt = now
                             self.streamingText = split.body
@@ -835,6 +865,7 @@ final class KeyboardModel: ObservableObject {
                     // 换问答模型重问也算一次问答；内置 Key 的问答次数用完就留着润色模型这一版。
                     if handOff, let ask, let answerClient, BuiltinAPI.take(.answer, key: handOffKey) {
                         mayHandOff = false
+                        answerLocked = true
                         client = answerClient
                         answeredByAnswerAPI = separateAnswer
                         messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, search: maySearch,
@@ -843,10 +874,13 @@ final class KeyboardModel: ObservableObject {
                     }
                     guard wantsSearch, let ask, let provider = ask.search, let self else { break }
                     maySearch = false
+                    answerLocked = true
                     // 联网之后的回答也交给问答模型。
                     if let answerClient { client = answerClient; mayHandOff = false; answeredByAnswerAPI = separateAnswer }
                     // 联网的一定是问答：展开抽屉。三档：开且这一家同意过就直接联网，否则回答框里先问（禁止时提示去开启）。
                     self.askDecided(.answer)
+                    let mode = self.settings.webSearchMode ?? .off
+                    let auto = WebSearch.isConsented(provider) && (mode == .on || (ask.forceSearch && mode != .off))
                     guard await self.searchAllowed(provider, forced: ask.forceSearch) else {
                         try Task.checkCancellation()
                         // 点按钮联网又没同意：原来的回答不动。
@@ -856,6 +890,8 @@ final class KeyboardModel: ObservableObject {
                         continue
                     }
                     searchedBy = provider.name
+                    searchAt = Date()
+                    searchAuto = auto
                     try Task.checkCancellation()
                     if provider.builtin {
                         // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。搜索在服务商那边，出字前流光小字写「正在用 … 联网搜索…」。
@@ -869,12 +905,14 @@ final class KeyboardModel: ObservableObject {
                     self.askSearching = true
                     let search = WebSearch(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings))
                     let results: String
+                    let searchStarted = Date()
                     do {
                         results = WebSearch.digest(try await search.search(ask.question))
                     } catch {
                         if Task.isCancelled { throw error }
                         results = ""
                     }
+                    webSearchMs = Int(Date().timeIntervalSince(searchStarted) * 1000)
                     self.askSearching = false
                     if results.isEmpty && ask.forceSearch { throw ForcedSearchFailed() }
                     if results.isEmpty { searchedBy = nil }
@@ -884,21 +922,25 @@ final class KeyboardModel: ObservableObject {
                 }
                 guard let self else { return }
                 let cleaned = ModelOutput.clean(raw)
-                let split = ask.map { Prompts.splitAsk(cleaned, final: true, fallback: $0.fallbackAnswer) } ?? nil
+                let split = ask.map { Prompts.splitAsk(cleaned, final: true, fallback: $0.fallbackAnswer || answerLocked) } ?? nil
                 let result = split?.body ?? cleaned
-                if let split { self.askDecided(split.answer ? .answer : .rewrite) }
+                if let split { self.askDecided(decide(split)) }
                 if result.isEmpty {
                     self.errorMessage = L("模型没有返回内容。", "The model returned nothing.", "モデルから応答がありませんでした。")
                     self.endQuickMode(.failed)
-                    record(ok: false)
+                    record(ok: false, error: UsageStats.Request.Failure.empty)
                 } else {
                     record(ok: true)
                     // 问答页每条问答风格的本周次数。
-                    if split?.answer == true, let id = answerStyle?.id { DailyStats.add("answer.style.\(id.uuidString)"); DailyStats.flush() }
+                    if self.askKind == .answer, let id = answerStyle?.id { DailyStats.add("answer.style.\(id.uuidString)"); DailyStats.flush() }
                     // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
                     AIAccess.recordUse()
                     self.refreshAIAccess()
                     var updated = pending
+                    // 历史时间线：这一版怎么来的。同一句识意已经出过一版、这次又问：结果卡「⇄ 切换」重做。
+                    let redo = ask.map { ask in !ask.forceSearch && (pending.askSources?.values.contains { $0.question == ask.question } ?? false) } ?? false
+                    let source = ask == nil ? (pending.mode == .write ? EditSession.VersionSource.write : EditSession.VersionSource.polish)
+                        : (redo ? EditSession.VersionSource.redo : EditSession.VersionSource.ask)
                     if let ask, ask.forceSearch, let searchedBy {
                         updated.replaceCurrentAnswer(result, searchedBy: searchedBy)
                     } else if let ask, let kind = self.askKind {
@@ -907,6 +949,11 @@ final class KeyboardModel: ObservableObject {
                     } else {
                         updated.append(result)
                     }
+                    // 历史页每一版写风格和服务商：问答写问答风格，识意改写不写风格。
+                    let versionStyle = ask == nil ? styleName : (updated.currentIsAnswer ? answerStyle?.displayName : nil)
+                    updated.noteCurrent(style: versionStyle, provider: client.settings.providerName, source: source,
+                                        ms: Int(Date().timeIntervalSince(started) * 1000),
+                                        searchAt: searchedBy == nil ? nil : searchAt, searchAuto: searchedBy == nil ? nil : searchAuto)
                     if updated.mode == .write, ask == nil {
                         updated.conversation.append(.assistant(result))
                     }
@@ -926,12 +973,12 @@ final class KeyboardModel: ObservableObject {
                 // 点「使用联网查询」后又拒绝了联网：什么都不改，原来的回答留着。
             } catch is ForcedSearchFailed {
                 if !Task.isCancelled, let self {
-                    record(ok: false)
+                    record(ok: false, error: UsageStats.Request.Failure.search)
                     self.errorMessage = L("联网搜索失败", "Web search failed", "ウェブ検索に失敗しました")
                 }
             } catch {
                 if !Task.isCancelled, let self {
-                    record(ok: false)
+                    record(ok: false, error: UsageStats.Request.Failure.of(error))
                     let kind = LLMFailure.of(error)
                     let provider = client.settings.providerName
                     self.failure = kind
@@ -940,10 +987,10 @@ final class KeyboardModel: ObservableObject {
                     self.failureDetail = LLMFailure.detail(error, provider: provider)
                     // 已经出了字：保留已出的部分，不当整张出错卡（ER3）。
                     let shown = ModelOutput.clean(raw)
-                    let split = ask.flatMap { Prompts.splitAsk(shown, final: true, fallback: $0.fallbackAnswer) }
+                    let split = ask.flatMap { Prompts.splitAsk(shown, final: true, fallback: $0.fallbackAnswer || answerLocked) }
                     let partial = split?.body ?? shown
                     if !partial.isEmpty, !partial.hasPrefix("联网") {
-                        self.partialResult = (partial, split.map(\.answer))
+                        self.partialResult = (partial, split.map { decide($0) == .answer })
                     }
                     self.errorMessage = kind.title(provider: provider)
                     self.endQuickMode(.failed)
@@ -1200,15 +1247,15 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    /// 换风格只换下一次用的那条，不重新调用接口；展开时选完换回识意框（MG5）。
+    /// 换风格只换下一次用的那条，不重新调用接口；选完下拉框收起（KB2）。
     func selectStyle(_ style: StylePreset) {
         updateSettings { $0.selectedStyleID = style.id }
-        if aiExpanded, aiRow != nil { aiRow = nil }
+        aiRow = nil
     }
 
     func selectAnswerStyle(_ style: StylePreset) {
         updateSettings { $0.selectedAnswerStyleID = style.id }
-        if aiExpanded, aiRow != nil { aiRow = nil }
+        aiRow = nil
     }
 
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {
@@ -1320,6 +1367,7 @@ final class KeyboardModel: ObservableObject {
         swap(edit.inserted, for: edit.original, in: proxy)
         if edit.use == .replaced { readSpan = FieldSpan(written: edit.original) }
         redoStack.append(edit)
+        markSessionUsed(nil)
         resultUse = nil
         resultUses.remove(edit.use)
         updateUndoState()
@@ -1331,6 +1379,7 @@ final class KeyboardModel: ObservableObject {
         swap(edit.original, for: edit.inserted, in: proxy)
         if edit.use == .replaced { readSpan = FieldSpan(written: edit.inserted) }
         undoStack.append(edit)
+        markSessionUsed(edit.use)
         resultUse = edit.use
         resultUses.insert(edit.use)
         updateUndoState()
@@ -1403,12 +1452,21 @@ final class KeyboardModel: ObservableObject {
 
     private func recordEdit(inserted: String, original: String, use: ResultUse) {
         markAskUsed()
+        markSessionUsed(use)
         resultUse = use
         resultUses.insert(use)
         resultStale = false
         undoStack.append(FieldEdit(inserted: inserted, original: original, use: use))
         redoStack.removeAll()
         updateUndoState()
+    }
+
+    /// 历史页标「已替换」「已插入」：记在会话里正在显示的这一版上；撤销时去掉。
+    private func markSessionUsed(_ use: ResultUse?) {
+        guard var session, session.current != nil else { return }
+        session.markCurrentUsed(use.map { $0 == .replaced ? "replaced" : "inserted" })
+        self.session = session
+        SessionStore.save(session)
     }
 
     private func updateUndoState() {

@@ -1,14 +1,24 @@
+import Combine
 import CryptoKit
 import Foundation
 import StoreKit
 import SwiftUI
 
-/// 扩展词库（B6）：内置、从在线词库下载、从文件导入三种放在「我的词库」一起管。
+/// 扩展词库（B6）：内置、从在线词库下载、从文件导入三种。
+/// 词库页只放概况，内置和下载的在「热门词库」页管，导入的在「导入的词库」页管（第 49 条）。
 /// 内置的随 App 带（Configs/ExtDicts），下载和导入的放 App Group 的 Rime/ext_dicts/。
 /// 部署时把打开的词库拷进共享副本、加进 import_tables（见 RimeDeployer）；装、删、开关都重新部署。
 enum ExtDict {
     enum Kind: String, Codable {
         case builtin, downloaded, imported
+
+        /// 在哪一页管：内置、下载的在「热门词库」，导入的在「导入的词库」。
+        var group: Group { self == .imported ? .imported : .hot }
+    }
+
+    /// 词库页下面的两行，各进一个子页。
+    enum Group: Hashable {
+        case hot, imported
     }
 
     /// 来源和许可：决定署名文字。
@@ -202,15 +212,15 @@ struct ExtDictCatalog: Codable, Equatable {
     static let fallback = ExtDictCatalog(dicts: [
         Item(id: "baike", name: Text(zh: "百科词库", en: "Wikipedia", ja: "ウィキペディア辞書"),
              summary: Text(zh: "人名、地名、作品、游戏角色", en: "People, places, works and game characters", ja: "人名、地名、作品、ゲームキャラクター"),
-             license: .wiki, entries: 200_000, size: 3_100_000, version: "", sha256: nil, url: nil),
+             license: .wiki, entries: 200_000, size: 5_467_811, version: "", sha256: nil, url: nil),
         Item(id: "medical", name: Text(zh: "医学", en: "Medicine", ja: "医学"), summary: nil, license: .thuocl,
-             entries: 18_749, size: 621_185, version: "2026-10-30", sha256: nil, url: "ext_medical.dict.yaml"),
+             entries: 18_749, size: 621_167, version: "2026-10-31", sha256: nil, url: "ext_medical.dict.yaml"),
         Item(id: "law", name: Text(zh: "法律", en: "Law", ja: "法律"), summary: nil, license: .thuocl,
-             entries: 9_896, size: 586_983, version: "2026-10-30", sha256: nil, url: "ext_law.dict.yaml"),
+             entries: 9_896, size: 586_974, version: "2026-10-31", sha256: nil, url: "ext_law.dict.yaml"),
         Item(id: "poem", name: Text(zh: "诗词", en: "Poetry", ja: "詩詞"), summary: nil, license: .thuocl,
-             entries: 13_703, size: 633_806, version: "2026-10-30", sha256: nil, url: "ext_poem.dict.yaml"),
+             entries: 13_703, size: 633_781, version: "2026-10-31", sha256: nil, url: "ext_poem.dict.yaml"),
         Item(id: "lishimingren", name: Text(zh: "历史名人", en: "Historical figures", ja: "歴史上の人物"), summary: nil, license: .thuocl,
-             entries: 13_658, size: 305_944, version: "2026-10-30", sha256: nil, url: "ext_lishimingren.dict.yaml"),
+             entries: 13_654, size: 305_860, version: "2026-10-31", sha256: nil, url: "ext_lishimingren.dict.yaml"),
     ])
 
     private static let cacheKey = "extDicts.catalog"
@@ -245,7 +255,7 @@ struct ExtDictCatalog: Codable, Equatable {
 final class ExtDictStore: NSObject, ObservableObject {
     static let shared = ExtDictStore()
 
-    /// 「我的词库」的一行。
+    /// 热门词库、导入的词库页里的一行。
     struct Row: Identifiable, Equatable {
         var id: String
         var kind: ExtDict.Kind
@@ -267,10 +277,25 @@ final class ExtDictStore: NSObject, ObservableObject {
     @Published var picking = false
     @Published var draft: ImportDraft?
     @Published var failedFile: String?
+    /// 这次部署是哪一页的改动引起的：词库页对应那一行副标题写「部署中…」。部署完清空。
+    @Published private(set) var deployGroups: Set<ExtDict.Group> = []
 
     private var tasks: [String: URLSessionDownloadTask] = [:]
     private var deployTask: Task<Void, Never>?
     private lazy var session = URLSession(configuration: .default, delegate: self, delegateQueue: .main)
+    private var deployWatch: AnyCancellable?
+
+    override init() {
+        super.init()
+        // 部署完（部署途中又改了的话，等接着的那次也完）才清空。state 只在主线程改，这里同步收到。
+        deployWatch = RimeDeployer.shared.$state.sink { [weak self] state in
+            MainActor.assumeIsolated {
+                guard let self, state != .deploying, self.deployTask == nil else { return }
+                if state == .done, RimeDeployer.shared.needsDeploy { return }
+                self.deployGroups = []
+            }
+        }
+    }
 
     // MARK: 列表
 
@@ -304,7 +329,14 @@ final class ExtDictStore: NSObject, ObservableObject {
 
     var enabledEntries: Int { rows.filter(\.enabled).reduce(0) { $0 + $1.entries } }
 
-    /// 删掉的内置词库：出现在「在线词库」第一行，点「恢复」加回来。
+    func rows(_ group: ExtDict.Group) -> [Row] { rows.filter { $0.kind.group == group } }
+
+    /// 这一组的改动正在等部署或部署中（词库页那一行写「部署中…」）。
+    func isDeploying(_ group: ExtDict.Group) -> Bool {
+        deployGroups.contains(group) && (deployTask != nil || RimeDeployer.shared.state == .deploying)
+    }
+
+    /// 删掉的内置词库：出现在热门词库「可以下载」第一行，点「恢复」加回来。
     var removedBuiltinPacks: [ExtDict.Builtin] {
         ExtDict.availableBuiltins.filter { removedBuiltins.contains($0.id) }
     }
@@ -323,10 +355,23 @@ final class ExtDictStore: NSObject, ObservableObject {
     func setEnabled(_ id: String, _ value: Bool) {
         if value { off.remove(id) } else { off.insert(id) }
         ExtDict.off = off
-        scheduleDeploy()
+        scheduleDeploy(group(of: id))
+    }
+
+    /// 导入的词库改名：只改显示的名字，词库文件不变，不用重新部署。
+    func rename(_ id: String, to name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let index = installed.firstIndex(where: { $0.id == id }), installed[index].name != name else { return }
+        installed[index].name = name
+        ExtDict.installed = installed
+    }
+
+    private func group(of id: String) -> ExtDict.Group {
+        installed.first { $0.id == id }?.kind.group ?? .hot
     }
 
     func remove(_ id: String) {
+        let group = group(of: id)
         if ExtDict.availableBuiltins.contains(where: { $0.id == id }) && !installed.contains(where: { $0.id == id }) {
             removedBuiltins.insert(id)
             ExtDict.removedBuiltins = removedBuiltins
@@ -337,7 +382,7 @@ final class ExtDictStore: NSObject, ObservableObject {
         }
         off.remove(id)
         ExtDict.off = off
-        scheduleDeploy()
+        scheduleDeploy(group)
     }
 
     func restore(_ id: String) {
@@ -345,11 +390,12 @@ final class ExtDictStore: NSObject, ObservableObject {
         ExtDict.removedBuiltins = removedBuiltins
         off.remove(id)
         ExtDict.off = off
-        scheduleDeploy()
+        scheduleDeploy(.hot)
     }
 
     /// 连着改几个开关合并成一次部署：最后一次改动 1.5 秒后才开始。部署中又改了，部署完会自己再来一次。
-    private func scheduleDeploy() {
+    private func scheduleDeploy(_ group: ExtDict.Group) {
+        deployGroups.insert(group)
         deployTask?.cancel()
         deployTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
@@ -405,7 +451,7 @@ final class ExtDictStore: NSObject, ObservableObject {
                                            entries: draft.entries.count, size: Int64(text.utf8.count), version: version,
                                            license: nil, fileName: draft.fileName, addedAt: Date()))
         ExtDict.installed = installed
-        scheduleDeploy()
+        scheduleDeploy(.imported)
     }
 
     enum ImportError: LocalizedError {
@@ -458,7 +504,7 @@ final class ExtDictStore: NSObject, ObservableObject {
             ExtDict.installed = installed
             off.remove(id)
             ExtDict.off = off
-            scheduleDeploy()
+            scheduleDeploy(.hot)
         } catch {
             downloadError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
@@ -481,7 +527,13 @@ final class ExtDictStore: NSObject, ObservableObject {
     // MARK: 文字
 
     static func entryText(_ count: Int) -> String {
-        L("约 ", "About ", "約 ") + countText(count) + L(" 词", " words", " 語")
+        L("约 ", "About ", "約 ") + wordsText(count)
+    }
+
+    /// 「8,500 词」「4.5 万词」（万后面不再空格）/「45k words」。
+    static func wordsText(_ count: Int) -> String {
+        let number = countText(count)
+        return number + (number.hasSuffix("万") ? L("词", " words", "語") : L(" 词", " words", " 語"))
     }
 
     /// 「8,500」「4.5 万」/「8,500」「45k」。

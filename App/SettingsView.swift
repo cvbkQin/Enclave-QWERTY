@@ -160,6 +160,11 @@ struct SettingsView: View {
                     Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
                 }
                 Section {
+                    NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
+                } header: {
+                    Text(L("数据", "Data", "データ"))
+                }
+                Section {
                     NavigationLink(value: AppRouter.SettingsPage.privacy) {
                         DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
                                 value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
@@ -205,6 +210,7 @@ struct SettingsView: View {
                 case .licenses: LicensesView()
                 case .diagnostics: DiagnosticsView()
                 case .feedback: FeedbackFormView()
+                case .backup: BackupView()
                 }
             }
         }
@@ -944,6 +950,12 @@ struct KeyboardTab: View {
                     case .touch: TouchCalibrationView()
                     }
                 }
+                .navigationDestination(for: AppRouter.ExtDictGroupPage.self) { group in
+                    switch group {
+                    case .hot: HotDictsView()
+                    case .imported: ImportedDictsView()
+                    }
+                }
                 .navigationDestination(for: AppRouter.ExtDictPage.self) { page in
                     ExtDictDetailView(id: page.id)
                 }
@@ -1015,6 +1027,31 @@ struct KeyboardSettingsView: View {
                 } footer: {
                     Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
                 }
+                // 拼音显示（F12）：上方一行（默认，同 iOS 原生）/ 侧边。键盘上长按「中/英」也能切。
+                Section {
+                } header: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text(L("拼音显示", "Pinyin display", "ピンインの表示"))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            NewBadge()
+                        }
+                        .padding(.leading, 16)
+                        HStack(spacing: 12) {
+                            ForEach(PinyinDisplay.allCases) { display in
+                                PinyinDisplayCard(display: display, selected: store.settings.pinyinDisplay == display) {
+                                    store.settings.pinyinDisplay = display
+                                }
+                            }
+                        }
+                    }
+                    .dashFormCard()
+                } footer: {
+                    Text(L("受 iOS 系统限制，选「上方一行」时拼音那一行和上面系统留的边加起来会显得比较宽，介意的话建议选「侧边」：没有拼音那一行，键盘矮一点，展开回答卡时也不留空白。在键盘上长按「中/英」也能切换。",
+                           "Due to an iOS limitation, Row above adds a pinyin row on top of the system's own margin, so it can look wide. If that bothers you, choose Side: there's no pinyin row, the keyboard is shorter and the answer card has no gap. You can also long-press 中/英 on the keyboard to switch.",
+                           "iOS の制限により、「上の行」ではピンインの行とシステムの余白が重なって幅広く見えることがあります。気になる場合は「横」をおすすめします。ピンインの行がなく、キーボードが少し低くなり、回答カードを開いても隙間がありません。キーボードの「中/英」を長押ししても切り替えられます。"))
+                }
                 Section {
                     NavigationLink(value: AppRouter.KeyboardPage.fuzzy) {
                         HStack {
@@ -1027,10 +1064,42 @@ struct KeyboardSettingsView: View {
                     CorrectionToggles()
                     PredictionToggle()
                     EmojiToggle()
+                    // B1 剪贴板第一步：真机实测读剪贴板会不会弹「允许粘贴」（临时，测完删）。
+                    Toggle(isOn: $store.settings.clipboardProbe) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("剪贴板实测（临时）", "Clipboard probe (temporary)", "クリップボード検証（一時）"))
+                            Text(L("键盘顶上出一条测试条，三个按钮分别读剪贴板，看会不会弹「允许粘贴」", "Shows a test strip on the keyboard with three buttons that read the clipboard in different ways",
+                                   "キーボード上部にテスト用の帯を出し、3 つのボタンでクリップボードを読みます"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
+                    Toggle(isOn: $store.settings.keyboardGlass) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("毛玻璃背景（测试）", "Frosted background (test)", "すりガラス背景（テスト）"))
+                            Text(L("键盘底色透出后面的颜色，和系统那截玻璃接上", "The keyboard lets the colors behind it show through and blends with the system glass",
+                                   "キーボードの背景に後ろの色が透け、システムのガラス部分となじみます"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    // B5：拼音组最后一行（TC1），默认关，第一个版本带「新」。
+                    Toggle(isOn: $store.settings.traditionalOutput) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(L("繁体输出", "Traditional Chinese output", "繁体字で出力"))
+                                NewBadge()
+                            }
+                            Text(L("候选和上屏都是繁体字，例：输入法 → 輸入法", "Candidates and typed text use Traditional characters, e.g. 输入法 → 輸入法",
+                                   "候補と確定する文字が繁体字になります。例：输入法 → 輸入法"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Text(L("拼音", "Pinyin", "ピンイン"))
                 } footer: {
-                    Text(CorrectionToggles.footnote)
+                    Text(CorrectionToggles.footnote + "\n\n" + L("繁体输出：还是用拼音打，模糊拼音、纠错、联想都照常；常用词和学到的词也会显示成繁体。只转换你打出的字，AI 润色和回答的结果不转换。",
+                                                              "Traditional output: you still type pinyin, and fuzzy pinyin, autocorrect and predictions work as usual. Your words and learned words show in Traditional too. Only what you type is converted; AI polish and answers are not.",
+                                                              "繁体字で出力：入力はピンインのままで、あいまい入力・自動修正・予測もそのまま使えます。ユーザ辞書や学習した語も繁体字で表示されます。変換するのは入力した文字だけで、AI の整え・回答の結果は変換しません。"))
                 }
             }
             Section(L("英文", "English", "英語")) {
@@ -1134,7 +1203,7 @@ struct TouchCalibrationView: View {
     }
 }
 
-/// AI 标签两页都有的「键盘里的 AI · 润色和问答共用」：结果卡左边的按钮 ›、处理长文本、润色时的发光动画。
+/// AI › 接口页最下面「键盘里的 AI」：结果卡左边的按钮 ›、处理长文本、润色时的发光动画（润色和问答共用）。
 struct KeyboardAISection: View {
     @EnvironmentObject private var store: AppStore
     /// 打开「处理长文本」前的二次确认。
@@ -1165,7 +1234,7 @@ struct KeyboardAISection: View {
                 }
             }
         } header: {
-            Text(L("键盘里的 AI · 润色和问答共用", "AI on the keyboard · Polish & Q&A", "キーボードの AI・整える・質問で共通"))
+            AISectionTitle(text: L("键盘里的 AI", "AI on the keyboard", "キーボードの AI"))
         } footer: {
             Text(L("没选中文字时，AI 只处理光标前约 100 字，按整句截取；打开「处理长文本」后约 200 字。文字越长越慢、越容易改错，替换前请看一遍结果。替换只换送去处理的那一段，其余不动；要处理整段，先全选再点 ✨。",
                    "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences; about 200 with Process long text on. Longer text is slower and easier to get wrong, so check the result first. Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",
@@ -1276,6 +1345,70 @@ private struct LayoutCard: View {
                     }
                 }
                 .padding(.horizontal, layout == .qwerty && count < 10 ? CGFloat(10 - count) * 3 : 0)
+            }
+        }
+    }
+}
+
+/// 「拼音显示」二选一卡片（F12，SM3）：上面画出拼音在哪（上方一行 / 左边一列），下面名称、说明和勾选圈。
+private struct PinyinDisplayCard: View {
+    var display: PinyinDisplay
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                illustration
+                    .padding(8)
+                    .frame(height: 76)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
+                HStack {
+                    Text(display.title).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selected ? AppColor.purple : Color.secondary)
+                }
+                Text(display == .row
+                     ? L("候选栏上面单独一行，和 iOS 原生一样", "A row above the candidates, like iOS", "候補の上に 1 行、iOS と同じ")
+                     : L("九宫格在左边一列选，全键盘点左边的拼音键", "10-key: left column. QWERTY: pinyin key on the left", "10キーは左の列、QWERTY は左のピンインキー"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(selected ? AppColor.purple : Color.clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var illustration: some View {
+        let accent = AppColor.purple.opacity(0.35)
+        let key = RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Color(.systemBackground))
+        return VStack(spacing: 3) {
+            if display == .row {
+                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(accent).frame(height: 8)
+            }
+            ForEach(0..<4, id: \.self) { row in
+                HStack(spacing: 3) {
+                    if display == .side && row < 3 {
+                        Color.clear
+                    } else {
+                        key
+                    }
+                    ForEach(0..<4, id: \.self) { _ in key }
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if display == .side {
+                GeometryReader { geo in
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(accent)
+                        .frame(width: (geo.size.width - 12) / 5, height: (geo.size.height - 9) / 4 * 3 + 6)
+                }
             }
         }
     }
@@ -1412,7 +1545,7 @@ struct FuzzyPinyinView: View {
                     } else if deployer.state == .done && selection == store.settings.fuzzyPinyin {
                         Text(L("已生效，切回键盘就能用。", "Done. Switch back to the keyboard to use it.", "反映されました。キーボードに戻ると使えます。")).foregroundStyle(.green)
                     } else {
-                        Text(L("改动后要重新部署一次词库才生效，约 1 分钟。", "Changes take effect after reinstalling the dictionary, about 1 minute.", "変更は辞書の再インストール後に反映されます（約 1 分）。")).foregroundStyle(.secondary)
+                        Text(L("改动后要重新部署一次词库才生效，\(RimeDeployer.durationText)。", "Changes take effect after reinstalling the dictionary, \(RimeDeployer.durationText).", "変更は辞書の再インストール後に反映されます（\(RimeDeployer.durationText)）。")).foregroundStyle(.secondary)
                     }
                 }
                 .font(.footnote)
@@ -1487,7 +1620,7 @@ struct PinyinView: View {
     /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
     @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
 
-    /// 上面三张卡照旧；下面是扩展词库（B6）的三组，用列表才能左滑删除。
+    /// 上面三张卡照旧；下面是扩展词库的概况两行（第 49 条），点进热门词库、导入的词库。
     var body: some View {
         List {
             Section {} header: {
@@ -1498,9 +1631,8 @@ struct PinyinView: View {
                 }
                 .dashFormCard()
             }
-            ExtDictSections()
+            ExtDictOverviewSection()
         }
-        .extDictImporter()
         .navigationTitle(L("词库", "Dictionaries", "辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: deployer.state) {

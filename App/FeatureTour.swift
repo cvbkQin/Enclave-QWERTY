@@ -199,7 +199,7 @@ private struct TourScript {
 
 /// 小手能指的地方，也是能点的地方。
 private enum TourTarget: Hashable {
-    case sparkle, chevron, undo, redo, drawer, magnifier, switchMode, replace, send, search, card, insert, plus
+    case sparkle, chevron, undo, redo, drawer, magnifier, switchMode, replace, send, search, card, insert
     /// 模拟的 App 提示词页：「添加提示词」「✨ AI 优化提示词」「用这一版」「完成」。
     case addPrompt, improve, useVersion, done
     /// 编辑页的建议标签。
@@ -220,7 +220,7 @@ private enum TourChapter {
         switch self {
         case .polish: return L("润色", "Polish", "整える")
         case .rewrite: return L("改写", "Rewrite", "書き換え")
-        case .prompt: return L("提示词", "Prompts", "プロンプト")
+        case .prompt: return L("润色风格", "Polish styles", "整えるスタイル")
         case .answer: return L("问答", "Answer", "回答")
         case .words: return L("分词 · 插入", "Pick & Insert", "単語・挿入")
         }
@@ -282,16 +282,16 @@ private struct TourStep {
                                 title: L("按住放大镜，上下拖动", "Hold the magnifier and slide", "虫めがねを長押しして上下にスライド"),
                                 detail: L("可预先指定处理方式：上滑为改写，下滑为问答，松手即执行。请按住放大镜向上拖动。", "Choose the mode in advance: slide up to rewrite, down to answer, and release to run. Hold the magnifier and slide up.", "上で書き換え、下で回答を指定し、指を離すと実行します。虫めがねを長押しして上にスライドしてください。"))
         case 7: return TourStep(chapter: .prompt, index: 1, total: 5,
-                                title: L("常用英文发消息？存成一条提示词", "Write in Chinese often? Save it as a prompt", "英語でよく送るなら、プロンプトに保存"),
-                                detail: L("不用每次都写「翻成英文」。点击「润色 ▾」右侧箭头，再点击「＋」，到提示词页添加一条。", "No need to type \"Translate into Chinese\" every time. Tap the arrow on Polish ▾, then + to add one on the Prompts page.", "毎回「英語に翻訳」と書かなくても大丈夫です。「整える ▾」の矢印をタップし、「＋」でプロンプトページから追加します。"))
+                                title: L("常用英文发消息？存成一条润色风格", "Write in Chinese often? Save it as a style", "英語でよく送るなら、整えるスタイルに保存"),
+                                detail: L("不用每次都写「翻成英文」。点击「润色 ▾」右侧箭头，这里列的是你的润色风格，在 App 里加一条就会出现在这里。", "No need to type \"Translate into Chinese\" every time. Tap the arrow on Polish ▾. These are your polish styles; one you add in the app shows up here.", "毎回「英語に翻訳」と書かなくても大丈夫です。「整える ▾」の矢印をタップすると整えるスタイルが並びます。アプリで追加するとここに出ます。"))
         case 8: return TourStep(chapter: .prompt, index: 2, total: 5,
-                                title: L("在提示词页添加", "Add it on the Prompts page", "プロンプトページで追加"),
-                                detail: L("键盘上的提示词都在 App 的提示词页管理，可以改名、改内容、调顺序。点击「添加提示词」。", "Keyboard prompts are managed on the app's Prompts page, where you can rename, edit and reorder them. Tap Add Prompt.", "キーボードのプロンプトはアプリのプロンプトページで管理し、名前や内容、並び順を変えられます。「プロンプトを追加」をタップしてください。"))
+                                title: L("在 App 里添加润色风格", "Add one in the app", "アプリで追加"),
+                                detail: L("润色风格都在 App 的「AI › 提示词」里管理，可以改名、改内容、调顺序。点击「添加润色风格」。", "Polish styles are managed under AI › Prompts in the app, where you can rename, edit and reorder them. Tap Add Polish Style.", "整えるスタイルはアプリの「AI › プロンプト」で管理し、名前や内容、並び順を変えられます。「整えるスタイルを追加」をタップしてください。"))
         case 9: return TourStep(chapter: .prompt, index: 3, total: 5,
                                 title: L("点建议标签，快速补充要求", "Tap a suggestion to add to it", "候補タグで指示をすばやく追加"),
-                                detail: L("名称和内容已填好。点一下建议标签，就接到提示词后面；再点一下去掉。点击「保持原意」。", "The name and prompt are filled in. Tap a suggestion to add it to the prompt; tap again to remove it. Tap Keep the meaning.", "名前と内容は入力済みです。候補タグをタップするとプロンプトの後ろに付き、もう一度タップすると外れます。「意味はそのまま」をタップしてください。"))
+                                detail: L("名称和内容已填好。点一下建议标签，就接到内容后面；再点一下去掉。点击「保持原意」。", "The name and prompt are filled in. Tap a suggestion to add it to the prompt; tap again to remove it. Tap Keep the meaning.", "名前と内容は入力済みです。候補タグをタップするとプロンプトの後ろに付き、もう一度タップすると外れます。「意味はそのまま」をタップしてください。"))
         case 10: return TourStep(chapter: .prompt, index: 4, total: 5,
-                                 title: L("AI 帮你把提示词写清楚", "Let AI write the prompt clearly", "AI がプロンプトを整理"),
+                                 title: L("AI 帮你把要求写清楚", "Let AI write it clearly", "AI が指示を整理"),
                                  detail: L("点击「✨ AI 优化提示词」，AI 会把要求改得更完整。看完点击「用这一版」，再点击「完成」。", "Tap ✨ Improve with AI and AI makes the instruction more complete. Tap Use This, then Done.", "「✨ AI でプロンプトを改善」をタップすると、AI が指示をより分かりやすくします。「これを使う」、続いて「完了」をタップしてください。"))
         case 11 where part == 0: return TourStep(chapter: .prompt, index: 5, total: 5,
                                  title: L("切到「英文」，点 ✨ 直接出英文", "Pick Chinese, then tap ✨", "「英語」を選んで ✨"),
@@ -659,10 +659,10 @@ private final class TourModel: ObservableObject {
             try await pause(0.3)
             try await wait(.chevron)
             withAnimation(.easeOut(duration: 0.25)) { promptsOpen = true }
-            try await pause(0.3)
-            try await wait(.plus)
+            // 真键盘的下拉框里没有「＋」（KB1）：看一眼列表就切到模拟的 App 页。
+            try await pause(1.2)
         case 8:
-            // 键盘上的「＋」本来就是去 App 管提示词：键盘下沉，模拟的 App 提示词页升起。
+            // 润色风格在 App 里管：键盘下沉，模拟的 App 润色风格页升起。
             withAnimation(.easeOut(duration: 0.35)) { appPage = .list }
             try await pause(0.4)
             try await wait(.addPrompt)
@@ -1041,8 +1041,8 @@ struct FeatureTourView: View {
                     overviewRow(2, L("识意 · 改写", "Ask: Rewrite", "識意：書き換え"),
                                 L("写下要求，按要求改写原文", "Write an instruction and rewrite your text", "指示を書いて、そのとおりに書き換え"), 4, .rewrite, compact)
                     GuideDivider()
-                    overviewRow(3, L("提示词", "Prompts", "プロンプト"),
-                                L("到提示词页添加，AI 帮你写清楚", "Add one on the Prompts page; AI helps write it", "プロンプトページで追加、AI が整理"), 5, .prompt, compact)
+                    overviewRow(3, L("润色风格", "Polish styles", "整えるスタイル"),
+                                L("在 App 里添加，AI 帮你写清楚", "Add one in the app; AI helps write it", "アプリで追加、AI が整理"), 5, .prompt, compact)
                     GuideDivider()
                     overviewRow(4, L("识意 · 问答", "Ask: Answer", "識意：回答"),
                                 L("自动判断，可切换、联网、换风格", "Decides on its own; switch, search, change style", "自動判断、切替・検索・スタイル変更"), 7, .answer, compact)
@@ -1091,8 +1091,8 @@ struct FeatureTourView: View {
          [L("点 ✨ 润色", "Tap ✨", "✨ で整える"), L("撤销", "Undo", "元に戻す"), L("重做", "Redo", "やり直し")]),
         (.rewrite, L("识意 · 改写", "Ask: Rewrite", "識意：書き換え"),
          [L("按要求改写", "By instruction", "指示で書き換え"), L("上下拖放大镜", "Slide 🔍", "虫めがねを上下"), L("替换", "Replace", "置換")]),
-        (.prompt, L("提示词", "Prompts", "プロンプト"),
-         [L("添加提示词", "Add a prompt", "プロンプト追加"), L("建议标签", "Suggestions", "候補タグ"), L("AI 优化", "AI help", "AI 改善")]),
+        (.prompt, L("润色风格", "Polish styles", "整えるスタイル"),
+         [L("添加润色风格", "Add a style", "スタイル追加"), L("建议标签", "Suggestions", "候補タグ"), L("AI 优化", "AI help", "AI 改善")]),
         (.answer, L("识意 · 问答", "Ask: Answer", "識意：回答"),
          [L("自动判断", "Auto", "自動"), L("切换", "Switch", "切替"), L("展开", "Expand", "展開"), L("联网", "Web", "検索"), L("换风格", "Style", "スタイル")]),
         (.words, L("分词 · 插入", "Pick & Insert", "単語・挿入"),
@@ -1788,12 +1788,6 @@ private struct TourKeyboard: View {
                 ForEach(Array(promptNames.enumerated()), id: \.offset) { index, name in
                     pill(index, name)
                 }
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(GuideColor.secondary)
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(TourColor.key))
-                    .tourPress(.plus, model: model)
             }
             .padding(.horizontal, 6)
         }
@@ -2453,8 +2447,8 @@ private struct TourAppPage: View {
             HStack(spacing: 6) {
                 Circle().fill(TourColor.purple).frame(width: 6, height: 6)
                 Text(model.appPage == .edit
-                     ? L("飞地输入法 App · 添加提示词（演示）", "Enclave app · Add Prompt (demo)", "Enclave アプリ · プロンプトを追加（デモ）")
-                     : L("飞地输入法 App · 提示词页（演示）", "Enclave app · Prompts (demo)", "Enclave アプリ · プロンプト（デモ）"))
+                     ? L("飞地输入法 App · 添加润色风格（演示）", "Enclave app · Add Polish Style (demo)", "Enclave アプリ · 整えるスタイルを追加（デモ）")
+                     : L("飞地输入法 App · 润色风格（演示）", "Enclave app · Polish styles (demo)", "Enclave アプリ · 整えるスタイル（デモ）"))
                     .font(.system(size: 11.5)).foregroundStyle(GuideColor.secondary)
             }
             .frame(height: 30)
@@ -2478,9 +2472,9 @@ private struct TourAppPage: View {
 
     private var listPage: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L("5 条 · 默认「润色」", "5 prompts · Default: Polish", "5 件 · 既定「整える」"))
+            Text(L("5 条 · 默认「润色」", "5 styles · Default: Polish", "5 件 · 既定「整える」"))
                 .font(.system(size: 12)).foregroundStyle(GuideColor.secondary)
-            Text(L("提示词", "Prompts", "プロンプト")).font(.system(size: 26, weight: .bold)).foregroundStyle(GuideColor.text)
+            Text(L("润色风格", "Polish styles", "整えるスタイル")).font(.system(size: 26, weight: .bold)).foregroundStyle(GuideColor.text)
             HStack(spacing: 0) {
                 Text(L("润色", "Polish", "整える"))
                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(GuideColor.text)
@@ -2523,7 +2517,7 @@ private struct TourAppPage: View {
                 .font(.system(size: 11.5)).foregroundStyle(GuideColor.secondary)
             HStack(spacing: 6) {
                 Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
-                Text(L("添加提示词", "Add Prompt", "プロンプトを追加")).font(.system(size: 15.5))
+                Text(L("添加润色风格", "Add Polish Style", "整えるスタイルを追加")).font(.system(size: 15.5))
             }
             .foregroundStyle(TourColor.purple)
             .padding(.horizontal, 14)
@@ -2545,12 +2539,12 @@ private struct TourAppPage: View {
                 HStack {
                     HStack(spacing: 2) {
                         Image(systemName: "chevron.left").font(.system(size: 15, weight: .semibold))
-                        Text(L("提示词", "Prompts", "プロンプト")).font(.system(size: 15.5))
+                        Text(L("润色风格", "Polish styles", "整えるスタイル")).font(.system(size: 15.5))
                     }
                     .foregroundStyle(TourColor.purple)
                     .onTapGesture { model.wrong() }
                     Spacer()
-                    Text(L("添加提示词", "Add Prompt", "プロンプトを追加")).font(.system(size: 16, weight: .semibold)).foregroundStyle(GuideColor.text)
+                    Text(L("添加润色风格", "Add Polish Style", "整えるスタイルを追加")).font(.system(size: 16, weight: .semibold)).foregroundStyle(GuideColor.text)
                     Spacer()
                     Text(L("完成", "Done", "完了")).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(TourColor.purple)
                         .padding(.horizontal, 6).frame(height: 30)

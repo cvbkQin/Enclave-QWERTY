@@ -105,7 +105,10 @@ struct PrivacyView: View {
             Button(L("清除", "Clear", "消去"), role: .destructive) {
                 guard let target = confirm else { return }
                 switch target {
-                case .history: SessionStore.save(nil)
+                case .history:
+                    // 历史页的记录和键盘里正在用的这一轮一起清。
+                    SessionStore.save(nil)
+                    HistoryStore.shared.clear()
                 case .learning: RimeStore.clearLearning()
                 case .stats: UsageStats.clearStats()
                 }
@@ -123,7 +126,8 @@ struct PrivacyView: View {
 
     private var confirmTitle: String {
         switch confirm {
-        case .history: return L("清除 AI 历史？", "Clear AI history?", "AI の履歴を消去しますか？")
+        case .history: return L("清除 AI 历史？历史页的记录和键盘里正在用的这一轮都会删除。", "Clear AI history? Records on the History tab and the round in use on the keyboard will be deleted.",
+                                "AI の履歴を消去しますか？履歴タブの記録とキーボードで使用中の回が削除されます。")
         case .learning: return L("清除拼音学习记录？候选会回到默认的顺序。", "Clear pinyin learning? Candidates go back to the default order.",
                                  "ピンインの学習データを消去しますか？候補は初期の順番に戻ります。")
         case .stats: return L("清除使用统计？首页的次数和图表会从零开始。", "Clear usage stats? The counts and charts on Home start over.",

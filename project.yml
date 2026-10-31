@@ -16,8 +16,8 @@ settings:
     # 开发版每次装机测试记作 0.95_1、0.95_2…：系统版本号不能带下划线，仍写 0.95，构建号写 9501、9502…，
     # DEV_LABEL 写「0.95_N」显示在关于页。测好合并进 main 时 DEV_LABEL 清空、构建号改回 95。
     MARKETING_VERSION: "0.95"
-    CURRENT_PROJECT_VERSION: "9504"
-    DEV_LABEL: "0.95_4"
+    CURRENT_PROJECT_VERSION: "9512"
+    DEV_LABEL: "0.95_12"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。
@@ -106,6 +106,19 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: enclave
             CFBundleURLSchemes: [enclave]
+        # 备份文件 .enclave（设置 › 备份与恢复）：在「文件」里点开会交给飞地输入法恢复。
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER).backup
+            UTTypeDescription: Enclave Backup
+            UTTypeConformsTo: [public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [enclave]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Enclave Backup
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [$(PRODUCT_BUNDLE_IDENTIFIER).backup]
+        LSSupportsOpeningDocumentsInPlace: false
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
@@ -190,6 +203,9 @@ targets:
       - path: Keyboard/FieldSpan.swift
       - path: App/Provider.swift
       - path: App/StorefrontRegion.swift
+      - path: App/Backup/BackupArchive.swift
+      - path: App/Backup/BackupCrypto.swift
+      - path: App/Backup/BackupMerge.swift
       - path: Generated/EnclaveTests/BuiltinSecrets.swift
         optional: true
     preBuildScripts:

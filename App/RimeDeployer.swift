@@ -55,6 +55,27 @@ final class RimeDeployer: ObservableObject {
     }
 
     /// 上次部署完成的时间。
+    /// 上次部署实际用了多少秒，提示「约多久」和画进度条用。
+    static var lastSeconds: Double? {
+        get { (SharedStorage.defaults.object(forKey: "rime.deploySeconds") as? Double).flatMap { $0 > 0 ? $0 : nil } }
+        set { SharedStorage.defaults.set(newValue, forKey: "rime.deploySeconds") }
+    }
+
+    /// 这次大概要多久（秒）：按上次实际用的时间，没部署过按 60 秒。
+    static var expectedSeconds: Double { max(5, lastSeconds ?? 60) }
+
+    /// 「约 40 秒」「约 2 分钟」，按上次实际用的时间。
+    static var durationText: String { durationText(expectedSeconds) }
+
+    static func durationText(_ seconds: Double) -> String {
+        if seconds < 90 {
+            let s = max(5, Int((seconds / 5).rounded()) * 5)
+            return L("约 \(s) 秒", "about \(s) s", "約 \(s) 秒")
+        }
+        let m = Int((seconds / 60).rounded())
+        return L("约 \(m) 分钟", "about \(m) min", "約 \(m) 分")
+    }
+
     static var deployedAt: Date? {
         get { SharedStorage.defaults.object(forKey: "rime.deployedAt") as? Date }
         set { SharedStorage.defaults.set(newValue, forKey: "rime.deployedAt") }
@@ -91,7 +112,8 @@ final class RimeDeployer: ObservableObject {
         let grammar = GrammarModel.isActive
         let ext = ExtDict.active.map { (id: $0.id, url: $0.url) }
         state = .deploying
-        startedAt = Date()
+        let start = Date()
+        startedAt = start
         Task.detached(priority: .userInitiated) {
             let result = Self.run(source: source, paths: paths, fuzzy: fuzzy, grammar: grammar, ext: ext)
             await MainActor.run {
@@ -100,6 +122,7 @@ final class RimeDeployer: ObservableObject {
                 case .success:
                     RimeStore.deployedVersion = version
                     Self.deployedAt = Date()
+                    Self.lastSeconds = Date().timeIntervalSince(start)
                     self.state = .done
                     // 部署途中又装上或删掉了整句模型、改了模糊拼音、开关了扩展词库：再部署一次。
                     if version != Self.targetVersion { self.deploy() }
@@ -160,7 +183,7 @@ final class RimeDeployer: ObservableObject {
         } catch {
             return .failure(error)
         }
-        let ok = enclave_rime_deploy(paths.shared.path, paths.user.path, nil)
+        let ok = RimeStore.withAppEngine { enclave_rime_deploy(paths.shared.path, paths.user.path, nil) }
         let schema = paths.user.appendingPathComponent("build/\(RimeStore.schemaID).schema.yaml")
         guard ok, fm.fileExists(atPath: schema.path) else {
             return .failure(DeployError(errorDescription: L("词库编译失败。", "Couldn't build the dictionary.", "辞書の作成に失敗しました。")))
