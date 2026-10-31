@@ -1001,6 +1001,10 @@ extension KeyboardModel {
     func selectEngine() {
         engine.reset()
         let queued = QueuedEngine.shared
+        // 拼音引擎是整个键盘进程共用的，不跟着键盘页面走（#21）：宿主 App 在前台被直接杀掉时，系统不调 viewDidDisappear、
+        // 也不发退后台通知，上一个页面没机会清，里面还留着没选字的拼音；新页面接过来再 syncEngine 就把旧拼音放回输入框。
+        // 当前用的不是它时它里面的东西都不是这个页面的，先清掉。
+        if engine !== queued { queued.reset() }
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
         TypingStats.modelInUse = useShared && RimeStore.isDeployed
