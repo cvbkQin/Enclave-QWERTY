@@ -260,6 +260,8 @@ final class AppRouter: ObservableObject {
         // 截图用：-playground 打开第一个场景；-homePage commonWords / keyboardWords / lab / keyboard 打开首页的二级页；
         // -appPage model 打开设置里的某一页；-appTab styles 切标签。
         let args = ProcessInfo.processInfo.arguments
+        // 每次启动 AI 标签都从「润色」开始（10-31 cvbk：重启后不要停在问答）；下面的启动参数、深链还能再切到问答。
+        Self.aiShowsAnswer = false
         #if DEBUG
         // 模拟器测试：-privacy agree / basic / reset 直接设好隐私政策同意情况。
         if let i = args.firstIndex(of: "-privacy"), args.indices.contains(i + 1) {
@@ -361,7 +363,7 @@ final class AppRouter: ObservableObject {
         tab = .keyboard
     }
 
-    /// AI 标签记住上次停的那页（润色 / 问答）。
+    /// AI 标签停在哪一页（润色 / 问答）：用的时候记着，每次启动回到润色。
     static var aiShowsAnswer: Bool {
         get { UserDefaults.standard.string(forKey: "apiPage") == "answer" }
         set { UserDefaults.standard.set(newValue ? "answer" : "main", forKey: "apiPage") }
