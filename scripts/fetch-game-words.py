@@ -11,11 +11,15 @@
   王者荣耀  官网 pvp.qq.com 的英雄、装备、召唤师技能、皮肤
   Dota 2    官网 dota2.com 的 datafeed（简体中文）
   原神      米游社「观测枢」（miHoYo 官方维基）
+  和平精英  官网 gp.qq.com「游戏资料」的枪械、载具（官网用的 infocms 数据）
 词表里只留纯中文的名字（去掉「·」和空格），其余交给 build-ext-dicts.py 标拼音、过敏感词表。
 """
+import gzip
+import http.client
 import json
 import re
 import sys
+import time
 import urllib.request
 from datetime import date
 from pathlib import Path
@@ -49,7 +53,13 @@ SOURCES = {
         ("itemlist.json", "https://www.dota2.com/datafeed/itemlist?language=schinese"),
     ],
     "genshin": [
-        ("obc_position.json", OBC + "/home/position?app_sn=ys_obc"),
+        # 「图鉴」栏目（189）一次带回所有子栏目和各自的完整列表。
+        ("obc_189.json", OBC + "/home/content/list?app_sn=ys_obc&channel_id=189"),
+    ],
+    # 官网首页「游戏资料」的枪械、载具两栏（web202411/js/rander_cms_ready.js 里的 id）。
+    "hpjy": [
+        ("guns.json", "https://fza.qq.com/infocms/data/gp/os/684259ce333f5ab1a4921ee0.json"),
+        ("vehicles.json", "https://fza.qq.com/infocms/data/gp/os/684259d4333f5ab1a4921ee8.json"),
     ],
 }
 
@@ -58,21 +68,35 @@ NAMES = {
     "wzry": "王者荣耀",
     "dota2": "Dota 2",
     "genshin": "原神",
+    "hpjy": "和平精英",
 }
 CREDITS = {
     "lol": "英雄联盟国服官网（lol.qq.com）公开数据，Riot Data Dragon zh_CN 补充",
     "wzry": "王者荣耀官网（pvp.qq.com）公开数据",
     "dota2": "Dota 2 官网（dota2.com）datafeed 简体中文",
     "genshin": "米游社「观测枢」原神官方维基（bbs.mihoyo.com/ys/obc）",
+    "hpjy": "和平精英官网（gp.qq.com）「游戏资料」枪械、载具，加上飞地整理的常用说法",
 }
-# 观测枢里要收的栏目（栏目名包含这些字就收），其余（攻略、活动、卡池、成就……）不收。
-OBC_WANT = ["角色", "武器", "圣遗物", "敌人", "魔物", "怪物", "秘境", "地区", "区域", "地图", "食物", "料理", "材料", "道具", "NPC", "人物"]
+# 观测枢「图鉴」里要收的子栏目，按这个顺序排（越靠前词频越高）；栏目名完全一样才收。
+# 不收：角色逸闻 / 彩蛋、成就、任务、活动、地图文本、书籍、名片、教程、洞天摆设等（多是标题或句子，不是名字）。
+OBC_WANT = ["角色", "武器", "圣遗物", "敌人", "秘境", "组织", "食物", "背包", "动物", "NPC&商店"]
 
 
-def get(url):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        raw = resp.read()
+def get(url, tries=4):
+    """下载；连接被中途断开（IncompleteRead）时重试几次。"""
+    for attempt in range(tries):
+        try:
+            # 要 gzip：观测枢图鉴有 7 MB，不压缩时常被中途断开。
+            req = urllib.request.Request(url, headers={**UA, "Accept-Encoding": "gzip"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                raw = resp.read()
+                if resp.headers.get("Content-Encoding") == "gzip":
+                    raw = gzip.decompress(raw)
+            break
+        except http.client.IncompleteRead:
+            if attempt == tries - 1:
+                raise
+            time.sleep(2 * (attempt + 1))
     for enc in ("utf-8", "gbk"):
         try:
             return raw.decode(enc)
@@ -96,6 +120,12 @@ def fetch(raw):
         folder = raw / game
         folder.mkdir(exist_ok=True)
         for name, url in items:
+            # 已经下好的不重下（网络不稳时多跑几次补齐缺的）；删掉原始数据目录就全部重下。
+            if (folder / name).exists():
+                if name == "dd_versions.json":
+                    ddv = json.loads((folder / name).read_text(encoding="utf-8"))[0]
+                print(f"  {game}/{name}: 已有")
+                continue
             if "{ddv}" in url:
                 if not ddv:
                     print(f"  {game}/{name}: 跳过（没拿到 Data Dragon 版本号）")
@@ -110,41 +140,6 @@ def fetch(raw):
             if name == "dd_versions.json":
                 ddv = data[0]
             print(f"  {game}/{name}: 好")
-    fetch_obc(raw / "genshin")
-
-
-def fetch_obc(folder):
-    """观测枢：先拿栏目树，再按栏目把内容列表拉下来（栏目树里有的只带前几条）。"""
-    path = folder / "obc_position.json"
-    if not path.exists():
-        return
-    tree = json.loads(path.read_text(encoding="utf-8"))
-    for channel_id, name in obc_channels(tree):
-        try:
-            data = as_json(get(f"{OBC}/home/content/list?app_sn=ys_obc&channel_id={channel_id}"))
-        except Exception as e:  # noqa: BLE001
-            print(f"  genshin/{name}: 失败 {e}")
-            continue
-        (folder / f"obc_{channel_id}.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        print(f"  genshin/{name}（{channel_id}）: 好")
-
-
-def obc_channels(tree):
-    """栏目树里名字像 OBC_WANT 的栏目 (id, 名字)。"""
-    found = {}
-
-    def walk(node):
-        if isinstance(node, dict):
-            name, cid = node.get("name"), node.get("id")
-            if isinstance(name, str) and cid and any(w in name for w in OBC_WANT) and "list" in node:
-                found[cid] = name
-            for v in node.values():
-                walk(v)
-        elif isinstance(node, list):
-            for v in node:
-                walk(v)
-    walk(tree)
-    return sorted(found.items(), key=lambda kv: str(kv[0]))
 
 
 def clean(name):
@@ -153,7 +148,12 @@ def clean(name):
         return None
     name = re.sub(r"[（(【\[].*?[)）】\]]", "", name)
     name = re.sub(r"[·・•\s　\-—]", "", name)
-    return name if re.fullmatch(r"[一-鿿]{2,8}", name) else None
+    if not re.fullmatch(r"[一-鿿]{2,8}", name):
+        return None
+    # 官方数据里的占位、兑换券、活动道具之类，不是游戏里的名字。
+    if any(w in name for w in ("占位", "兑换券", "邀请函", "符文等级")):
+        return None
+    return name
 
 
 def load(folder, name):
@@ -206,16 +206,37 @@ def parse_dota2(f):
 
 
 def parse_genshin(f):
+    data = load(f, "obc_189.json")
+    if not data:
+        return []
+    channels = {}
+    for root in data.get("data", {}).get("list", []):
+        for child in root.get("children") or []:
+            channels[child.get("name")] = child.get("list") or []
     words = []
-    for path in sorted(f.glob("obc_*.json")):
-        if path.name == "obc_position.json":
-            continue
-        data = json.loads(path.read_text(encoding="utf-8"))
-        words += [c.get("title") for c in data.get("data", {}).get("list", [])]
+    for name in OBC_WANT:
+        words += [c.get("title") for c in channels.get(name, [])]
     return words
 
 
-PARSERS = {"lol": parse_lol, "wzry": parse_wzry, "dota2": parse_dota2, "genshin": parse_genshin}
+# 和平精英官网只列了当前版本的十几把枪和载具；这些是玩家常说的词（原来的占位词表），放在最前面。
+HPJY_COMMON = ["吃鸡", "空投", "三级头", "三级甲", "信号圈", "决赛圈", "平底锅", "海岛地图", "雨林地图"]
+
+
+def hpjy_list(f, name):
+    """infocms 的数据是 {"contents": [...]}，有时直接是列表。"""
+    data = load(f, name) or []
+    return data.get("contents", []) if isinstance(data, dict) else data
+
+
+def parse_hpjy(f):
+    guns = hpjy_list(f, "guns.json")
+    vehicles = hpjy_list(f, "vehicles.json")
+    return (HPJY_COMMON + [g.get("name") for g in guns] + [g.get("kindName") for g in guns]
+            + [v.get("name") for v in vehicles])
+
+
+PARSERS = {"lol": parse_lol, "wzry": parse_wzry, "dota2": parse_dota2, "genshin": parse_genshin, "hpjy": parse_hpjy}
 
 
 def parse(raw):
