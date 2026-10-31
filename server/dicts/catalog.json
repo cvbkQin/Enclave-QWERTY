@@ -14,10 +14,10 @@
    },
    "license": "wiki",
    "entries": 200000,
-   "size": 3100000,
-   "version": "",
-   "sha256": null,
-   "url": null
+   "size": 5467856,
+   "version": "2026-10-31",
+   "sha256": "24e38aa977b46a77c01f5bae89b2e799b85fdaf9f9744391340ae26643eb7098",
+   "url": "ext_baike.dict.yaml"
   },
   {
    "id": "medical",

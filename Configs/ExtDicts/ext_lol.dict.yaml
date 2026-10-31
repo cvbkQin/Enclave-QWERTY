@@ -5,19 +5,940 @@ name: ext_lol
 version: "2026-10-31"
 sort: by_weight
 ...
-亚索	ya suo	9
-盖伦	gai lun	9
+安妮	an ni	9
+黑暗之女	hei an zhi nv	9
+奥拉夫	ao la fu	9
+狂战士	kuang zhan shi	9
+加里奥	jia li ao	9
+正义巨像	zheng yi ju xiang	9
+崔斯特	cui si te	9
+卡牌大师	ka pai da shi	9
+赵信	zhao xin	9
+德邦总管	de bang zong guan	9
+厄加特	e jia te	9
+无畏战车	wu wei zhan che	9
+乐芙兰	yue fu lan	9
+诡术妖姬	gui shu yao ji	9
+弗拉基米尔	fu la ji mi er	9
+猩红收割者	xing hong shou ge zhe	9
+费德提克	fei de ti ke	9
+远古恐惧	yuan gu kong ju	9
+凯尔	kai er	9
+正义天使	zheng yi tian shi	9
+无极剑圣	wu ji jian sheng	9
+阿利斯塔	a li si ta	9
+牛头酋长	niu tou qiu zhang	9
+瑞兹	rui zi	9
+符文法师	fu wen fa shi	9
+赛恩	sai en	9
+亡灵战神	wang ling zhan shen	9
+希维尔	xi wei er	9
+战争女神	zhan zheng nv shen	9
+索拉卡	suo la ka	9
+众星之子	zhong xing zhi zi	9
 提莫	ti mo	9
-艾希	ai xi	8
-拉克丝	la ke si	8
-金克丝	jin ke si	8
-伊泽瑞尔	yi ze rui er	8
-易大师	yi da shi	8
-赵信	zhao xin	7
-德莱厄斯	de lai e si	7
-锐雯	rui wen	6
-永恩	yong en	6
-峡谷之巅	xia gu zhi dian	6
-召唤师峡谷	zhao huan shi xia gu	5
-大龙	da long	4
-小龙	xiao long	3
+迅捷斥候	xun jie chi hou	9
+崔丝塔娜	cui si ta na	9
+麦林炮手	mai lin pao shou	9
+沃里克	wo li ke	9
+祖安怒兽	zu an nu shou	9
+努努和威朗普	nu nu he wei lang pu	9
+雪原双子	xue yuan shuang zi	9
+厄运小姐	e yun xiao jie	9
+赏金猎人	shang jin lie ren	9
+艾希	ai xi	9
+寒冰射手	han bing she shou	9
+泰达米尔	tai da mi er	9
+蛮族之王	man zu zhi wang	9
+贾克斯	jia ke si	9
+武器大师	wu qi da shi	9
+莫甘娜	mo gan na	9
+堕落天使	duo luo tian shi	9
+基兰	ji lan	9
+时光守护者	shi guang shou hu zhe	9
+辛吉德	xin ji de	9
+炼金术士	lian jin shu shi	9
+伊芙琳	yi fu lin	9
+痛苦之拥	tong ku zhi yong	9
+图奇	tu qi	9
+瘟疫之源	wen yi zhi yuan	9
+卡尔萨斯	ka er sa si	9
+死亡颂唱者	si wang song chang zhe	9
+科加斯	ke jia si	9
+虚空恐惧	xu kong kong ju	9
+阿木木	a mu mu	9
+殇之木乃伊	shang zhi mu nai yi	9
+拉莫斯	la mo si	9
+披甲龙龟	pi jia long gui	9
+艾尼维亚	ai ni wei ya	9
+冰晶凤凰	bing jing feng huang	9
+萨科	sa ke	9
+恶魔小丑	e mo xiao chou	9
+蒙多医生	meng duo yi sheng	9
+祖安狂人	zu an kuang ren	9
+娑娜	suo na	9
+琴瑟仙女	qin se xian nv	9
+卡萨丁	ka sa ding	9
+虚空行者	xu kong xing zhe	9
+艾瑞莉娅	ai rui li ya	9
+刀锋舞者	dao feng wu zhe	9
+迦娜	jia na	9
+风暴之怒	feng bao zhi nu	9
+普朗克	pu lang ke	9
+海洋之灾	hai yang zhi zai	9
+库奇	ku qi	9
+英勇投弹手	ying yong tou dan shou	9
+卡尔玛	ka er ma	9
+天启者	tian qi zhe	9
+塔里克	ta li ke	9
+瓦洛兰之盾	wa luo lan zhi dun	9
+维迦	wei jia	9
+邪恶小法师	xie e xiao fa shi	9
+特朗德尔	te lang de er	9
+巨魔之王	ju mo zhi wang	9
+斯维因	si wei yin	9
+诺克萨斯统领	nuo ke sa si tong ling	9
+凯特琳	kai te lin	9
+皮城女警	pi cheng nv jing	9
+布里茨	bu li ci	9
+蒸汽机器人	zheng qi ji qi ren	9
+墨菲特	mo fei te	9
+熔岩巨兽	rong yan ju shou	9
+卡特琳娜	ka te lin na	9
+不祥之刃	bu xiang zhi ren	9
+魔腾	mo teng	9
+永恒梦魇	yong heng meng yan	9
+茂凯	mao kai	9
+扭曲树精	niu qu shu jing	9
+雷克顿	lei ke dun	9
+荒漠屠夫	huang mo tu fu	9
+嘉文四世	jia wen si shi	9
+德玛西亚皇子	de ma xi ya huang zi	9
+伊莉丝	yi li si	9
+蜘蛛女皇	zhi zhu nv huang	9
+奥莉安娜	ao li an na	9
+发条魔灵	fa tiao mo ling	9
+孙悟空	sun wu kong	9
+齐天大圣	qi tian da sheng	9
+布兰德	bu lan de	9
+复仇焰魂	fu chou yan hun	9
+李青	li qing	9
+盲僧	mang seng	9
+薇恩	wei en	9
+暗夜猎手	an ye lie shou	9
+兰博	lan bo	9
+机械公敌	ji xie gong di	9
+卡西奥佩娅	ka xi ao pei ya	9
+魔蛇之拥	mo she zhi yong	9
+斯卡纳	si ka na	9
+上古领主	shang gu ling zhu	9
+黑默丁格	hei mo ding ge	9
+大发明家	da fa ming jia	9
+内瑟斯	nei se si	9
+沙漠死神	sha mo si shen	9
+奈德丽	nai de li	9
+狂野女猎手	kuang ye nv lie shou	9
+乌迪尔	wu di er	9
+兽灵行者	shou ling xing zhe	9
+波比	bo bi	9
+圣锤之毅	sheng chui zhi yi	9
+古拉加斯	gu la jia si	9
+酒桶	jiu tong	9
+潘森	pan sen	9
+不屈之枪	bu qu zhi qiang	9
+伊泽瑞尔	yi ze rui er	9
+探险家	tan xian jia	9
+莫德凯撒	mo de kai sa	9
+铁铠冥魂	tie kai ming hun	9
+约里克	yue li ke	9
+牧魂人	mu hun ren	9
+阿卡丽	a ka li	9
+离群之刺	li qun zhi ci	9
+凯南	kai nan	9
+狂暴之心	kuang bao zhi xin	9
+盖伦	gai lun	9
+德玛西亚之力	de ma xi ya zhi li	9
+蕾欧娜	lei ou na	9
+曙光女神	shu guang nv shen	9
+玛尔扎哈	ma er zha ha	9
+虚空先知	xu kong xian zhi	9
+泰隆	tai long	9
+刀锋之影	dao feng zhi ying	9
+锐雯	rui wen	9
+放逐之刃	fang zhu zhi ren	9
+克格莫	ke ge mo	9
+深渊巨口	shen yuan ju kou	9
+暮光之眼	mu guang zhi yan	9
+拉克丝	la ke si	9
+光辉女郎	guang hui nv lang	9
+泽拉斯	ze la si	9
+远古巫灵	yuan gu wu ling	9
+希瓦娜	xi wa na	9
+龙血武姬	long xie wu ji	9
+阿狸	a li	9
+九尾妖狐	jiu wei yao hu	9
+格雷福斯	ge lei fu si	9
+法外狂徒	fa wai kuang tu	9
+菲兹	fei zi	9
+潮汐海灵	chao xi hai ling	9
+沃利贝尔	wo li bei er	9
+不灭狂雷	bu mie kuang lei	9
+雷恩加尔	lei en jia er	9
+傲之追猎者	ao zhi zhui lie zhe	9
+韦鲁斯	wei lu si	9
+惩戒之箭	cheng jie zhi jian	9
+诺提勒斯	nuo ti le si	9
+深海泰坦	shen hai tai tan	9
+维克托	wei ke tuo	9
+奥术先驱	ao shu xian qu	9
+瑟庄妮	se zhuang ni	9
+北地之怒	bei di zhi nu	9
+菲奥娜	fei ao na	9
+无双剑姬	wu shuang jian ji	9
+吉格斯	ji ge si	9
+爆破鬼才	bao po gui cai	9
+璐璐	lu lu	9
+仙灵女巫	xian ling nv wu	9
+德莱文	de lai wen	9
+荣耀行刑官	rong yao xing xing guan	9
+赫卡里姆	he ka li mu	9
+战争之影	zhan zheng zhi ying	9
+卡兹克	ka zi ke	9
+虚空掠夺者	xu kong lve duo zhe	9
+德莱厄斯	de lai e si	9
+诺克萨斯之手	nuo ke sa si zhi shou	9
+杰斯	jie si	9
+未来守护者	wei lai shou hu zhe	9
+丽桑卓	li sang zhuo	9
+冰霜女巫	bing shuang nv wu	9
+黛安娜	dai an na	9
+皎月女神	jiao yue nv shen	9
+奎因	kui yin	9
+德玛西亚之翼	de ma xi ya zhi yi	9
+辛德拉	xin de la	9
+暗黑元首	an hei yuan shou	9
+奥瑞利安索尔	ao rui li an suo er	9
+铸星龙王	zhu xing long wang	9
+凯隐	kai yin	9
+影流之镰	ying liu zhi lian	9
+佐伊	zuo yi	9
+暮光星灵	mu guang xing ling	9
+婕拉	jie la	9
+荆棘之兴	jing ji zhi xing	9
+卡莎	ka sha	9
+虚空之女	xu kong zhi nv	9
+萨勒芬妮	sa le fen ni	9
+星籁歌姬	xing lai ge ji	9
+纳尔	na er	9
+迷失之牙	mi shi zhi ya	9
+扎克	zha ke	9
+生化魔人	sheng hua mo ren	9
+亚索	ya suo	9
+疾风剑豪	ji feng jian hao	9
+维克兹	wei ke zi	9
+虚空之眼	xu kong zhi yan	9
+塔莉垭	ta li ya	9
+岩雀	yan que	9
+卡蜜尔	ka mi er	9
+青钢影	qing gang ying	9
+阿克尚	a ke shang	9
+影哨	ying shao	9
+卑尔维斯	bei er wei si	9
+虚空女皇	xu kong nv huang	9
+布隆	bu long	9
+弗雷尔卓德之心	fu lei er zhuo de zhi xin	9
+戏命师	xi ming shi	9
+千珏	qian jue	9
+永猎双子	yong lie shuang zi	9
+泽丽	ze li	9
+祖安花火	zu an hua huo	9
+金克丝	jin ke si	9
+暴走萝莉	bao zou luo li	9
+塔姆	ta mu	9
+河流之王	he liu zhi wang	9
+贝蕾亚	bei lei ya	9
+狂厄蔷薇	kuang e qiang wei	9
+佛耶戈	fo ye ge	9
+破败之王	po bai zhi wang	9
+赛娜	sai na	9
+涤魂圣枪	di hun sheng qiang	9
+卢锡安	lu xi an	9
+圣枪游侠	sheng qiang you xia	9
+影流之主	ying liu zhi zhu	9
+克烈	ke lie	9
+暴怒骑士	bao nu qi shi	9
+艾克	ai ke	9
+时间刺客	shi jian ci ke	9
+奇亚娜	qi ya na	9
+元素女皇	yuan su nv huang	9
+皮城执法官	pi cheng zhi fa guan	9
+亚托克斯	ya tuo ke si	9
+暗裔剑魔	an yi jian mo	9
+娜美	na mei	9
+唤潮鲛姬	huan chao jiao ji	9
+阿兹尔	a zi er	9
+沙漠皇帝	sha mo huang di	9
+悠米	you mi	9
+魔法猫咪	mo fa mao mi	9
+莎弥拉	sha mi la	9
+沙漠玫瑰	sha mo mei gui	9
+锤石	chui shi	9
+魂锁典狱长	hun suo dian yu zhang	9
+俄洛伊	e luo yi	9
+海兽祭司	hai shou ji si	9
+雷克塞	lei ke sai	9
+虚空遁地兽	xu kong dun di shou	9
+艾翁	ai weng	9
+翠神	cui shen	9
+卡莉丝塔	ka li si ta	9
+复仇之矛	fu chou zhi mao	9
+巴德	ba de	9
+星界游神	xing jie you shen	9
+幻翎	huan ling	9
+逆羽	ni yu	9
+奥恩	ao en	9
+山隐之焰	shan yin zhi yan	9
+塞拉斯	sai la si	9
+解脱者	jie tuo zhe	9
+妮蔻	ni kou	9
+万花通灵	wan hua tong ling	9
+厄斐琉斯	e fei liu si	9
+残月之肃	can yue zhi su	9
+芮尔	rui er	9
+镕铁少女	rong tie shao nv	9
+派克	pai ke	9
+血港鬼影	xue gang gui ying	9
+薇古丝	wei gu si	9
+愁云使者	chou yun shi zhe	9
+永恩	yong en	9
+封魔剑魂	feng mo jian hun	9
+安蓓萨	an bei sa	9
+铁血狼母	tie xue lang mu	9
+梅尔	mei er	9
+流光镜影	liu guang jing ying	9
+芸阿娜	yun a na	9
+不破之誓	bu po zhi shi	9
+洛克	luo ke	9
+灰烬驱魔人	hui jin qu mo ren	9
+瑟提	se ti	9
+腕豪	wan hao	9
+莉莉娅	li li ya	9
+含羞蓓蕾	han xiu bei lei	9
+格温	ge wen	9
+灵罗娃娃	ling luo wa wa	9
+烈娜塔戈拉斯克	lie na ta ge la si ke	9
+炼金男爵	lian jin nan jue	9
+阿萝拉	a luo la	9
+双界灵兔	shuang jie ling tu	9
+尼菈	ni la	9
+不羁之悦	bu ji zhi yue	9
+奎桑提	kui sang ti	8
+纳祖芒荣耀	na zu mang rong yao	8
+斯莫德	si mo de	8
+炽炎雏龙	chi yan chu long	8
+米利欧	mi li ou	8
+明烛	ming zhu	8
+亚恒	ya heng	8
+不落魔锋	bu la mo feng	8
+异画师	yi hua shi	8
+纳亚菲利	na ya fei li	8
+百裂冥犬	bai lie ming quan	8
+屏障	ping zhang	8
+战意激增	zhan yi ji zeng	8
+净化	jing hua	8
+闪现	shan xian	8
+闪人	shan ren	8
+洞察	dong cha	8
+引燃	yin ran	8
+虚弱	xu ruo	8
+强化要塞	qiang hua yao sai	8
+幽灵疾步	you ling ji bu	8
+治疗术	zhi liao shu	8
+清晰术	qing xi shu	8
+魄罗投掷	po luo tou zhi	8
+战争图腾	zhan zheng tu teng	8
+重生	chong sheng	8
+惩戒	cheng jie	8
+标记	biao ji	8
+晋升	jin sheng	8
+传送	chuan song	8
+主宰	zhu zai	8
+电刑	dian xing	8
+黑暗收割	hei an shou ge	8
+丛刃	cong ren	8
+恶意中伤	e yi zhong shang	8
+血之滋味	xue zhi zi wei	8
+猛然冲击	meng ran chong ji	8
+第六感	di liu gan	8
+可怖纪念品	ke bu ji nian pin	8
+深入守卫	shen ru shou wei	8
+寻宝猎人	xun bao lie ren	8
+无情猎手	wu qing lie shou	8
+终极猎人	zhong ji lie ren	8
+启迪	qi di	8
+冰川增幅	bing chuan zeng fu	8
+启封的秘籍	qi feng de mi ji	8
+先攻	xian gong	8
+神奇之鞋	shen qi zhi xie	8
+返现	fan xian	8
+三重补药	san chong bu yao	8
+时间扭曲补药	shi jian niu qu bu yao	8
+饼干配送	bing gan pei song	8
+星界洞悉	xing jie dong xi	8
+行近速率	xing jin su lv	8
+多面手	duo mian shou	8
+精密	jing mi	8
+强攻	qiang gong	8
+致命节奏	zhi ming jie zou	8
+迅捷步法	xun jie bu fa	8
+征服者	zheng fu zhe	8
+吸收生命力	xi shou sheng ming li	8
+凯旋	kai xuan	8
+气定神闲	qi ding shen xian	8
+致命一击	zhi ming yi ji	8
+砍倒	kan dao	8
+坚毅不倒	jian yi bu dao	8
+坚决	jian jue	8
+不灭之握	bu mie zhi wo	8
+余震	yu zhen	8
+守护者	shou hu zhe	8
+爆破	bao po	8
+生命源泉	sheng ming yuan quan	8
+护盾猛击	hu dun meng ji	8
+调节	tiao jie	8
+复苏之风	fu su zhi feng	8
+骸骨镀层	hai gu du ceng	8
+过度生长	guo du sheng zhang	8
+复苏	fu su	8
+坚定	jian ding	8
+巫术	wu shu	8
+奥术彗星	ao shu hui xing	8
+风暴掠袭者的狂涌	feng bao lve xi zhe de kuang yong	8
+冥火之触	ming huo zhi chu	8
+公理秘术	gong li mi shu	8
+法力流系带	fa li liu ji dai	8
+灵光披风	ling guang pi feng	8
+超然	chao ran	8
+迅捷	xun jie	8
+绝对专注	jue dui zhuan zhu	8
+焦灼	jiao zhuo	8
+水上行走	shui shang xing zou	8
+风暴聚集	feng bao ju ji	8
+召唤师峡谷	zhao huan shi xia gu	8
+嚎哭深渊	hao ku shen yuan	8
+云顶之弈	yun ding zhi yi	8
+斗魂竞技场	dou hun jing ji chang	8
+鞋子	xie zi	8
+仙女护符	xian nv hu fu	8
+治疗宝珠	zhi liao bao zhu	8
+巨人腰带	ju ren yao dai	8
+灵巧披风	ling qiao pi feng	8
+爆裂魔杖	bao lie mo zhang	8
+蓝水晶	lan shui jing	8
+红水晶	hong shui jing	8
+布甲	bu jia	8
+锁子甲	suo zi jia	8
+抗魔斗篷	kang mo dou peng	8
+长剑	chang jian	8
+十字镐	shi zi gao	8
+暴风之剑	bao feng zhi jian	8
+黑曜石锋刃	hei yao shi feng ren	8
+短剑	duan jian	8
+反曲之弓	fan qu zhi gong	8
+增幅典籍	zeng fu dian ji	8
+吸血鬼节杖	xi xue gui jie zhang	8
+多兰之盾	duo lan zhi dun	8
+多兰之刃	duo lan zhi ren	8
+多兰之戒	duo lan zhi jie	8
+负极斗篷	fu ji dou peng	8
+无用大棒	wu yong da bang	8
+黑暗封印	hei an feng yin	8
+萃取	cui qu	8
+多兰之弓	duo lan zhi gong	8
+焰爪猫幼崽	yan zhua mao you zai	8
+风行狐幼体	feng xing hu you ti	8
+踏苔蜥幼苗	ta tai xi you miao	8
+多兰之盔	duo lan zhi kui	8
+生命药水	sheng ming yao shui	8
+钢铁印章	gang tie yin zhang	8
+残暴之力	can bao zhi li	8
+掘道钻头	jue dao zuan tou	8
+荧尘	ying chen	8
+复用型药水	fu yong xing yao shui	8
+守护者护符	shou hu zhe hu fu	8
+守护者法衣	shou hu zhe fa yi	8
+守护者号角	shou hu zhe hao jiao	8
+控制守卫	kong zhi shou wei	8
+舒瑞娅的战歌	shu rui ya de zhan ge	8
+钢铁合剂	gang tie he ji	8
+巫术合剂	wu shu he ji	8
+愤怒合剂	fen nu he ji	8
+帽子饮品	mao zi yin pin	8
+威能饮品	wei neng yin pin	8
+活力饮品	huo li yin pin	8
+急速饮品	ji su yin pin	8
+班德尔威能饮品	ban de er wei neng yin pin	8
+班德尔活力饮品	ban de er huo li yin pin	8
+班德尔急速饮品	ban de er ji su yin pin	8
+探索者的护臂	tan suo zhe de hu bi	8
+碎裂的护臂	sui lie de hu bi	8
+霸王血铠	ba wang xue kai	8
+无终恨意	wu zhong hen yi	8
+黯炎火炬	an yan huo ju	8
+败魔	bai mo	8
+命定灰烬	ming ding hui jin	8
+黄昏与黎明	huang hun yu li ming	8
+猎魔人弩箭	lie mo ren nu jian	8
+无穷饥渴	wu qiong ji ke	8
+破垒者	po lei zhe	8
+实现器	shi xian qi	8
+班德尔音管	ban de er yin guan	8
+原生质护带	yuan sheng zhi hu dai	8
+耳语头环	er yu tou huan	8
+大天使之杖	da tian shi zhi zhang	8
+魔宗	mo zong	8
+鬼蟹	gui xie	8
+狂战士胫甲	kuang zhan shi jing jia	8
+暴食胫甲	bao shi jing jia	8
+轻灵之靴	qing ling zhi xue	8
+法师之靴	fa shi zhi xue	8
+冰川圆盾	bing chuan yuan dun	8
+守护天使	shou hu tian shi	8
+无尽之刃	wu jin zhi ren	8
+育恩塔尔荒野箭	yu en ta er huang ye jian	8
+凡性的提醒	fan xing de ti xing	8
+最后的轻语	zui hou de qing yu	8
+阿塔玛的清算	a ta ma de qing suan	8
+梅贾的窃魂卷	mei jia de qie hun juan	8
+净蚀	jing shi	8
+幻影之舞	huan ying zhi wu	8
+铁板靴	tie ban xue	8
+基克的聚合	ji ke de ju he	8
+缚炉之斧	fu lu zhi fu	8
+耀光	yao guang	8
+振奋盔甲	zhen fen kui jia	8
+带翼的月板甲	dai yi de yue ban jia	8
+燃烧宝石	ran shao bao shi	8
+日炎圣盾	ri yan sheng dun	8
+女神之泪	nv shen zhi lei	8
+黑色切割者	hei se qie ge zhe	8
+饮血剑	yin xue jian	8
+海克斯注力刚壁	hai ke si zhu li gang bi	8
+贪欲九头蛇	tan yu jiu tou she	8
+荆棘之甲	jing ji zhi jia	8
+棘刺背心	ji ci bei xin	8
+提亚马特	ti ya ma te	8
+三相之力	san xiang zhi li	8
+守望者铠甲	shou wang zhe kai jia	8
+狂徒铠甲	kuang tu kai jia	8
+心之钢	xin zhi gang	8
+卢安娜的飓风	lu an na de ju feng	8
+狂热	kuang re	8
+斯塔缇克电刃	si ta ti ke dian ren	8
+灭世者的死亡之帽	mie shi zhe de si wang zhi mao	8
+智慧末刃	zhi hui mo ren	8
+疾射火炮	ji she huo pao	8
+岚切	lan qie	8
+巫妖之祸	wu yao zhi huo	8
+女妖面纱	nv yao mian sha	8
+军团圣盾	jun tuan sheng dun	8
+救赎	jiu shu	8
+恶魔法典	e mo fa dian	8
+骑士之誓	qi shi zhi shi	8
+冰霜之心	bing shuang zhi xin	8
+水银之靴	shui yin zhi xue	8
+守护者法球	shou hu zhe fa qiu	8
+以太精魂	yi tai jing hun	8
+禁忌雕像	jin ji diao xiang	8
+纳什之牙	na shi zhi ya	8
+瑞莱的冰晶节杖	rui lai de bing jing jie zhang	8
+残疫	can yi	8
+凛冬之临	lin dong zhi lin	8
+死刑宣告	si xing xuan gao	8
+鬼索的狂暴之刃	gui suo de kuang bao zhi ren	8
+冥火之拥	ming huo zhi yong	8
+神圣之剑	shen sheng zhi jian	8
+考尔菲德的战锤	kao er fei de de zhan chui	8
+锯齿短匕	ju chi duan bi	8
+虚空之杖	xu kong zhi zhang	8
+蜕生	tui sheng	8
+水银弯刀	shui yin wan dao	8
+水银饰带	shui yin shi dai	8
+幽梦之灵	you meng zhi ling	8
+兰顿之兆	lan dun zhi zhao	8
+斥候弹弓	chi hou dan gong	8
+海克斯科技发电机	hai ke si ke ji fa dian ji	8
+海克斯科技枪刃	hai ke si ke ji qiang ren	8
+幽魂面具	you hun mian ju	8
+破败王者之刃	po bai wang zhe zhi ren	8
+海克斯饮魔刀	hai ke si yin mo dao	8
+玛莫提乌斯之噬	ma mo ti wu si zhi shi	8
+中娅沙漏	zhong ya sha lou	8
+明朗之靴	ming lang zhi xue	8
+朔极之矛	shuo ji zhi mao	8
+莫雷洛秘典	mo lei luo mi dian	8
+不朽之路	bu xiu zhi lu	8
+迅速进军	xun su jin jun	8
+猩红明朗	xing hong ming lang	8
+炮铜胫甲	pao tong jing jia	8
+带链碾碎者	dai lian nian sui zhe	8
+装甲战靴	zhuang jia zhan xue	8
+灵能使之靴	ling neng shi zhi xue	8
+守护者之刃	shou hu zhe zhi ren	8
+黯影阔剑	an ying kuo jian	8
+破舰者	po jian zhe	8
+守护者战锤	shou hu zhe zhan chui	8
+钢铁烈阳之匣	gang tie lie yang zhi xia	8
+幽魂斗篷	you hun dou peng	8
+米凯尔的祝福	mi kai er de zhu fu	8
+界弓	jie gong	8
+草间人	cao jian ren	8
+侦察守卫	zhen cha shou wei	8
+远见改造	yuan jian gai zao	8
+神谕透镜	shen yu tou jing	8
+毁坏仪式	hui huai yi shi	8
+炽热香炉	chi re xiang lu	8
+夺萃之镰	duo cui zhi lian	8
+亡者的板甲	wang zhe de ban jia	8
+巨型九头蛇	ju xing jiu tou she	8
+晶体护腕	jing ti hu wan	8
+遗失的章节	yi shi de zhang jie	8
+万世催化石	wan shi cui hua shi	8
+夜之锋刃	ye zhi feng ren	8
+云游图鉴	yun you tu jian	8
+星界据守	xing jie ju shou	8
+圆梦使者	yuan meng shi zhe	8
+扎兹沙克的溃口	zha zi sha ke de kui kou	8
+摩天雪橇	mo tian xue qiao	8
+血鸣	xue ming	8
+湮灭宝珠	yan mie bao zhu	8
+救生索	jiu sheng suo	8
+幽魂弯刀	you hun wan dao	8
+帝国指令	di guo zhi ling	8
+放血者的诅咒	fang xie zhe de zu zhou	8
+花晓之剑	hua xiao zhi jian	8
+食罪者	shi zui zhe	8
+闪电穗带	shan dian sui dai	8
+困惑	kun huo	8
+无言承诺	wu yan cheng nuo	8
+恶火小斧	e huo xiao fu	8
+自然之力	zi ran zhi li	8
+激发之匣	ji fa zhi xia	8
+金铲铲	jin chan chan	8
+视界专注	shi jie zhuan zhu	8
+星界驱驰	xing jie qu chi	8
+枯萎珠宝	ku wei zhu bao	8
+翠绿屏障	cui lv ping zhang	8
+裂隙制造者	lie xi zhi zao zhe	8
+戒备眼石	jie bei yan shi	8
+班德尔玻璃镜	ban de er bo li jing	8
+警觉眼石	jing jue yan shi	8
+影焰	ying yan	8
+风暴狂涌	feng bao kuang yong	8
+幸运阿福雕像	xing yun a fu diao xiang	8
+黄金之心	huang jin zhi xin	8
+凯奇的幸运手	kai qi de xing yun shou	8
+贪婪之刃	tan lan zhi ren	8
+贤者之石	xian zhe zhi shi	8
+多彩之药水	duo cai zhi yao shui	8
+属性加成	shu xing jia cheng	8
+死亡之舞	si wang zhi wu	8
+炼金朋克链锯剑	lian jin peng ke lian ju jian	8
+焚天	fen tian	8
+流水法杖	liu shui fa zhang	8
+月石再生器	yue shi zai sheng qi	8
+海力亚的回响	hai li ya de hui xiang	8
+黎明核心	li ming he xin	8
+挺进破坏者	ting jin po huai zhe	8
+兰德里的折磨	lan de li de zhe mo	8
+卢登的回声	lu deng de hui sheng	8
+时光之杖	shi guang zhi zhang	8
+斑比的熔渣	ban bi de rong zha	8
+冰脉护手	bing mai hu shou	8
+璀璨回响	cui can hui xiang	8
+千变者贾修	qian bian zhe jia xiu	8
+正午箭袋	zheng wu jian dai	8
+海妖杀手	hai yao sha shou	8
+不朽盾弓	bu xiu dun gong	8
+纳沃利烁刃	na wo li shuo ren	8
+收集者	shou ji zhe	8
+剑翎	jian ling	8
+星蚀	xing shi	8
+赛瑞尔达的怨恨	sai rui er da de yuan hen	8
+巨蛇之牙	ju she zhi ya	8
+公理圆弧	gong li yuan hu	8
+狂妄	kuang wang	8
+亵渎九头蛇	xie du jiu tou she	8
+电震涡流剑	dian zhen wo liu jian	8
+深渊面具	shen yuan mian ju	8
+锁定的武器栏位	suo ding de wu qi lan wei	8
+旋风切割器	xuan feng qie ge qi	8
+悠米无人机	you mi wu ren ji	8
+耀光力场	yao guang li chang	8
+斯塔缇克之剑	si ta ti ke zhi jian	8
+雌狮之怨	ci shi zhi yuan	8
+机关兔兔枪	ji guan tu tu qiang	8
+炽烈短弓	chi lie duan gong	8
+歼灭者	jian mie zhe	8
+战兔十字弩	zhan tu shi zi nu	8
+漩涡手套	xuan wo shou tao	8
+回旋刃	hui xuan ren	8
+战兔巨爆	zhan tu ju bao	8
+反鲨海弹	fan sha hai dan	7
+提伯斯标准版	ti bo si biao zhun ban	7
+幻灵地雷	huan ling di lei	7
+最终都市列车	zui zhong du shi lie che	7
+回响蝠刃	hui xiang fu ren	7
+爪爪投毒器	zhua zhua tou du qi	7
+冰爆护甲	bing bao hu jia	7
+不息气旋	bu xi qi xuan	7
+爆破之拥	bao po zhi yong	7
+普朗比斯电雕机	pu lang bi si dian diao ji	7
+包覆之光	bao fu zhi guang	7
+双重兔兔弹幕	shuang chong tu tu dan mu	7
+进化余烬射击	jin hua yu jin she ji	7
+幻灵启示录	huan ling qi shi lu	7
+战兔至尊弩炮	zhan tu zhi zun nu pao	7
+风暴护手	feng bao hu shou	7
+四重回旋刃	si chong hui xuan ren	7
+疾速兔降	ji su tu jiang	7
+不休踩弹	bu xiu cai dan	7
+提伯斯	ti bo si	7
+金克丝三连炸	jin ke si san lian zha	7
+最终都市特快	zui zhong du shi te kuai	7
+薇恩的炫彩刃	wei en de xuan cai ren	7
+熊掌化学喷雾器	xiong zhang hua xue pen wu qi	7
+深度冻结	shen du dong jie	7
+喵喵枪	miao miao qiang	7
+盾牌猛击	dun pai meng ji	7
+声波	sheng bo	7
+木枷挥击	mu jia hui ji	7
+斩钢闪	zhan gang shan	7
+触手重击	chu shou zhong ji	7
+带翼羽刃	dai yi yu ren	7
+附灵飞弹	fu ling fei dan	7
+兔子跳	tu zi tiao	7
+战猫弹幕	zhan mao dan mu	7
+雄狮之光	xiong shi zhi guang	7
+幻灵回响	huan ling hui xiang	7
+无情砍削	wu qing kan xue	7
+漂泊风暴	piao bo feng bao	7
+巨熊重击	ju xiong zhong ji	7
+爱意飞射	ai yi fei she	7
+跳跃灵体	tiao yue ling ti	7
+胡萝卜撞击	hu luo bo zhuang ji	7
+传说级战士装备	chuan shuo ji zhan shi zhuang bei	7
+传说级射手装备	chuan shuo ji she shou zhuang bei	7
+传说级刺客装备	chuan shuo ji ci ke zhuang bei	7
+传说级法师装备	chuan shuo ji fa shi zhuang bei	7
+传说级坦克装备	chuan shuo ji tan ke zhuang bei	7
+传说级辅助装备	chuan shuo ji fu zhu zhuang bei	7
+棱彩装备	leng cai zhuang bei	7
+引路者	yin lu zhe	7
+虚空献祭	xu kong xian ji	7
+灵风	ling feng	7
+守护者短匕	shou hu zhe duan bi	7
+渴血战斧	ke xue zhan fu	7
+兰德里的苦楚	lan de li de ku chu	7
+终极九头蛇	zhong ji jiu tou she	7
+暗行者之爪	an xing zhe zhi zhao	7
+禁忌时机	jin ji shi ji	7
+厌恨锁链	yan hen suo lian	7
+沃格勒特的巫师帽	wo ge le te de wu shi mao	7
+多功能工具	duo gong neng gong ju	7
+暗钢利爪	an gang li zhao	7
+爆鸣	bao ming	7
+魔王之冕	mo wang zhi mian	7
+熔石之盾	rong shi zhi dun	7
+星夜斗篷	xing ye dou peng	7
+熵之力	shang zhi li	7
+血色赠礼	xue se zeng li	7
+艾莉莎的奇迹	ai li sha de qi ji	7
+飞升护符	fei sheng hu fu	7
+断筋者	duan jin zhe	7
+涡轮炼金罐	wo lun lian jin guan	7
+海克斯弹丸配枪	hai ke si dan wan pei qiang	7
+收割者的过路费	shou ge zhe de guo lu fei	7
+石像鬼石板甲	shi xiang gui shi ban jia	7
+暗夜收割者	an ye shou ge zhe	7
+恶魔之拥	e mo zhi yong	7
+破碎王后之冕	po sui wang hou zhi mian	7
+神圣分离者	shen sheng fen li zhe	7
+永霜	yong shuang	7
+辉耀美德	hui yao mei de	7
+狂风之力	kuang feng zhi li	7
+德拉克萨的暮刃	de la ke sa de mu ren	7
+幻境之刃	huan jing zhi ren	7
+投机者之刃	tou ji zhe zhi ren	7
+实界裂缝	shi jie lie feng	7
+血术师之盔	xue shu shi zhi kui	7
+至高天诺言	zhi gao tian nuo yan	7
+龙心	long xin	7
+斩首者	zhan shou zhe	7
+符文雕刻者	fu wen diao ke zhe	7
+残忍	can ren	7
+月华咒刃	yue hua zhou ren	7
+食肉斧剑	shi rou fu jian	7
+爆炸之球	bao zha zhi qiu	7
+混响之刃	hun xiang zhi ren	7
+弑王	shi wang	7
+均衡十手	jun heng shi shou	7
+炎术师的披风	yan shu shi de pi feng	7
+闪电杖	shan dian zhang	7
+钻头长矛	zuan tou chang mao	7
+暮色之锋	mu se zhi feng	7
+黑洞护手	hei dong hu shou	7
+傀儡操纵器	kui lei cao zong qi	7
+派对礼品	pai dui li pin	7
+维迦的飞升护符	wei jia de fei sheng hu fu	7
+速度之靴	su du zhi xue	7
+猎人的宽刃刀	lie ren de kuan ren dao	7
+格斗手套	ge dou shou tao	7
+精魄之石	jing po zhi shi	7
+法力药水	fa li yao shui	7
+坚韧合剂	jian ren he ji	7
+灵巧合剂	ling qiao he ji	7
+智慧合剂	zhi hui he ji	7
+水晶瓶	shui jing ping	7
+先知药剂	xian zhi yao ji	7
+真视守卫	zhen shi shou wei	7
+侦查守卫	zhen cha shou wei	7
+洞察红宝石	dong cha hong bao shi	7
+洞察之石	dong cha zhi shi	7
+深渊权杖	shen yuan quan zhang	7
+阿塔玛之戟	a ta ma zhi ji	7
+催化神石	cui hua shen shi	7
+冰霜之锤	bing shuang zhi chui	7
+双生暗影	shuang sheng an ying	7
+冰川护甲	bing chuan hu jia	7
+和谐圣杯	he xie sheng bei	7
+御魔之器	yu mo zhi qi	7
+忍者足具	ren zhe zu ju	7
+斯塔克的狂热	si ta ke de kuang re	7
+英勇纹章	ying yong wen zhang	7
+干扰水晶	gan rao shui jing	7
+号令之旗	hao ling zhi qi	7
+灵魂法衣	ling hun fa yi	7
+日炎斗篷	ri yan dou peng	7
+舒瑞娅的狂想曲	shu rui ya de kuang xiang qu	7
+日炎斗篷之堆叠	ri yan dou peng zhi dui die	7
+极冰碎片	ji bing sui pian	7
+幸运手	xing yun shou	7
+蜂刺	feng ci	7
+麦瑞德之爪	mai rui de zhi zhao	7
+符文壁垒	fu wen bi lei	7
+麦瑞德裂血手套	mai rui de lie xue shou tao	7
+腐蚀之刃	fu shi zhi ren	7
+疾行之靴	ji xing zhi xue	7
+利维坦之甲	li wei tan zhi jia	7
+神秘之剑	shen mi zhi jian	7
+比尔吉沃特弯刀	bi er ji wo te wan dao	7
+海克斯科技左轮枪	hai ke si ke ji zuo lun qiang	6
+远古意志	yuan gu yi zhi	6
+瑞格之灯	rui ge zhi deng	6
+斗篷与短剑	dou peng yu duan jian	6
+离子火花	li zi huo hua	6
+破碎幽灵之精魄	po sui you ling zhi jing po	6
+远古魔像之精魄	yuan gu mo xiang zhi jing po	6
+蜥蜴长老之精魄	xi yi zhang lao zhi jing po	6
+米凯尔的坩埚	mi kai er de gan guo	6
+黄色饰品	huang se shi pin	6
+红色饰品	hong se shi pin	6
+兹若特传送门	zi ruo te chuan song men	6
+海克斯核心原型	hai ke si he xin yuan xing	6
+完美海克斯核心	wan mei hai ke si he xin	6
+灰烬小刀	hui jin xiao dao	6
+冰雹刀刃	bing bao dao ren	6
+先锋之眼	xian feng zhi yan	6
+嘉文一世之靴	jia wen yi shi zhi xue	6
+上路任务	shang lu ren wu	6
+中路任务	zhong lu ren wu	6
+下路任务	xia lu ren wu	6
+辅助任务	fu zhu ren wu	6
+打野任务	da ye ren wu	6
+打野任务奖励	da ye ren wu jiang li	6
+中路任务奖励	zhong lu ren wu jiang li	6
+下路任务奖励	xia lu ren wu jiang li	6
+辅助任务奖励	fu zhu ren wu jiang li	6
+解封的传送	jie feng de chuan song	6
+上路任务奖励	shang lu ren wu jiang li	6
+穿透型子弹	chuan tou xing zi dan	6
+防御工事	fang yu gong shi	6
+加固城防	jia gu cheng fang	6
+典狱官之眼	dian yu guan zhi yan	6
+前卫	qian wei	6
+过载	guo zai	6
+反防御塔袜子	fan fang yu ta wa zi	6
+嗜好	shi hao	6
+弗瑞克风格的嗜好	fu rui ke feng ge de shi hao	6
+超级士兵装甲	chao ji shi bing zhuang jia	6
+超级士兵能量场	chao ji shi bing neng liang chang	6
+防御塔镀层	fang yu ta du ceng	6
+建筑物赏金	jian zhu wu shang jin	6
+过载嚎哭深渊	guo zai hao ku shen yuan	6
+钢铁防线	gang tie fang xian	6
+防御塔威力升温	fang yu ta wei li sheng wen	6
+过载充能	guo zai chong neng	6
+增生	zeng sheng	6
+回城	hui cheng	6
+强化回城	qiang hua hui cheng	6
+禁用回城	jin yong hui cheng	6
+永续意志夹心饼干	yong xu yi zhi jia xin bing gan	6
+吉尔菲艾斯碎片	ji er fei ai si sui pian	6
+腐败药水	fu bai yao shui	6
+魄罗佳肴	po luo jia yao	6
+幸运骰子	xing yun tou zi	6
+增强版幸运骰子	zeng qiang ban xing yun tou zi	6
+技能合剂	ji neng he ji	6
+贪财合剂	tan cai he ji	6
+原力合剂	yuan li he ji	6
+碎片之刃	sui pian zhi ren	6
+歌之权冠	ge zhi quan guan	6
+薄暮法袍	bo mu fa pao	6
+炼金科技纯化器	lian jin ke ji chun hua qi	6
+炽天使之拥	chi tian shi zhi yong	6
+魔切	mo qie	5
+末日寒冬	mo ri han dong	5
+密银黎明	mi yin li ming	5
+死亡之刃	si wang zhi ren	5
+适应性头盔	shi ying xing tou kui	5
+黑曜切割者	hei yao qie ge zhe	5
+血色之刃	xue se zhi ren	5
+符文阔剑	fu wen kuo jian	5
+小兵去质器	xiao bing qu zhi qi	5
+有点神奇之鞋	you dian shen qi zhi xie	5
+共生鞋鱼	gong sheng xie yu	5
+祝福圣杯	zhu fu sheng bei	5
+灵犀众魂	ling xi zhong hun	5
+生命水井坠饰	sheng ming shui jing zhui shi	5
+永远前进	yong yuan qian jin	5
+奥术探测器	ao shu tan ce qi	5
+透光奇点	tou guang qi dian	5
+小型派对礼品	xiao xing pai dui li pin	5
+你也有份	ni ye you fen	5
+窃法之刃	qie fa zhi ren	5
+冰霜之牙	bing shuang zhi ya	5
+钢铁护肩	gang tie hu jian	5
+符钢肩甲	fu gang jian jia	5
+白岩肩铠	bai yan jian kai	5
+圣物之盾	sheng wu zhi dun	5
+巨神峰圆盾	ju shen feng yuan dun	5
+山脉壁垒	shan mai bi lei	5
+幽魂镰刀	you hun lian dao	4
+鬼影新月	gui ying xin yue	4
+黑雾巨镰	hei wu ju lian	4
+符文罗盘	fu wen luo pan	4
+异世珍藏	yi shi zhen cang	4
+双生面具	shuang sheng mian ju	4
+榨血睥睨	zha xue pi ni	4
+萌动眼石	meng dong yan shi	4
+铁刺鞭	tie ci bian	4
+狂怒小刀	kuang nu xiao dao	4
+拉阔尔之盾	la kuo er zhi dun	4
+侦察前方	zhen cha qian fang	3
+活力夹心饼干	huo li jia xin bing gan	3
+探索者守卫	tan suo zhe shou wei	3
+烈焰之炬	lie yan zhi ju	3
+蛋酒	dan jiu	3
+茶袋	cha dai	2
+玉米糖	yu mi tang	2

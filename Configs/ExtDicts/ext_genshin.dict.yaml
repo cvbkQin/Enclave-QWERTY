@@ -5,16 +5,5137 @@ name: ext_genshin
 version: "2026-10-31"
 sort: by_weight
 ...
-胡桃	hu tao	9
-钟离	zhong li	9
+米提亚	mi ti ya	9
+瓦列里	wa lie li	9
+丝柯克	si ke ke	9
+爱可菲	ai ke fei	9
+薇斯纳	wei si na	9
+沃雅妮莎	wo ya ni sha	9
+伊涅芙	yi nie fu	9
+菲林斯	fei lin si	9
+奥黛塔	ao dai ta	9
+阿蕾奇诺	a lei qi nuo	9
+旅行者冰	lv xing zhe bing	9
+阿罗夏	a luo xia	9
+哥伦比娅	ge lun bi ya	9
 雷电将军	lei dian jiang jun	9
-纳西妲	na xi da	8
-甘雨	gan yu	8
-温迪	wen di	8
-提瓦特	ti wa te	7
-蒙德	meng de	7
-璃月	li yue	6
-稻妻	dao qi	6
-须弥	xu mi	5
-枫丹	feng dan	4
-原石	yuan shi	3
+桑多涅	sang duo nie	9
+茜特菈莉	qian te la li	9
+八重神子	ba chong shen zi	9
+莱欧斯利	lai ou si li	9
+梦见月瑞希	meng jian yue rui xi	9
+赛诺	sai nuo	9
+七七	qi qi	9
+洛恩	luo en	9
+玛薇卡	ma wei ka	9
+班尼特	ban ni te	9
+香菱	xiang ling	9
+米卡	mi ka	9
+迪奥娜	di ao na	9
+尼可	ni ke	9
+杜林	du lin	9
+布伦妮	bu lun ni	9
+雷泽	lei ze	9
+菲谢尔	fei xie er	9
+菈乌玛	la wu ma	9
+奈芙尔	nai fu er	9
+艾梅莉埃	ai mei li ai	9
+克洛琳德	ke luo lin de	9
+希格雯	xi ge wen	9
+娜维娅	na wei ya	9
+林尼	lin ni	9
+雅珂达	ya ke da	9
+行秋	xing qiu	9
+绮良良	qi liang liang	9
+莉奈娅	li nai ya	9
+恰斯卡	qia si ka	9
+诺艾尔	nuo ai er	9
+爱诺	ai nuo	9
+叶洛亚	ye luo ya	9
+塔利雅	ta li ya	9
+坎蒂丝	kan di si	9
+夏洛蒂	xia luo di	9
+法尔伽	fa er ga	9
+优菈	you la	9
+莫娜	mo na	9
+阿贝多	a bei duo	9
+可莉	ke li	9
+迪卢克	di lu ke	9
+砂糖	sha tang	9
+兹白	zi bai	9
+那维莱特	na wei lai te	9
+五郎	wu lang	9
+伊法	yi fa	9
+赛索斯	sai suo si	9
+奇偶男性	ji ou nan xing	9
+奇偶女性	ji ou nv xing	9
+芙宁娜	fu ning na	9
+纳西妲	na xi da	9
+妮露	ni lou	9
+艾尔海森	ai er hai sen	9
+流浪者	liu lang zhe	9
+提纳里	ti na li	9
+迪希雅	di xi ya	9
+玛拉妮	ma la ni	9
+欧洛伦	ou luo lun	9
+伊安珊	yi an shan	9
+瑶瑶	yao yao	9
+申鹤	shen he	9
+基尼奇	ji ni qi	9
+神里绫华	shen li ling hua	9
+神里绫人	shen li ling ren	9
+珐露珊	fa lou shan	9
+千织	qian zhi	9
+荒泷一斗	huang long yi dou	9
+宵宫	xiao gong	9
+琳妮特	lin ni te	9
+九条裟罗	jiu tiao sha luo	9
+托马	tuo ma	9
+莱依拉	lai yi la	9
+希诺宁	xi nuo ning	9
+温迪	wen di	9
+烟绯	yan fei	9
+闲云	xian yun	9
+北斗	bei dou	9
+瓦雷莎	wa lei sha	9
+夏沃蕾	xia wo lei	9
+嘉明	jia ming	9
+蓝砚	lan yan	9
+白术	bai zhu	9
+刻晴	ke qing	9
+甘雨	gan yu	9
+达达利亚	da da li ya	9
+钟离	zhong li	9
+胡桃	hu tao	9
+卡齐娜	ka qi na	9
+枫原万叶	feng yuan wan ye	9
+夜兰	ye lan	9
+珊瑚宫心海	shan hu gong xin hai	9
+菲米尼	fei mi ni	9
+罗莎莉亚	luo sha li ya	9
+卡维	ka wei	9
+多莉	duo li	9
+柯莱	ke lai	9
+鹿野院平藏	lu ye yuan ping cang	9
+云堇	yun jin	9
+凝光	ning guang	9
+久岐忍	jiu qi ren	9
+早柚	zao you	9
+重云	zhong yun	9
+丽莎	li sha	9
+辛焱	xin yan	9
+凯亚	kai ya	9
+芭芭拉	ba ba la	9
+安柏	an bai	9
+埃洛伊	ai luo yi	9
+旅行者火	lv xing zhe huo	9
+旅行者水	lv xing zhe shui	9
+旅行者草	lv xing zhe cao	9
+旅行者雷	lv xing zhe lei	9
+旅行者岩	lv xing zhe yan	9
+旅行者风	lv xing zhe feng	9
+苍耀	cang yao	9
+香韵奏者	xiang yun zou zhe	9
+银釭	yin gang	9
+蝶变	die bian	9
+漩流颂歌	xuan liu song ge	9
+凝雪沉心	ning xue chen xin	9
+柔风游弦	rou feng you xian	9
+新枝	xin zhi	9
+白湖冬羽	bai hu dong yu	9
+星锋剑	xing feng jian	9
+金律铸影	jin lv zhu ying	9
+悬黎千钧	xuan li qian jun	9
+群王局戏	qun wang ju xi	9
+寒息	han xi	9
+熔猎异端之刃	rong lie yi duan zhi ren	9
+引火之源	yin huo zhi yuan	9
+救赎之斩	jiu shu zhi zhan	9
+霜雪誓约	shuang xue shi yue	9
+寸心余响	cun xin yu xiang	9
+戍望谣歌	shu wang yao ge	9
+超越之匙	chao yue zhi shi	9
+灾悔	zai hui	9
+尘光七谕	chen guang qi yu	9
+霜结的誓金枝	shuang jie de shi jin zhi	9
+狼的武功歌	lang de wu gong ge	9
+朏魄含光	fei po han guang	9
+帷间夜曲	wei jian ye qu	9
+黑蚀	hei shi	9
+黎明破晓之史	li ming po xiao zhi shi	9
+虹蛇的雨弦	hong she de yu xian	9
+真语秘匣	zhen yu mi xia	9
+圣祭者的辉杖	sheng ji zhe de hui zhang	9
+霜辰	shuang chen	9
+血染荒城	xue ran huang cheng	9
+天光的纺琴	tian guang de fang qin	9
+纺夜天镜	fang ye tian jing	9
+千夜浮梦	qian ye fu meng	9
+裁叶萃光	cai ye cui guang	9
+圣显之钥	sheng xian zhi yao	9
+苇海信标	wei hai xin biao	9
+猎人之径	lie ren zhi jing	9
+图莱杜拉的回忆	tu lai du la de hui yi	9
+赤沙之杖	chi sha zhi zhang	9
+织月者的曙色	zhi yue zhe de shu se	9
+罗网勾针	luo wang gou zhen	9
+万能钥匙	wan neng yao shi	9
+乌髓孑灯	wu sui jie deng	9
+掘金之锹	jue jin zhi qiao	9
+谧音吹哨	mi yin chui shao	9
+支离轮光	zhi li lun guang	9
+拾慧铸熔	shi hui zhu rong	9
+冷寂迸音	leng ji beng yin	9
+溢彩心念	yi cai xin nian	9
+寝正月初晴	qin zheng yue chu qing	9
+且住亭御咄	qie zhu ting yu duo	9
+焚曜千阳	fen yao qian yang	9
+祭星者之望	ji xing zhe zhi wang	9
+万世流涌大典	wan shi liu yong da dian	9
+贯虹之槊	guan hong zhi shuo	9
+厄水之祸	e shui zhi huo	9
+星鹫赤羽	xing jiu chi yu	9
+缀花之翎	zhui hua zhi ling	9
+乘浪的回旋	cheng lang de hui xuan	9
+护摩之杖	hu mo zhi zhang	9
+硕果钩	shuo guo gou	9
+岩峰巡歌	yan feng xun ge	9
+有乐御簾切	you le yu lian qie	9
+镇山之钉	zhen shan zhi ding	9
+弥坚骨	mi jian gu	9
+山王长牙	shan wang chang ya	9
+薙草之稻光	ti cao zhi dao guang	9
+冲浪时光	chong lang shi guang	9
+苍古自由之誓	cang gu zi you zhi shi	9
+苍纹角杯	cang wen jiao bei	9
+静水流涌之辉	jing shui liu yong zhi hui	9
+撼地者	han di zhe	9
+虹的行迹	hong de hang ji	9
+木棉之环	mu mian zhi huan	9
+碎链	sui lian	9
+息燧之笛	xi sui zhi di	9
+柔灯挽歌	rou deng wan ge	9
+若水	ruo shui	9
+裁断	cai duan	9
+白雨心弦	bai yu xin xian	9
+西风长枪	xi feng chang qiang	9
+西风秘典	xi feng mi dian	9
+祭礼弓	ji li gong	9
+匣里龙吟	xia li long yin	9
+千岩古剑	qian yan gu jian	9
+筑云	zhu yun	9
+赦罪	she zui	9
+赤月之形	chi yue zhi xing	9
+沙中伟贤的对答	sha zhong wei xian de dui da	9
+鹤鸣余音	he ming yu yin	9
+水仙十字之剑	shui xian shi zi zhi jian	9
+金流监督	jin liu jian du	9
+勘探钻机	kan tan zuan ji	9
+测距规	ce ju gui	9
+无垠蔚蓝之歌	wu yin wei lan zhi ge	9
+船坞长剑	chuan wu chang jian	9
+便携动力锯	bian xie dong li ju	9
+灰河渡手	hui he du shou	9
+纯水流华	chun shui liu hua	9
+公义的酬报	gong yi de chou bao	9
+浪影阔剑	lang ying kuo jian	9
+海渊终曲	hai yuan zhong qu	9
+静谧之曲	jing mi zhi qu	9
+狼牙	lang ya	9
+遗祀玉珑	yi si yu long	9
+烈阳之嗣	lie yang zhi si	9
+聊聊棒	liao liao bang	9
+峡湾长歌	xia wan chang ge	9
+最初的大魔术	zui chu de da mo shu	9
+鹮穿之喙	huan chuan zhi hui	9
+碧落之珑	bi luo zhi long	9
+饰铁之花	shi tie zhi hua	9
+东花坊时雨	dong hua fang shi yu	9
+西福斯的月光	xi fu si de yue guang	9
+流浪的晚星	liu lang de wan xing	9
+风信之锋	feng xin zhi feng	9
+玛海菈的水色	ma hai la de shui se	9
+王下近侍	wang xia jin shi	9
+森林王器	sen lin wang qi	9
+盈满之实	ying man zhi shi	9
+贯月矢	guan yue shi	9
+原木刀	yuan mu dao	9
+竭泽	jie ze	9
+笼钓瓶一心	long diao ping yi xin	9
+落霞	luo xia	9
+波乱月白经津	bo luan yue bai jing jin	9
+证誓之明瞳	zheng shi zhi ming tong	9
+神乐之真意	shen yue zhi zhen yi	9
+息灾	xi zai	9
+赤角石溃杵	chi jiao shi kui chu	9
+辰砂之纺锤	chen sha zhi fang chui	9
+松籁响起之时	song lai xiang qi zhi shi	9
+终末嗟叹之诗	zhong mo jie tan zhi shi	9
+断浪长鳍	duan lang chang qi	9
+曚云之月	meng yun zhi yue	9
+冬极白星	dong ji bai xing	9
+恶王丸	e wang wan	9
+不灭月华	bu mie yue hua	9
+掠食者	lve shi zhe	9
+衔珠海皇	xian zhu hai huang	9
+飞雷之弦振	fei lei zhi xian zhen	9
+雾切之回光	wu qie zhi hui guang	9
+桂木斩长正	gui mu zhan zhang zheng	9
+白辰之环	bai chen zhi huan	9
+喜多院十文字	xi duo yuan shi wen zi	9
+天目影打刀	tian mu ying da dao	9
+破魔之弓	po mo zhi gong	9
+降临之剑	jiang lin zhi jian	9
+天空之刃	tian kong zhi ren	9
+狼的末路	lang de mo lu	9
+阿莫斯之弓	a mo si zhi gong	9
+天空之卷	tian kong zhi juan	9
+天空之傲	tian kong zhi ao	9
+风鹰剑	feng ying jian	9
+和璞鸢	he pu yuan	9
+四风原典	si feng yuan dian	9
+天空之翼	tian kong zhi yi	9
+天空之脊	tian kong zhi ji	9
+尘世之锁	chen shi zhi suo	9
+无工之剑	wu gong zhi jian	9
+斫峰之刃	zhuo feng zhi ren	9
+磐岩结绿	pan yan jie lv	9
+试作古华	shi zuo gu hua	9
+匣里灭辰	xia li mie chen	9
+黑岩刺枪	hei yan ci qiang	9
+西风大剑	xi feng da jian	9
+铁蜂刺	tie feng ci	9
+绝弦	jue xian	9
+宗室长弓	zong shi chang gong	9
+雨裁	yu cai	9
+弓藏	gong cang	9
+流浪乐章	liu lang yue zhang	9
+黑岩绯玉	hei yan fei yu	9
+宗室秘法录	zong shi mi fa lu	9
+西风猎弓	xi feng lie gong	9
+祭礼残章	ji li can zhang	9
+万国诸海图谱	wan guo zhu hai tu pu	9
+宗室长剑	zong shi chang jian	9
+宗室大剑	zong shi da jian	9
+笛剑	di jian	9
+西风剑	xi feng jian	9
+钟剑	zhong jian	9
+匣里日月	xia li ri yue	9
+试作斩岩	shi zuo zhan yan	9
+祭礼剑	ji li jian	9
+试作澹月	shi zuo dan yue	9
+黑岩长剑	hei yan chang jian	9
+白影剑	bai ying jian	9
+试作金珀	shi zuo jin po	9
+流月针	liu yue zhen	9
+钢轮弓	gang lun gong	9
+试作星镰	shi zuo xing lian	9
+祭礼大剑	ji li da jian	9
+昭心	zhao xin	9
+黑岩战弓	hei yan zhan gong	9
+黑岩斩刀	hei yan zhan dao	9
+黑剑	hei jian	9
+决斗之枪	jue dou zhi qiang	9
+苍翠猎弓	cang cui lie gong	9
+螭骨剑	chi gu jian	9
+宗室猎枪	zong shi lie qiang	9
+腐殖之剑	fu zhi zhi jian	9
+雪葬的星银	xue zang de xing yin	9
+龙脊长枪	long ji chang qiang	9
+忍冬之果	ren dong zhi guo	9
+千岩长枪	qian yan chang qiang	9
+暗巷闪光	an xiang shan guang	9
+暗巷猎手	an xiang lie shou	9
+暗巷的酒与诗	an xiang de jiu yu shi	9
+风花之颂	feng hua zhi song	9
+幽夜华尔兹	you ye hua er zi	9
+嘟嘟可故事集	du du ke gu shi ji	9
+飞天御剑	fei tian yu jian	9
+铁影阔剑	tie ying kuo jian	9
+沐浴龙血的剑	mu yu long xie de jian	9
+以理服人	yi li fu ren	9
+黑缨枪	hei ying qiang	9
+讨龙英杰谭	tao long ying jie tan	9
+弹弓	dan gong	9
+鸦羽弓	ya yu gong	9
+冷刃	leng ren	9
+魔导绪论	mo dao xu lun	9
+黎明神剑	li ming shen jian	9
+暗铁剑	an tie jian	9
+神射手之誓	shen she shou zhi shi	9
+飞天大御剑	fei tian da yu jian	9
+白缨枪	bai ying qiang	9
+甲级宝珏	jia ji bao jue	9
+异世界行记	yi shi jie xing ji	9
+信使	xin shi	9
+反曲弓	fan qu gong	9
+吃虎鱼刀	chi hu yu dao	9
+旅行剑	lv xing jian	9
+翡玉法球	fei yu fa qiu	9
+钺矛	yue mao	9
+白铁大剑	bai tie da jian	9
+银剑	yin jian	9
+口袋魔导书	kou dai mo dao shu	9
+历练的猎弓	li lian de lie gong	9
+佣兵重剑	yong bing zhong jian	9
+铁尖枪	tie jian qiang	9
+新手长枪	xin shou chang qiang	9
+训练大剑	xun lian da jian	9
+学徒笔记	xue tu bi ji	9
+猎弓	lie gong	9
+无锋剑	wu feng jian	9
+血红之证	xue hong zhi zheng	9
+炉火融炼之心	lu huo rong lian zhi xin	9
+影中沉凝的幻灭	ying zhong chen ning de huan mie	9
+天之美赐	tian zhi mei ci	9
+晨星与月的晓歌	chen xing yu yue de xiao ge	9
+风起之日	feng qi zhi ri	9
+穹境示现之夜	qiong jing shi xian zhi ye	9
+纺月的夜歌	fang yue de ye ge	9
+长夜之誓	chang ye zhi shi	9
+深廊终曲	shen lang zhong qu	9
+黑曜秘典	hei yao mi dian	9
+烬城勇者绘卷	jin cheng yong zhe hui juan	9
+未竟的遐思	wei jing de xia si	9
+谐律异想断章	xie lv yi xiang duan zhang	9
+回声之林夜话	hui sheng zhi lin ye hua	9
+昔时之歌	xi shi zhi ge	9
+逐影猎人	zhu ying lie ren	9
+黄金剧团	huang jin ju tuan	9
+花海甘露之光	hua hai gan lu zhi guang	9
+水仙之梦	shui xian zhi meng	9
+乐园遗落之花	le yuan yi luo zhi hua	9
+沙上楼阁史话	sha shang lou ge shi hua	9
+深林的记忆	shen lin de ji yi	9
+饰金之梦	shi jin zhi meng	9
+辰砂往生录	chen sha wang sheng lu	9
+来歆余响	lai xin yu xiang	9
+华馆梦醒形骸记	hua guan meng xing xing hai ji	9
+海染砗磲	hai ran che qu	9
+绝缘之旗印	jue yuan zhi qi yin	9
+追忆之注连	zhui yi zhi zhu lian	9
+千岩牢固	qian yan lao gu	9
+苍白之火	cang bai zhi huo	9
+平息鸣雷的尊者	ping xi ming lei de zun zhe	9
+炽烈的炎之魔女	chi lie de yan zhi mo nv	9
+流浪大地的乐团	liu lang da di de yue tuan	9
+染血的骑士道	ran xue de qi shi dao	9
+被怜爱的少女	bei lian ai de shao nv	9
+角斗士的终幕礼	jue dou shi de zhong mu li	9
+渡过烈火的贤人	du guo lie huo de xian ren	9
+悠古的磐岩	you gu de pan yan	9
+如雷的盛怒	ru lei de sheng nu	9
+沉沦之心	chen lun zhi xin	9
+逆飞的流星	ni fei de liu xing	9
+昔日宗室之仪	xi ri zong shi zhi yi	9
+翠绿之影	cui lv zhi ying	9
+冰风迷途的勇士	bing feng mi tu de yong shi	9
+勇士之心	yong shi zhi xin	9
+教官	jiao guan	9
+流放者	liu fang zhe	9
+祭冰之人	ji bing zhi ren	9
+祭雷之人	ji lei zhi ren	9
+祭火之人	ji huo zhi ren	9
+祭水之人	ji shui zhi ren	9
+战狂	zhan kuang	9
+武人	wu ren	9
+学士	xue shi	9
+赌徒	du tu	9
+奇迹	qi ji	9
+行者之心	xing zhe zhi xin	9
+守护之心	shou hu zhi xin	9
+幸运儿	xing yun er	9
+冒险家	mao xian jia	9
+游医	you yi	9
+游雪的护刃	you xue de hu ren	9
+永恒冰雪的幻景	yong heng bing xue de huan jing	9
+永恒燃烧的幻景	yong heng ran shao de huan jing	9
+阿克西妮娅	a ke xi ni ya	9
+斯瓦罗德	si wa luo de	9
+永恒徘徊的幻景	yong heng pai huai de huan jing	9
+丘林	qiu lin	9
+斑劫	ban jie	9
+弗瑞奥萨	fu rui ao sa	9
+舞空羽骑士	wu kong yu qi shi	9
+持戟羽骑士	chi ji yu qi shi	9
+兽怪捷掠者	shou guai jie lve zhe	9
+兽怪投掷者	shou guai tou zhi zhe	9
+兽怪敲打者	shou guai qiao da zhe	9
+兽怪瞄击者	shou guai miao ji zhe	9
+长耳强袭者	chang er qiang xi zhe	9
+渠道联络人	qu dao lian luo ren	9
+狮獒护卫	shi ao hu wei	9
+嗥狼追猎者	hao lang zhui lie zhe	9
+牙兽狂徒	ya shou kuang tu	9
+凝冰秘法师	ning bing mi fa shi	9
+凝冰戍卫	ning bing shu wei	9
+幼嫩的分节树	you nen de fen jie shu	9
+苍遒的木灵长	cang qiu de mu ling zhang	9
+嵌合梭地兽	qian he suo de shou	9
+嵌合翼象兽	qian he yi xiang shou	9
+嵌合鍪甲兽	qian he mou jia shou	9
+嵌合角熊	qian he jiao xiong	9
+不灭衍生造物	bu mie yan sheng zao wu	9
+嵌合翼骏狮	qian he yi jun shi	9
+穆什特希尔	mu shen te xi er	9
+先驱秘源统辖阵列	xian qu mi yuan tong xia zhen lie	9
+虹彩史莱姆	hong cai shi lai mu	9
+丘尔德里克	qiu er de li ke	9
+辖域守护者	xia yu shou hu zhe	9
+守望者堕天	shou wang zhe duo tian	9
+玻瑞亚斯之影	bo rui ya si zhi ying	9
+蕴光月守宫	yun guang yue shou gong	9
+望乡的孤狼	wang xiang de gu lang	9
+海捷德	hai jie de	9
+十六倍曼陀草	shi liu bei man tuo cao	9
+驰岚霜夜灵嗣	chi lan shuang ye ling si	9
+金礞霜夜灵嗣	jin meng shuang ye ling si	9
+涌流霜夜灵嗣	yong liu shuang ye ling si	9
+蕴光凛狼	yun guang lin lang	9
+深黯钓客	shen an diao ke	9
+深黯魇语之主	shen an yan yu zhi zhu	9
+霜夜巡天灵主	shuang ye xun tian ling zhu	9
+荒野狂狩士	huang ye kuang shou shi	9
+荒野幽徒	huang ye you tu	9
+巡陆艇强侦地效型	xun liu ting qiang zhen di xiao xing	9
+巡陆艇强侦斥候型	xun liu ting qiang zhen chi hou xing	9
+巡陆艇强侦攻坚型	xun liu ting qiang zhen gong jian xing	9
+巡陆艇近战攻坚型	xun liu ting jin zhan gong jian xing	9
+巡陆艇近战斥候型	xun liu ting jin zhan chi hou xing	9
+蕴光刃犀	yun guang ren xi	9
+蕴光奇羊	yun guang qi yang	9
+蕴光璇蛸	yun guang xuan shao	9
+凌晶霜夜灵嗣	ling jing shuang ye ling si	9
+辉电霜夜灵嗣	hui dian shuang ye ling si	9
+蔓结霜夜灵嗣	man jie shuang ye ling si	9
+灼烜霜夜灵嗣	zhuo xuan shuang ye ling si	9
+拉斯科尔尼科夫	la si ke er ni ke fu	9
+西格德	xi ge de	9
+重拳出击鸭	zhong quan chu ji ya	9
+蕴光月幻蝶	yun guang yue huan die	9
+巴窟纳瓦	ba ku na wa	9
+秘源机兵统御械	mi yuan ji bing tong yu xie	9
+门扉前的弈局	men fei qian de yi ju	9
+深古秘源机龙	shen gu mi yuan ji long	9
+夜魂回击的试炼	ye hun hui ji de shi lian	9
+夜魂争夺的试炼	ye hun zheng duo de shi lian	9
+尖峰	jian feng	9
+微末	wei mo	9
+雳震大灵显化身	li zhen da ling xian hua shen	9
+横蛮勇士摔跤客	heng man yong shi shuai jiao ke	9
+横蛮勇士抓扑人	heng man yong shi zhua pu ren	9
+横蛮勇士冲撞手	heng man yong shi chong zhuang shou	9
+突角龙	tu jiao long	9
+幼突角龙	you tu jiao long	9
+炉壳山鼬	lu ke shan you	9
+熔岩辉龙像	rong yan hui long xiang	9
+夜魂焚风的试炼	ye hun fen feng de shi lian	9
+夜魂先手的试炼	ye hun xian shou de shi lian	9
+夜魂冻土的试炼	ye hun dong tu de shi lian	9
+夜魂协同的试炼	ye hun xie tong de shi lian	9
+铜锁	tong suo	9
+莉莱	li lai	9
+焚燃大灵显化身	fen ran da ling xian hua shen	9
+结羽勇士腾空士	jie yu yong shi teng kong shi	9
+结羽勇士削羽人	jie yu yong shi xue yu ren	9
+结羽勇士驭空客	jie yu yong shi yu kong ke	9
+绒翼龙	rong yi long	9
+幼绒翼龙	you rong yi long	9
+凛冽大灵显化身	lin lie da ling xian hua shen	9
+灵觉勇士冥思者	ling jue yong shi ming si zhe	9
+灵觉勇士控念师	ling jue yong shi kong nian shi	9
+灵觉勇士执意师	ling jue yong shi zhi yi shi	9
+暝视龙	ming shi long	9
+幼暝视龙	you ming shi long	9
+灵觉隐修的迷者	ling jue yin xiu de mi zhe	9
+蚀灭的源焰之主	shi mie de yuan yan zhi zhu	9
+深邃摹结株	shen sui mo jie zhu	9
+秘源机兵构型械	mi yuan ji bing gou xing xie	9
+深邃拟覆叶	shen sui ni fu ye	9
+莉琉	li liu	9
+夜魂抉择的试炼	ye hun jue ze de shi lian	9
+夜魂封结的试炼	ye hun feng jie de shi lian	9
+夜魂坚决的试炼	ye hun jian jue de shi lian	9
+夜魂游身的试炼	ye hun you shen de shi lian	9
+夜魂气力的试炼	ye hun qi li de shi lian	9
+夜魂精准的试炼	ye hun jing zhun de shi lian	9
+科西霍	ke xi huo	9
+异色三连星	yi se san lian xing	9
+海浪中的莎孚	hai lang zhong de sha fu	9
+巴拉奇科	ba la qi ke	9
+溯流大灵显化身	su liu da ling xian hua shen	9
+流刃勇士掷叉猎手	liu ren yong shi zhi cha lie shou	9
+流刃勇士锯脂者	liu ren yong shi ju zhi zhe	9
+流刃勇士游击人	liu ren yong shi you ji ren	9
+鳍游龙	qi you long	9
+幼鳍游龙	you qi you long	9
+疾叶大灵显化身	ji ye da ling xian hua shen	9
+疾迅勇士重刃讯使	ji xun yong shi zhong ren xun shi	9
+疾迅勇士引索客	ji xun yong shi yin suo ke	9
+疾迅勇士荡风斥候	ji xun yong shi dang feng chi hou	9
+匿叶龙	ni ye long	9
+幼匿叶龙	you ni ye long	9
+窟岩大灵显化身	ku yan da ling xian hua shen	9
+铸砂勇士碎盾者	zhu sha yong shi sui dun zhe	9
+铸砂勇士叩问人	zhu sha yong shi kou wen ren	9
+铸砂勇士投矛手	zhu sha yong shi tou mao shou	9
+嵴锋龙	ji feng long	9
+幼嵴锋龙	you ji feng long	9
+秘源机兵寻捕械	mi yuan ji bing xun bu xie	9
+熔岩游像流燃体	rong yan you xiang liu ran ti	9
+熔岩游像蚀土者	rong yan you xiang shi tu zhe	9
+贪食匿叶龙山王	tan shi ni ye long shan wang	9
+金焰绒翼龙暴君	jin yan rong yi long bao jun	9
+西尼阿斯	xi ni a si	9
+魔像督军	mo xiang du jun	9
+魔像禁卫	mo xiang jin wei	9
+神神秘秘大大丘丘	shen shen mi mi da da qiu qiu	9
+珊瑚宫众	shan hu gong zhong	9
+幕府足轻头	mu fu zu qing tou	9
+幕府足轻	mu fu zu qing	9
+千岩军教头	qian yan jun jiao tou	9
+千岩军士兵	qian yan jun shi bing	9
+隐山猊兽	yin shan ni shou	9
+赤璋巡岳府君	chi zhang xun yue fu jun	9
+玄文兽	xuan wen shou	9
+水形幻人	shui xing huan ren	9
+吞星之鲸	tun xing zhi jing	9
+罗基艾威尔森	luo ji ai wei er sen	9
+利亚姆	li ya mu	9
+寄骑武士	ji qi wu shi	9
+跋掣	ba che	9
+尘世七执政雷之神	chen shi qi zhi zheng lei zhi shen	9
+帽子水母	mao zi shui mu	9
+天使海兔	tian shi hai tu	9
+泡泡海马	pao pao hai ma	9
+球球章鱼	qiu qiu zhang yu	9
+猎刀鳐	lie dao yao	9
+膨膨兽	peng peng shou	9
+重甲蟹	zhong jia xie	9
+愚人众风役人	yu ren zhong feng yi ren	9
+愚人众霜役人	yu ren zhong shuang yi ren	9
+机关深海攻击型	ji guan shen hai gong ji xing	9
+以索忒	yi suo te	9
+极彩的露珂菈	ji cai de lou ke la	9
+千年珍珠骏麟	qian nian zhen zhu jun lin	9
+狂蔓隙境原体	kuang man xi jing yuan ti	9
+碎石隙境原体	sui shi xi jing yuan ti	9
+大型狂蔓隙境原体	da xing kuang man xi jing yuan ti	9
+大型碎石隙境原体	da xing sui shi xi jing yuan ti	9
+湖畔的维维安涅	hu pan de wei wei an nie	9
+湖畔的尼尼安涅	hu pan de ni ni an nie	9
+大天使海兔	da tian shi hai tu	9
+泡泡雄海马	pao pao xiong hai ma	9
+浊水粉碎幻灵	zhuo shui fen sui huan ling	9
+浊水喷吐幻灵	zhuo shui pen tu huan ling	9
+坚盾重甲蟹	jian dun zhong jia xie	9
+机关侦察记录型	ji guan zhen cha ji lu xing	9
+机关水下巡游型	ji guan shui xia xun you xing	9
+机关地质勘探型	ji guan di zhi kan tan xing	9
+机关水下勘测型	ji guan shui xia kan ce xing	9
+机关灵活采集型	ji guan ling huo cai ji xing	9
+机关区域警戒型	ji guan qu yu jing jie xing	9
+机关算力增幅器	ji guan suan li zeng fu qi	9
+建造特化型机关	jian zao te hua xing ji guan	9
+攻坚特化型机关	gong jian te hua xing ji guan	9
+压制特化型机关	ya zhi te hua xing ji guan	9
+歼灭特化型机关	jian mie te hua xing ji guan	9
+铁甲熔火帝皇	tie jia rong huo di huang	9
+深罪浸礼者	shen zui jin li zhe	9
+圣骸牙兽	sheng hai ya shou	9
+圣骸角鳄	sheng hai jiao e	9
+丘丘水行游侠	qiu qiu shui xing you xia	9
+丘丘风行游侠	qiu qiu feng xing you xia	9
+深渊使徒霜落	shen yuan shi tu shuang luo	9
+黑蛇骑士摧岩之钺	hei she qi shi cui yan zhi yue	9
+魔偶剑鬼孤风	mo ou jian gui gu feng	9
+魔偶剑鬼霜驰	mo ou jian gui shuang chi	9
+魔偶剑鬼凶面	mo ou jian gui xiong mian	9
+圣骸毒蝎	sheng hai du xie	9
+圣骸飞蛇	sheng hai fei she	9
+圣骸赤鹫	sheng hai chi jiu	9
+风蚀沙虫	feng shi sha chong	9
+镀金旅团叶轮舞者	du jin lv tuan ye lun wu zhe	9
+无相之草扎因	wu xiang zhi cao zha yin	9
+浮游风蕈兽	fu you feng xun shou	9
+伸缩雷蕈兽	shen suo lei xun shou	9
+旋转火蕈兽	xuan zhuan huo xun shou	9
+陆行岩本真蕈	liu xing yan ben zhen xun	9
+元能构装体重塑仪	yuan neng gou zhuang ti chong su yi	9
+元能构装体勘探机	yuan neng gou zhuang ti kan tan ji	9
+镀金旅团魔岩役使	du jin lv tuan mo yan yi shi	9
+镀金旅团灵风猎手	du jin lv tuan ling feng lie shou	9
+兆载永劫龙兽	zhao zai yong jie long shou	9
+半永恒统辖矩阵	ban yong heng tong xia ju zhen	9
+遗迹龙兽空巡	yi ji long shou kong xun	9
+遗迹龙兽地巡	yi ji long shou de xun	9
+翠翎恐蕈	cui ling kong xun	9
+掣电树	che dian shu	9
+陆行水本真蕈	liu xing shui ben zhen xun	9
+旋转冰蕈兽	xuan zhuan bing xun shou	9
+浮游草蕈兽	fu you cao xun shou	9
+伸缩风蕈兽	shen suo feng xun shou	9
+伸缩火蕈兽	shen suo huo xun shou	9
+旋转雷蕈兽	xuan zhuan lei xun shou	9
+伸缩岩蕈兽	shen suo yan xun shou	9
+有翼草本真蕈	you yi cao ben zhen xun	9
+有翼冰本真蕈	you yi bing ben zhen xun	9
+镀金旅团机弩兵	du jin lv tuan ji nu bing	9
+镀金旅团阵前斧手	du jin lv tuan zhen qian fu shou	9
+镀金旅团刀舞者	du jin lv tuan dao wu zhe	9
+镀金旅团破阵者	du jin lv tuan po zhen zhe	9
+镀金旅团炽阳凝冰	du jin lv tuan chi yang ning bing	9
+镀金旅团白日鸣雷	du jin lv tuan bai ri ming lei	9
+镀金旅团沙中净水	du jin lv tuan sha zhong jing shui	9
+镀金旅团鸦喙戟手	du jin lv tuan ya hui ji shou	9
+草飘浮灵	cao piao fu ling	9
+黑蛇骑士斩风之剑	hei she qi shi zhan feng zhi jian	9
+浮游水蕈兽	fu you shui xun shou	9
+遗迹巨蛇	yi ji ju she	9
+黯色空壳旗令	an se kong ke qi ling	9
+黯色空壳近卫	an se kong ke jin wei	9
+黯色空壳破阵	an se kong ke po zhen	9
+祸津御建鸣神命	huo jin yu jian ming shen ming	9
+深海龙蜥原种	shen hai long xi yuan zhong	9
+深海龙蜥吞雷	shen hai long xi tun lei	9
+深渊咏者渊火	shen yuan yong zhe yuan huo	9
+火飘浮灵	huo piao fu ling	9
+冰飘浮灵	bing piao fu ling	9
+深海龙蜥啮冰	shen hai long xi nie bing	9
+深海龙蜥之群	shen hai long xi zhi qun	9
+雷飘浮灵	lei piao fu ling	9
+魔花	mo hua	9
+黄金王兽	huang jin wang shou	9
+嗜岩兽境幼兽	shi yan shou jing you shou	9
+嗜雷兽境幼兽	shi lei shou jing you shou	9
+嗜岩兽境猎犬	shi yan shou jing lie quan	9
+嗜雷兽境猎犬	shi lei shou jing lie quan	9
+岩飘浮灵	yan piao fu ling	9
+风飘浮灵	feng piao fu ling	9
+水飘浮灵	shui piao fu ling	9
+雷音权现	lei yin quan xian	9
+无相之水希伊	wu xiang zhi shui xi yi	9
+雷弹丘丘人	lei dan qiu qiu ren	9
+野伏火付番	ye fu huo fu fan	9
+野伏机巧番	ye fu ji qiao fan	9
+野伏阵刀番	ye fu zhen dao fan	9
+愚人众藏镜仕女	yu ren zhong cang jing shi nv	9
+雷斧丘丘暴徒	lei fu qiu qiu bao tu	9
+遗迹侦察者	yi ji zhen cha zhe	9
+遗迹防卫者	yi ji fang wei zhe	9
+无相之火亚因	wu xiang zhi huo ya yin	9
+恒常机关阵列	heng chang ji guan zhen lie	9
+遗迹巡弋者	yi ji xun yi zhe	9
+遗迹歼击者	yi ji jian ji zhe	9
+丘丘雷兜王	qiu qiu lei dou wang	9
+雷丘丘萨满	lei qiu qiu sa man	9
+雷深渊法师	lei shen yuan fa shi	9
+海乱鬼炎威	hai luan gui yan wei	9
+海乱鬼雷腾	hai luan gui lei teng	9
+电气骗骗花	dian qi pian pian hua	9
+魔偶剑鬼	mo ou jian gui	9
+深渊咏者紫电	shen yuan yong zhe zi dian	9
+若陀龙王	ruo tuo long wang	9
+无相之冰塔勒特	wu xiang zhi bing ta le te	9
+深渊使徒激流	shen yuan shi tu ji liu	9
+洛蒂娅的愤怒	luo di ya de fen nu	9
+古岩龙蜥	gu yan long xi	9
+岩龙蜥	yan long xi	9
+自律守护机关	zi lv shou hu ji guan	9
+丘丘霜铠王	qiu qiu shuang kai wang	9
+冰萤	bing ying	9
+愚人众冰萤术士	yu ren zhong bing ying shu shi	9
+冰弹丘丘人	bing dan qiu qiu ren	9
+冰盾丘丘人	bing dun qiu qiu ren	9
+冰盾丘丘暴徒	bing dun qiu qiu bao tu	9
+冰丘丘萨满	bing qiu qiu sa man	9
+遗迹重机	yi ji zhong ji	9
+奇怪的丘丘人	qi guai de qiu qiu ren	9
+炽热骗骗花	chi re pian pian hua	9
+冰霜骗骗花	bing shuang pian pian hua	9
+爆炎树	bao yan shu	9
+幼岩龙蜥	you yan long xi	9
+纯水精灵洛蒂娅	chun shui jing ling luo di ya	9
+急冻树	ji dong shu	9
+雷萤	lei ying	9
+水萤	shui ying	9
+岩史莱姆	yan shi lai mu	9
+冰史莱姆	bing shi lai mu	9
+草史莱姆	cao shi lai mu	9
+雷史莱姆	lei shi lai mu	9
+风史莱姆	feng shi lai mu	9
+水史莱姆	shui shi lai mu	9
+火史莱姆	huo shi lai mu	9
+盗宝团冰之药剂师	dao bao tuan bing zhi yao ji shi	9
+盗宝团火之药剂师	dao bao tuan huo zhi yao ji shi	9
+盗宝团雷之药剂师	dao bao tuan lei zhi yao ji shi	9
+盗宝团水之药剂师	dao bao tuan shui zhi yao ji shi	9
+盗宝团海上男儿	dao bao tuan hai shang nan er	9
+盗宝团拳术家	dao bao tuan quan shu jia	9
+盗宝团杂工	dao bao tuan za gong	9
+盗宝团神射手	dao bao tuan shen she shou	9
+盗宝团掘墓者	dao bao tuan jue mu zhe	9
+盗宝团斥候	dao bao tuan chi hou	9
+盗宝团粉碎者	dao bao tuan fen sui zhe	9
+草丘丘萨满	cao qiu qiu sa man	9
+射手丘丘人	she shou qiu qiu ren	9
+岩丘丘萨满	yan qiu qiu sa man	9
+风丘丘萨满	feng qiu qiu sa man	9
+水丘丘萨满	shui qiu qiu sa man	9
+冰箭丘丘人	bing jian qiu qiu ren	9
+火箭丘丘人	huo jian qiu qiu ren	9
+雷箭丘丘人	lei jian qiu qiu ren	9
+丘丘人	qiu qiu ren	9
+打手丘丘人	da shou qiu qiu ren	9
+木盾丘丘人	mu dun qiu qiu ren	9
+岩盾丘丘人	yan dun qiu qiu ren	9
+冲锋丘丘人	chong feng qiu qiu ren	9
+爆弹丘丘人	bao dan qiu qiu ren	9
+丘丘岩盔王	qiu qiu yan kui wang	9
+火斧丘丘暴徒	huo fu qiu qiu bao tu	9
+遗迹守卫	yi ji shou wei	9
+遗迹猎者	yi ji lie zhe	9
+无相之岩基末尔	wu xiang zhi yan ji mo er	9
+北风的王狼	bei feng de wang lang	9
+裂空的魔龙	lie kong de mo long	9
+无相之风贝特	wu xiang zhi feng bei te	9
+狂风之核	kuang feng zhi he	9
+无相之雷阿莱夫	wu xiang zhi lei a lai fu	9
+岩盾丘丘暴徒	yan dun qiu qiu bao tu	9
+愚人众雷萤术士	yu ren zhong lei ying shu shi	9
+火深渊法师	huo shen yuan fa shi	9
+冰深渊法师	bing shen yuan fa shi	9
+水深渊法师	shui shen yuan fa shi	9
+木盾丘丘暴徒	mu dun qiu qiu bao tu	9
+荒坠的圣迹	huang zhui de sheng ji	9
+逆悬的冰河	ni xuan de bing he	9
+妄念的创痕	wang nian de chuang hen	9
+万有涅槃缚境	wan you nie pan fu jing	9
+山风的荆冕	shan feng de jing mian	9
+赝月的研究所	yan yue de yan jiu suo	9
+月童的库藏	yue tong de ku cang	9
+无光的深都	wu guang de shen dou	9
+失落的月庭	shi luo de yue ting	9
+霜凝的机枢	shuang ning de ji shu	9
+荒废砌造坞	huang fei qi zao wu	9
+碑碣的记录	bei jie de ji lu	9
+蕴火的幽墟	yun huo de you xu	9
+虹灵的净土	hong ling de jing tu	9
+深古瞭望所	shen gu liao wang suo	9
+零落丘墟	ling luo qiu xu	9
+褪色的剧场	tui se de ju chang	9
+临瀑之城	lin pu zhi cheng	9
+异界余影	yi jie yu ying	9
+罪祸的终末	zui huo de zhong mo	9
+苍白的遗荣	cang bai de yi rong	9
+深潮的余响	shen chao de yu xiang	9
+肇始之乡	zhao shi zhi xiang	9
+净罪之井	jing zui zhi jing	9
+地中的香海	de zhong de xiang hai	9
+熔铁的孤塞	rong tie de gu sai	9
+五绿洲之殿堂	wu lv zhou zhi dian tang	9
+赤金的城墟	chi jin de cheng xu	9
+净琉璃工坊	jing liu li gong fang	9
+千柱的花园	qian zhu de hua yuan	9
+蜃景祭场	shen jing ji chang	9
+赤沙之槛	chi sha zhi kan	9
+晴雨的经纬	qing yu de jing wei	9
+河谷的黯道	he gu de an dao	9
+童梦的切片	tong meng de qie pian	9
+伞盖的荫蔽	san gai de yin bi	9
+有顶塔	you ding ta	9
+昏识塔	hun shi ta	9
+缘觉塔	yuan jue ta	9
+岩中幽谷	yan zhong you gu	9
+梦想乐土之殁	meng xiang le tu zhi mo	9
+沉眠之庭	chen mian zhi ting	9
+茂知之壳	mao zhi zhi ke	9
+鸣神岛天守	ming shen dao tian shou	9
+池中宅邸	chi zhong zhai di	9
+千门虚舟	qian men xu zhou	9
+借景之馆	jie jing zhi guan	9
+阵代屋敷	zhen dai wu fu	9
+椛染之庭	hua ran zhi ting	9
+砂流之庭	sha liu zhi ting	9
+菫色之庭	jin se zhi ting	9
+山脊守望	shan ji shou wang	9
+鹰之门	ying zhi men	9
+西风之鹰的庙宇	xi feng zhi ying de miao yu	9
+北风之狼的庙宇	bei feng zhi lang de miao yu	9
+南风之狮的庙宇	nan feng zhi shi de miao yu	9
+芬德尼尔之顶	fen de ni er zhi ding	9
+华清归藏密宫	hua qing gui cang mi gong	9
+墟散人离之处	xu san ren li zhi chu	9
+曲径通幽之处	qu jing tong you zhi chu	9
+地脉衍出藏金之花	di mai yan chu cang jin zhi hua	9
+地脉衍出启示之花	di mai yan chu qi shi zhi hua	9
+深入风龙废墟	shen ru feng long fei xu	9
+华池岩岫	hua chi yan xiu	9
+无妄引咎密宫	wu wang yin jiu mi gong	9
+孤云凌霄之处	gu yun ling xiao zhi chu	9
+铭记之谷	ming ji zhi gu	9
+仲夏庭园	zhong xia ting yuan	9
+太山府	tai shan fu	9
+震雷连山密宫	zhen lei lian shan mi gong	9
+塞西莉亚苗圃	sai xi li ya miao pu	9
+忘却之峡	wang que zhi xia	9
+魔神	mo shen	9
+冬契军	dong qi jun	9
+魔女会	mo nv hui	9
+雪国的妖精	xue guo de yao jing	9
+愚人众	yu ren zhong	9
+霜月之子	shuang yue zhi zi	9
+冒险家协会	mao xian jia xie hui	9
+皇家能源协会	huang jia neng yuan xie hui	9
+皇家轨道运输局	huang jia gui dao yun shu ju	9
+自然哲学学院	zi ran zhe xue xue yuan	9
+水仙十字结社	shui xian shi zi jie she	9
+水仙十字院	shui xian shi zi yuan	9
+梅洛彼得堡	mei luo bi de bao	9
+龙族	long zu	9
+天使	tian shi	9
+镀金旅团	du jin lv tuan	9
+教令院	jiao ling yuan	9
+沫芒宫	mo mang gong	9
+八重堂	ba chong tang	9
+鹤观	he guan	9
+白夜国	bai ye guo	9
+花灵	hua ling	9
+枫丹科学院	feng dan ke xue yuan	9
+纳塔六部族	na ta liu bu zu	9
+珊瑚宫	shan hu gong	9
+兰那罗	lan na luo	9
+三眼五显仙人	san yan wu xian xian ren	9
+西风教会	xi feng jiao hui	9
+评定所三奉行	ping ding suo san feng xing	9
+七星八门	qi xing ba men	9
+美露莘	mei lu shen	9
+伏尼契商会	fu ni qi shang hui	9
+叮铃哐啷蛋卷工坊	ding ling kuang lang dan juan gong fang	9
+执灯人	zhi deng ren	9
+深渊教团	shen yuan jiao tuan	9
+盗宝团	dao bao tuan	9
+西风骑士团	xi feng qi shi tuan	9
+仙茗酥	xian ming su	9
+莫尔斯果酿	mo er si guo niang	9
+冰淇淋	bing qi lin	9
+雪原上的雪球花	xue yuan shang de xue qiu hua	9
+雪国冷汤	xue guo leng tang	9
+冰醋栗冰淇淋	bing cu li bing qi lin	9
+格鲁波夫黑列巴	ge lu bo fu hei lie ba	9
+鱼鱼刨花	yu yu bao hua	9
+至冬烤串	zhi dong kao chuan	9
+千层蜂蜜糕	qian ceng feng mi gao	9
+凛冬冰酿	lin dong bing niang	9
+格瓦斯	ge wa si	9
+香料蜂蜜饮	xiang liao feng mi yin	9
+红菜汤	hong cai tang	9
+罐罐焖肉	guan guan men rou	9
+老庭院熏肠	lao ting yuan xun chang	9
+茶会序曲系列	cha hui xu qu xi lie	9
+肉馅黑麦包	rou xian hei mai bao	9
+桦木蒸肋排	hua mu zheng lei pai	9
+薄荷泡泡糖	bo he pao pao tang	9
+肉末酿豆腐	rou mo niang dou fu	9
+早安风车镇	zao an feng che zhen	9
+海港鱼鱼堡	hai gang yu yu bao	9
+淬金冷玉	cui jin leng yu	9
+穰穰瑞雪糕	rang rang rui xue gao	9
+香炸春卷	xiang zha chun juan	9
+花果草糖	hua guo cao tang	9
+蘑幻之菇	mo huan zhi gu	9
+蔬菜罐罐汤	shu cai guan guan tang	9
+篝火边的欢腾	gou huo bian de huan teng	9
+白灵果派	bai ling guo pai	9
+奶油鲑鱼汤	nai you gui yu tang	9
+野浆果之路	ye jiang guo zhi lu	9
+边陲之地	bian chui zhi di	9
+烟熏鱼排	yan xun yu pai	9
+浆果煎肉	jiang guo jian rou	9
+白灵果酿鸡	bai ling guo niang ji	9
+脆脆烤肉	cui cui kao rou	9
+糖雕	tang diao	9
+双果卷	shuang guo juan	9
+转盘特调	zhuan pan te tiao	9
+边地薄饼	bian di bao bing	9
+挪德卡莱热狗	nuo de ka lai re gou	9
+夏槲蛋糕	xia hu dan gao	9
+白灵蛋卷	bai ling dan juan	9
+今日收获	jin ri shou huo	9
+娜娜丝梨饼	na na si li bing	9
+小小阿夏包	xiao xiao a xia bao	9
+徐徐海风吹	xu xu hai feng chui	9
+虾肉浓汤	xia rou nong tang	9
+鲜奶珠珠派	xian nai zhu zhu pai	9
+九果甘露饮	jiu guo gan lu yin	9
+肉肉盛宴餐	rou rou sheng yan can	9
+贝壳彩糖	bei ke cai tang	9
+一捧绿野	yi peng lv ye	9
+白浪拂沙	bai lang bi sha	9
+鎏金殿堂	liu jin dian tang	9
+雾凇秋分	wu song qiu fen	9
+酪香蟹蟹锅	lao xiang xie xie guo	9
+沃陆果饮	wo liu guo yin	9
+粒果膨膨棒	li guo peng peng bang	9
+丰稔之赐	feng ren zhi ci	9
+酪烤菇菇串	lao kao gu gu chuan	9
+乌乌黑蛋	wu wu hei dan	9
+钱汤馒头	qian tang man tou	9
+梅落雪间醉	mei luo xue jian zui	9
+肉满满寿司	rou man man shou si	9
+炎岩之颂	yan yan zhi song	9
+清心花饼	qing xin hua bing	9
+奇瑰之汤	qi gui zhi tang	9
+山与海与天空	shan yu hai yu tian kong	9
+粒果裹裹	li guo guo guo	9
+纵声欢唱	zong sheng huan chang	9
+火山蛋糕	huo shan dan gao	9
+苦水	ku shui	9
+串烤牛心	chuan kao niu xin	9
+火焰炖肉	huo yan dun rou	9
+多彩之森	duo cai zhi sen	9
+粒果肉汤	li guo rou tang	9
+薄荷酱烤鱼	bo he jiang kao yu	9
+咚咚嘭嘭	dong dong peng peng	9
+宝石闪闪	bao shi shan shan	9
+夹心土豆泥	jia xin tu dou ni	9
+粒果片片	li guo pian pian	9
+粒果杯	li guo bei	9
+酸汁腌鱼	suan zhi yan yu	9
+兽肉旋风	shou rou xuan feng	9
+巧克力	qiao ke li	9
+温泉时光	wen quan shi guang	9
+奇旅馔匣	qi lv zhuan xia	9
+苹果卷卷	ping guo juan juan	9
+龙龙饼干	long long bing gan	9
+炸虾豆球	zha xia dou qiu	9
+塔塔可	ta ta ke	9
+烛伞蘑菇	zhu san mo gu	9
+魔术特调	mo shu te tiao	9
+酥酥羊角包	su su yang jiao bao	9
+膨膨冰淇淋	peng peng bing qi lin	9
+奶油炖鸡	nai you dun ji	9
+桔香鸭胸肉	ju xiang ya xiong rou	9
+泡泡舒芙蕾	pao pao shu fu lei	9
+宾至如归	bin zhi ru gui	9
+知足常乐	zhi zu chang le	9
+繁弦急管	fan xian ji guan	9
+金玉满堂	jin yu man tang	9
+八宝福禄鸭	ba bao fu lu ya	9
+古华鱼羊鲜	gu hua yu yang xian	9
+茶好月圆	cha hao yue yuan	9
+沉玉茶露	chen yu cha lou	9
+玉纹茶叶蛋	yu wen cha ye dan	9
+茶熏乳鸽	cha xun ru ge	9
+蜜汁叉烧	mi zhi cha shao	9
+红烧肉圆	hong shao rou yuan	9
+油爆双脆	you bao shuang cui	9
+千灵慕斯	qian ling mu si	9
+圈圈圆圆	quan quan yuan yuan	9
+缤纷马卡龙	bin fen ma ka long	9
+膨膨泡芙	peng peng pao fu	9
+致水神	zhi shui shen	9
+韦西鸡	wei xi ji	9
+咖啡芭芭露	ka fei ba ba lou	9
+杏仁鳟鱼	xing ren zun yu	9
+羊杂哈吉斯	yang za ha ji si	9
+香烤肋排	xiang kao lei pai	9
+桔桔薄饼	ju ju bao bing	9
+苹果黑布丁	ping guo hei bu ding	9
+卡苏莱砂锅	ka su lai sha guo	9
+纳博内番茄盅	na bo nei fan qie zhong	9
+百味一缕	bai wei yi lv	9
+港湾牛肚	gang wan niu du	9
+花果三重奏	hua guo san chong zou	9
+塔塞斯杂烩	ta sai si za hui	9
+鱼鱼咏唱派	yu yu yong chang pai	9
+生肉塔塔	sheng rou ta ta	9
+果果仙酪	guo guo xian lao	9
+双果清露	shuang guo qing lu	9
+浮露白霜	fu lou bai shuang	9
+晶螺糕	jing luo gao	9
+果果软糖	guo guo ruan tang	9
+炸鱼薯条	zha yu shu tiao	9
+枫丹洋葱汤	feng dan yang cong tang	9
+蒜香面包棍	suan xiang mian bao gun	9
+白淞鲜汤	bai song xian tang	9
+枫丹肥肝	feng dan fei gan	9
+奶油蘑菇汤	nai you mo gu tang	9
+肉酱千层面	rou jiang qian ceng mian	9
+水乡肉冻	shui xiang rou dong	9
+油封鸭腿	you feng ya tui	9
+泡泡桔	pao pao ju	9
+枫达	feng da	9
+脆饼珐提	cui bing fa ti	9
+琼玉果汤	qiong yu guo tang	9
+超级至尊披萨	chao ji zhi zun pi sa	9
+薄荷曼果茶	bo he man guo cha	9
+蜜金泡果	mi jin pao guo	9
+镀金锅	du jin guo	9
+鳄鱼肉干	e yu rou gan	9
+萨布兹炖肉	sa bu zi dun rou	9
+秘香肉团	mi xiang rou tuan	9
+萨巴桑炸角	sa ba sang zha jiao	9
+奶酱鲜鱼	nai jiang xian yu	9
+唐杜尔烤鸡	tang du er kao ji	9
+土豆船	tu dou chuan	9
+蔷薇奶糊	qiang wei nai hu	9
+气泡酸莓汁	qi pao suan mei zhi	9
+兽米香香	shou mi xiang xiang	9
+枣椰蜜糖	zao ye mi tang	9
+假日果酿	jia ri guo niang	9
+帕蒂沙兰布丁	pa di sha lan bu ding	9
+千层酥酥	qian ceng su su	9
+椰炭饼	ye tan bing	9
+阿如拌饭	a ru ban fan	9
+米圆塔	mi yuan ta	9
+马萨拉芝士球	ma sa la zhi shi qiu	9
+雨林沙拉	yu lin sha la	9
+杂菇荟萃	za gu hui cui	9
+肉肉烤蘑菇披萨	rou rou kao mo gu pi sa	9
+日落莓莓茶	ri luo mei mei cha	9
+奶香菌菇脆塔	nai xiang jun gu cui ta	9
+口袋饼	kou dai bing	9
+丛林精油	cong lin jing you	9
+治草药剂	zhi cao yao ji	9
+黄油鸡	huang you ji	9
+兰巴德鱼卷	lan ba de yu juan	9
+烤肉卷	kao rou juan	9
+薄荷豆汤	bo he dou tang	9
+绿汁脆球	lv zhi cui qiu	9
+咖喱虾	ga li xia	9
+紫苑云霓	zi yuan yun ni	9
+星蕈	xing xun	9
+炸肉排三明治	zha rou pai san ming zhi	9
+乌冬面	wu dong mian	9
+山家烧	shan jia shao	9
+丰年有余	feng nian you yu	9
+龙须面	long xu mian	9
+团子牛奶	tuan zi niu nai	9
+绯樱虾仙贝	fei ying xia xian bei	9
+鳗肉茶泡饭	man rou cha pao fan	9
+五宝腌菜	wu bao yan cai	9
+鲜鱼炖萝卜	xian yu dun luo bo	9
+树莓水馒头	shu mei shui man tou	9
+若竹煮	ruo zhu zhu	9
+荞麦面	qiao mai mian	9
+刺身拼盘	ci shen pin pan	9
+蛋包饭	dan bao fan	9
+甜虾寿司	tian xia shou si	9
+鸟蛋寿司	niao dan shou si	9
+多多烧	duo duo shao	9
+日落鲷鱼烧	ri luo diao yu shao	9
+蒲烧鳗肉	pu shao man rou	9
+辣肉窝窝头	la rou wo wo tou	9
+活力喵饭	huo li miao fan	9
+文心豆腐	wen xin dou fu	9
+红烩兽肉	hong hui shou rou	9
+米饭布丁	mi fan bu ding	9
+黄油蟹蟹	huang you xie xie	9
+市井杂煮	shi jing za zhu	9
+渡来禽肉	du lai qin rou	9
+串串三味	chuan chuan san wei	9
+绯樱饼	fei ying bing	9
+干烧香鱼	gan shao xiang yu	9
+金枪鱼寿司	jin qiang yu shou si	9
+三彩团子	san cai tuan zi	9
+渔人吐司	yu ren tu si	9
+松茸酿肉卷	song rong niang rou juan	9
+鸟蛋烧	niao dan shao	9
+味噌汤	wei ceng tang	9
+什锦炒面	shi jin chao mian	9
+兽骨拉面	shou gu la mian	9
+饭团	fan tuan	9
+绀田煮	gan tian zhu	9
+绯樱天妇罗	fei ying tian fu luo	9
+蟹黄壳壳烧	xie huang ke ke shao	9
+鸡豆花	ji dou hua	9
+清炒虾仁	qing chao xia ren	9
+米窝窝	mi wo wo	9
+干炒鱼河	gan chao yu he	9
+干锅腊肉	gan guo la rou	9
+蟹黄豆腐	xie huang dou fu	9
+大黄金吮指鸡	da huang jin shun zhi ji	9
+脆脆鸡腿堡	cui cui ji tui bao	9
+香浓土豆泥	xiang nong tu dou ni	9
+鲜虾脆薯盏	xian xia cui shu zhan	9
+薄荷果冻	bo he guo dong	9
+凉拌薄荷	liang ban bo he	9
+兽肉薄荷卷	shou rou bo he juan	9
+岩港三鲜	yan gang san xian	9
+明月蛋	ming yue dan	9
+素鲍鱼	su bao yu	9
+黄油煎鱼	huang you jian yu	9
+绝云锅巴	jue yun guo ba	9
+四方和平	si fang he ping	9
+稠汁蔬菜炖肉	chou zhi shu cai dun rou	9
+天枢肉	tian shu rou	9
+月亮派	yue liang pai	9
+冒险家蛋堡	mao xian jia dan bao	9
+莲花酥	lian hua su	9
+腌笃鲜	yan du xian	9
+扣三丝	kou san si	9
+北地苹果焖肉	bei di ping guo men rou	9
+圣水	sheng shui	9
+黄金蟹	huang jin xie	9
+大碗茶	da wan cha	9
+冰钩钩果汁	bing gou gou guo zhi	9
+苹果酿	ping guo niang	9
+树莓薄荷饮	shu mei bo he yin	9
+山珍热卤面	shan zhen re lu mian	9
+仙跳墙	xian tiao qiang	9
+松鼠鱼	song shu yu	9
+日落果	ri luo guo	9
+来来菜	lai lai cai	9
+水晶虾	shui jing xia	9
+金丝虾球	jin si xia qiu	9
+莲子禽蛋羹	lian zi qin dan geng	9
+风神杂烩菜	feng shen za hui cai	9
+轻策农家菜	qing ce nong jia cai	9
+烤吃虎鱼	kao chi hu yu	9
+苹果	ping guo	9
+水煮黑背鲈	shui zhu hei bei lu	9
+中原杂碎	zhong yuan za sui	9
+惊雷精油	jing lei jing you	9
+绝缘药剂	jue yuan yao ji	9
+防尘药剂	fang chen yao ji	9
+防风药剂	fang feng yao ji	9
+杏仁豆腐	xing ren dou fu	9
+珍珠翡翠白玉汤	zhen zhu fei cui bai yu tang	9
+耐寒药剂	nai han yao ji	9
+防潮药剂	fang chao yao ji	9
+耐热药剂	nai re yao ji	9
+狂风精油	kuang feng jing you	9
+霜劫精油	shuang jie jing you	9
+激流精油	ji liu jing you	9
+磐石精油	pan shi jing you	9
+烈火精油	lie huo jing you	9
+香嫩椒椒鸡	xiang nen jiao jiao ji	9
+摩拉肉	mo la rou	9
+爆炒肉片	bao chao rou pian	9
+翡玉什锦袋	fei yu shi jin dai	9
+蒙德烤鱼	meng de kao yu	9
+野菇鸡肉串	ye gu ji rou chuan	9
+甜甜花酿鸡	tian tian hua niang ji	9
+冷肉拼盘	leng rou pin pan	9
+烤肉排	kao rou pai	9
+烤蘑菇披萨	kao mo gu pi sa	9
+火火肉酱面	huo huo rou jiang mian	9
+萝卜时蔬汤	luo bo shi shu tang	9
+蒙德土豆饼	meng de tu dou bing	9
+提瓦特煎蛋	ti wa te jian dan	9
+庄园烤松饼	zhuang yuan kao song bing	9
+白汁时蔬烩肉	bai zhi shi shu hui rou	9
+炸萝卜丸子	zha luo bo wan zi	9
+黄油松茸	huang you song rong	9
+蜜酱胡萝卜煎肉	mi jiang hu luo bo jian rou	9
+北地烟熏鸡	bei di yan xun ji	9
+嘟嘟莲海鲜羹	du du lian hai xian geng	9
+满足沙拉	man zu sha la	9
+蟹黄火腿焗时蔬	xie huang huo tui ju shi shu	9
+吞吞鲸	tun tun jing	9
+迷你列车难题	mi ni lie che nan ti	9
+蓝砚赠与的符策	lan yan zeng yu de fu ce	9
+沃雅妮莎的礼物	wo ya ni sha de li wu	9
+青翦垂缨	qing jian chui ying	9
+香菱寄来的信	xiang ling ji lai de xin	9
+特使勋章	te shi xun zhang	9
+高级权限卡	gao ji quan xian ka	9
+游离者的裂甲	you li zhe de lie jia	9
+失落的远古之花	shi luo de yuan gu zhi hua	9
+围巾梦星	wei jin meng xing	9
+围巾趣托	wei jin qu tuo	9
+围巾格纹	wei jin ge wen	9
+围巾暖红	wei jin nuan hong	9
+帽子趣顶	mao zi qu ding	9
+帽子好桶	mao zi hao tong	9
+帽子礼貌	mao zi li mao	9
+帽子尖尖	mao zi jian jian	9
+黑雪鹄签名海报	hei xue hu qian ming hai bao	9
+白羽书签	bai yu shu qian	9
+黑雪鹄纪念册	hei xue hu ji nian ce	9
+奥黛塔的演出照	ao dai ta de yan chu zhao	9
+影域保管库权限卡	ying yu bao guan ku quan xian ka	9
+冰之印	bing zhi yin	9
+蜂蜜	feng mi	9
+闪烁饵	shan shuo er	9
+锋曳星迹蕴辉空印	feng ye xing ji yun hui kong yin	9
+冰之寻宝罗盘	bing zhi xun bao luo pan	9
+影生翼滴	ying sheng yi di	9
+雪精研究室的钥匙	xue jing yan jiu shi de yao shi	9
+猫粮	mao liang	9
+奇怪的卡片	qi guai de ka pian	9
+晶结蕴藏的卵石	jing jie yun cang de luan shi	9
+藻如蛇影的卵石	zao ru she ying de luan shi	9
+升降梯控制轮	sheng jiang ti kong zhi lun	9
+雷殛细枝	lei ji xi zhi	9
+冰结如心的卵石	bing jie ru xin de luan shi	9
+金属控制轮	jin shu kong zhi lun	9
+蓝钥匙	lan yao shi	9
+赤钥匙	chi yao shi	9
+白钥匙	bai yao shi	9
+形制古老的钥匙	xing zhi gu lao de yao shi	9
+缺型数据块	que xing shu ju kuai	9
+纹路精巧的纽扣	wen lu jing qiao de niu kou	9
+雪杨木	xue yang mu	9
+白桦木	bai hua mu	9
+落叶松木	luo ye song mu	9
+青榉木	qing ju mu	9
+至冬地灵龛之钥	zhi dong de ling kan zhi yao	9
+灵生盘枝心	ling sheng pan zhi xin	9
+源生嵌合体	yuan sheng qian he ti	9
+灵生空根	ling sheng kong gen	9
+灵生分蘖节	ling sheng fen nie jie	9
+嵌合种	qian he zhong	9
+并生嵌合胞	bing sheng qian he bao	9
+幻造裂晶	huan zao lie jing	9
+幻造晶鳞石	huan zao jing lin shi	9
+幻造萤屑	huan zao ying xie	9
+冰星果	bing xing guo	9
+游空之物的断尾	you kong zhi wu de duan wei	9
+幽光萤石	you guang ying shi	9
+冰醋栗	bing cu li	9
+红甜菜	hong tian cai	9
+沉积残片	chen ji can pian	9
+沉积结块	chen ji jie kuai	9
+沉积增生物	chen ji zeng sheng wu	9
+焰中不灭花枝	yan zhong bu mie hua zhi	9
+雪球花	xue qiu hua	9
+散失的冰神瞳	san shi de bing shen tong	9
+金蕨	jin jue	9
+苍星军势的始动	cang xing jun shi de shi dong	9
+苍星军势的集结	cang xing jun shi de ji jie	9
+植绒草	zhi rong cao	9
+霜仙花	shuang xian hua	9
+凛雪帝皇的辞决	lin xue di huang de ci jue	9
+凛雪帝皇的悲恤	lin xue di huang de bei xu	9
+凛雪帝皇的庆仪	lin xue di huang de qing yi	9
+凛雪帝皇的复生	lin xue di huang de fu sheng	9
+藏窖灵浆的恣意	cang jiao ling jiang de zi yi	9
+藏窖灵浆的酩酊	cang jiao ling jiang de ming ding	9
+藏窖灵浆的酣畅	cang jiao ling jiang de han chang	9
+藏窖灵浆的斟酌	cang jiao ling jiang de zhen zhuo	9
+苍星军势的鸣令	cang xing jun shi de ming ling	9
+苍星军势的征服	cang xing jun shi de zheng fu	9
+月灵龛之钥	yue ling kan zhi yao	9
+霜月印磐	shuang yue yin pan	9
+秘源古月之源	mi yuan gu yue zhi yuan	9
+派蒙的抄写条	pai meng de chao xie tiao	9
+魔女的谕示匣	mo nv de yu shi xia	9
+无秽的月铁	wu hui de yue tie	9
+空竭的月铁	kong jie de yue tie	9
+残损的月铁	can sun de yue tie	9
+凝月泪滴	ning yue lei di	9
+打孔纸带	da kong zhi dai	9
+木簧笛	mu huang di	9
+异质的树髓	yi zhi de shu sui	9
+元能构装体零部件	yuan neng gou zhuang ti ling bu jian	9
+亵渎的新芽	xie du de xin ya	9
+赝作的树脂	yan zuo de shu zhi	9
+扭曲的枯枝	niu qu de ku zhi	9
+洛恩的工作报告	luo en de gong zuo bao gao	9
+丢失的气球	diu shi de qi qiu	9
+拼凑出的字条	pin cou chu de zi tiao	9
+经过甄选的月落银	jing guo zhen xuan de yue luo yin	9
+古蒙德宗室之印	gu meng de zong shi zhi yin	9
+摹忆因子	mo yi yin zi	9
+风息花	feng xi hua	9
+切片辖域寻宝罗盘	qie pian xia yu xun bao luo pan	9
+特制香水风息	te zhi xiang shui feng xi	9
+莉奈娅的博物图鉴	li nai ya de bo wu tu jian	9
+空羽蛾	kong yu e	9
+堕天的落羽	duo tian de luo yu	9
+失色的焰剑	shi se de yan jian	9
+残失的焰剑	can shi de yan jian	9
+宝饰的焰剑	bao shi de yan jian	9
+权限徽记	quan xian hui ji	9
+万能谈判道具	wan neng tan pan dao ju	9
+轻飘飘的摩拉	qing piao piao de mo la	9
+极富弹性的鱼肉	ji fu tan xing de yu rou	9
+寻迹留影机	xun ji liu ying ji	9
+法尔伽的请客券	fa er ga de qing ke quan	9
+谐律键琴	xie lv jian qin	9
+法尔伽的私房钱	fa er ga de si fang qian	9
+棱光的断尾	leng guang de duan wei	9
+由风捎来的信	you feng shao lai de xin	9
+灵气散尽的某物	ling qi san jin de mou wu	9
+霄灯飞阵谱	xiao deng fei zhen pu	9
+节庆霄灯	jie qing xiao deng	9
+节礼霄灯	jie li xiao deng	9
+忆识者的戏言	yi shi zhe de xi yan	9
+金钥匙	jin yao shi	9
+神秘的肉	shen mi de rou	9
+陈年的松果	chen nian de song guo	9
+陈年的黑麦	chen nian de hei mai	9
+铁钥匙	tie yao shi	9
+银钥匙	yin yao shi	9
+奇怪的铁钱	qi guai de tie qian	9
+银灯芯	yin deng xin	9
+遗落的钥匙	yi luo de yao shi	9
+新鲜的黑麦	xin xian de hei mai	9
+避难所密钥卡高阶	bi nan suo mi yao ka gao jie	9
+避难所密钥卡初阶	bi nan suo mi yao ka chu jie	9
+避难所密钥卡进阶	bi nan suo mi yao ka jin jie	9
+眷识者的哀慕	juan shi zhe de ai mu	9
+避难所备用手轮	bi nan suo bei yong shou lun	9
+冬凌草	dong ling cao	9
+松珀香	song po xiang	9
+深黯的怪核	shen an de guai he	9
+魇翼枯骸	yan yi ku hai	9
+深黯的钩喙	shen an de gou hui	9
+深黯的裂眼	shen an de lie yan	9
+狂人的约束	kuang ren de yue shu	9
+异端的瓶剂	yi duan de ping ji	9
+贤医的假面	xian yi de jia mian	9
+虹月印磐	hong yue yin pan	9
+练心	lian xin	9
+新鲜的绝云椒椒	xin xian de jue yun jiao jiao	9
+新鲜的小灯草	xin xian de xiao deng cao	9
+红色钩钩果	hong se gou gou guo	9
+情报整合册	qing bao zheng he ce	9
+小魔女辞典	xiao mo nv ci dian	9
+变成骡子的人	bian cheng luo zi de ren	9
+整理后的笔记	zheng li hou de bi ji	9
+开启通路的钥匙	kai qi tong lu de yao shi	9
+残旧的笔记	can jiu de bi ji	9
+玩具勋章	wan ju xun zhang	9
+已记载的情报	yi ji zai de qing bao	9
+奇域枢景球	qi yu shu jing qiu	9
+覆写秘钥	fu xie mi yao	9
+漫光的辉角	man guang de hui jiao	9
+旋翼浮空憩榻	xuan yi fu kong qi ta	9
+月谕之匣	yue yu zhi xia	9
+尤约拉猫	you yue la mao	9
+备份程序模组	bei fen cheng xu mo zu	9
+老旧的便携轴承	lao jiu de bian xie zhou cheng	9
+训练场的靶标	xun lian chang de ba biao	9
+奥妮的笔记	ao ni de bi ji	9
+爱诺的工具箱	ai nuo de gong ju xiang	9
+伊涅芙的工具箱	yi nie fu de gong ju xiang	9
+蛋卷螺栓	dan juan luo shuan	9
+海螺笔记本	hai luo bi ji ben	9
+谢苗的笔记	xie miao de bi ji	9
+被浸染的缨盔	bei jin ran de ying kui	9
+金色弦丝	jin se xian si	9
+无主的命星	wu zhu de ming xing	9
+织识者的倾醉	zhi shi zhe de qing zui	9
+月之寻宝罗盘	yue zhi xun bao luo pan	9
+未吹响的号角	wei chui xiang de hao jiao	9
+镌识者的鸦翎	juan shi zhe de ya ling	9
+谋识者的面影	mou shi zhe de mian ying	9
+备用部件	bei yong bu jian	9
+拉杆	la gan	9
+梅蒂的笔记	mei di de bi ji	9
+谧晖白枝	mi hui bai zhi	9
+梅蒂的欠条	mei di de qian tiao	9
+存有数据的卡带	cun you shu ju de ka dai	9
+恒月印磐	heng yue yin pan	9
+工具包	gong ju bao	9
+虹滴晶	hong di jing	9
+投资回报	tou zi hui bao	9
+投资券	tou zi quan	9
+不死者的哀铃	bu si zhe de ai ling	9
+清白饵	qing bai er	9
+槲梭饵	hu suo er	9
+榛木	zhen mu	9
+银冷杉木	yin leng sha mu	9
+桤木	qi mu	9
+夏栎木	xia li mu	9
+边域地灵龛之钥	bian yu de ling kan zhi yao	9
+散失的月神瞳	san shi de yue shen tong	9
+月之印	yue zhi yin	9
+夏槲果	xia hu guo	9
+酸奶油	suan nai you	9
+黑麦	hei mai	9
+白灵果	bai ling guo	9
+寒涌石	han yong shi	9
+宿影花	su ying hua	9
+黑麦粉	hei mai fen	9
+游逸旅账	you yi lv zhang	9
+奇巧秘器的残件	qi qiao mi qi de can jian	9
+奇巧秘器的继业	qi qiao mi qi de ji ye	9
+奇巧秘器的模本	qi qiao mi qi de mo ben	9
+月落银	yue luo yin	9
+霜盏花	shuang zhan hua	9
+便携轴承	bian xie zhou cheng	9
+霜镌的执凭	shuang juan de zhi ping	9
+毁损机轴	hui sun ji zhou	9
+加固机轴	jia gu ji zhou	9
+精致的执凭	jing zhi de zhi ping	9
+磨损的执凭	mo sun de zhi ping	9
+承光的鳞羽	cheng guang de lin yu	9
+失光块骨	shi guang kuai gu	9
+繁光躯外骸	fan guang qu wai hai	9
+稀光遗骼	xi guang yi ge	9
+幽雾片甲	you wu pian jia	9
+幽雾兜盔	you wu dou kui	9
+幽雾化形	you wu hua xing	9
+霜夜的煌荣	shuang ye de huang rong	9
+霜夜的柔辉	shuang ye de rou hui	9
+精制机轴	jing zhi ji zhou	9
+霜夜的残照	shuang ye de can zhao	9
+长夜燧火的残照	chang ye sui huo de can zhao	9
+长夜燧火的余烬	chang ye sui huo de yu jin	9
+奇巧秘器的真愿	qi qiao mi qi de zhen yuan	9
+长夜燧火的烈辉	chang ye sui huo de lie hui	9
+终北遗嗣的哀荣	zhong bei yi si de ai rong	9
+长夜燧火的明焰	chang ye sui huo de ming yan	9
+终北遗嗣的祷献	zhong bei yi si de dao xian	9
+终北遗嗣的迷顽	zhong bei yi si de mi wan	9
+终北遗嗣的煌熠	zhong bei yi si de huang yi	9
+与夜兰的留念合影	yu ye lan de liu nian he ying	9
+被腐蚀的残破笔记	bei fu shi de can po bi ji	9
+谁人的残破笔记	shui ren de can po bi ji	9
+奇异的螺栓	qi yi de luo shuan	9
+火之印	huo zhi yin	9
+钥匙	yao shi	9
+调查报告巴窟纳瓦	diao cha bao gao ba ku na wa	9
+调查报告烬寂海	diao cha bao gao jin ji hai	9
+调查报告秘密洞穴	diao cha bao gao mi mi dong xue	9
+综像勘录仪	zong xiang kan lu yi	9
+跃律琴	yue lv qin	9
+漫行者的晶髓	man xing zhe de jing sui	9
+悠悠纪念册	you you ji nian ce	9
+闪闪礼蛋菲耶蒂娜	shan shan li dan fei ye di na	9
+闪闪礼蛋飞澜鲨鲨	shan shan li dan fei lan sha sha	9
+闪闪礼蛋山之血	shan shan li dan shan zhi xue	9
+闪闪礼蛋圣龙君临	shan shan li dan sheng long jun lin	9
+提瓦特影册	ti wa te ying ce	9
+瑞安提的帽子	rui an ti de mao zi	9
+悠悠度假村地图	you you du jia cun di tu	9
+悠悠徽章	you you hui zhang	9
+渡火者的决绝	du huo zhe de jue jue	9
+新式终端浮叶型	xin shi zhong duan fu ye xing	9
+特训回顾	te xun hui gu	9
+魂梦残影	hun meng can ying	9
+启圣之尘	qi sheng zhi chen	9
+幽紫曜石环	you zi yao shi huan	9
+青绛曜石断片	qing jiang yao shi duan pian	9
+灼赤曜石环	zhuo chi yao shi huan	9
+青绛曜石环	qing jiang yao shi huan	9
+兰犍多的花	lan qian duo de hua	9
+星星碎片	xing xing sui pian	9
+兰拉娜的花	lan la na de hua	9
+采歌者的花	cai ge zhe de hua	9
+兰伽卢的花	lan ga lu de hua	9
+兰伊舍的花	lan yi she de hua	9
+兰利遮的花	lan li zhe de hua	9
+兰纳迦的花	lan na jia de hua	9
+兰迦鲁的花	lan jia lu de hua	9
+兰百梨迦的花	lan bai li jia de hua	9
+兰纳真的花	lan na zhen de hua	9
+兰那库拉的花	lan na ku la de hua	9
+兰般度的花	lan ban du de hua	9
+无名的花	wu ming de hua	9
+兰贡迪的花	lan gong di de hua	9
+兰拉迦的花	lan la jia de hua	9
+灼幽的磷焰	zhuo you de lin yan	9
+齿轮传动器	chi lun chuan dong qi	9
+蛇神之首磐柱镶珠	she shen zhi shou pan zhu xiang zhu	9
+蛇骨矿洞磐柱镶珠	she gu kuang dong pan zhu xiang zhu	9
+无明砦磐柱镶珠	wu ming zhai pan zhu xiang zhu	9
+蛇神之首磐柱镇石	she shen zhi shou pan zhu zhen shi	9
+无明砦磐柱镇石	wu ming zhai pan zhu zhen shi	9
+蛇骨矿洞磐柱镇石	she gu kuang dong pan zhu zhen shi	9
+遗失的零件	yi shi de ling jian	9
+清晰的记录画片	qing xi de ji lu hua pian	9
+强弓校调工具组	qiang gong xiao diao gong ju zu	9
+绮灿而神秘的赠礼	qi can er shen mi de zeng li	9
+奇珍分享包	qi zhen fen xiang bao	9
+良材分享包	liang cai fen xiang bao	9
+神秘的地图	shen mi de di tu	9
+秘源积气喉	mi yuan ji qi hou	9
+升扬样本战车	sheng yang yang ben zhan che	9
+升扬样本骑士	sheng yang yang ben qi shi	9
+升扬样本王族	sheng yang yang ben wang zu	9
+美德分享包	mei de fen xiang bao	9
+材料分享包	cai liao fen xiang bao	9
+品格分享包	pin ge fen xiang bao	9
+衣装心选包	yi zhuang xin xuan bao	9
+衣装心选包二期	yi zhuang xin xuan bao er qi	9
+塔列辛的诗稿	ta lie xin de shi gao	9
+绿果果菇	lv guo guo gu	9
+红果果菇	hong guo guo gu	9
+云岩裂叶	yun yan lie ye	9
+蕴热的背壳	yun re de bei ke	9
+明燃的棱状壳	ming ran de leng zhuang ke	9
+琉鳞石	liu lin shi	9
+龙像的无智核	long xiang de wu zhi he	9
+冷裂壳块	leng lie ke kuai	9
+藤编玩具胡桃	teng bian wan ju hu tao	9
+藤编玩具	teng bian wan ju	9
+赫卡的笔记	he ka de bi ji	9
+特别的纪念信件	te bie de ji nian xin jian	9
+一组弹丸	yi zu dan wan	9
+龙龙饼干绒翼	long long bing gan rong yi	9
+龙龙饼干嵴锋	long long bing gan ji feng	9
+龙龙饼干突角	long long bing gan tu jiao	9
+龙龙饼干暝视	long long bing gan ming shi	9
+龙龙饼干匿叶	long long bing gan ni ye	9
+龙龙饼干鳍游	long long bing gan qi you	9
+记载着传说的织卷	ji zai zhe chuan shuo de zhi juan	9
+千音雅集	qian yin ya ji	9
+悠可琴	you ke qin	9
+聚聚鼓	ju ju gu	9
+谜土的护符	mi tu de hu fu	9
+黑曜古名	hei yao gu ming	9
+蚀灭的鳞羽	shi mie de lin yu	9
+蚀灭的灵犀	shi mie de ling xi	9
+蚀灭的阳焰	shi mie de yang yan	9
+秘技薄荷酱烤鱼	mi ji bo he jiang kao yu	9
+纺灵之梭	fang ling zhi suo	9
+暝视织卷地图	ming shi zhi juan di tu	9
+更有效的药剂	geng you xiao de yao ji	9
+火神瞳共鸣石	huo shen tong gong ming shi	9
+被水锈蚀的钥匙	bei shui xiu shi de yao shi	9
+长犀圆鸟和扁鱼	zhang xi yuan niao he bian yu	9
+染料样品	ran liao yang pin	9
+齿纹平直的钥匙	chi wen ping zhi de yao shi	9
+齿纹凌乱的钥匙	chi wen ling luan de yao shi	9
+齿纹圆滑的钥匙	chi wen yuan hua de yao shi	9
+灼赤曜石断片	zhuo chi yao shi duan pian	9
+更美味的药剂	geng mei wei de yao ji	9
+澄晶果粒饵	cheng jing guo li er	9
+温火饵	wen huo er	9
+纳塔地灵龛之钥	na ta de ling kan zhi yao	9
+特帕尔的残缺手记	te pa er de can que shou ji	9
+完美的圣龙之心	wan mei de sheng long zhi xin	9
+古老的燧石钥匙	gu lao de sui shi yao shi	9
+锈迹斑斑的钥匙	xiu ji ban ban de yao shi	9
+火磷石	huo lin shi	9
+古老的玉石碎片	gu lao de yu shi sui pian	9
+幽紫曜石断片	you zi yao shi duan pian	9
+无名冒险家的笔记	wu ming mao xian jia de bi ji	9
+惑光的阔叶	huo guang de kuo ye	9
+深邃纠缠的凝视	shen sui jiu chan de ning shi	9
+折光的胚芽	zhe guang de pei ya	9
+迷光的蜷叶之心	mi guang de quan ye zhi xin	9
+枯叶紫英	ku ye zi ying	9
+微光角菌	wei guang jiao jun	9
+豁口在后的钥匙	huo kou zai hou de yao shi	9
+豁口在前的钥匙	huo kou zai qian de yao shi	9
+豁口在中的钥匙	huo kou zai zhong de yao shi	9
+粗糙的黑曜石像	cu cao de hei yao shi xiang	9
+某处的钥匙	mou chu de yao shi	9
+奇怪的运龙车钥匙	qi guai de yun long che yao shi	9
+赤红燃素蜜珠	chi hong ran su mi zhu	9
+缴获的留影	jiao huo de liu ying	9
+圣夜旅织	sheng ye lv zhi	9
+秘刻金纹的源核	mi ke jin wen de yuan he	9
+垠土原胚之匣	yin tu yuan pei zhi xia	9
+火之寻宝罗盘	huo zhi xun bao luo pan	9
+砰砰爆发箱	peng peng bao fa xiang	9
+初诞灵焰	chu dan ling yan	9
+派蒙的留影机	pai meng de liu ying ji	9
+夜之玉	ye zhi yu	9
+残夜的碎玉	can ye de sui yu	9
+回火之路	hui huo zhi lu	9
+珠宝工匠的工具箱	zhu bao gong jiang de gong ju xiang	9
+作为礼物的宝石	zuo wei li wu de bao shi	9
+珠宝工匠的零件箱	zhu bao gong jiang de ling jian xiang	9
+丢失的快件	diu shi de kuai jian	9
+新鲜的酸汁腌鱼	xin xian de suan zhi yan yu	9
+绵驮兽木像	mian tuo shou mu xiang	9
+污损的快件	wu sun de kuai jian	9
+歪歪扭扭的快件	wai wai niu niu de kuai jian	9
+破损的信件	po sun de xin jian	9
+裂了口的信件	lie le kou de xin jian	9
+灼燃的燧原矿	zhuo ran de sui yuan kuang	9
+通牒金盘	tong die jin pan	9
+赤色的金属钥匙	chi se de jin shu yao shi	9
+湛蓝曜石断片	zhan lan yao shi duan pian	9
+翠青曜石环	cui qing yao shi huan	9
+湛蓝曜石环	zhan lan yao shi huan	9
+翠青曜石断片	cui qing yao shi duan pian	9
+明黄曜石断片	ming huang yao shi duan pian	9
+奥贡的证言	ao gong de zheng yan	9
+潘帕的证言	pan pa de zheng yan	9
+阿妮拉的证言	a ni la de zheng yan	9
+蚱蜢派的采买清单	zha meng pai de cai mai qing dan	9
+明黄曜石环	ming huang yao shi huan	9
+桃椰子木	tao ye zi mu	9
+星与火的基石	xing yu huo de ji shi	9
+灰灰楼林木	hui hui lou lin mu	9
+燃爆木	ran bao mu	9
+白栗栎木	bai li li mu	9
+祝圣之霜	zhu sheng zhi shuang	9
+镌光铭印的残片	juan guang ming yin de can pian	9
+阿米娜的报酬	a mi na de bao chou	9
+讯使试炼的钥石	xun shi shi lian de yao shi	9
+边缘绿油油的纸	bian yuan lv you you de zhi	9
+绘有涂鸦的裂石	hui you tu ya de lie shi	9
+散失的火神瞳	san shi de huo shen tong	9
+阿米娜的钱袋	a mi na de qian dai	9
+圣言自明机	sheng yan zi ming ji	9
+与阿塔的合照	yu a ta de he zhao	9
+亮闪闪的贝壳	liang shan shan de bei ke	9
+特制钩索	te zhi gou suo	9
+普通的黑曜石	pu tong de hei yao shi	9
+阿伽娅的护身符	a ga ya de hu shen fu	9
+重立名约之契	zhong li ming yue zhi qi	9
+角逐火簇	jiao zhu huo cu	9
+垠土长柄武器原胚	yin tu chang bing wu qi yuan pei	9
+垠土法器原胚	yin tu fa qi yuan pei	9
+垠土弓原胚	yin tu gong yuan pei	9
+垠土双手剑原胚	yin tu shuang shou jian yuan pei	9
+垠土单手剑原胚	yin tu dan shou jian yuan pei	9
+苦种	ku zhong	9
+澄晶实	cheng jing shi	9
+颗粒果	ke li guo	9
+烬芯花	jin xin hua	9
+聚燃的命种	ju ran de ming zhong	9
+聚燃的石块	ju ran de shi kuai	9
+聚燃的游像眼	ju ran de you xiang yan	9
+意志巡游的符像	yi zhi xun you de fu xiang	9
+意志明晰的寄偶	yi zhi ming xi de ji ou	9
+意志破碎的残片	yi zhi po sui de can pian	9
+秘源真芯	mi yuan zhen xin	9
+秘源机鞘	mi yuan ji qiao	9
+秘源轴	mi yuan zhou	9
+灼灼彩菊	zhuo zhuo cai ju	9
+肉龙掌	rou long zhang	9
+横行霸者的利齿	heng xing ba zhe de li chi	9
+稚嫩的尖齿	zhi nen de jian chi	9
+老练的坚齿	lao lian de jian chi	9
+龙冠武士的金哨	long guan wu shi de jin shao	9
+战士的铁哨	zhan shi de tie shao	9
+卫从的木哨	wei cong de mu shao	9
+浪沫羽鳃	lang mo yu sai	9
+过熟的火榴果	guo shu de huo liu guo	9
+受祝所缚之印	shou zhu suo fu zhi yin	9
+青蜜莓	qing mi mei	9
+谵妄圣主的余哀	zhan wang sheng zhu de yu ai	9
+神合秘烟的预感	shen he mi yan de yu gan	9
+谵妄圣主的朽败	zhan wang sheng zhu de xiu bai	9
+神合秘烟的启示	shen he mi yan de qi shi	9
+神合秘烟的征兆	shen he mi yan de zheng zhao	9
+神合秘烟的思绪	shen he mi yan de si xu	9
+贡祭炽心的踌躇	gong ji chi xin de chou chu	9
+贡祭炽心的荣膺	gong ji chi xin de rong ying	9
+贡祭炽心的惶恐	gong ji chi xin de huang kong	9
+贡祭炽心的决绝	gong ji chi xin de jue jue	9
+谵妄圣主的容光	zhan wang sheng zhu de rong guang	9
+谵妄圣主的神面	zhan wang sheng zhu de shen mian	9
+叠架远光灯	die jia yuan guang deng	9
+秘药	mi yao	9
+卫兵长矛	wei bing chang mao	9
+特殊矿镐	te shu kuang hao	9
+邪龙的邪鳞	xie long de xie lin	9
+女神的手稿其三	nv shen de shou gao qi san	9
+伟大发条	wei da fa tiao	9
+女神的手稿其二	nv shen de shou gao qi er	9
+女神的手稿其一	nv shen de shou gao qi yi	9
+散落的星星	san luo de xing xing	9
+轻愉信笺	qing tou xin jian	9
+欢跃信笺	huan yue xin jian	9
+一大袋摩拉	yi da dai mo la	9
+央陆原胚之匣	yang liu yuan pei zhi xia	9
+湿漉漉的打孔纸带	shi lu lu de da kong zhi dai	9
+犯人的口供	fan ren de kou gong	9
+浓缩的异海凝珠	nong suo de yi hai ning zhu	9
+浊水幻灵的提取物	zhuo shui huan ling de ti qu wu	9
+古老的石板	gu lao de shi ban	9
+锈蚀的钥匙	xiu shi de yao shi	9
+衡仪机枢	heng yi ji shu	9
+泛黄的信件	fan huang de xin jian	9
+老旧的钥匙	lao jiu de yao shi	9
+水中找到的货物袋	shui zhong zhao dao de huo wu dai	9
+残破的货品清单	can po de huo pin qing dan	9
+晚风圆号	wan feng yuan hao	9
+宝藏的线索	bao zang de xian suo	9
+始基矿胚料	shi ji kuang pei liao	9
+始基矿辉晶	shi ji kuang hui jing	9
+神秘的矿石	shen mi de kuang shi	9
+藏宝图	cang bao tu	9
+盗宝团的藏宝图	dao bao tuan de cang bao tu	9
+藏宝图碎片	cang bao tu sui pian	9
+小型留声机	xiao xing liu sheng ji	9
+修复完好的曲谱	xiu fu wan hao de qu pu	9
+遗落的曲谱残页	yi luo de qu pu can ye	9
+随处可见的树枝	sui chu ke jian de shu zhi	9
+未熄的剑柄	wei xi de jian bing	9
+遗落的魔导书	yi luo de mo dao shu	9
+裂断的剑柄	lie duan de jian bing	9
+古老的自鸣音乐盒	gu lao de zi ming yin yue he	9
+空白曲谱	kong bai qu pu	9
+古老的曲谱	gu lao de qu pu	9
+丝织之羽	si zhi zhi yu	9
+残火灯烛	can huo deng zhu	9
+否定裁断	fou ding cai duan	9
+残毁的剑柄	can hui de jian bing	9
+金色旋律的断章	jin se xuan lv de duan zhang	9
+点心盒	dian xin he	9
+九条镰治的亲笔信	jiu tiao lian zhi de qin bi xin	9
+马腾斯万能护养剂	ma teng si wan neng hu yang ji	9
+刺玫会制服礼盒	ci mei hui zhi fu li he	9
+封住的包裹	feng zhu de bao guo	9
+千奇核心	qian qi he xin	9
+仙家符箓	xian jia fu lu	9
+山石杂谈	shan shi za tan	9
+村庄变迁记录	cun zhuang bian qian ji lu	9
+残破的笔记	can po de bi ji	9
+秘华石	mi hua shi	9
+碎星铁矿	sui xing tie kuang	9
+翠珏岩	cui jue yan	9
+总务司备案文件	zong wu si bei an wen jian	9
+翠含岩碎片	cui han yan sui pian	9
+盗宝团的钥匙	dao bao tuan de yao shi	9
+涤尘铃	di chen ling	9
+归终机维护材料	gui zhong ji wei hu cai liao	9
+永生香	yong sheng xiang	9
+芙萝拉的书签	fu luo la de shu qian	9
+奇怪的调酒材料	qi guai de tiao jiu cai liao	9
+似乎是一封情信	si hu shi yi feng qing xin	9
+星银矿触媒	xing yin kuang chu mei	9
+命运示数器	ming yun shi shu qi	9
+漂亮的苍晶螺	piao liang de cang jing luo	9
+漂亮的幽光星星	piao liang de you guang xing xing	9
+漂亮的海露花	piao liang de hai lu hua	9
+特别的甜甜花	te bie de tian tian hua	9
+刚摘下的香辛果	gang zhai xia de xiang xin guo	9
+林藏的信	lin cang de xin	9
+怀尔德的黑色钥匙	huai er de de hei se yao shi	9
+晒干的甜甜花	shai gan de tian tian hua	9
+伊达的认可状	yi da de ren ke zhuang	9
+遗迹机关的核心	yi ji ji guan de he xin	9
+伊达的钥匙	yi da de yao shi	9
+枯萎的苦舍桓	ku wei de ku she huan	9
+奇怪岩石照片	qi guai yan shi zhao pian	9
+通行凭证	tong xing ping zheng	9
+提米的亲笔信	ti mi de qin bi xin	9
+忘川之水	wang chuan zhi shui	9
+特制杏仁豆腐	te zhi xing ren dou fu	9
+客商的包裹	ke shang de bao guo	9
+百无禁忌箓	bai wu jin ji lu	9
+秋的礼物	qiu de li wu	9
+杜拉夫的信	du la fu de xin	9
+水之寻宝罗盘	shui zhi xun bao luo pan	9
+沉玉谷风光指南	chen yu gu feng guang zhi nan	9
+谁人的账本	shui ren de zhang ben	9
+古树树枝	gu shu shu zhi	9
+古城垣钥匙	gu cheng yuan yao shi	9
+赤璋舆图	chi zhang yu tu	9
+奇特的钥匙	qi te de yao shi	9
+玉玦断片右	yu jue duan pian you	9
+生锈的钥匙	sheng xiu de yao shi	9
+苍鲤灵珠	cang li ling zhu	9
+一袋摩拉	yi dai mo la	9
+画片明月荷塘	hua pian ming yue he tang	9
+画片翘英嘉客	hua pian qiao ying jia ke	9
+画片山如悬练	hua pian shan ru xuan lian	9
+画片静水宝玦	hua pian jing shui bao jue	9
+玉玦断片左	yu jue duan pian zuo	9
+沉玉仙茗	chen yu xian ming	9
+斡流的钻探装置	wo liu de zuan tan zhuang zhi	9
+王山厅备用钥匙	wang shan ting bei yong yao shi	9
+派蒙特制心意料理	pai meng te zhi xin yi liao li	9
+苍灵鲤	cang ling li	9
+古老的玉盏	gu lao de yu zhan	9
+清水玉	qing shui yu	9
+渊光鳍翅	yuan guang qi chi	9
+月色鳍翅	yue se qi chi	9
+羽状鳍翅	yu zhuang qi chi	9
+凝云鳞甲	ning yun lin jia	9
+岳川的漂流瓶	yue chuan de piao liu ping	9
+荒泷派的便携拉面	huang long pai de bian xie la mian	9
+特制香膏	te zhi xiang gao	9
+野生琉璃百合	ye sheng liu li bai he	9
+鲜美的史莱姆凝液	xian mei de shi lai mu ning ye	9
+特别甜的甜甜花	te bie tian de tian tian hua	9
+牢笼钥匙	lao long yao shi	9
+搜集而来的碎片	sou ji er lai de sui pian	9
+无名的画稿	wu ming de hua gao	9
+奇怪的石头	qi guai de shi tou	9
+梵米尔的画笔	fan mi er de hua bi	9
+梵米尔的颜料	fan mi er de yan liao	9
+旅行者的笔记	lv xing zhe de bi ji	9
+奇怪的盒子	qi guai de he zi	9
+迷你仙灵璨光	mi ni xian ling can guang	9
+奇怪的纸条	qi guai de zhi tiao	9
+勒鲁瓦家的包裹	le lu wa jia de bao guo	9
+招工说明	zhao gong shuo ming	9
+样式奇特的钥匙	yang shi qi te de yao shi	9
+蒲公英书签	pu gong ying shu qian	9
+装着货单的箱子	zhuang zhe huo dan de xiang zi	9
+言笑做给江雪的饭	yan xiao zuo gei jiang xue de fan	9
+布兰奇的信	bu lan qi de xin	9
+图形样本留影机	tu xing yang ben liu ying ji	9
+神秘的异色结晶石	shen mi de yi se jie jing shi	9
+巴罗的期冀	ba luo de qi ji	9
+秋的悔意	qiu de hui yi	9
+帕克的期冀	pa ke de qi ji	9
+鲁热的信条	lu re de xin tiao	9
+利亚姆的高歌	li ya mu de gao ge	9
+虹彩蔷薇的理想	hong cai qiang wei de li xiang	9
+遗落的花束	yi luo de hua shu	9
+幽林枝	you lin zhi	9
+简易宝库钥匙	jian yi bao ku yao shi	9
+神秘的书页	shen mi de shu ye	9
+亚瑟先生的身体	ya se xian sheng de shen ti	9
+亚瑟先生的翅膀	ya se xian sheng de chi bang	9
+三号地点的资料	san hao de dian de zi liao	9
+沉水的钱袋	chen shui de qian dai	9
+潜水套装	qian shui tao zhuang	9
+小小的海螺	xiao xiao de hai luo	9
+纳蒂亚的信物	na di ya de xin wu	9
+三脚架	san jiao jia	9
+阿托斯的供词	a tuo si de gong ci	9
+地图的残页	de tu de can ye	9
+托萝莎的探案笔记	tuo luo sha de tan an bi ji	9
+小钥匙	xiao yao shi	9
+根源之轮	gen yuan zhi lun	9
+水仙十字圣剑	shui xian shi zi sheng jian	9
+特殊的钥匙	te shu de yao shi	9
+老旧的徽记	lao jiu de hui ji	9
+锈蚀的铁钥匙	xiu shi de tie yao shi	9
+泪滴之钥	lei di zhi yao	9
+弗里曼的宣言	fu li man de xuan yan	9
+星间之泪	xing jian zhi lei	9
+涌现的圣杯	yong xian de sheng bei	9
+初露之源	chu lu zhi yuan	9
+湖光铃兰	hu guang ling lan	9
+无光质块	wu guang zhi kuai	9
+无光涡眼	wu guang wo yan	9
+无光丝线	wu guang si xian	9
+未能达成超越之水	wei neng da cheng chao yue zhi shui	9
+商家的海报	shang jia de hai bao	9
+一号地点的资料	yi hao di dian de zi liao	9
+左边桌上的卷宗箱	zuo bian zhuo shang de juan zong xiang	9
+右边桌上的卷宗箱	you bian zhuo shang de juan zong xiang	9
+新鲜的树莓	xin xian de shu mei	9
+干燥的木柴	gan zao de mu chai	9
+二号地点的资料	er hao de dian de zi liao	9
+水神瞳共鸣石	shui shen tong gong ming shi	9
+聚能式机芯元件	ju neng shi ji xin yuan jian	9
+手轮	shou lun	9
+空瓶	kong ping	9
+纯洁松果	chun jie song guo	9
+柔柔小章	rou rou xiao zhang	9
+互助会的宣传册	hu zhu hui de xuan chuan ce	9
+特许券	te xu quan	9
+加工完成的工件	jia gong wan cheng de gong jian	9
+调查用特许券	diao cha yong te xu quan	9
+福利餐	fu li can	9
+未加工的工件	wei jia gong de gong jian	9
+幸运签	xing yun qian	9
+原海麟角	yuan hai lin jiao	9
+役人的时时刻刻	yi ren de shi shi ke ke	9
+役人的制式怀表	yi ren de zhi shi huai biao	9
+老旧的役人怀表	lao jiu de yi ren huai biao	9
+幽光星星	you guang xing xing	9
+子探测单元	zi tan ce dan yuan	9
+借动式鼓风装置	jie dong shi gu feng zhuang zhi	9
+沉甸甸的包裹	chen dian dian de bao guo	9
+咖啡调制材料	ka fei tiao zhi cai liao	9
+鱼饵	yu er	9
+沉没的箱子	chen mo de xiang zi	9
+神秘的核心	shen mi de he xin	9
+学院某处的钥匙	xue yuan mou chu de yao shi	9
+奇特的零件	qi te de ling jian	9
+打字机的键帽	da zi ji de jian mao	9
+枯竭之螺杯	ku jie zhi luo bei	9
+鱼苗	yu miao	9
+特制的钟表	te zhi de zhong biao	9
+奇异的矿石	qi yi de kuang shi	9
+一罐鱼苗	yi guan yu miao	9
+维斯塔之歌	wei si ta zhi ge	9
+穿浪斗枪	chuan lang dou qiang	9
+枫丹地灵龛之钥	feng dan de ling kan zhi yao	9
+酸桔饵	suan ju er	9
+维护机关频闪诱饵	wei hu ji guan pin shan you er	9
+悬铃木	xuan ling mu	9
+白梣木	bai qin mu	9
+炬木	ju mu	9
+椴木	duan mu	9
+香柏木	xiang bai mu	9
+汐藻	xi zao	9
+发酵果实汁	fa jiao guo shi zhi	9
+墨绿羽饰	mo lv yu shi	9
+晶蝶诱捕装置	jing die you bu zhuang zhi	9
+萃凝晶	cui ning jing	9
+水之印	shui zhi yin	9
+古老的钥匙	gu lao de yao shi	9
+久雨莲	jiu yu lian	9
+可疑的禽肉	ke yi de qin rou	9
+茉洁草	mo jie cao	9
+魔术口袋	mo shu kou dai	9
+魔术口袋制作材料	mo shu kou dai zhi zuo cai liao	9
+纤维型海露花	xian wei xing hai lu hua	9
+纯圣露滴的凝华	chun sheng lu di de ning hua	9
+纯圣露滴的滤渣	chun sheng lu di de lv zha	9
+悠古弦音的回响	you gu xian yin de hui xiang	9
+悠古弦音的乐章	you gu xian yin de yue zhang	9
+悠古弦音的断章	you gu xian yin de duan zhang	9
+悠古弦音的残章	you gu xian yin de can zhang	9
+无垢之海的银杯	wu gou zhi hai de yin bei	9
+无垢之海的酒盏	wu gou zhi hai de jiu zhan	9
+无垢之海的苦盏	wu gou zhi hai de ku zhan	9
+纯圣露滴的真粹	chun sheng lu di de zhen cui	9
+纯圣露滴的醴泉	chun sheng lu di de li quan	9
+无垢之海的金杯	wu gou zhi hai de jin bei	9
+初生的浊水幻灵	chu sheng de zhuo shui huan ling	9
+浊水的一掬	zhuo shui de yi ju	9
+浊水的一滴	zhuo shui de yi di	9
+帝皇的决断	di huang de jue duan	9
+异界生命核	yi jie sheng ming he	9
+外世突触	wai shi tu chu	9
+隙间之核	xi jian zhi he	9
+异色结晶石	yi se jie jing shi	9
+异海之块	yi hai zhi kuai	9
+异海凝珠	yi hai ning zhu	9
+奇械机芯齿轮	qi xie ji xin chi lun	9
+机关正齿轮	ji guan zheng chi lun	9
+啮合齿轮	nie he chi lun	9
+柔灯铃	rou deng ling	9
+虹彩蔷薇	hong cai qiang wei	9
+海露花	hai lu hua	9
+苍晶螺	cang jing luo	9
+散失的水神瞳	san shi de shui shen tong	9
+铭随流镜	ming sui liu jing	9
+科巴德王子的印珠	ke ba de wang zi de yin zhu	9
+包装精美的礼盒	bao zhuang jing mei de li he	9
+成熟的葡萄	cheng shu de pu tao	9
+流悦晶石	liu yue jing shi	9
+酣悦晶石	han yue jing shi	9
+壁画残片天空高城	bi hua can pian tian kong gao cheng	9
+壁画残片深谷之花	bi hua can pian shen gu zhi hua	9
+壁画残片流旋绮云	bi hua can pian liu xuan qi yun	9
+壁画残片核心轮縠	bi hua can pian he xin lun hu	9
+负罪求赎者所遗	fu zui qiu shu zhe suo yi	9
+神秘摩拉状怀表	shen mi mo la zhuang huai biao	9
+古堡密室的钥匙	gu bao mi shi de yao shi	9
+旅行灯	lv xing deng	9
+赛达菲的标记地图	sai da fei de biao ji di tu	9
+赛达菲的箱子	sai da fei de xiang zi	9
+脆弱的木板	cui ruo de mu ban	9
+一捆绳索	yi kun sheng suo	9
+从右侧拍摄的画片	cong you ce pai she de hua pian	9
+从左侧拍摄的画片	cong zuo ce pai she de hua pian	9
+新鲜的金鱼草	xin xian de jin yu cao	9
+新鲜的鸟蛋	xin xian de niao dan	9
+新鲜的绯樱绣球	xin xian de fei ying xiu qiu	9
+似曾相识的糖果盒	si ceng xiang shi de tang guo he	9
+凝恒的脂蜡	ning heng de zhi la	9
+召唤王	zhao huan wang	9
+蕴光之叶	yun guang zhi ye	9
+古老的书卷	gu lao de shu juan	9
+新鲜的香辛果	xin xian de xiang xin guo	9
+文物模型	wen wu mo xing	9
+提示器	ti shi qi	9
+登山绳	deng shan sheng	9
+饱满的香辛果	bao man de xiang xin guo	9
+多汁的墩墩桃	duo zhi de dun dun tao	9
+新鲜的苹果	xin xian de ping guo	9
+灵光铭文的残片	ling guang ming wen de can pian	9
+于连的画板	yu lian de hua ban	9
+于连的画稿	yu lian de hua gao	9
+灵光绝唱	ling guang jue chang	9
+失落铭文之探求	shi luo ming wen zhi tan qiu	9
+神秘的能量块	shen mi de neng liang kuai	9
+某人留下的笔记	mou ren liu xia de bi ji	9
+于连的行李	yu lian de xing li	9
+无名冒险家的记录	wu ming mao xian jia de ji lu	9
+雷内的调查笔记	lei nei de diao cha bi ji	9
+净光翎	jing guang ling	9
+斯露莎	si lou sha	9
+食物种子	shi wu zhong zi	9
+俱利般地	ju li ban di	9
+俱利般地谱	ju li ban di pu	9
+生长天地之蕨草	sheng zhang tian di zhi jue cao	9
+原初绿洲之初绽	yuan chu lv zhou zhi chu zhan	9
+亘古树海之一瞬	gen gu shu hai zhi yi shun	9
+漫游者的盛放之花	man you zhe de cheng fang zhi hua	9
+何人所珍藏之花	he ren suo zhen cang zhi hua	9
+常暗圆环	chang an yuan huan	9
+悼灵花	dao ling hua	9
+万相石	wan xiang shi	9
+装有鲜花的包裹	zhuang you xian hua de bao guo	9
+诺玛订的餐品	nuo ma ding de can pin	9
+秘藏的钥匙	mi cang de yao shi	9
+坚硬的水晶块	jian ying de shui jing kuai	9
+轻飘飘的钱袋	qing piao piao de qian dai	9
+旭东的信	xu dong de xin	9
+写有谜语的纸条	xie you mi yu de zhi tiao	9
+绮筵之鼓	qi yan zhi gu	9
+来自温迪的纸条	lai zi wen di de zhi tiao	9
+装着餐费的钱包	zhuang zhe can fei de qian bao	9
+关于沙漠的故事	guan yu sha mo de gu shi	9
+奉行所的寻人委托	feng xing suo de xun ren wei tuo	9
+美味的炸萝卜丸子	mei wei de zha luo bo wan zi	9
+香菱的手抄笔记	xiang ling de shou chao bi ji	9
+商队账务记录	shang dui zhang wu ji lu	9
+沾有酒香的信	zhan you jiu xiang de xin	9
+无名的王庭禁药	wu ming de wang ting jin yao	9
+异种蘑菇浇灌用水	yi zhong mo gu jiao guan yong shui	9
+异种蘑菇	yi zhong mo gu	9
+遗落的包裹	yi luo de bao guo	9
+咖啡豆	ka fei dou	9
+破损的纸条	po sun de zhi tiao	9
+字迹模糊的签	zi ji mo hu de qian	9
+怀尔德的红色钥匙	huai er de de hong se yao shi	9
+刚摘下的小灯草	gang zhai xia de xiao deng cao	9
+刚摘下的嘟嘟莲	gang zhai xia de du du lian	9
+拍卖会资料	pai mai hui zi liao	9
+赛诺的介绍信	sai nuo de jie shao xin	9
+古旧地图	gu jiu di tu	9
+装有树叶的盒子	zhuang you shu ye de he zi	9
+内尔敏的香料	nei er min de xiang liao	9
+神秘的石板	shen mi de shi ban	9
+采购物资	cai gou wu zi	9
+被盗的文物	bei dao de wen wu	9
+一封短信	yi feng duan xin	9
+闪烁的零件	shan shuo de ling jian	9
+锁钥之石	suo yue zhi shi	9
+里夫的包裹	li fu de bao guo	9
+新鲜的钩钩果	xin xian de gou gou guo	9
+玛乔丽的礼物	ma qiao li de li wu	9
+维克多的礼物	wei ke duo de li wu	9
+内部撤离行动公文	nei bu che li xing dong gong wen	9
+转移通知文件	zhuan yi tong zhi wen jian	9
+古老的石制钥匙	gu lao de shi zhi yao shi	9
+陈旧的钥匙	chen jiu de yao shi	9
+金蔷薇种子	jin qiang wei zhong zi	9
+新鲜的清心	xin xian de qing xin	9
+小蒙的漂流瓶	xiao meng de piao liu ping	9
+塔德菈的翎羽	ta de la de ling yu	9
+热腾腾的腌笃鲜	re teng teng de yan du xian	9
+神秘的肉加工产物	shen mi de rou jia gong chan wu	9
+萌蘖的竹笋	meng nie de zhu sun	9
+赤鹫翎羽	chi jiu ling yu	9
+永恒绿洲的记忆	yong heng lv zhou de ji yi	9
+毒蝎尾部	du xie wei bu	9
+飞蛇之角	fei she zhi jiao	9
+充能转化容器	chong neng zhuan hua rong qi	9
+愚人众据点钥匙	yu ren zhong ju dian yao shi	9
+魔瓶镇灵利露帕尔	mo ping zhen ling li lou pa er	9
+沙脂蛹	sha zhi yong	9
+残毁的横脊	can hui de heng ji	9
+密固的横脊	mi gu de heng ji	9
+锲纹的横脊	qie wen de heng ji	9
+苍砾蕊羽	cang li rui yu	9
+漆黑陨铁的一粒	qi hei yun tie de yi li	9
+沉重的盒子	chen zhong de he zi	9
+幼嫩的蔷薇	you nen de qiang wei	9
+风干的小花	feng gan de xiao hua	9
+神秘的羊皮卷	shen mi de yang pi juan	9
+引路的羊皮卷	yin lu de yang pi juan	9
+诡异的羊皮卷	gui yi de yang pi juan	9
+初生白枝	chu sheng bai zhi	9
+纯水真心	chun shui zhen xin	9
+薄荷精油	bo he jing you	9
+结实的木板	jie shi de mu ban	9
+创世结晶	chuang shi jie jing	9
+原石	yuan shi	9
+摩拉	mo la	9
+新名撰聿	xin ming zhuan yu	9
+牌手徽章	pai shou hui zhang	9
+若狭的藁末	ruo xia de gao mo	9
+空白的影幻牌	kong bai de ying huan pai	8
+幸运牌币	xing yun pai bi	8
+野踪罗盘	ye zong luo pan	8
+秘典之盒	mi dian zhi he	8
+低语的羊皮卷	di yu de yang pi juan	8
+新鲜的墩墩桃	xin xian de dun dun tao	8
+特别的香辛果	te bie de xiang xin guo	8
+特别的薄荷	te bie de bo he	8
+初步调查的线索	chu bu diao cha de xian suo	8
+莱依拉的订货单	lai yi la de ding huo dan	8
+赛诺的来信	sai nuo de lai xin	8
+海妮耶的笔记	hai ni ye de bi ji	8
+神秘的愚人众信件	shen mi de yu ren zhong xin jian	8
+阿扎莱的货款	a zha lai de huo kuan	8
+布特罗斯的收货单	bu te luo si de shou huo dan	8
+贾汉吉尔的收货单	jia han ji er de shou huo dan	8
+拉玛的收货单	la ma de shou huo dan	8
+朱特的收货单	zhu te de shou huo dan	8
+灭诤草蔓	mie zheng cao man	8
+无心的渊镜	wu xin de yuan jing	8
+傀儡的悬丝	kui lei de xuan si	8
+空行的虚铃	kong xing de xu ling	8
+残缺的笔记	can que de bi ji	8
+破烂的纸条	po lan de zhi tiao	8
+清昼的签名	qing zhou de qian ming	8
+感谢信	gan xie xin	8
+石板	shi ban	8
+神秘的石块	shen mi de shi kuai	8
+据说很肥沃的泥土	ju shuo hen fei wo de ni tu	8
+芭努的智慧	ba nu de zhi hui	8
+未来星	wei lai xing	8
+圣章石	sheng zhang shi	8
+异常的须弥蔷薇	yi chang de xu mi qiang wei	8
+珍珠纪行初稿	zhen zhu ji xing chu gao	8
+空月祝福新月	kong yue zhu fu xin yue	8
+奇怪的小型帽子	qi guai de xiao xing mao zi	8
+破旧的架子	po jiu de jia zi	8
+奇怪的珠子	qi guai de zhu zi	8
+愚人众的餐食	yu ren zhong de can shi	8
+迁风的苍翎	qian feng de cang ling	8
+蹦蹦庆典拉炮	beng beng qing dian la pao	8
+缥锦机关留云	piao jin ji guan liu yun	8
+普通的木头	pu tong de mu tou	8
+残破的纸片	can po de zhi pian	8
+黑白的画稿	hei bai de hua gao	8
+彩色的画稿	cai se de hua gao	8
+瓦希德捏制的饭团	wa xi de nie zhi de fan tuan	8
+没有署名的纸条	mei you shu ming de zhi tiao	8
+沙瓦玛的订货单据	sha wa ma de ding huo dan ju	8
+关垂的订货单据	guan chui de ding huo dan ju	8
+曲清的订货单据	qu qing de ding huo dan ju	8
+饱饮之陵的记录	bao yin zhi ling de ji lu	8
+阿如的倒影的记录	a ru de dao ying de ji lu	8
+索赫尔的考古笔记	suo he er de kao gu bi ji	8
+透明遗迹的记录	tou ming yi ji de ji lu	8
+刺葵木	ci kui mu	8
+柽木	cheng mu	8
+吞羊岩的记录	tun yang yan de ji lu	8
+枣椰	zao ye	8
+赤沙石板	chi sha shi ban	8
+赤念果	chi nian guo	8
+永续机芯	yong xu ji xin	8
+辉光棱晶	hui guang leng jing	8
+圣金虫	sheng jin chong	8
+混浊棱晶	hun zhuo leng jing	8
+导光四面体	dao guang si mian ti	8
+破缺棱晶	po que leng jing	8
+重熔片剂	chong rong pian ji	8
+重熔装置	chong rong zhuang zhi	8
+试验型超燃灯	shi yan xing chao ran deng	8
+追叙之石	zhui xu zhi shi	8
+晦暗的戒指	hui an de jie zhi	8
+无名的宝藏	wu ming de bao zang	8
+迷你仙灵苔绿	mi ni xian ling tai lv	8
+特制蒙德土豆饼	te zhi meng de tu dou bing	8
+香辛料	xiang xin liao	8
+秃秃豆	tu tu dou	8
+阴湿的泥土	yin shi de ni tu	8
+新鲜的史莱姆凝液	xin xian de shi lai mu ning ye	8
+花朵护身符	hua duo hu shen fu	8
+莎莉的便签	sha li de bian qian	8
+原产地的新鲜蘑菇	yuan chan di de xin xian mo gu	8
+拉菲克的造船材料	la fei ke de zao chuan cai liao	8
+骗骗花根系的泥土	pian pian hua gen xi de ni tu	8
+特别的蘑菇	te bie de mo gu	8
+特别的鸟蛋	te bie de niao dan	8
+惟耶之实	wei ye zhi shi	8
+迦毗鸠师的论文	jia pi jiu shi de lun wen	8
+风干的花朵	feng gan de hua duo	8
+阿麦塔机关的碎片	a mai ta ji guan de sui pian	8
+启封的羊皮卷	qi feng de yang pi juan	8
+恒素果	heng su guo	8
+兰赫玛	lan he ma	8
+耶然草	ye ran cao	8
+须罗蕈	xu luo xun	8
+钵参花	bo can hua	8
+活源水	huo yuan shui	8
+遗落的能量块	yi luo de neng liang kuai	8
+桓斯弥利底	huan si mi li di	8
+老旧的诗琴	lao jiu de shi qin	8
+交易现场画片	jiao yi xian chang hua pian	8
+交易资金袋	jiao yi zi jin dai	8
+购买情报的资金袋	gou mai qing bao de zi jin dai	8
+线人暗号表	xian ren an hao biao	8
+给海芭夏的信	gei hai ba xia de xin	8
+提纳里的介绍信	ti na li de jie shao xin	8
+提纳里的便当盒	ti na li de bian dang he	8
+旅行者手制便当	lv xing zhe shou zhi bian dang	8
+新鲜的月莲	xin xian de yue lian	8
+草之寻宝罗盘	cao zhi xun bao luo pan	8
+原海鱼油	yuan hai yu you	8
+央陆长柄武器原胚	yang liu chang bing wu qi yuan pei	8
+央陆弓原胚	yang liu gong yuan pei	8
+央陆双手剑原胚	yang liu shuang shou jian yuan pei	8
+央陆法器原胚	yang liu fa qi yuan pei	8
+央陆单手剑原胚	yang liu dan shou jian yuan pei	8
+盘缘	pan yuan	8
+草神瞳共鸣石	cao shen tong gong ming shi	8
+鱼线稳定器	yu xian wen ding qi	8
+甘露饵	gan lu er	8
+月莲	yue lian	8
+树王圣体菇	shu wang sheng ti gu	8
+劫波莲	jie bo lian	8
+毗波耶	pi bo ye	8
+香辛果	xiang xin guo	8
+墩墩桃	dun dun tao	8
+须弥蔷薇	xu mi qiang wei	8
+散失的草神瞳	san shi de cao shen tong	8
+须弥地灵龛之钥	xu mi de ling kan zhi yao	8
+草之印	cao zhi yin	8
+生长碧翡碎屑	sheng zhang bi fei sui xie	8
+生长碧翡断片	sheng zhang bi fei duan pian	8
+生长碧翡块	sheng zhang bi fei kuai	8
+生长碧翡	sheng zhang bi fei	8
+蕈王钩喙	xun wang gou hui	8
+藏雷野实	cang lei ye shi	8
+织金红绸	zhi jin hong chou	8
+镶边红绸	xiang bian hong chou	8
+褪色红绸	tui se hong chou	8
+混沌锚栓	hun dun mao shuan	8
+混沌模块	hun dun mo kuai	8
+混沌容器	hun dun rong qi	8
+失活菌核	shi huo jun he	8
+休眠菌核	xiu mian jun he	8
+茁壮菌核	zhuo zhuang jun he	8
+帕蒂沙兰	pa di sha lan	8
+谧林涓露的金符	mi lin juan lou de jin fu	8
+谧林涓露的银符	mi lin juan lou de yin fu	8
+谧林涓露的铁符	mi lin juan lou de tie fu	8
+谧林涓露的铜符	mi lin juan lou de tong fu	8
+烈日威权的旧日	lie ri wei quan de jiu ri	8
+烈日威权的梦想	lie ri wei quan de meng xiang	8
+烈日威权的余光	lie ri wei quan de yu guang	8
+烈日威权的残响	lie ri wei quan de can xiang	8
+绿洲花园的真谛	lv zhou hua yuan de zhen di	8
+绿洲花园的哀思	lv zhou hua yuan de ai si	8
+绿洲花园的恩惠	lv zhou hua yuan de en hui	8
+绿洲花园的追忆	lv zhou hua yuan de zhui yi	8
+辉木	hui mu	8
+业果木	ye guo mu	8
+证悟木	zheng wu mu	8
+某人留下的纸条	mou ren liu xia de zhi tiao	8
+竹签	zhu qian	8
+招运御守	zhao yun yu shou	8
+御灵珠	yu ling zhu	8
+牢房的钥匙	lao fang de yao shi	8
+柳达希卡的摩拉袋	liu da xi ka de mo la dai	8
+装衣服的纸包	zhuang yi fu de zhi bao	8
+赤色的结晶	chi se de jie jing	8
+特纳先生的止咳药	te na xian sheng de zhi ke yao	8
+一盒零件	yi he ling jian	8
+遗迹守卫战利品	yi ji shou wei zhan li pin	8
+丘丘人暴徒战利品	qiu qiu ren bao tu zhan li pin	8
+木桩材料	mu zhuang cai liao	8
+盗宝团战利品	dao bao tuan zhan li pin	8
+假山原石	jia shan yuan shi	8
+假山雕刻工具	jia shan diao ke gong ju	8
+一袋货物	yi dai huo wu	8
+古德温的信	gu de wen de xin	8
+方才的来信	fang cai de lai xin	8
+文学团	wen xue tuan	8
+邃羽夜巡之契	sui yu ye xun zhi qi	8
+沾有海盐的钥匙	zhan you hai yan de yao shi	8
+航路留书	hang lu liu shu	8
+循路留书其一	xun lu liu shu qi yi	8
+循路留书其二	xun lu liu shu qi er	8
+秘宝所藏之海图全	mi bao suo cang zhi hai tu quan	8
+星光凝核	xing guang ning he	8
+错位的海螺二	cuo wei de hai luo er	8
+错位的海螺三	cuo wei de hai luo san	8
+晶核	jing he	8
+佩尔西科夫的手稿	pei er xi ke fu de shou gao	8
+星象碎片	xing xiang sui pian	8
+余音之匙	yu yin zhi shi	8
+冰封之心的花瓣	bing feng zhi xin de hua ban	8
+装满泉水的瓶子	zhuang man quan shui de ping zi	8
+优悠山石左	you you shan shi zuo	8
+优悠山石右	you you shan shi you	8
+浮光山石左	fu guang shan shi zuo	8
+浮光山石右	fu guang shan shi you	8
+磐固山石左	pan gu shan shi zuo	8
+磐固山石右	pan gu shan shi you	8
+药师的笔记本一	yao shi de bi ji ben yi	8
+药师的笔记本二	yao shi de bi ji ben er	8
+药师的笔记本三	yao shi de bi ji ben san	8
+错位的海螺一	cuo wei de hai luo yi	8
+镀银怀表	du yin huai biao	8
+素材收集器	su cai shou ji qi	8
+荒泷盛世豪鼓	huang long sheng shi hao gu	8
+工地记录	gong di ji lu	8
+不知来历的纸条	bu zhi lai li de zhi tiao	8
+霞色宝珠	xia se bao zhu	8
+香气四溢的调料	xiang qi si yi de tiao liao	8
+上好的香	shang hao de xiang	8
+某人的漂流瓶	mou ren de piao liu ping	8
+柳达希卡的签文	liu da xi ka de qian wen	8
+柳达希卡的信	liu da xi ka de xin	8
+枫原义庆的信	feng yuan yi qing de xin	8
+古老的锻造图谱	gu lao de duan zao tu pu	8
+林藏的徽记	lin cang de hui ji	8
+略带香味的书信	lve dai xiang wei de shu xin	8
+龙骨花凝珠	long gu hua ning zhu	8
+谜之传单	mi zhi chuan dan	8
+教令院举荐信	jiao ling yuan ju jian xin	8
+北陆原胚之匣	bei lu yuan pei zhi xia	8
+渊青宝珠	yuan qing bao zhu	8
+奇怪的物件	qi guai de wu jian	8
+志琼的信	zhi qiong de xin	8
+琉璃寒晶	liu li han jing	8
+干枯的种子	gan ku de zhong zi	8
+夤夜刻像	yin ye ke xiang	8
+晦暗刻像	hui an ke xiang	8
+荧光孢粉	ying guang bao fen	8
+蕈兽孢子	xun shou bao zi	8
+符纹之齿	fu wen zhi chi	8
+流明石触媒	liu ming shi chu mei	8
+流明晶石	liu ming jing shi	8
+流明石原矿	liu ming shi yuan kuang	8
+老石	lao shi	8
+孢囊晶尘	bao nang jing chen	8
+幽邃刻像	you sui ke xiang	8
+无主的星尘	wu zhu de xing chen	8
+无主的星辉	wu zhu de xing hui	8
+相遇之缘	xiang yu zhi yuan	8
+纠缠之缘	jiu chan zhi yuan	8
+给旅行者的小蛋糕	gei lv xing zhe de xiao dan gao	8
+脆弱树脂	cui ruo shu zhi	8
+须臾树脂	xu yu shu zhi	8
+迷你仙灵紫苑	mi ni xian ling zi yuan	8
+赤穗酒枡	chi sui jiu sheng	8
+寻宝仙灵	xun bao xian ling	8
+好奇的嫣朵拉	hao qi de yan duo la	8
+雪葬之都的记忆	xue zang zhi du de ji yi	8
+忍冬之树的记忆	ren dong zhi shu de ji yi	8
+深秘圣物匣一等	shen mi sheng wu xia yi deng	8
+深秘圣物匣二等	shen mi sheng wu xia er deng	8
+深秘圣物匣三等	shen mi sheng wu xia san deng	8
+明目之油膏	ming mu zhi you gao	8
+附有记忆的面具	fu you ji yi de mian ju	8
+腐殖龙髓	fu zhi long sui	8
+四方之网	si fang zhi wang	8
+开封的信笺	kai feng de xin jian	8
+残破的信笺	can po de xin jian	8
+一封家信	yi feng jia xin	8
+被藏匿的账本	bei cang ni de zhang ben	8
+公主之匣	gong zhu zhi xia	8
+记事者之匣	ji shi zhe zhi xia	8
+祭司之匣	ji si zhi xia	8
+睦疏之匣	mu shu zhi xia	8
+光界之核	guang jie zhi he	8
+壳之宝石	ke zhi bao shi	8
+常世之荚	chang shi zhi jia	8
+渊海髓矿	yuan hai sui kuang	8
+光界之印	guang jie zhi yin	8
+梦樱	meng ying	8
+神樱大祓要略	shen ying da fu yao lve	8
+一袋花种	yi dai hua zhong	8
+奇异的海螺	qi yi de hai luo	8
+真实探灵笔记	zhen shi tan ling bi ji	8
+万劫之真意	wan jie zhi zhen yi	8
+祸神之禊泪	huo shen zhi xi lei	8
+凶将之手眼	xiong jiang zhi shou yan	8
+祝圣精华	zhu sheng jing hua	8
+旋曜玉帛	xuan yao yu bo	8
+键纹	jian wen	8
+龙嗣伪鳍	long si wei qi	8
+雷神瞳共鸣石	lei shen tong gong ming shi	8
+兽境王器	shou jing wang qi	8
+红羽团扇	hong yu tuan shan	8
+化种匣	hua zhong xia	8
+迷你仙灵薄红	mi ni xian ling bao hong	8
+迷你仙灵郁金	mi ni xian ling yu jin	8
+留影机	liu ying ji	8
+嫣朵拉	yan duo la	8
+奇特的羽毛	qi te de yu mao	8
+雷之寻宝罗盘	lei zhi xun bao luo pan	8
+装有信件的漂流瓶	zhuang you xin jian de piao liu ping	8
+镇石断片	zhen shi duan pian	8
+月浴渊之钥	yue yu yuan zhi yao	8
+深邃之血	shen sui zhi xue	8
+鸣神大社的御守	ming shen da she de yu shou	8
+戴丧面具	dai sang mian ju	8
+鳗肉	man rou	8
+阿叶夏混沌勘探器	a ye xia hun dun kan tan qi	8
+镜花之琴	jing hua zhi qin	8
+幽灯蕈	you deng xun	8
+隐兽鬼爪	yin shou gui zhua	8
+隐兽利爪	yin shou li zhao	8
+隐兽指爪	yin shou zhi zhao	8
+海皇香脂	hai huang xiang zhi	8
+荧草饵	ying cao er	8
+长绳系月	chang sheng xi yue	8
+蒙德地灵龛之钥	meng de de ling kan zhi yao	8
+璃月地灵龛之钥	li yue de ling kan zhi yao	8
+稻妻地灵龛之钥	dao qi de ling kan zhi yao	8
+祝圣油膏	zhu sheng you gao	8
+风缠	feng chan	8
+愿者	yuan zhe	8
+鸣川鹈饲	ming chuan ti si	8
+林野钓竿	lin ye diao gan	8
+飞蝇假饵	fei ying jia er	8
+蠕虫假饵	ru chong jia er	8
+赤糜饵	chi mi er	8
+果酿饵	guo niang er	8
+灰烬之心	hui jin zhi xin	8
+狱火之蝶	yu huo zhi die	8
+熔毁之刻	rong hui zhi ke	8
+雷霆数珠	lei ting shu zhu	8
+排异之露	pai yi zhi lou	8
+天云草实	tian yun cao shi	8
+珊瑚真珠	shan hu zhen zhu	8
+浮游晶化核	fu you jing hua he	8
+浮游幽核	fu you you he	8
+浮游干核	fu you gan he	8
+枫木	feng mu	8
+凛风奔狼的始龀	lin feng ben lang de shi chen	8
+凛风奔狼的裂齿	lin feng ben lang de lie chi	8
+凛风奔狼的断牙	lin feng ben lang de duan ya	8
+凛风奔狼的怀乡	lin feng ben lang de huai xiang	8
+狮牙斗士的枷锁	shi ya dou shi de jia suo	8
+狮牙斗士的铁链	shi ya dou shi de tie lian	8
+狮牙斗士的镣铐	shi ya dou shi de liao kao	8
+高塔孤王的破瓦	gao ta gu wang de po wa	8
+狮牙斗士的理想	shi ya dou shi de li xiang	8
+高塔孤王的残垣	gao ta gu wang de can yuan	8
+高塔孤王的断片	gao ta gu wang de duan pian	8
+高塔孤王的碎梦	gao ta gu wang de sui meng	8
+雾海云间的铅丹	wu hai yun jian de qian dan	8
+雾海云间的金丹	wu hai yun jian de jin dan	8
+雾海云间的汞丹	wu hai yun jian de gong dan	8
+雾海云间的转还	wu hai yun jian de zhuan hai	8
+孤云寒林的光砂	gu yun han lin de guang sha	8
+孤云寒林的辉岩	gu yun han lin de hui yan	8
+孤云寒林的圣骸	gu yun han lin de sheng hai	8
+孤云寒林的神体	gu yun han lin de shen ti	8
+漆黑陨铁的一片	qi hei yun tie de yi pian	8
+漆黑陨铁的一角	qi hei yun tie de yi jiao	8
+漆黑陨铁的一块	qi hei yun tie de yi kuai	8
+璀璨原钻碎屑	cui can yuan zuan sui xie	8
+璀璨原钻断片	cui can yuan zuan duan pian	8
+璀璨原钻块	cui can yuan zuan kuai	8
+璀璨原钻	cui can yuan zuan	8
+完整的木桩	wan zheng de mu zhuang	8
+夜泊石样品	ye po shi yang pin	8
+燃愿玛瑙碎屑	ran yuan ma nao sui xie	8
+燃愿玛瑙断片	ran yuan ma nao duan pian	8
+燃愿玛瑙块	ran yuan ma nao kuai	8
+燃愿玛瑙	ran yuan ma nao	8
+哀叙冰玉碎屑	ai xu bing yu sui xie	8
+哀叙冰玉断片	ai xu bing yu duan pian	8
+哀叙冰玉块	ai xu bing yu kuai	8
+哀叙冰玉	ai xu bing yu	8
+坚牢黄玉碎屑	jian lao huang yu sui xie	8
+坚牢黄玉断片	jian lao huang yu duan pian	8
+坚牢黄玉	jian lao huang yu	8
+坚牢黄玉块	jian lao huang yu kuai	8
+涤净青金断片	di jing qing jin duan pian	8
+涤净青金块	di jing qing jin kuai	8
+涤净青金	di jing qing jin	8
+最胜紫晶碎屑	zui sheng zi jing sui xie	8
+最胜紫晶断片	zui sheng zi jing duan pian	8
+最胜紫晶块	zui sheng zi jing kuai	8
+最胜紫晶	zui sheng zi jing	8
+自在松石碎屑	zi zai song shi sui xie	8
+自在松石断片	zi zai song shi duan pian	8
+自在松石块	zi zai song shi kuai	8
+自在松石	zi zai song shi	8
+雷光棱镜	lei guang leng jing	8
+飓风之种	ju feng zhi zhong	8
+玄岩之塔	xuan yan zhi ta	8
+东风之翎	dong feng zhi ling	8
+北风之尾	bei feng zhi wei	8
+异梦溶媒	yi meng rong mei	8
+史莱姆清	shi lai mu qing	8
+不祥的面具	bu xiang de mian ju	8
+东风之爪	dong feng zhi zhao	8
+东风的吐息	dong feng de tu xi	8
+北风之环	bei feng zhi huan	8
+北风的魂匣	bei feng de hun xia	8
+史莱姆凝液	shi lai mu ning ye	8
+史莱姆原浆	shi lai mu yuan jiang	8
+破损的面具	po sun de mian ju	8
+污秽的面具	wu hui de mian ju	8
+血玉之枝	xue yu zhi zhi	8
+导能绘卷	dao neng hui juan	8
+牢固的箭簇	lao gu de jian cu	8
+锐利的箭簇	rui li de jian cu	8
+历战的箭簇	li zhan de jian cu	8
+封魔绘卷	feng mo hui juan	8
+禁咒绘卷	jin zhou hui juan	8
+混沌炉心	hun dun lu xin	8
+寻宝鸦印	xun bao ya yin	8
+藏银鸦印	cang yin ya yin	8
+攫金鸦印	jue jin ya yin	8
+沉重号角	chen zhong hao jiao	8
+黑铜号角	hei tong hao jiao	8
+黑晶号角	hei jing hao jiao	8
+地脉的旧枝	di mai de jiu zhi	8
+地脉的枯叶	di mai de ku ye	8
+地脉的新芽	di mai de xin ya	8
+混沌装置	hun dun zhuang zhi	8
+混沌回路	hun dun hui lu	8
+雾虚花粉	wu xu hua fen	8
+雾虚草囊	wu xu cao nang	8
+雾虚灯芯	wu xu deng xin	8
+猎兵祭刀	lie bing ji dao	8
+特工祭刀	te gong ji dao	8
+士官的徽记	shi guan de hui ji	8
+督察长祭刀	du cha zhang ji dao	8
+新兵的徽记	xin bing de hui ji	8
+尉官的徽记	wei guan de hui ji	8
+魔晶块	mo jing kuai	8
+流浪者的经验	liu lang zhe de jing yan	8
+冒险家的经验	mao xian jia de jing yan	8
+大英雄的经验	da ying xiong de jing yan	8
+精锻用杂矿	jing duan yong za kuang	8
+精锻用良矿	jing duan yong liang kuang	8
+精锻用魔矿	jing duan yong mo kuang	8
+莲蓬	lian peng	8
+原素花蜜	yuan su hua mi	8
+常燃火种	chang ran huo zhong	8
+微光花蜜	wei guang hua mi	8
+浓缩树脂	nong suo shu zhi	8
+极寒之核	ji han zhi he	8
+骗骗花蜜	pian pian hua mi	8
+脆弱的骨片	cui ruo de gu pian	8
+结实的骨片	jie shi de gu pian	8
+石化的骨片	shi hua de gu pian	8
+净水之心	jing shui zhi xin	8
+口袋锚点	kou dai mao dian	8
+熄星能量	xi xing neng liang	8
+风神瞳共鸣石	feng shen tong gong ming shi	8
+岩之寻宝罗盘	yan zhi xun bao luo pan	8
+岩神瞳共鸣石	yan shen tong gong ming shi	8
+捕风瓶	bu feng ping	8
+叁零式便携营养袋	san ling shi bian xie ying yang dai	8
+风之寻宝罗盘	feng zhi xun bao luo pan	8
+吞天之鲸只角	tun tian zhi jing zhi jiao	8
+智识之冕	zhi shi zhi mian	8
+魔王之刃残片	mo wang zhi ren can pian	8
+武炼之魂孤影	wu lian zhi hun gu ying	8
+放热瓶	fang re ping	8
+熄星精粹	xi xing jing cui	8
+竹笋	zhu sun	8
+霜噬结晶	shuang shi jie jing	8
+霜噬碎屑	shuang shi sui xie	8
+星银矿石	xing yin kuang shi	8
+绯红玉髓	fei hong yu sui	8
+龙王之冕	long wang zhi mian	8
+鳅鳅宝玉	qiu qiu bao yu	8
+未熟之玉	wei shu zhi yu	8
+参量质变仪	can liang zhi bian yi	8
+霄灯	xiao deng	8
+嬗变之尘	shan bian zhi chen	8
+灯芯绒材	deng xin rong cai	8
+浮生石片	fu sheng shi pian	8
+灯纸纤维	deng zhi xian wei	8
+风花节纪念气球	feng hua jie ji nian qi qiu	8
+汲取了力量的龙牙	ji qu le li liang de long ya	8
+风物之诗琴	feng wu zhi shi qin	8
+鎏金之鳞	liu jin zhi lin	8
+尘歌壶	chen ge hu	8
+晶凝之华	jing ning zhi hua	8
+垂香木	chui xiang mu	8
+杉木	sha mu	8
+竹节	zhu jie	8
+却砂木	que sha mu	8
+松木	song mu	8
+萃华木	cui hua mu	8
+桦木	hua mu	8
+黄色染料	huang se ran liao	8
+蓝色染料	lan se ran liao	8
+红色染料	hong se ran liao	8
+布匹	bu pi	8
+迷你仙灵露草	mi ni xian ling lou cao	8
+风佑之羽球	feng you zhi yu qiu	8
+浪船修理工具箱	lang chuan xiu li gong ju xiang	8
+海灵芝	hai ling zhi	8
+洞天关牒	dong tian guan die	8
+魔偶机心	mo ou ji xin	8
+今昔剧画之恶尉	jin xi ju hua zhi e wei	8
+远海夷地的瑚枝	yuan hai yi de de hu zhi	8
+远海夷地的玉枝	yuan hai yi de de yu zhi	8
+鸣神御灵的勇武	ming shen yu ling de yong wu	8
+鸣神御灵的明惠	ming shen yu ling de ming hui	8
+鸣神御灵的欢喜	ming shen yu ling de huan xi	8
+鸣神御灵的亲爱	ming shen yu ling de qin ai	8
+远海夷地的琼枝	yuan hai yi de de qiong zhi	8
+远海夷地的金枝	yuan hai yi de de jin zhi	8
+今昔剧画之虎啮	jin xi ju hua zhi hu nie	8
+今昔剧画之鬼人	jin xi ju hua zhi gui ren	8
+今昔剧画之一角	jin xi ju hua zhi yi jiao	8
+孔雀木	kong que mu	8
+梦见木	meng jian mu	8
+晶化骨髓	jing hua gu sui	8
+御伽木	yu ga mu	8
+鸣草	ming cao	8
+海草	hai cao	8
+堇瓜	jin gua	8
+紫晶块	zi jing kuai	8
+破旧的刀镡	po jiu de dao chan	8
+绯樱绣球	fei ying xiu qiu	8
+鬼兜虫	gui dou chong	8
+风之印	feng zhi yin	8
+岩之印	yan zhi yin	8
+雷之印	lei zhi yin	8
+血斛	xue hu	8
+散失的风神瞳	san shi de feng shen tong	8
+散失的岩神瞳	san shi de yan shen tong	8
+阴燃之珠	yin ran zhi zhu	8
+恒常机关之心	heng chang ji guan zhi xin	8
+影打刀镡	ying da dao chan	8
+名刀镡	ming dao chan	8
+散失的雷神瞳	san shi de lei shen tong	8
+混沌机关	hun dun ji guan	8
+混沌枢纽	hun dun shu niu	8
+混沌真眼	hun dun zhen yan	8
+水晶棱镜	shui jing leng jing	8
+偏光棱镜	pian guang leng jing	8
+黯淡棱镜	an dan leng jing	8
+狩猎陷阱	shou lie xian jing	8
+嘟嘟可轰轰奇遇记	du du ke hong hong qi yu ji	8
+牧童与魔瓶的故事	mu tong yu mo ping de gu shi	8
+常世国龙蛇传	chang shi guo long she chuan	8
+丘丘语速查手册	qiu qiu yu su cha shou ce	8
+仙速瓶	xian su ping	8
+古恩希尔德小传	gu en xi er de xiao zhuan	8
+珠玑宝矿	zhu ji bao kuang	8
+厚厚的笔记	hou hou de bi ji	8
+千年孤独	qian nian gu du	8
+霖铃精选诗集	lin ling jing xuan shi ji	8
+涤净青金碎屑	di jing qing jin sui xie	8
+虾仁	xia ren	8
+杏仁	xing ren	8
+稻米	dao mi	8
+豆腐	dou fu	8
+胡椒	hu jiao	8
+番茄	fan qie	8
+土豆	tu dou	8
+牛奶	niu nai	8
+洋葱	yang cong	8
+禽肉	qin rou	8
+兽肉	shou rou	8
+香肠	xiang chang	8
+培根	pei gen	8
+奶酪	nai lao	8
+果酱	guo jiang	8
+蟹黄	xie huang	8
+火腿	huo tui	8
+奶油	nai you	8
+黄油	huang you	8
+面粉	mian fen	8
+熏禽肉	xun qin rou	8
+鱼肉	yu rou	8
+松茸	song rong	8
+树莓	shu mei	8
+鸟蛋	niao dan	8
+蘑菇	mo gu	8
+金鱼草	jin yu cao	8
+胡萝卜	hu luo bo	8
+卷心菜	juan xin cai	8
+甜甜花	tian tian hua	8
+薄荷	bo he	8
+嘟嘟莲	du du lian	8
+白萝卜	bai luo bo	8
+螃蟹	pang xie	8
+松果	song guo	8
+小麦	xiao mai	8
+琉璃百合	liu li bai he	8
+星螺	xing luo	8
+石珀	shi po	8
+琉璃袋	liu li dai	8
+夜泊石	ye po shi	8
+清心	qing xin	8
+霓裳花	ni chang hua	8
+绝云椒椒	jue yun jiao jiao	8
+钩钩果	gou gou guo	8
+落落莓	luo luo mei	8
+塞西莉亚花	sai xi li ya hua	8
+慕风蘑菇	mu feng mo gu	8
+蒲公英籽	pu gong ying zi	8
+小灯草	xiao deng cao	8
+风车菊	feng che ju	8
+蝴蝶翅膀	hu die chi bang	8
+电气水晶	dian qi shui jing	8
+青蛙	qing wa	8
+发光髓	fa guang sui	8
+蜥蜴尾巴	xi yi wei ba	8
+烈焰花花蕊	lie yan hua hua rui	8
+冰雾花花朵	bing wu hua hua duo	8
+马尾	ma wei	8
+北陆单手剑原胚	bei lu dan shou jian yuan pei	8
+北陆长柄武器原胚	bei lu chang bing wu qi yuan pei	8
+北陆弓原胚	bei lu gong yuan pei	8
+北陆双手剑原胚	bei lu shuang shou jian yuan pei	8
+北陆法器原胚	bei lu fa qi yuan pei	8
+水晶块	shui jing kuai	8
+白铁块	bai tie kuai	8
+铁块	tie kuai	8
+古华派的大师兄	gu hua pai de da shi xiong	8
+飞行指南	fei xing zhi nan	8
+给盗宝团的信	gei dao bao tuan de xin	8
+来自深渊教团的信	lai zi shen yuan jiao tuan de xin	8
+岩神传说	yan shen chuan shuo	8
+护法仙众夜叉录	hu fa xian zhong ye cha lu	8
+天衡绝倒集	tian heng jue dao ji	8
+列王与宗室史序	lie wang yu zong shi shi xu	8
+虹晶星花鱼	hong jing xing hua yu	8
+青仙星花鱼	qing xian xing hua yu	8
+月光雪圆鳍	yue guang xue yuan qi	8
+赤甜星花鱼	chi tian xing hua yu	8
+奶油雪圆鳍	nai you xue yuan qi	8
+炭灰雪圆鳍	tan hui xue yuan qi	8
+雪地犬	xue di quan	8
+白驮兽	bai tuo shou	8
+软猬兽	ruan wei shou	8
+晶矿虫	jing kuang chong	8
+茸茸獾	rong rong huan	8
+夜角鸮	ye jiao xiao	8
+极地熊	ji di xiong	8
+赤腹兰鸻	chi fu lan heng	8
+冰魄虫	bing po chong	8
+雪驼鹿	xue tuo lu	8
+月芒水母	yue mang shui mu	8
+月芒霜鳍鲸	yue mang shuang qi jing	8
+特别的霜鳍鲸	te bie de shuang qi jing	8
+特别的帔髦獾	te bie de pei mao huan	8
+特别的豚兽	te bie de tun shou	8
+特别的金鳅鳅	te bie de jin qiu qiu	8
+綦假龙	qi jia long	8
+驼角鹿	tuo jiao lu	8
+巡风渔鸥	xun feng yu ou	8
+灰颈鹳	hui jing guan	8
+芒脊守宫	mang ji shou gong	8
+冠饰鹰	guan shi ying	8
+苍绒狼	cang rong lang	8
+月萤虫	yue ying chong	8
+炽铁巨斧鱼	chi tie ju fu yu	8
+霜鳍鲸	shuang qi jing	8
+岩居蟹	yan ju xie	8
+素素凶凶鲨	su su xiong xiong sha	8
+钝角犀	dun jiao xi	8
+蓝昼明眼鱼	lan zhou ming yan yu	8
+冷冽巨斧鱼	leng lie ju fu yu	8
+夜色明眼鱼	ye se ming yan yu	8
+无奇巨斧鱼	wu qi ju fu yu	8
+虹光凶凶鲨	hong guang xiong xiong sha	8
+双辉长翎鹮	shuang hui zhang ling huan	8
+帔髦獾	pei mao huan	8
+栗栗羊	li li yang	8
+海崖鹦	hai ya ying	8
+暮暮羊	mu mu yang	8
+古石螺	gu shi luo	8
+凛角鹿	lin jiao lu	8
+秘源机关巡戒使	mi yuan ji guan xun jie shi	8
+游炎古琵鹭	you yan gu pi lu	8
+赤鬃古林猪	chi zong gu lin zhu	8
+朱羽古团雀	zhu yu gu tuan que	8
+琉背古彩龟	liu bei gu cai gui	8
+棕鹿	zong lu	8
+长颈角犀	zhang jing jiao xi	8
+伪装鲨鲨独角鱼	wei zhuang sha sha du jiao yu	8
+苦苦羊	ku ku yang	8
+繁花斗士急流鱼	fan hua dou shi ji liu yu	8
+炽岩斗士急流鱼	chi yan dou shi ji liu yu	8
+深潜斗士急流鱼	shen qian dou shi ji liu yu	8
+拟似燃素独角鱼	ni si ran su du jiao yu	8
+青浪翻车鲀	qing lang fan che tun	8
+晚霞翻车鲀	wan xia fan che tun	8
+山蓝琵鹭	shan lan pi lu	8
+豚兽	tun shou	8
+固晶甲虫	gu jing jia chong	8
+浮燃鸟	fu ran niao	8
+飞鼯	fei wu	8
+浮流鸟	fu liu niao	8
+赤鹳	chi guan	8
+厚羽围脖雉	hou yu wei bo zhi	8
+戟冠鸟	ji guan niao	8
+火晶蝶	huo jing die	8
+燃素蜜虫	ran su mi chong	8
+绵驮兽	mian tuo shou	8
+玉玉心羽鲈	yu yu xin yu lu	8
+玉璜龟	yu huang gui	8
+柔柔羊	rou rou yang	8
+朱喙鹈鹕	zhu hui ti hu	8
+珉光虫	min guang chong	8
+秋绒鸭	qiu rong ya	8
+悠悠海獭	you you hai ta	8
+青冠雀	qing guan que	8
+深栗猎犬	shen li lie quan	8
+亮灰猎犬	liang hui lie quan	8
+琥珀猎犬	hu po lie quan	8
+淑女犬	shu nv quan	8
+绅士犬	shen shi quan	8
+卫兵犬	wei bing quan	8
+波波心羽鲈	bo bo xin yu lu	8
+海涛斧枪鱼	hai tao fu qiang yu	8
+水晶蝶	shui jing die	8
+红冠雀	hong guan que	8
+叶绿扇尾鸽	ye lv shan wei ge	8
+洋红扇尾鸽	yang hong shan wei ge	8
+赤棕伞雀	chi zong san que	8
+灰蓝伞雀	hui lan san que	8
+平冠鹱	ping guan hu	8
+紫金渔鸥	zi jin yu ou	8
+乌翅雁	wu chi yan	8
+雪翅雁	xue chi yan	8
+烘烘心羽鲈	hong hong xin yu lu	8
+玳龟	dai gui	8
+飞蛇	fei she	8
+沙狐	sha hu	8
+圣鹮	sheng huan	8
+面具鼬	mian ju you	8
+毒蝎	du xie	8
+赤鹫	chi jiu	8
+流沙鳗鳗	liu sha man man	8
+骆骆驮兽	luo luo tuo shou	8
+暮云角鲀	mu yun jiao tun	8
+真果角鲀	zhen guo jiao tun	8
+吹沙角鲀	chui sha jiao tun	8
+牦牦驮兽	mao mao tuo shou	8
+赤尾蜥	chi wei xi	8
+丛林树蛙	cong lin shu wa	8
+长鬓虎	zhang bin hu	8
+棘冠鳄	ji guan e	8
+暝彩鸟	ming cai niao	8
+草晶蝶	cao jing die	8
+沉波蜜桃	chen bo mi tao	8
+翡玉斧枪鱼	fei yu fu qiang yu	8
+青金斧枪鱼	qing jin fu qiang yu	8
+青雷鼬	qing lei you	8
+吉光虫	ji guang chong	8
+珊瑚蝶	shan hu die	8
+佛玛洛鳐	fo ma luo yao	8
+迪芙妲鳐	di fu da yao	8
+幽浮鳐	you fu yao	8
+深海鳗鳗	shen hai man man	8
+晴天鳅鳅	qing tian qiu qiu	8
+落日鳅鳅	luo ri qiu qiu	8
+月光鳍	yue guang qi	8
+赤鳍陆鳗鳗	chi qi liu man man	8
+藤纹陆鳗鳗	teng wen liu man man	8
+水晶宴	shui jing yan	8
+蓝染花鳉	lan ran hua jiang	8
+雷鸣仙	lei ming xian	8
+长生仙	chang sheng xian	8
+鸩棘鱼	zhen ji yu	8
+炮鲀	pao tun	8
+苦炮鲀	ku pao tun	8
+雪中君	xue zhong jun	8
+赤魔王	chi mo wang	8
+锖假龙	qiang jia long	8
+流纹褐蝶鱼	liu wen he die yu	8
+流纹茶蝶鱼	liu wen cha die yu	8
+斗棘鱼	dou ji yu	8
+肺棘鱼	fei ji yu	8
+流纹京紫蝶鱼	liu wen jing zi die yu	8
+甜甜花鳉	tian tian hua jiang	8
+擒霞客	qin xia ke	8
+琉璃花鳉	liu li hua jiang	8
+花鳉	hua jiang	8
+金赤假龙	jin chi jia long	8
+蕈猪	xun zhu	8
+将军蟹	jiang jun xie	8
+嗜髓蜥	shi sui xi	8
+薄红蟹	bao hong xie	8
+菫鹮	jin huan	8
+雷晶蝶	lei jing die	8
+妖狸	yao li	8
+大黄金盗宝鼬	da huang jin dao bao you	8
+茶羽鹰	cha yu ying	8
+棕翎鹰	zong ling ying	8
+石鸢	shi yuan	8
+白练鹰	bai lian ying	8
+金团雀	jin tuan que	8
+赤喙鸭	chi hui ya	8
+灰羽鸽	hui yu ge	8
+赤团雀	chi tuan que	8
+璃冠鸽	li guan ge	8
+赤胁鸽	chi xie ge	8
+黑王鸽	hei wang ge	8
+碧团雀	bi tuan que	8
+雪团雀	xue tuan que	8
+翠冠鸭	cui guan ya	8
+雪猪	xue zhu	8
+北地犬	bei di quan	8
+巡林犬	xun lin quan	8
+泥蛙	ni wa	8
+柴犬	chai quan	8
+黑背猎犬	hei bei lie quan	8
+蓝宝石	lan bao shi	8
+北地猫	bei di mao	8
+虎纹猫	hu wen mao	8
+警长猫	jing zhang mao	8
+岩晶蝶	yan jing die	8
+冰晶蝶	bing jing die	8
+风晶蝶	feng jing die	8
+红狐	hong hu	8
+金鳅鳅	jin qiu qiu	8
+红角蜥	hong jiao xi	8
+绿角蜥	lv jiao xi	8
+翠目猫	cui mu mao	8
+灰雪猫	hui xue mao	8
+黑猫	hei mao	8
+雪狐	xue hu	8
+雪隐鼬	xue yin you	8
+红尾鼬	hong wei you	8
+靴子鼬	xue zi you	8
+藏金盗宝鼬	cang jin dao bao you	8
+白鸽	bai ge	8
+黑背鲈鱼	hei bei lu yu	8
+太阳蟹	tai yang xie	8
+松鼠	song shu	8
+蓝蛙	lan wa	8
+蓝角蜥	lan jiao xi	8
+海蓝蟹	hai lan xie	8
+蓝翎鹭	lan ling lu	8
+野林猪	ye lin zhu	8
+黄金鲈鱼	huang jin lu yu	8
+蓝鳍鲈鱼	lan qi lu yu	8
+新手盗宝鼬	xin shou dao bao you	8
+布兰诺娃	bu lan nuo wa	8
+雅鲁金	ya lu jin	8
+格里亚兹诺夫	ge li ya zi nuo fu	8
+里亚布夫	li ya bu fu	8
+莎戈娃	sha ge wa	8
+弗约尔斯卡娅	fu yue er si ka ya	8
+萨米尔卡	sa mi er ka	8
+利诺夫	li nuo fu	8
+费尔金	fei er jin	8
+婕鲁诺娃	jie lu nuo wa	8
+布布莉克	bu bu li ke	8
+维热	wei re	8
+季米亚科夫	ji mi ya ke fu	8
+多洛霍夫	duo luo huo fu	8
+梅谢斯卡娅	mei xie si ka ya	8
+赫鲁塔廖夫	he lu ta liao fu	8
+阿格拉娅	a ge la ya	8
+拉克季奥诺夫	la ke ji ao nuo fu	8
+加斯帕德	jia si pa de	8
+梅悠余	mei you yu	8
+卢香香	lu xiang xiang	8
+莎凡娜	sha fan na	8
+墨忘	mo wang	8
+蓝颖	lan ying	8
+叶尔莫莱	ye er mo lai	8
+阿芙蕾莉亚	a fu lei li ya	8
+维洛拉	wei luo la	8
+雅古任斯基	ya gu ren si ji	8
+玛琳妮娜	ma lin ni na	8
+穆欣娜	mu xin na	8
+莎赫斯卡娅	sha he si ka ya	8
+雅洛维娅	ya luo wei ya	8
+罗捷丹斯基	luo jie dan si ji	8
+罗迪翁	luo di weng	8
+基拉	ji la	8
+帕沙	pa sha	8
+韦特洛娃	wei te luo wa	8
+格尔岑	ge er cen	8
+桥桥	qiao qiao	8
+奥布连斯基	ao bu lian si ji	8
+萨瓦	sa wa	8
+柳比莫娃	liu bi mo wa	8
+叶芙琳娜	ye fu lin na	8
+拉特金	la te jin	8
+瓦蒂姆	wa di mu	8
+刻莱诺	ke lai nuo	8
+纳费多夫	na fei duo fu	8
+季诺维娅	ji nuo wei ya	8
+叶什娜	ye shen na	8
+茹拉廖夫	ru la liao fu	8
+佐洛托娃	zuo luo tuo wa	8
+叶尔莫洛夫	ye er mo luo fu	8
+古谢娃	gu xie wa	8
+切夏斯卡娅	qie xia si ka ya	8
+卡缇娅	ka ti ya	8
+梅金采夫	mei jin cai fu	8
+马列维奇	ma lie wei qi	8
+薇涅兹卡	wei nie zi ka	8
+雅里	ya li	8
+托克	tuo ke	8
+冬妮娅	dong ni ya	8
+斯米尔诺娃	si mi er nuo wa	8
+卢戈夫斯科	lu ge fu si ke	8
+杜佐洛夫	du zuo luo fu	8
+扎尔卡娅	zha er ka ya	8
+亚日娜	ya ri na	8
+佩拉格娅	pei la ge ya	8
+列斯诺娃	lie si nuo wa	8
+克雷廖夫	ke lei liao fu	8
+安菲萨	an fei sa	8
+米罗斯拉娃	mi luo si la wa	8
+奥克萨娜	ao ke sa na	8
+萨法诺夫	sa fa nuo fu	8
+马尔托斯	ma er tuo si	8
+拉杜日娜娅	la du ri na ya	8
+涅斯捷洛娃	nie si jie luo wa	8
+维洛希娜	wei luo xi na	8
+克里夫达	ke li fu da	8
+普列特涅夫	pu lie te nie fu	8
+塔伊西娅	ta yi xi ya	8
+苏赫拉布	su he la bu	8
+塔拉利欣	ta la li xin	8
+赛路吉	sai lu ji	8
+卢科夫	lu ke fu	8
+波格丹娜	bo ge dan na	8
+柳博芙	liu bo fu	8
+索博列夫	suo bo lie fu	8
+大喜儿	da xi er	8
+琪琪科娃	qi qi ke wa	8
+克尼亚泽夫	ke ni ya ze fu	8
+阿尔秋姆	a er qiu mu	8
+伊娜	yi na	8
+哲列兹诺夫	zhe lie zi nuo fu	8
+杜斯塔娅	du si ta ya	8
+格里戈里	ge li ge li	8
+雅罗斯拉夫	ya luo si la fu	8
+齐良诺夫	qi liang nuo fu	8
+捷列布佐夫	jie lie bu zuo fu	8
+库兹米切夫	ku zi mi qie fu	8
+布图琳娜	bu tu lin na	8
+凯瑟琳	kai se lin	8
+朱南	zhu nan	8
+芭比洛斯	ba bi luo si	8
+泽西切	ze xi qie	8
+伊莱帕	yi lai pa	8
+秋纽奥	qiu niu ao	8
+库希马纳	ku xi ma na	8
+阿妮拉	a ni la	8
+爱菲拉	ai fei la	8
+库珀努伊	ku po nu yi	8
+莉奥波汀	li ao bo ting	8
+奥多夫	ao duo fu	8
+温斯洛	wen si luo	8
+古洛韦	gu luo wei	8
+薇莉亚娜	wei li ya na	8
+巴克豪斯	ba ke hao si	8
+安德烈亚斯	an de lie ya si	8
+罗丝薇莎	luo si wei sha	8
+莱维	lai wei	8
+菲洛梅娜	fei luo mei na	8
+哥林	ge lin	8
+马萨欧斯	ma sa ou si	8
+史图维尔	shi tu wei er	8
+莫里兹提尔	mo li zi ti er	8
+麦克斯	mai ke si	8
+杨轸	yang zhen	8
+曼恩	man en	8
+艾萝蒂	ai luo di	8
+莱纳斯	lai na si	8
+林德曼	lin de man	8
+洛森莎尔	luo sen sha er	8
+沃纳	wo na	8
+哈夫纳	ha fu na	8
+艾玫嘉	ai mei jia	8
+君特	jun te	8
+格布哈德	ge bu ha de	8
+赫斯塔尔	he si ta er	8
+乌苏拉	wu su la	8
+科赫	ke he	8
+帕特里西亚	pa te li xi ya	8
+小鱼	xiao yu	8
+芬恩	fen en	8
+狄米特列夫	di mi te lie fu	8
+列兹伯格	lie zi bo ge	8
+爱瑟海黛	ai se hai dai	8
+赫恩	he en	8
+因薛尼	yin xue ni	8
+内田幸太郎	nei tian xing tai lang	8
+玛卡尼哈冈	ma ka ni ha gang	8
+加奥凯	jia ao kai	8
+蒙周	meng zhou	8
+葵娅乌赫奎扎尔	kui ya wu he kui zha er	8
+丛沈	cong shen	8
+阿穆茜华莉	a mu qian hua li	8
+长孙继璟	zhang sun ji jing	8
+兴邦	xing bang	8
+虞黄衣	yu huang yi	8
+狄奥提玛	di ao ti ma	8
+托萨利斯	tuo sa li si	8
+薇恩狄娅	wei en di ya	8
+巴曼尼德	ba man ni de	8
+狩野	shou ye	8
+妌癸	jing gui	8
+卡斯蒂廖内	ka si di liao nei	8
+摩答伐	mo da fa	8
+海鹰	hai ying	8
+石墩儿	shi dun er	8
+丰运	feng yun	8
+志遥	zhi yao	8
+霍香	huo xiang	8
+阿娅	a ya	8
+阿提	a ti	8
+龚妙	gong miao	8
+阿诺	a nuo	8
+恩胡马	en hu ma	8
+法斯宾德	fa si bin de	8
+龙呼	long hu	8
+维特鲁威	wei te lu wei	8
+维尼皮	wei ni pi	8
+茜尔丝汀	qian er si ting	8
+伊斯托利亚	yi si tuo li ya	8
+本瑟姆	ben se mu	8
+乔瑟夫斯	qiao se fu si	8
+秋特切娃	qiu te qie wa	8
+莉莲	li lian	8
+埃斯特拉冈	ai si te la gang	8
+埃尔西	ai er xi	8
+赫姆斯	he mu si	8
+莱奥诺拉	lai ao nuo la	8
+盖纳	gai na	8
+汉娜洛蕾	han na luo lei	8
+菲乐丝	fei le si	8
+安妮克	an ni ke	8
+西蒙佩奇	xi meng pei qi	8
+埃洛雯	ai luo wen	8
+特雷斯	te lei si	8
+咚咚小圆帽	dong dong xiao yuan mao	8
+欢腾之火	huan teng zhi huo	8
+转转悠悠兽	zhuan zhuan you you shou	8
+百雷遮罗	bai lei zhe luo	8
+洋葱尾巴	yang cong wei ba	8
+青霆	qing ting	8
+信风舞姬	xin feng wu ji	8
+艾克贝特	ai ke bei te	8
+莱夫赫姆	lai fu he mu	8
+洛朗	luo lang	8
+埃利什卡	ai li shen ka	8
+敦克哈斯	dun ke ha si	8
+格兰菲狄	ge lan fei di	8
+耶嘉	ye jia	8
+哈尔瓦尼	ha er wa ni	8
+霍肯	huo ken	8
+赫得蔚格	he de wei ge	8
+奥什卡里	ao shen ka li	8
+雅努什	ya nu shen	8
+维斯菈娃	wei si la wa	8
+埃德勒	ai de le	8
+春水	chun shui	8
+满目	man mu	8
+萍溪	ping xi	8
+闻冀	wen ji	8
+报菲	bao fei	8
+桂澜	gui lan	8
+瓦加劳	wa jia lao	8
+拉杜什劳	la du shen lao	8
+劳乌里	lao wu li	8
+伊瓦尔	yi wa er	8
+伊捷莉	yi jie li	8
+安莱夫	an lai fu	8
+尼基塔	ni ji ta	8
+瓦蒂什	wa di shen	8
+罗洛	luo luo	8
+妮内特	ni nei te	8
+玛柳莎	ma liu sha	8
+柳别尔齐	liu bie er qi	8
+马鲁什金	ma lu shen jin	8
+泽纳娜	ze na na	8
+济明	ji ming	8
+纳尼娜	na ni na	8
+赫尔妲	he er da	8
+沃瑟博尔	wo se bo er	8
+帕托利切夫	pa tuo li qie fu	8
+帕伊沃	pa yi wo	8
+科菲策	ke fei ce	8
+卓佳娜	zhuo jia na	8
+格维妲	ge wei da	8
+安塞姆	an sai mu	8
+温弗里德	wen fu li de	8
+别蕾娜	bie lei na	8
+莱沃蒂	lai wo di	8
+欧蜜涅	ou mi nie	8
+库济米奇	ku ji mi qi	8
+兰塔宁	lan ta ning	8
+弗莱库	fu lai ku	8
+乌利亚娜	wu li ya na	8
+阿莱娜	a lai na	8
+因嘉	yin jia	8
+爱拉尼	ai la ni	8
+明妮	ming ni	8
+汤义刚	tang yi gang	8
+悠闲的清泉镇选手	you xian de qing quan zhen xuan shou	8
+无奈的稻妻选手	wu nai de dao qi xuan shou	8
+堇葵	jin kui	8
+咕咕丸	gu gu wan	8
+毕洛	bi luo	8
+茜尔雅	qian er ya	8
+埃维德	ai wei de	8
+赫尔穆特	he er mu te	8
+爱维琳	ai wei lin	8
+瓦勒提	wa le ti	8
+妮库	ni ku	8
+喜欢记录的月灵	xi huan ji lu de yue ling	8
+阿尔希普	a er xi pu	8
+莱斯托克	lai si tuo ke	8
+克维库	ke wei ku	8
+科米娜	ke mi na	8
+阿莎莎郎勃罗	a sha sha lang bo luo	8
+泽伊采娃	ze yi cai wa	8
+玛尔塔	ma er ta	8
+瓦伊诺	wa yi nuo	8
+科洛曼	ke luo man	8
+罗尔夫	luo er fu	8
+涅米宁	nie mi ning	8
+阿扎莉娅	a zha li ya	8
+赫洛瓦捷	he luo wa jie	8
+托库沃	tuo ku wo	8
+普列博	pu lie bo	8
+里斯托	li si tuo	8
+沃莉斯菈娃	wo li si la wa	8
+举行仪式的幽影	ju xing yi shi de you ying	8
+大嗓门的幽影	da sang men de you ying	8
+托尔芬	tuo er fen	8
+爱莱妲	ai lai da	8
+乌娜亚塔	wu na ya ta	8
+尤尔瓦	you er wa	8
+米科	mi ke	8
+卡尼	ka ni	8
+坎托尔	kan tuo er	8
+杜罗夫	du luo fu	8
+团雀	tuan que	8
+盗宝鼬	dao bao you	8
+居简	ju jian	8
+贝菈莎	bei la sha	8
+祖潘科	zu pan ke	8
+卡乌妮娅	ka wu ni ya	8
+巴甫洛夫	ba fu luo fu	8
+伊卡莱宁	yi ka lai ning	8
+科罗德	ke luo de	8
+鲁兹茨基	lu zi ci ji	8
+契切林	qi qie lin	8
+歌尔琴娜	ge er qin na	8
+海勒姆	hai le mu	8
+勒塞克	le sai ke	8
+奥梅索夫	ao mei suo fu	8
+库莉艾卡	ku li ai ka	8
+里卡司	li ka si	8
+苏霍维赫	su huo wei he	8
+诃祇因	he qi yin	8
+辛查	xin cha	8
+卢什涅	lu shen nie	8
+塔尔诺	ta er nuo	8
+潘提	pan ti	8
+佩彻娜	pei che na	8
+博恩察	bo en cha	8
+霍尔雷	huo er lei	8
+库丹科娃	ku dan ke wa	8
+西茨博尔	xi ci bo er	8
+斯莱日涅夫	si lai ri nie fu	8
+汉努	han nu	8
+维贾米	wei jia mi	8
+朗格马克	lang ge ma ke	8
+丽切娅	li qie ya	8
+塔帕尼	ta pa ni	8
+克鲁切	ke lu qie	8
+索洛尼娅	suo luo ni ya	8
+帕霍	pa huo	8
+莉布瑟	li bu se	8
+博茨斯劳	bo ci si lao	8
+玛茜菈	ma qian la	8
+阿锦	a jin	8
+别捷丝卡娅	bie jie si ka ya	8
+卓霍米菈	zhuo huo mi la	8
+赫杰森	he jie sen	8
+卡缅科	ka mian ke	8
+亚洛辛斯基	ya luo xin si ji	8
+格尔恰科娃	ge er qia ke wa	8
+赫娜伊娅努伊	he na yi ya nu yi	8
+约霍	yue huo	8
+雷科	lei ke	8
+拉蒂米尔	la di mi er	8
+特维杜	te wei du	8
+小狼	xiao lang	8
+伊兹博日	yi zi bo ri	8
+哈沃	ha wo	8
+齐娜伊达	qi na yi da	8
+米契沃	mi qi wo	8
+伯尔兰	bo er lan	8
+雅洛	ya luo	8
+马涅茨	ma nie ci	8
+奥涅戈夫	ao nie ge fu	8
+蒂昂日	di ang ri	8
+安菲莎	an fei sha	8
+德文特	de wen te	8
+泽兹米尔	ze zi mi er	8
+谢苗	xie miao	8
+阿莉妲	a li da	8
+阿舍鲁	a she lu	8
+玫熙	mei xi	8
+乌尔瓦	wu er wa	8
+波泽娜	bo ze na	8
+莱里	lai li	8
+库德拉托夫	ku de la tuo fu	8
+梅妲	mei da	8
+爱莱莎	ai lai sha	8
+维萨	wei sa	8
+安妮兹卡	an ni zi ka	8
+马科拉	ma ke la	8
+蕾瓦妮	lei wa ni	8
+诺米奥	nuo mi ao	8
+米尔斯基	mi er si ji	8
+欧西安	ou xi an	8
+奥妮	ao ni	8
+库齐娅	ku qi ya	8
+维娜	wei na	8
+梅蒂	mei di	8
+明娜	ming na	8
+莉伊妲	li yi da	8
+莎莱卡	sha lai ka	8
+安洛丝	an luo si	8
+利乌芭	li wu ba	8
+韦克塞尔	wei ke sai er	8
+格乌登提	ge wu deng ti	8
+索妮齐娅	suo ni qi ya	8
+萨林	sa lin	8
+里艾蒂	li ai di	8
+莱赫妲尔	lai he da er	8
+茜涅特	qian nie te	8
+伊尔玛里	yi er ma li	8
+莉莉希	li li xi	8
+德米安	de mi an	8
+缘谷紫	yuan gu zi	8
+卡嘉	ka jia	8
+萨维特	sa wei te	8
+林布	lin bu	8
+海德薇卡	hai de wei ka	8
+采若	cai ruo	8
+柳佳	liu jia	8
+瑞安提	rui an ti	8
+基努	ji nu	8
+伊菲莱雅	yi fei lai ya	8
+马卡尼	ma ka ni	8
+阿普阿	a pu a	8
+莎夏菈	sha xia la	8
+查特巴贾	cha te ba jia	8
+纳瓦特拉利	na wa te la li	8
+图瓦哈克	tu wa ha ke	8
+穆温达	mu wen da	8
+卡欣妲	ka xin da	8
+伊帕库拉	yi pa ku la	8
+卓新	zhuo xin	8
+艾慕	ai mu	8
+阿圆	a yuan	8
+玛由	ma you	8
+格兹米斯菈娃	ge zi mi si la wa	8
+娜塔芭	na ta ba	8
+瓦查伊	wa cha yi	8
+厄尔蜜	e er mi	8
+查帕莉	cha pa li	8
+托奇特莉	tuo qi te li	8
+胡里乌	hu li wu	8
+索尔顿	suo er dun	8
+赫马基	he ma ji	8
+伊凯卡	yi kai ka	8
+飞明	fei ming	8
+索林	suo lin	8
+塔雅	ta ya	8
+阿罗哈	a luo ha	8
+乌哈纳	wu ha na	8
+米查	mi cha	8
+卡帕克	ka pa ke	8
+哈雅库	ha ya ku	8
+度假的诗客	du jia de shi ke	8
+夸米蒂	kua mi di	8
+布德	bu de	8
+泰克胡	tai ke hu	8
+蒂茜玛	di qian ma	8
+伊斯特莉	yi si te li	8
+琪拉	qi la	8
+普麦纳	pu mai na	8
+阿楚	a chu	8
+阿扎卡	a zha ka	8
+图西娜	tu xi na	8
+乌奎奇	wu kui qi	8
+库图	ku tu	8
+瓦拉	wa la	8
+切鲁	qie lu	8
+阿考	a kao	8
+马林切	ma lin qie	8
+莱帕蕾	lai pa lei	8
+尤普依	you pu yi	8
+扎卡	zha ka	8
+伊恰库纳努伊	yi qia ku na nu yi	8
+提可菈	ti ke la	8
+沙潘	sha pan	8
+阿霍伊内	a huo yi nei	8
+卡伦莱	ka lun lai	8
+塔凯伊	ta kai yi	8
+奥胡帝亚	ao hu di ya	8
+斯奇	si qi	8
+卡内	ka nei	8
+松潘特利	song pan te li	8
+富尼耶	fu ni ye	8
+特乌兹特利	te wu zi te li	8
+察尔瓦	cha er wa	8
+卡苏娅	ka su ya	8
+阿维苏菈	a wei su la	8
+拉威亚	la wei ya	8
+娜瓦拉翠	na wa la cui	8
+菲尔珀	fei er po	8
+马萨特尔	ma sa te er	8
+马夸胡伊特尔	ma kua hu yi te er	8
+穆托莉娜	mu tuo li na	8
+希亚赫	xi ya he	8
+欧库夏	ou ku xia	8
+胡伊鲁	hu yi lu	8
+加希菈	jia xi la	8
+普萨科	pu sa ke	8
+波波豪	bo bo hao	8
+蜜琪莉	mi qi li	8
+卡瓦伊阿	ka wa yi a	8
+有些特别的鹤	you xie te bie de he	8
+谢妮	xie ni	8
+弗雷瑞斯	fu lei rui si	8
+肯顿	ken dun	8
+方谨	fang jin	8
+齐勇	qi yong	8
+法德瓦	fa de wa	8
+达尔维什	da er wei shen	8
+阿塔希耶	a ta xi ye	8
+内森	nei sen	8
+昂吉安妮	ang ji an ni	8
+哈贾娜德	ha jia na de	8
+阿尔方斯	a er fang si	8
+艾库瓦	ai ku wa	8
+活泼的绵驮兽	huo po de mian tuo shou	8
+呆呆的绵驮兽	dai dai de mian tuo shou	8
+阿乌伊娅	a wu yi ya	8
+曼科	man ke	8
+努斯妲	nu si da	8
+贪吃的绵驮兽	tan chi de mian tuo shou	8
+胆小的绵驮兽	dan xiao de mian tuo shou	8
+萝克珊	luo ke shan	8
+呼噜克	hu lu ke	8
+有礼貌礼帽小姐	you li mao li mao xiao jie	8
+玛因	ma yin	8
+特拉波	te la bo	8
+托扬娜	tuo yang na	8
+柯梯米	ke ti mi	8
+克伊奈	ke yi nai	8
+扎安娅	zha an ya	8
+普玛莉	pu ma li	8
+尤考姆	you kao mu	8
+科帕	ke pa	8
+艾德温伊斯丁豪斯	ai de wen yi si ding hao si	8
+纳克	na ke	8
+阿纳	a na	8
+韦尼尔	wei ni er	8
+白浜	bai bang	8
+奥尔科	ao er ke	8
+娜恩希	na en xi	8
+伊波莱	yi bo lai	8
+索莉马娜	suo li ma na	8
+恩琳	en lin	8
+比奇津	bi qi jin	8
+柴葉紫	chai ye zi	8
+百日白白音	bai ri bai bai yin	8
+琪希可	qi xi ke	8
+赫伯德	he bo de	8
+凯塔	kai ta	8
+妮乌	ni wu	8
+帕尼娅	pa ni ya	8
+伊瓦伊	yi wa yi	8
+洛娅	luo ya	8
+奥娅	ao ya	8
+鲁娜	lu na	8
+萨赤阿	sa chi a	8
+乌鲁班巴	wu lu ban ba	8
+图娜卡	tu na ka	8
+扎什	zha shen	8
+尤鲁赫	you lu he	8
+马索瑟	ma suo se	8
+蒂兹洛	di zi luo	8
+卢施	lu shi	8
+库蕾玛娜	ku lei ma na	8
+伊察霍	yi cha huo	8
+马范	ma fan	8
+莉娜夏	li na xia	8
+恩波索	en bo suo	8
+杜塔	du ta	8
+马扎里	ma zha li	8
+米莱	mi lai	8
+安杜	an du	8
+尼娅	ni ya	8
+帕卡林	pa ka lin	8
+科里	ke li	8
+卡乌胡	ka wu hu	8
+尤洛	you luo	8
+伦图	lun tu	8
+阿麦	a mai	8
+豪特利	hao te li	8
+娜帕	na pa	8
+奇皮茨	qi pi ci	8
+纳纳卡	na na ka	8
+奇佐勒	qi zuo le	8
+夏贝瓦	xia bei wa	8
+卡布林	ka bu lin	8
+查尤霍	cha you huo	8
+瓦娜娜	wa na na	8
+西杜阿	xi du a	8
+帕华娅	pa hua ya	8
+科勇基	ke yong ji	8
+泰库马	tai ku ma	8
+薇内什	wei nei shen	8
+巴罗	ba luo	8
+库琪露	ku qi lou	8
+阿卡特	a ka te	8
+穆茜雅	mu qian ya	8
+索乌娜	suo wu na	8
+马察科	ma cha ke	8
+塔马鲁	ta ma lu	8
+阿托力	a tuo li	8
+厄达尔夫	e da er fu	8
+卡乌娅	ka wu ya	8
+加莫莉	jia mo li	8
+杜兹厄	du zi e	8
+度尼娅	du ni ya	8
+瓦阿吉	wa a ji	8
+约卡	yue ka	8
+苏玛克	su ma ke	8
+帕兰	pa lan	8
+莎娜	sha na	8
+帕卡努伊	pa ka nu yi	8
+汉佩克	han pei ke	8
+娅特兰	ya te lan	8
+卡帕可	ka pa ke	8
+加纳尔	jia na er	8
+丁戈内克	ding ge nei ke	8
+西坎	xi kan	8
+皮希加	pi xi jia	8
+坎内克	kan nei ke	8
+乌茨勒	wu ci le	8
+容韦勒	rong wei le	8
+卡图马	ka tu ma	8
+柯帕	ke pa	8
+雷格巴	lei ge ba	8
+奥贡	ao gong	8
+潘帕	pan pa	8
+马伊塔	ma yi ta	8
+阿梅妲	a mei da	8
+哈卡乌	ha ka wu	8
+爱可	ai ke	8
+哲俩阿	zhe lia a	8
+亚瓦尔	ya wa er	8
+德拉萝诗	de la luo shi	8
+卡卡妈妈	ka ka ma ma	8
+希乌休	xi wu xiu	8
+特帕切	te pa qie	8
+维图索夫	wei tu suo fu	8
+瓦兰卡	wa lan ka	8
+蒂索克	di suo ke	8
+提佐科	ti zuo ke	8
+蒂图	di tu	8
+塔莫蕾	ta mo lei	8
+妮佩卡	ni pei ka	8
+卓也	zhuo ye	8
+独眼小僧	du yan xiao seng	8
+河童	he tong	8
+狐妖	hu yao	8
+仁美	ren mei	8
+末须久	mo xu jiu	8
+加目无	jia mu wu	8
+拉斯塔恩	la si ta en	8
+特佐佐	te zuo zuo	8
+马塔拉	ma ta la	8
+赫瓦特莉	he wa te li	8
+薄荷大福	bo he da fu	8
+加勒弗大汪	jia le fu da wang	8
+帕朗	pa lang	8
+耶里门	ye li men	8
+莉瓦	li wa	8
+特马乔	te ma qiao	8
+拉密萨纳	la mi sa na	8
+卡力弗	ka li fu	8
+奥伯龙	ao bo long	8
+塔卢加	ta lu jia	8
+夏拉帕	xia la pa	8
+希皮利	xi pi li	8
+约洛特莉	yue luo te li	8
+克拉莉希娅	ke la li xi ya	8
+阿特琪	a te qi	8
+伊西姆	yi xi mu	8
+明澜	ming lan	8
+瑶露	yao lou	8
+赫卡	he ka	8
+穆伊萨	mu yi sa	8
+米特尔	mi te er	8
+阿邦迪	a bang di	8
+卡拉穆鲁	ka la mu lu	8
+奇普	qi pu	8
+奥罗卢柯	ao luo lu ke	8
+卡乌帕	ka wu pa	8
+米齐卡	mi qi ka	8
+帕恰	pa qia	8
+图达玛	tu da ma	8
+卡胡那	ka hu na	8
+佩蕾努伊	pei lei nu yi	8
+阿米娜	a mi na	8
+哈尔乔	ha er qiao	8
+萨米诺	sa mi nuo	8
+佩尤特莉	pei you te li	8
+洛塔	luo ta	8
+穆托瓦	mu tuo wa	8
+伊柯蒂	yi ke di	8
+鲁米帕	lu mi pa	8
+阿马佐利	a ma zuo li	8
+漱玉	shu yu	8
+玛兹嘉	ma zi jia	8
+穆基	mu ji	8
+因卡纳克	yin ka na ke	8
+穆托塔	mu tuo ta	8
+奥杜力	ao du li	8
+伊图提娅	yi tu ti ya	8
+卡胡鲁	ka hu lu	8
+托尔特克	tuo er te ke	8
+菲欣妮	fei xin ni	8
+玛伊蕾	ma yi lei	8
+萨卡乌	sa ka wu	8
+提帕诺	ti pa nuo	8
+梅兹莉	mei zi li	8
+亚蕾琪	ya lei qi	8
+庇兰	bi lan	8
+阿隆	a long	8
+马西娜努伊	ma xi na nu yi	8
+马努阿	ma nu a	8
+莉洛娅	li luo ya	8
+乌米	wu mi	8
+米卢努伊	mi lu nu yi	8
+叶莱菲	ye lai fei	8
+马陶霍	ma tao huo	8
+麦斯欧德	mai si ou de	8
+陀罗诘利	tuo luo jie li	8
+萨费伊	sa fei yi	8
+乌尔	wu er	8
+库西	ku xi	8
+加塔力	jia ta li	8
+维查玛	wei cha ma	8
+布鲁	bu lu	8
+汉扎	han zha	8
+夸梅	kua mei	8
+提莉乌娅	ti li wu ya	8
+阿霍伊图	a huo yi tu	8
+卡马克	ka ma ke	8
+阿斯基娅	a si ji ya	8
+埃文苏	ai wen su	8
+奥西	ao xi	8
+科约帕	ke yue pa	8
+库娅	ku ya	8
+瓦图妲	wa tu da	8
+辛佳	xin jia	8
+瓦蕾	wa lei	8
+夏萝努伊	xia luo nu yi	8
+梅内娅	mei nei ya	8
+莫乌	mo wu	8
+帕莉西娅	pa li xi ya	8
+塔洛娜	ta luo na	8
+尼南	ni nan	8
+布纳马	bu na ma	8
+钦特利	qin te li	8
+艾玛托	ai ma tuo	8
+辛奇	xin qi	8
+桑科约克	sang ke yue ke	8
+海岳	hai yue	8
+因娜	yin na	8
+巴加约	ba jia yue	8
+奇怪的匿叶龙	qi guai de ni ye long	8
+伊卡尤	yi ka you	8
+阿卡坦加	a ka tan jia	8
+瓦达娜	wa da na	8
+梅西娜	mei xi na	8
+凯安	kai an	8
+库马约	ku ma yue	8
+卡纳鲁亚	ka na lu ya	8
+巴亚吉达	ba ya ji da	8
+霍图鲁	huo tu lu	8
+蒂尔妲	di er da	8
+奎皮亚	kui pi ya	8
+尤季娜	you ji na	8
+瓦伊纳	wa yi na	8
+依扎娜	yi zha na	8
+伊泽	yi ze	8
+延塔莎	yan ta sha	8
+亚格贝乌	ya ge bei wu	8
+希伊亚	xi yi ya	8
+薇尔恰	wei er qia	8
+瓦凯努伊	wa kai nu yi	8
+安切塔	an qie ta	8
+曼萨	man sa	8
+夏温	xia wen	8
+娜玛卡	na ma ka	8
+伊克娜	yi ke na	8
+阿布帕隆	a bu pa long	8
+切妮	qie ni	8
+巴茨	ba ci	8
+霍娅	huo ya	8
+帕加尔	pa jia er	8
+伊蜜	yi mi	8
+恩加韦	en jia wei	8
+伊赫卡	yi he ka	8
+西布	xi bu	8
+阿基约	a ji yue	8
+西帕克	xi pa ke	8
+爱雅	ai ya	8
+夏安卡	xia an ka	8
+爱维莉	ai wei li	8
+尼尼	ni ni	8
+荆和	jing he	8
+塔诺	ta nuo	8
+卡安	ka an	8
+波蒂莉	bo di li	8
+温柔的守卫	wen rou de shou wei	8
+拜希麦五世	bai xi mai wu shi	8
+阿迪尔	a di er	8
+奥雷卢	ao lei lu	8
+福罗贝尔	fu luo bei er	8
+埃斯唐普	ai si tang pu	8
+西梅	xi mei	8
+苏法什	su fa shen	8
+萨博兰	sa bo lan	8
+波波拉诺	bo bo la nuo	8
+卡佩	ka pei	8
+奥比奇	ao bi qi	8
+埃斯诺尔	ai si nuo er	8
+柑橘	gan ju	8
+溪泉	xi quan	8
+爆竹	bao zhu	8
+板栗	ban li	8
+白果	bai guo	8
+布蕾斯特	bu lei si te	8
+珀西芙	po xi fu	8
+利弗	li fu	8
+西达	xi da	8
+方妮雅	fang ni ya	8
+玄理	xuan li	8
+苏定	su ding	8
+捷勒	jie le	8
+普莱希雅	pu lai xi ya	8
+贝翠莎	bei cui sha	8
+艾瑟娜	ai se na	8
+肯莎	ken sha	8
+因提夫	yin ti fu	8
+夏米安	xia mi an	8
+安特曼	an te man	8
+杰柯艾妲	jie ke ai da	8
+瑟米安	se mi an	8
+索希	suo xi	8
+洛耶茨	luo ye ci	8
+艾尤恩	ai you en	8
+伊莎朵	yi sha duo	8
+巴朗	ba lang	8
+达尼奥	da ni ao	8
+艾古伊	ai gu yi	8
+埃斯特	ai si te	8
+瑟维妮	se wei ni	8
+罗西莫夫	luo xi mo fu	8
+伊洛丝	yi luo si	8
+克兰茨	ke lan ci	8
+奈莉	nai li	8
+格兰维尔	ge lan wei er	8
+德斯诺斯	de si nuo si	8
+寒泉	han quan	8
+黄三爷	huang san ye	8
+老陆头	lao lu tou	8
+泰锡封	tai xi feng	8
+知贵	zhi gui	8
+兰吉特	lan ji te	8
+莱提西娅	lai ti xi ya	8
+朗清	lang qing	8
+德沃沙克	de wo sha ke	8
+犍罗毗多	qian luo pi duo	8
+宝拉	bao la	8
+玛莎	ma sha	8
+斯库拉	si ku la	8
+阿娜卡	a na ka	8
+萨嘉尔	sa jia er	8
+欧诺莉	ou nuo li	8
+帕特里克	pa te li ke	8
+扎娅	zha ya	8
+朱尔斯	zhu er si	8
+蒂埃坡罗	di ai po luo	8
+康塔莉妮	kang ta li ni	8
+若松	ruo song	8
+朱斯蒂诺	zhu si di nuo	8
+玄机	xuan ji	8
+文四爷	wen si ye	8
+博言	bo yan	8
+洛尔丹	luo er dan	8
+无名的石像	wu ming de shi xiang	8
+乔瓦尼	qiao wa ni	8
+博絮埃	bo xu ai	8
+福斯卡里	fu si ka li	8
+小呜斯	xiao wu si	8
+歌黛妮	ge dai ni	8
+莫塞	mo sai	8
+戈伦德兰	ge lun de lan	8
+梅康顿	mei kang dun	8
+巴比斯	ba bi si	8
+德皮耶里	de pi ye li	8
+瓦乐瑞娜	wa le rui na	8
+德佑	de you	8
+阿泰菲	a tai fei	8
+芙里达	fu li da	8
+千世	qian shi	8
+拉瑟兰	la se lan	8
+维钦佐	wei qin zuo	8
+斡流	wo liu	8
+陈八珍	chen ba zhen	8
+铁锤儿	tie chui er	8
+凌霄	ling xiao	8
+铁瓜儿	tie gua er	8
+铁船儿	tie chuan er	8
+毅钧	yi jun	8
+肖诺	xiao nuo	8
+枕鸢	zhen yuan	8
+德巴内	de ba nei	8
+卷舒	juan shu	8
+文寻	wen xun	8
+遐庆	xia qing	8
+旋覆	xuan fu	8
+浮游水蕈兽努尔	fu you shui xun shou nu er	8
+红鱼	hong yu	8
+青夜	qing ye	8
+椒椒	jiao jiao	8
+云云	yun yun	8
+文华	wen hua	8
+土生	tu sheng	8
+仪正	yi zheng	8
+洪分	hong fen	8
+前韵	qian yun	8
+可慎	ke shen	8
+连芳	lian fang	8
+丰泰	feng tai	8
+皮托	pi tuo	8
+迭跃	die yue	8
+韩迁	han qian	8
+小旷	xiao kuang	8
+渚春	zhu chun	8
+沃特蒙泰涅	wo te meng tai nie	8
+万斛	wan hu	8
+马里	ma li	8
+笃勤	du qin	8
+九贯	jiu guan	8
+阿绿	a lv	8
+阿林	a lin	8
+赫曼逊	he man xun	8
+弗里斯兰	fu li si lan	8
+却之	que zhi	8
+有规	you gui	8
+孙桡	sun rao	8
+永赞	yong zan	8
+望涓	wang juan	8
+赛金砖	sai jin zhuan	8
+方矩	fang ju	8
+轩瞩	xuan zhu	8
+平善	ping shan	8
+婉静	wan jing	8
+坐地虎	zuo di hu	8
+盘枝蛇	pan zhi she	8
+莫妍	mo yan	8
+楚伯	chu bo	8
+大盗	da dao	8
+老丁	lao ding	8
+小丁	xiao ding	8
+德音	de yin	8
+泊溯	po su	8
+木李	mu li	8
+霸哥	ba ge	8
+霸爷	ba ye	8
+大黑	da hei	8
+宜清	yi qing	8
+舒山	shu shan	8
+百疏	bai shu	8
+捷悟	jie wu	8
+利兴	li xing	8
+礼信	li xin	8
+琼玖	qiong jiu	8
+罗叔	luo shu	8
+大桔	da ju	8
+贾尔库坦	jia er ku tan	8
+衡听	heng ting	8
+艾葛	ai ge	8
+阿金	a jin	8
+石坤	shi kun	8
+仁三	ren san	8
+小梁	xiao liang	8
+纳蒂亚	na di ya	8
+佩尔曼雅	pei er man ya	8
+梅雅德	mei ya de	8
+格莱丝	ge lai si	8
+尚贝兰	shang bei lan	8
+弗里曼	fu li man	8
+加希	jia xi	8
+舒当	shu dang	8
+西芒	xi mang	8
+布雷克	bu lei ke	8
+夏琳	xia lin	8
+诗黛	shi dai	8
+爱洛芙	ai luo fu	8
+诺尔	nuo er	8
+诺莱特	nuo lai te	8
+科斯唐坦	ke si tang tan	8
+小露米埃尔	xiao lu mi ai er	8
+蒂蕾娜	di lei na	8
+伊莲	yi lian	8
+梅里爱	mei li ai	8
+安蒂拉	an di la	8
+瓦莱	wa lai	8
+沃伦努维尔勋爵	wo lun nu wei er xun jue	8
+伊诺米娅	yi nuo mi ya	8
+伊梅娜	yi mei na	8
+柯妮莉娅	ke ni li ya	8
+埃蒂安	ai di an	8
+布吕诺	bu lv nuo	8
+薇娜	wei na	8
+嘉维娜	jia wei na	8
+卢茨	lu ci	8
+纳库尔	na ku er	8
+费索勒	fei suo le	8
+奥蒂涅	ao di nie	8
+罗索里诺	luo suo li nuo	8
+米勒洛	mi le luo	8
+阿德纳	a de na	8
+嘉维娅	jia wei ya	8
+莫普瓦	mo pu wa	8
+勒克莱德	le ke lai de	8
+卡兰萨	ka lan sa	8
+阿芙颂	a fu song	8
+克拉佩	ke la pei	8
+伊尔梅	yi er mei	8
+兴澄	xing cheng	8
+舒蕾	shu lei	8
+坎佩尔	kan pei er	8
+迪特玛尔	di te ma er	8
+希尔维娅	xi er wei ya	8
+勒芒德	le mang de	8
+普吕尼埃	pu lv ni ai	8
+卡嘉妮	ka jia ni	8
+洛薇	luo wei	8
+伊斯梅诺	yi si mei nuo	8
+帕班	pa ban	8
+格罗斯利	ge luo si li	8
+笛瑟	di se	8
+奥格劳	ao ge lao	8
+菲希里耶	fei xi li ye	8
+尤维尔	you wei er	8
+雅拉德	ya la de	8
+勒马克	le ma ke	8
+肖西韦尔	xiao xi wei er	8
+梅尔梅	mei er mei	8
+魏小保	wei xiao bao	8
+伊维斯	yi wei si	8
+克叙涅	ke xu nie	8
+莱克图尔	lai ke tu er	8
+安托万	an tuo wan	8
+贝格艾蒂	bei ge ai di	8
+伽拉蒂雅	ga la di ya	8
+艾琪诺	ai qi nuo	8
+玫莉莎	mei li sha	8
+科赛尔	ke sai er	8
+桑迪诺	sang di nuo	8
+卡瓦	ka wa	8
+卡茜涅尔	ka qian nie er	8
+乐平波琳	le ping bo lin	8
+谢里埃	xie li ai	8
+贡托雷	gong tuo lei	8
+夏特莱	xia te lai	8
+布里科勒	bu li ke le	8
+郎蒂	lang di	8
+布罗意	bu luo yi	8
+德尼谢尔	de ni xie er	8
+安里	an li	8
+希塞蕾	xi sai lei	8
+维耶尔默	wei ye er mo	8
+达梅婕	da mei jie	8
+雷蒙多	lei meng duo	8
+舒瓦瑟尔	shu wa se er	8
+孔雅	kong ya	8
+韦尔赛	wei er sai	8
+布兰	bu lan	8
+莫莱妮	mo lai ni	8
+达希	da xi	8
+卢卡	lu ka	8
+桑尼	sang ni	8
+康思戈	kang si ge	8
+克洛莎	ke luo sha	8
+莉塞特	li sai te	8
+纳瓦伊	na wa yi	8
+加维	jia wei	8
+图雷尔	tu lei er	8
+莫妮欧	mo ni ou	8
+维缪尔	wei mou er	8
+埃尔庇艾	ai er bi ai	8
+露泽妮	lou ze ni	8
+勒杰	le jie	8
+艾尔希娜	ai er xi na	8
+穆纳切洛	mu na qie luo	8
+尼扎米	ni zha mi	8
+于贝尔	yu bei er	8
+艾蒂安	ai di an	8
+玛卡德尔	ma ka de er	8
+龚古尔	gong gu er	8
+浣溪	huan xi	8
+雷温	lei wen	8
+约亨	yue heng	8
+埃尔瓦德	ai er wa de	8
+梅亚	mei ya	8
+富尔蒙	fu er meng	8
+伊薇特	yi wei te	8
+扎德拉	zha de la	8
+莉诺尔	li nuo er	8
+恩肖	en xiao	8
+巴特洛	ba te luo	8
+廷稚	ting zhi	8
+安东	an dong	8
+奥古斯都洛夫莱斯	ao gu si du luo fu lai si	8
+比勒	bi le	8
+亚瑟先生	ya se xian sheng	8
+里凯蒂	li kai di	8
+欧仁妮	ou ren ni	8
+布希柯	bu xi ke	8
+艾嘉莉亚	ai jia li ya	8
+瓦纳格姆	wa na ge mu	8
+洛达蒙特	luo da meng te	8
+雷诺德	lei nuo de	8
+爱洛依丝	ai luo yi si	8
+蕾欧妮	lei ou ni	8
+布瓦洛	bu wa luo	8
+柯奈尔	ke nai er	8
+萩原	qiu yuan	8
+阿尔尼姆	a er ni mu	8
+约里奥	yue li ao	8
+伊莉米娅	yi li mi ya	8
+茹斯托	ru si tuo	8
+切瑟尔	qie se er	8
+安洁莉可	an jie li ke	8
+布列松	bu lie song	8
+于格	yu ge	8
+泰托	tai tuo	8
+薇蕾娜妲	wei lei na da	8
+薇尔妲	wei er da	8
+瑟琪	se qi	8
+卢蒂妮	lu di ni	8
+露菲娜	lou fei na	8
+瑟琳	se lin	8
+希露艾	xi lou ai	8
+希洛娜	xi luo na	8
+芙佳	fu jia	8
+托皮娅	tuo pi ya	8
+洛梅	luo mei	8
+格蕾丝蒂	ge lei si di	8
+柯莎	ke sha	8
+泽娜	ze na	8
+夏诺蒂拉	xia nuo di la	8
+纪尧姆	ji yao mu	8
+伊桑	yi sang	8
+勒莫迪埃	le mo di ai	8
+柯蕾特莉	ke lei te li	7
+佩尔索内	pei er suo nei	7
+弗莱谢	fu lai xie	7
+奥雷勒	ao lei le	7
+韦吕	wei lv	7
+塔尔瓦	ta er wa	7
+萨宁	sa ning	7
+莱莲	lai lian	7
+波蒂埃	bo di ai	7
+阿蕾妲	a lei da	7
+布莱卡利	bu lai ka li	7
+梅菈	mei la	7
+蕾卡	lei ka	7
+芙洛	fu luo	7
+伊雅蕾	yi ya lei	7
+嘉莱娜	jia lai na	7
+白芨	bai ji	7
+茜娅	qian ya	7
+依维莱琳	yi wei lai lin	7
+欧菲妮	ou fei ni	7
+卡莉珀丝	ka li po si	7
+布蕾莘	bu lei shen	7
+爱贝尔	ai bei er	7
+阿尔芒	a er mang	7
+梅琪妮	mei qi ni	7
+欧芙	ou fu	7
+伊丝黛莱	yi si dai lai	7
+莉雅丝	li ya si	7
+莱弥娅	lai mi ya	7
+缪妮	mou ni	7
+维莱妲	wei lai da	7
+艾菲	ai fei	7
+瑟萝	se luo	7
+塞德娜	sai de na	7
+梅莘	mei shen	7
+薇托维娅	wei tuo wei ya	7
+法斯捷	fa si jie	7
+奥利弗	ao li fu	7
+爱丝蒂	ai si di	7
+薇塔	wei ta	7
+马尼特	ma ni te	7
+格蕾希艾	ge lei xi ai	7
+特洛黛	te luo dai	7
+奥菲利亚	ao fei li ya	7
+桑塔利耶	sang ta li ye	7
+萨维尼恩	sa wei ni en	7
+利涅尔	li nie er	7
+桑格内蒂	sang ge nei di	7
+路易	lu yi	7
+阿鲁埃	a lu ai	7
+卡隆	ka long	7
+沛休	pei xiu	7
+玛蒂哈	ma di ha	7
+佐西摩斯	zuo xi mo si	7
+沙蒂永	sha di yong	7
+勒非尼	le fei ni	7
+哈多	ha duo	7
+贾米	jia mi	7
+冬雅	dong ya	7
+泽彦	ze yan	7
+络紫	luo zi	7
+费恩	fei en	7
+弗丽德	fu li de	7
+宏朗	hong lang	7
+法尔博	fa er bo	7
+巴哈尔	ba ha er	7
+巴哈多	ba ha duo	7
+帕兹	pa zi	7
+丹纳	dan na	7
+达雅	da ya	7
+米希尔	mi xi er	7
+拉沙鲁	la sha lu	7
+贾尔贾	jia er jia	7
+特纳	te na	7
+海亚姆	hai ya mu	7
+祖尔宛	zu er wan	7
+瑟法娜	se fa na	7
+菲多赫	fei duo he	7
+格雷戈尔	ge lei ge er	7
+贾法尔	jia fa er	7
+尼扎姆	ni zha mu	7
+胡马延	hu ma yan	7
+哈桑	ha sang	7
+拉菲克	la fei ke	7
+帕纳	pa na	7
+萨勒	sa le	7
+沙班达尔	sha ban da er	7
+沙扬	sha yang	7
+卓英	zhuo ying	7
+左右加	zuo you jia	7
+海妮耶	hai ni ye	7
+贝尔福	bei er fu	7
+沙姆斯	sha mu si	7
+扎凯	zha kai	7
+卜劳恩	bo lao en	7
+阿纳托尔	a na tuo er	7
+法斯宾	fa si bin	7
+清涟	qing lian	7
+法尔扎妮	fa er zha ni	7
+妲卡玛忒	da ka ma te	7
+伊拉杰	yi la jie	7
+马塞拉	ma sai la	7
+婕德	jie de	7
+塔德菈	ta de la	7
+索瑞	suo rui	7
+卡塔扬	ka ta yang	7
+巴巴	ba ba	7
+内嘉	nei jia	7
+玛达赫	ma da he	7
+伊泽姆	yi ze mu	7
+希忒	xi te	7
+雅瓦娜尼	ya wa na ni	7
+雅丝敏	ya si min	7
+沙蒂尔	sha di er	7
+穆甘纳	mu gan na	7
+玛赫菲	ma he fei	7
+库什基	ku shi ji	7
+哈勒敦	ha le dun	7
+达莉亚	da li ya	7
+巴尔马克	ba er ma ke	7
+莲塔	lian ta	7
+艾维娜	ai wei na	7
+纳吉斯	na ji si	7
+乌纳因	wu na yin	7
+萨纳德	sa na de	7
+佐赫蕾	zuo he lei	7
+优素福	you su fu	7
+哈琳	ha lin	7
+阿尔明	a er ming	7
+阿里娜	a li na	7
+坦吉	tan ji	7
+大泉	da quan	7
+考什克	kao shen ke	7
+内海	nei hai	7
+斯汪	si wang	7
+库玛莉	ku ma li	7
+法哈德	fa ha de	7
+塔希尔	ta xi er	7
+阿兹拉	a zi la	7
+萨哈尔	sa ha er	7
+尤夫腾	you fu teng	7
+门达斯	men da si	7
+乌格威	wu ge wei	7
+芭别尔	ba bie er	7
+恩忒卡	en te ka	7
+阿亚德瓦	a ya de wa	7
+法里德	fa li de	7
+哈尔瓦	ha er wa	7
+哈坎	ha kan	7
+哈立德	ha li de	7
+曼苏尔	man su er	7
+乃亚卜	nai ya bo	7
+莫约	mo yue	7
+库洛什	ku luo shen	7
+大脚	da jiao	7
+应公	ying gong	7
+芙蓉	fu rong	7
+程杆子	cheng gan zi	7
+七郎	qi lang	7
+魏风尘	wei feng chen	7
+帕维尔	pa wei er	7
+尼尔森	ni er sen	7
+派恩	pai en	7
+其老爷	qi lao ye	7
+萍姥姥	ping lao lao	7
+仁羽	ren yu	7
+阿伟	a wei	7
+浩仔	hao zai	7
+沐晨	mu chen	7
+鹿野奈奈	lu ye nai nai	7
+小吉	xiao ji	7
+小威	xiao wei	7
+洛伽	luo ga	7
+亨利莫顿	heng li mo dun	7
+莉莉	li li	7
+鲁道夫	lu dao fu	7
+格雷戈	ge lei ge	7
+怀尔德	huai er de	7
+阿特拉	a te la	7
+贝莲	bei lian	7
+马克利	ma ke li	7
+七夜由美	qi ye you mei	7
+伽禄	ga lu	7
+恕筠	shu yun	7
+贝雅特丽奇	bei ya te li qi	7
+宝儿	bao er	7
+阿尔弗雷德	a er fu lei de	7
+小蒙	xiao meng	7
+阿飞	a fei	7
+璐璐	lu lu	7
+阿波	a bo	7
+三浦	san pu	7
+小野田	xiao ye tian	7
+醉今朝	zui jin zhao	7
+赞玛兰	zan ma lan	7
+凯万	kai wan	7
+谢赫祖拜尔	xie he zu bai er	7
+胡尚	hu shang	7
+苏莱卡	su lai ka	7
+兰弥那离	lan mi na li	7
+兰那库拉	lan na ku la	7
+兰贡迪	lan gong di	7
+兰般度	lan ban du	7
+兰百梨迦	lan bai li jia	7
+兰伊舍	lan yi she	7
+兰难世	lan nan shi	7
+兰梨娄	lan li lou	7
+费雷斯特	fei lei si te	7
+诚二	cheng er	7
+法卢克	fa lu ke	7
+侯赛因	hou sai yin	7
+范兵卫	fan bing wei	7
+阿法纳西	a fa na xi	7
+高哈尔	gao ha er	7
+迪拉瓦尔	di la wa er	7
+塔维妮儿	ta wei ni er	7
+桑杰	sang jie	7
+艾莲娜	ai lian na	7
+瓦妮塔	wa ni ta	7
+德赛	de sai	7
+西格	xi ge	7
+巴巴尔	ba ba er	7
+伊达里	yi da li	7
+法莎	fa sha	7
+萨蒂	sa di	7
+兰伽卢	lan ga lu	7
+丽玛	li ma	7
+娜比雅	na bi ya	7
+绮珊	qi shan	7
+塔娜玛尔	ta na ma er	7
+埃尔凡	ai er fan	7
+阿克拉姆	a ke la mu	7
+兰纳真	lan na zhen	7
+兰纳迦	lan na jia	7
+兰迦鲁	lan jia lu	7
+兰卑浮	lan bei fu	7
+兰犍多	lan qian duo	7
+兰阿帕斯	lan a pa si	7
+兰利遮	lan li zhe	7
+兰萨卡	lan sa ka	7
+兰非拉	lan fei la	7
+兰茶荼	lan cha tu	7
+兰帕卡提	lan pa ka ti	7
+茶博士刘苏	cha bo shi liu su	7
+兰随尼	lan sui ni	7
+琪娜特	qi na te	7
+海娜	hai na	7
+伊丽丝	yi li si	7
+哈瓦	ha wa	7
+兰修提袈	lan xiu ti jia	7
+兰耶师	lan ye shi	7
+兰羯磨	lan jie mo	7
+兰拉迦	lan la jia	7
+兰陀娑	lan tuo suo	7
+兰耶娑	lan ye suo	7
+兰加惟	lan jia wei	7
+法拉纳兹	fa la na zi	7
+伊拉兹	yi la zi	7
+哈扬	ha yang	7
+福图赫	fu tu he	7
+希琳	xi lin	7
+阿什克	a shen ke	7
+法伽尼	fa ga ni	7
+欧欧	ou ou	7
+醒醒	xing xing	7
+兰沙恭	lan sha gong	7
+阿布丁	a bu ding	7
+沙瓦玛	sha wa ma	7
+卡玛尔	ka ma er	7
+卡卡塔	ka ka ta	7
+奈拉	nai la	7
+福阿德	fu a de	7
+拉赫曼	la he man	7
+希尔米	xi er mi	7
+奥贝德	ao bei de	7
+法加娜	fa jia na	7
+内尔敏	nei er min	7
+博尼法兹	bo ni fa zi	7
+纳赫蒂加尔	na he di jia er	7
+伊萨克	yi sa ke	7
+卡里尔	ka li er	7
+夏妮	xia ni	7
+卡里玛	ka li ma	7
+拉米兹	la mi zi	7
+库尔苏姆	ku er su mu	7
+卡格姆尼	ka ge mu ni	7
+安普叔	an pu shu	7
+卡桑	ka sang	7
+哈巴奇	ha ba qi	7
+莉拉	li la	7
+塔米娜	ta mi na	7
+杰巴里	jie ba li	7
+福迪尔	fu di er	7
+纳杰特	na jie te	7
+索赫尔	suo he er	7
+阿拉耶什	a la ye shen	7
+沙普尔	sha pu er	7
+莎莉	sha li	7
+亚历山德拉	ya li shan de la	7
+普热瓦	pu re wa	7
+汝英	ru ying	7
+艾拉姆	ai la mu	7
+古拉布吉尔	gu la bu ji er	7
+艾莉亚	ai li ya	7
+罗因贾	luo yin jia	7
+艾登	ai deng	7
+莎塔	sha ta	7
+萨尼娅	sa ni ya	7
+贝尔卡塞姆	bei er ka sai mu	7
+贾瓦希尔	jia wa xi er	7
+赛芭	sai ba	7
+里夫	li fu	7
+阿凡	a fan	7
+阿提亚	a ti ya	7
+贾瓦德	jia wa de	7
+马鲁夫	ma lu fu	7
+齐亚德	qi ya de	7
+桑顿	sang dun	7
+戈尔珊	ge er shan	7
+扎卡里亚	zha ka li ya	7
+塔玛拉	ta ma la	7
+齐里亚布	qi li ya bu	7
+巴巴克	ba ba ke	7
+阿扎莱	a zha lai	7
+贾汉	jia han	7
+齐米亚	qi mi ya	7
+艾希拉	ai xi la	7
+法莉哈	fa li ha	7
+莱斯	lai si	7
+弥诺	mi nuo	7
+莫孜甘	mo zi gan	7
+妮基娜	ni ji na	7
+尼姆	ni mu	7
+希拉非	xi la fei	7
+达纳	da na	7
+齐米娅	qi mi ya	7
+鲁克沙	lu ke sha	7
+尤努斯	you nu si	7
+妮维妲	ni wei da	7
+夏姆	xia mu	7
+普里亚	pu li ya	7
+多加	duo jia	7
+布特罗斯	bu te luo si	7
+塔拉内	ta la nei	7
+贾扬特	jia yang te	7
+阿夫塔	a fu ta	7
+瓦尔坦	wa er tan	7
+萨拉尔	sa la er	7
+娜泽宁	na ze ning	7
+帕森	pa sen	7
+贝海姆	bei hai mu	7
+拜伊	bai yi	7
+阿斯法德	a si fa de	7
+阿芬迪	a fen di	7
+尼达尔	ni da er	7
+古尔根	gu er gen	7
+莎菲	sha fei	7
+图曼	tu man	7
+卡姆兰	ka mu lan	7
+萨古	sa gu	7
+阿米尔	a mi er	7
+法伯德	fa bo de	7
+加扎里	jia zha li	7
+阿什莎布	a shen sha bu	7
+哈兹姆	ha zi mu	7
+沙欣	sha xin	7
+伊扎德	yi zha de	7
+扎莱	zha lai	7
+奥雷乌斯	ao lei wu si	7
+塞库菈	sai ku la	7
+乌达德	wu da de	7
+拉贾维	la jia wei	7
+厄桑	e sang	7
+芝拉	zhi la	7
+莎梅耶	sha mei ye	7
+曼达娜	man da na	7
+古思塔斯普	gu si ta si pu	7
+加斯顿	jia si dun	7
+苏尔塔尼	su er ta ni	7
+莎莎妮	sha sha ni	7
+富拉特	fu la te	7
+伊萨米	yi sa mi	7
+莎菲亚	sha fei ya	7
+达丽娜	da li na	7
+费尔比	fei er bi	7
+基翁	ji weng	7
+娜丝琳	na si lin	7
+乌姆	wu mu	7
+鲁达贝	lu da bei	7
+约哈南	yue ha nan	7
+尼卡	ni ka	7
+扎伊	zha yi	7
+鲁梅拉	lu mei la	7
+库塔	ku ta	7
+萨尔姆	sa er mu	7
+奇拉	qi la	7
+阿南德	a nan de	7
+卡姆拉	ka mu la	7
+贾汉吉尔	jia han ji er	7
+阿米	a mi	7
+扎蒂斯	zha di si	7
+优丹	you dan	7
+耶沙法特	ye sha fa te	7
+素达蓓	su da bei	7
+卡乌斯	ka wu si	7
+婕叶	jie ye	7
+阿玛兹亚	a ma zi ya	7
+巴兰	ba lan	7
+晓东	xiao dong	7
+比塔	bi ta	7
+秋蔚	qiu wei	7
+卡齐姆	ka qi mu	7
+纳瓦兹	na wa zi	7
+拉玛	la ma	7
+兰玛尼	lan ma ni	7
+巴哈拉克	ba ha la ke	7
+哈瓦德	ha wa de	7
+莱拉	lai la	7
+蒂亚	di ya	7
+阿巴克	a ba ke	7
+贝哈姆	bei ha mu	7
+阿什帕齐	a shen pa qi	7
+珀姆	po mu	7
+阿夫辛	a fu xin	7
+朱特	zhu te	7
+罗莎娜	luo sha na	7
+罗娅	luo ya	7
+舍万	she wan	7
+艾依曼	ai yi man	7
+贝鲁兹	bei lu zi	7
+帕丽莎	pa li sha	7
+阿巴尼斯	a ba ni si	7
+娜斯米儿	na si mi er	7
+奥乌兹	ao wu zi	7
+法里芭	fa li ba	7
+兰巴德	lan ba de	7
+茂才公	mao cai gong	7
+阿汉格尔	a han ge er	7
+哈马维	ha ma wei	7
+寅杰	yin jie	7
+马齐尔	ma qi er	7
+马苏迪	ma su di	7
+阿什亚	a shen ya	7
+昌虎	chang hu	7
+范二爷	fan er ye	7
+玥文	yue wen	7
+纳巴提	na ba ti	7
+班卡	ban ka	7
+库马	ku ma	7
+库拉什	ku la shen	7
+阿莲佐	a lian zuo	7
+伊娜姆	yi na mu	7
+纳里曼	na li man	7
+玛塔莉	ma ta li	7
+玛希德	ma xi de	7
+纳西尔	na xi er	7
+玛亚姆	ma ya mu	7
+阿拉比	a la bi	7
+维斯科	wei si ke	7
+雷萨	lei sa	7
+马斯鲁尔	ma si lu er	7
+费罗兹	fei luo zi	7
+贝拉特	bei la te	7
+尤兹贾尼	you zi jia ni	7
+东雅	dong ya	7
+菲利斯尤格	fei li si you ge	7
+伯特兰	bo te lan	7
+老何	lao he	7
+阿晃	a huang	7
+阿守	a shou	7
+元太	yuan tai	7
+皮卡	pi ka	7
+大壮	da zhuang	7
+娜扎法琳	na zha fa lin	7
+叶名山薰	ye ming shan xun	7
+江舟	jiang zhou	7
+五百藏	wu bai cang	7
+香川	xiang chuan	7
+玄三	xuan san	7
+寺田	si tian	7
+雄三	xiong san	7
+须美	xu mei	7
+阿敬	a jing	7
+鹫津	jiu jin	7
+无怨	wu yuan	7
+小仓优	xiao cang you	7
+片山	pian shan	7
+薮木	sou mu	7
+虎之助	hu zhi zhu	7
+阿妮萨	a ni sa	7
+久美	jiu mei	7
+稻叶久藏	dao ye jiu cang	7
+王平安	wang ping an	7
+常九爷	chang jiu ye	7
+小星	xiao xing	7
+阿佐	a zuo	7
+柴染	chai ran	7
+山城健太	shan cheng jian tai	7
+村田	cun tian	7
+小野寺	xiao ye si	7
+塔列辛	ta lie xin	7
+瑾武	jin wu	7
+志琼	zhi qiong	7
+志穗	zhi sui	7
+美羽	mei yu	7
+梨香	li xiang	7
+阿望	a wang	7
+茅葺一庆	mao qi yi qing	7
+福本	fu ben	7
+高坂	gao ban	7
+石田	shi tian	7
+老图	lao tu	7
+嘉铭	jia ming	7
+海迪夫	hai di fu	7
+彦博	yan bo	7
+铁弘	tie hong	7
+天奕	tian yi	7
+沐宁	mu ning	7
+老臭	lao chou	7
+克里托夫	ke li tuo fu	7
+豁牙子	huo ya zi	7
+乌帽子	wu mao zi	7
+桦山	hua shan	7
+须婆达之彦	xu po da zhi yan	7
+李小虎	li xiao hu	7
+奔雷手秦师傅	ben lei shou qin shi fu	7
+李晓	li xiao	7
+阿昊	a hao	7
+尤骏	you jun	7
+卡塔琳娜	ka ta lin na	7
+拉多米尔	la duo mi er	7
+提莫尔	ti mo er	7
+达尼拉	da ni la	7
+明石	ming shi	7
+松田	song tian	7
+未来	wei lai	7
+杉山	shan shan	7
+阿幸	a xing	7
+鸿如	hong ru	7
+弗朗西斯	fu lang xi si	7
+罗小妹	luo xiao mei	7
+中野	zhong ye	7
+凯撒	kai sa	7
+哈里森	ha li sen	7
+伊达	yi da	7
+乔瑟夫	qiao se fu	7
+芬德	fen de	7
+冈崎陆斗	gang qi liu dou	7
+冈崎绘里香	gang qi hui li xiang	7
+广海	guang hai	7
+琼斯	qiong si	7
+佩佩	pei pei	7
+玛拉	ma la	7
+小林	xiao lin	7
+法拉	fa la	7
+柴门二郎	chai men er lang	7
+山田	shan tian	7
+小茜	xiao qian	7
+辉少	hui shao	7
+户田	hu tian	7
+古田	gu tian	7
+小春	xiao chun	7
+平冢	ping zhong	7
+平野	ping ye	7
+宏达	hong da	7
+安田	an tian	7
+手岛	shou dao	7
+小猛	xiao meng	7
+摩可	mo ke	7
+海莉	hai li	7
+帕斯里	pa si li	7
+罗斯玛丽	luo si ma li	7
+萨基	sa ji	7
+叶戈尔	ye ge er	7
+海老名权四郎	hai lao ming quan si lang	7
+亚琉	ya liu	7
+宇陀	yu tuo	7
+阿瑟尔	a se er	7
+御琉部栖	yu liu bu qi	7
+依栖目那须	yi qi mu na xu	7
+伊恩	yi en	7
+栖令比御	qi ling bi yu	7
+里栖太御须	li qi tai yu xu	7
+离可琉	li ke liu	7
+比螺梦门	bi luo meng men	7
+久利由卖	jiu li you mai	7
+江木	jiang mu	7
+绘真	hui zhen	7
+贺摩	he mo	7
+宫地	gong de	7
+大门	da men	7
+大岛	da dao	7
+大仓	da cang	7
+安贞	an zhen	7
+阿多尼斯	a duo ni si	7
+阿倍良久	a bei liang jiu	7
+齐格芙丽雅	qi ge fu li ya	7
+甲斐田龙马	jia fei tian long ma	7
+高桥	gao qiao	7
+森口	sen kou	7
+宫崎三朗	gong qi san lang	7
+篠冢	xiao zhong	7
+双叶	shuang ye	7
+柴门惠理	chai men hui li	7
+阿釜	a fu	7
+墨田	mo tian	7
+悦子	yue zi	7
+大岛纯平	da dao chun ping	7
+柴门克巳	chai men ke si	7
+绀田传助	gan tian chuan zhu	7
+长冈秀满	chang gang xiu man	7
+鹰司朝秀	ying si chao xiu	7
+松川宗全	song chuan zong quan	7
+三河茜	san he qian	7
+梨绘	li hui	7
+九条镰治	jiu tiao lian zhi	7
+大河原五右卫门	da he yuan wu you wei men	7
+朝仓	chao cang	7
+才藏	cai cang	7
+吴船长	wu chuan zhang	7
+阿山婆	a shan po	7
+朝南	chao nan	7
+鹤立	he li	7
+小仓澪	xiao cang ling	7
+松本	song ben	7
+上杉	shang shan	7
+大和田	da he tian	7
+蓝川丞	lan chuan cheng	7
+太田太郎	tai tian tai lang	7
+拉姆齐	la mu qi	7
+佐藤	zuo teng	7
+长谷川	chang gu chuan	7
+幸雄	xing xiong	7
+今谷三郎	jin gu san lang	7
+武田	wu tian	7
+荒谷	huang gu	7
+中西	zhong xi	7
+信盛	xin sheng	7
+翔太	xiang tai	7
+土门	tu men	7
+天野	tian ye	7
+藤原俊子	teng yuan jun zi	7
+汤雯	tang wen	7
+阿茂	a mao	7
+顺吉	shun ji	7
+平八	ping ba	7
+西口	xi kou	7
+天目十五	tian mu shi wu	7
+珊瑚	shan hu	7
+山上	shan shang	7
+德长	de zhang	7
+龙二	long er	7
+小绿	xiao lv	7
+宏一	hong yi	7
+安藤	an teng	7
+若紫	ruo zi	7
+萨义德	sa yi de	7
+小山	xiao shan	7
+锦野玲玲	jin ye ling ling	7
+真田	zhen tian	7
+岩田	yan tian	7
+平井	ping jing	7
+岛政兴	dao zheng xing	7
+博行	bo xing	7
+大久保大介	da jiu bao da jie	7
+桃子	tao zi	7
+清子	qing zi	7
+白井	bai jing	7
+露子	lou zi	7
+和泉那希	he quan na xi	7
+乌尔法	wu er fa	7
+小野	xiao ye	7
+望月	wang yue	7
+石川	shi chuan	7
+九条政仁	jiu tiao zheng ren	7
+雷蒙德	lei meng de	7
+几原凯	ji yuan kai	7
+松平	song ping	7
+小畑	xiao tian	7
+宫岛	gong dao	6
+阳介	yang jie	6
+宇奈	yu nai	6
+阿部	a bu	6
+村上	cun shang	6
+三田	san tian	6
+高美	gao mei	6
+博彦	bo yan	6
+咲耶	xiao ye	6
+伊部	yi bu	6
+知世	zhi shi	6
+木奈	mu nai	6
+木户	mu hu	6
+蛎罗	li luo	6
+音乃	yin nai	6
+岻伽	di ga	6
+柚子	you zi	6
+智树	zhi shu	6
+柴田	chai tian	6
+大祐	da you	6
+直江久政	zhi jiang jiu zheng	6
+御舆源次郎	yu yu yuan ci lang	6
+矢田幸喜	shi tian xing xi	6
+井上	jing shang	6
+黑泽京之介	hei ze jing zhi jie	6
+渡边	du bian	6
+池田总四郎	chi tian zong si lang	6
+菜菜子	cai cai zi	6
+嘉玮	jia wei	6
+楠塔克	nan ta ke	6
+古谷升	gu gu sheng	6
+鲸井椛	jing jing hua	6
+星辰君	xing chen jun	6
+岳川	yue chuan	6
+琳琅	lin lang	6
+小卷	xiao juan	6
+佐佐木	zuo zuo mu	6
+荫山	yin shan	6
+新之丞	xin zhi cheng	6
+西西	xi xi	6
+婷婷	ting ting	6
+笹野	ti ye	6
+千叶	qian ye	6
+罗伯特	luo bo te	6
+横山	heng shan	6
+百合华	bai he hua	6
+泽维尔	ze wei er	6
+甘乐	gan le	6
+麻纪	ma ji	6
+玄冬林檎	xuan dong lin qin	6
+神奇的霍普金斯	shen qi de huo pu jin si	6
+驹形	ju xing	6
+长野原龙之介	zhang ye yuan long zhi jie	6
+康纳	kang na	6
+阿扣	a kou	6
+老芬奇	lao fen qi	6
+艾伦	ai lun	6
+奥拉夫	ao la fu	6
+约顿	yue dun	6
+高斐	gao fei	6
+马克西姆	ma ke xi mu	6
+骆丰	luo feng	6
+李九郎	li jiu lang	6
+老赵	lao zhao	6
+卉卉	hui hui	6
+关宏	guan hong	6
+阿泰	a tai	6
+独孤朔	du gu shuo	6
+富贵	fu gui	6
+振翔	zhen xiang	6
+御舆源一郎	yu yu yuan yi lang	6
+泽轩	ze xuan	6
+佑旭	you xu	6
+稻城萤美	dao cheng ying mei	6
+凉子	liang zi	6
+慕珍	mu zhen	6
+阿创	a chuang	6
+云淡	yun dan	6
+秦夫人	qin fu ren	6
+诺拉	nuo la	6
+布鲁斯	bu lu si	6
+木南杏奈	mu nan xing nai	6
+黑田	hei tian	6
+柊千里	zhong qian li	6
+瓦希德	wa xi de	6
+秋月	qiu yue	6
+卡琵莉亚	ka pi li ya	6
+久利须	jiu li xu	6
+阿桂	a gui	6
+鲸井小弟	jing jing xiao di	6
+斑目百兵卫	ban mu bai bing wei	6
+太郎丸	tai lang wan	6
+志村勘兵卫	zhi cun kan bing wei	6
+弥生七月	mi sheng qi yue	6
+徐六石	xu liu shi	6
+绘星	hui xing	6
+钱眼儿	qian yan er	6
+海龙	hai long	6
+莎莎	sha sha	6
+蔡寻	cai xun	6
+永安	yong an	6
+一成	yi cheng	6
+文泽	wen ze	6
+大武	da wu	6
+大邋遢	da la ta	6
+强叔	qiang shu	6
+里瑟	li se	6
+金钟	jin zhong	6
+麦克	mai ke	6
+伊尔佳	yi er jia	6
+埃泽	ai ze	6
+查耶维奇	cha ye wei qi	6
+爱德琳	ai de lin	6
+小漫	xiao man	6
+恩内斯特	en nei si te	6
+小昭	xiao zhao	6
+盈珠	ying zhu	6
+向明	xiang ming	6
+弘毅	hong yi	6
+蔡乐	cai le	6
+吉盖克斯	ji ge ke si	6
+铁衫	tie shan	6
+慕胜	mu sheng	6
+艾珂	ai ke	6
+秀华	xiu hua	6
+逢岩	feng yan	6
+慧心	hui xin	6
+胡塞尼	hu sai ni	6
+一弦	yi xian	6
+一柱	yi zhu	6
+歌德	ge de	6
+月疏	yue shu	6
+璃彩	li cai	6
+楚仪	chu yi	6
+狗三儿	gou san er	6
+小安	xiao an	6
+弗拉德	fu la de	6
+娜蒂亚	na di ya	6
+安德烈	an de lie	6
+叶卡捷琳娜	ye ka jie lin na	6
+吉丽安娜	ji li an na	6
+维多利亚	wei duo li ya	6
+艾伯特	ai bo te	6
+维克多	wei ke duo	6
+奥特	ao te	6
+葛瑞丝	ge rui si	6
+张顺	zhang shun	6
+博来	bo lai	6
+红豆	hong dou	6
+一阔	yi kuo	6
+沉香	chen xiang	6
+星火	xing huo	6
+小羽	xiao yu	6
+乔姨	qiao yi	6
+毓华	yu hua	6
+黄巨贾	huang ju gu	6
+大迷糊	da mi hu	6
+茉莉	mo li	6
+荷尔德林	he er de lin	6
+江城	jiang cheng	6
+路爷	lu ye	6
+卡斯帕	ka si pa	6
+莉兹	li zi	6
+阿拉米	a la mi	6
+艾迪丝博士	ai di si bo shi	6
+哲远	zhe yuan	6
+小征	xiao zheng	6
+阿芷	a zhi	6
+仲林	zhong lin	6
+小六	xiao liu	6
+嘉义	jia yi	6
+花初	hua chu	6
+鉴秋	jian qiu	6
+田铁嘴	tian tie zui	6
+滑头鬼	hua tou gui	6
+言笑	yan xiao	6
+万货通	wan huo tong	6
+寒锋	han feng	6
+梵米尔	fan mi er	6
+摆渡人	bai du ren	6
+阿佑	a you	6
+哈里	ha li	6
+悬帆	xuan fan	6
+汐零	xi ling	6
+蒙蒙	meng meng	6
+辉子	hui zi	6
+葫芦	hu lu	6
+孙宇	sun yu	6
+小雀儿	xiao que er	6
+瑞锦	rui jin	6
+景明	jing ming	6
+宜年	yi nian	6
+伯桓子	bo huan zi	6
+思妤	si yu	6
+观海	guan hai	6
+志华	zhi hua	6
+绮命	qi ming	6
+碧波	bi bo	6
+治平	zhi ping	6
+季同	ji tong	6
+茱萸	zhu yu	6
+青莲	qing lian	6
+江雪	jiang xue	6
+黄衫	huang shan	6
+阿义	a yi	6
+鬼伯伯	gui bo bo	6
+枭总管	xiao zong guan	6
+霖铃	lin ling	6
+天叔	tian shu	6
+杰里	jie li	6
+弗莱琪	fu lai qi	6
+宏宇	hong yu	6
+大坤	da kun	6
+甜甜	tian tian	6
+乌尔曼	wu er man	6
+艾斯特尔	ai si te er	6
+汤米	tang mi	6
+哈里斯	ha li si	6
+史蒂文斯	shi di wen si	6
+乌尔班	wu er ban	6
+乔尔	qiao er	6
+玉霞	yu xia	6
+银杏	yin xing	6
+小月	xiao yue	6
+重佐	zhong zuo	6
+乾子	qian zi	6
+竺子	zhu zi	6
+平海	ping hai	6
+秋歌	qiu ge	6
+畅畅	chang chang	6
+提米	ti mi	6
+步云	bu yun	6
+德安公	de an gong	6
+德贵	de gui	5
+丹迪	dan di	5
+芷若	zhi ruo	5
+甄强	zhen qiang	5
+桥西	qiao xi	5
+清昼	qing zhou	5
+李锤子	li chui zi	5
+王扳子	wang ban zi	5
+判官儿	pan guan er	5
+阿鸠	a jiu	5
+霹雳闪雷真君	pi li shan lei zhen jun	5
+快拳阿凌	kuai quan a ling	5
+好奇的帕琪	hao qi de pa qi	5
+杜兰	du lan	5
+阿卜	a bo	5
+淑之	shu zhi	5
+盖曼	gai man	5
+老刘伯	lao liu bo	5
+小姜	xiao jiang	5
+楚婆婆	chu po po	5
+蒂雅	di ya	5
+淮安	huai an	5
+兰达	lan da	5
+六指乔瑟	liu zhi qiao se	5
+艾琳	ai lin	5
+薇尔	wei er	5
+苏西	su xi	5
+门罗	men luo	5
+一然	yi ran	5
+索拉雅	suo la ya	5
+阿宽	a kuan	5
+利文斯通博士	li wen si tong bo shi	5
+铁膀子	tie bang zi	5
+竟达	jing da	5
+公明	gong ming	5
+海伦	hai lun	5
+紫微	zi wei	5
+铁块儿	tie kuai er	5
+石榴	shi liu	5
+石壮	shi zhuang	5
+赫尔曼	he er man	5
+百闻	bai wen	5
+百识	bai shi	5
+百晓	bai xiao	5
+镇海	zhen hai	5
+赫塔	he ta	5
+小雨	xiao yu	5
+杰克	jie ke	5
+塞琉斯	sai liu si	5
+卢克	lu ke	5
+威拉格	wei la ge	5
+伍德	wu de	5
+阿托	a tuo	5
+波尔托	bo er tuo	5
+快腿罗斯	kuai tui luo si	5
+潮汐	chao xi	5
+翠儿	cui er	5
+思思	si si	5
+阿笨	a ben	5
+阿直	a zhi	5
+朱老板	zhu lao ban	5
+老周叔	lao zhou shu	5
+快刀陈	kuai dao chen	5
+纪芳	ji fang	5
+立本	li ben	5
+艾尔菲	ai er fei	5
+诺玛	nuo ma	5
+玛文	ma wen	5
+玛格丽特	ma ge li te	5
+东升	dong sheng	5
+米歇尔	mi xie er	5
+麦尔斯	mai er si	5
+唐娜	tang na	5
+米哈伊尔	mi ha yi er	5
+柳德米拉	liu de mi la	5
+艾拉马斯克	ai la ma si ke	5
+查尔斯	zha er si	5
+盖伊	ge yi	5
+劳伦斯	lao lun si	5
+斯坦利	si tan li	5
+喜儿	xi er	4
+布洛克	bu luo ke	4
+杜拉夫	du la fu	4
+舒茨	shu ci	4
+莺儿	ying er	4
+东东	dong dong	4
+小白	xiao bai	4
+凯叔	kai shu	4
+小千	xiao qian	4
+岚姐	lan jie	4
+若心	ruo xin	4
+老高	lao gao	4
+老孙	lao sun	4
+昆恩	kun en	4
+石头	shi tou	4
+伊凡诺维奇	yi fan nuo wei qi	4
+阿旭	a xu	4
+古德温	gu de wen	4
+优律	you lv	4
+宁禄	ning lu	4
+戴维	dai wei	4
+梅薇丝	mei wei si	4
+安东尼	an dong ni	4
+安娜	an na	4
+葛罗丽	ge luo li	4
+苏二娘	su er niang	4
+芙萝拉	fu luo la	4
+克罗丽丝	ke luo li si	4
+菲尔戈黛特	fei er ge dai te	3
+星稀	xing xi	3
+卯师傅	mao shi fu	3
+老章	lao zhang	3
+斯万	si wan	3
+霍夫曼	huo fu man	3
+长顺	chang shun	3
+莎拉	sha la	3
+布兰琪	bu lan qi	3
+瓦格纳	wa ge na	3
+蒂玛乌斯	di ma wu si	2
+玛乔丽	ma qiao li	2
+巴顿	ba dun	2

@@ -5,13 +5,511 @@ name: ext_dota2
 version: "2026-10-31"
 sort: by_weight
 ...
+敌法师	di fa shi	9
 斧王	fu wang	9
+祸乱之源	huo luan zhi yuan	9
+血魔	xue mo	9
+水晶室女	shui jing shi nv	9
+卓尔游侠	zhuo er you xia	9
+撼地者	han di zhe	9
+主宰	zhu zai	9
+米拉娜	mi la na	9
+影魔	ying mo	9
+变体精灵	bian ti jing ling	9
+幻影长矛手	huan ying chang mao shou	9
+帕克	pa ke	9
 帕吉	pa ji	9
-敌法师	di fa shi	8
-影魔	ying mo	8
-祈求者	qi qiu zhe	7
-肉山	rou shan	7
-不朽之守护	bu xiu zhi shou hu	6
-圣剑	sheng jian	6
-虚空假面	xu kong jia mian	5
-幻影刺客	huan ying ci ke	3
+雷泽	lei ze	9
+沙王	sha wang	9
+风暴之灵	feng bao zhi ling	9
+斯温	si wen	9
+小小	xiao xiao	9
+复仇之魂	fu chou zhi hun	9
+风行者	feng xing zhe	9
+宙斯	zhou si	9
+昆卡	kun ka	9
+莉娜	li na	9
+巫妖	wu yao	9
+莱恩	lai en	9
+暗影萨满	an ying sa man	9
+斯拉达	si la da	9
+潮汐猎人	chao xi lie ren	9
+巫医	wu yi	9
+力丸	li wan	9
+谜团	mi tuan	9
+修补匠	xiu bu jiang	9
+狙击手	ju ji shou	9
+瘟疫法师	wen yi fa shi	9
+术士	shu shi	9
+兽王	shou wang	9
+痛苦女王	tong ku nv wang	9
+剧毒术士	ju du shu shi	9
+虚空假面	xu kong jia mian	9
+冥魂大帝	ming hun da di	9
+死亡先知	si wang xian zhi	9
+幻影刺客	huan ying ci ke	9
+帕格纳	pa ge na	9
+圣堂刺客	sheng tang ci ke	9
+冥界亚龙	ming jie ya long	9
+露娜	lu na	9
+龙骑士	long qi shi	9
+戴泽	dai ze	9
+发条技师	fa tiao ji shi	9
+拉席克	la xi ke	9
+自然先知	zi ran xian zhi	9
+噬魂鬼	shi hun gui	9
+黑暗贤者	hei an xian zhe	9
+克林克兹	ke lin ke zi	9
+全能骑士	quan neng qi shi	9
+魅惑魔女	mei huo mo nv	9
+哈斯卡	ha si ka	9
+暗夜魔王	an ye mo wang	9
+育母蜘蛛	yu mu zhi zhu	9
+赏金猎人	shang jin lie ren	9
+编织者	bian zhi zhe	9
+杰奇洛	jie qi luo	9
+蝙蝠骑士	bian fu qi shi	9
+幽鬼	you gui	9
+末日使者	mo ri shi zhe	9
+远古冰魄	yuan gu bing po	9
+熊战士	xiong zhan shi	9
+裂魂人	lie hun ren	9
+矮人直升机	ai ren zhi sheng ji	9
+炼金术士	lian jin shu shi	9
+祈求者	qi qiu zhe	9
+沉默术士	chen mo shu shi	9
+殁境神蚀者	mo jing shen shi zhe	9
+狼人	lang ren	9
+酒仙	jiu xian	9
+暗影恶魔	an ying e mo	9
+独行德鲁伊	du xing de lu yi	9
+混沌骑士	hun dun qi shi	9
+米波	mi bo	9
+树精卫士	shu jing wei shi	9
+食人魔魔法师	shi ren mo mo fa shi	9
+不朽尸王	bu xiu shi wang	9
+拉比克	la bi ke	9
+干扰者	gan rao zhe	9
+司夜刺客	si ye ci ke	9
+娜迦海妖	na jia hai yao	9
+光之守卫	guang zhi shou wei	9
+艾欧	ai ou	9
+维萨吉	wei sa ji	9
+斯拉克	si la ke	9
+美杜莎	mei du sha	9
+巨魔战将	ju mo zhan jiang	9
+半人马战行者	ban ren ma zhan xing zhe	9
+马格纳斯	ma ge na si	9
+伐木机	fa mu ji	9
+钢背兽	gang bei shou	9
+巨牙海民	ju ya hai min	9
+天怒法师	tian nu fa shi	9
+亚巴顿	ya ba dun	9
+上古巨神	shang gu ju shen	9
+军团指挥官	jun tuan zhi hui guan	9
+灰烬之灵	hui jin zhi ling	9
+大地之灵	da di zhi ling	9
+恐怖利刃	kong bu li ren	9
+凤凰	feng huang	9
+神谕者	shen yu zhe	9
+工程师	gong cheng shi	9
+寒冬飞龙	han dong fei long	9
+天穹守望者	tian qiong shou wang zhe	9
+孽主	nie zhu	9
+齐天大圣	qi tian da sheng	9
+石鳞剑士	shi lin jian shi	9
+邪影芳灵	xie ying fang ling	9
+天涯墨客	tian ya mo ke	9
+玛尔斯	ma er si	9
+虚无之灵	xu wu zhi ling	9
+电炎绝手	dian yan jue shou	9
+森海飞霞	sen hai fei xia	9
+破晓辰星	po xiao chen xing	9
+玛西	ma xi	9
+琼英碧灵	qiong ying bi ling	9
+百戏大王	bai xi da wang	9
+朗戈	lang ge	9
+闪烁匕首	shan shuo bi shou	9
+盛势闪光	sheng shi shan guang	9
+迅疾闪光	xun ji shan guang	9
+秘奥闪光	mi ao shan guang	9
+攻击之爪	gong ji zhi zhao	9
+阔剑	kuo jian	9
+锁子甲	suo zi jia	9
+片甲	pian jia	9
+大剑	da jian	9
+铁意头盔	tie yi tou kui	9
+标枪	biao qiang	9
+秘银锤	mi yin chui	9
+板甲	ban jia	9
+短棍	duan gun	9
+压制之刃	ya zhi zhi ren	9
+仙灵之火	xian ling zhi huo	9
+凝魂之露	ning hun zhi lu	9
+风灵之纹	feng ling zhi wen	9
+守护指环	shou hu zhi huan	9
+圆盾	yuan dun	9
+银月之晶	yin yue zhi jing	9
+力量手套	li liang shou tao	9
+敏捷便鞋	min jie bian xie	9
+智力斗篷	zhi li dou peng	9
+铁树枝干	tie shu zhi gan	9
+力量腰带	li liang yao dai	9
+精灵布带	jing ling bu dai	9
+法师长袍	fa shi chang pao	9
+圆环	yuan huan	9
+王冠	wang guan	9
+宝冕	bao mian	9
+食人魔之斧	shi ren mo zhi fu	9
+欢欣之刃	huan xin zhi ren	9
+魔力法杖	mo li fa zhang	9
+极限法球	ji xian fa qiu	9
+加速手套	jia su shou tao	9
+闪电指套	shan dian zhi tao	9
+吸血面具	xi xue mian ju	9
+巫毒面具	wu du mian ju	9
+回复戒指	hui fu jie zhi	9
+贤者面罩	xian zhe mian zhao	9
+速度之靴	su du zhi xue	8
+真视宝石	zhen shi bao shi	8
+披巾	pi jin	8
+抗魔斗篷	kang mo dou peng	8
+闪避护符	shan bi hu fu	8
+奶酪	nai lao	8
+魔棒	mo bang	8
+魔杖	mo zhang	8
+幽魂权杖	you hun quan zhang	8
+净化药水	jing hua yao shui	8
+魔法芒果	mo fa mang guo	8
+疗伤莲花	liao shang lian hua	8
+大疗伤莲花	da liao shang lian hua	8
+巨大疗伤莲花	ju da liao shang lian hua	8
+血腥榴弹	xue xing liu dan	8
+奶酪块	nai lao kuai	8
+治疗药膏	zhi liao yao gao	8
+显影之尘	xian ying zhi chen	8
+魔瓶	mo ping	8
+侦察守卫	zhen cha shou wei	8
+岗哨守卫	gang shao shou wei	8
+侦察岗哨守卫	zhen cha gang shao shou wei	8
+树之祭祀	shu zhi ji si	8
+动物信使	dong wu xin shi	8
+飞行信使	fei xing xin shi	8
+回城卷轴	hui cheng juan zhou	8
+远行鞋	yuan xing xie	8
+相位鞋	xiang wei xie	8
+恶魔刀锋	e mo dao feng	8
+鹰歌弓	ying ge gong	8
+掠夺者之斧	lve duo zhe zhi fu	8
+圣者遗物	sheng zhe yi wu	8
+振奋宝石	zhen fen bao shi	8
+治疗指环	zhi liao zhi huan	8
+恐鳌之戒	kong ao zhi jie	8
+虚无宝石	xu wu bao shi	8
+赛莉蒙妮之冠	sai li meng ni zhi guan	8
+神秘法杖	shen mi fa zhang	8
+能量之球	neng liang zhi qiu	8
+精气之球	jing qi zhi qiu	8
+活力之球	huo li zhi qiu	8
+毛毛帽	mao mao mao	8
+巫师帽	wu shi mao	8
+动力鞋	dong li xie	8
+灵匣	ling xia	8
+绝刃	jue ren	8
+迈达斯之手	mai da si zhi shou	8
+空明杖	kong ming zhang	8
+巫师之刃	wu shi zhi ren	8
+坚韧球	jian ren qiu	8
+丰饶之环	feng rao zhi huan	8
+穷鬼盾	qiong gui dun	8
+护腕	hu wan	8
+怨灵系带	yuan ling ji dai	8
+空灵挂件	kong ling gua jian	8
+梅肯斯姆	mei ken si mu	8
+弗拉迪米尔的祭品	fu la di mi er de ji pin	8
+怨灵之契	yuan ling zhi qi	8
+玄冥盾牌	xuan ming dun pai	8
+王者之戒	wang zhe zhi jie	8
+圣洁吊坠	sheng jie diao zhui	8
+洞察烟斗	dong cha yan dou	8
+影之灵龛	ying zhi ling kan	8
+恢复头巾	hui fu tou jin	8
+邪恶镰刀	xie e lian dao	8
+紫怨	zi yuan	8
+血棘	xue ji	8
+回音战刃	hui yin zhan ren	8
+风之杖	feng zhi zhang	8
+以太透镜	yi tai tou jing	8
+原力法杖	yuan li fa zhang	8
+飓风长戟	ju feng chang ji	8
+达贡之神力	da gong zhi shen li	8
+死灵书	si ling shu	8
+阿哈利姆神杖	a ha li mu shen zhang	8
+阿哈利姆福佑	a ha li mu fu you	8
+阿哈利姆福佑肉山	a ha li mu fu you rou shan	8
+阿哈利姆魔晶	a ha li mu mo jing	8
+古龙诗集	gu long shi ji	8
+刷新球	shua xin qiu	8
+强袭胸甲	qiang xi xiong jia	8
+恐鳌之心	kong ao zhi xin	8
+黑皇杖	hei huang zhang	8
+不朽之守护	bu xiu zhi shou hu	8
+希瓦的守护	xi wa de shou hu	8
+血精石	xue jing shi	8
+林肯法球	lin ken fa qiu	8
+清莲宝珠	qing lian bao zhu	8
+陨星锤	yun xing chui	8
+否决坠饰	fou jue zhui shi	8
+永恒之盘	yong heng zhi pan	8
+慧光	hui guang	8
+三元重戟	san yuan zhong ji	8
+刷新球碎片	shua xin qiu sui pian	8
+魂之灵瓮	hun zhi ling weng	8
+精之灵器	jing zhi ling qi	8
+先锋盾	xian feng dun	8
+赤红甲	chi hong jia	8
+刃甲	ren jia	8
+振魂石	zhen hun shi	8
+挑战头巾	tiao zhan tou jin	8
+永世法衣	yong shi fa yi	8
+圣化护服	sheng hua hu fu	8
+克莱拉牧杖	ke lai la mu zhang	8
+圣剑	sheng jian	8
+金箍棒	jin gu bang	8
+辉耀	hui yao	8
+蝴蝶	hu die	8
+代达罗斯之殇	dai da luo si zhi shang	8
+碎颅锤	sui lu chui	8
+狂战斧	kuang zhan fu	8
+幻影斧	huan ying fu	8
+水晶剑	shui jing jian	8
+魔龙枪	mo long qiang	8
+莫尔迪基安的臂章	mo er di ji an de bi zhang	8
+影刃	ying ren	8
+白银之锋	bai yin zhi feng	8
+散夜对剑	san ye dui jian	8
+散慧对剑	san hui dui jian	8
+慧夜对剑	hui ye dui jian	8
+撒旦之邪力	sa dan zhi xie li	8
+雷神之锤	lei shen zhi chui	8
+斯嘉蒂之眼	si jia di zhi yan	8
+散华	san hua	8
+支配头盔	zhi pei tou kui	8
+统御头盔	tong yu tou kui	8
+漩涡	xuan wo	8
+缚灵索	fu ling suo	8
+黯灭	an mie	8
+夜叉	ye cha	8
+疯狂面具	feng kuang mian ju	8
+净魂之刃	jing hun zhi ren	8
+散魂剑	san hun jian	8
+虚灵之刃	xu ling zhi ren	8
+灵魂之戒	ling hun zhi jie	8
+奥术鞋	ao shu xie	8
+玲珑心	ling long xin	8
+淬毒之珠	cui du zhi zhu	8
+枯萎之珠	ku wei zhi zhu	8
+腐蚀之珠	fu shi zhi zhu	8
+冰霜之珠	bing shuang zhi zhu	8
+猎鹰战刃	lie ying zhan ren	8
+法师克星	fa shi ke xing	8
+韧鼓	ren gu	8
+宽容之靴	kuan rong zhi xue	8
+勇气勋章	yong qi xun zhang	8
+炎阳纹章	yan yang wen zhang	8
+长盾	zhang dun	8
+诡计之雾	gui ji zhi wu	8
+知识之书	zhi shi zhi shu	8
+纷争面纱	fen zheng mian sha	8
+英灵胸针	ying ling xiong zhen	8
+圣斧	sheng fu	8
+卫士胫甲	wei shi jing jia	8
+阿托斯之棍	a tuo si zhi gun	8
+寒铁钢爪	han tie gang zhao	8
+深渊之刃	shen yuan zhi ren	8
+天堂之戟	tian tang zhi ji	8
+天鹰之戒	tian ying zhi jie	8
+静谧之鞋	jing mi zhi xie	8
+暗影护符	an ying hu fu	8
+微光披风	wei guang pi feng	8
+墓碑	mu bei	8
+袖珍高塔	xiu zhen gao ta	8
+袖珍肉山	xiu zhen rou shan	8
+基恩镜片	ji en jing pian	8
+林野长弓	lin ye chang gong	8
+加速护符	jia su hu fu	8
+贤者石	xian zhe shi	8
+原力鞋	yuan li xie	8
+寂灭	ji mie	8
+凤凰余烬	feng huang yu jin	8
+先哲之石	xian zhe zhi shi	8
+万灵药水	wan ling yao shui	8
+吸血鬼獠牙	xi xue gui liao ya	8
+秘术师铠甲	mi shu shi kai jia	8
+雷火弹	lei huo dan	8
+崎岖外衣	qi qu wai yi	8
+高级仙灵之火	gao ji xian ling zhi huo	8
+永恒遗物	yong heng yi wu	8
+神镜盾	shen jing dun	8
+铁树之木	tie shu zhi mu	8
+芒果树	mang guo shu	8
+蜂王浆	feng wang jiang	8
+学徒之礼	xue tu zhi li	8
+阿哈利姆之书	a ha li mu zhi shu	8
+维修器具	wei xiu qi ju	7
+智灭	zhi mie	7
+第三只眼	di san zhi yan	7
+法术棱镜	fa shu leng jing	7
+亲王短刀	qin wang duan dao	7
+无知小帽	wu zhi xiao mao	7
+魔童之爪	mo tong zhi zhao	7
+闪灵	shan ling	7
+望远镜	wang yuan jing	7
+网虫腿	wang chong tui	7
+不朽尸王的头盔	bu xiu shi wang de tou kui	7
+臂甲	bi jia	7
+聚合神符	ju he shen fu	7
+海洋之心	hai yang zhi xin	7
+勇气之光	yong qi zhi guang	7
+扫帚柄	sao zhou bing	7
+可靠铁铲	ke kao tie chan	7
+幽冥披巾	you ming pi jin	7
+炎龙之鳞	yan long zhi lin	7
+精华指环	jing hua zhi huan	7
+笨拙渔网	ben zhuo yu wang	7
+魔力箭袋	mo li jian dai	7
+忍者用具	ren zhe yong ju	7
+幻术师披风	huan shu shi pi feng	7
+浩劫巨锤	hao jie ju chui	7
+神妙明灯	shen miao ming deng	7
+弩炮	nu pao	7
+林地神行靴	lin di shen xing xue	7
+冥灵书	ming ling shu	7
+天崩	tian beng	7
+海盗帽	hai dao mao	7
+机械之心	ji xie zhi xin	7
+暗淡胸针	an dan xiong zhen	7
+骑士剑	qi shi jian	7
+恶牛角	e niu jiao	7
+毁灭灵球	hui mie ling qiu	7
+平世剑	ping shi jian	7
+奥术指环	ao shu zhi huan	7
+巨神残铁	ju shen can tie	7
+碎裂背心	sui lie bei xin	7
+精灵外衣	jing ling wai yi	7
+火焰斗篷	huo yan dou peng	7
+欺诈师斗篷	qi zha shi dou peng	7
+附魂面具	fu hun mian ju	7
+五锋长剑	wu feng chang jian	7
+凌厉长鞭	ling li chang bian	7
+通灵头带	tong ling tou dai	7
+祭礼长袍	ji li chang pao	7
+银闪护符	yin shan hu fu	7
+暗影邪典	an ying xie dian	7
+巨人之戒	ju ren zhi jie	7
+风暴宝器	feng bao bao qi	7
+仙灵饰品	xian ling shi pin	7
+简朴短帽	jian pu duan mao	7
+飞贼之刃	fei zei zhi ren	7
+行巫之祸	xing wu zhi huo	7
+豚杆	tun gan	7
+杂技玩具	za ji wan ju	7
+仙灵榴弹	xian ling liu dan	7
+宁静种籽	ning jing zhong zi	7
+追击之矛	zhui ji zhi mao	7
+玄奥手镯	xuan ao shou zhuo	7
+食人魔海豹图腾	shi ren mo hai bao tu teng	7
+鱼叉	yu cha	7
+不羁甲壳	bu ji jia qiao	7
+维齐尔之眼	wei qi er zhi yan	7
+瑞斯图尔尖匕	rui si tu er jian bi	7
+挚爱回忆	zhi ai hui yi	7
+占卜之铲	zhan bu zhi chan	7
+先祖的财富	xian zu de cai fu	7
+仁慈与恩泽	ren ci yu en ze	7
+正义之斧	zheng yi zhi fu	7
+决斗家手套	jue dou jia shou tao	7
+遗迹守护者	yi ji shou hu zhe	7
+安全泡泡	an quan pao pao	7
+邪道私语	xie dao si yu	7
+天诛之咒	tian zhu zhi zhou	7
+艾维娜之羽	ai wei na zhi yu	7
+坚毅之件	jian yi zhi jian	7
+蒲公英护符	pu gong ying hu fu	7
+烈士鳞甲	lie shi lin jia	7
+蛛丝斗篷	zhu si dou peng	7
+集光器	ji guang qi	7
+回响之笼	hui xiang zhi long	7
+双面币	shuang mian bi	7
+肉山的战旗	rou shan de zhan qi	7
+驱邪护符	qu xie hu fu	6
+高远	gao yuan	6
+迅速	xun su	6
+冒险	mao xian	6
+神秘	shen mi	6
+警觉	jing jue	6
+壮实	zhuang shi	6
+坚强	jian qiang	6
+狂热	kuang re	6
+捷足	jie zu	6
+粗暴	cu bao	6
+无边	wu bian	6
+睿智	rui zhi	6
+永恒	yong heng	6
+贪婪	tan lan	6
+吸血鬼	xi xue gui	6
+犀利	xi li	6
+进化	jin hua	6
+巨神	ju shen	6
+不屈之眼	bu qu zhi yan	6
+魔力药水	mo li yao shui	6
+撕裂之鞭	si lie zhi bian	6
+致残之弩	zhi can zhi nu	6
+烈风护体	lie feng hu ti	6
+火药手套	huo yao shou tao	6
+炽热纹章	chi re wen zhang	6
+锯齿短刀	ju chi duan dao	6
+蝌蚪护符	ke dou hu fu	6
+放大单片镜	fang da dan pian jing	6
+皮洛士斗篷	pi luo shi dou peng	6
+狂石包	kuang shi bao	6
+狗头人酒杯	gou tou ren jiu bei	6
+休眠珍品	xiu mian zhen pin	6
+魅影之衣	mei ying zhi yi	6
+基迪花粉袋	ji di hua fen dai	6
+殁境法杖	mo jing fa zhang	6
+德尊血式	de zun xue shi	6
+巨人之槌	ju ren zhi chui	6
+天赐华冠	tian ci hua guan	6
+失节华冠	shi jie hua guan	5
+凶猛	xiong meng	5
+专横	zhuan heng	5
+滋补	zi bu	5
+厚重	hou zhong	5
+觉醒	jue xing	5
+金袋	jin dai	5
+行家阵列	hang jia zhen lie	5
+怪蛇之息	guai she zhi xi	5
+加重骰子	jia zhong tou zi	5
+余烬军团战盾	yu jin jun tuan zhan dun	5
+影墟棱晶	ying xu leng jing	5
+变态上颚	bian tai shang e	5
+丝奎奥克神像	si kui ao ke shen xiang	5
+剥皮血囊	bo pi xue nang	5
+咏咒之坠	yong zhou zhi zhui	5
+先知灵摆	xian zhi ling bai	5
+石羽小包	shi yu xiao bao	5
+附魔师之椟	fu mo shi zhi du	4
+协和	xie he	4
+咒术师触媒	zhou shu shi chu mei	4
+活力	huo li	4
+笨重	ben zhong	4
+癫狂	dian kuang	4
+采菌套具	cai jun tao ju	4
+活力伞菌	huo li san jun	4
+铁树坚果	tie shu jian guo	3
+托莫干伞盖	tuo mo gan san gai	3
+裂隙之石	lie xi zhi shi	3
+天游烙印	tian you lao yin	3
+轻快	qing kuai	2
+利维坦的鱼	li wei tan de yu	2

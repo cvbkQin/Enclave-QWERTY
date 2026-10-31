@@ -11,6 +11,7 @@
 有字查不到读音（英文、数字、生僻字）的词跳过。
 词频压得很低（1–9），排在基础词库后面，不抢常用词的首选。
 """
+import bisect
 import hashlib
 import json
 import math
@@ -57,7 +58,7 @@ BAIKE_LIMIT = 200_000
 BAIKE = {
     "id": "baike", "name": {"zh": "百科词库", "en": "Wikipedia", "ja": "ウィキペディア辞書"},
     "summary": {"zh": "人名、地名、作品、游戏角色", "en": "People, places, works and game characters", "ja": "人名、地名、作品、ゲームキャラクター"},
-    "license": "wiki", "entries": 200000, "size": 3100000, "version": "", "sha256": None, "url": None,
+    "license": "wiki", "entries": 200000, "size": 5470000, "version": "", "sha256": None, "url": None,
 }
 
 TONES = str.maketrans({"ü": "v", "ǖ": "v", "ǘ": "v", "ǚ": "v", "ǜ": "v"})
@@ -173,28 +174,88 @@ def build(pack, kind, path, words, chars, blocklist, out):
     return {"id": pack, "entries": len(kept), "version": version, "size": target.stat().st_size}
 
 
-def build_baike(path, words, chars, char_freq, blocklist, out):
-    """维基标题没有词频，按「字常不常用、长度合不合适」打分，取前 20 万条。
+# 标题里有这些字（代词、语气词），多半是歌名、书名一类的短句，不收。
+PRONOUNS = set("的了吗呢吧啊呀哦嘛我你他她它们谁咱俺")
+# 切词后有一段全是虚词（「和」「就是」「在这」），也按短句算，不收。
+FUNCTION_CHARS = PRONOUNS | set("着过么这那和与及或在是就都也还又再很太最被把让给对从向得地其说要会有没不个")
 
-    跳过：万象里已经有的词（基础词库能打出来）、不是 2–8 个汉字的、有生僻字（万象单字表里没有）的。
-    分数 = 每个字的对数字频取平均，4 字以上每多一个字扣一点：常用字组成的短标题（人名、地名、作品名）排前面。"""
-    rows, blocked, skipped = [], [], 0
-    for text, code, _ in rime_entries(path):
-        if text in words or not re.fullmatch(r"[\u4e00-\u9fff]{2,8}", text):
+
+def segment(word, words):
+    """切成万象里有的词，段数最少；切不出的字单独一段。"""
+    n = len(word)
+    best = [None] * (n + 1)
+    best[0] = []
+    for i in range(n):
+        if best[i] is None:
             continue
-        if text in blocklist:
+        for j in range(i + 1, min(n, i + 8) + 1):
+            piece = word[i:j]
+            if j - i > 1 and piece not in words:
+                continue
+            if best[j] is None or len(best[i]) + 1 < len(best[j]):
+                best[j] = best[i] + [piece]
+    return best[n]
+
+
+# 音译常用字。两个字都是这些字的标题多半是音译词的半截。
+TRANSLIT = set("阿埃艾安奥巴拜班邦贝本比彼波伯博布查达丹德迪蒂丁杜多厄恩法菲费芬丰弗福伏盖冈戈格贡古圭哈海汉豪赫亨胡华霍基吉加贾杰金卡凯坎康柯科克库夸奎昆拉莱兰朗劳勒雷里利莉列林琳卢鲁伦罗洛马玛迈曼梅门蒙米敏莫默穆纳娜奈南内尼涅宁纽努诺欧帕潘佩彭皮珀普奇乔切琼萨塞桑瑟森沙尚舍施什史斯松苏索塔泰坦汤唐特滕提托瓦旺威韦维温沃乌伍西希锡谢辛休雅亚扬耶伊因英尤约泽扎詹兹")
+
+
+def starts_with_word(rest, words):
+    """rest 开头两到四个字是万象里的词。"""
+    return any(rest[:k] in words for k in (2, 3, 4) if len(rest) >= k)
+
+
+def build_baike(path, words, chars, char_freq, blocklist, out):
+    """维基标题没有词频，按「被别的条目引用得多不多、字常不常用、长度合不合适」打分，取前 20 万条。
+
+    敏感词表按包含匹配（标题里有表里的词就删），其他词包是整词匹配。
+    跳过：万象里已经有的词（基础词库能打出来）、不是 2–8 个汉字的、有生僻字（万象单字表里没有）的、
+    像歌名或短句的（有代词、语气词，或者切出来有一段全是虚词；派生条目多的照收）。
+    分数主要看有多少条别的标题是「它 + 一个词」（「周杰伦」有「周杰伦音乐作品列表」……），这比字频更能分出常被提到的东西；
+    再加一点字频（常用字多的排前），4 字以上每多一个字扣一点。"""
+    rows, blocked, skipped = [], [], 0
+    # 百科标题是整句名字（「六四学潮」「西藏独立」），整词匹配漏得多，这里按包含匹配：误删几个也不缺，词多的是。
+    contains = re.compile("|".join(sorted(map(re.escape, (b for b in blocklist if len(b) >= 2)), key=len, reverse=True))) \
+        if blocklist else None
+    entries = list(rime_entries(path))
+    title_set = {text for text, _, _ in entries}
+    titles = sorted(title_set)
+    seen = set()
+    for text, code, _ in entries:
+        if text in words or text in seen or not re.fullmatch(r"[\u4e00-\u9fff]{2,8}", text):
+            continue
+        if text in blocklist or (contains and contains.search(text)):
             blocked.append(text)
             continue
         if any(c not in char_freq for c in text):
             skipped += 1
             continue
+        if len(text) == 2 and all(c in TRANSLIT for c in text):
+            continue  # 「斯坦」「阿斯」「卡斯」：音译词的半截，单独打出来没用
         reading = pinyin(text, words, chars)
         if not reading or not re.fullmatch(r"[a-z]+( [a-z]+)*", reading) or len(reading.split()) != len(text):
             reading = code if re.fullmatch(r"[a-z]+( [a-z]+)*", code or "") and len(code.split()) == len(text) else None
         if not reading:
             skipped += 1
             continue
-        score = sum(math.log(char_freq[c] + 1) for c in text) / len(text) - 0.6 * max(0, len(text) - 4)
+        # 有多少条别的标题是「它 + 一个词」（「延安」→「延安大学」「延安战役」……）：越多越像常被提到的东西。
+        # 后面接的必须是万象里的词，「罗伯」→「罗伯特」这种音译词的半截不算。最多数 300 条。
+        start = bisect.bisect_right(titles, text)
+        end = min(bisect.bisect_left(titles, text + "\U0010ffff", lo=start), start + 300)
+        # 「加拿」→「加拿大航空」也不算：「加拿大」本身是标题，这条归它。
+        n = len(text)
+        derived = sum(1 for t in titles[start:end]
+                      if starts_with_word(t[n:], words)
+                      and not any(len(t) > n + k and t[:n + k] in title_set for k in (1, 2)))
+        # 「我的少年」「和那谁的」这类歌名、句子式标题：常用字多，按字频会排到最前面，又不是词。
+        # 有两条以上派生条目的（「进击的巨人」有角色列表、集数列表）照收。
+        if derived < 2 and (any(c in PRONOUNS for c in text)
+                            or any(all(c in FUNCTION_CHARS for c in p) for p in segment(text, words))):
+            continue
+        common = sum(min(math.log(char_freq[c] + 1), 12) for c in text) / len(text) / 12
+        score = 3 * math.log(1 + derived) + common - 0.4 * max(0, len(text) - 4)
+        seen.add(text)
         rows.append((score, text, reading))
     rows.sort(key=lambda r: -r[0])
     kept = rows[:BAIKE_LIMIT]

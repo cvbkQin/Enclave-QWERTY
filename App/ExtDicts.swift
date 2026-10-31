@@ -212,15 +212,15 @@ struct ExtDictCatalog: Codable, Equatable {
     static let fallback = ExtDictCatalog(dicts: [
         Item(id: "baike", name: Text(zh: "百科词库", en: "Wikipedia", ja: "ウィキペディア辞書"),
              summary: Text(zh: "人名、地名、作品、游戏角色", en: "People, places, works and game characters", ja: "人名、地名、作品、ゲームキャラクター"),
-             license: .wiki, entries: 200_000, size: 3_100_000, version: "", sha256: nil, url: nil),
+             license: .wiki, entries: 200_000, size: 5_467_856, version: "", sha256: nil, url: nil),
         Item(id: "medical", name: Text(zh: "医学", en: "Medicine", ja: "医学"), summary: nil, license: .thuocl,
-             entries: 18_749, size: 621_185, version: "2026-10-30", sha256: nil, url: "ext_medical.dict.yaml"),
+             entries: 18_749, size: 621_167, version: "2026-10-31", sha256: nil, url: "ext_medical.dict.yaml"),
         Item(id: "law", name: Text(zh: "法律", en: "Law", ja: "法律"), summary: nil, license: .thuocl,
-             entries: 9_896, size: 586_983, version: "2026-10-30", sha256: nil, url: "ext_law.dict.yaml"),
+             entries: 9_896, size: 586_974, version: "2026-10-31", sha256: nil, url: "ext_law.dict.yaml"),
         Item(id: "poem", name: Text(zh: "诗词", en: "Poetry", ja: "詩詞"), summary: nil, license: .thuocl,
-             entries: 13_703, size: 633_806, version: "2026-10-30", sha256: nil, url: "ext_poem.dict.yaml"),
+             entries: 13_703, size: 633_781, version: "2026-10-31", sha256: nil, url: "ext_poem.dict.yaml"),
         Item(id: "lishimingren", name: Text(zh: "历史名人", en: "Historical figures", ja: "歴史上の人物"), summary: nil, license: .thuocl,
-             entries: 13_658, size: 305_944, version: "2026-10-30", sha256: nil, url: "ext_lishimingren.dict.yaml"),
+             entries: 13_654, size: 305_860, version: "2026-10-31", sha256: nil, url: "ext_lishimingren.dict.yaml"),
     ])
 
     private static let cacheKey = "extDicts.catalog"
