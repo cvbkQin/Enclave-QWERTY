@@ -11,10 +11,6 @@ struct PrivacyView: View {
     @State private var confirm: ClearTarget?
     @State private var cleared: Set<ClearTarget> = []
     @State private var confirmsRevoke = false
-    /// 删除 iCloud 里的数据：问两次（第一次说明，第二次再确认）。
-    @State private var cloudDeleteStep = 0
-    @State private var cloudDeleted = false
-    @State private var cloudDeleteError: String?
 
     private enum ClearTarget: Identifiable {
         case history, learning, stats, clipboard
@@ -96,31 +92,6 @@ struct PrivacyView: View {
                        "Stats stay on this iPhone for 30 days and are never uploaded. Deleting the app removes all data.",
                        "統計はこの iPhone にだけ 30 日間保存され、送信されません。アプリを削除するとすべて消えます。"))
             }
-
-            // B3 第二步：构建时开了 iCloud 才有。
-            if CloudSync.isAvailable {
-                Section {
-                    Button { cloudDeleteStep = 1 } label: {
-                        HStack {
-                            Text(L("删除 iCloud 里的数据", "Delete Data in iCloud", "iCloud のデータを削除"))
-                                .foregroundStyle(cloudDeleted ? Color.secondary : Color(hex: 0xFF3B30))
-                            Spacer()
-                            if cloudDeleted {
-                                Label(L("已删除", "Deleted", "削除しました"), systemImage: "checkmark")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .disabled(cloudDeleted)
-                } header: {
-                    Text("iCloud")
-                } footer: {
-                    Text(L("删除你 iCloud 里飞地同步的设置、风格和词，并关掉 iCloud 同步。这台 iPhone 和其他设备上已有的不受影响。",
-                           "Deletes the settings, styles and words Enclave synced to your iCloud and turns iCloud sync off. What's already on this iPhone and your other devices stays.",
-                           "iCloud に同期した設定・スタイル・語を削除し、iCloud 同期をオフにします。この iPhone やほかのデバイスにあるものはそのまま残ります。"))
-                }
-            }
         }
         .navigationTitle(L("隐私", "Privacy", "プライバシー"))
         .navigationBarTitleDisplayMode(.inline)
@@ -130,40 +101,6 @@ struct PrivacyView: View {
             Button(L("撤回同意", "Withdraw Consent", "同意を撤回"), role: .destructive) { router.revokePrivacy() }
         } message: {
             Text(L("AI 功能会关闭，拼音输入不受影响。", "AI features turn off. Pinyin input keeps working.", "AI 機能はオフになります。ピンイン入力はそのまま使えます。"))
-        }
-        .alert(L("删除 iCloud 里的数据？", "Delete data in iCloud?", "iCloud のデータを削除しますか？"),
-               isPresented: Binding(get: { cloudDeleteStep == 1 }, set: { if !$0 && cloudDeleteStep == 1 { cloudDeleteStep = 0 } })) {
-            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
-            Button(L("删除", "Delete", "削除"), role: .destructive) {
-                // 等这张关掉再弹第二张。
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { cloudDeleteStep = 2 }
-            }
-        } message: {
-            Text(L("iCloud 同步也会关掉。其他设备下次同步时不会再收到这台的内容。",
-                   "iCloud sync turns off too. Your other devices won't get this iPhone's changes any more.",
-                   "iCloud 同期もオフになります。ほかのデバイスにはこの iPhone の変更が届かなくなります。"))
-        }
-        .alert(L("再确认一次", "Are you sure?", "もう一度確認"),
-               isPresented: Binding(get: { cloudDeleteStep == 2 }, set: { if !$0 && cloudDeleteStep == 2 { cloudDeleteStep = 0 } })) {
-            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
-            Button(L("删除", "Delete", "削除"), role: .destructive) {
-                Task {
-                    do {
-                        try await CloudSync.shared.deleteCloudData()
-                        cloudDeleted = true
-                    } catch {
-                        cloudDeleteError = CloudSync.message(for: error)
-                    }
-                }
-            }
-        } message: {
-            Text(L("删除后不能恢复。", "This can't be undone.", "削除すると元に戻せません。"))
-        }
-        .alert(L("没删成", "Couldn't delete", "削除できませんでした"),
-               isPresented: Binding(get: { cloudDeleteError != nil }, set: { if !$0 { cloudDeleteError = nil } })) {
-            Button(L("好", "OK", "OK"), role: .cancel) {}
-        } message: {
-            Text(cloudDeleteError ?? "")
         }
         .alert(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}

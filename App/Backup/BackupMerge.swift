@@ -89,51 +89,6 @@ enum BackupMerge {
         return HistoryResult(entries: (current + new).sorted { $0.date > $1.date }, added: new.count)
     }
 
-    // MARK: - iCloud 同步：三方合并
-
-    /// 按 key 的三方合并（iCloud 同步，常用词、键盘常用语、AI 历史）：base 是上次同步完两边都一样的那份。
-    /// 两边各自加的都留下；一边删了、另一边没改的就删掉；两边都有的，本机改过（和 base 不同）用本机的，否则用 iCloud 的。
-    /// 没有 base（第一次同步）时取并集，本机的在前。顺序：本机的顺序，iCloud 新加的接在后面。
-    static func threeWay<T: Equatable>(base: [T]?, local: [T], remote: [T], key: (T) -> String) -> [T] {
-        let remoteByKey = Dictionary(remote.map { (key($0), $0) }, uniquingKeysWith: { first, _ in first })
-        guard let base else {
-            let localKeys = Set(local.map(key))
-            return local + remote.filter { !localKeys.contains(key($0)) }
-        }
-        let baseByKey = Dictionary(base.map { (key($0), $0) }, uniquingKeysWith: { first, _ in first })
-        var result: [T] = []
-        var seen = Set<String>()
-        for item in local {
-            let k = key(item)
-            guard seen.insert(k).inserted else { continue }
-            if let theirs = remoteByKey[k] {
-                // 两边都有：本机没动过就用 iCloud 的。
-                result.append(baseByKey[k] == item ? theirs : item)
-            } else if baseByKey[k] == nil {
-                result.append(item)      // 本机新加的
-            }
-            // 否则：上次同步过、iCloud 那边删掉了。
-        }
-        for item in remote {
-            let k = key(item)
-            guard !seen.contains(k) else { continue }
-            if baseByKey[k] == nil {
-                result.append(item)      // iCloud 新加的
-                seen.insert(k)
-            }
-            // 否则：上次同步过、本机删掉了。
-        }
-        return result
-    }
-
-    /// 整块的三方合并（设置、风格）：只有一边改过就用改过的那边；两边都改了用 both(本机, iCloud)。
-    static func threeWayValue<T: Equatable>(base: T?, local: T, remote: T, both: (T, T) -> T) -> T {
-        guard let base else { return both(local, remote) }
-        if local == base { return remote }
-        if remote == base { return local }
-        return both(local, remote)
-    }
-
     /// 设置里属于「润色风格 · 问答风格」的那几项：设置和风格分开备份、分开恢复。
     static let styleKeys = ["styles", "selectedStyleID", "answerStyles", "selectedAnswerStyleID"]
 

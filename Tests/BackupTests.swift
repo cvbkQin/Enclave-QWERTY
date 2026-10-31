@@ -148,39 +148,3 @@ final class BackupTests: XCTestCase {
         XCTAssertEqual(BackupMerge.learnedCount(""), 0)
     }
 }
-
-/// iCloud 同步的三方合并。
-final class SyncMergeTests: XCTestCase {
-    private func merge(_ base: [String]?, _ local: [String], _ remote: [String]) -> [String] {
-        BackupMerge.threeWay(base: base, local: local, remote: remote, key: { $0 })
-    }
-
-    func testFirstSyncIsUnion() {
-        XCTAssertEqual(merge(nil, ["a", "b"], ["b", "c"]), ["a", "b", "c"])
-    }
-
-    func testAddsFromBothSides() {
-        XCTAssertEqual(merge(["a"], ["a", "b"], ["a", "c"]), ["a", "b", "c"])
-    }
-
-    func testDeletesPropagate() {
-        // 本机删了 b，iCloud 删了 c。
-        XCTAssertEqual(merge(["a", "b", "c"], ["a", "c"], ["a", "b"]), ["a"])
-    }
-
-    func testEditPrefersChangedSide() {
-        struct Word: Equatable { var text: String; var pinyin: String }
-        let base = [Word(text: "飞地", pinyin: "fei di")]
-        let local = [Word(text: "飞地", pinyin: "fei di")]
-        let remote = [Word(text: "飞地", pinyin: "fd")]
-        XCTAssertEqual(BackupMerge.threeWay(base: base, local: local, remote: remote, key: \.text), remote)
-        XCTAssertEqual(BackupMerge.threeWay(base: base, local: remote, remote: local, key: \.text), remote)
-    }
-
-    func testValue() {
-        XCTAssertEqual(BackupMerge.threeWayValue(base: 1, local: 1, remote: 2, both: { $0 + $1 }), 2)
-        XCTAssertEqual(BackupMerge.threeWayValue(base: 1, local: 3, remote: 1, both: { $0 + $1 }), 3)
-        XCTAssertEqual(BackupMerge.threeWayValue(base: 1, local: 3, remote: 2, both: { $0 + $1 }), 5)
-        XCTAssertEqual(BackupMerge.threeWayValue(base: nil, local: 3, remote: 2, both: { max($0, $1) }), 3)
-    }
-}
