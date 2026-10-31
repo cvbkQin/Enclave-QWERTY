@@ -140,7 +140,7 @@ struct BackupReport {
 }
 
 enum BackupError: LocalizedError {
-    case notBackup, tooNew, damaged, wrongPassword, learnedWords, noAppGroup
+    case notBackup, tooNew, damaged, wrongPassword, learnedWords, learnedWordsBusy, noAppGroup
 
     var errorDescription: String? {
         switch self {
@@ -148,7 +148,8 @@ enum BackupError: LocalizedError {
         case .tooNew: return L("这个备份来自更新版本的飞地输入法，请先更新 App。", "This backup is from a newer version of Enclave. Update the app first.", "新しいバージョンの Enclave で作られたバックアップです。先にアプリを更新してください。")
         case .damaged: return L("文件损坏了，读不出来。", "The file is damaged and can't be read.", "ファイルが壊れていて読み込めません。")
         case .wrongPassword: return L("密码不对", "Wrong password", "パスワードが違います")
-        case .learnedWords: return L("拼音词库这会儿打不开，学到的词没能恢复。关掉键盘后再试一次。", "Couldn't open the pinyin dictionary, so learned words weren't restored. Close the keyboard and try again.", "ピンイン辞書を開けず、学習した語を復元できませんでした。キーボードを閉じてもう一度お試しください。")
+        case .learnedWords: return L("拼音词库这会儿打不开，学到的词没能读写。稍后再试一次。", "Couldn't open the pinyin dictionary, so learned words couldn't be read or written. Try again later.", "ピンイン辞書を開けず、学習した語を読み書きできませんでした。あとでもう一度お試しください。")
+        case .learnedWordsBusy: return L("键盘还在用拼音词库，学到的词这会儿读写不了。先把键盘收起来（离开正在打字的地方），再试一次。", "The keyboard is still using the pinyin dictionary, so learned words can't be read or written right now. Close the keyboard and try again.", "キーボードがピンイン辞書を使用中のため、学習した語を今は読み書きできません。キーボードを閉じてからもう一度お試しください。")
         case .noAppGroup: return L("App 和键盘的共享存储没有生效，读写不了键盘的数据。", "Shared storage between the app and keyboard isn't working.", "アプリとキーボードの共有ストレージが有効ではありません。")
         }
     }
@@ -256,6 +257,7 @@ enum BackupService {
                 files.append((item.fileName, try encoder.encode(words)))
                 counts[item.rawValue] = words.words.count
             case .learnedWords:
+                guard !LearnedWords.isBusy else { throw BackupError.learnedWordsBusy }
                 guard let snapshot = LearnedWords.snapshot() else { throw BackupError.learnedWords }
                 files.append((item.fileName, Data(snapshot.utf8)))
                 counts[item.rawValue] = BackupMerge.learnedCount(snapshot)
@@ -328,6 +330,8 @@ enum BackupService {
         let words = items.contains(.commonWords) ? try decoder.decode(CommonWordsFile.self, from: data(.commonWords)) : nil
         let learned = items.contains(.learnedWords) ? String(decoding: try data(.learnedWords), as: UTF8.self) : nil
         let history = items.contains(.history) ? try decoder.decode([AIHistoryEntry].self, from: data(.history)) : nil
+        // 键盘还开着词库：什么都先别动。
+        if learned != nil, LearnedWords.isBusy { throw BackupError.learnedWordsBusy }
         var keys: [String: String]?
         if let password = keysPassword {
             guard let decrypted = decryptKeys(file, password: password) else { throw BackupError.wrongPassword }
@@ -360,6 +364,11 @@ enum BackupService {
             let beforeCount = before.map(BackupMerge.learnedCount) ?? 0
             guard LearnedWords.importSnapshot(learned, replace: mode == .replace), let after = LearnedWords.snapshot() else {
                 // 替换时已经清空了：用刚才的快照退回去。
+                if mode == .replace, let before { _ = LearnedWords.importSnapshot(before, replace: true) }
+                throw LearnedWords.isBusy ? BackupError.learnedWordsBusy : BackupError.learnedWords
+            }
+            // 备份里有词、合并完一个都没有：词库其实没打开（同步照样返回成功）。
+            if BackupMerge.learnedCount(learned) > 0, BackupMerge.learnedCount(after) == 0 {
                 if mode == .replace, let before { _ = LearnedWords.importSnapshot(before, replace: true) }
                 throw BackupError.learnedWords
             }
@@ -478,9 +487,20 @@ enum LearnedWords {
         return paths
     }
 
-    /// 导出当前学到的词（*.userdb.txt 的文本）；没打过字是空字符串，引擎打不开时为 nil。
+    private static func userdb(_ paths: RimeStore.Paths) -> URL {
+        paths.user.appendingPathComponent("\(dictName).userdb", isDirectory: true)
+    }
+
+    /// 键盘正开着会话、拿着用户词库的锁。这时 librime 打不开库，同步还是返回成功，只是导出空的、合并不进去，所以先查。
+    static var isBusy: Bool {
+        guard let paths else { return false }
+        let lockFile = userdb(paths).appendingPathComponent("LOCK")
+        return FileManager.default.fileExists(atPath: lockFile.path) && enclave_userdb_locked(lockFile.path)
+    }
+
+    /// 导出当前学到的词（*.userdb.txt 的文本）；没打过字是空字符串，引擎打不开（包括键盘占着）时为 nil。
     static func snapshot() -> String? {
-        guard let paths else { return nil }
+        guard let paths, !isBusy else { return nil }
         lock.lock()
         defer { lock.unlock() }
         let sync = paths.user.appendingPathComponent("sync", isDirectory: true)
@@ -489,13 +509,17 @@ enum LearnedWords {
         defer { try? fm.removeItem(at: sync) }
         guard RimeStore.withAppEngine({ enclave_rime_sync_user_data(paths.shared.path, paths.user.path, nil, nil) }) else { return nil }
         guard let found = fm.enumerator(at: sync, includingPropertiesForKeys: nil)?
-            .compactMap({ $0 as? URL }).first(where: { $0.lastPathComponent == "\(dictName).userdb.txt" }) else { return "" }
+            .compactMap({ $0 as? URL }).first(where: { $0.lastPathComponent == "\(dictName).userdb.txt" }) else {
+            // 没打过字（没有用户词库）是空的；有词库却没导出来，说明没打开。
+            return fm.fileExists(atPath: userdb(paths).path) ? nil : ""
+        }
         return try? String(contentsOf: found, encoding: .utf8)
     }
 
     /// 把备份里的快照合并进来（两边都有的词取权重大的）；replace 时先清空现有的。
     static func importSnapshot(_ text: String, replace: Bool) -> Bool {
-        guard let paths else { return false }
+        // 键盘占着时连清空都不能做。
+        guard let paths, !isBusy else { return false }
         lock.lock()
         defer { lock.unlock() }
         if replace { RimeStore.clearLearning() }

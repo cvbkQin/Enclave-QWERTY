@@ -19,6 +19,10 @@ bool enclave_rime_deploy(const char *shared_dir, const char *user_dir, const cha
 /// librime 只同步已经存在的用户词库：ensure_schema 不为空时先用这个方案开一次会话再关掉，没打过字的新手机上也先建好空词库。
 bool enclave_rime_sync_user_data(const char *shared_dir, const char *user_dir, const char *log_dir, const char *ensure_schema);
 
+/// 用户词库（LevelDB）的 LOCK 文件是不是被别的进程锁着（键盘正开着会话）。LevelDB 用 fcntl 写锁，
+/// 这里试着加同样的锁，加不上就是别人拿着；加上了马上放开。只在主 App 里、librime 没开着这个库时调用。
+bool enclave_userdb_locked(const char *lock_path);
+
 uint64_t enclave_rime_create_session(const char *schema_id);
 void enclave_rime_destroy_session(uint64_t session);
 bool enclave_rime_select_schema(uint64_t session, const char *schema_id);

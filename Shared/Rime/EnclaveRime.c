@@ -1,7 +1,10 @@
 #include "EnclaveRime.h"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <rime_api.h>
 #include <CoreFoundation/CoreFoundation.h>
 
@@ -90,6 +93,24 @@ bool enclave_rime_sync_user_data(const char *shared_dir, const char *user_dir, c
   api->join_maintenance_thread();
   enclave_rime_finalize();
   return ok;
+}
+
+bool enclave_userdb_locked(const char *lock_path) {
+  int fd = open(lock_path, O_RDWR);
+  if (fd < 0) return false;
+  struct flock info;
+  memset(&info, 0, sizeof(info));
+  info.l_type = F_WRLCK;
+  info.l_whence = SEEK_SET;
+  bool locked = false;
+  if (fcntl(fd, F_SETLK, &info) == -1) {
+    locked = (errno == EACCES || errno == EAGAIN);
+  } else {
+    info.l_type = F_UNLCK;
+    fcntl(fd, F_SETLK, &info);
+  }
+  close(fd);
+  return locked;
 }
 
 uint64_t enclave_rime_create_session(const char *schema_id) {

@@ -42,6 +42,7 @@ struct BackupView: View {
     @State private var lastExport = BackupPrefs.lastExport
     /// 拼音词库这会儿打不开（键盘还占着、还没部署）：数量显示「—」，脚注说一句。
     @State private var learnedFailed = false
+    @State private var learnedBusy = false
 
     var body: some View {
         List {
@@ -64,9 +65,13 @@ struct BackupView: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
                     if learnedFailed {
-                        Text(L("学到的词这会儿读不出来：先把键盘收起来，再回到这页。",
-                               "Can't read learned words right now. Close the keyboard, then come back to this page.",
-                               "学習した語を今は読み込めません。キーボードを閉じてからこのページに戻ってください。"))
+                        Text(learnedBusy
+                             ? L("键盘还在用拼音词库，学到的词这会儿读不出来：先把键盘收起来，再回到这页。",
+                                 "The keyboard is still using the pinyin dictionary. Close the keyboard, then come back to this page.",
+                                 "キーボードがピンイン辞書を使用中です。キーボードを閉じてからこのページに戻ってください。")
+                             : L("学到的词这会儿读不出来，稍后再回到这页试试。",
+                                 "Can't read learned words right now. Try this page again later.",
+                                 "学習した語を今は読み込めません。あとでもう一度このページを開いてください。"))
                             .foregroundStyle(.orange)
                     }
                     Text(L("接口 Key 和剪贴板记录不会自动带上。导出文件时可以选择带上 Key，要设一个密码。",
@@ -168,9 +173,13 @@ struct BackupView: View {
     }
 
     private func refreshLearned() async {
-        let count = await Task.detached { LearnedWords.snapshot().map(BackupMerge.learnedCount) }.value
+        let (count, busy) = await Task.detached { () -> (Int?, Bool) in
+            if LearnedWords.isBusy { return (nil, true) }
+            return (LearnedWords.snapshot().map(BackupMerge.learnedCount), false)
+        }.value
         counts.learnedWords = count
         learnedFailed = count == nil
+        learnedBusy = busy
     }
 
     /// 在「文件」或别的 App 里点开 .enclave，跳到这页直接弹恢复。
