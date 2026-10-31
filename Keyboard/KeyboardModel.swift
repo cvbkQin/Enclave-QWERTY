@@ -667,7 +667,9 @@ final class KeyboardModel: ObservableObject {
         target = restingTarget
         let text = cardDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var session, !text.isEmpty, cardDraft != session.current else { return }
+        let from = session.currentIndex
         session.append(cardDraft, edited: true)
+        session.noteEdit(from: from)
         self.session = session
         resultUse = nil
         resultUses = []
@@ -782,6 +784,9 @@ final class KeyboardModel: ObservableObject {
             // 点了「使用联网查询」：第一轮不问模型，直接去搜。
             var forceNow = ask?.forceSearch == true && ask?.search != nil
             var searchedBy: String?
+            // 历史时间线：联网搜索开始的时间、是不是自动联网（没在键盘上问）。
+            var searchAt: Date?
+            var searchAuto: Bool?
             do {
                 while true {
                     raw = ""
@@ -848,6 +853,8 @@ final class KeyboardModel: ObservableObject {
                     if let answerClient { client = answerClient; mayHandOff = false; answeredByAnswerAPI = separateAnswer }
                     // 联网的一定是问答：展开抽屉。三档：开且这一家同意过就直接联网，否则回答框里先问（禁止时提示去开启）。
                     self.askDecided(.answer)
+                    let mode = self.settings.webSearchMode ?? .off
+                    let auto = WebSearch.isConsented(provider) && (mode == .on || (ask.forceSearch && mode != .off))
                     guard await self.searchAllowed(provider, forced: ask.forceSearch) else {
                         try Task.checkCancellation()
                         // 点按钮联网又没同意：原来的回答不动。
@@ -857,6 +864,8 @@ final class KeyboardModel: ObservableObject {
                         continue
                     }
                     searchedBy = provider.name
+                    searchAt = Date()
+                    searchAuto = auto
                     try Task.checkCancellation()
                     if provider.builtin {
                         // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。搜索在服务商那边，出字前流光小字写「正在用 … 联网搜索…」。
@@ -900,6 +909,10 @@ final class KeyboardModel: ObservableObject {
                     AIAccess.recordUse()
                     self.refreshAIAccess()
                     var updated = pending
+                    // 历史时间线：这一版怎么来的。同一句识意已经出过一版、这次又问：结果卡「⇄ 切换」重做。
+                    let redo = ask.map { ask in !ask.forceSearch && (pending.askSources?.values.contains { $0.question == ask.question } ?? false) } ?? false
+                    let source = ask == nil ? (pending.mode == .write ? EditSession.VersionSource.write : EditSession.VersionSource.polish)
+                        : (redo ? EditSession.VersionSource.redo : EditSession.VersionSource.ask)
                     if let ask, ask.forceSearch, let searchedBy {
                         updated.replaceCurrentAnswer(result, searchedBy: searchedBy)
                     } else if let ask, let kind = self.askKind {
@@ -910,7 +923,9 @@ final class KeyboardModel: ObservableObject {
                     }
                     // 历史页每一版写风格和服务商：问答写问答风格，识意改写不写风格。
                     let versionStyle = ask == nil ? styleName : (updated.currentIsAnswer ? answerStyle?.displayName : nil)
-                    updated.noteCurrent(style: versionStyle, provider: client.settings.providerName)
+                    updated.noteCurrent(style: versionStyle, provider: client.settings.providerName, source: source,
+                                        ms: Int(Date().timeIntervalSince(started) * 1000),
+                                        searchAt: searchedBy == nil ? nil : searchAt, searchAuto: searchedBy == nil ? nil : searchAuto)
                     if updated.mode == .write, ask == nil {
                         updated.conversation.append(.assistant(result))
                     }

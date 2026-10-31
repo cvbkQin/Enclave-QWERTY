@@ -54,6 +54,49 @@ final class AIHistoryTests: XCTestCase {
         XCTAssertEqual(session.current, "一版")
     }
 
+    /// 0.95_7 起每一版记时间、来源、用时，替换记时间；旧记录（只有开始时间）isLegacy。
+    func testTimelineFields() throws {
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        var session = EditSession(mode: .polish, original: "原文")
+        session.startedAt = start
+        session.append("第一版")
+        session.noteCurrent(style: "润色", provider: "DeepSeek", source: EditSession.VersionSource.polish, ms: 800,
+                            at: start.addingTimeInterval(2))
+        session.append("第一版改", edited: true)
+        session.noteEdit(from: 0, at: start.addingTimeInterval(20))
+        session.markCurrentUsed("inserted", at: start.addingTimeInterval(30))
+
+        let entry = try XCTUnwrap(AIHistoryEntry(session: session))
+        XCTAssertFalse(entry.isLegacy)
+        XCTAssertEqual(entry.versions[0].ms, 800)
+        XCTAssertEqual(entry.versions[0].source, EditSession.VersionSource.polish)
+        XCTAssertEqual(entry.versions[1].source, EditSession.VersionSource.edit)
+        XCTAssertEqual(entry.versions[1].editedFrom, 0)
+        XCTAssertEqual(entry.versions[1].usedAt, start.addingTimeInterval(30))
+        XCTAssertEqual(entry.endDate, start.addingTimeInterval(30))
+
+        // 撤销：去掉用过的时间。
+        session.markCurrentUsed(nil)
+        XCTAssertNil(try XCTUnwrap(AIHistoryEntry(session: session)).versions[1].usedAt)
+
+        // 旧记录：没有每一版的时间。
+        var old = EditSession(mode: .polish, original: "原文")
+        old.append("结果")
+        old.noteCurrent(style: "口语", provider: "DeepSeek")
+        old.versionInfo?["0"]?.at = nil
+        XCTAssertTrue(try XCTUnwrap(AIHistoryEntry(session: old)).isLegacy)
+    }
+
+    /// 0.95_6 存的历史文件（没有时间线字段）照样读得出来。
+    func testOldEntryDecodes() throws {
+        let json = #"[{"id":"a","kind":"polish","date":1000,"original":"原文","context":"","versions":[{"text":"结果","edited":false,"style":"正式","use":"replaced"}]}]"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let entries = try decoder.decode([AIHistoryEntry].self, from: Data(json.utf8))
+        XCTAssertTrue(entries[0].isLegacy)
+        XCTAssertEqual(entries[0].usedIndex, 0)
+    }
+
     func testPruned() throws {
         let now = Date()
         func entry(daysAgo: Double) throws -> AIHistoryEntry {

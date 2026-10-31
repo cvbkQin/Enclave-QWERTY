@@ -75,36 +75,55 @@ final class HistoryStore: ObservableObject {
             let day = calendar.date(byAdding: .day, value: -dayOffset, to: now) ?? now
             return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? now
         }
-        func polish(_ original: String, _ versions: [String], style: String, used: Int?, use: String?, edited: Int? = nil, date: Date) {
+        /// styles：每一版的风格；gaps：每一版离开始几秒（最后多一个是替换 / 插入的时间）；legacy：像更新前那样只记开始时间。
+        func polish(_ original: String, _ versions: [String], styles: [String], used: Int?, use: String?, edited: Int? = nil,
+                    date: Date, gaps: [Double] = [], legacy: Bool = false) {
             var session = EditSession(mode: .polish, original: original)
             session.startedAt = date
+            func gap(_ index: Int) -> Double { gaps.indices.contains(index) ? gaps[index] : Double(index + 1) * 3 }
             for (index, text) in versions.enumerated() {
                 session.append(text, edited: index == edited)
-                session.noteCurrent(style: style, provider: "DeepSeek")
+                let style = styles[min(index, styles.count - 1)]
+                if legacy {
+                    session.versionInfo = (session.versionInfo ?? [:]).merging([String(index): .init(style: style, provider: "DeepSeek")]) { $1 }
+                } else if index == edited {
+                    session.noteEdit(from: index - 1, at: date.addingTimeInterval(gap(index)))
+                } else {
+                    session.noteCurrent(style: style, provider: "DeepSeek", source: EditSession.VersionSource.polish,
+                                        ms: 800 + index * 100, at: date.addingTimeInterval(gap(index)))
+                }
             }
             if let used {
                 session.currentIndex = used
-                session.markCurrentUsed(use)
+                session.markCurrentUsed(use, at: date.addingTimeInterval(gap(versions.count)))
+                if legacy { session.usedTimes = nil }
             }
             AIHistory.record(session)
         }
-        func answer(_ question: String, context: String, _ text: String, searched: Bool, date: Date) {
+        func answer(_ question: String, context: String, _ text: String, searched: Bool, use: String? = nil, date: Date) {
             var session = EditSession(mode: .polish, original: context)
             session.startedAt = date
             session.appendAsk(text, answer: true, replacingLast: false, source: .init(question: question, context: context))
-            session.noteCurrent(style: "直击要害", provider: "Kimi")
+            session.noteCurrent(style: "直击要害", provider: "Kimi", source: EditSession.VersionSource.ask, ms: searched ? 3100 : 1600,
+                                searchAt: searched ? date.addingTimeInterval(1) : nil, searchAuto: searched ? false : nil,
+                                at: date.addingTimeInterval(4))
             if searched { session.markSearched(by: "Kimi") }
+            if let use { session.markCurrentUsed(use, at: date.addingTimeInterval(49)) }
             AIHistory.record(session)
         }
-        polish("不好意思今天去不了了家里有点事", ["抱歉，今天家里临时有事，去不了了，改天再约。", "不好意思，今天家里有点事去不了，改天再约哈。"],
-               style: "口语", used: 0, use: "replaced", date: at(1, 18, 3))
+        answer("冗余怎么读", context: "", "「冗余」读 rǒng yú，意思是多余的、重复的部分。", searched: false, date: at(1, 15, 2))
+        polish("收到 晚点整理好发你", ["收到，我晚点把资料整理好发你。"], styles: ["润色"], used: 0, use: "replaced", date: at(1, 17, 40))
+        polish("不好意思今天去不了了家里有点事", ["抱歉，今天家里临时有事，去不了了，改天再约。", "不好意思，今天家里有点事去不了，下次再约。"],
+               styles: ["口语"], used: 0, use: "replaced", date: at(1, 18, 3), legacy: true)
         answer("RAG 和微调有什么区别", context: "", "RAG 是查资料再回答，知识随时可换；微调是把知识练进模型里，改起来要重新训练。", searched: false, date: at(1, 22, 14))
+        answer("第三方键盘没开完全访问能联网吗", context: "", "可以。iPhone 键盘扩展在完全访问打开前不能联网，打开后才能调用 AI 接口。", searched: false, date: at(0, 8, 41))
         polish("thanks for ur help yesterday really appreciate", ["Thank you so much for your help yesterday. I really appreciate it."],
-               style: "翻成英文", used: 0, use: "inserted", date: at(0, 9, 20))
-        polish("这个方案我觉得还行但是预算有点超了", ["这个方案整体可行，不过预算略超，能否再压缩一些？"], style: "润色", used: 0, use: "replaced", date: at(0, 11, 48))
-        answer("今天上海天气怎么样，要带伞吗", context: "下午去外滩拍照，几点出发比较好", "多云转小雨，14–19°C，下午 3 点后降雨概率 70%，建议带伞。想拍外滩的话最好 2 点前到。", searched: true, date: at(0, 13, 5))
+               styles: ["翻成英文"], used: 0, use: "inserted", date: at(0, 9, 20))
+        polish("这个方案我觉得还行但是预算有点超了", ["这个方案整体可行，不过预算略超，能否再压缩一些？"], styles: ["润色"], used: 0, use: "replaced", date: at(0, 11, 48))
+        answer("今天上海天气怎么样，要带伞吗", context: "下午去外滩拍照，几点出发比较好", "多云转小雨，14–19°C，下午 3 点后降雨概率 70%，建议带伞。想拍外滩的话最好 2 点前到。",
+               searched: true, use: "inserted", date: at(0, 13, 4).addingTimeInterval(12))
         polish("明天开会的事情我再跟你确认下时间哈", ["明天开会的时间，我再跟你确认一下。", "明天会议的具体时间，我稍后再和您确认一下。", "明天会议的具体时间，我下午再和您确认。"],
-               style: "正式", used: 1, use: "replaced", edited: 2, date: at(0, 14, 32))
+               styles: ["润色", "正式"], used: 1, use: "replaced", edited: 2, date: at(0, 14, 31).addingTimeInterval(5), gaps: [2, 15, 36, 57])
     }
     #endif
 }
@@ -113,9 +132,6 @@ extension AIHistoryEntry {
     var kindTitle: String {
         kind == .polish ? L("润色", "Polish", "整える") : L("问答", "Q&A", "質問")
     }
-
-    /// 「今天 14:32」「昨天 22:14」「10月29日 18:03」。
-    var timeTitle: String { HistoryFormat.day(date) + " " + HistoryFormat.time(date) }
 
     /// 风格和服务商：用过的那版的，没有就找一版有的。
     var meta: (style: String?, provider: String?) {
@@ -126,13 +142,6 @@ extension AIHistoryEntry {
     }
 
     var searchedBy: String? { versions.lazy.compactMap(\.searchedBy).first }
-
-    /// 绿字：「已替换」「已插入」，几版里用了其中一版写「用了第 N 版」。
-    var useText: String? {
-        guard let index = usedIndex, let use = versions[index].use else { return nil }
-        if versions.count > 1 { return L("用了第 \(index + 1) 版", "Used version \(index + 1)", "第 \(index + 1) 版を使用") }
-        return HistoryFormat.useTitle(use)
-    }
 }
 
 enum HistoryFormat {
@@ -147,6 +156,14 @@ enum HistoryFormat {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    /// 时间线每一步右边：「14:31:05」。
+    static func seconds(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm:ss"
         return formatter.string(from: date)
     }
 
@@ -237,6 +254,7 @@ struct HistoryListView: View {
                                 HistoryRow(entry: entry)
                             }
                             .buttonStyle(.plain)
+                            .listRowInsets(EdgeInsets(top: 9, leading: 16, bottom: 9, trailing: 16))
                             .swipeActions(edge: .trailing) {
                                 Button(L("删除", "Delete", "削除"), role: .destructive) { store.delete(entry.id) }
                             }
@@ -322,54 +340,55 @@ struct HistoryListView: View {
     }
 }
 
-/// 一条记录：类型标签（+ 已联网）+ 时间；原文一行；用过的那版最多两行；风格 · 服务商 · N 版 · 用了哪版。
+/// 一条记录两行（HC1）：「润 / 问」小方块 + 结果一行 + 时间；灰字 🌐 原文（问答写「问：」）+ 右边「风格 · N 版 · 已替换」。
 private struct HistoryRow: View {
     let entry: AIHistoryEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                HistoryKindBadge(kind: entry.kind)
-                if entry.searched {
-                    Text("🌐 " + L("已联网", "Web", "ウェブ検索済み")).font(.system(size: 13)).foregroundStyle(DashColor.input)
-                }
-                Spacer()
-                Text(HistoryFormat.time(entry.date)).font(.system(size: 13)).foregroundStyle(.secondary).monospacedDigit()
+                HistoryKindMark(kind: entry.kind)
+                Text(entry.shown).font(.system(size: 15.5)).foregroundStyle(.primary).lineLimit(1)
+                Spacer(minLength: 6)
+                Text(HistoryFormat.time(entry.date)).font(.system(size: 12.5)).foregroundStyle(.secondary).monospacedDigit()
             }
-            Text(entry.kind == .answer ? L("问：", "Q: ", "問：") + entry.original : entry.original)
-                .font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(1)
-            Text(entry.shown).font(.system(size: 16)).foregroundStyle(.primary).lineLimit(2)
-            metaLine
+            HStack(spacing: 8) {
+                Text((entry.searched ? "🌐 " : "") + (entry.kind == .answer ? L("问：", "Q: ", "問：") : "") + entry.original)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                // 右边这段不截断，空间不够先截原文。
+                metaLine.lineLimit(1).fixedSize().layoutPriority(1)
+            }
+            .font(.system(size: 13))
+            .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 4)
         .contentShape(Rectangle())
     }
 
-    private var metaLine: some View {
-        let meta = entry.meta
-        var parts = [meta.style, meta.provider].compactMap { $0 }
-        if entry.kind == .polish || entry.versions.count > 1 {
-            parts.append(L("\(entry.versions.count) 版", "\(entry.versions.count) versions", "\(entry.versions.count) 版"))
+    /// 「正式 · 3 版 · 已替换」：风格只写润色的，N 版只在多于 1 版时写，已替换 / 已插入绿字。
+    private var metaLine: Text {
+        var parts: [String] = []
+        if entry.kind == .polish, let style = entry.meta.style { parts.append(style) }
+        if entry.versions.count > 1 { parts.append(L("\(entry.versions.count) 版", "\(entry.versions.count) versions", "\(entry.versions.count) 版")) }
+        var line = Text(parts.joined(separator: " · "))
+        if let index = entry.usedIndex, let use = entry.versions[index].use {
+            line = line + Text(parts.isEmpty ? "" : " · ") + Text(HistoryFormat.useTitle(use)).foregroundColor(HistoryFormat.green)
         }
-        let base = Text(parts.joined(separator: " · ")).foregroundColor(Color(.tertiaryLabel))
-        let line: Text
-        if entry.kind == .polish, let use = entry.useText {
-            line = base + Text(parts.isEmpty ? "" : " · ").foregroundColor(Color(.tertiaryLabel)) + Text(use).foregroundColor(HistoryFormat.green)
-        } else {
-            line = base
-        }
-        return line.font(.system(size: 13)).lineLimit(1)
+        return line
     }
 }
 
-/// 润色：主色浅底；问答：蓝色浅底。字 11 半粗，高 18 圆角 9。
-private struct HistoryKindBadge: View {
+/// 润色「润」主色浅底，问答「问」蓝色浅底：20×20、圆角 6、字 11.5 粗。
+private struct HistoryKindMark: View {
     let kind: AIHistoryEntry.Kind
 
     var body: some View {
         let color = kind == .polish ? AppColor.purple : DashColor.input
-        ExtDictBadge(text: kind == .polish ? L("润色", "Polish", "整える") : L("问答", "Q&A", "質問"),
-                     fill: color.opacity(0.12), color: color)
+        Text(kind == .polish ? L("润", "P", "整") : L("问", "Q", "問"))
+            .font(.system(size: 11.5, weight: .bold))
+            .foregroundStyle(color)
+            .frame(width: 20, height: 20)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(color.opacity(0.12)))
     }
 }
 
@@ -404,7 +423,7 @@ private struct HistoryEmptyView: View {
     }
 }
 
-// MARK: - 详情（HI3、HI4）
+// MARK: - 详情：时间线（HC2、HC3、HC4）
 
 struct HistoryDetailView: View {
     let id: String
@@ -416,18 +435,23 @@ struct HistoryDetailView: View {
         Group {
             if let entry = store.entry(id) {
                 DashPage {
-                    if entry.kind == .polish {
-                        HistoryTextCard(title: L("原文", "Original", "元の文"), text: entry.original)
-                        groupTitle(L("结果", "Results", "結果"), entry)
-                    } else {
-                        HistoryTextCard(title: L("问题", "Question", "質問"), text: entry.original)
-                        if !entry.context.isEmpty {
-                            HistoryTextCard(title: L("一起发送的上下文", "Context sent with it", "一緒に送った文脈"), text: entry.context, secondary: true)
+                    Text(entry.summary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                    VStack(alignment: .leading, spacing: 0) {
+                        let steps = entry.timeline
+                        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                            HistoryStepRow(step: step, isLast: index == steps.count - 1, showsTime: !entry.isLegacy)
                         }
-                        groupTitle(L("回答", "Answer", "回答"), entry)
                     }
-                    ForEach(Array(entry.versions.enumerated()), id: \.offset) { index, version in
-                        HistoryVersionCard(entry: entry, index: index, version: version)
+                    .padding(.top, 4)
+                    if entry.isLegacy {
+                        Text(L("这条是更新前记的，只有开始时间，每一步按先后排、不写时间。",
+                               "Recorded before this update: only the start time was kept, so the steps are in order without times.",
+                               "この記録は更新前のもので、開始時刻しかありません。各ステップは順番どおりで時刻はありません。"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
                     }
                     Button(role: .destructive) { confirmsDelete = true } label: {
                         Text(L("删除这条记录", "Delete This Record", "この記録を削除"))
@@ -439,7 +463,7 @@ struct HistoryDetailView: View {
                     .buttonStyle(.plain)
                     .padding(.top, 12)
                 }
-                .navigationTitle(entry.kindTitle + " · " + entry.timeTitle)
+                .navigationTitle(entry.kindTitle + " · " + Loc.monthDay(entry.date))
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Menu {
@@ -467,65 +491,177 @@ struct HistoryDetailView: View {
             }
         }
     }
-
-    /// 「结果 · 正式 · DeepSeek」。
-    private func groupTitle(_ title: String, _ entry: AIHistoryEntry) -> some View {
-        let meta = entry.meta
-        return Text(([title] + [meta.style, meta.provider].compactMap { $0 }).joined(separator: " · "))
-            .font(.system(size: 14))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-    }
 }
 
-/// 白卡：左上灰色小标题，右上「复制」，下面正文。
-private struct HistoryTextCard: View {
-    let title: String
-    let text: String
+/// 时间线的一步：圆点 + 标题行（粗标题、灰字说明、右边时间到秒）+ 下面的白卡片（有才画）。
+struct HistoryStep {
+    enum Dot { case gray, purple, blue, green }
+
+    var dot: Dot
+    var title: String
+    var note: String?
+    var time: Date?
+    var text: String?
     var secondary = false
+    var highlighted = false
+}
 
-    var body: some View {
-        DashCard {
-            HStack {
-                Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(.secondary)
-                Spacer()
-                HistoryCopyButton(text: text)
-            }
-            Text(text).font(.system(size: 17)).foregroundStyle(secondary ? .secondary : .primary).textSelection(.enabled)
+extension AIHistoryEntry {
+    /// 顶上一行汇总：「14:31 – 14:32 · DeepSeek · 用了第 2 版」；问答写「· 联网 N 次」；旧记录写「18:03 开始」。
+    var summary: String {
+        var parts: [String] = []
+        let start = HistoryFormat.time(date)
+        if isLegacy {
+            parts.append(L("\(start) 开始", "Started \(start)", "\(start) 開始"))
+        } else if let end = endDate.map(HistoryFormat.time), end != start {
+            parts.append(start + " – " + end)
+        } else {
+            parts.append(start)
         }
+        if let provider = meta.provider { parts.append(provider) }
+        let searches = versions.filter { $0.searchedBy != nil }.count
+        if kind == .answer, searches > 0 {
+            parts.append(L("联网 \(searches) 次", "Web \(searches)×", "ウェブ検索 \(searches) 回"))
+        }
+        if let index = usedIndex, versions.count > 1 || kind == .polish {
+            parts.append(L("用了第 \(index + 1) 版", "Used version \(index + 1)", "第 \(index + 1) 版を使用"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 从上到下按时间排的每一步（HC2、HC3）；旧记录照样排，只是不写时间和来源（HC4）。
+    var timeline: [HistoryStep] {
+        var steps: [HistoryStep] = []
+        let legacy = isLegacy
+        if kind == .polish {
+            steps.append(HistoryStep(dot: .gray, title: L("原文", "Original", "元の文"), note: legacy ? nil : L("你打的", "You typed", "入力した文"),
+                                     time: date, text: original))
+        } else {
+            steps.append(HistoryStep(dot: .gray, title: L("问题", "Question", "質問"), note: legacy ? nil : L("按住 ✨ 问答", "Held ✨ to ask", "✨ 長押しで質問"),
+                                     time: date, text: original))
+            if !context.isEmpty {
+                steps.append(HistoryStep(dot: .gray, title: L("一起发送的上下文", "Context sent with it", "一緒に送った文脈"),
+                                         note: legacy ? nil : L("光标前的文字", "Text before the cursor", "カーソルの前の文"),
+                                         time: date, text: context, secondary: true))
+            }
+        }
+        for (index, version) in versions.enumerated() {
+            if let searchAt = version.searchAt {
+                let how = version.searchAuto == true ? L("自动", "Automatic", "自動") : L("你点了「允许」", "You tapped Allow", "「許可」をタップ")
+                steps.append(HistoryStep(dot: .blue, title: L("联网搜索", "Web search", "ウェブ検索"),
+                                         note: [how, version.searchedBy].compactMap { $0 }.joined(separator: " · "), time: searchAt))
+            }
+            steps.append(HistoryStep(dot: .purple, title: versionTitle(index), note: versionNote(index, legacy: legacy),
+                                     time: version.at, text: version.text, highlighted: usedIndex == index))
+        }
+        if let index = usedIndex, let use = versions[index].use {
+            steps.append(HistoryStep(dot: .green,
+                                     title: use == .replaced ? L("替换了输入框", "Replaced the text", "入力欄を置き換え") : L("插入到光标处", "Inserted at the cursor", "カーソル位置に挿入"),
+                                     note: versions.count > 1 ? L("用的第 \(index + 1) 版", "Version \(index + 1)", "第 \(index + 1) 版") : nil,
+                                     time: versions[index].usedAt))
+        }
+        return steps
+    }
+
+    private func versionTitle(_ index: Int) -> String {
+        if kind == .answer && versions.count == 1 { return L("回答", "Answer", "回答") }
+        return L("第 \(index + 1) 版", "Version \(index + 1)", "第 \(index + 1) 版")
+    }
+
+    /// 说明这一版怎么来的：「✨ 润色」「换成『正式』」「你手改了第 2 版」「⇄ 切换重做」「直击要害 · Kimi」，再加「· 0.8 秒」。
+    /// 旧记录不写来源，只照常标手改和联网。
+    private func versionNote(_ index: Int, legacy: Bool) -> String? {
+        let version = versions[index]
+        var parts: [String] = []
+        if legacy {
+            if version.edited { parts.append(L("你手改的", "Edited by you", "手で編集")) }
+            if let searchedBy = version.searchedBy { parts.append("🌐 " + L("已联网", "Web", "ウェブ検索済み") + " · " + searchedBy) }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        }
+        switch version.source {
+        case EditSession.VersionSource.edit:
+            let from = (version.editedFrom ?? max(index - 1, 0)) + 1
+            parts.append(L("你手改了第 \(from) 版", "You edited version \(from)", "第 \(from) 版を手で編集"))
+        case EditSession.VersionSource.redo:
+            parts.append(L("⇄ 切换重做", "⇄ Switched and redone", "⇄ 切り替えてやり直し"))
+        case EditSession.VersionSource.write:
+            parts.append(L("✨ 帮我写", "✨ Write for me", "✨ 書いてもらう"))
+        case EditSession.VersionSource.ask:
+            if kind == .answer {
+                parts += [version.style, version.provider].compactMap { $0 }
+            } else {
+                parts.append(L("✨ 识意改写", "✨ Smart rewrite", "✨ 意図を読んで書き直し"))
+            }
+        default:
+            let previous = index > 0 ? versions[index - 1].style : nil
+            if index > 0, let style = version.style, style != previous {
+                parts.append(L("换成「\(style)」", "Switched to \"\(style)\"", "「\(style)」に変更"))
+            } else {
+                parts.append(L("✨ 润色", "✨ Polish", "✨ 整える"))
+            }
+        }
+        if let ms = version.ms {
+            parts.append(String(format: "%.1f", Double(ms) / 1000) + L(" 秒", " s", " 秒"))
+        }
+        return parts.joined(separator: " · ")
     }
 }
 
-/// 一版结果：「第 N 版」（+ 已替换 / 已插入，+ · 已改）；联网过的写「🌐 已联网 · Kimi」。用过的那版主色 2pt 描边。
-private struct HistoryVersionCard: View {
-    let entry: AIHistoryEntry
-    let index: Int
-    let version: AIHistoryEntry.Version
+private struct HistoryStepRow: View {
+    let step: HistoryStep
+    let isLast: Bool
+    let showsTime: Bool
 
     var body: some View {
-        let used = entry.usedIndex == index
-        DashCard {
-            HStack(spacing: 8) {
-                if let searchedBy = version.searchedBy {
-                    Text("🌐 " + L("已联网", "Web", "ウェブ検索済み") + " · " + searchedBy)
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(DashColor.input)
-                } else if entry.versions.count > 1 || entry.kind == .polish {
-                    Text(L("第 \(index + 1) 版", "Version \(index + 1)", "第 \(index + 1) 版") + (version.edited ? L(" · 已改", " · Edited", " · 編集済み") : ""))
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(.secondary)
+        HStack(alignment: .top, spacing: 12) {
+            // 左边竖线：从这一点画到下一点（每一行画自己到底的那一段，行之间不留空）。
+            ZStack(alignment: .top) {
+                if !isLast {
+                    Rectangle().fill(Color(.systemGray4)).frame(width: 2).frame(maxHeight: .infinity).padding(.top, 10)
                 }
-                if let use = version.use {
-                    ExtDictBadge(text: HistoryFormat.useTitle(use), fill: HistoryFormat.green.opacity(0.14), color: HistoryFormat.green)
-                }
-                Spacer()
-                HistoryCopyButton(text: version.text)
+                dot.padding(.top, 3)
             }
-            Text(version.text).font(.system(size: 17)).textSelection(.enabled)
+            .frame(width: 14)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(step.title).font(.system(size: 13.5, weight: .bold)).foregroundStyle(.primary).fixedSize()
+                    if let note = step.note {
+                        Text(note).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    if showsTime, let time = step.time {
+                        Text(HistoryFormat.seconds(time)).font(.system(size: 12.5)).foregroundStyle(.secondary).monospacedDigit().fixedSize()
+                    }
+                }
+                if let text = step.text {
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(text)
+                            .font(.system(size: step.secondary ? 14.5 : 15.5))
+                            .foregroundStyle(step.secondary ? .secondary : .primary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HistoryCopyButton(text: text)
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DashColor.card))
+                    .overlay {
+                        if step.highlighted {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(AppColor.purple, lineWidth: 2)
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, isLast ? 0 : 18)
         }
-        .overlay {
-            if used {
-                RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(AppColor.purple, lineWidth: 2)
-            }
+    }
+
+    @ViewBuilder private var dot: some View {
+        switch step.dot {
+        case .green:
+            Circle().fill(HistoryFormat.green).frame(width: 12, height: 12)
+        case .gray, .purple, .blue:
+            let color: Color = step.dot == .gray ? Color(.systemGray2) : (step.dot == .blue ? DashColor.input : AppColor.purple)
+            Circle().strokeBorder(color, lineWidth: 2.5).background(Circle().fill(DashColor.page)).frame(width: 12, height: 12)
         }
     }
 }

@@ -28,22 +28,62 @@ struct EditSession: Codable, Equatable {
     var versionInfo: [String: VersionInfo]?
     /// 替换 / 插入进输入框的版本序号 → "replaced" / "inserted"，历史页标「已替换」「已插入」。旧数据里没有。
     var usedVersions: [String: String]?
+    /// 替换 / 插入的时间（版本序号 → ），历史详情时间线最后一步。0.95_7 起记。
+    var usedTimes: [String: Date]?
 
     struct VersionInfo: Codable, Equatable {
         var style: String?
         var provider: String?
+        /// 下面几项 0.95_7 起记（历史详情的时间线），旧数据里没有。
+        /// 这一版出来的时间。
+        var at: Date?
+        /// 怎么来的：见 VersionSource。存成字符串，以后加了新的种类旧版本也解得开。
+        var source: String?
+        /// 请求用了多久（毫秒）；手改的没有。
+        var ms: Int?
+        /// 手改的：改的是第几版（序号）。
+        var editedFrom: Int?
+        /// 问答联网：开始搜索的时间、是不是自动联网的（false：键盘上问了，你点了「允许」）。
+        var searchAt: Date?
+        var searchAuto: Bool?
     }
 
-    /// 刚出的这一版是用哪个风格、哪家服务商生成的。
-    mutating func noteCurrent(style: String?, provider: String?) {
-        versionInfo = (versionInfo ?? [:]).merging([String(currentIndex): VersionInfo(style: style, provider: provider)]) { $1 }
+    /// VersionInfo.source 的取值。
+    enum VersionSource {
+        /// 点 ✨ 润色（同一风格重来也是这个；换了风格时历史页写「换成『X』」）。
+        static let polish = "polish"
+        /// 帮我写。
+        static let write = "write"
+        /// 按住 ✨ 识意 / 问答。
+        static let ask = "ask"
+        /// 结果卡「⇄ 切换」换方式重做。
+        static let redo = "redo"
+        /// 在卡片里手改。
+        static let edit = "edit"
+    }
+
+    /// 刚出的这一版是用哪个风格、哪家服务商生成的，怎么来的、用了多久。
+    mutating func noteCurrent(style: String?, provider: String?, source: String? = nil, ms: Int? = nil,
+                              searchAt: Date? = nil, searchAuto: Bool? = nil, at: Date = Date()) {
+        let info = VersionInfo(style: style, provider: provider, at: at, source: source, ms: ms,
+                               searchAt: searchAt, searchAuto: searchAuto)
+        versionInfo = (versionInfo ?? [:]).merging([String(currentIndex): info]) { $1 }
+    }
+
+    /// 刚手改存下的这一版：改的是第几版。
+    mutating func noteEdit(from index: Int, at: Date = Date()) {
+        let info = VersionInfo(at: at, source: VersionSource.edit, editedFrom: index)
+        versionInfo = (versionInfo ?? [:]).merging([String(currentIndex): info]) { $1 }
     }
 
     /// 正在显示的这版替换或插入进了输入框；撤销时 use 传 nil。
-    mutating func markCurrentUsed(_ use: String?) {
+    mutating func markCurrentUsed(_ use: String?, at: Date = Date()) {
         var used = usedVersions ?? [:]
         used[String(currentIndex)] = use
         usedVersions = used
+        var times = usedTimes ?? [:]
+        times[String(currentIndex)] = use == nil ? nil : at
+        usedTimes = times
     }
 
     /// 正在显示的回答是联网查过的：哪一家。

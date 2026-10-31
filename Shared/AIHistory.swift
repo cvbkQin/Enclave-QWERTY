@@ -15,6 +15,15 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
         /// 联网回答过的：哪一家。
         var searchedBy: String?
         var use: Use?
+        /// 时间线（0.95_7 起记，旧记录没有）：出来的时间、怎么来的（EditSession.VersionSource）、用时、
+        /// 手改的是第几版、联网搜索的时间和是否自动、替换 / 插入的时间。
+        var at: Date?
+        var source: String?
+        var ms: Int?
+        var editedFrom: Int?
+        var searchAt: Date?
+        var searchAuto: Bool?
+        var usedAt: Date?
     }
 
     var id: String
@@ -33,6 +42,14 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
     var shownIndex: Int { usedIndex ?? max(versions.count - 1, 0) }
     var shown: String { versions.indices.contains(shownIndex) ? versions[shownIndex].text : "" }
     var searched: Bool { versions.contains { $0.searchedBy != nil } }
+
+    /// 更新前记的：每一版都没有时间，时间线不写每一步的时间。
+    var isLegacy: Bool { !versions.contains { $0.at != nil } }
+
+    /// 最后一步的时间（替换 / 插入，没有就最后一版出来的时间）。
+    var endDate: Date? {
+        (versions.compactMap(\.usedAt) + versions.compactMap(\.at)).max()
+    }
 
     /// 搜索：原文、上下文、所有版本，大小写不敏感。
     func matches(_ query: String) -> Bool {
@@ -58,7 +75,9 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
             return Version(text: text, edited: session.editedVersions?.contains(index) ?? false,
                            style: info?.style, provider: info?.provider,
                            searchedBy: session.searchedVersions?[key],
-                           use: session.usedVersions?[key].flatMap(Use.init(rawValue:)))
+                           use: session.usedVersions?[key].flatMap(Use.init(rawValue:)),
+                           at: info?.at, source: info?.source, ms: info?.ms, editedFrom: info?.editedFrom,
+                           searchAt: info?.searchAt, searchAuto: info?.searchAuto, usedAt: session.usedTimes?[key])
         }
     }
 }
