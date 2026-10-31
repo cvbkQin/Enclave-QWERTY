@@ -338,10 +338,10 @@ struct BackupExportSheet: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 } footer: {
-                    Text(failure ?? L("下一步选存到哪里，比如「存储到“文件”」› iCloud 云盘",
-                                      "Next, choose where to save it, like Save to Files › iCloud Drive",
-                                      "次に保存先を選びます（例：「\"ファイル\"に保存」› iCloud Drive）"))
-                        .foregroundStyle(failure == nil ? Color.secondary : Color.red)
+                    Text(L("下一步选存到哪里，比如「存储到“文件”」› iCloud 云盘",
+                           "Next, choose where to save it, like Save to Files › iCloud Drive",
+                           "次に保存先を選びます（例：「\"ファイル\"に保存」› iCloud Drive）"))
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
                         .padding(.top, 8)
@@ -356,6 +356,13 @@ struct BackupExportSheet: View {
             }
         }
         .presentationDetents([.fraction(0.66), .large])
+        // 出错用弹窗说：面板只拉到一半时，按钮下面的字在小屏上看不到。
+        .alert(L("没能导出", "Couldn't export", "書き出せませんでした"),
+               isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button(L("好", "OK", "OK"), role: .cancel) {}
+        } message: {
+            Text(failure ?? "")
+        }
     }
 
     private var summary: String {
@@ -560,17 +567,19 @@ struct BackupRestoreSheet: View {
                 .disabled(working || (selected.isEmpty && !withKeys) || (withKeys && password.isEmpty))
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
-            } footer: {
-                if let failure {
-                    Text(failure).foregroundStyle(.red).frame(maxWidth: .infinity).multilineTextAlignment(.center).padding(.top, 8)
-                }
             }
         }
         .navigationTitle(L("从文件恢复", "Restore from File", "ファイルから復元"))
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog(L("替换现有的？", "Replace current data?", "今のデータを置き換えますか？"), isPresented: $confirmReplace, titleVisibility: .visible) {
-            Button(L("替换", "Replace", "置き換える"), role: .destructive) { restore() }
+        .alert(L("没能恢复", "Couldn't restore", "復元できませんでした"),
+               isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
+            Button(L("好", "OK", "OK"), role: .cancel) {}
+        } message: {
+            Text(failure ?? "")
+        }
+        .alert(L("替换现有的？", "Replace current data?", "今のデータを置き換えますか？"), isPresented: $confirmReplace) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+            Button(L("替换", "Replace", "置き換える"), role: .destructive) { restore() }
         } message: {
             Text(L("选中的几项会先清空，再用备份里的。", "The selected items will be cleared, then filled from the backup.", "選んだ項目を消してから、バックアップの内容にします。"))
         }

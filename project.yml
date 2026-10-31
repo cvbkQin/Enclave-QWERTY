@@ -118,7 +118,8 @@ targets:
             CFBundleTypeRole: Viewer
             LSHandlerRank: Owner
             LSItemContentTypes: [$(PRODUCT_BUNDLE_IDENTIFIER).backup]
-        LSSupportsOpeningDocumentsInPlace: false
+        # 就地打开：「文件」里点 .enclave 直接交给飞地（不先拷进 Inbox），读的时候用安全作用域访问。
+        LSSupportsOpeningDocumentsInPlace: true
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
