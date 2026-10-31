@@ -87,8 +87,10 @@ enum KeyboardMetrics {
     static let wordPanelExtra: CGFloat = 40
 
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
-                       reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false) -> CGFloat {
-        var height = pinyinRowHeight + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
+                       reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false,
+                       pinyinRow: Bool = true) -> CGFloat {
+        // 拼音显示在侧边（F12）时不留拼音行。
+        var height = (pinyinRow ? pinyinRowHeight : 0) + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {

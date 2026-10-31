@@ -1021,6 +1021,31 @@ struct KeyboardSettingsView: View {
                 } footer: {
                     Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
                 }
+                // 拼音显示（F12）：上方一行（默认，同 iOS 原生）/ 侧边。键盘上长按「中/英」也能切。
+                Section {
+                } header: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text(L("拼音显示", "Pinyin display", "ピンインの表示"))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            NewBadge()
+                        }
+                        .padding(.leading, 16)
+                        HStack(spacing: 12) {
+                            ForEach(PinyinDisplay.allCases) { display in
+                                PinyinDisplayCard(display: display, selected: store.settings.pinyinDisplay == display) {
+                                    store.settings.pinyinDisplay = display
+                                }
+                            }
+                        }
+                    }
+                    .dashFormCard()
+                } footer: {
+                    Text(L("选「侧边」时没有拼音那一行，键盘矮一点，展开回答卡时也不留空白。在键盘上长按「中/英」也能切换。",
+                           "With Side there's no pinyin row, so the keyboard is shorter and the answer card has no gap. You can also long-press 中/英 on the keyboard to switch.",
+                           "「横」ではピンインの行がなく、キーボードが少し低くなり、回答カードを開いても隙間がありません。キーボードの「中/英」を長押ししても切り替えられます。"))
+                }
                 Section {
                     NavigationLink(value: AppRouter.KeyboardPage.fuzzy) {
                         HStack {
@@ -1282,6 +1307,70 @@ private struct LayoutCard: View {
                     }
                 }
                 .padding(.horizontal, layout == .qwerty && count < 10 ? CGFloat(10 - count) * 3 : 0)
+            }
+        }
+    }
+}
+
+/// 「拼音显示」二选一卡片（F12，SM3）：上面画出拼音在哪（上方一行 / 左边一列），下面名称、说明和勾选圈。
+private struct PinyinDisplayCard: View {
+    var display: PinyinDisplay
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                illustration
+                    .padding(8)
+                    .frame(height: 76)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
+                HStack {
+                    Text(display.title).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selected ? AppColor.purple : Color.secondary)
+                }
+                Text(display == .row
+                     ? L("候选栏上面单独一行，和 iOS 原生一样", "A row above the candidates, like iOS", "候補の上に 1 行、iOS と同じ")
+                     : L("九宫格在左边一列选，全键盘点左边的拼音键", "10-key: left column. QWERTY: pinyin key on the left", "10キーは左の列、QWERTY は左のピンインキー"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(selected ? AppColor.purple : Color.clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var illustration: some View {
+        let accent = AppColor.purple.opacity(0.35)
+        let key = RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Color(.systemBackground))
+        return VStack(spacing: 3) {
+            if display == .row {
+                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(accent).frame(height: 8)
+            }
+            ForEach(0..<4, id: \.self) { row in
+                HStack(spacing: 3) {
+                    if display == .side && row < 3 {
+                        Color.clear
+                    } else {
+                        key
+                    }
+                    ForEach(0..<4, id: \.self) { _ in key }
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if display == .side {
+                GeometryReader { geo in
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(accent)
+                        .frame(width: (geo.size.width - 12) / 5, height: (geo.size.height - 9) / 4 * 3 + 6)
+                }
             }
         }
     }
