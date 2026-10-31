@@ -253,6 +253,14 @@ final class KeyboardModel: ObservableObject {
 
     init(controller: UIInputViewController) {
         self.controller = controller
+        bindEngine()
+    }
+
+    /// 让共用拼音引擎算完的结果交给这个键盘页面。
+    /// 系统有时同时建两个键盘页面（刚装好、刚切到键盘时常见），后建的那个在 init 里把回调抢走：
+    /// 拼音照样进了输入框（另一个页面的 proxy 也能写），但看得见的这个页面候选栏不出来、还显示 AI 栏，
+    /// 点 ⌄ 被藏着的候选条接走直接上屏首选。所以每次弹出（selectEngine）都重新绑一次。
+    func bindEngine() {
         QueuedEngine.shared.resultsReady = { [weak self] in self?.applyEngineResults() }
         QueuedEngine.shared.willSync = { [weak self] in self?.applyEngineResults(wait: true) }
     }
