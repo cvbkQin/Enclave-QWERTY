@@ -21,6 +21,30 @@ struct EditSession: Codable, Equatable {
     var askSources: [String: AskSource]?
     /// 联网回答过的版本序号 → 服务商名字（「🌐 已联网 · Kimi」）。旧数据里没有。
     var searchedVersions: [String: String]?
+    /// 历史记录（AIHistory）里这一轮的编号和开始时间。新开一轮时生成；旧数据里没有，就不进历史。
+    var historyID: String? = UUID().uuidString
+    var startedAt: Date? = Date()
+    /// 每一版用的风格和服务商（版本序号 → ），历史页显示。旧数据里没有。
+    var versionInfo: [String: VersionInfo]?
+    /// 替换 / 插入进输入框的版本序号 → "replaced" / "inserted"，历史页标「已替换」「已插入」。旧数据里没有。
+    var usedVersions: [String: String]?
+
+    struct VersionInfo: Codable, Equatable {
+        var style: String?
+        var provider: String?
+    }
+
+    /// 刚出的这一版是用哪个风格、哪家服务商生成的。
+    mutating func noteCurrent(style: String?, provider: String?) {
+        versionInfo = (versionInfo ?? [:]).merging([String(currentIndex): VersionInfo(style: style, provider: provider)]) { $1 }
+    }
+
+    /// 正在显示的这版替换或插入进了输入框；撤销时 use 传 nil。
+    mutating func markCurrentUsed(_ use: String?) {
+        var used = usedVersions ?? [:]
+        used[String(currentIndex)] = use
+        usedVersions = used
+    }
 
     /// 正在显示的回答是联网查过的：哪一家。
     var currentSearchedBy: String? { searchedVersions?[String(currentIndex)] }
@@ -99,9 +123,11 @@ enum SessionStore {
         return try? JSONDecoder().decode(EditSession.self, from: data)
     }
 
+    /// 存一份正在用的会话；同时把这一轮更新进历史记录（关着记录时不写）。
     static func save(_ session: EditSession?) {
         if let session, let data = try? JSONEncoder().encode(session) {
             SharedStorage.defaults.set(data, forKey: key)
+            AIHistory.record(session)
         } else {
             SharedStorage.defaults.removeObject(forKey: key)
         }

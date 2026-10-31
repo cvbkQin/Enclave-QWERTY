@@ -762,6 +762,7 @@ final class KeyboardModel: ObservableObject {
         if askKind != nil { askKind = nil }
         let started = Date()
         let styleID = settings.selectedStyle?.id
+        let styleName = settings.selectedStyle?.displayName
         let answerStyle = settings.selectedAnswerStyle
         let tendency = settings.tendency
         // 仪表盘的统计：耗时按毫秒记。
@@ -907,6 +908,9 @@ final class KeyboardModel: ObservableObject {
                     } else {
                         updated.append(result)
                     }
+                    // 历史页每一版写风格和服务商：问答写问答风格，识意改写不写风格。
+                    let versionStyle = ask == nil ? styleName : (updated.currentIsAnswer ? answerStyle?.displayName : nil)
+                    updated.noteCurrent(style: versionStyle, provider: client.settings.providerName)
                     if updated.mode == .write, ask == nil {
                         updated.conversation.append(.assistant(result))
                     }
@@ -1320,6 +1324,7 @@ final class KeyboardModel: ObservableObject {
         swap(edit.inserted, for: edit.original, in: proxy)
         if edit.use == .replaced { readSpan = FieldSpan(written: edit.original) }
         redoStack.append(edit)
+        markSessionUsed(nil)
         resultUse = nil
         resultUses.remove(edit.use)
         updateUndoState()
@@ -1331,6 +1336,7 @@ final class KeyboardModel: ObservableObject {
         swap(edit.original, for: edit.inserted, in: proxy)
         if edit.use == .replaced { readSpan = FieldSpan(written: edit.inserted) }
         undoStack.append(edit)
+        markSessionUsed(edit.use)
         resultUse = edit.use
         resultUses.insert(edit.use)
         updateUndoState()
@@ -1403,12 +1409,21 @@ final class KeyboardModel: ObservableObject {
 
     private func recordEdit(inserted: String, original: String, use: ResultUse) {
         markAskUsed()
+        markSessionUsed(use)
         resultUse = use
         resultUses.insert(use)
         resultStale = false
         undoStack.append(FieldEdit(inserted: inserted, original: original, use: use))
         redoStack.removeAll()
         updateUndoState()
+    }
+
+    /// 历史页标「已替换」「已插入」：记在会话里正在显示的这一版上；撤销时去掉。
+    private func markSessionUsed(_ use: ResultUse?) {
+        guard var session, session.current != nil else { return }
+        session.markCurrentUsed(use.map { $0 == .replaced ? "replaced" : "inserted" })
+        self.session = session
+        SessionStore.save(session)
     }
 
     private func updateUndoState() {

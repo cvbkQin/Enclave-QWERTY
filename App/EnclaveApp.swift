@@ -92,6 +92,9 @@ struct EnclaveApp: App {
                         router.openAI(answer: url.host == "prompts-answer")
                     case "common-words":
                         router.openKeyboard(.commonWords)
+                    case "history":
+                        router.historyPath = NavigationPath()
+                        router.tab = .history
                     default: break
                     }
                 }
@@ -99,7 +102,7 @@ struct EnclaveApp: App {
     }
 }
 
-/// 底部四个标签：首页、键盘、AI、设置。
+/// 底部五个标签：首页、键盘、AI、历史、设置。
 struct RootView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
@@ -150,6 +153,9 @@ struct RootView: View {
             AITab()
                 .tabItem { Label("AI", systemImage: "sparkles") }
                 .tag(AppRouter.Tab.ai)
+            HistoryTab()
+                .tabItem { Label(L("历史", "History", "履歴"), systemImage: "clock") }
+                .tag(AppRouter.Tab.history)
             SettingsView()
                 .tabItem { Label(L("设置", "Settings", "設定"), systemImage: "gearshape") }
                 .tag(AppRouter.Tab.settings)
@@ -162,7 +168,7 @@ struct RootView: View {
 final class AppRouter: ObservableObject {
     static let shared = AppRouter()
 
-    enum Tab: Hashable { case home, keyboard, ai, settings }
+    enum Tab: Hashable { case home, keyboard, ai, history, settings }
 
     /// 设置里的二级页。setup：首次设置（欢迎页四步）；firstScene：使用指引的第一个场景（enclave://playground）。
     enum SettingsPage: String, Hashable {
@@ -174,6 +180,9 @@ final class AppRouter: ObservableObject {
 
     /// 词库页里点一个扩展词库进详情。
     struct ExtDictPage: Hashable { let id: String }
+
+    /// 历史标签里的二级页：一条记录的详情、历史记录设置。
+    enum HistoryPage: Hashable { case detail(String), settings }
 
     /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮。
     enum AIPage: Hashable { case api(answer: Bool), resultKey }
@@ -188,6 +197,7 @@ final class AppRouter: ObservableObject {
     @Published var showsAnswerWebSearch = false
     @Published var keyboardPath = NavigationPath() { didSet { markScreen() } }
     @Published var aiPath = NavigationPath() { didSet { markScreen() } }
+    @Published var historyPath = NavigationPath() { didSet { markScreen() } }
     /// 隐私政策同意情况（CP1–CP5）：首次打开整页说明，设置 › 隐私里「阅读并同意」也打开它。
     @Published var privacyAgreed = PrivacyConsent.isAgreed
     @Published var showsPrivacyWelcome = PrivacyConsent.needsPrompt
@@ -219,7 +229,7 @@ final class AppRouter: ObservableObject {
     /// 内测版诊断记录用的「当时界面」：哪个标签、设置里哪一页。
     func markScreen(_ detail: String? = nil) {
         guard CrashLog.isEnabled else { return }
-        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "AI", .settings: "设置"]
+        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "AI", .history: "历史", .settings: "设置"]
         var parts = [names[tab] ?? ""]
         if tab == .settings, let page = settingsPath.last { parts.append(page.rawValue) }
         if let detail { parts.append(detail) }
@@ -299,7 +309,7 @@ final class AppRouter: ObservableObject {
             }
         }
         if let i = args.firstIndex(of: "-appTab"), args.indices.contains(i + 1) {
-            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "model": .ai, "settings": .settings][args[i + 1]] ?? .home
+            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "model": .ai, "history": .history, "settings": .settings][args[i + 1]] ?? .home
         }
         // -appPage keyboard / pinyin / api / api-answer / testTools / privacy/privacyPolicy：直接打开某一页。
         if let i = args.firstIndex(of: "-appPage"), args.indices.contains(i + 1) {
