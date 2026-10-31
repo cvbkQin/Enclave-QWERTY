@@ -163,8 +163,10 @@ struct KeyboardView: View {
     /// 接上系统键盘顶上那截液态玻璃，不留硬边；再往下全是不透明底色，盖住 Chrome 切回时系统按键的残影（GL1）。
     /// 系统给的高度比 keyboardHeight 多时，渐变不跟着拉长：多出来的那截和拼音行一样是不透明底色，不露一截渐变空白。
     /// 回答卡、风格一排、提示卡在最上面时整块不透明。
+    /// 拼音在侧边（F12）时最上面直接是 AI 栏 / 候选栏，只留一小截渐变接系统玻璃，按钮底下仍是不透明底色。
     private var boardBackground: some View {
-        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder && !model.pinyinSide
+        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder
+        let fadeHeight = model.pinyinSide ? KeyboardMetrics.sideFadeHeight : KeyboardMetrics.pinyinRowHeight
         return VStack(spacing: 0) {
             LinearGradient(stops: [
                 .init(color: Brand.keyboardBack.opacity(0), location: 0),
@@ -174,7 +176,7 @@ struct KeyboardView: View {
             ], startPoint: .top, endPoint: .bottom)
             .opacity(fades ? 1 : 0)
             .background(fades ? Color.clear : Brand.keyboardBack)
-            .frame(height: KeyboardMetrics.pinyinRowHeight)
+            .frame(height: fadeHeight)
             Brand.keyboardBack
         }
         .ignoresSafeArea()
