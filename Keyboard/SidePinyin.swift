@@ -92,8 +92,8 @@ private enum SidePinyinStyle {
     static let divider = dynamic(0xE2E2E7, 0x3A3A3C)
     static let hint = dynamic(0x8E8E93, 0x8E8E93)
     static let cellHeight: CGFloat = 38
-    /// 拼音键下拉框：浅色白底；深色 #48484A，比键盘底色（#2C2C2E 一带）亮一档，尖角也看得见。
-    static let popoverFill = dynamic(0xFFFFFF, 0x48484A)
+    /// 拼音键下拉框：浅色白底；深色 #5C5C60，比键盘底色和按键（#474749）都亮一档，盖在按键上也分得清，尖角也看得见。
+    static let popoverFill = dynamic(0xFFFFFF, 0x5C5C60)
     static let popoverStroke = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.12) : .clear })
 }
 
