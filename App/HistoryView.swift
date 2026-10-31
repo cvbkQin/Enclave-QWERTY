@@ -226,9 +226,9 @@ struct HistoryListView: View {
         } else if store.entries.isEmpty {
             HistoryEmptyView(title: L("还没有记录", "No history yet", "まだ記録はありません"),
                              message: L("在键盘里点 ✨ 润色或问答，结果会出现在这里", "Tap ✨ on the keyboard to polish or ask, and the results show up here.", "キーボードで ✨ をタップして整えたり質問したりすると、結果がここに表示されます。"))
-        } else if list.isEmpty {
-            HistoryEmptyView(title: L("没有找到「\(query)」", "No results for \"\(query)\"", "「\(query)」は見つかりません"), message: nil)
         } else {
+            // 搜不到时 List 也留着，「没有找到」盖在上面：换掉 List 会让顶上的搜索框重建、丢焦点，
+            // 打到一半的字（还有没选的拼音）就没了（waitan 只剩 wa）。
             List {
                 ForEach(groups(Array(list.prefix(limit))), id: \.title) { group in
                     Section(group.title) {
@@ -259,6 +259,11 @@ struct HistoryListView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .overlay {
+                if list.isEmpty {
+                    HistoryEmptyView(title: L("没有找到「\(query)」", "No results for \"\(query)\"", "「\(query)」は見つかりません"), message: nil)
+                }
+            }
         }
     }
 
