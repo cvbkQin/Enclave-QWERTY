@@ -99,7 +99,7 @@ struct KeyboardView: View {
                 if model.pinyinPopoverOpen, model.pinyinKeyTitle != nil {
                     PinyinKeyPopover(model: model)
                         .padding(.leading, 4)
-                        .offset(y: KeyboardMetrics.topRow - 2)
+                        .offset(y: KeyboardMetrics.topRow + 4)
                 }
             }
             // 按住 ✨ 弹出的「问答」盖在按键上面；弹出时「改写」还要盖在回答卡（zIndex 2）上面。
