@@ -73,10 +73,13 @@ struct KeyboardView: View {
             }
             ZStack {
                 // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
-                candidateBar
-                    .opacity(showsCandidateBar ? 1 : 0)
-                    .allowsHitTesting(showsCandidateBar)
-                    .accessibilityHidden(!showsCandidateBar)
+                // 冷启动第一帧先不建（看不见），弹出后下一轮再建好，首屏少画一块；没建好就打了字的话马上建。
+                if candidateBarBuilt || showsCandidateBar {
+                    candidateBar
+                        .opacity(showsCandidateBar ? 1 : 0)
+                        .allowsHitTesting(showsCandidateBar)
+                        .accessibilityHidden(!showsCandidateBar)
+                }
                 if !showsCandidateBar {
                     if model.target == .card {
                         cardEditHint
@@ -145,6 +148,10 @@ struct KeyboardView: View {
             }
         }
         .coordinateSpace(name: "keyboard")
+        .onAppear {
+            guard !candidateBarBuilt else { return }
+            DispatchQueue.main.async { candidateBarBuilt = true }
+        }
         .onPreferenceChange(RowChipEdgeKey.self) { edges in
             // 打拼音时 AI 栏换成候选栏、按钮不在了，沿用上次的位置。
             if !edges.isEmpty, edges != chipEdges { chipEdges = edges }
@@ -187,6 +194,8 @@ struct KeyboardView: View {
 
     /// 两颗风格键中线在键盘里的位置，尖角按它对齐。
     @State private var chipEdges: [KeyboardModel.AIRow: CGFloat] = [:]
+    /// 候选栏建好了没有：第一帧画完再建（见 body）。
+    @State private var candidateBarBuilt = false
 
     // MARK: - AI 栏
 
