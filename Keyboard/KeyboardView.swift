@@ -44,18 +44,6 @@ struct KeyboardView: View {
                             .allowsHitTesting(false)
                     }
                 }
-                // 展开时不留拼音行那截空白（#18）：打拼音时拼音行浮在回答卡下沿、贴着识意框上面，
-                // 纠错读音和分词照样能点，打完就收；自由编辑时浮在编辑框顶上。键盘高度不变。
-                .overlay(alignment: freeEdit ? .top : .bottom) {
-                    if model.pinyinRowShown {
-                        PinyinRow(model: model)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: KeyboardMetrics.pinyinRowHeight)
-                            .background(Brand.keyboardBack)
-                            .offset(y: freeEdit ? 0 : -KeyboardMetrics.askBoxHeight)
-                            .transition(.opacity)
-                    }
-                }
                 .padding(.horizontal, inset)
                 .padding(.top, KeyboardMetrics.panelTop)
                 .zIndex(2)
@@ -75,14 +63,11 @@ struct KeyboardView: View {
                     .padding(.top, KeyboardMetrics.panelTop)
             }
             // 拼音行一直占位，平时空着；打字时出拼音和细线，键盘高度不变（PY7）。
-            // 回答卡展开时不占这一行，拼音浮在卡片上（见上面）。
-            if !KeyboardMetrics.pinyinOverCard(expanded: model.aiExpanded, gate: model.gate) {
-                ZStack {
-                    if model.pinyinRowShown { PinyinRow(model: model) }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: KeyboardMetrics.pinyinRowHeight)
+            ZStack {
+                if model.pinyinRowShown { PinyinRow(model: model) }
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: KeyboardMetrics.pinyinRowHeight)
             ZStack {
                 // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
                 // 冷启动第一帧先不建（看不见），弹出后下一轮再建好，首屏少画一块；没建好就打了字的话马上建。
