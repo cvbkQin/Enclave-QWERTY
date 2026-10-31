@@ -74,6 +74,11 @@ bool enclave_rime_sync_user_data(const char *shared_dir, const char *user_dir, c
   RimeApi *api = rime_get_api();
   enclave_rime_finalize();
   enclave_rime_start(shared_dir, user_dir, log_dir);
+  // 同步用的几个任务（installation_update、user_dict_sync 等）在部署模块组里注册：
+  // start_maintenance 会自己加载这组模块，sync_user_data 不会，不先加载就排不上任务、直接返回失败。
+  RIME_STRUCT(RimeTraits, traits);
+  fill_traits(&traits, shared_dir, user_dir, log_dir);
+  api->deployer_initialize(&traits);
   if (ensure_schema) {
     RimeSessionId session = api->create_session();
     if (session) {

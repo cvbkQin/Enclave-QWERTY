@@ -31,6 +31,7 @@ struct BackupView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
     @ObservedObject private var deployer = RimeDeployer.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var items = BackupPrefs.items
     @State private var counts = BackupCounts.current()
@@ -39,6 +40,8 @@ struct BackupView: View {
     @State private var opened: OpenedBackup?
     @State private var openError: String?
     @State private var lastExport = BackupPrefs.lastExport
+    /// 拼音词库这会儿打不开（键盘还占着、还没部署）：数量显示「—」，脚注说一句。
+    @State private var learnedFailed = false
 
     var body: some View {
         List {
@@ -59,14 +62,26 @@ struct BackupView: View {
             } header: {
                 Text(L("备份内容 · 导出时按这里", "What's included · used when exporting", "バックアップする内容 · 書き出しに使います"))
             } footer: {
-                Text(L("接口 Key 和剪贴板记录不会自动带上。导出文件时可以选择带上 Key，要设一个密码。",
-                       "API keys and clipboard history aren't included automatically. When exporting you can add keys with a password.",
-                       "API キーとクリップボード履歴は自動では含まれません。書き出すときにパスワード付きでキーを含められます。"))
+                VStack(alignment: .leading, spacing: 6) {
+                    if learnedFailed {
+                        Text(L("学到的词这会儿读不出来：先把键盘收起来，再回到这页。",
+                               "Can't read learned words right now. Close the keyboard, then come back to this page.",
+                               "学習した語を今は読み込めません。キーボードを閉じてからこのページに戻ってください。"))
+                            .foregroundStyle(.orange)
+                    }
+                    Text(L("接口 Key 和剪贴板记录不会自动带上。导出文件时可以选择带上 Key，要设一个密码。",
+                           "API keys and clipboard history aren't included automatically. When exporting you can add keys with a password.",
+                           "API キーとクリップボード履歴は自動では含まれません。書き出すときにパスワード付きでキーを含められます。"))
+                }
             }
         }
         .navigationTitle(L("备份与恢复", "Backup & Restore", "バックアップと復元"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await refreshLearned() }
+        // 从别的 App（键盘刚收起）切回来时再读一次。
+        .onChange(of: scenePhase) { phase in
+            if phase == .active { Task { await refreshLearned() } }
+        }
         .onAppear { counts.polishStyles = store.settings.styles.count; counts.answerStyles = store.settings.answerStyles.count }
         .onChange(of: router.openedBackup) { _ in openPending() }
         .onAppear { openPending() }
@@ -145,14 +160,17 @@ struct BackupView: View {
         case .settings: return nil
         case .styles: return "\(counts.polishStyles) · \(counts.answerStyles)"
         case .commonWords: return counts.commonWords.formatted()
-        case .learnedWords: return counts.learnedWords.map { $0.formatted() } ?? "…"
+        case .learnedWords:
+            if learnedFailed { return "—" }
+            return counts.learnedWords.map { $0.formatted() } ?? "…"
         case .history: return counts.history.formatted()
         }
     }
 
     private func refreshLearned() async {
         let count = await Task.detached { LearnedWords.snapshot().map(BackupMerge.learnedCount) }.value
-        counts.learnedWords = count ?? 0
+        counts.learnedWords = count
+        learnedFailed = count == nil
     }
 
     /// 在「文件」或别的 App 里点开 .enclave，跳到这页直接弹恢复。
