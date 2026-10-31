@@ -771,9 +771,13 @@ final class KeyboardModel: ObservableObject {
         // 最后是问答接口回答的（单独设了问答接口）：不进接口页的小曲线，那里只看主接口。
         let separateAnswer = settings.usesAnswerEndpoint
         var answeredByAnswerAPI = ask?.forced == .answer && separateAnswer
-        func record(ok: Bool) {
+        // 「最近 20 次」页每一行：提示词（问答写问答风格）、模型、失败原因、联网搜索用时。
+        var webSearchMs: Int?
+        func record(ok: Bool, error: String? = nil) {
             UsageStats.recordPolish(ms: Int(Date().timeIntervalSince(started) * 1000), ok: ok, styleID: styleID,
-                                    mainAPI: !answeredByAnswerAPI)
+                                    mainAPI: !answeredByAnswerAPI,
+                                    styleName: ask == nil ? styleName : (answeredByAnswerAPI ? answerStyle?.displayName : nil),
+                                    model: client.settings.model, error: error, webSearchMs: webSearchMs)
         }
         task = Task { [weak self] in
             var raw = ""
@@ -879,12 +883,14 @@ final class KeyboardModel: ObservableObject {
                     self.askSearching = true
                     let search = WebSearch(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings))
                     let results: String
+                    let searchStarted = Date()
                     do {
                         results = WebSearch.digest(try await search.search(ask.question))
                     } catch {
                         if Task.isCancelled { throw error }
                         results = ""
                     }
+                    webSearchMs = Int(Date().timeIntervalSince(searchStarted) * 1000)
                     self.askSearching = false
                     if results.isEmpty && ask.forceSearch { throw ForcedSearchFailed() }
                     if results.isEmpty { searchedBy = nil }
@@ -900,7 +906,7 @@ final class KeyboardModel: ObservableObject {
                 if result.isEmpty {
                     self.errorMessage = L("模型没有返回内容。", "The model returned nothing.", "モデルから応答がありませんでした。")
                     self.endQuickMode(.failed)
-                    record(ok: false)
+                    record(ok: false, error: UsageStats.Request.Failure.empty)
                 } else {
                     record(ok: true)
                     // 问答页每条问答风格的本周次数。
@@ -945,12 +951,12 @@ final class KeyboardModel: ObservableObject {
                 // 点「使用联网查询」后又拒绝了联网：什么都不改，原来的回答留着。
             } catch is ForcedSearchFailed {
                 if !Task.isCancelled, let self {
-                    record(ok: false)
+                    record(ok: false, error: UsageStats.Request.Failure.search)
                     self.errorMessage = L("联网搜索失败", "Web search failed", "ウェブ検索に失敗しました")
                 }
             } catch {
                 if !Task.isCancelled, let self {
-                    record(ok: false)
+                    record(ok: false, error: UsageStats.Request.Failure.of(error))
                     let kind = LLMFailure.of(error)
                     let provider = client.settings.providerName
                     self.failure = kind

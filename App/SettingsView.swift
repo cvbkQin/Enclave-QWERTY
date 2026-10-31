@@ -1140,7 +1140,7 @@ struct TouchCalibrationView: View {
     }
 }
 
-/// AI 标签两页都有的「键盘里的 AI · 润色和问答共用」：结果卡左边的按钮 ›、处理长文本、润色时的发光动画。
+/// AI › 接口页最下面「键盘里的 AI」：结果卡左边的按钮 ›、处理长文本、润色时的发光动画（润色和问答共用）。
 struct KeyboardAISection: View {
     @EnvironmentObject private var store: AppStore
     /// 打开「处理长文本」前的二次确认。
@@ -1171,7 +1171,7 @@ struct KeyboardAISection: View {
                 }
             }
         } header: {
-            Text(L("键盘里的 AI · 润色和问答共用", "AI on the keyboard · Polish & Q&A", "キーボードの AI・整える・質問で共通"))
+            AISectionTitle(text: L("键盘里的 AI", "AI on the keyboard", "キーボードの AI"))
         } footer: {
             Text(L("没选中文字时，AI 只处理光标前约 100 字，按整句截取；打开「处理长文本」后约 200 字。文字越长越慢、越容易改错，替换前请看一遍结果。替换只换送去处理的那一段，其余不动；要处理整段，先全选再点 ✨。",
                    "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences; about 200 with Process long text on. Longer text is slower and easier to get wrong, so check the result first. Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",

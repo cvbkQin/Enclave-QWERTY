@@ -28,7 +28,7 @@ struct EnclaveApp: App {
         // -promptsDebug missing / empty / optimized：提示词页截图（删掉两条预设、空提示词的编辑页、AI 优化结果）。
         if let index = args.firstIndex(of: "-promptsDebug"), args.indices.contains(index + 1) {
             PromptsDebug.scene = args[index + 1]
-            AppRouter.shared.openAI(answer: false)
+            AppRouter.shared.openAI(prompts: true)
         }
         // -storefront CHN：按中国大陆店面显示（接口页服务商）。
         if let index = args.firstIndex(of: "-storefront"), args.indices.contains(index + 1) {
@@ -75,21 +75,21 @@ struct EnclaveApp: App {
                                 UIApplication.shared.open(settings)
                             }
                         }
-                    // 键盘出错卡的「去设置」：AI 标签，进当前那页的接口详情（问答和润色用同一个时进润色的）。
+                    // 键盘出错卡的「去设置」：AI › 接口，进润色接口详情。
                     case "api":
                         router.openAI(detail: true, sharedAnswer: !store.settings.separateAnswer)
-                    // 键盘里要联网但已禁止时的「去开启」：AI › 问答，滚到「联网搜索」。
+                    // 键盘里要联网但已禁止时的「去开启」：AI › 接口，滚到「联网搜索」。
                     case "api-answer":
-                        router.openAI(answer: true)
+                        router.openAI()
                         router.showsAnswerWebSearch = true
                     case "privacy-policy":
                         router.settingsPath = [.privacy, .privacyPolicy]
                         router.tab = .settings
                     // 键盘提示卡「去解锁」。
                     case "unlock": router.openSettings(.unlock)
-                    // 键盘风格一排最右的「+」：AI 标签对应那一页（润色 / 问答）的提示词。
+                    // 键盘风格一排最右的「+」：AI › 提示词。
                     case "prompts", "prompts-answer":
-                        router.openAI(answer: url.host == "prompts-answer")
+                        router.openAI(prompts: true)
                     case "common-words":
                         router.openKeyboard(.commonWords)
                     case "history":
@@ -187,8 +187,12 @@ final class AppRouter: ObservableObject {
     /// 历史标签里的二级页：一条记录的详情、历史记录设置。
     enum HistoryPage: Hashable { case detail(String), settings }
 
-    /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮。
-    enum AIPage: Hashable { case api(answer: Bool), resultKey }
+    /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮、最近 20 次、管理提示词 / 问答风格。
+    enum AIPage: Hashable { case api(answer: Bool), resultKey, recent(answer: Bool), manage(answer: Bool) }
+
+    /// AI 标签顶上的「接口 | 提示词」（第 51 条）。不存：每次冷启动停在「接口」，后台切回来保持当时那个。
+    enum AISegment: Hashable { case api, prompts }
+    @Published var aiSegment: AISegment = .api
 
     @Published var tab: Tab = .home { didSet { markScreen() } }
     /// 界面语言，改了马上存进 App Group，整个界面按新语言重画（导航位置保留）。
@@ -260,8 +264,6 @@ final class AppRouter: ObservableObject {
         // 截图用：-playground 打开第一个场景；-homePage commonWords / keyboardWords / lab / keyboard 打开首页的二级页；
         // -appPage model 打开设置里的某一页；-appTab styles 切标签。
         let args = ProcessInfo.processInfo.arguments
-        // 每次启动 AI 标签都从「润色」开始（10-31 cvbk：重启后不要停在问答）；下面的启动参数、深链还能再切到问答。
-        Self.aiShowsAnswer = false
         #if DEBUG
         // 模拟器测试：-privacy agree / basic / reset 直接设好隐私政策同意情况。
         if let i = args.firstIndex(of: "-privacy"), args.indices.contains(i + 1) {
@@ -326,6 +328,14 @@ final class AppRouter: ObservableObject {
             case "resultKey":
                 openAI()
                 aiPath.append(AIPage.resultKey)
+            // 截图：AI › 提示词、最近 20 次、管理提示词 / 问答风格。
+            case "ai-prompts": openAI(prompts: true)
+            case "recent", "recent-answer":
+                openAI()
+                aiPath.append(AIPage.recent(answer: name == "recent-answer"))
+            case "manage", "manage-answer":
+                openAI(prompts: true)
+                aiPath.append(AIPage.manage(answer: name == "manage-answer"))
             default:
                 if let page = KeyboardPage(rawValue: name) {
                     openKeyboard(page)
@@ -363,18 +373,12 @@ final class AppRouter: ObservableObject {
         tab = .keyboard
     }
 
-    /// AI 标签停在哪一页（润色 / 问答）：用的时候记着，每次启动回到润色。
-    static var aiShowsAnswer: Bool {
-        get { UserDefaults.standard.string(forKey: "apiPage") == "answer" }
-        set { UserDefaults.standard.set(newValue ? "answer" : "main", forKey: "apiPage") }
-    }
-
-    /// 跳到 AI 标签。answer 为 nil 时停在上次那页；detail 再推入那页的接口详情。
-    /// sharedAnswer：问答和润色用同一个接口，问答页没有详情，进润色的。
-    func openAI(answer: Bool? = nil, detail: Bool = false, sharedAnswer: Bool = false) {
-        if let answer { Self.aiShowsAnswer = answer }
+    /// 跳到 AI 标签：默认「接口」，prompts 时「提示词」；detail 再推入润色（answer 时问答）接口详情。
+    /// sharedAnswer：问答和润色用同一个接口，问答没有自己的详情，进润色的。
+    func openAI(answer: Bool = false, detail: Bool = false, sharedAnswer: Bool = false, prompts: Bool = false) {
+        aiSegment = prompts ? .prompts : .api
         aiPath = NavigationPath()
-        if detail { aiPath.append(AIPage.api(answer: Self.aiShowsAnswer && !sharedAnswer)) }
+        if detail { aiPath.append(AIPage.api(answer: answer && !sharedAnswer)) }
         tab = .ai
     }
 
@@ -518,19 +522,23 @@ final class AppStore: ObservableObject {
         let start = Date()
         let client = LLMClient(settings: settings.forAnswers, apiKey: answerApiKey)
         var raw = ""
+        var failure: String?
         do {
             for try await piece in client.stream([.user("只回复两个字：你好")], retries: 0) { raw += piece }
+            if ModelOutput.clean(raw).isEmpty { failure = UsageStats.Request.Failure.empty }
             answerTest = ModelOutput.clean(raw).isEmpty
                 ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success("", Date().timeIntervalSince(start))
         } catch {
             answerTest = .failure(error.localizedDescription)
+            failure = UsageStats.Request.Failure.of(error)
         }
         var ok = false
         if case .success = answerTest { ok = true }
         if ok { await checkModelListed(answer: true) }
-        // 问答页的小曲线里有它。
-        UsageStats.recordAnswerRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok)
+        // 问答卡的最近 20 次里有它。
+        UsageStats.recordAnswerRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.forAnswers.model,
+                                       error: failure, test: true)
     }
 
     private func checkModelListed(answer: Bool) async {
@@ -553,15 +561,18 @@ final class AppStore: ObservableObject {
         let start = Date()
         let client = LLMClient(settings: settings, apiKey: apiKey)
         var raw = ""
+        var failure: String?
         do {
             for try await piece in client.stream([.user("只回复两个字：你好")], retries: 0) {
                 raw += piece
             }
+            if ModelOutput.clean(raw).isEmpty { failure = UsageStats.Request.Failure.empty }
             let reply = ModelOutput.clean(raw)
             test = reply.isEmpty ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success(String(reply.prefix(40)), Date().timeIntervalSince(start))
         } catch {
             test = .failure(error.localizedDescription)
+            failure = UsageStats.Request.Failure.of(error)
             switch error {
             case LLMError.http(let code, _) where code == 401 || code == 403: testFailure = .unauthorized
             case LLMError.http(402, _): testFailure = .noBalance
@@ -574,7 +585,7 @@ final class AppStore: ObservableObject {
         if case .success = test { ok = true }
         SharedStorage.defaults.set(ok, forKey: testKey)
         if ok { await checkModelListed(answer: false) }
-        // 测试也算一次请求，接口页的小曲线里有它。
-        UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok)
+        // 测试也算一次请求，润色卡的最近 20 次里有它。
+        UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.model, error: failure, test: true)
     }
 }
