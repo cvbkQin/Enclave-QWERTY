@@ -100,7 +100,7 @@ enum PrivacyPolicy {
 
 AI 历史记录仅保存在本机，不会上传。您可以在“历史”页右上角的 ⋯ 菜单中关闭记录、设置保留时长或清空历史；在“设置 › 隐私”中可以清除 AI 历史记录和拼音输入学习记录。
 
-本应用**只在您点开键盘上的剪贴板时**读取系统剪贴板，读取时系统会显示“飞地输入法粘贴自…”的提示；不会在后台读取或监听剪贴板，判断剪贴板是否有新内容时只查看系统提供的变更标记，不读取内容。剪贴板记录仅保存在本机，最多 20 条，超过 24 小时自动删除，不会上传；您可以在剪贴板面板中删除单条或清空全部记录。
+本应用**只在您点开键盘上的剪贴板时**读取系统剪贴板，读取时系统会显示“飞地输入法粘贴自…”的提示；不会在后台读取或监听剪贴板，判断剪贴板是否有新内容时只查看系统提供的变更标记，不读取内容。剪贴板记录仅保存在本机，最多 20 条，超过 24 小时自动删除，不会上传；您可以在剪贴板面板中删除单条记录，在 App 的“键盘”页清除全部剪贴板记录，或关闭“剪贴板记录”开关（关闭时已有记录一并删除）。
 
 **卸载本应用后，上述信息将全部从设备上删除**（购买记录由 App Store 保存，重新安装后可恢复）。
 
@@ -132,7 +132,7 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 ## 六、您的权利
 
-1. **查阅和删除：** 您的信息都保存在您的设备上或您自己的 iCloud 中。您可以在本应用内查看 AI 历史记录、剪贴板记录和设置，并随时在“设置 › 隐私”中清除；可以关闭 iCloud 同步并删除已同步的数据，或卸载本应用删除设备上的全部信息。
+1. **查阅和删除：** 您的信息都保存在您的设备上或您自己的 iCloud 中。您可以在本应用内查看 AI 历史记录、剪贴板记录和设置，并随时在“设置 › 隐私”中清除；在 App 的“键盘”页可以关闭“剪贴板记录”（已有记录一并删除）或清除剪贴板记录；可以关闭 iCloud 同步并删除已同步的数据，或卸载本应用删除设备上的全部信息。
 2. **撤回同意：** 您可以在“设置 › 隐私”中撤回对本政策的同意，撤回后本应用回到基础输入功能模式；也可以撤回对某个接口地址的发送同意，撤回后下一次发送前会再次征求您的同意。撤回同意不影响撤回前基于您的同意已进行的处理。
 3. **关闭权限：** 您可以随时在系统设置中关闭“允许完全访问”或通讯录权限。
 4. **联系我们：** 对以上权利的行使有任何问题，可通过第九条的方式联系我们。
@@ -225,7 +225,7 @@ The following is stored only on your device:
 
 Your AI history stays on your device and is never uploaded. From the ⋯ menu at the top right of the History tab you can turn history off, choose how long it is kept, or clear it; under Settings › Privacy you can clear the AI history and the input learning data.
 
-The App reads the system clipboard **only when you open the clipboard in the keyboard**, and the system then shows a "pasted from" banner for the App. It never reads or monitors the clipboard in the background: to tell whether there is something new, it only checks the change marker the system provides, without reading the contents. Clipboard history stays on your device only, is limited to 20 items, is deleted automatically after 24 hours, and is never uploaded. You can delete single items or clear all of them in the clipboard panel.
+The App reads the system clipboard **only when you open the clipboard in the keyboard**, and the system then shows a "pasted from" banner for the App. It never reads or monitors the clipboard in the background: to tell whether there is something new, it only checks the change marker the system provides, without reading the contents. Clipboard history stays on your device only, is limited to 20 items, is deleted automatically after 24 hours, and is never uploaded. You can delete single items in the clipboard panel, clear all of them on the App's Keyboard page, or turn off Clipboard History there (which also deletes existing items).
 
 Deleting the App removes all of this information from your device (your purchase is kept by the App Store and can be restored after reinstalling).
 
@@ -251,7 +251,7 @@ The App contains no third-party analytics, advertising or crash-reporting SDKs. 
 ## 6. Your Rights
 
 - **Withdraw consent:** under Settings › Privacy, at any time. The App will ask again before the next transmission.
-- **Delete data:** clear the locally stored AI history, clipboard history and input learning data at any time; turn off iCloud Sync and delete synced data; or delete the App to remove everything from your device.
+- **Delete data:** clear the locally stored AI history, clipboard history and input learning data at any time; on the App's Keyboard page, turn off Clipboard History (existing items are deleted too) or clear it; turn off iCloud Sync and delete synced data; or delete the App to remove everything from your device.
 - **Disable permissions:** turn off Allow Full Access in the system Settings at any time.
 
 ## 7. Children
@@ -339,7 +339,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 AI の履歴は端末内にのみ保存され、送信されることはありません。「履歴」タブ右上の ⋯ メニューで、記録をオフにする、保存期間を選ぶ、履歴を消去することができます。AI の履歴と入力の学習データは「設定 › プライバシー」でも消去できます。
 
-本アプリは、**キーボードでクリップボードを開いたときにのみ**システムのクリップボードを読み取ります。読み取る際はシステムが「ペースト元」のバナーを表示します。バックグラウンドでクリップボードを読み取ったり監視したりすることはなく、新しい内容があるかどうかはシステムが提供する変更の目印だけで判断し、内容は読み取りません。クリップボード履歴は端末内にのみ保存され、最大 20 件、24 時間を過ぎると自動的に削除され、送信されることはありません。クリップボードパネルで 1 件ずつ、またはすべて削除できます。
+本アプリは、**キーボードでクリップボードを開いたときにのみ**システムのクリップボードを読み取ります。読み取る際はシステムが「ペースト元」のバナーを表示します。バックグラウンドでクリップボードを読み取ったり監視したりすることはなく、新しい内容があるかどうかはシステムが提供する変更の目印だけで判断し、内容は読み取りません。クリップボード履歴は端末内にのみ保存され、最大 20 件、24 時間を過ぎると自動的に削除され、送信されることはありません。クリップボードパネルで 1 件ずつ削除できるほか、本アプリの「キーボード」ページですべて消去したり、「クリップボード履歴」をオフにしたり（既存の履歴も削除されます）できます。
 
 本アプリを削除すると、これらの情報は端末からすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
 
@@ -365,7 +365,7 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 ## 6. お客様の権利
 
 - **同意の撤回：**「設定 › プライバシー」からいつでも撤回できます。撤回後は、次回の送信前にあらためて同意をお願いします。
-- **情報の削除：** 端末に保存された AI の履歴、クリップボード履歴、入力の学習データはいつでも消去できます。iCloud 同期をオフにして同期済みデータを削除することや、本アプリを削除して端末上のすべての情報を削除することもできます。
+- **情報の削除：** 端末に保存された AI の履歴、クリップボード履歴、入力の学習データはいつでも消去できます。本アプリの「キーボード」ページで「クリップボード履歴」をオフにする（既存の履歴も削除されます）か、クリップボード履歴を消去できます。iCloud 同期をオフにして同期済みデータを削除することや、本アプリを削除して端末上のすべての情報を削除することもできます。
 - **権限の無効化：** システムの設定で「フルアクセスを許可」をいつでもオフにできます。
 
 ## 7. 未成年の方
