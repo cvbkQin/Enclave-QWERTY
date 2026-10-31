@@ -154,6 +154,12 @@ final class KeyboardModel: ObservableObject {
     @Published var composition = ""
     /// 打拼音时候选栏上面的拼音行有内容（PY7）。这一行一直占位，键盘高度不变。
     @Published var pinyinRowShown = false
+    /// 拼音显示在侧边（F12）：九宫格打字时左列上三格是拼音列，全键盘候选栏最左边一颗拼音键；不留拼音行。
+    var pinyinSide: Bool { settings.pinyinDisplay == .side }
+    /// 侧边模式九宫格点了拼音列底下的 ⌄：按键区整块换成拼音格子，点一个就收回。
+    @Published var pinyinGridOpen = false
+    /// 侧边模式全键盘点了候选栏左边的拼音键：弹出切法和纠正读法，点一个就收。
+    @Published var pinyinPopoverOpen = false
     @Published var candidates: [String] = []
     /// 联想：上屏后候选栏接着显示的下一个词，按别的键就收起。
     @Published var predictions: [String] = []
@@ -356,7 +362,7 @@ final class KeyboardModel: ObservableObject {
     var keyboardHeight: CGFloat {
         KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: aiRow != nil, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
-                               freeEdit: target == .card, wordPanel: keysPanel == .words)
+                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide)
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
@@ -374,7 +380,10 @@ final class KeyboardModel: ObservableObject {
     }
 
     func reload() {
+        let display = settings.pinyinDisplay
         settings = SettingsStore.load()
+        // App 里换了拼音显示（F12）：高度跟着变。
+        if settings.pinyinDisplay != display { heightMayChange?() }
         RimeEngine.correctsQwerty = CorrectionMemory.isEnabled(nineKey: false)
         RimeEngine.correctsNineKey = CorrectionMemory.isEnabled(nineKey: true)
         EmojiTable.enabled = EmojiSuggestions.isEnabled

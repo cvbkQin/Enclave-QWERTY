@@ -371,7 +371,7 @@ extension KeyboardModel {
     var layoutState: KeyLayout.State {
         KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
                         englishOnly: settings.inputLanguage == .englishOnly,
-                        composing: isComposing, digitsMore: digitsMore)
+                        composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide)
     }
 
     func perform(_ kind: KeyKind) {
@@ -571,6 +571,20 @@ extension KeyboardModel {
     }
 
     var showsNineKey: Bool { activeLayout == .nineKey && pinyinReady }
+
+    /// 换拼音显示方式（长按中/英的菜单、或 App 键盘页）：高度跟着变（侧边不留拼音行）。
+    func setPinyinDisplay(_ display: PinyinDisplay) {
+        guard display != settings.pinyinDisplay else { return }
+        updateSettings { $0.pinyinDisplay = display }
+        closePinyinPickers()
+        heightMayChange?()
+    }
+
+    /// 收起侧边模式的拼音格子 / 拼音键弹层。
+    func closePinyinPickers() {
+        if pinyinGridOpen { pinyinGridOpen = false }
+        if pinyinPopoverOpen { pinyinPopoverOpen = false }
+    }
 
     func setLayout(_ layout: KeyboardLayout) {
         updateSettings { $0.keyboardLayout = layout }
@@ -857,15 +871,16 @@ extension KeyboardModel {
 
     /// 长按「中/英」：弹出拼音布局菜单，先选中当前的布局。
     func showLayoutMenu(for key: KeySpec, containerWidth: CGFloat) {
-        layoutMenu = LayoutMenuPopup(key: key, containerWidth: containerWidth, selected: settings.keyboardLayout)
+        layoutMenu = LayoutMenuPopup(key: key, containerWidth: containerWidth,
+                                     currentLayout: settings.keyboardLayout, currentDisplay: settings.pinyinDisplay)
         keyFeedback(for: .space)
     }
 
     func moveAlternates(to point: CGPoint) {
         if var menu = layoutMenu {
             let option = menu.option(at: point)
-            if option != menu.selected {
-                menu.selected = option
+            if option != menu.hover {
+                menu.hover = option
                 layoutMenu = menu
                 if option != nil { keyFeedback(for: .space) }
             }
@@ -893,9 +908,16 @@ extension KeyboardModel {
         if let menu = layoutMenu {
             layoutMenu = nil
             // 布局存在键盘这边，开了完全访问时和 App 里的设置是同一份，以最后一次改的为准。
-            if let layout = menu.selected, layout != settings.keyboardLayout {
-                if !chineseMode { toggleChinese() }
-                setLayout(layout)
+            switch menu.hover {
+            case .layout(let layout)?:
+                if layout != settings.keyboardLayout {
+                    if !chineseMode { toggleChinese() }
+                    setLayout(layout)
+                }
+            case .display(let display)?:
+                setPinyinDisplay(display)
+            case nil:
+                break
             }
             return
         }
@@ -1093,6 +1115,7 @@ extension KeyboardModel {
         // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
         let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
         if row != pinyinRowShown { pinyinRowShown = row }
+        if !row { closePinyinPickers() }
         let newCandidates = engine.candidates
         let candidatesChanged = newCandidates != candidates
         if candidatesChanged { candidates = newCandidates }
@@ -1185,6 +1208,9 @@ extension KeyboardModel {
             case "expanded": aiExpanded = true
             case "nine": if settings.keyboardLayout != .nineKey { setLayout(.nineKey) }
             case "qwerty": if settings.keyboardLayout != .qwerty { setLayout(.qwerty) }
+            // 拼音显示（F12）：side 侧边、row 上方一行。
+            case "side": setPinyinDisplay(.side)
+            case "row": setPinyinDisplay(.row)
             case "numbers": layer = .numbers
             case "symbols": layer = .symbols
             case "digits": layer = .digits

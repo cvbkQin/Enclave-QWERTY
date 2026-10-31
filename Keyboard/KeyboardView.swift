@@ -63,11 +63,14 @@ struct KeyboardView: View {
                     .padding(.top, KeyboardMetrics.panelTop)
             }
             // 拼音行一直占位，平时空着；打字时出拼音和细线，键盘高度不变（PY7）。
-            ZStack {
-                if model.pinyinRowShown { PinyinRow(model: model) }
+            // 拼音显示在侧边（F12）时没有这一行，拼音在九宫格左列 / 全键盘候选栏左边的拼音键里。
+            if !model.pinyinSide {
+                ZStack {
+                    if model.pinyinRowShown { PinyinRow(model: model) }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: KeyboardMetrics.pinyinRowHeight)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: KeyboardMetrics.pinyinRowHeight)
             ZStack {
                 // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
                 candidateBar
@@ -91,8 +94,16 @@ struct KeyboardView: View {
                     }
                 }
             }
+            // 拼音键的弹框（F12）：往下盖在按键上（键盘收着时上面没有地方可画），选完或点框外收起。
+            .overlay(alignment: .topLeading) {
+                if model.pinyinPopoverOpen, model.pinyinKeyTitle != nil {
+                    PinyinKeyPopover(model: model)
+                        .padding(.leading, 4)
+                        .offset(y: KeyboardMetrics.topRow - 2)
+                }
+            }
             // 按住 ✨ 弹出的「问答」盖在按键上面；弹出时「改写」还要盖在回答卡（zIndex 2）上面。
-            .zIndex(model.askHoldShowing ? 3 : 1)
+            .zIndex(model.askHoldShowing || model.pinyinPopoverOpen ? 3 : 1)
             KeysView(model: model)
                 // 横屏九宫格居中 420 宽，不拉宽。
                 .frame(maxWidth: model.landscape && model.nineGrid ? KeyboardMetrics.landscapeNineWidth : .infinity)
@@ -102,6 +113,9 @@ struct KeyboardView: View {
                 .overlay {
                     if model.candidateMenu != nil {
                         Color.black.opacity(0.001).onTapGesture { model.dismissCandidateMenu() }
+                    }
+                    if model.pinyinPopoverOpen {
+                        Color.black.opacity(0.001).onTapGesture { model.pinyinPopoverOpen = false }
                     }
                 }
                 // 长按弹出的十字 / 备选 / 布局菜单会伸到上面一排：这时按键区整块盖在 AI 栏和回答卡上面，不被 ✨、风格键压住。
@@ -143,7 +157,7 @@ struct KeyboardView: View {
     /// 系统给的高度比 keyboardHeight 多时，渐变不跟着拉长：多出来的那截和拼音行一样是不透明底色，不露一截渐变空白。
     /// 回答卡、风格一排、提示卡在最上面时整块不透明。
     private var boardBackground: some View {
-        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder
+        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder && !model.pinyinSide
         return VStack(spacing: 0) {
             LinearGradient(stops: [
                 .init(color: Brand.keyboardBack.opacity(0), location: 0),
@@ -325,6 +339,11 @@ struct KeyboardView: View {
     private var candidateBar: some View {
         let predicting = !model.isComposing
         return HStack(spacing: 0) {
+            // 全键盘拼音在侧边（F12）：最左边一颗拼音键显示现在的切法，点开选切法 / 纠正读法。
+            if let title = model.pinyinKeyTitle {
+                PinyinKey(model: model, title: title)
+                Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 22)
+            }
             // 点击判定在 UIKit 里做，见 CandidateStrip。删了候选后 3 秒内换成撤销条（CL4）。
             ZStack {
                 CandidateStrip(model: model)

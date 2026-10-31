@@ -60,6 +60,16 @@ enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     var shortTitle: String { self == .qwerty ? L("全键盘", "QWERTY", "QWERTY") : L("九宫格", "10-key", "10キー") }
 }
 
+/// 中文打字时拼音显示在哪（F12）：上方一行（候选栏上面，照 iOS 原生，默认）；侧边（九宫格左列上三格换成拼音列，
+/// 全键盘候选栏最左边一颗拼音键）。侧边模式不留拼音行，键盘矮 36。
+enum PinyinDisplay: String, Codable, CaseIterable, Identifiable {
+    case row, side
+
+    var id: String { rawValue }
+
+    var title: String { self == .row ? L("上方一行", "Row above", "上の行") : L("侧边", "Side", "横") }
+}
+
 /// 日间 / 夜间：跟随 iPhone，或者固定浅色、深色。只管 App；键盘跟着正在打字的 App 走，和系统键盘一样。
 enum Appearance: String, Codable, CaseIterable, Identifiable {
     case system, light, dark
@@ -131,6 +141,7 @@ struct EnclaveSettings: Codable, Equatable {
     // 键盘
     var inputLanguage: InputLanguage = .chinese
     var keyboardLayout: KeyboardLayout = .qwerty
+    var pinyinDisplay: PinyinDisplay = .row
     /// 按键震动（需要打开完全访问）。
     var keyHaptics: Bool = true
     /// 按键声音（手机静音时不响）。
@@ -160,7 +171,7 @@ struct EnclaveSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
     }
 
@@ -211,6 +222,7 @@ extension EnclaveSettings {
         searchTendency = try? c.decodeIfPresent(Int.self, forKey: .searchTendency)
         inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
+        pinyinDisplay = (try? c.decodeIfPresent(PinyinDisplay.self, forKey: .pinyinDisplay)) ?? pinyinDisplay
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
         autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize
