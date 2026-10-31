@@ -23,16 +23,16 @@ struct KeysView: View {
                     // 拼音在上方一行时那一行展开时也留着，整页候选铺满按键区；
                     // 在侧边（F12）时九宫格左边的拼音列保持住、拉长到 4 行，候选铺在中间三列。
                     let column = model.pinyinSide && model.showsNineKey ? layout.pinyinColumn : nil
-                    ZStack(alignment: .topLeading) {
-                        CandidateGrid(model: model, leading: column?.maxX ?? 0)
-                            .frame(width: geo.size.width, height: geo.size.height)
-                        if let column {
-                            SidePinyinColumn(model: model, frame: CGRect(x: column.minX, y: column.minY,
-                                                                         width: column.width, height: column.height / 3 * 4))
-                        }
-                    }
                     // 和系统键盘一样：从候选栏下面往下拉开，收起时往上卷回去（见 CandidateReveal）。
-                    .transition(.modifier(active: CandidateReveal(progress: 0), identity: CandidateReveal(progress: 1)))
+                    CandidateGrid(model: model, leading: column?.maxX ?? 0)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .transition(.modifier(active: CandidateReveal(progress: 0), identity: CandidateReveal(progress: 1)))
+                    // 拼音列不跟着卷：按键页那份和这份同一刻换掉，开收途中不会叠出两列。
+                    if let column {
+                        SidePinyinColumn(model: model, frame: CGRect(x: column.minX, y: column.minY,
+                                                                     width: column.width, height: column.height / 3 * 4))
+                            .transition(.identity)
+                    }
                 } else {
                     ForEach(layout.keys) { key in
                         KeyCapCell(presses: model.keyPresses, context: context, key: key)
@@ -43,6 +43,7 @@ struct KeysView: View {
                         .frame(width: geo.size.width, height: geo.size.height)
                     if let column = layout.pinyinColumn {
                         SidePinyinColumn(model: model, frame: column)
+                            .transition(.identity)
                     }
                     if let column = layout.operatorColumn {
                         OperatorColumn(model: model, frame: column)
