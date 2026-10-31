@@ -554,7 +554,7 @@ struct CandidateGrid: View {
             GeometryReader { geo in
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        ForEach(CandidateRows.rows(model.candidates, width: geo.size.width)) { row in
+                        ForEach(CandidateRows.rows(model.displayWords(model.candidates), width: geo.size.width)) { row in
                             HStack(spacing: 0) {
                                 ForEach(row.cells, id: \.index) { cell in
                                     Button { model.selectCandidate(cell.index) } label: {

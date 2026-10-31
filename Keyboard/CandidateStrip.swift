@@ -326,12 +326,14 @@ struct CandidateStrip: UIViewRepresentable {
     func updateUIView(_ view: CandidateStripView, context: Context) {
         // 没在打拼音时显示联想：不标常用词；开了「空格连续联想」时第一个也垫浅色块，和打字时一样提示按空格上屏的是它。
         guard model.isComposing else {
-            view.update(words: model.predictions, firstBlock: Predictor.spaceChains && model.chineseMode, commonWords: [])
+            view.update(words: model.displayWords(model.predictions), firstBlock: Predictor.spaceChains && model.chineseMode, commonWords: [])
             view.setHighlighted(nil)
             return
         }
-        let words = Array(model.candidates.prefix(60))
-        view.update(words: words, firstBlock: true, commonWords: model.commonWordTexts)
+        // 繁体输出：显示的词和常用词标记都换成繁体，下标和 candidates 一一对应，点了照常按下标选。
+        let words = model.displayWords(Array(model.candidates.prefix(60)))
+        let common = model.settings.traditionalOutput ? Set(model.displayWords(Array(model.commonWordTexts))) : model.commonWordTexts
+        view.update(words: words, firstBlock: true, commonWords: common)
         view.setHighlighted(model.candidateMenu?.index)
     }
 }

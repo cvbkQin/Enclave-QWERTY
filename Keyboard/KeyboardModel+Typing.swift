@@ -33,7 +33,7 @@ extension KeyboardModel {
         dismissCandidateMenu()
         closeCandidateUndo()
         guard let queued = engine as? QueuedEngine else {
-            if let output = engine.input(key) { commit(output) }
+            if let output = engine.input(key) { commit(outputText(output)) }
             syncEngine()
             return
         }
@@ -49,7 +49,7 @@ extension KeyboardModel {
         let results = wait ? queued.drain() : queued.takeResults()
         guard !results.isEmpty else { return }
         for result in results {
-            if let text = result.commit { commit(text) }
+            if let text = result.commit { commit(outputText(text)) }
         }
         syncEngine()
         // 下一轮主循环时界面已经按新候选画完，这时记耗时。
@@ -89,7 +89,7 @@ extension KeyboardModel {
         }
         // 首选和符号一起上屏：分两次（先把标记区换成首选、马上再 insertText 符号）时，输入框会把符号插到首选前面（「。壹元整」）。
         var text = symbol
-        if isComposing, let first = engine.select(0) { text = first + symbol }
+        if isComposing, let first = engine.select(0) { text = outputText(first) + symbol }
         commit(text)
         engine.reset()
         syncEngine()
@@ -161,7 +161,7 @@ extension KeyboardModel {
         let before = choiceState
         let segmented = !engine.selections.isEmpty
         let text = engine.select(index)
-        if let text { commit(text) }
+        if let text { commit(outputText(text)) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
         recordChoice(from: before)
@@ -357,7 +357,7 @@ extension KeyboardModel {
         guard predictions.indices.contains(index) else { return }
         if !chineseMode { return selectEnglishSuggestion(index) }
         let word = predictions[index]
-        commit(word)
+        commit(outputText(word))
         // 点联想词省掉的字数（首页「联想帮你少打了 N 个字」）。
         DailyStats.add("prediction.tapped")
         DailyStats.add("prediction.chars", word.count)
@@ -1084,6 +1084,19 @@ extension KeyboardModel {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         syncEngine()
+    }
+
+    // MARK: - 繁体输出（B5）
+
+    /// 开了繁体输出时，拼音打出的字转成繁体再上屏；引擎、学到的词、联想都还按简体走（传给它们的仍是简体）。
+    /// 只用在拼音候选、联想上屏的地方，AI 的结果、英文、符号不经过这里。
+    func outputText(_ text: String) -> String {
+        settings.traditionalOutput ? TraditionalChinese.convert(text) : text
+    }
+
+    /// 候选栏、整页候选显示用：和 candidates 一一对应（下标不变），只是换成繁体。
+    func displayWords(_ words: [String]) -> [String] {
+        settings.traditionalOutput ? words.map(TraditionalChinese.convert) : words
     }
 
     // MARK: - 内部

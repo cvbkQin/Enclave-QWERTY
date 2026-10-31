@@ -1076,10 +1076,24 @@ struct KeyboardSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
+                    // B5：拼音组最后一行（TC1），默认关，第一个版本带「新」。
+                    Toggle(isOn: $store.settings.traditionalOutput) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(L("繁体输出", "Traditional Chinese output", "繁体字で出力"))
+                                NewBadge()
+                            }
+                            Text(L("候选和上屏都是繁体字，例：输入法 → 輸入法", "Candidates and typed text use Traditional characters, e.g. 输入法 → 輸入法",
+                                   "候補と確定する文字が繁体字になります。例：输入法 → 輸入法"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Text(L("拼音", "Pinyin", "ピンイン"))
                 } footer: {
-                    Text(CorrectionToggles.footnote)
+                    Text(CorrectionToggles.footnote + "\n\n" + L("繁体输出：还是用拼音打，模糊拼音、纠错、联想都照常；常用词和学到的词也会显示成繁体。只转换你打出的字，AI 润色和回答的结果不转换。",
+                                                              "Traditional output: you still type pinyin, and fuzzy pinyin, autocorrect and predictions work as usual. Your words and learned words show in Traditional too. Only what you type is converted; AI polish and answers are not.",
+                                                              "繁体字で出力：入力はピンインのままで、あいまい入力・自動修正・予測もそのまま使えます。ユーザ辞書や学習した語も繁体字で表示されます。変換するのは入力した文字だけで、AI の整え・回答の結果は変換しません。"))
                 }
             }
             Section(L("英文", "English", "英語")) {

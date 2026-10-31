@@ -323,7 +323,7 @@ struct KeyboardView: View {
 
     /// 「✓ 已删除「xx」」+ 右边「撤销」胶囊。
     private func candidateUndoBar(_ undo: KeyboardModel.CandidateUndo) -> some View {
-        let word = undo.word
+        let word = model.outputText(undo.word)
         return HStack(spacing: 8) {
             Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Brand.success)
             Text(undo.restored
