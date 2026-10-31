@@ -97,7 +97,7 @@ enum PrivacyPolicy {
 5. 试用开始日期、购买状态、当日 AI 使用次数和按天使用统计；
 6. 您同意本政策的版本和时间。
 
-AI 历史记录仅保存在本机，不会上传。您可以在“历史记录”页关闭记录、设置保留时长或一键清空，也可以在“设置 › 隐私”中清除 AI 历史记录和拼音输入学习记录。**卸载本应用后，上述信息将全部删除**（购买记录由 App Store 保存，重新安装后可恢复）。
+AI 历史记录仅保存在本机，不会上传。您可以在“历史”页右上角的 ⋯ 菜单中关闭记录、设置保留时长或清空历史；在“设置 › 隐私”中可以清除 AI 历史记录和拼音输入学习记录。**卸载本应用后，上述信息将全部删除**（购买记录由 App Store 保存，重新安装后可恢复）。
 
 ## 四、权限说明
 
@@ -207,7 +207,7 @@ The following is stored only on your device:
 - your style, keyboard, endpoint and language settings;
 - the trial start date, purchase status and today's AI usage count.
 
-Your AI history stays on your device and is never uploaded. On the History tab you can turn history off, choose how long it is kept, or clear it; you can also clear the AI history and the input learning data under Settings › Privacy. Deleting the App removes all of this information (your purchase is kept by the App Store and can be restored after reinstalling).
+Your AI history stays on your device and is never uploaded. From the ⋯ menu at the top right of the History tab you can turn history off, choose how long it is kept, or clear it; under Settings › Privacy you can clear the AI history and the input learning data. Deleting the App removes all of this information (your purchase is kept by the App Store and can be restored after reinstalling).
 
 ## 4. Permissions
 
@@ -307,7 +307,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 - 文体、キーボード、API、言語の設定
 - 無料体験の開始日、購入状況、当日の AI 使用回数
 
-AI の履歴は端末内にのみ保存され、送信されることはありません。「履歴」タブで記録をオフにする、保存期間を選ぶ、すべて消去することができます。AI の履歴と入力の学習データは「設定 › プライバシー」でも消去できます。本アプリを削除すると、これらの情報もすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
+AI の履歴は端末内にのみ保存され、送信されることはありません。「履歴」タブ右上の ⋯ メニューで、記録をオフにする、保存期間を選ぶ、履歴を消去することができます。AI の履歴と入力の学習データは「設定 › プライバシー」でも消去できます。本アプリを削除すると、これらの情報もすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
 
 ## 4. 権限について
 
