@@ -2,11 +2,71 @@ import StoreKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-// 键盘 › 词库 页的扩展词库（B6，效果图 design/ext-dict/EX1–EX8）：
-// 「万象拼音」等卡片下面依次是「我的词库」「在线词库」「从文件导入」三组。
+// 扩展词库（B6，效果图 design/ext-dict/EX1–EX13）。
+// 键盘 › 词库 页的万象卡下面只放概况：「热门词库 ›」「导入的词库 ›」两行（EX9）。
+// 热门词库页管内置和下载的（EX10、EX11），导入的词库页管导入的和「从文件导入」（EX12、EX13）。
 
-/// 词库页里的三组，放在 PinyinView 的 List 里。List 上还要加 .extDictImporter()（文件选择器、导入确认）。
-struct ExtDictSections: View {
+/// 词库页里的「扩展词库」一组：两行概况，点进子页。放在 PinyinView 的 List 里。
+struct ExtDictOverviewSection: View {
+    @EnvironmentObject private var router: AppRouter
+    @ObservedObject private var store = ExtDictStore.shared
+    @ObservedObject private var deployer = RimeDeployer.shared
+
+    var body: some View {
+        let hot = store.rows(.hot), imported = store.rows(.imported)
+        let enabled = hot.filter(\.enabled).count + imported.filter(\.enabled).count
+        Section {
+            row(icon: "sparkles", color: AppColor.purple, title: L("热门词库", "Popular dictionaries", "人気の辞書"),
+                subtitle: store.isDeploying(.hot) ? deployingText
+                    : ExtDictStore.entryText(entries(hot)) + L(" · 游戏、流行语、百科词库等", " · games, slang, encyclopedia and more", " · ゲーム、流行語、百科辞書など"),
+                value: L("已开 \(hot.filter(\.enabled).count) 个", "\(hot.filter(\.enabled).count) on", "\(hot.filter(\.enabled).count) 個オン")) {
+                router.keyboardPath.append(AppRouter.ExtDictGroupPage.hot)
+            }
+            row(icon: "keyboard", color: ExtDictBadge.orange, title: L("导入的词库", "Imported dictionaries", "読み込んだ辞書"),
+                subtitle: store.isDeploying(.imported) ? deployingText
+                    : imported.isEmpty
+                        ? L("细胞词库（.scel）、Rime 词库（.dict.yaml）", "Cell (.scel) and Rime (.dict.yaml) dictionaries", "セル辞書（.scel）、Rime 辞書（.dict.yaml）")
+                        : ExtDictStore.entryText(entries(imported)) + L(" · 细胞词库、Rime 词库", " · cell and Rime dictionaries", " · セル辞書、Rime 辞書"),
+                value: imported.isEmpty ? L("未导入", "None", "なし") : L("\(imported.count) 个", "\(imported.count)", "\(imported.count) 個")) {
+                router.keyboardPath.append(AppRouter.ExtDictGroupPage.imported)
+            }
+        } header: {
+            Text(L("扩展词库 · 已开 \(enabled) 个，约 ", "Extra dictionaries · \(enabled) on, about ", "拡張辞書 · \(enabled) 個オン、約 ")
+                 + ExtDictStore.wordsText(store.enabledEntries))
+        } footer: {
+            Text(L("扩展词库的词排在基础词库后面，不抢常用词的首选。",
+                   "Words from extra dictionaries rank after the main dictionary, so your usual first choices stay first.",
+                   "拡張辞書の語は基本辞書の後に並ぶので、よく使う語の第一候補は変わりません。"))
+        }
+    }
+
+    private var deployingText: String { L("部署中…", "Installing…", "インストール中…") }
+
+    private func entries(_ rows: [ExtDictStore.Row]) -> Int { rows.reduce(0) { $0 + $1.entries } }
+
+    private func row(icon: String, color: Color, title: String, subtitle: String, value: String, open: @escaping () -> Void) -> some View {
+        Button(action: open) {
+            HStack(spacing: 12) {
+                TintIcon(systemName: icon, color: color, size: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 17)).foregroundStyle(.primary)
+                    Text(subtitle).font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                Text(value).font(.system(size: 15)).foregroundStyle(.secondary).fixedSize()
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - 热门词库（EX10、EX11）
+
+/// 上面「已装」：内置 + 已下载；下面「可以下载」：删掉的内置（恢复）+ 在线词库。一页滚动。
+struct HotDictsView: View {
     @EnvironmentObject private var router: AppRouter
     @ObservedObject private var store = ExtDictStore.shared
     @ObservedObject private var deployer = RimeDeployer.shared
@@ -14,17 +74,20 @@ struct ExtDictSections: View {
     private var deploying: Bool { deployer.state == .deploying }
 
     var body: some View {
-        myDicts
-        online
-        importSection
+        List {
+            installedSection
+            downloadSection
+        }
+        .navigationTitle(L("热门词库", "Popular dictionaries", "人気の辞書"))
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await store.refreshCatalog() }
     }
 
-    // MARK: - 我的词库（EX1、EX3、EX4）
-
-    private var myDicts: some View {
-        let rows = store.rows
+    private var installedSection: some View {
+        let rows = store.rows(.hot)
+        let enabled = rows.filter(\.enabled).reduce(0) { $0 + $1.entries }
         return Section {
-            if deploying { deployBanner }
+            if deploying { ExtDictDeployBanner() }
             ForEach(rows) { row in
                 ExtDictRow(row: row, disabled: deploying) {
                     router.keyboardPath.append(AppRouter.ExtDictPage(id: row.id))
@@ -35,42 +98,18 @@ struct ExtDictSections: View {
                 }
             }
         } header: {
-            Text(L("我的词库 · \(rows.count) 个，约 ", "My dictionaries · \(rows.count), about ", "マイ辞書 · \(rows.count) 個、約 ")
-                 + ExtDictStore.wordsText(store.enabledEntries))
+            Text(L("已装 · \(rows.count) 个，约 ", "Installed · \(rows.count), about ", "インストール済み · \(rows.count) 個、約 ")
+                 + ExtDictStore.wordsText(enabled))
         } footer: {
             Text(deploying
                  ? L("部署中开关先变灰，部署完才能再改。", "Switches are grayed out while installing and come back when it's done.", "インストール中はスイッチを変更できません。終わると戻ります。")
-                 : L("「内置」随 App 带着，「已下载」是从下面在线词库下的，「导入」是你自己的文件。都能开关和删除；关掉的不出候选。这些词排在基础词库后面，不抢常用词的首选。",
-                     "Built-in ones come with the app, Downloaded ones are from the online list below, and Imported ones are your own files. You can turn any of them off or delete them; words from ones that are off don't appear. These words rank after the main dictionary, so your usual first choices stay first.",
-                     "「内蔵」はアプリに付属、「ダウンロード済み」は下のオンライン辞書から、「インポート」はご自身のファイルです。どれもオン・オフや削除ができ、オフの辞書の語は候補に出ません。これらの語は基本辞書の後に並ぶので、よく使う語の第一候補は変わりません。"))
+                 : L("「内置」随 App 带着，「已下载」是从下面下的。都能开关和删除；关掉的不出候选。",
+                     "Built-in ones come with the app; Downloaded ones are from the list below. You can turn any of them off or delete them; words from ones that are off don't appear.",
+                     "「内蔵」はアプリに付属、「ダウンロード済み」は下の一覧からです。どれもオン・オフや削除ができ、オフの辞書の語は候補に出ません。"))
         }
     }
 
-    /// 部署进度：编译没有真实进度，沿用万象部署那条按一分钟估的进度条。
-    private var deployBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                let elapsed = context.date.timeIntervalSince(deployer.startedAt ?? context.date)
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(L("正在把新词加进键盘…", "Adding the new words to the keyboard…", "新しい語をキーボードに追加中…"))
-                            .font(.system(size: 15, weight: .semibold))
-                        Spacer()
-                        Text(elapsed < 50 ? L("约 1 分钟", "About 1 min", "約 1 分") : L("快好了", "Almost done", "まもなく完了"))
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
-                    }
-                    ProgressView(value: min(elapsed / 60, 0.95)).tint(AppColor.purple)
-                }
-            }
-            Text(L("可以离开这页，也可以先用键盘打字；部署完新词才会出现。", "You can leave this page or keep typing; the new words appear once it's done.", "このページを離れても、そのまま入力しても大丈夫です。新しい語は完了後に出ます。"))
-                .font(.system(size: 13)).foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 4)
-    }
-
-    // MARK: - 在线词库（EX1、EX2、EX4）
-
-    private var online: some View {
+    private var downloadSection: some View {
         Section {
             ForEach(store.removedBuiltinPacks) { pack in
                 OnlineRow(title: pack.name,
@@ -93,7 +132,7 @@ struct ExtDictSections: View {
                 }
             }
         } header: {
-            Text(L("在线词库", "Online dictionaries", "オンライン辞書"))
+            Text(L("可以下载", "Available to download", "ダウンロードできる辞書"))
         } footer: {
             VStack(alignment: .leading, spacing: 4) {
                 if let progress = store.downloads.values.first {
@@ -101,9 +140,9 @@ struct ExtDictSections: View {
                            "Downloading \(megabytes(progress.received)) / \(megabytes(progress.expected)) MB. You can leave this page; tap the square in the circle to cancel.",
                            "ダウンロード中 \(megabytes(progress.received)) / \(megabytes(progress.expected)) MB。このページを離れても大丈夫です。円の中の四角でキャンセルします。"))
                 } else {
-                    Text(L("在线词库只在你点「下载」时从开发者服务器下载，不上传任何内容。",
-                           "Online dictionaries are downloaded from the developer's server only when you tap Download. Nothing is uploaded.",
-                           "オンライン辞書は「ダウンロード」をタップしたときだけ開発者のサーバーからダウンロードします。何もアップロードしません。"))
+                    Text(L("只在你点「下载」时从开发者服务器下载，不上传任何内容。列表里没有的，可以回到上一页「导入的词库」里从文件导入。",
+                           "Downloaded from the developer's server only when you tap Download. Nothing is uploaded. For anything not listed, go back and import a file under Imported dictionaries.",
+                           "「ダウンロード」をタップしたときだけ開発者のサーバーからダウンロードし、何もアップロードしません。一覧にないものは、前のページの「読み込んだ辞書」でファイルから読み込めます。"))
                 }
                 if let error = store.downloadError {
                     Text(error).foregroundStyle(.red)
@@ -133,38 +172,124 @@ struct ExtDictSections: View {
         case .own: return L("飞地输入法整理", "Compiled by Enclave", "Enclave 編集")
         }
     }
+}
 
-    // MARK: - 从文件导入（EX6、EX7）
+// MARK: - 导入的词库（EX12、EX13）
 
-    private var importSection: some View {
-        Section {
-            Button { store.picking = true } label: {
-                HStack(spacing: 12) {
-                    TintIcon(systemName: "square.and.arrow.down", color: AppColor.purple, size: 36)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("从文件导入", "Import from file", "ファイルから読み込む")).font(.system(size: 17)).foregroundStyle(AppColor.purple)
-                        Text(L("支持细胞词库（.scel）和 Rime 词库（.dict.yaml），在本机转换，不上传",
-                               "Cell dictionaries (.scel) and Rime dictionaries (.dict.yaml). Converted on this iPhone; nothing is uploaded.",
-                               "セル辞書（.scel）と Rime 辞書（.dict.yaml）に対応。この iPhone 上で変換し、アップロードしません。"))
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
+/// 上面「已导入」列表（没导入过换成一段说明），下面「从文件导入」。文件选择器和导入确认挂在这一页。
+struct ImportedDictsView: View {
+    @EnvironmentObject private var router: AppRouter
+    @ObservedObject private var store = ExtDictStore.shared
+    @ObservedObject private var deployer = RimeDeployer.shared
+
+    private var deploying: Bool { deployer.state == .deploying }
+
+    var body: some View {
+        let rows = store.rows(.imported)
+        List {
+            if rows.isEmpty {
+                Section {} header: { emptyNote }
+            } else {
+                Section {
+                    if deploying { ExtDictDeployBanner() }
+                    ForEach(rows) { row in
+                        ExtDictRow(row: row, disabled: deploying) {
+                            router.keyboardPath.append(AppRouter.ExtDictPage(id: row.id))
+                        } toggle: { store.setEnabled(row.id, $0) }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(L("删除", "Delete", "削除"), role: .destructive) { store.remove(row.id) }
+                                .disabled(deploying)
+                        }
                     }
-                    Spacer(minLength: 4)
-                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(.tertiary)
+                } header: {
+                    Text(L("已导入 · \(rows.count) 个，约 ", "Imported · \(rows.count), about ", "読み込み済み · \(rows.count) 個、約 ")
+                         + ExtDictStore.wordsText(rows.reduce(0) { $0 + $1.entries }))
+                } footer: {
+                    Text(deploying
+                         ? L("部署中开关先变灰，部署完才能再改。", "Switches are grayed out while installing and come back when it's done.", "インストール中はスイッチを変更できません。終わると戻ります。")
+                         : L("点一行看详情、改名或删除；左滑也能删除。", "Tap one to see details, rename or delete it. You can also swipe left to delete.", "タップで詳細・名前の変更・削除。左にスワイプしても削除できます。"))
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .disabled(deploying)
-        } footer: {
-            Text(L("列表里没有的（比如别的游戏、动漫），可以在网上找细胞词库（.scel）用这里导入。",
-                   "For anything not listed (other games, anime…), find a cell dictionary (.scel) online and import it here.",
-                   "一覧にないもの（ほかのゲームやアニメなど）は、ネットでセル辞書（.scel）を探してここから読み込めます。"))
+            Section {
+                importRow
+            } footer: {
+                if !rows.isEmpty {
+                    Text(L("列表里没有的（比如别的游戏、动漫），可以在网上找细胞词库（.scel）用这里导入。",
+                           "For anything not listed (other games, anime…), find a cell dictionary (.scel) online and import it here.",
+                           "一覧にないもの（ほかのゲームやアニメなど）は、ネットでセル辞書（.scel）を探してここから読み込めます。"))
+                }
+            }
         }
+        .extDictImporter()
+        .navigationTitle(L("导入的词库", "Imported dictionaries", "読み込んだ辞書"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 没导入过：居中一段说明（EX13）。
+    private var emptyNote: some View {
+        VStack(spacing: 10) {
+            Text(L("还没有导入词库", "No imported dictionaries yet", "読み込んだ辞書はまだありません"))
+                .font(.system(size: 17, weight: .semibold)).foregroundStyle(.primary)
+            Text(L("可以在网上找细胞词库（.scel）或 Rime 词库（.dict.yaml），在这里导入，比如别的游戏、动漫、专业名词。",
+                   "Find a cell dictionary (.scel) or Rime dictionary (.dict.yaml) online and import it here, for other games, anime or specialist terms.",
+                   "ネットでセル辞書（.scel）や Rime 辞書（.dict.yaml）を探して、ここから読み込めます。ほかのゲーム、アニメ、専門用語など。"))
+                .font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .textCase(nil)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 60)
+        .padding(.bottom, 16)
+        .padding(.horizontal, 12)
+    }
+
+    private var importRow: some View {
+        Button { store.picking = true } label: {
+            HStack(spacing: 12) {
+                TintIcon(systemName: "keyboard", color: AppColor.purple, size: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("从文件导入", "Import from file", "ファイルから読み込む")).font(.system(size: 17)).foregroundStyle(AppColor.purple)
+                    Text(L("支持细胞词库（.scel）和 Rime 词库（.dict.yaml），在本机转换，不上传",
+                           "Cell dictionaries (.scel) and Rime dictionaries (.dict.yaml). Converted on this iPhone; nothing is uploaded.",
+                           "セル辞書（.scel）と Rime 辞書（.dict.yaml）に対応。この iPhone 上で変換し、アップロードしません。"))
+                        .font(.system(size: 13)).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(deploying)
     }
 }
 
-/// 文件选择器、导入确认和失败卡；打开词库页时顺便拉一次在线词库清单。
-/// 放在 List 上而不是各组上：修饰 Group 会给每一组各挂一份。
+/// 部署进度：放在「已装」或「已导入」组顶上。编译没有真实进度，沿用万象部署那条按一分钟估的进度条。
+private struct ExtDictDeployBanner: View {
+    @ObservedObject private var deployer = RimeDeployer.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let elapsed = context.date.timeIntervalSince(deployer.startedAt ?? context.date)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(L("正在把新词加进键盘…", "Adding the new words to the keyboard…", "新しい語をキーボードに追加中…"))
+                            .font(.system(size: 15, weight: .semibold))
+                        Spacer()
+                        Text(elapsed < 50 ? L("约 1 分钟", "About 1 min", "約 1 分") : L("快好了", "Almost done", "まもなく完了"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                    }
+                    ProgressView(value: min(elapsed / 60, 0.95)).tint(AppColor.purple)
+                }
+            }
+            Text(L("可以离开这页，也可以先用键盘打字；部署完新词才会出现。", "You can leave this page or keep typing; the new words appear once it's done.", "このページを離れても、そのまま入力しても大丈夫です。新しい語は完了後に出ます。"))
+                .font(.system(size: 13)).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+/// 文件选择器、导入确认和失败卡，挂在导入的词库页的 List 上。
 private struct ExtDictImporter: ViewModifier {
     @ObservedObject private var store = ExtDictStore.shared
 
@@ -178,7 +303,6 @@ private struct ExtDictImporter: ViewModifier {
                     if let parsed = ExtDictStore.readImport(url) { store.draft = parsed } else { store.failedFile = url.lastPathComponent }
                 }
                 #endif
-                await store.refreshCatalog()
             }
             .fileImporter(isPresented: $store.picking, allowedContentTypes: [.item]) { result in
                 guard case .success(let url) = result else { return }
@@ -208,7 +332,7 @@ extension View {
 
 // MARK: - 行和小部件
 
-/// 「我的词库」一行：名称 + 小标签（+ 有更新），第二行灰字，右边开关和 ›。点文字进详情。
+/// 热门词库、导入的词库里的一行：名称 + 小标签（+ 有更新），第二行灰字，右边开关和 ›。点文字进详情。
 private struct ExtDictRow: View {
     let row: ExtDictStore.Row
     let disabled: Bool
@@ -240,6 +364,9 @@ private struct ExtDictRow: View {
 
 /// 小标签：内置灰底灰字，已下载浅紫底紫字，导入浅橙底橙字。高 18、圆角 9、字 11 半粗。
 struct ExtDictBadge: View {
+    /// 导入的橙色：标签字、词库页「导入的词库」图标。
+    static let orange = Color(light: 0xB86200, dark: 0xFFB340)
+
     var text: String
     var fill: Color
     var color: Color
@@ -257,8 +384,7 @@ struct ExtDictBadge: View {
         case .downloaded:
             self.init(text: L("已下载", "Downloaded", "ダウンロード済み"), fill: AppColor.softFill, color: AppColor.purple)
         case .imported:
-            let orange = Color(light: 0xB86200, dark: 0xFFB340)
-            self.init(text: L("导入", "Imported", "インポート"), fill: orange.opacity(0.14), color: orange)
+            self.init(text: L("导入", "Imported", "インポート"), fill: Self.orange.opacity(0.14), color: Self.orange)
         }
     }
 
@@ -376,9 +502,9 @@ private struct ImportConfirmSheet: View {
                 .buttonStyle(PrimaryButtonStyle())
             }
             if let error { Text(error).font(.footnote).foregroundStyle(.red) }
-            Text(L("在本机转换，文件不上传。导入后加进「我的词库」，重新部署约 1 分钟。",
-                   "Converted on this iPhone; the file isn't uploaded. It's added to My dictionaries and installs in about a minute.",
-                   "この iPhone 上で変換し、ファイルはアップロードしません。読み込むと「マイ辞書」に追加され、約 1 分でインストールします。"))
+            Text(L("在本机转换，文件不上传。导入后加进「导入的词库」，重新部署约 1 分钟。",
+                   "Converted on this iPhone; the file isn't uploaded. It's added to Imported dictionaries and installs in about a minute.",
+                   "この iPhone 上で変換し、ファイルはアップロードしません。読み込むと「読み込んだ辞書」に追加され、約 1 分でインストールします。"))
                 .font(.system(size: 13)).foregroundStyle(.secondary).multilineTextAlignment(.center)
             Spacer(minLength: 0)
         }
@@ -437,11 +563,20 @@ struct ExtDictDetailView: View {
         installed == nil ? ExtDict.availableBuiltins.first { $0.id == id && !store.removedBuiltins.contains($0.id) } : nil
     }
     private var deploying: Bool { deployer.state == .deploying }
+    /// 导入的词库可以改名（导入的词库页脚注「点一行看详情、改名或删除」）。
+    @State private var name = ""
 
     var body: some View {
         List {
             if installed != nil || builtin != nil {
                 Section {} header: { summaryCard.dashFormCard() }
+                if let installed, installed.kind == .imported {
+                    Section(L("名称", "Name", "名前")) {
+                        TextField(installed.name, text: $name)
+                            .submitLabel(.done)
+                            .onSubmit { store.rename(id, to: name) }
+                    }
+                }
                 Section {
                     Toggle(L("使用这个词库", "Use this dictionary", "この辞書を使う"),
                            isOn: Binding(get: { !store.off.contains(id) }, set: { store.setEnabled(id, $0) }))
@@ -473,6 +608,9 @@ struct ExtDictDetailView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { if let installed { name = installed.name } }
+        // 改了名没按完成就返回，也存下来。
+        .onDisappear { store.rename(id, to: name) }
     }
 
     private var title: String {
@@ -543,11 +681,11 @@ struct ExtDictDetailView: View {
     private var deleteNote: String {
         switch installed?.kind {
         case .downloaded:
-            return L("删除后要重新部署约 1 分钟，以后可以在「在线词库」里再下载。", "Deleting reinstalls the dictionary (about a minute). You can download it again from Online dictionaries.", "削除すると約 1 分で再インストールします。「オンライン辞書」からいつでもダウンロードし直せます。")
+            return L("删除后要重新部署约 1 分钟，以后可以在「热门词库」里再下载。", "Deleting reinstalls the dictionary (about a minute). You can download it again from Popular dictionaries.", "削除すると約 1 分で再インストールします。「人気の辞書」からいつでもダウンロードし直せます。")
         case .imported:
             return L("删除后要重新部署约 1 分钟。要再用得重新导入文件。", "Deleting reinstalls the dictionary (about a minute). To use it again, import the file again.", "削除すると約 1 分で再インストールします。再び使うにはファイルを読み込み直してください。")
         default:
-            return L("删除后要重新部署约 1 分钟。删掉的内置词库会出现在「在线词库」里，点「恢复」就能加回来。", "Deleting reinstalls the dictionary (about a minute). Deleted built-in dictionaries appear under Online dictionaries; tap Restore to add them back.", "削除すると約 1 分で再インストールします。削除した内蔵辞書は「オンライン辞書」に表示され、「戻す」で戻せます。")
+            return L("删除后要重新部署约 1 分钟。删掉的内置词库会出现在「热门词库」的「可以下载」里，点「恢复」就能加回来。", "Deleting reinstalls the dictionary (about a minute). Deleted built-in dictionaries appear under Available to download in Popular dictionaries; tap Restore to add them back.", "削除すると約 1 分で再インストールします。削除した内蔵辞書は「人気の辞書」の「ダウンロードできる辞書」に表示され、「戻す」で戻せます。")
         }
     }
 }

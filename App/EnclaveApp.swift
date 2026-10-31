@@ -178,7 +178,10 @@ final class AppRouter: ObservableObject {
     /// 键盘标签里的二级页：模糊拼音、词库、常用词、键盘常用语、按键判定。
     enum KeyboardPage: String, Hashable { case fuzzy, pinyin, commonWords, keyboardWords, touch }
 
-    /// 词库页里点一个扩展词库进详情。
+    /// 词库页下面的两行：热门词库、导入的词库（三级页）。
+    typealias ExtDictGroupPage = ExtDict.Group
+
+    /// 热门词库、导入的词库页里点一个扩展词库进详情。
     struct ExtDictPage: Hashable { let id: String }
 
     /// 历史标签里的二级页：一条记录的详情、历史记录设置。
@@ -324,10 +327,16 @@ final class AppRouter: ObservableObject {
             default:
                 if let page = KeyboardPage(rawValue: name) {
                     openKeyboard(page)
-                } else if name.hasPrefix("ext:") {
-                    // -appPage ext:diming：词库页里某个扩展词库的详情。
+                } else if name == "ext-hot" || name == "ext-imported" {
+                    // -appPage ext-hot / ext-imported：词库页下面的热门词库、导入的词库。
                     openKeyboard(.pinyin)
-                    keyboardPath.append(ExtDictPage(id: String(name.dropFirst(4))))
+                    keyboardPath.append(name == "ext-hot" ? ExtDictGroupPage.hot : .imported)
+                } else if name.hasPrefix("ext:") {
+                    // -appPage ext:diming：某个扩展词库的详情（经过它所在的热门词库或导入的词库页）。
+                    let id = String(name.dropFirst(4))
+                    openKeyboard(.pinyin)
+                    keyboardPath.append(ExtDict.installed.first { $0.id == id }?.kind.group ?? ExtDictGroupPage.hot)
+                    keyboardPath.append(ExtDictPage(id: id))
                 } else {
                     let pages = name.split(separator: "/").compactMap { SettingsPage(rawValue: String($0)) }
                     if !pages.isEmpty {

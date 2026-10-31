@@ -944,6 +944,12 @@ struct KeyboardTab: View {
                     case .touch: TouchCalibrationView()
                     }
                 }
+                .navigationDestination(for: AppRouter.ExtDictGroupPage.self) { group in
+                    switch group {
+                    case .hot: HotDictsView()
+                    case .imported: ImportedDictsView()
+                    }
+                }
                 .navigationDestination(for: AppRouter.ExtDictPage.self) { page in
                     ExtDictDetailView(id: page.id)
                 }
@@ -1487,7 +1493,7 @@ struct PinyinView: View {
     /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
     @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
 
-    /// 上面三张卡照旧；下面是扩展词库（B6）的三组，用列表才能左滑删除。
+    /// 上面三张卡照旧；下面是扩展词库的概况两行（第 49 条），点进热门词库、导入的词库。
     var body: some View {
         List {
             Section {} header: {
@@ -1498,9 +1504,8 @@ struct PinyinView: View {
                 }
                 .dashFormCard()
             }
-            ExtDictSections()
+            ExtDictOverviewSection()
         }
-        .extDictImporter()
         .navigationTitle(L("词库", "Dictionaries", "辞書"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: deployer.state) {
