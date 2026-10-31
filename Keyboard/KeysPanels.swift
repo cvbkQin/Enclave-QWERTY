@@ -535,9 +535,10 @@ struct ClipboardList: View {
                 if let id = model.clipMenu, let anchor = anchors[id], let item = model.clipItems.first(where: { $0.id == id }) {
                     let rect = geo[anchor]
                     ZStack(alignment: .topLeading) {
-                        // 点菜单外面收起。
+                        // 点菜单外面只收起菜单：挡住整块按键区（标签栏、脚注、底排、AI 栏），不点到底下的东西。
                         Color.black.opacity(0.001)
-                            .frame(width: geo.size.width, height: geo.size.height)
+                            .frame(width: geo.size.width + 40, height: Self.menuAreaBottom(listHeight: geo.size.height) - Self.menuAreaTop)
+                            .offset(x: -20, y: Self.menuAreaTop)
                             .onTapGesture { model.clipMenu = nil }
                         ClipMenu(model: model, item: item)
                             .offset(x: min(max(rect.minX + 40, 0), max(geo.size.width - ClipMenu.width, 0)),
@@ -550,9 +551,15 @@ struct ClipboardList: View {
 
     /// 菜单的上边（列表坐标）。能放下就在这条下面（可以盖住脚注和底排），放不下就在上面；
     /// 往上最多盖到标签栏和 AI 栏，不伸出键盘顶（键盘画不到外面，会被截掉）。
+    static var menuAreaTop: CGFloat { -(36 + KeyboardMetrics.topRow) }
+
+    static func menuAreaBottom(listHeight: CGFloat) -> CGFloat {
+        listHeight + 18 + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset
+    }
+
     static func menuY(row: CGRect, listHeight: CGFloat) -> CGFloat {
-        let top = -(36 + KeyboardMetrics.topRow)
-        let bottom = listHeight + 18 + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset - ClipMenu.height
+        let top = menuAreaTop
+        let bottom = menuAreaBottom(listHeight: listHeight) - ClipMenu.height
         let below = row.maxY + 6
         let preferred = below <= bottom ? below : row.minY - ClipMenu.height - 6
         return min(max(preferred, top), max(bottom, top))
