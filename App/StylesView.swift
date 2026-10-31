@@ -3,7 +3,8 @@ import SwiftUI
 
 /// 「AI」标签（第 51 条，效果图 design/ai-page/AT1–AT4）：顶上分段「接口 | 提示词」，每次冷启动停在「接口」。
 /// 接口：润色和问答两张接口卡（各带最近 20 次）→「和润色用同一个接口」→ 联网搜索 → 键盘里的 AI。
-/// 提示词：润色提示词、问答风格两组两列卡片，点一张就选中；各自「管理」进去排序、删除、编辑、加回。
+/// 提示词（第 54 条，效果图 design/prompts-tab/PT1–PT4）：「润色风格 N | 问答风格 N」两个标签，各一个带本周次数的列表，
+/// 「编辑」就地排序、删除、加回预设；点一行进编辑页。
 struct AITab: View {
     @EnvironmentObject private var router: AppRouter
 
@@ -15,7 +16,6 @@ struct AITab: View {
                     case .api(let answer): ModelSettingsView(answer: answer)
                     case .resultKey: ResultKeySettingsView()
                     case .recent(let answer): RecentRequestsView(answer: answer)
-                    case .manage(let answer): ManagePromptsView(answer: answer)
                     }
                 }
         }
@@ -70,8 +70,17 @@ struct AIView: View {
                     webSearchSection
                     KeyboardAISection()
                 } else {
-                    promptSection(answer: false)
-                    promptSection(answer: true)
+                    Section {
+                    } header: {
+                        PromptKindTabs(kind: $router.promptKind,
+                                       polishCount: store.settings.styles.count,
+                                       answerCount: store.settings.answerStyles.count)
+                    }
+                    PromptListSections(answer: router.promptKind == .answer, settings: $store.settings) { id in
+                        if router.promptKind == .answer { editingAnswerStyle = id } else { debugEditing = id }
+                    } add: {
+                        addStyle(answer: router.promptKind == .answer)
+                    }
                 }
             }
             .tint(DashColor.ai)
@@ -156,66 +165,19 @@ struct AIView: View {
         answerRecent = UsageStats.answerRecent
     }
 
-    // MARK: 提示词（AT2）
+    // MARK: 提示词（第 54 条）
 
-    /// 「润色提示词 / 问答风格」+ 右边「管理」，一句灰字，两列卡片（选中的主色描边 + ✓），最后一张虚线「＋ 新建」。
-    private func promptSection(answer: Bool) -> some View {
-        let styles = answer ? store.settings.answerStyles : store.settings.styles
-        let selected = answer ? store.settings.selectedAnswerStyle?.id : store.settings.selectedStyle?.id
-        let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-        return Section {
-        } header: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline) {
-                    AISectionTitle(text: answer ? L("问答风格", "Answer styles", "回答スタイル") : L("润色提示词", "Polish prompts", "整えるプロンプト"))
-                    Spacer()
-                    Button(L("管理", "Manage", "管理")) { router.aiPath.append(AppRouter.AIPage.manage(answer: answer)) }
-                        .font(.system(size: 17))
-                        .foregroundStyle(DashColor.ai)
-                        .buttonStyle(.plain)
-                }
-                Text(answer ? L("按住 ✨ 问答时用选中的这一种。", "Holding ✨ to ask uses the selected one.", "✨ 長押しの質問で選んだものを使います。")
-                     : L("点 ✨ 润色时用选中的这一条。", "Tapping ✨ to polish uses the selected one.", "✨ で整えるとき選んだものを使います。"))
-                    .font(.system(size: 14)).foregroundStyle(.secondary)
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(styles) { style in
-                        PromptCard(name: style.displayName,
-                                   summary: answer ? (style.prompt.isEmpty ? AnswerStyleSections.answerFallback : style.prompt) : PolishPromptSections.summary(style),
-                                   selected: style.id == selected) {
-                            if answer { store.settings.selectedAnswerStyleID = style.id } else { store.settings.selectedStyleID = style.id }
-                        }
-                    }
-                    if styles.count % 2 == 1 { newCard(answer: answer) }
-                }
-                if styles.count % 2 == 0 { newCard(answer: answer) }
-            }
-            .padding(.bottom, 8)
-            .dashFormCard()
+    /// 「＋ 添加润色风格 / 问答风格」：先加一条空的，直接进编辑页；什么都没填就返回时去掉（NewPromptCleanup）。
+    private func addStyle(answer: Bool) {
+        if answer {
+            let style = StylePreset(name: NewPromptCleanup.answerName, prompt: "")
+            store.settings.answerStyles.append(style)
+            editingAnswerStyle = style.id
+        } else {
+            let style = StylePreset(name: NewPromptCleanup.polishName, prompt: "")
+            store.settings.styles.append(style)
+            debugEditing = style.id
         }
-    }
-
-    /// 虚线「＋ 新建提示词 / 新建问答风格」：单数个时补在最后一格，双数个时占满一行。新建后直接进编辑页。
-    private func newCard(answer: Bool) -> some View {
-        Button {
-            if answer {
-                let style = StylePreset(name: L("新问答风格", "New answer style", "新しい回答スタイル"), prompt: "")
-                store.settings.answerStyles.append(style)
-                editingAnswerStyle = style.id
-            } else {
-                let style = StylePreset(name: L("新提示词", "New prompt", "新しいプロンプト"), prompt: "")
-                store.settings.styles.append(style)
-                debugEditing = style.id
-            }
-        } label: {
-            Text(answer ? L("＋ 新建问答风格", "+ New answer style", "＋ 回答スタイルを追加") : L("＋ 新建提示词", "+ New prompt", "＋ プロンプトを追加"))
-                .font(.system(size: 15.5, weight: .medium))
-                .foregroundStyle(DashColor.ai)
-                .frame(maxWidth: .infinity, minHeight: 74)
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Color(.systemGray3), style: StrokeStyle(lineWidth: 1.2, dash: [5, 4])))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     /// 键盘「去开启」：切到问答页，滚到「联网搜索」。
@@ -476,7 +438,7 @@ struct AIView: View {
         case "missing":
             store.settings.styles.removeAll { $0.name == "正式" || $0.name == "结构" }
         case "empty":
-            let blank = StylePreset(name: L("新提示词", "New prompt", "新しいプロンプト"), prompt: "")
+            let blank = StylePreset(name: NewPromptCleanup.polishName, prompt: "")
             store.settings.styles.append(blank)
             debugEditing = blank.id
         case "optimized":
@@ -489,116 +451,8 @@ struct AIView: View {
     #endif
 }
 
-/// AI › 润色页的提示词（原提示词页「改写」那页）：列表、勾选、添加、删掉的预设、恢复默认；左滑删除，「编辑」拖动排序，顺序就是键盘紫色风格键里的顺序。
-struct PolishPromptSections: View {
-    @Binding var settings: EnclaveSettings
-    @State private var confirmReset = false
-
-    var body: some View {
-        Section {
-            ForEach($settings.styles) { $style in
-                NavigationLink {
-                    StyleEditor(style: $style, settings: $settings)
-                } label: {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text(style.displayName).font(.body)
-                                if style.id == settings.selectedStyle?.id {
-                                    DashTag(text: L("默认", "Default", "デフォルト"), color: DashColor.ai)
-                                }
-                            }
-                            Text(Self.summary(style))
-                                .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        Spacer(minLength: 8)
-                        Text(L("\(UsageStats.week("polish.style.\(style.id.uuidString)")) 次", "\(UsageStats.week("polish.style.\(style.id.uuidString)"))×", "\(UsageStats.week("polish.style.\(style.id.uuidString)")) 回"))
-                            .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-                    }
-                    .padding(.vertical, 2)
-                    // 分隔线都从名字左边开始，不要有的通栏。
-                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
-                }
-            }
-            .onDelete { settings.styles.remove(atOffsets: $0) }
-            .onMove { settings.styles.move(fromOffsets: $0, toOffset: $1) }
-        } header: {
-            HStack {
-                Text(L("提示词 · 点 ✨ 时用当前这条", "Prompts · ✨ uses the current one", "プロンプト・✨ で今のものを使う"))
-                Spacer()
-                // 系统的编辑按钮（PH2 挪到分组标题右边）：自己管 editMode 时拖过一次后再拖、点 ⊖ 都没反应。
-                EditButton()
-                    .font(.system(size: 15))
-                    .tint(DashColor.ai)
-                    .environment(\.locale, Loc.locale)
-                    .textCase(nil)
-            }
-        } footer: {
-            Text(L("顺序就是键盘「\(settings.selectedStyle?.displayName ?? "润色") ▾」里的顺序。次数是本周的。",
-                   "This is the order in the keyboard's \(settings.selectedStyle?.displayName ?? "Polish") ▾ menu. Counts are for this week.",
-                   "キーボードの「\(settings.selectedStyle?.displayName ?? "整える") ▾」もこの順番です。回数は今週の分です。"))
-        }
-
-        if !missingDefaults.isEmpty {
-            Section {
-                ForEach(missingDefaults) { preset in
-                    Button {
-                        // 换个新 id：本周次数从 0 算，不和删掉的那条混在一起。
-                        settings.styles.append(StylePreset(name: preset.name, prompt: preset.prompt))
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(preset.displayName).font(.body).foregroundStyle(Color.primary)
-                                Text(Self.summary(preset)).font(.footnote).foregroundStyle(Color.secondary).lineLimit(1)
-                            }
-                            Spacer(minLength: 8)
-                            Label(L("加回", "Restore", "戻す"), systemImage: "arrow.uturn.backward")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(DashColor.ai)
-                        }
-                        .contentShape(Rectangle())
-                        // 分隔线从名字左边开始，和「全部提示词」一样。
-                        .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
-                    }
-                    // 只有「↶ 加回」是紫色，名字和说明跟上面的列表一样黑、灰。
-                    .buttonStyle(.plain)
-                }
-            } header: {
-                Text(L("删掉的预设", "Deleted presets", "削除したプリセット"))
-            } footer: {
-                Text(L("加回到列表最后，内容是默认的；你自己的提示词不受影响。", "Adds it back at the end with its default text. Your own prompts stay as they are.", "デフォルトの内容でリストの最後に戻します。自分のプロンプトはそのままです。"))
-            }
-        }
-        Section {
-            Button {
-                settings.styles.append(StylePreset(name: L("新提示词", "New prompt", "新しいプロンプト"), prompt: ""))
-            } label: {
-                Label(L("添加提示词", "Add prompt", "プロンプトを追加"), systemImage: "plus")
-            }
-        }
-        Section {
-            Button(L("恢复默认提示词", "Restore default prompts", "デフォルトのプロンプトに戻す")) { confirmReset = true }
-                .confirmationDialog(L("恢复成默认的 5 条提示词？你改过和添加的会被删掉。", "Restore the 5 default prompts? Prompts you changed or added will be removed.", "デフォルトの 5 つのプロンプトに戻しますか？変更・追加したものは削除されます。"), isPresented: $confirmReset, titleVisibility: .visible) {
-                    Button(L("恢复默认提示词", "Restore default prompts", "デフォルトのプロンプトに戻す"), role: .destructive) {
-                        settings.styles = StylePreset.defaults
-                        settings.selectedStyleID = nil
-                    }
-                }
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-                .listRowBackground(Color.clear)
-        }
-    }
-
-    /// 自带的 5 条里被删掉的：名字和内容都找不到了才算（改了名或改了内容的还在列表里）。
-    /// 「润色」默认内容为空：列表里还有任何一条内容为空就算没删，免得改名后加回变成两条空的。
-    private var missingDefaults: [StylePreset] {
-        StylePreset.defaults.filter { preset in
-            !settings.styles.contains { $0.name == preset.name || $0.prompt == preset.prompt }
-        }
-    }
-
+/// 润色风格一行下面的一句说明（列表和下拉共用）。
+enum PolishPromptSections {
     /// 一句说明：自带的 5 条用固定的说明，自己加的显示提示词内容。
     static func summary(_ style: StylePreset) -> String {
         if let builtIn = StyleSuggestions.builtIn(style), builtIn.prompt == style.prompt {
@@ -615,64 +469,8 @@ struct PolishPromptSections: View {
     }
 }
 
-/// AI › 问答页的问答风格（原提示词页问答那页）：列表、添加。存储都是 StylePreset。
-struct AnswerStyleSections: View {
-    @Binding var settings: EnclaveSettings
-
-    var body: some View {
-        Section {
-            ForEach($settings.answerStyles) { $style in
-                NavigationLink {
-                    AnswerStyleEditor(style: $style, settings: $settings)
-                } label: {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text(style.displayName).font(.body)
-                                if style.id == settings.selectedAnswerStyle?.id {
-                                    DashTag(text: L("默认", "Default", "デフォルト"), color: AnswerColor.text)
-                                }
-                            }
-                            Text(style.prompt.isEmpty ? Self.answerFallback : style.prompt)
-                                .font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        Spacer(minLength: 8)
-                        Text(L("\(UsageStats.week("answer.style.\(style.id.uuidString)")) 次", "\(UsageStats.week("answer.style.\(style.id.uuidString)"))×", "\(UsageStats.week("answer.style.\(style.id.uuidString)")) 回"))
-                            .font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-                    }
-                    .padding(.vertical, 2)
-                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
-                }
-            }
-            .onDelete { offsets in
-                guard settings.answerStyles.count > offsets.count else { return }
-                settings.answerStyles.remove(atOffsets: offsets)
-            }
-            .onMove { settings.answerStyles.move(fromOffsets: $0, toOffset: $1) }
-        } header: {
-            HStack {
-                Text(L("问答风格", "Answer styles", "回答スタイル"))
-                Spacer()
-                EditButton()
-                    .font(.system(size: 15))
-                    .tint(DashColor.ai)
-                    .environment(\.locale, Loc.locale)
-                    .textCase(nil)
-            }
-        } footer: {
-            Text(L("顺序就是键盘 AI 栏蓝色那颗里的顺序。次数是本周的。都能改名、改内容；内容空着就按「简短直接，几句话说清楚」回答。",
-                   "This is the order in the blue key on the keyboard's AI bar. Counts are for this week. Rename or rewrite any of them; an empty one answers briefly and directly.",
-                   "キーボードの AI バーの青いキーもこの順番です。回数は今週の分です。名前も内容も変えられます。内容が空なら「短く率直に」答えます。"))
-        }
-        Section {
-            Button {
-                settings.answerStyles.append(StylePreset(name: L("新问答风格", "New answer style", "新しい回答スタイル"), prompt: ""))
-            } label: {
-                Label(L("添加问答风格", "Add answer style", "回答スタイルを追加"), systemImage: "plus")
-            }
-        }
-    }
-
+/// 问答风格内容空着时的说明。
+enum AnswerStyleSections {
     static let answerFallback = L("简短直接，几句话说清楚", "Brief and direct, in a few sentences", "短く率直に、数文で")
 }
 
@@ -724,7 +522,7 @@ struct StyleEditor: View {
             } header: {
                 Text(L("名称", "Name", "名前"))
             } footer: {
-                Text(L("显示在键盘 ✨ 旁边，四个字以内最好。", "Shown next to ✨ on the keyboard. Keep it short.", "キーボードの ✨ の横に表示されます。短めがおすすめです。"))
+                Text(L("显示在键盘 ✨ 旁边和「润色风格 ⌄」的下拉里，四个字以内最好。", "Shown next to ✨ on the keyboard and in its polish style ⌄ menu. Keep it short.", "キーボードの ✨ の横と「整えるスタイル ⌄」のメニューに表示されます。短めがおすすめです。"))
             }
             Section {
                 TextEditor(text: $style.prompt)
@@ -739,14 +537,14 @@ struct StyleEditor: View {
                                 .allowsHitTesting(false)
                         }
                     }
-                optimizeButton
+                PromptOptimizeButton(optimizer: optimizer, prompt: style.prompt, name: style.displayName, answer: false)
             } header: {
                 Text(L("提示词内容", "Prompt", "プロンプトの内容"))
             } footer: {
                 Text(L("写清楚场景和要求，什么都可以写，比如「翻成日语，发给客户，客气一点」。每次点 ✨ 都会带上。", "Describe the situation and what you want. Anything goes, like \"translate into Japanese for a client, keep it polite\". It's sent every time you tap ✨.", "場面と要望をはっきり書きます。何でも書けます（例：「日本語に訳して、お客様向けに丁寧に」）。✨ をタップするたびに送られます。"))
             }
             if let result = optimizer.result {
-                optimizedSection(result)
+                PromptOptimizedSection(optimizer: optimizer, result: result, prompt: $style.prompt)
             }
             Section {
                 VStack(alignment: .leading, spacing: 10) {
@@ -770,9 +568,9 @@ struct StyleEditor: View {
                     Button(L("恢复这条的默认内容", "Restore default text", "元の内容に戻す")) { style.prompt = builtIn.prompt }
                         .disabled(style.prompt == builtIn.prompt)
                 }
-                Button(L("设为默认提示词", "Set as default", "デフォルトにする")) { settings.selectedStyleID = style.id }
+                Button(L("设为默认润色风格", "Set as default", "デフォルトにする")) { settings.selectedStyleID = style.id }
                     .disabled(settings.selectedStyle?.id == style.id)
-                Button(L("删除这条提示词", "Delete prompt", "このプロンプトを削除"), role: .destructive) {
+                Button(L("删除这条润色风格", "Delete polish style", "この整えるスタイルを削除"), role: .destructive) {
                     let id = style.id
                     dismiss()
                     // 先退回列表再删，免得正在显示的编辑页绑定到已删除的项。
@@ -784,7 +582,7 @@ struct StyleEditor: View {
                 .disabled(settings.styles.count <= 1)
             }
         }
-        .navigationTitle(L("编辑提示词", "Edit prompt", "プロンプトを編集"))
+        .navigationTitle(L("编辑润色风格", "Edit polish style", "整えるスタイルを編集"))
         .doneEditingButton(editingPrompt)
         .navigationBarTitleDisplayMode(.inline)
         .onDisappear { optimizer.cancel() }
@@ -798,49 +596,78 @@ struct StyleEditor: View {
         }
         #endif
     }
+}
 
-    // MARK: AI 优化
+// MARK: - AI 优化（润色风格 PR2、问答风格 PT4 共用）
 
-    /// 提示词框下面一行：「✨ AI 优化」，生成中显示转圈，出错写一行红字。
-    private var optimizeButton: some View {
-        let empty = style.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+/// 提示词框下面一行：「✨ AI 优化」，生成中显示转圈，出错写一行红字。
+/// 问答风格（PT4）：第一次带橙色「新」小标签，下面一行灰字说明。
+struct PromptOptimizeButton: View {
+    @ObservedObject var optimizer: PromptOptimizer
+    let prompt: String
+    let name: String
+    let answer: Bool
+    @EnvironmentObject private var store: AppStore
+    @AppStorage("answerOptimizeSeen") private var answerOptimizeSeen = false
+
+    var body: some View {
+        let empty = prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         // 按钮和下面的说明 / 红字放在同一行里上下排，中间不要分隔线。
-        return VStack(alignment: .leading, spacing: 4) {
-        Button {
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-            if optimizer.running {
-                optimizer.cancel()
-            } else {
-                optimizer.run(name: style.displayName, prompt: style.prompt, settings: store.settings, apiKey: store.apiKey)
-            }
-        } label: {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                if answer { answerOptimizeSeen = true }
                 if optimizer.running {
-                    ProgressView().controlSize(.small)
-                    Text(L("AI 正在优化…点一下取消", "Optimizing… tap to cancel", "AI が最適化中…タップでキャンセル"))
+                    optimizer.cancel()
                 } else {
-                    Image(systemName: "sparkles")
-                    Text(L("AI 优化提示词", "Improve with AI", "AI で改善"))
+                    optimizer.run(name: name, prompt: prompt, answer: answer, settings: store.settings, apiKey: store.apiKey)
                 }
+            } label: {
+                HStack(spacing: 6) {
+                    if optimizer.running {
+                        ProgressView().controlSize(.small)
+                        Text(L("AI 正在优化…点一下取消", "Optimizing… tap to cancel", "AI が最適化中…タップでキャンセル"))
+                    } else {
+                        Image(systemName: "sparkles")
+                        Text(answer ? L("AI 优化", "Improve with AI", "AI で改善") : L("AI 优化提示词", "Improve with AI", "AI で改善"))
+                        if answer && !answerOptimizeSeen {
+                            Text(L("新", "New", "新"))
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(Color.orange))
+                        }
+                    }
+                }
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(empty && !optimizer.running ? Color.secondary : AppColor.deepPurple)
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(empty && !optimizer.running ? Color.secondary : AppColor.deepPurple)
-        }
-        .disabled(empty && !optimizer.running)
-        .buttonStyle(.borderless)
-        if empty && !optimizer.running {
-            Text(L("先写几个字，AI 再帮你改清楚", "Write a few words first, then AI can sharpen it", "数文字書いてから AI で整えられます"))
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-        }
-        if let error = optimizer.error {
-            Text(error).font(.footnote).foregroundStyle(.red)
-        }
+            .disabled(empty && !optimizer.running)
+            .buttonStyle(.borderless)
+            if empty && !optimizer.running {
+                Text(L("先写几个字，AI 再帮你改清楚", "Write a few words first, then AI can sharpen it", "数文字書いてから AI で整えられます"))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            } else if answer && !optimizer.running && optimizer.error == nil {
+                Text(L("让 AI 把这段要求改得更清楚，和润色提示词一样", "Let AI make these instructions clearer, just like polish prompts", "整えるプロンプトと同じく、AI がこの指示をわかりやすくします"))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+            if let error = optimizer.error {
+                Text(error).font(.footnote).foregroundStyle(.red)
+            }
         }
     }
+}
 
-    /// AI 给的结果：优化后的整段（「用这一版」替换掉现在的），下面几条还能补的要求（点一下加进去）。
-    private func optimizedSection(_ result: PromptOptimizer.Result) -> some View {
+/// AI 给的结果：优化后的整段（「用这一版」替换掉现在的），下面几条还能补的要求（点一下加进去）。
+struct PromptOptimizedSection: View {
+    @ObservedObject var optimizer: PromptOptimizer
+    let result: PromptOptimizer.Result
+    @Binding var prompt: String
+
+    var body: some View {
         Section {
             Text(result.prompt)
                 .font(.body)
@@ -851,7 +678,7 @@ struct StyleEditor: View {
                 .listRowSeparator(.hidden)
             HStack(spacing: 12) {
                 Button(L("用这一版", "Use this", "これを使う")) {
-                    style.prompt = result.prompt
+                    prompt = result.prompt
                     optimizer.result = nil
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -879,12 +706,12 @@ struct StyleEditor: View {
                 Text(L("AI 优化结果", "AI suggestion", "AI の提案"))
             }
         } footer: {
-            Text(L("「用这一版」会换掉上面的提示词内容；下面的建议点一下加进这一版。", "\"Use this\" replaces the prompt above. Tap a suggestion to add it to this version.", "「これを使う」で上のプロンプトを置き換えます。下の候補はタップでこの案に追加します。"))
+            Text(L("「用这一版」会换掉上面的内容；下面的建议点一下加进这一版。", "\"Use this\" replaces the text above. Tap a suggestion to add it to this version.", "「これを使う」で上の内容を置き換えます。下の候補はタップでこの案に追加します。"))
         }
     }
 }
 
-/// 编辑提示词页的「AI 优化」：把名称和提示词发给接口页配置的模型，让它改得更清楚具体，另给几条能补的要求。
+/// 编辑页的「AI 优化」：把名称和提示词（问答风格的「怎么回答」）发给接口页配置的模型，让它改得更清楚具体，另给几条能补的要求。
 @MainActor
 final class PromptOptimizer: ObservableObject {
     struct Result: Equatable {
@@ -897,7 +724,7 @@ final class PromptOptimizer: ObservableObject {
     @Published private(set) var error: String?
     private var task: Task<Void, Never>?
 
-    func run(name: String, prompt: String, settings: EnclaveSettings, apiKey: String) {
+    func run(name: String, prompt: String, answer: Bool = false, settings: EnclaveSettings, apiKey: String) {
         error = nil
         result = nil
         // 没同意隐私政策、没配置接口、到期后今天次数用完，都不发请求。
@@ -915,7 +742,7 @@ final class PromptOptimizer: ObservableObject {
         }
         running = true
         let client = LLMClient(settings: settings, apiKey: apiKey)
-        let messages = Self.messages(name: name, prompt: prompt)
+        let messages = Self.messages(name: name, prompt: prompt, answer: answer)
         let start = Date()
         task = Task { [weak self] in
             var raw = ""
@@ -949,7 +776,8 @@ final class PromptOptimizer: ObservableObject {
         running = false
     }
 
-    static func messages(name: String, prompt: String) -> [ChatMessage] {
+    static func messages(name: String, prompt: String, answer: Bool = false) -> [ChatMessage] {
+        if answer { return answerMessages(name: name, prompt: prompt) }
         let system = """
         你是提示词编辑助手。用户在输入法里给「AI 润色」功能写了一条提示词，每次润色时它会和要改的那段文字一起发给模型。
         帮用户把这条提示词改得更清楚、具体、能照着做：
@@ -965,6 +793,25 @@ final class PromptOptimizer: ObservableObject {
         - （一条要求）
         """
         return [.system(system), .user("名称：\(name)\n提示词：\(prompt)")]
+    }
+
+    /// 问答风格（PT4）：把这段问答风格要求改清楚；建议用问答的（附上出处、不超过三句、举个例子、用中文回答…）。
+    static func answerMessages(name: String, prompt: String) -> [ChatMessage] {
+        let system = """
+        你是提示词编辑助手。用户在输入法里给「AI 问答」功能写了一段问答风格要求，每次提问时它会和问题一起发给模型，规定模型怎么回答。
+        帮用户把这段问答风格要求改得更清楚、具体、能照着做：
+        - 保持用户原来的意图和语言（用户写中文就用中文，写英文就用英文），不要加用户没提过的新要求；
+        - 写成给模型的指令，一两句话到一小段，不超过 150 字，不用 markdown、不用标题；
+        - 只说怎么回答（长短、结构、语气、要不要举例或给出处），不要写「请回答下面的问题」这类开头，问题会另外附上。
+        另外给 2 到 4 条用户还可以补充的回答要求，比如「附上出处」「不超过三句」「举个例子」「用中文回答」，每条 12 个字以内，能直接接在后面。
+        严格按这个格式输出，不要别的内容：
+        【优化后】
+        （优化后的问答风格要求）
+        【建议】
+        - （一条要求）
+        - （一条要求）
+        """
+        return [.system(system), .user("名称：\(name)\n问答风格要求：\(prompt)")]
     }
 
     /// 取出「【优化后】」和「【建议】」两段；没有「【优化后】」就当失败。
@@ -1123,6 +970,7 @@ struct AnswerStyleEditor: View {
     @Binding var style: StylePreset
     @Binding var settings: EnclaveSettings
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var optimizer = PromptOptimizer()
     @FocusState private var editingPrompt: Bool
 
     private var builtIn: StylePreset? { StylePreset.answerDefaults.first { $0.name == style.name } }
@@ -1134,7 +982,7 @@ struct AnswerStyleEditor: View {
             } header: {
                 Text(L("名称", "Name", "名前"))
             } footer: {
-                Text(L("显示在键盘 AI 栏蓝色那颗上，四个字以内最好。", "Shown on the blue key in the keyboard's AI bar. Keep it short.", "キーボードの AI バーの青いキーに表示されます。短めがおすすめです。"))
+                Text(L("显示在键盘「问答 ⌄」的下拉里；问答键上固定写「问答」。", "Shown in the keyboard's Ask ⌄ menu. The key itself always reads Ask.", "キーボードの「質問 ⌄」のメニューに表示されます。キーには常に「質問」と表示されます。"))
             }
             Section {
                 TextEditor(text: $style.prompt)
@@ -1149,10 +997,14 @@ struct AnswerStyleEditor: View {
                                 .allowsHitTesting(false)
                         }
                     }
+                PromptOptimizeButton(optimizer: optimizer, prompt: style.prompt, name: style.displayName, answer: true)
             } header: {
                 Text(L("怎么回答", "How to answer", "答え方"))
             } footer: {
                 Text(L("每次问答都会带上，比如「先给结论，一般不超过三句」。空着就按「简短直接，几句话说清楚」回答。只管问答，改写不受影响。", "Sent with every question, e.g. \"lead with the answer, three sentences at most\". Empty means brief and direct. Rewrites aren't affected.", "質問のたびに送られます（例：「結論から、3文以内で」）。空なら短く率直に答えます。書き換えには影響しません。"))
+            }
+            if let result = optimizer.result {
+                PromptOptimizedSection(optimizer: optimizer, result: result, prompt: $style.prompt)
             }
             Section {
                 if let builtIn {
@@ -1174,5 +1026,6 @@ struct AnswerStyleEditor: View {
         }
         .navigationTitle(L("编辑问答风格", "Edit answer style", "回答スタイルを編集"))
         .doneEditingButton(editingPrompt)
+        .onDisappear { optimizer.cancel() }
     }
 }

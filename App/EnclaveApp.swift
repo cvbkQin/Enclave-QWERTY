@@ -87,9 +87,9 @@ struct EnclaveApp: App {
                         router.tab = .settings
                     // 键盘提示卡「去解锁」。
                     case "unlock": router.openSettings(.unlock)
-                    // 键盘风格一排最右的「+」：AI › 提示词。
+                    // AI › 提示词（问答风格那一栏用 prompts-answer）。
                     case "prompts", "prompts-answer":
-                        router.openAI(prompts: true)
+                        router.openAI(prompts: true, answerStyles: url.host == "prompts-answer")
                     case "common-words":
                         router.openKeyboard(.commonWords)
                     case "history":
@@ -187,12 +187,16 @@ final class AppRouter: ObservableObject {
     /// 历史标签里的二级页：一条记录的详情、历史记录设置。
     enum HistoryPage: Hashable { case detail(String), settings }
 
-    /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮、最近 20 次、管理提示词 / 问答风格。
-    enum AIPage: Hashable { case api(answer: Bool), resultKey, recent(answer: Bool), manage(answer: Bool) }
+    /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮、最近 20 次。
+    enum AIPage: Hashable { case api(answer: Bool), resultKey, recent(answer: Bool) }
 
     /// AI 标签顶上的「接口 | 提示词」（第 51 条）。不存：每次冷启动停在「接口」，后台切回来保持当时那个。
     enum AISegment: Hashable { case api, prompts }
     @Published var aiSegment: AISegment = .api
+
+    /// 「提示词」下面的「润色风格 | 问答风格」（第 54 条）。不存：冷启动停在「润色风格」，后台切回来保持当时那个。
+    enum PromptKind: Hashable { case polish, answer }
+    @Published var promptKind: PromptKind = .polish
 
     @Published var tab: Tab = .home { didSet { markScreen() } }
     /// 界面语言，改了马上存进 App Group，整个界面按新语言重画（导航位置保留）。
@@ -328,14 +332,12 @@ final class AppRouter: ObservableObject {
             case "resultKey":
                 openAI()
                 aiPath.append(AIPage.resultKey)
-            // 截图：AI › 提示词、最近 20 次、管理提示词 / 问答风格。
-            case "ai-prompts": openAI(prompts: true)
+            // 截图：AI › 提示词（润色风格 / 问答风格）、最近 20 次。manage 是以前的管理页，现在就地编辑，进同一页。
+            case "ai-prompts", "manage": openAI(prompts: true)
+            case "ai-prompts-answer", "manage-answer": openAI(prompts: true, answerStyles: true)
             case "recent", "recent-answer":
                 openAI()
                 aiPath.append(AIPage.recent(answer: name == "recent-answer"))
-            case "manage", "manage-answer":
-                openAI(prompts: true)
-                aiPath.append(AIPage.manage(answer: name == "manage-answer"))
             default:
                 if let page = KeyboardPage(rawValue: name) {
                     openKeyboard(page)
@@ -375,8 +377,9 @@ final class AppRouter: ObservableObject {
 
     /// 跳到 AI 标签：默认「接口」，prompts 时「提示词」；detail 再推入润色（answer 时问答）接口详情。
     /// sharedAnswer：问答和润色用同一个接口，问答没有自己的详情，进润色的。
-    func openAI(answer: Bool = false, detail: Bool = false, sharedAnswer: Bool = false, prompts: Bool = false) {
+    func openAI(answer: Bool = false, detail: Bool = false, sharedAnswer: Bool = false, prompts: Bool = false, answerStyles: Bool = false) {
         aiSegment = prompts ? .prompts : .api
+        if prompts { promptKind = answerStyles ? .answer : .polish }
         aiPath = NavigationPath()
         if detail { aiPath.append(AIPage.api(answer: answer && !sharedAnswer)) }
         tab = .ai

@@ -33,7 +33,7 @@ struct StyleKey: View {
             }
             .opacity(locked ? 0.45 : 1)
             .background(GeometryReader { geometry in
-                Color.clear.preference(key: RowChipEdgeKey.self, value: [row: geometry.frame(in: .named("keyboard")).midX])
+                Color.clear.preference(key: RowChipFrameKey.self, value: [row: geometry.frame(in: .named("keyboard"))])
             })
             // 点按区上下各扩 5pt。
             .padding(.vertical, 5)
@@ -41,7 +41,7 @@ struct StyleKey: View {
             .padding(.vertical, -5)
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel((answer ? L("问答风格", "Answer style", "回答スタイル") : L("改写风格", "Rewrite style", "書き換えスタイル")) + "：" + Self.title(model, answer: answer))
+        .accessibilityLabel((answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル")) + "：" + Self.title(model, answer: answer))
         .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
     }
 
@@ -96,10 +96,9 @@ struct StyleKey: View {
         return session.currentIsAnswer == answer
     }
 
+    /// 润色键写当前润色风格的名字；问答键固定写「问答」，不写风格名（KB1）。
     static func title(_ model: KeyboardModel, answer: Bool) -> String {
-        if answer {
-            return model.settings.selectedAnswerStyle?.displayName ?? L("直击要害", "To the point", "要点だけ")
-        }
+        if answer { return L("问答", "Ask", "質問") }
         return model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
     }
 }
@@ -127,139 +126,104 @@ struct StyleKeySpots: View {
     }
 }
 
-/// 两颗风格键的中线（键盘坐标），尖角按它对齐。
-struct RowChipEdgeKey: PreferenceKey {
-    static var defaultValue: [KeyboardModel.AIRow: CGFloat] = [:]
-    static func reduce(value: inout [KeyboardModel.AIRow: CGFloat], nextValue: () -> [KeyboardModel.AIRow: CGFloat]) {
+/// 两颗风格键在键盘里的位置（键盘坐标），下拉框从它下面弹出。
+struct RowChipFrameKey: PreferenceKey {
+    static var defaultValue: [KeyboardModel.AIRow: CGRect] = [:]
+    static func reduce(value: inout [KeyboardModel.AIRow: CGRect], nextValue: () -> [KeyboardModel.AIRow: CGRect]) {
         value.merge(nextValue()) { $1 }
     }
 }
 
-// MARK: - 往上展开的那一行（QA2、QA14）
+// MARK: - 风格下拉框（KB1、KB2）
 
-/// 抽屉收着时点风格键：整宽、高 42、圆角 12 的白框（深色 #4A4A4C），1.5pt 模式色内描边；底边伸出一个小尖角对准下面那颗键。
-struct AIRowPanel: View {
+/// 点润色键或问答键的 ⌄：往下弹的下拉框，盖在按键上。宽 196、圆角 12、卡片底色、阴影 0 8 24 rgba(30,40,80,.22)。
+/// 小标题「润色风格」/「问答风格」11.5 灰；每项高 36、字 15，当前那条浅紫底 + 主色 600 + ✓。顺序就是 App 列表里的顺序。
+/// 回答卡收起和展开都一样；点一条就换、框收起。
+struct StyleDropdown: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
-    /// 尖角中心在这一行里的横坐标。
-    var arrowX: CGFloat
+    /// 键盘里往下还剩多高，放不下时里面滚动。
+    var maxHeight: CGFloat
 
-    var body: some View {
-        StyleRow(model: model, row: row)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(AIRowBubble(arrowX: arrowX).fill(Brand.rowFill))
-            .overlay(AIRowBubble(arrowX: arrowX, inset: 0.75)
-                .stroke(row == .answerStyles ? Brand.answerBorder : Brand.rewriteRing, lineWidth: 1.5).allowsHitTesting(false))
-    }
-}
-
-/// 圆角矩形加底边的小尖角：宽 20、高 7.5，两侧平滑曲线、尖端圆润，左右两端水平切入底边。
-/// 尖角画在框外面（框高还是 42），填充和描边都是同一条路径，看起来是框长出来的。
-struct AIRowBubble: Shape {
-    var arrowX: CGFloat
-    var inset: CGFloat = 0
-
-    func path(in rect: CGRect) -> Path {
-        let r = rect.insetBy(dx: inset, dy: inset)
-        let radius = 12 - inset
-        let half: CGFloat = 10, height: CGFloat = 7.5 - inset
-        let x = min(max(arrowX, r.minX + radius + half), r.maxX - radius - half)
-        var path = Path()
-        path.move(to: CGPoint(x: r.minX + radius, y: r.minY))
-        path.addLine(to: CGPoint(x: r.maxX - radius, y: r.minY))
-        path.addArc(tangent1End: CGPoint(x: r.maxX, y: r.minY), tangent2End: CGPoint(x: r.maxX, y: r.minY + radius), radius: radius)
-        path.addLine(to: CGPoint(x: r.maxX, y: r.maxY - radius))
-        path.addArc(tangent1End: CGPoint(x: r.maxX, y: r.maxY), tangent2End: CGPoint(x: r.maxX - radius, y: r.maxY), radius: radius)
-        // 底边从右往左，到尖角处鼓出去。
-        let b = r.maxY
-        path.addLine(to: CGPoint(x: x + half, y: b))
-        path.addCurve(to: CGPoint(x: x + 1.8, y: b + height - 0.9),
-                      control1: CGPoint(x: x + 5, y: b), control2: CGPoint(x: x + 3.4, y: b + height - 2.6))
-        path.addQuadCurve(to: CGPoint(x: x - 1.8, y: b + height - 0.9), control: CGPoint(x: x, y: b + height + 0.9))
-        path.addCurve(to: CGPoint(x: x - half, y: b),
-                      control1: CGPoint(x: x - 3.4, y: b + height - 2.6), control2: CGPoint(x: x - 5, y: b))
-        path.addLine(to: CGPoint(x: r.minX + radius, y: b))
-        path.addArc(tangent1End: CGPoint(x: r.minX, y: b), tangent2End: CGPoint(x: r.minX, y: b - radius), radius: radius)
-        path.addLine(to: CGPoint(x: r.minX, y: r.minY + radius))
-        path.addArc(tangent1End: CGPoint(x: r.minX, y: r.minY), tangent2End: CGPoint(x: r.minX + radius, y: r.minY), radius: radius)
-        path.closeSubpath()
-        return path
-    }
-}
-
-// MARK: - 风格一排（MG5）
-
-/// 一排风格小块横向可滑（左右内边 6、间距 6），右边 12% 渐隐；最右固定一个 28×28「＋」去 App 加。
-/// 点小块只换下一次用的风格，不重新调用接口；展开时选完换回识意框。
-struct StyleRow: View {
-    @ObservedObject var model: KeyboardModel
-    let row: KeyboardModel.AIRow
+    static let width: CGFloat = 196
+    private static let itemHeight: CGFloat = 36
+    private static let headerHeight: CGFloat = 26
 
     private var answer: Bool { row == .answerStyles }
 
     var body: some View {
         let styles = answer ? model.settings.answerStyles : model.settings.styles
         let selectedID = answer ? model.settings.selectedAnswerStyle?.id : model.settings.selectedStyle?.id
-        HStack(spacing: 0) {
+        let natural = Self.headerHeight + CGFloat(styles.count) * Self.itemHeight + 12
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル"))
+                .font(.system(size: 11.5))
+                .foregroundStyle(DropdownStyle.hint)
+                .padding(.horizontal, 10)
+                .frame(height: Self.headerHeight, alignment: .leading)
             ScrollViewReader { reader in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
                         ForEach(styles) { style in
-                            PromptTag(title: style.displayName, selected: style.id == selectedID, answer: answer) {
-                                answer ? model.selectAnswerStyle(style) : model.selectStyle(style)
-                            }
-                            .id(style.id)
+                            item(style, selected: style.id == selectedID).id(style.id)
                         }
                     }
-                    .padding(.horizontal, 6)
                 }
-                .hidingScrollEdgeEffect()
-                .mask(LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.88),
-                                             .init(color: .black.opacity(0), location: 1)],
-                                     startPoint: .leading, endPoint: .trailing))
-                .onAppear {
-                    if let selectedID { reader.scrollTo(selectedID, anchor: .center) }
-                }
+                .scrollDisabled(natural <= maxHeight)
+                .onAppear { if let selectedID, natural > maxHeight { reader.scrollTo(selectedID, anchor: .center) } }
             }
-            Button { model.openContainingApp(answer ? "enclave://prompts-answer" : "enclave://prompts") } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Brand.askClearIcon)
-                    .frame(width: 28, height: 28)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.tagFill))
-            }
-            .buttonStyle(KeyPressStyle())
-            .padding(.trailing, 6)
-            .accessibilityLabel(answer ? L("添加问答风格", "Add answer style", "回答スタイルを追加") : L("管理提示词", "Manage prompts", "プロンプトを管理"))
         }
+        .padding(6)
+        .frame(width: Self.width, height: max(Self.headerHeight + Self.itemHeight + 12, min(natural, maxHeight)), alignment: .top)
+        .background(shape.fill(DropdownStyle.fill)
+            .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8))
+        // 深色下和按键颜色接近：加一圈细边（和拼音键弹框一样）。
+        .overlay(shape.strokeBorder(DropdownStyle.stroke, lineWidth: 0.5))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル"))
+    }
+
+    private func item(_ style: StylePreset, selected: Bool) -> some View {
+        Button {
+            answer ? model.selectAnswerStyle(style) : model.selectStyle(style)
+        } label: {
+            HStack(spacing: 8) {
+                Text(style.displayName)
+                    .font(.system(size: 15, weight: selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? DropdownStyle.selectedText : DropdownStyle.text)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(DropdownStyle.selectedText)
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: Self.itemHeight)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(selected ? DropdownStyle.selectedFill : Color.clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 
-/// 风格小块：高 28、圆角 8、左右内边 10、14pt。没选 tagBg 底；当前那条模式色底、1pt 模式色内描边、粗体字、前面 12pt 勾。
-struct PromptTag: View {
-    var title: String
-    var selected: Bool
-    var answer = false
-    var action: () -> Void
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-        Button(action: action) {
-            HStack(spacing: 4) {
-                if selected { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)) }
-                Text(title).lineLimit(1)
-            }
-            .font(.system(size: 14, weight: selected ? .semibold : .regular))
-            .padding(.horizontal, 10)
-            .frame(height: 28)
-            .foregroundStyle(selected ? (answer ? Brand.modeAnswerText : Brand.chipOpenText) : Brand.tagLabel)
-            .background(shape.fill(selected ? (answer ? Brand.modeAnswerFill : Brand.chipOpenFill) : Brand.tagFill))
-            .overlay(shape.strokeBorder(answer ? Brand.answerBorder : Brand.rowStroke, lineWidth: selected ? 1 : 0))
-            .contentShape(shape)
+private enum DropdownStyle {
+    static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
+        func color(_ hex: UInt32) -> UIColor {
+            UIColor(red: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
     }
+    /// 浅色白底；深色 #5C5C60，比按键（#474749）亮一档，盖在按键上分得清（同拼音键弹框）。
+    static let fill = dynamic(0xFFFFFF, 0x5C5C60)
+    static let stroke = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.12) : .clear })
+    static let selectedFill = dynamic(0xECEAFD, 0x2E2766)
+    static let selectedText = dynamic(0x5B4BE8, 0xC9C1FF)
+    static let text = dynamic(0x1C1C1E, 0xFFFFFF)
+    static let hint = dynamic(0x8E8E93, 0xAEAEB2)
 }
 
 // MARK: - 识意框：问问题或提要求

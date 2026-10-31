@@ -358,7 +358,7 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: aiRow != nil, gate: gate,
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
                                freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide)
     }
@@ -1239,15 +1239,15 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    /// 换风格只换下一次用的那条，不重新调用接口；展开时选完换回识意框（MG5）。
+    /// 换风格只换下一次用的那条，不重新调用接口；选完下拉框收起（KB2）。
     func selectStyle(_ style: StylePreset) {
         updateSettings { $0.selectedStyleID = style.id }
-        if aiExpanded, aiRow != nil { aiRow = nil }
+        aiRow = nil
     }
 
     func selectAnswerStyle(_ style: StylePreset) {
         updateSettings { $0.selectedAnswerStyleID = style.id }
-        if aiExpanded, aiRow != nil { aiRow = nil }
+        aiRow = nil
     }
 
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {

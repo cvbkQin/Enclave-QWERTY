@@ -35,26 +35,9 @@ struct KeyboardView: View {
                         FreeEditToast().offset(y: -2).transition(.opacity).allowsHitTesting(false)
                     }
                 }
-                // 风格一排开着：整块底边伸出小尖角，指着下面被点的那颗风格键（MG5）。
-                .overlay(alignment: .bottomLeading) {
-                    if !freeEdit, let row = model.aiRow, let x = chipEdges[row] {
-                        StyleNotch(answer: row == .answerStyles)
-                            .frame(width: 20, height: 9)
-                            .offset(x: x - inset - 10, y: 9 - 0.75)
-                            .allowsHitTesting(false)
-                    }
-                }
                 .padding(.horizontal, inset)
                 .padding(.top, KeyboardMetrics.panelTop)
                 .zIndex(2)
-            }
-            if model.gate == nil, !model.aiExpanded, let row = model.aiRow {
-                // 尖角对准下面那颗风格键的中线。
-                AIRowPanel(model: model, row: row, arrowX: (chipEdges[row] ?? 0) - inset)
-                    .frame(height: KeyboardMetrics.aiRowHeight)
-                    .padding(.horizontal, inset)
-                    .padding(.top, KeyboardMetrics.panelTop)
-                    .padding(.bottom, KeyboardMetrics.aiRowGap)
             }
             if model.showsTrialReminder {
                 TrialReminderStrip(model: model)
@@ -128,6 +111,21 @@ struct KeyboardView: View {
         .background(boardBackground)
         // 使用指引「一键应用」后的小手指，画在键盘里面。
         .coachHandOverlay(model)
+        // 润色风格 / 问答风格的下拉框（KB1、KB2）：从被点的那颗键下面往下弹，盖在按键上；点框外收起，被盖住的键不响应。
+        .overlay(alignment: .topLeading) {
+            if let row = model.aiRow, let chip = chipFrames[row] {
+                GeometryReader { geo in
+                    let x = min(max(chip.minX, 4), geo.size.width - StyleDropdown.width - 4)
+                    let y = chip.maxY + 4
+                    ZStack(alignment: .topLeading) {
+                        Color.black.opacity(0.001)
+                            .onTapGesture { model.aiRow = nil }
+                        StyleDropdown(model: model, row: row, maxHeight: geo.size.height - y - 6)
+                            .offset(x: x, y: y)
+                    }
+                }
+            }
+        }
         // 键盘里拉不起 App 时（有的系统版本、有的 App 里不让）：请人自己打开。
         .overlay(alignment: .top) {
             if model.openAppFailed {
@@ -145,9 +143,9 @@ struct KeyboardView: View {
             }
         }
         .coordinateSpace(name: "keyboard")
-        .onPreferenceChange(RowChipEdgeKey.self) { edges in
+        .onPreferenceChange(RowChipFrameKey.self) { frames in
             // 打拼音时 AI 栏换成候选栏、按钮不在了，沿用上次的位置。
-            if !edges.isEmpty, edges != chipEdges { chipEdges = edges }
+            if !frames.isEmpty, frames != chipFrames { chipFrames = frames }
         }
         .clipped()
     }
@@ -185,8 +183,8 @@ struct KeyboardView: View {
         .ignoresSafeArea()
     }
 
-    /// 两颗风格键中线在键盘里的位置，尖角按它对齐。
-    @State private var chipEdges: [KeyboardModel.AIRow: CGFloat] = [:]
+    /// 两颗风格键在键盘里的位置，下拉框从它下面弹出。
+    @State private var chipFrames: [KeyboardModel.AIRow: CGRect] = [:]
 
     // MARK: - AI 栏
 
@@ -564,35 +562,6 @@ private struct HalfNeck: Shape {
 
 // MARK: - AI 栏的按钮
 
-/// 风格一排开着时整块底边的小尖角：20×9，块的底色填充、模式色 1.5pt 描边，上边和块的底边接在一起不描。
-struct StyleNotch: View {
-    var answer: Bool
-
-    var body: some View {
-        let ring = answer ? Brand.answerBorder : Brand.rewriteRing
-        ZStack {
-            NotchShape(closed: true).fill(KeyStyle.charKey)
-            NotchShape(closed: false).stroke(ring, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-        }
-    }
-
-    private struct NotchShape: Shape {
-        var closed: Bool
-        func path(in rect: CGRect) -> Path {
-            var path = Path()
-            let mid = rect.midX
-            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            path.addCurve(to: CGPoint(x: mid - 1.8, y: rect.maxY - 1),
-                          control1: CGPoint(x: rect.minX + 5, y: rect.minY), control2: CGPoint(x: mid - 3.4, y: rect.maxY - 3))
-            path.addQuadCurve(to: CGPoint(x: mid + 1.8, y: rect.maxY - 1), control: CGPoint(x: mid, y: rect.maxY + 0.8))
-            path.addCurve(to: CGPoint(x: rect.maxX, y: rect.minY),
-                          control1: CGPoint(x: mid + 3.4, y: rect.maxY - 3), control2: CGPoint(x: rect.maxX - 5, y: rect.minY))
-            if closed { path.closeSubpath() }
-            return path
-        }
-    }
-}
-
 /// 展开/收起 AI 面板（回答卡和识意框一整块 + 替换 / 插入），AI 栏最左边 44×34 的面板图标胶囊（方案 B）。
 /// 收起时有没看过的新结果：图标变紫、右上角紫点；展开时浅紫底紫描边，和选择器打开时一样。
 struct PanelToggleButton: View {
@@ -694,11 +663,14 @@ struct PolishButton: View {
                 } label: {
                     Color.clear.contentShape(Rectangle())
                 }
-                .accessibilityLabel(L("改写风格", "Rewrite style", "書き換えスタイル") + "：" + title)
+                .accessibilityLabel(L("润色风格", "Polish style", "整えるスタイル") + "：" + title)
                 .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
                 .background(GeometryReader { geometry in
-                    // 风格一排的尖角对准「润色 ▾」这半边。
-                    Color.clear.preference(key: RowChipEdgeKey.self, value: [.prompts: geometry.frame(in: .named("keyboard")).midX])
+                    // 下拉框和整颗的左边对齐：这半边往左再加上 ✨ 那半边。
+                    let frame = geometry.frame(in: .named("keyboard"))
+                    Color.clear.preference(key: RowChipFrameKey.self,
+                                           value: [.prompts: CGRect(x: frame.minX - Self.joinedSplit, y: frame.minY,
+                                                                    width: frame.width + Self.joinedSplit, height: frame.height)])
                 })
             }
             .buttonStyle(KeyPressStyle())
@@ -1430,17 +1402,11 @@ struct ResultCard: View {
         .overlay { border(look).allowsHitTesting(false) }
     }
 
-    /// 识意框，或者点了风格键时这一种的风格一排（MG5）。
-    /// 识意框激活：打字进识意框；风格一排开着时那一格也算激活（白底）。
-    private var askActive: Bool { model.target == .instruction || model.aiRow != nil }
+    /// 识意框激活：打字进识意框。选风格改成下拉框（KB2）后下半格一直是识意框。
+    private var askActive: Bool { model.target == .instruction }
 
-    @ViewBuilder
     private var lowerHalf: some View {
-        if let row = model.aiRow {
-            StyleRow(model: model, row: row)
-        } else {
-            AskField(model: model)
-        }
+        AskField(model: model)
     }
 
     /// 上半格：回答卡。
