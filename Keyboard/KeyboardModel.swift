@@ -791,6 +791,10 @@ final class KeyboardModel: ObservableObject {
             // 历史时间线：联网搜索开始的时间、是不是自动联网（没在键盘上问）。
             var searchAt: Date?
             var searchAuto: Bool?
+            // 换问答模型重问、联网、不联网改问：这几轮一定是问答。模型（尤其服务商自带联网）常常不写第一行「问答」，
+            // 这时不能按原来的 fallback（输入框有字就当改写）判成改写，标签和风格键都会错（#20）。
+            var answerLocked = ask?.forced == .answer
+            func decide(_ split: (answer: Bool, body: String)) -> AskMode { answerLocked || split.answer ? .answer : .rewrite }
             do {
                 while true {
                     raw = ""
@@ -826,10 +830,11 @@ final class KeyboardModel: ObservableObject {
                         let text = ModelOutput.clean(raw)
                         if let ask {
                             // 等第一行写出「改写 / 问答」再显示正文。
-                            guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer) else { continue }
-                            self.askDecided(split.answer ? .answer : .rewrite)
+                            guard let split = Prompts.splitAsk(text, final: false, fallback: ask.fallbackAnswer || answerLocked) else { continue }
+                            let kind = decide(split)
+                            self.askDecided(kind)
                             // 快模型判断是问答：停下，交给问答模型重新回答。
-                            if split.answer && mayHandOff { handOff = true; break }
+                            if kind == .answer && mayHandOff { handOff = true; break }
                             guard show || self.aiExpanded else { continue }
                             shownAt = now
                             self.streamingText = split.body
@@ -845,6 +850,7 @@ final class KeyboardModel: ObservableObject {
                     // 换问答模型重问也算一次问答；内置 Key 的问答次数用完就留着润色模型这一版。
                     if handOff, let ask, let answerClient, BuiltinAPI.take(.answer, key: handOffKey) {
                         mayHandOff = false
+                        answerLocked = true
                         client = answerClient
                         answeredByAnswerAPI = separateAnswer
                         messages = Prompts.ask(ask.question, context: ask.context, forceAnswer: true, search: maySearch,
@@ -853,6 +859,7 @@ final class KeyboardModel: ObservableObject {
                     }
                     guard wantsSearch, let ask, let provider = ask.search, let self else { break }
                     maySearch = false
+                    answerLocked = true
                     // 联网之后的回答也交给问答模型。
                     if let answerClient { client = answerClient; mayHandOff = false; answeredByAnswerAPI = separateAnswer }
                     // 联网的一定是问答：展开抽屉。三档：开且这一家同意过就直接联网，否则回答框里先问（禁止时提示去开启）。
@@ -900,9 +907,9 @@ final class KeyboardModel: ObservableObject {
                 }
                 guard let self else { return }
                 let cleaned = ModelOutput.clean(raw)
-                let split = ask.map { Prompts.splitAsk(cleaned, final: true, fallback: $0.fallbackAnswer) } ?? nil
+                let split = ask.map { Prompts.splitAsk(cleaned, final: true, fallback: $0.fallbackAnswer || answerLocked) } ?? nil
                 let result = split?.body ?? cleaned
-                if let split { self.askDecided(split.answer ? .answer : .rewrite) }
+                if let split { self.askDecided(decide(split)) }
                 if result.isEmpty {
                     self.errorMessage = L("模型没有返回内容。", "The model returned nothing.", "モデルから応答がありませんでした。")
                     self.endQuickMode(.failed)
@@ -910,7 +917,7 @@ final class KeyboardModel: ObservableObject {
                 } else {
                     record(ok: true)
                     // 问答页每条问答风格的本周次数。
-                    if split?.answer == true, let id = answerStyle?.id { DailyStats.add("answer.style.\(id.uuidString)"); DailyStats.flush() }
+                    if self.askKind == .answer, let id = answerStyle?.id { DailyStats.add("answer.style.\(id.uuidString)"); DailyStats.flush() }
                     // 试用结束后只有成功拿到结果才算一次；没网、报错、点停止都不算。
                     AIAccess.recordUse()
                     self.refreshAIAccess()
@@ -965,10 +972,10 @@ final class KeyboardModel: ObservableObject {
                     self.failureDetail = LLMFailure.detail(error, provider: provider)
                     // 已经出了字：保留已出的部分，不当整张出错卡（ER3）。
                     let shown = ModelOutput.clean(raw)
-                    let split = ask.flatMap { Prompts.splitAsk(shown, final: true, fallback: $0.fallbackAnswer) }
+                    let split = ask.flatMap { Prompts.splitAsk(shown, final: true, fallback: $0.fallbackAnswer || answerLocked) }
                     let partial = split?.body ?? shown
                     if !partial.isEmpty, !partial.hasPrefix("联网") {
-                        self.partialResult = (partial, split.map(\.answer))
+                        self.partialResult = (partial, split.map { decide($0) == .answer })
                     }
                     self.errorMessage = kind.title(provider: provider)
                     self.endQuickMode(.failed)
