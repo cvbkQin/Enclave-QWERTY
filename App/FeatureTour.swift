@@ -282,7 +282,7 @@ private struct TourStep {
                                 title: L("按住放大镜，上下拖动", "Hold the magnifier and slide", "虫めがねを長押しして上下にスライド"),
                                 detail: L("可预先指定处理方式：上滑为改写，下滑为问答，松手即执行。请按住放大镜向上拖动。", "Choose the mode in advance: slide up to rewrite, down to answer, and release to run. Hold the magnifier and slide up.", "上で書き換え、下で回答を指定し、指を離すと実行します。虫めがねを長押しして上にスライドしてください。"))
         case 7: return TourStep(chapter: .prompt, index: 1, total: 5,
-                                title: L("常用英文发消息？存成一条润色风格", "Write in Chinese often? Save it as a polish style", "英語でよく送るなら、整えるスタイルに保存"),
+                                title: L("常用英文发消息？存成一条润色风格", "Write in Chinese often? Save it as a style", "英語でよく送るなら、整えるスタイルに保存"),
                                 detail: L("不用每次都写「翻成英文」。点击「润色 ▾」右侧箭头，这里列的是你的润色风格，在 App 里加一条就会出现在这里。", "No need to type \"Translate into Chinese\" every time. Tap the arrow on Polish ▾. These are your polish styles; one you add in the app shows up here.", "毎回「英語に翻訳」と書かなくても大丈夫です。「整える ▾」の矢印をタップすると整えるスタイルが並びます。アプリで追加するとここに出ます。"))
         case 8: return TourStep(chapter: .prompt, index: 2, total: 5,
                                 title: L("在 App 里添加润色风格", "Add one in the app", "アプリで追加"),
