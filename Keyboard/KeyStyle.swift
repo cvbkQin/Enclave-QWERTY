@@ -37,8 +37,6 @@ enum KeyboardMetrics {
     /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 36 高（横屏 28，和原生差不多），平时空着，键盘总高不随打字变化。
     /// 竖屏收着时总高 36 + 44 + 216 = 296。
     static var pinyinRowHeight: CGFloat { landscape ? 28 : 36 }
-    /// 拼音在侧边（F12）时键盘最顶上那截渐变的高度：只够接上系统玻璃，不伸到按钮底下太多。
-    static var sideFadeHeight: CGFloat { landscape ? 8 : 12 }
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     static var topRow: CGFloat { landscape ? 34 : 44 }
