@@ -125,7 +125,7 @@ struct LabScene: Identifiable {
                  situation: L("客户催发货，你想道歉并给出明确时间。", "A customer is chasing a delivery. You want to apologize and give a clear time.",
                               "発送を急かすお客様に、お詫びとはっきりした日時を伝えたいときに。"),
                  text: "不好意思啊 仓库那边最近爆单了 明天肯定给你发出去 别退款了哈",
-                 steps: [L("提示词选「正式」，点 ✨", "Choose the Formal prompt and tap ✨", "プロンプトで「丁寧」を選び、✨ をタップ"),
+                 steps: [L("润色风格选「正式」，点 ✨", "Choose the Formal polish style and tap ✨", "整えるスタイルで「丁寧」を選び、✨ をタップ"),
                          L("直接改好；不满意点 ↶ 撤销", "The text is rewritten in place. Tap ↶ to undo", "そのまま書き換わります。↶ で元に戻せます")],
                  preset: Preset(style: "正式", instruction: "")),
         LabScene(id: 4, category: .social, mode: .replace, title: L("朋友圈文案", "Social post", "SNS の投稿"), icon: "camera",
@@ -265,7 +265,7 @@ struct LabView: View {
                             .fill(LinearGradient(colors: [Color(hex: 0x8A7BFF), Color(hex: 0x5B4BE8)], startPoint: .topLeading, endPoint: .bottomTrailing)))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("功能演示 · 约 4 分钟", "Feature Tour · About 4 min", "機能デモ · 約 4 分")).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                        Text(L("用模拟键盘把润色、改写、提示词、问答、分词插入点一遍，不调用 API", "Try Polish, Rewrite, Prompts, Answer and word picking on a simulated keyboard. No API calls", "模擬キーボードで整える・書き換え・プロンプト・回答・単語挿入を試せます。API は使いません")).font(.footnote).foregroundStyle(.secondary)
+                        Text(L("用模拟键盘把润色、改写、润色风格、问答、分词插入点一遍，不调用 API", "Try Polish, Rewrite, Polish styles, Answer and word picking on a simulated keyboard. No API calls", "模擬キーボードで整える・書き換え・整えるスタイル・回答・単語挿入を試せます。API は使いません")).font(.footnote).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 4)
@@ -565,7 +565,7 @@ struct SceneView: View {
                 .background(Capsule().fill((applied ? DashColor.ok : DashColor.ai).opacity(0.12)))
         }
         .buttonStyle(.plain)
-        .accessibilityHint(L("选好提示词并填好要求", "Picks the prompt and fills in the request", "プロンプトを選び、指示を入力します"))
+        .accessibilityHint(L("选好润色风格并填好要求", "Picks the polish style and fills in the request", "整えるスタイルを選び、指示を入力します"))
     }
 
     private func apply(_ preset: LabScene.Preset) {
