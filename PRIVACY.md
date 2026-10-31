@@ -92,12 +92,7 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 **卸载本应用后，上述信息将全部从设备上删除**（购买记录由 App Store 保存，重新安装后可恢复）。
 
-**备份与恢复：** 在“设置 › 数据 › 备份与恢复”中，您可以选择以下两种方式，两者都由您主动开启：
-
-1. **iCloud 同步：** 开启后，本应用把您的设置、常用词、提示词和拼音学习记录同步到**您自己的 iCloud 账户**（Apple 的 CloudKit 私有数据库）。AI 历史记录可选择是否同步，默认不同步。iCloud 同步**从不包含 API 密钥**，也不使用 iCloud 钥匙串；剪贴板记录也从不同步。
-2. **导出备份文件：** 备份文件存放的位置由您在系统文件选择器中选择，例如本机或 iCloud 云盘。备份文件默认包含设置、常用词、提示词和拼音学习记录；AI 历史记录默认不包含，可以勾选。备份文件**默认不包含 API 密钥**；如您主动勾选，密钥会用您设置的密码加密（PBKDF2 + AES-GCM）后写入备份文件，我们不保存这个密码，也无法帮您找回。剪贴板记录从不包含在备份文件中。
-
-备份数据保存在您自己的 iCloud 或您选择的位置，**我们的服务器接触不到**。上文所说的“设置”包括您保存的接口方案（服务商、地址、模型等，不含密钥）。购买状态和试用信息不进入备份或同步：购买可在新设备上通过“恢复购买”找回，试用期不会因恢复备份而重置或延长。您可以随时关闭 iCloud 同步，并在 iOS“设置 › Apple 账户 › iCloud”中管理或删除已同步的数据；备份文件由您自行保管和删除。
+**备份与恢复：** 在“设置 › 数据 › 备份与恢复”中，您可以把数据导出为备份文件，或从备份文件恢复。备份文件存放的位置由您在系统文件选择器中选择，例如本机或 iCloud 云盘，由您自行保管和删除。备份文件默认包含您的设置（包括您保存的接口方案，不含密钥）、常用词、提示词和拼音学习记录；AI 历史记录默认不包含，可以勾选。备份文件**默认不包含 API 密钥**；如您主动勾选，密钥会用您设置的密码加密（PBKDF2 + AES-GCM）后写入备份文件，我们不保存这个密码，也无法帮您找回。剪贴板记录、购买状态和试用信息从不包含在备份文件中：购买可在新设备上通过“恢复购买”找回，试用期不会因恢复备份而重置或延长。导出和恢复都在您的设备上完成，**我们的服务器接触不到您的备份**。
 
 ## 四、权限说明
 
@@ -116,11 +111,10 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 3. 如您开启识意问答联网，联网搜索由您选择的问答服务商（千问、Kimi、智谱或腾讯混元）完成，适用该服务商的服务条款和隐私政策。
 4. 购买由 Apple 的 App Store 处理，适用 Apple 的隐私政策。
 5. 您提交的反馈通过腾讯 QQ 邮箱的发信服务转发给我们，适用腾讯的隐私政策。
-6. 如您开启 iCloud 同步或把备份文件存到 iCloud 云盘，相关数据由 Apple 的 iCloud 存储，适用 Apple 的隐私政策。
 
 ## 六、您的权利
 
-1. **查阅和删除：** 您的信息都保存在您的设备上或您自己的 iCloud 中。您可以在本应用内查看 AI 历史记录、剪贴板记录和设置，并随时在“设置 › 隐私”中清除；在 App 的“键盘”页可以关闭“剪贴板记录”（已有记录一并删除）或清除剪贴板记录；可以关闭 iCloud 同步并删除已同步的数据，或卸载本应用删除设备上的全部信息。
+1. **查阅和删除：** 您的信息都保存在您的设备上。您可以在本应用内查看 AI 历史记录、剪贴板记录和设置，并随时在“设置 › 隐私”中清除；在 App 的“键盘”页可以关闭“剪贴板记录”（已有记录一并删除）或清除剪贴板记录；或卸载本应用删除设备上的全部信息。
 2. **撤回同意：** 您可以在“设置 › 隐私”中撤回对本政策的同意，撤回后本应用回到基础输入功能模式；也可以撤回对某个接口地址的发送同意，撤回后下一次发送前会再次征求您的同意。撤回同意不影响撤回前基于您的同意已进行的处理。
 3. **关闭权限：** 您可以随时在系统设置中关闭“允许完全访问”或通讯录权限。
 4. **联系我们：** 对以上权利的行使有任何问题，可通过第九条的方式联系我们。
@@ -222,12 +216,7 @@ The App reads the system clipboard **only when you open the clipboard in the key
 
 Deleting the App removes all of this information from your device (your purchase is kept by the App Store and can be restored after reinstalling).
 
-**Backup and restore.** In Settings › Data › Backup & Restore you can use either of the following. Both are off until you turn them on:
-
-- **iCloud Sync:** When turned on, the App syncs your settings, custom words, prompts and pinyin learning data to **your own iCloud account** (Apple's CloudKit private database). Syncing AI history is optional and off by default. iCloud Sync **never includes your API keys** and does not use iCloud Keychain. Clipboard history is never synced either.
-- **Export a backup file:** You choose where the file is saved in the system file picker, for example on your device or in iCloud Drive. By default the file includes your settings, custom words, prompts and pinyin learning data. AI history is left out by default, and you can choose to include it. The file **leaves out your API keys by default**. If you choose to include them, they are encrypted with a password you set (PBKDF2 + AES-GCM) before being written to the file. We never store this password and cannot recover it for you. Clipboard history is never included.
-
-Your backups live in your own iCloud or wherever you chose to save them, and **our server cannot access them**. "Settings" here includes your saved endpoint configurations (provider, address, model and so on, without keys). Purchase status and trial information are never backed up or synced: you can get your purchase back on a new device with Restore Purchases, and restoring a backup does not reset or extend the trial. You can turn off iCloud Sync at any time and manage or delete synced data in iOS Settings › Apple Account › iCloud. Backup files are kept and deleted by you.
+**Backup and restore.** In Settings › Data › Backup & Restore you can export your data to a backup file or restore from one. You choose where the file is saved in the system file picker, for example on your device or in iCloud Drive, and you keep and delete it yourself. By default the file includes your settings (including saved endpoint configurations, without keys), custom words, prompts and pinyin learning data. AI history is left out by default, and you can choose to include it. The file **leaves out your API keys by default**. If you choose to include them, they are encrypted with a password you set (PBKDF2 + AES-GCM) before being written to the file. We never store this password and cannot recover it for you. Clipboard history, purchase status and trial information are never included: you can get your purchase back on a new device with Restore Purchases, and restoring a backup does not reset or extend the trial. Export and restore happen on your device, and **our server cannot access your backups**.
 
 ## 4. Permissions
 
@@ -239,12 +228,12 @@ Your backups live in your own iCloud or wherever you chose to save them, and **o
 
 ## 5. Third-Party Services
 
-The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi, Zhipu or Tencent Hunyuan) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy. Feedback you send is forwarded to us through Tencent QQ Mail under Tencent's privacy policy. If you turn on iCloud Sync or save a backup file to iCloud Drive, that data is stored in Apple's iCloud under Apple's privacy policy.
+The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi, Zhipu or Tencent Hunyuan) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy. Feedback you send is forwarded to us through Tencent QQ Mail under Tencent's privacy policy.
 
 ## 6. Your Rights
 
 - **Withdraw consent:** under Settings › Privacy, at any time. The App will ask again before the next transmission.
-- **Delete data:** clear the locally stored AI history, clipboard history and input learning data at any time; on the App's Keyboard page, turn off Clipboard History (existing items are deleted too) or clear it; turn off iCloud Sync and delete synced data; or delete the App to remove everything from your device.
+- **Delete data:** clear the locally stored AI history, clipboard history and input learning data at any time; on the App's Keyboard page, turn off Clipboard History (existing items are deleted too) or clear it; or delete the App to remove everything from your device.
 - **Disable permissions:** turn off Allow Full Access in the system Settings at any time.
 
 ## 7. Children
@@ -341,12 +330,7 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 本アプリを削除すると、これらの情報は端末からすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
 
-**バックアップと復元：** 「設定 › データ › バックアップと復元」で、次の 2 つの方法を利用できます。どちらもお客様がオンにした場合にのみ動作します。
-
-- **iCloud 同期：** オンにすると、設定、ユーザー辞書、プロンプト、ピンイン学習データを**お客様ご自身の iCloud アカウント**（Apple の CloudKit プライベートデータベース）に同期します。AI 履歴の同期は任意で、初期設定ではオフです。iCloud 同期に **API キーが含まれることはなく**、iCloud キーチェーンも使用しません。クリップボード履歴も同期されません。
-- **バックアップファイルの書き出し：** 保存先は、システムのファイル選択画面でお客様が選びます（端末内や iCloud Drive など）。初期設定では設定、ユーザー辞書、プロンプト、ピンイン学習データが含まれます。AI 履歴は初期設定では含まれず、選択して含めることができます。**API キーは初期設定では含まれません**。含めることを選択した場合、キーはお客様が設定したパスワードで暗号化（PBKDF2 + AES-GCM）されてからファイルに書き込まれます。当方はこのパスワードを保存せず、復元することもできません。クリップボード履歴は含まれません。
-
-バックアップはお客様ご自身の iCloud またはお客様が選んだ場所に保存され、**当方のサーバーからはアクセスできません**。ここでいう「設定」には、保存した API の設定（サービス提供者、アドレス、モデルなど。キーは含みません）が含まれます。購入状況と無料体験の情報はバックアップ・同期されません。購入は新しい端末で「購入を復元」から取り戻せます。バックアップを復元しても無料体験の期間がリセットされたり延長されたりすることはありません。iCloud 同期はいつでもオフにでき、同期済みのデータは iOS の「設定 › Apple アカウント › iCloud」で管理・削除できます。バックアップファイルの保管と削除はお客様ご自身で行ってください。
+**バックアップと復元：** 「設定 › データ › バックアップと復元」で、データをバックアップファイルに書き出したり、バックアップファイルから復元したりできます。保存先はシステムのファイル選択画面でお客様が選び（端末内や iCloud Drive など）、保管と削除はお客様ご自身で行います。初期設定では設定（保存した API の設定を含み、キーは含みません）、ユーザー辞書、プロンプト、ピンイン学習データが含まれます。AI 履歴は初期設定では含まれず、選択して含めることができます。**API キーは初期設定では含まれません**。含めることを選択した場合、キーはお客様が設定したパスワードで暗号化（PBKDF2 + AES-GCM）されてからファイルに書き込まれます。当方はこのパスワードを保存せず、復元することもできません。クリップボード履歴、購入状況、無料体験の情報は含まれません。購入は新しい端末で「購入を復元」から取り戻せます。バックアップを復元しても無料体験の期間がリセットされたり延長されたりすることはありません。書き出しと復元は端末上で行われ、**当方のサーバーからバックアップにアクセスすることはできません**。
 
 ## 4. 権限について
 
@@ -358,12 +342,12 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 ## 5. 第三者のサービス
 
-本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu・Tencent Hunyuan）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。送信されたフィードバックは Tencent QQ メールの送信サービスを通じて当方へ転送され、Tencent のプライバシーポリシーが適用されます。iCloud 同期をオンにした場合、またはバックアップファイルを iCloud Drive に保存した場合、そのデータは Apple の iCloud に保存され、Apple のプライバシーポリシーが適用されます。
+本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu・Tencent Hunyuan）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。送信されたフィードバックは Tencent QQ メールの送信サービスを通じて当方へ転送され、Tencent のプライバシーポリシーが適用されます。
 
 ## 6. お客様の権利
 
 - **同意の撤回：**「設定 › プライバシー」からいつでも撤回できます。撤回後は、次回の送信前にあらためて同意をお願いします。
-- **情報の削除：** 端末に保存された AI の履歴、クリップボード履歴、入力の学習データはいつでも消去できます。本アプリの「キーボード」ページで「クリップボード履歴」をオフにする（既存の履歴も削除されます）か、クリップボード履歴を消去できます。iCloud 同期をオフにして同期済みデータを削除することや、本アプリを削除して端末上のすべての情報を削除することもできます。
+- **情報の削除：** 端末に保存された AI の履歴、クリップボード履歴、入力の学習データはいつでも消去できます。本アプリの「キーボード」ページで「クリップボード履歴」をオフにする（既存の履歴も削除されます）か、クリップボード履歴を消去できます。本アプリを削除して端末上のすべての情報を削除することもできます。
 - **権限の無効化：** システムの設定で「フルアクセスを許可」をいつでもオフにできます。
 
 ## 7. 未成年の方
