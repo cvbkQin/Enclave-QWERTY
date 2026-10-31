@@ -37,6 +37,8 @@ enum KeyboardMetrics {
     /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 36 高（横屏 28，和原生差不多），平时空着，键盘总高不随打字变化。
     /// 竖屏收着时总高 36 + 44 + 216 = 296。
     static var pinyinRowHeight: CGFloat { landscape ? 28 : 36 }
+    /// 回答卡展开（没有提示卡）时不留拼音行：打拼音时它浮在回答卡下沿，不占高度（#18）。
+    static func pinyinOverCard(expanded: Bool, gate: KeyboardModel.AIGate?) -> Bool { expanded && gate == nil }
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     static var topRow: CGFloat { landscape ? 34 : 44 }
@@ -88,7 +90,8 @@ enum KeyboardMetrics {
 
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
                        reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false) -> CGFloat {
-        var height = pinyinRowHeight + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
+        let pinyinRow = pinyinOverCard(expanded: expanded, gate: gate) ? 0 : pinyinRowHeight
+        var height = pinyinRow + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
