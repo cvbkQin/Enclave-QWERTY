@@ -1058,6 +1058,15 @@ struct KeyboardSettingsView: View {
                     CorrectionToggles()
                     PredictionToggle()
                     EmojiToggle()
+                    // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
+                    Toggle(isOn: $store.settings.keyboardGlass) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("毛玻璃背景（测试）", "Frosted background (test)", "すりガラス背景（テスト）"))
+                            Text(L("键盘底色透出后面的颜色，和系统那截玻璃接上", "The keyboard lets the colors behind it show through and blends with the system glass",
+                                   "キーボードの背景に後ろの色が透け、システムのガラス部分となじみます"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Text(L("拼音", "Pinyin", "ピンイン"))
                 } footer: {

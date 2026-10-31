@@ -156,7 +156,17 @@ struct KeyboardView: View {
     /// 接上系统键盘顶上那截液态玻璃，不留硬边；再往下全是不透明底色，盖住 Chrome 切回时系统按键的残影（GL1）。
     /// 系统给的高度比 keyboardHeight 多时，渐变不跟着拉长：多出来的那截和拼音行一样是不透明底色，不露一截渐变空白。
     /// 回答卡、风格一排、提示卡在最上面时整块不透明。
+    @ViewBuilder
     private var boardBackground: some View {
+        // #19：整块系统毛玻璃，透出后面的颜色，顶边、底边和系统玻璃是同一种材质，不用渐变。
+        if model.settings.keyboardGlass {
+            Rectangle().fill(.thickMaterial).ignoresSafeArea()
+        } else {
+            opaqueBackground
+        }
+    }
+
+    private var opaqueBackground: some View {
         let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder && !model.pinyinSide
         return VStack(spacing: 0) {
             LinearGradient(stops: [
