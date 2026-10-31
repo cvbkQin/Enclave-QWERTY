@@ -102,7 +102,8 @@ struct KeyboardView: View {
                     }
                 }
                 // 长按弹出的十字 / 备选 / 布局菜单会伸到上面一排：这时按键区整块盖在 AI 栏和回答卡上面，不被 ✨、风格键压住。
-                .zIndex(model.cross != nil || model.alternates != nil || model.layoutMenu != nil ? 4 : 0)
+                // 剪贴板的长按菜单也一样（往上可以盖到 AI 栏）。
+                .zIndex(model.cross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0)
         }
         // 横屏两边各留 48 给刘海 / 灵动岛。
         .padding(.horizontal, model.landscape ? KeyboardMetrics.landscapeSideMargin : 0)

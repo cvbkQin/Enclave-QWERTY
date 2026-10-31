@@ -205,6 +205,8 @@ struct QuickWordsPanel: View {
                     }
                 }
             }
+            // 只有一两个词时也靠左，不居中。
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 2)
             .padding(.bottom, 22)
         }
@@ -539,11 +541,21 @@ struct ClipboardList: View {
                             .onTapGesture { model.clipMenu = nil }
                         ClipMenu(model: model, item: item)
                             .offset(x: min(max(rect.minX + 40, 0), max(geo.size.width - ClipMenu.width, 0)),
-                                    y: rect.maxY + 6 + ClipMenu.height <= geo.size.height + 70 ? rect.maxY + 6 : rect.minY - ClipMenu.height - 6)
+                                    y: Self.menuY(row: rect, listHeight: geo.size.height))
                     }
                 }
             }
         }
+    }
+
+    /// 菜单的上边（列表坐标）。能放下就在这条下面（可以盖住脚注和底排），放不下就在上面；
+    /// 往上最多盖到标签栏和 AI 栏，不伸出键盘顶（键盘画不到外面，会被截掉）。
+    static func menuY(row: CGRect, listHeight: CGFloat) -> CGFloat {
+        let top = -(36 + KeyboardMetrics.topRow)
+        let bottom = listHeight + 18 + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset - ClipMenu.height
+        let below = row.maxY + 6
+        let preferred = below <= bottom ? below : row.minY - ClipMenu.height - 6
+        return min(max(preferred, top), max(bottom, top))
     }
 
     /// 44 高、浅紫底、1.5pt 主色虚线框、剪贴板图标 + 主色 15 粗。
@@ -617,7 +629,7 @@ struct ClipboardList: View {
 }
 
 /// 长按剪贴板一条弹出的菜单（CB2）：粘贴 / 加到常用语 ★ / 复制 / 删除（红）。
-private struct ClipMenu: View {
+struct ClipMenu: View {
     static let width: CGFloat = 200
     static let height: CGFloat = 4 * 40 + 9 + 12
 

@@ -39,9 +39,7 @@ struct ClipboardSettingsSection: View {
         } header: {
             Text(L("剪贴板", "Clipboard", "クリップボード"))
         } footer: {
-            Text(L("只在你点「有新复制的内容，点一下粘贴」时才读剪贴板，这时系统会在顶部提示「飞地输入法粘贴自…」。记录只存在本机，最多 20 条，24 小时后自动删除，不备份、不同步。关掉后不再记录，已有的一起删掉。",
-                   "The clipboard is read only when you tap \"New copied text. Tap to paste\", and iOS shows \"Enclave pasted from…\" at the top. History stays on this iPhone, up to 20 items, deleted after 24 hours, never backed up or synced. Turning it off stops recording and deletes what's there.",
-                   "「新しくコピーした内容があります。タップで貼り付け」をタップしたときだけクリップボードを読み、そのとき iOS が上部に「Enclave が…からペースト」と表示します。履歴はこの iPhone にだけ最大 20 件保存され、24 時間後に自動で削除されます。バックアップや同期はしません。オフにすると記録をやめ、今ある履歴も削除します。"))
+            if enabled { onFooter } else { offFooter }
         }
         .onAppear(perform: reload)
         .onChange(of: refresh) { _ in reload() }
@@ -55,6 +53,19 @@ struct ClipboardSettingsSection: View {
             Text(L("键盘「常用 › 剪贴板」里的记录会全部删除。", "Everything under Phrases › Clipboard on the keyboard will be deleted.",
                    "キーボードの「定型文 › クリップボード」の記録がすべて削除されます。"))
         }
+    }
+
+    private var onFooter: some View {
+        Text(L("只在你点「有新复制的内容，点一下粘贴」时才读剪贴板，这时系统会在顶部提示「飞地输入法粘贴自…」。记录只存在本机，最多 20 条，24 小时后自动删除，不备份、不同步。关掉后不再记录，已有的一起删掉。",
+               "The clipboard is read only when you tap \"New copied text. Tap to paste\", and iOS shows \"Enclave pasted from…\" at the top. History stays on this iPhone, up to 20 items, deleted after 24 hours, never backed up or synced. Turning it off stops recording and deletes what's there.",
+               "「新しくコピーした内容があります。タップで貼り付け」をタップしたときだけクリップボードを読み、そのとき iOS が上部に「Enclave が…からペースト」と表示します。履歴はこの iPhone にだけ最大 20 件保存され、24 時間後に自動で削除されます。バックアップや同期はしません。オフにすると記録をやめ、今ある履歴も削除します。"))
+    }
+
+    /// 关着时：说清楚现在的状态，不再说「关掉后…」。
+    private var offFooter: some View {
+        Text(L("剪贴板记录已关闭：键盘里照样可以粘贴，但不保存。打开后从下次粘贴开始记录，最多 20 条，24 小时后自动删除。",
+               "Clipboard history is off: you can still paste on the keyboard, but nothing is kept. Once on, it records from your next paste, up to 20 items, deleted after 24 hours.",
+               "クリップボード履歴はオフです：キーボードで貼り付けはできますが、保存しません。オンにすると次の貼り付けから記録し、最大 20 件、24 時間後に自動で削除します。"))
     }
 
     private func reload() {
