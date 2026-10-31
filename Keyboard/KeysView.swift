@@ -19,10 +19,6 @@ struct KeysView: View {
                         }
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
-                } else if model.pinyinGridOpen, model.pinyinSide, model.showsNineKey {
-                    // 侧边模式点了拼音列的 ⌄：按键区换成拼音格子（F12）。
-                    SidePinyinGrid(model: model)
-                        .frame(width: geo.size.width, height: geo.size.height)
                 } else if model.candidatesExpanded {
                     // 拼音在上方一行时那一行展开时也留着，整页候选铺满按键区；
                     // 在侧边（F12）时九宫格左边的拼音列保持住、拉长到 4 行，候选铺在中间三列。

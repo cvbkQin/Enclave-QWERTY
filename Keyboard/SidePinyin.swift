@@ -1,10 +1,10 @@
 import SwiftUI
 
 // 拼音显示在侧边（F12，功能对照表「拼音显示：上方一行 / 侧边两种模式」）：
-// 九宫格打字时左列上三格合成一格拼音列（展开候选时拉长到 4 行），点 ⌄ 换成拼音格子；
+// 九宫格打字时左列上三格合成一格拼音列（展开候选时拉长到 4 行），读法多时在列里上下滑；
 // 全键盘候选栏最左边一颗拼音键，点开弹出切法和纠正读法。
 
-/// 侧边拼音列 / 拼音格子 / 拼音键弹框里的一项。
+/// 侧边拼音列 / 拼音键下拉框里的一项。
 struct SidePinyinItem: Identifiable, Equatable {
     enum Action: Equatable {
         case reading(String)
@@ -125,7 +125,7 @@ private struct SidePinyinLabel: View {
     }
 }
 
-/// 九宫格侧边拼音列：竖着排，每项高 38；第一项浅紫底；放不下时上下滑，底部渐隐 + ⌄，点 ⌄ 换成拼音格子。
+/// 九宫格侧边拼音列：竖着排，每项高 38；第一项浅紫底；放不下时上下滑，底部渐隐。
 struct SidePinyinColumn: View {
     @ObservedObject var model: KeyboardModel
     let frame: CGRect
@@ -152,21 +152,12 @@ struct SidePinyinColumn: View {
             }
         }
         .hidingScrollEdgeEffect()
+        // 放不下时在列里上下滑，底部 30 渐隐到按键色（10:19 版去掉 ⌄ 和拼音格子）。
         .overlay(alignment: .bottom) {
             if overflow {
-                ZStack(alignment: .bottom) {
-                    LinearGradient(colors: [KeyStyle.charKey.opacity(0), KeyStyle.charKey], startPoint: .top, endPoint: .bottom)
-                        .allowsHitTesting(false)
-                    Button { model.pinyinGridOpen = true } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(SidePinyinStyle.hint)
-                            .frame(maxWidth: .infinity, minHeight: 26)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(KeyPressStyle())
-                }
-                .frame(height: 30)
+                LinearGradient(colors: [KeyStyle.charKey.opacity(0), KeyStyle.charKey], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 30)
+                    .allowsHitTesting(false)
             }
         }
         .background(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous).fill(KeyStyle.charKey))
@@ -175,68 +166,6 @@ struct SidePinyinColumn: View {
         .padding(.vertical, KeyboardMetrics.nineKeyInsetY)
         .frame(width: frame.width, height: frame.height)
         .offset(x: frame.minX, y: frame.minY)
-    }
-}
-
-/// 九宫格侧边模式点 ⌄：按键区换成拼音格子，一行 4 格、格高 46；最后一行「⌃ 收起」「⌫ 删一个字母」。
-struct SidePinyinGrid: View {
-    @ObservedObject var model: KeyboardModel
-
-    var body: some View {
-        let items = model.sidePinyinItems
-        let gap = KeyboardMetrics.nineRowGap
-        VStack(spacing: 0) {
-            HStack {
-                Text(L("选拼音 · 先定第一个字", "Pick pinyin · first character", "ピンインを選ぶ · 最初の字から"))
-                Spacer()
-                if items.contains(where: { $0.corrected }) {
-                    Text(L("改过的字母浅紫标出", "Fixed letters in purple", "直した文字は紫"))
-                }
-            }
-            .font(.system(size: 12))
-            .foregroundStyle(SidePinyinStyle.hint)
-            .padding(.horizontal, 6)
-            .frame(height: 24)
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: gap), count: 4), spacing: gap) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        Button { model.performSidePinyin(item.action) } label: {
-                            SidePinyinLabel(item: item, emphasized: index == 0 && !item.word)
-                                .padding(.horizontal, 4)
-                                .frame(maxWidth: .infinity, minHeight: 46)
-                                .background(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous)
-                                    .fill(index == 0 && !item.word ? SidePinyinStyle.firstFill : KeyStyle.charKey))
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(KeyPressStyle())
-                    }
-                }
-                .padding(.horizontal, KeyboardMetrics.nineKeyInsetX)
-            }
-            .hidingScrollEdgeEffect()
-            HStack(spacing: gap) {
-                Button { model.pinyinGridOpen = false } label: {
-                    Label(L("收起", "Close", "閉じる"), systemImage: "chevron.up")
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .background(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous).fill(KeyStyle.charKey))
-                }
-                .buttonStyle(KeyPressStyle())
-                Button { model.deleteKey() } label: {
-                    Label(L("删一个字母", "Delete a letter", "1 文字削除"), systemImage: "delete.left")
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .background(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous).fill(KeyStyle.charKey))
-                }
-                .buttonStyle(KeyPressStyle())
-                .frame(maxWidth: .infinity)
-                .layoutPriority(1)
-            }
-            .font(.system(size: 16))
-            .foregroundStyle(SidePinyinStyle.hint)
-            .padding(.horizontal, KeyboardMetrics.nineKeyInsetX)
-            .padding(.top, gap)
-            .padding(.bottom, KeyboardMetrics.nineKeyInsetY)
-        }
-        .padding(.horizontal, KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding - KeyboardMetrics.nineKeyInsetX)
     }
 }
 

@@ -156,8 +156,6 @@ final class KeyboardModel: ObservableObject {
     @Published var pinyinRowShown = false
     /// 拼音显示在侧边（F12）：九宫格打字时左列上三格是拼音列，全键盘候选栏最左边一颗拼音键；不留拼音行。
     var pinyinSide: Bool { settings.pinyinDisplay == .side }
-    /// 侧边模式九宫格点了拼音列底下的 ⌄：按键区整块换成拼音格子，点一个就收回。
-    @Published var pinyinGridOpen = false
     /// 侧边模式全键盘点了候选栏左边的拼音键：弹出切法和纠正读法，点一个就收。
     @Published var pinyinPopoverOpen = false
     @Published var candidates: [String] = []
