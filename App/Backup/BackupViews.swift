@@ -18,7 +18,8 @@ struct BackupSettingsRow: View {
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
-            if let date = BackupPrefs.lastExport {
+            // 最近一次导出或同步，取晚的那个。
+            if let date = [BackupPrefs.lastExport, CloudSync.shared.isEnabled ? CloudSync.lastSynced : nil].compactMap({ $0 }).max() {
                 Text(date.formatted(.dateTime.month(.abbreviated).day())).foregroundStyle(.secondary).lineLimit(1)
             }
         }
@@ -31,6 +32,7 @@ struct BackupView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
     @ObservedObject private var deployer = RimeDeployer.shared
+    @ObservedObject private var cloud = CloudSync.shared
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var items = BackupPrefs.items
@@ -46,12 +48,20 @@ struct BackupView: View {
 
     var body: some View {
         List {
+            // 第二步：iCloud 同步卡（BV1）；构建时没开 iCloud 能力就不显示（BV0）。
+            if CloudSync.isAvailable {
+                Section { ICloudCard(cloud: cloud) }
+            }
             Section {
                 fileCard
             } footer: {
-                Text(L("换手机：旧手机「导出」存到 iCloud 云盘，新手机装好后点「恢复」选这个文件。",
-                       "New iPhone: Export on the old one and save to iCloud Drive, then tap Restore on the new one and pick that file.",
-                       "機種変更：古い iPhone で「書き出す」を iCloud Drive に保存し、新しい iPhone で「復元」からそのファイルを選びます。"))
+                Text(CloudSync.isAvailable
+                     ? L("换手机：两台都打开 iCloud 同步就行；不用 iCloud 时，旧手机「导出」、新手机「恢复」。",
+                         "New iPhone: turn on iCloud sync on both. Without iCloud, Export on the old one and Restore on the new one.",
+                         "機種変更：両方で iCloud 同期をオンにするだけです。iCloud を使わないときは、古い iPhone で「書き出す」、新しい iPhone で「復元」。")
+                     : L("换手机：旧手机「导出」存到 iCloud 云盘，新手机装好后点「恢复」选这个文件。",
+                         "New iPhone: Export on the old one and save to iCloud Drive, then tap Restore on the new one and pick that file.",
+                         "機種変更：古い iPhone で「書き出す」を iCloud Drive に保存し、新しい iPhone で「復元」からそのファイルを選びます。"))
             }
             Section {
                 ForEach(BackupItem.allCases) { item in
@@ -61,7 +71,9 @@ struct BackupView: View {
                     .tint(DashColor.ok)
                 }
             } header: {
-                Text(L("备份内容 · 导出时按这里", "What's included · used when exporting", "バックアップする内容 · 書き出しに使います"))
+                Text(CloudSync.isAvailable
+                     ? L("备份内容 · 同步和导出都按这里", "What's included · used for sync and export", "バックアップする内容 · 同期と書き出しに使います")
+                     : L("备份内容 · 导出时按这里", "What's included · used when exporting", "バックアップする内容 · 書き出しに使います"))
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
                     if learnedFailed {
@@ -103,6 +115,20 @@ struct BackupView: View {
             guard case .success(let url) = result else { return }
             load(url, scoped: true)
         }
+        // 第一次打开同步、iCloud 里已经有别的设备的数据（BV5）。
+        .alert(L("iCloud 里已经有数据", "iCloud already has data", "iCloud にデータがあります"),
+               isPresented: Binding(get: { cloud.firstSync != nil }, set: { _ in })) {
+            Button(L("合并（推荐）", "Merge (recommended)", "統合（おすすめ）")) { cloud.resolveFirstSync(.merge) }
+            Button(L("用 iCloud 里的", "Use iCloud's", "iCloud のものを使う")) { cloud.resolveFirstSync(.useCloud) }
+            Button(L("用这台 iPhone 的", "Use this iPhone's", "この iPhone のものを使う")) { cloud.resolveFirstSync(.useLocal) }
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) { cloud.resolveFirstSync(nil) }
+        } message: {
+            Text(firstSyncMessage)
+        }
+        .onChange(of: cloud.status) { status in
+            // 同步完数量可能变了。
+            if case .synced = status { counts = BackupCounts.current(); Task { await refreshLearned() } }
+        }
         .alert(L("打不开这个文件", "Can't open this file", "このファイルを開けません"),
                isPresented: Binding(get: { openError != nil }, set: { if !$0 { openError = nil } })) {
             Button(L("好", "OK", "OK"), role: .cancel) {}
@@ -112,6 +138,18 @@ struct BackupView: View {
     }
 
     private var busy: Bool { deployer.state == .deploying }
+
+    /// 「来自「iPad」，10月30日。常用词 61 个、学到的词 820 个。」
+    private var firstSyncMessage: String {
+        guard let summary = cloud.firstSync else { return "" }
+        let date = summary.date.formatted(.dateTime.month(.abbreviated).day())
+        var parts: [String] = []
+        if let words = summary.commonWords { parts.append(L("常用词 \(words) 个", "\(words) words", "ユーザ辞書 \(words) 語")) }
+        if let learned = summary.learnedWords { parts.append(L("学到的词 \(learned) 个", "\(learned) learned words", "学習した語 \(learned) 語")) }
+        let counts = parts.joined(separator: L("、", ", ", "、"))
+        return L("来自「\(summary.device)」，\(date)。", "From \"\(summary.device)\", \(date). ", "「\(summary.device)」から、\(date)。")
+            + (counts.isEmpty ? "" : counts + L("。", ".", "。"))
+    }
 
     private var fileCard: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -667,5 +705,84 @@ private struct BackupResultView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - iCloud 同步卡（BV1、BV6）
+
+private struct ICloudCard: View {
+    @ObservedObject var cloud: CloudSync
+
+    private static let blue = Color(hex: 0x2F7BF6)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                Image(systemName: "icloud")
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(Self.blue)
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Self.blue.opacity(0.14)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(L("iCloud 同步", "iCloud Sync", "iCloud 同期")).font(.headline)
+                    statusLine
+                }
+                Spacer(minLength: 8)
+                Toggle("", isOn: Binding(get: { cloud.isEnabled && cloud.status != .noAccount },
+                                         set: { cloud.setEnabled($0) }))
+                    .labelsHidden()
+                    .tint(DashColor.ok)
+                    .disabled(cloud.status == .noAccount)
+            }
+            Divider()
+            if cloud.status == .noAccount {
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                } label: {
+                    Text(L("打开 iPhone 设置 ›", "Open iPhone Settings ›", "iPhone の設定を開く ›")).font(.subheadline)
+                }
+            } else {
+                Text(L("登录同一个 Apple 账户的 iPhone、iPad 自动保持一致。存在你自己的 iCloud 里，开发者看不到。",
+                       "iPhones and iPads signed in to the same Apple Account stay in sync. Stored in your own iCloud; the developer can't see it.",
+                       "同じ Apple アカウントの iPhone・iPad が自動でそろいます。あなた自身の iCloud に保存され、開発者は見られません。"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
+        switch cloud.status {
+        case .off:
+            Text(L("未开启", "Off", "オフ")).font(.footnote).foregroundStyle(.secondary)
+        case .syncing:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text(L("同步中…", "Syncing…", "同期中…"))
+            }
+            .font(.footnote).foregroundStyle(.secondary)
+        case .synced(let date):
+            TimelineView(.periodic(from: .now, by: 30)) { _ in
+                HStack(spacing: 5) {
+                    Circle().fill(DashColor.ok).frame(width: 7, height: 7)
+                    Text(L("已同步", "Synced", "同期済み") + " · " + Self.ago(date))
+                }
+                .font(.footnote).foregroundStyle(.secondary)
+            }
+        case .noAccount:
+            Text(L("这台 iPhone 没有登录 iCloud", "This iPhone isn't signed in to iCloud", "この iPhone は iCloud にサインインしていません"))
+                .font(.footnote).foregroundStyle(.orange)
+        case .failed(let message):
+            Text(message).font(.footnote).foregroundStyle(.orange).lineLimit(2)
+        }
+    }
+
+    private static func ago(_ date: Date) -> String {
+        let minutes = Int(Date().timeIntervalSince(date) / 60)
+        if minutes < 1 { return L("刚刚", "just now", "たった今") }
+        if minutes < 60 { return L("\(minutes) 分钟前", "\(minutes) min ago", "\(minutes) 分前") }
+        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
     }
 }

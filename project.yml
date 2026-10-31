@@ -80,7 +80,10 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        CODE_SIGN_ENTITLEMENTS: App/Enclave.entitlements
+        # iCloud 同步：构建时传 ENCLAVE_ICLOUD=+iCloud 用带 CloudKit 的那份权限（App ID 要先开 iCloud 能力）；
+        # 不传就是原来的权限，App 里不显示 iCloud 同步卡、也不碰 CloudKit。
+        ENCLAVE_ICLOUD: ""
+        CODE_SIGN_ENTITLEMENTS: App/Enclave$(ENCLAVE_ICLOUD).entitlements
     info:
       path: App/Info.plist
       properties:
@@ -95,6 +98,7 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         EnclaveAppGroup: $(APP_GROUP_ID)
+        EnclaveICloud: $(ENCLAVE_ICLOUD)
         # 内测版自带的接口地址和模型（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值。
         # Key 不放这里，由 scripts/gen-builtin-secrets.py 混淆后编进代码。
         EnclaveInternalBuild: $(INTERNAL_BUILD)

@@ -61,6 +61,16 @@ struct EnclaveApp: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                     Task { await UnlockStore.shared.refresh() }
+                    // iCloud 同步（B3 第二步）：回到前台同步一次，开着时每 2 分钟一次。
+                    CloudSync.shared.appBecameActive()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                    CloudSync.shared.appResignedActive()
+                }
+                // 同步改了设置或风格：内存里的那份重新读，界面语言跟着变。
+                .onReceive(CloudSync.shared.$settingsRevision.dropFirst()) { _ in
+                    store.settings = SettingsStore.load()
+                    if router.language != Loc.setting { router.language = Loc.setting }
                 }
                 .onOpenURL { url in
                     // 点开 .enclave 备份文件：到设置 › 备份与恢复，弹恢复面板。

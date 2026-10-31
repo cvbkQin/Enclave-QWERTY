@@ -236,15 +236,7 @@ enum BackupService {
         for item in BackupItem.allCases where items.contains(item) {
             switch item {
             case .settings:
-                var defaults: [String: Any] = [:]
-                for key in settingsDefaultsKeys {
-                    if let value = SharedStorage.defaults.object(forKey: key), JSONSerialization.isValidJSONObject([value]) {
-                        defaults[key] = value
-                    }
-                }
-                let saved = try JSONSerialization.jsonObject(with: encoder.encode(SavedAPIStore.all))
-                let object: [String: Any] = ["settings": try BackupMerge.settingsObject(settings), "defaults": defaults, "savedAPIs": saved]
-                files.append((item.fileName, try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])))
+                files.append((item.fileName, try settingsPayload(settings, pretty: true)))
                 counts[item.rawValue] = 1
             case .styles:
                 let styles = StylesFile(polish: BackupMerge.Styles(list: settings.styles, selectedID: settings.selectedStyleID),
@@ -285,6 +277,46 @@ enum BackupService {
                                       items: BackupItem.allCases.filter { items.contains($0) }.map(\.rawValue), keys: keyInfo)
         files.insert((manifestFile, try encoder.encode(manifest)), at: 0)
         return BackupArchive.write(files)
+    }
+
+    /// 「设置」一项的内容：EnclaveSettings（去掉风格那几项）、App Group 里的几个开关、「我的预设」（不含 Key）。备份文件和 iCloud 同步共用。
+    static func settingsPayload(_ settings: EnclaveSettings = SettingsStore.load(), pretty: Bool = false) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .secondsSince1970
+        var defaults: [String: Any] = [:]
+        for key in settingsDefaultsKeys {
+            if let value = SharedStorage.defaults.object(forKey: key), JSONSerialization.isValidJSONObject([value]) {
+                defaults[key] = value
+            }
+        }
+        let saved = try JSONSerialization.jsonObject(with: encoder.encode(SavedAPIStore.all))
+        let object: [String: Any] = ["settings": try BackupMerge.settingsObject(settings), "defaults": defaults, "savedAPIs": saved]
+        return try JSONSerialization.data(withJSONObject: object, options: pretty ? [.prettyPrinted, .sortedKeys] : [.sortedKeys])
+    }
+
+    /// 用「设置」一项的内容改掉现在的设置（风格那几项留现有的），返回新的设置（已经存好）。
+    @discardableResult
+    static func applySettingsPayload(_ object: [String: Any]) throws -> EnclaveSettings {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        var settings = SettingsStore.load()
+        if let values = object["settings"] as? [String: Any] {
+            settings = try BackupMerge.restoreSettings(values, keepingStylesOf: settings)
+        }
+        if let defaults = object["defaults"] as? [String: Any] {
+            for key in settingsDefaultsKeys {
+                if let value = defaults[key] { SharedStorage.defaults.set(value, forKey: key) } else { SharedStorage.defaults.removeObject(forKey: key) }
+            }
+        }
+        if let saved = object["savedAPIs"],
+           let list = try? decoder.decode([SavedAPI].self, from: JSONSerialization.data(withJSONObject: saved)) {
+            let kept = Set(list.map(\.id))
+            for old in SavedAPIStore.all where !kept.contains(old.id) { old.apiKey = nil }
+            SavedAPIStore.replaceAll(list)
+        }
+        SettingsStore.save(settings)
+        return settings
     }
 
     // MARK: - 打开
@@ -380,20 +412,7 @@ enum BackupService {
         // 4. 设置：总是直接用备份里的。
         var settings = SettingsStore.load()
         if let settingsObject {
-            if let object = settingsObject["settings"] as? [String: Any] {
-                settings = try BackupMerge.restoreSettings(object, keepingStylesOf: settings)
-            }
-            if let defaults = settingsObject["defaults"] as? [String: Any] {
-                for key in settingsDefaultsKeys {
-                    if let value = defaults[key] { SharedStorage.defaults.set(value, forKey: key) } else { SharedStorage.defaults.removeObject(forKey: key) }
-                }
-            }
-            if let saved = settingsObject["savedAPIs"],
-               let list = try? decoder.decode([SavedAPI].self, from: JSONSerialization.data(withJSONObject: saved)) {
-                let kept = Set(list.map(\.id))
-                for old in SavedAPIStore.all where !kept.contains(old.id) { old.apiKey = nil }
-                SavedAPIStore.replaceAll(list)
-            }
+            settings = try applySettingsPayload(settingsObject)
             report.rows.append(.init(title: BackupItem.settings.title, value: L("已更新", "Updated", "更新しました")))
             state.settingsChanged = true
         }
@@ -464,12 +483,12 @@ enum BackupService {
         var settings: EnclaveSettings?
     }
 
-    struct StylesFile: Codable {
+    struct StylesFile: Codable, Equatable {
         var polish: BackupMerge.Styles
         var answer: BackupMerge.Styles
     }
 
-    struct CommonWordsFile: Codable {
+    struct CommonWordsFile: Codable, Equatable {
         var words: [CommonWord]
         var keyboardTexts: [String]
     }
