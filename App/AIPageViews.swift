@@ -338,7 +338,10 @@ struct ManagePromptsView: View {
                 Button(L("完成", "Done", "完了")) { dismiss() }.fontWeight(.semibold)
             }
         }
-        .navigationDestination(isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
+        .navigationDestination(isPresented: Binding(get: { editing != nil }, set: { if !$0 {
+            NewPromptCleanup.dropIfBlank(editing, answer: answer, settings: &store.settings)
+            editing = nil
+        } })) {
             if let index = styles.wrappedValue.firstIndex(where: { $0.id == editing }) {
                 if answer {
                     AnswerStyleEditor(style: $store.settings.answerStyles[index], settings: $store.settings)
@@ -354,6 +357,31 @@ struct ManagePromptsView: View {
         let defaults = answer ? StylePreset.answerDefaults : StylePreset.defaults
         return defaults.filter { preset in
             !styles.wrappedValue.contains { $0.name == preset.name || $0.prompt == preset.prompt }
+        }
+    }
+}
+
+/// 「＋ 新建提示词 / 新建问答风格」先加一条空的再进编辑页；没改名也没填内容就返回时把它去掉，不留一条空的。
+enum NewPromptCleanup {
+    static let polishName = L("新提示词", "New prompt", "新しいプロンプト")
+    static let answerName = L("新问答风格", "New answer style", "新しい回答スタイル")
+
+    static func dropIfBlank(_ id: UUID?, answer: Bool, settings: inout EnclaveSettings) {
+        guard let id else { return }
+        let name = answer ? answerName : polishName
+        func blank(_ style: StylePreset) -> Bool {
+            style.id == id && style.name.trimmingCharacters(in: .whitespaces) == name
+                && style.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        if answer {
+            // 问答风格至少留一条。
+            guard settings.answerStyles.count > 1, settings.answerStyles.contains(where: blank) else { return }
+            settings.answerStyles.removeAll(where: blank)
+            if settings.selectedAnswerStyleID == id { settings.selectedAnswerStyleID = nil }
+        } else {
+            guard settings.styles.contains(where: blank) else { return }
+            settings.styles.removeAll(where: blank)
+            if settings.selectedStyleID == id { settings.selectedStyleID = nil }
         }
     }
 }

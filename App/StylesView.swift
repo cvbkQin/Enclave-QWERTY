@@ -132,12 +132,19 @@ struct AIView: View {
         } message: {
             Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
         }
-        .navigationDestination(isPresented: Binding(get: { debugEditing != nil }, set: { if !$0 { debugEditing = nil } })) {
+        // 「＋ 新建」后没改名也没填内容就返回：这条空的不留。
+        .navigationDestination(isPresented: Binding(get: { debugEditing != nil }, set: { if !$0 {
+            NewPromptCleanup.dropIfBlank(debugEditing, answer: false, settings: &store.settings)
+            debugEditing = nil
+        } })) {
             if let index = store.settings.styles.firstIndex(where: { $0.id == debugEditing }) {
                 StyleEditor(style: $store.settings.styles[index], settings: $store.settings)
             }
         }
-        .navigationDestination(isPresented: Binding(get: { editingAnswerStyle != nil }, set: { if !$0 { editingAnswerStyle = nil } })) {
+        .navigationDestination(isPresented: Binding(get: { editingAnswerStyle != nil }, set: { if !$0 {
+            NewPromptCleanup.dropIfBlank(editingAnswerStyle, answer: true, settings: &store.settings)
+            editingAnswerStyle = nil
+        } })) {
             if let index = store.settings.answerStyles.firstIndex(where: { $0.id == editingAnswerStyle }) {
                 AnswerStyleEditor(style: $store.settings.answerStyles[index], settings: $store.settings)
             }
