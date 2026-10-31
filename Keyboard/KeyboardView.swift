@@ -164,8 +164,10 @@ struct KeyboardView: View {
         // #19（对齐清单 53）：键盘自己不画底色，露出系统给键盘的毛玻璃（和顶上 17 的系统条、地球键那条是同一块），
         // 顶边、底边都没有线，也不用渐变。按键、回答卡、识意框、拼音列、下拉框、菜单和面板各自的底色照旧。
         // 测试开关关掉时（Chrome 切回有系统按键残影）退回原来的不透明底色。
+        // 不能用 .clear：完全透明的地方系统不把触摸交给键盘（同 KeyTouchView），候选栏 ⌄ 只有箭头线条点得中，
+        // 整页候选只有按在字上才滑得动。垫一层 0.001 透明度的底，看起来照样透出毛玻璃，整块键盘都接触摸。
         if model.settings.keyboardGlass {
-            Color.clear
+            Color.black.opacity(0.001)
         } else {
             opaqueBackground
         }
