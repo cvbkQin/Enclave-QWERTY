@@ -12,6 +12,7 @@ apt-get install -y nginx certbot python3-certbot-nginx python3
 
 # 1. 文件目录和 nginx
 mkdir -p /var/www/enclavekb/grammar
+cp www/index.html /var/www/enclavekb/index.html
 cp nginx/enclavekb.cn.conf /etc/nginx/sites-available/enclavekb.cn.conf
 ln -sf /etc/nginx/sites-available/enclavekb.cn.conf /etc/nginx/sites-enabled/enclavekb.cn.conf
 rm -f /etc/nginx/sites-enabled/default

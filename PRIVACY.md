@@ -79,13 +79,13 @@
 以下信息仅保存在您的设备上：
 
 1. 您填写的模型服务 API 密钥（包括主接口、问答接口及您保存的接口方案），保存在系统钥匙串中；
-2. AI 历史记录，包括原文与生成结果；
+2. AI 历史记录（润色和问答），包括原文与生成结果；
 3. 拼音输入学习记录；
 4. 您的提示词、常用词、键盘、接口及语言设置；
 5. 试用开始日期、购买状态、当日 AI 使用次数和按天使用统计；
 6. 您同意本政策的版本和时间。
 
-您可以在“设置 › 隐私”中清除 AI 历史记录和拼音输入学习记录。**卸载本应用后，上述信息将全部删除**（购买记录由 App Store 保存，重新安装后可恢复）。
+AI 历史记录仅保存在本机，不会上传。您可以在“历史”页右上角的 ⋯ 菜单中关闭记录、设置保留时长或清空历史；在“设置 › 隐私”中可以清除 AI 历史记录和拼音输入学习记录。**卸载本应用后，上述信息将全部删除**（购买记录由 App Store 保存，重新安装后可恢复）。
 
 ## 四、权限说明
 
@@ -195,12 +195,12 @@ The server forwards it to us by email right away (sent through Tencent QQ Mail) 
 The following is stored only on your device:
 
 - the model service API keys you entered (for the main API, the answers API and any API setups you saved), in the system Keychain;
-- your polish history, including the original text and the results;
+- your AI history (Polish and Ask), including the original text and the results;
 - your pinyin input learning data;
 - your style, keyboard, endpoint and language settings;
 - the trial start date, purchase status and today's AI usage count.
 
-You can clear the polish history and the input learning data under Settings › Privacy. Deleting the App removes all of this information (your purchase is kept by the App Store and can be restored after reinstalling).
+Your AI history stays on your device and is never uploaded. From the ⋯ menu at the top right of the History tab you can turn history off, choose how long it is kept, or clear it; under Settings › Privacy you can clear the AI history and the input learning data. Deleting the App removes all of this information (your purchase is kept by the App Store and can be restored after reinstalling).
 
 ## 4. Permissions
 
@@ -300,12 +300,12 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 次の情報はお客様の端末にのみ保存されます。
 
 - お客様が入力したモデルサービスの API キー（メインの API、回答用 API、保存した API の設定を含む。システムのキーチェーンに保存）
-- 整えた履歴（元の文章と結果）
+- AI の履歴（整える・質問。元の文章と結果）
 - ピンイン入力の学習データ
 - 文体、キーボード、API、言語の設定
 - 無料体験の開始日、購入状況、当日の AI 使用回数
 
-整えた履歴と入力の学習データは「設定 › プライバシー」で消去できます。本アプリを削除すると、これらの情報もすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
+AI の履歴は端末内にのみ保存され、送信されることはありません。「履歴」タブ右上の ⋯ メニューで、記録をオフにする、保存期間を選ぶ、履歴を消去することができます。AI の履歴と入力の学習データは「設定 › プライバシー」でも消去できます。本アプリを削除すると、これらの情報もすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
 
 ## 4. 権限について
 
