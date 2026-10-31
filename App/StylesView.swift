@@ -733,7 +733,8 @@ final class PromptOptimizer: ObservableObject {
             return
         }
         guard settings.isConfigured else {
-            error = LLMError.notConfigured.errorDescription
+            // 键盘里那句是「请先打开飞地输入法 App」，这里已经在 App 里了，直接指到接口页。
+            error = L("还没有配置 API，请先在「AI › 接口」里填写。", "No API set up yet. Add one under AI › API.", "API が未設定です。「AI › API」で設定してください。")
             return
         }
         guard AIAccess.current.allowsAI else {

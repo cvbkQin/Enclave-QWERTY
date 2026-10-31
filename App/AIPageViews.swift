@@ -310,7 +310,7 @@ struct PromptListSections: View {
                 }
             }
             .onDelete(perform: delete)
-            .onMove { styles.wrappedValue.move(fromOffsets: $0, toOffset: $1) }
+            .onMove(perform: move)
         } header: {
             HStack(alignment: .firstTextBaseline) {
                 Text(answer ? L("全部问答风格", "All answer styles", "すべての回答スタイル") : L("全部润色风格", "All polish styles", "すべての整えるスタイル"))
@@ -370,6 +370,13 @@ struct PromptListSections: View {
 
     private func summary(_ style: StylePreset) -> String {
         answer ? (style.prompt.isEmpty ? AnswerStyleSections.answerFallback : style.prompt) : PolishPromptSections.summary(style)
+    }
+
+    /// 拖动只改顺序，不改默认：没选过默认时默认跟着第一条，拖之前先把它记下来，不然拖到最上面的那条就悄悄变成了默认。
+    private func move(_ offsets: IndexSet, _ destination: Int) {
+        if answer, settings.selectedAnswerStyleID == nil { settings.selectedAnswerStyleID = defaultID }
+        if !answer, settings.selectedStyleID == nil { settings.selectedStyleID = defaultID }
+        styles.wrappedValue.move(fromOffsets: offsets, toOffset: destination)
     }
 
     /// 至少留一条；删掉的是默认那条就回到第一条。
