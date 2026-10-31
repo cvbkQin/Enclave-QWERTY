@@ -134,29 +134,39 @@ enum BackupArchive {
 
     private static let crcTable: [UInt32] = (0..<256).map { n -> UInt32 in
         var c = UInt32(n)
-        for _ in 0..<8 { c = c & 1 != 0 ? 0xEDB8_8320 ^ (c >> 1) : c >> 1 }
+        for _ in 0..<8 { c = (c & 1) != 0 ? (0xEDB8_8320 ^ (c >> 1)) : (c >> 1) }
         return c
     }
 
     static func crc32(_ data: Data) -> UInt32 {
         var crc: UInt32 = 0xFFFF_FFFF
-        for byte in data { crc = crcTable[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8) }
+        for byte in data {
+            let index = Int((crc ^ UInt32(byte)) & 0xFF)
+            crc = crcTable[index] ^ (crc >> 8)
+        }
         return crc ^ 0xFFFF_FFFF
     }
 
     private static func dosTimestamp(_ date: Date) -> (UInt16, UInt16) {
         let c = Calendar(identifier: .gregorian).dateComponents(in: .current, from: date)
-        let time = UInt16((c.hour ?? 0) << 11 | (c.minute ?? 0) << 5 | (c.second ?? 0) / 2)
-        let day = UInt16(max(0, (c.year ?? 1980) - 1980) << 9 | (c.month ?? 1) << 5 | (c.day ?? 1))
-        return (time, day)
+        let hour: Int = c.hour ?? 0, minute: Int = c.minute ?? 0, second: Int = c.second ?? 0
+        let year: Int = max(0, (c.year ?? 1980) - 1980), month: Int = c.month ?? 1, day: Int = c.day ?? 1
+        let time: Int = (hour << 11) + (minute << 5) + second / 2
+        let dosDate: Int = (year << 9) + (month << 5) + day
+        return (UInt16(truncatingIfNeeded: time), UInt16(truncatingIfNeeded: dosDate))
     }
 
-    private static func le16(_ value: UInt16) -> Data { Data([UInt8(value & 0xFF), UInt8(value >> 8)]) }
+    private static func le16(_ value: UInt16) -> Data { withUnsafeBytes(of: value.littleEndian) { Data($0) } }
     private static func le32(_ value: UInt32) -> Data {
-        Data([UInt8(value & 0xFF), UInt8((value >> 8) & 0xFF), UInt8((value >> 16) & 0xFF), UInt8(value >> 24)])
+        withUnsafeBytes(of: value.littleEndian) { Data($0) }
     }
-    private static func u16(_ b: [UInt8], _ i: Int) -> UInt16 { UInt16(b[i]) | UInt16(b[i + 1]) << 8 }
+    private static func u16(_ b: [UInt8], _ i: Int) -> UInt16 {
+        let low = UInt16(b[i]), high = UInt16(b[i + 1])
+        return low | (high << 8)
+    }
+
     private static func u32(_ b: [UInt8], _ i: Int) -> UInt32 {
-        UInt32(b[i]) | UInt32(b[i + 1]) << 8 | UInt32(b[i + 2]) << 16 | UInt32(b[i + 3]) << 24
+        let b0 = UInt32(b[i]), b1 = UInt32(b[i + 1]), b2 = UInt32(b[i + 2]), b3 = UInt32(b[i + 3])
+        return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)
     }
 }
