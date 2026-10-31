@@ -1418,7 +1418,7 @@ struct FuzzyPinyinView: View {
                     } else if deployer.state == .done && selection == store.settings.fuzzyPinyin {
                         Text(L("已生效，切回键盘就能用。", "Done. Switch back to the keyboard to use it.", "反映されました。キーボードに戻ると使えます。")).foregroundStyle(.green)
                     } else {
-                        Text(L("改动后要重新部署一次词库才生效，约 1 分钟。", "Changes take effect after reinstalling the dictionary, about 1 minute.", "変更は辞書の再インストール後に反映されます（約 1 分）。")).foregroundStyle(.secondary)
+                        Text(L("改动后要重新部署一次词库才生效，\(RimeDeployer.durationText)。", "Changes take effect after reinstalling the dictionary, \(RimeDeployer.durationText).", "変更は辞書の再インストール後に反映されます（\(RimeDeployer.durationText)）。")).foregroundStyle(.secondary)
                     }
                 }
                 .font(.footnote)

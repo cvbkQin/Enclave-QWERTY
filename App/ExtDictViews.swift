@@ -263,7 +263,7 @@ struct ImportedDictsView: View {
     }
 }
 
-/// 部署进度：放在「已装」或「已导入」组顶上。编译没有真实进度，沿用万象部署那条按一分钟估的进度条。
+/// 部署进度：放在「已装」或「已导入」组顶上。编译没有真实进度，按上次实际用的时间估（没部署过按一分钟）。
 private struct ExtDictDeployBanner: View {
     @ObservedObject private var deployer = RimeDeployer.shared
 
@@ -271,15 +271,16 @@ private struct ExtDictDeployBanner: View {
         VStack(alignment: .leading, spacing: 8) {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let elapsed = context.date.timeIntervalSince(deployer.startedAt ?? context.date)
+                let expected = RimeDeployer.expectedSeconds
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text(L("正在把新词加进键盘…", "Adding the new words to the keyboard…", "新しい語をキーボードに追加中…"))
                             .font(.system(size: 15, weight: .semibold))
                         Spacer()
-                        Text(elapsed < 50 ? L("约 1 分钟", "About 1 min", "約 1 分") : L("快好了", "Almost done", "まもなく完了"))
+                        Text(elapsed < expected - 5 ? L("还要", "", "残り") + RimeDeployer.durationText(expected - elapsed) : L("快好了", "Almost done", "まもなく完了"))
                             .font(.system(size: 13)).foregroundStyle(.secondary)
                     }
-                    ProgressView(value: min(elapsed / 60, 0.95)).tint(AppColor.purple)
+                    ProgressView(value: min(elapsed / expected, 0.95)).tint(AppColor.purple)
                 }
             }
             Text(L("可以离开这页，也可以先用键盘打字；部署完新词才会出现。", "You can leave this page or keep typing; the new words appear once it's done.", "このページを離れても、そのまま入力しても大丈夫です。新しい語は完了後に出ます。"))
@@ -507,9 +508,9 @@ private struct ImportConfirmSheet: View {
                 .buttonStyle(PrimaryButtonStyle())
             }
             if let error { Text(error).font(.footnote).foregroundStyle(.red) }
-            Text(L("在本机转换，文件不上传。导入后加进「导入的词库」，重新部署约 1 分钟。",
-                   "Converted on this iPhone; the file isn't uploaded. It's added to Imported dictionaries and installs in about a minute.",
-                   "この iPhone 上で変換し、ファイルはアップロードしません。読み込むと「読み込んだ辞書」に追加され、約 1 分でインストールします。"))
+            Text(L("在本机转换，文件不上传。导入后加进「导入的词库」，重新部署\(RimeDeployer.durationText)。",
+                   "Converted on this iPhone; the file isn't uploaded. It's added to Imported dictionaries and installs in \(RimeDeployer.durationText).",
+                   "この iPhone 上で変換し、ファイルはアップロードしません。読み込むと「読み込んだ辞書」に追加され、\(RimeDeployer.durationText)でインストールします。"))
                 .font(.system(size: 13)).foregroundStyle(.secondary).multilineTextAlignment(.center)
             Spacer(minLength: 0)
         }
@@ -684,13 +685,14 @@ struct ExtDictDetailView: View {
     }
 
     private var deleteNote: String {
+        let d = RimeDeployer.durationText
         switch installed?.kind {
         case .downloaded:
-            return L("删除后要重新部署约 1 分钟，以后可以在「热门词库」里再下载。", "Deleting reinstalls the dictionary (about a minute). You can download it again from Popular dictionaries.", "削除すると約 1 分で再インストールします。「人気の辞書」からいつでもダウンロードし直せます。")
+            return L("删除后要重新部署，\(d)，以后可以在「热门词库」里再下载。", "Deleting reinstalls the dictionary (\(d)). You can download it again from Popular dictionaries.", "削除すると再インストールします（\(d)）。「人気の辞書」からいつでもダウンロードし直せます。")
         case .imported:
-            return L("删除后要重新部署约 1 分钟。要再用得重新导入文件。", "Deleting reinstalls the dictionary (about a minute). To use it again, import the file again.", "削除すると約 1 分で再インストールします。再び使うにはファイルを読み込み直してください。")
+            return L("删除后要重新部署，\(d)。要再用得重新导入文件。", "Deleting reinstalls the dictionary (\(d)). To use it again, import the file again.", "削除すると再インストールします（\(d)）。再び使うにはファイルを読み込み直してください。")
         default:
-            return L("删除后要重新部署约 1 分钟。删掉的内置词库会出现在「热门词库」的「可以下载」里，点「恢复」就能加回来。", "Deleting reinstalls the dictionary (about a minute). Deleted built-in dictionaries appear under Available to download in Popular dictionaries; tap Restore to add them back.", "削除すると約 1 分で再インストールします。削除した内蔵辞書は「人気の辞書」の「ダウンロードできる辞書」に表示され、「戻す」で戻せます。")
+            return L("删除后要重新部署，\(d)。删掉的内置词库会出现在「热门词库」的「可以下载」里，点「恢复」就能加回来。", "Deleting reinstalls the dictionary (\(d)). Deleted built-in dictionaries appear under Available to download in Popular dictionaries; tap Restore to add them back.", "削除すると再インストールします（\(d)）。削除した内蔵辞書は「人気の辞書」の「ダウンロードできる辞書」に表示され、「戻す」で戻せます。")
         }
     }
 }
