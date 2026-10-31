@@ -165,6 +165,9 @@ struct RecentRequestsView: View {
                        "Only the time, success or failure, duration, prompt and model are kept, never what you typed or the AI's reply (those are in History). Stored only on this iPhone; the last \(UsageStats.recentLimit) for Polish and for Q&A.",
                        "時刻・成否・所要時間・プロンプトとモデルだけを記録し、入力した文や AI の回答は記録しません（それは「履歴」にあります）。この iPhone にだけ保存し、整える・質問それぞれ直近 \(UsageStats.recentLimit) 回です。"))
                     .textCase(nil)
+                    // 说明文字，同其他页的脚注：小号灰字（放在 header 里时系统默认是大号粗体）。
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
         }
         .listStyle(.insetGrouped)

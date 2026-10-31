@@ -530,8 +530,8 @@ final class AppStore: ObservableObject {
                 ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success("", Date().timeIntervalSince(start))
         } catch {
-            answerTest = .failure(error.localizedDescription)
             failure = UsageStats.Request.Failure.of(error)
+            answerTest = .failure(Self.testFailureText(error, failure))
         }
         var ok = false
         if case .success = answerTest { ok = true }
@@ -553,6 +553,13 @@ final class AppStore: ObservableObject {
         if answer { answerMissingModel = missing } else { missingModel = missing }
     }
 
+    /// 测试失败时接口卡上的红字：认得的原因用短句（同「最近 20 次」，比如「Key 无效（401）」），
+    /// 不把服务商返回的原始 JSON（里面可能带 Key 的后几位）显示出来；认不得的才用原始信息。
+    private static func testFailureText(_ error: Error, _ failure: String?) -> String {
+        guard let failure, failure != UsageStats.Request.Failure.other else { return error.localizedDescription }
+        return UsageStats.Request(ms: 0, ok: false, at: Date(), error: failure).failureText
+    }
+
     func runTest() async {
         // 没同意隐私政策前不发任何网络请求（测试会把 API Key 发到外部地址），入口处会先提示。
         guard PrivacyConsent.isAgreed else { return }
@@ -571,8 +578,8 @@ final class AppStore: ObservableObject {
             test = reply.isEmpty ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success(String(reply.prefix(40)), Date().timeIntervalSince(start))
         } catch {
-            test = .failure(error.localizedDescription)
             failure = UsageStats.Request.Failure.of(error)
+            test = .failure(Self.testFailureText(error, failure))
             switch error {
             case LLMError.http(let code, _) where code == 401 || code == 403: testFailure = .unauthorized
             case LLMError.http(402, _): testFailure = .noBalance
