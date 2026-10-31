@@ -144,6 +144,8 @@ struct EnclaveSettings: Codable, Equatable {
     var pinyinDisplay: PinyinDisplay = .row
     /// 键盘底色用系统毛玻璃（#19 测试版）：顶边、底边都和系统那截玻璃接上，不留硬线。关掉回到不透明底色。
     var keyboardGlass: Bool = true
+    /// 剪贴板实测（B1 第一步，临时）：键盘顶上出一条测试条，分别读 changeCount / hasStrings / 内容，看会不会弹「允许粘贴」。
+    var clipboardProbe: Bool = false
     /// 按键震动（需要打开完全访问）。
     var keyHaptics: Bool = true
     /// 按键声音（手机静音时不响）。
@@ -173,7 +175,7 @@ struct EnclaveSettings: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, clipboardProbe, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
     }
 
@@ -226,6 +228,7 @@ extension EnclaveSettings {
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
         pinyinDisplay = (try? c.decodeIfPresent(PinyinDisplay.self, forKey: .pinyinDisplay)) ?? pinyinDisplay
         keyboardGlass = (try? c.decodeIfPresent(Bool.self, forKey: .keyboardGlass)) ?? keyboardGlass
+        clipboardProbe = (try? c.decodeIfPresent(Bool.self, forKey: .clipboardProbe)) ?? clipboardProbe
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
         autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize
