@@ -35,9 +35,8 @@ struct ExtDictSections: View {
                 }
             }
         } header: {
-            Text(L("我的词库 · \(rows.count) 个，约 \(ExtDictStore.countText(store.enabledEntries)) 词",
-                   "My dictionaries · \(rows.count), about \(ExtDictStore.countText(store.enabledEntries)) words",
-                   "マイ辞書 · \(rows.count) 個、約 \(ExtDictStore.countText(store.enabledEntries)) 語"))
+            Text(L("我的词库 · \(rows.count) 个，约 ", "My dictionaries · \(rows.count), about ", "マイ辞書 · \(rows.count) 個、約 ")
+                 + ExtDictStore.wordsText(store.enabledEntries))
         } footer: {
             Text(deploying
                  ? L("部署中开关先变灰，部署完才能再改。", "Switches are grayed out while installing and come back when it's done.", "インストール中はスイッチを変更できません。終わると戻ります。")

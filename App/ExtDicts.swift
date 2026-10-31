@@ -481,7 +481,13 @@ final class ExtDictStore: NSObject, ObservableObject {
     // MARK: 文字
 
     static func entryText(_ count: Int) -> String {
-        L("约 ", "About ", "約 ") + countText(count) + L(" 词", " words", " 語")
+        L("约 ", "About ", "約 ") + wordsText(count)
+    }
+
+    /// 「8,500 词」「4.5 万词」（万后面不再空格）/「45k words」。
+    static func wordsText(_ count: Int) -> String {
+        let number = countText(count)
+        return number + (number.hasSuffix("万") ? L("词", " words", "語") : L(" 词", " words", " 語"))
     }
 
     /// 「8,500」「4.5 万」/「8,500」「45k」。
