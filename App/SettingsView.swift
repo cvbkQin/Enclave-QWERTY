@@ -160,6 +160,11 @@ struct SettingsView: View {
                     Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
                 }
                 Section {
+                    NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
+                } header: {
+                    Text(L("数据", "Data", "データ"))
+                }
+                Section {
                     NavigationLink(value: AppRouter.SettingsPage.privacy) {
                         DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
                                 value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
@@ -205,6 +210,7 @@ struct SettingsView: View {
                 case .licenses: LicensesView()
                 case .diagnostics: DiagnosticsView()
                 case .feedback: FeedbackFormView()
+                case .backup: BackupView()
                 }
             }
         }

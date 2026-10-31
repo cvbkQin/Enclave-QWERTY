@@ -183,7 +183,7 @@ final class RimeDeployer: ObservableObject {
         } catch {
             return .failure(error)
         }
-        let ok = enclave_rime_deploy(paths.shared.path, paths.user.path, nil)
+        let ok = RimeStore.withAppEngine { enclave_rime_deploy(paths.shared.path, paths.user.path, nil) }
         let schema = paths.user.appendingPathComponent("build/\(RimeStore.schemaID).schema.yaml")
         guard ok, fm.fileExists(atPath: schema.path) else {
             return .failure(DeployError(errorDescription: L("词库编译失败。", "Couldn't build the dictionary.", "辞書の作成に失敗しました。")))

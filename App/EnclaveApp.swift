@@ -63,6 +63,12 @@ struct EnclaveApp: App {
                     Task { await UnlockStore.shared.refresh() }
                 }
                 .onOpenURL { url in
+                    // 点开 .enclave 备份文件：到设置 › 备份与恢复，弹恢复面板。
+                    if url.isFileURL, url.pathExtension.lowercased() == BackupService.fileExtension {
+                        router.openedBackup = url
+                        router.openSettings(.backup)
+                        return
+                    }
                     // enclave://playground 直接打开「试一试」并弹出键盘，方便在模拟器里截图测试。
                     guard url.scheme == "enclave" else { return }
                     switch url.host {
@@ -172,8 +178,11 @@ final class AppRouter: ObservableObject {
 
     /// 设置里的二级页。setup：首次设置（欢迎页四步）；firstScene：使用指引的第一个场景（enclave://playground）。
     enum SettingsPage: String, Hashable {
-        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools
+        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools, backup
     }
+
+    /// 在「文件」等处点开的 .enclave 备份文件：备份页读到后弹恢复面板。
+    @Published var openedBackup: URL?
 
     /// 键盘标签里的二级页：模糊拼音、词库、常用词、键盘常用语、按键判定。
     enum KeyboardPage: String, Hashable { case fuzzy, pinyin, commonWords, keyboardWords, touch }

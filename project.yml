@@ -106,6 +106,19 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: enclave
             CFBundleURLSchemes: [enclave]
+        # 备份文件 .enclave（设置 › 备份与恢复）：在「文件」里点开会交给飞地输入法恢复。
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER).backup
+            UTTypeDescription: Enclave Backup
+            UTTypeConformsTo: [public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [enclave]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Enclave Backup
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Owner
+            LSItemContentTypes: [$(PRODUCT_BUNDLE_IDENTIFIER).backup]
+        LSSupportsOpeningDocumentsInPlace: false
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
@@ -190,6 +203,9 @@ targets:
       - path: Keyboard/FieldSpan.swift
       - path: App/Provider.swift
       - path: App/StorefrontRegion.swift
+      - path: App/Backup/BackupArchive.swift
+      - path: App/Backup/BackupCrypto.swift
+      - path: App/Backup/BackupMerge.swift
       - path: Generated/EnclaveTests/BuiltinSecrets.swift
         optional: true
     preBuildScripts:

@@ -70,6 +70,23 @@ bool enclave_rime_deploy(const char *shared_dir, const char *user_dir, const cha
   return ok;
 }
 
+bool enclave_rime_sync_user_data(const char *shared_dir, const char *user_dir, const char *log_dir, const char *ensure_schema) {
+  RimeApi *api = rime_get_api();
+  enclave_rime_finalize();
+  enclave_rime_start(shared_dir, user_dir, log_dir);
+  if (ensure_schema) {
+    RimeSessionId session = api->create_session();
+    if (session) {
+      api->select_schema(session, ensure_schema);
+      api->destroy_session(session);
+    }
+  }
+  bool ok = api->sync_user_data();
+  api->join_maintenance_thread();
+  enclave_rime_finalize();
+  return ok;
+}
+
 uint64_t enclave_rime_create_session(const char *schema_id) {
   RimeApi *api = rime_get_api();
   RimeSessionId session = api->create_session();

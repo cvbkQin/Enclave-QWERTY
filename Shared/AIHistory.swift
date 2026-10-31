@@ -145,6 +145,11 @@ enum AIHistory {
         queue.sync { write(read().filter { $0.id != id }) }
     }
 
+    /// 备份恢复（B3）：整份换成给的这些（已经合并好的）。
+    static func replaceAll(_ entries: [AIHistoryEntry]) {
+        queue.sync { write(Array(entries.sorted { $0.date > $1.date }.prefix(maxEntries))) }
+    }
+
     static func clear() {
         queue.sync {
             if let url = fileURL { try? FileManager.default.removeItem(at: url) }
