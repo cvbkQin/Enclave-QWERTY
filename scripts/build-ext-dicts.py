@@ -3,6 +3,7 @@
 
 用法：
   python3 scripts/build-ext-dicts.py <万象 dicts 目录> <THUOCL data 目录> [--online server/dicts] [--blocklist <敏感词表>]
+                                    [--baike <zhwiki-*.dict.yaml>]
 
 在线词库和清单 catalog.json 写到 --online 目录，原样放到 enclavekb.cn/dicts/（见 server/README.md）。
 
@@ -50,7 +51,9 @@ ONLINE_NAMES = {
     "poem": {"zh": "诗词", "en": "Poetry", "ja": "詩詞"},
     "lishimingren": {"zh": "历史名人", "en": "Historical figures", "ja": "歴史上の人物"},
 }
-# 百科词库：敏感词过滤、精简到 20 万条后再上线；没有文件时清单里 url 写 null，App 显示「准备中」。
+# 百科词库：中文维基百科条目标题（fcitx5-pinyin-zhwiki 的 release，已转成简体），过敏感词表、精简到 20 万条。
+# 没给 --baike 时沿用 --online 目录里上次生成的；一次都没生成过，清单里 url 写 null，App 显示「准备中」。
+BAIKE_LIMIT = 200_000
 BAIKE = {
     "id": "baike", "name": {"zh": "百科词库", "en": "Wikipedia", "ja": "ウィキペディア辞書"},
     "summary": {"zh": "人名、地名、作品、游戏角色", "en": "People, places, works and game characters", "ja": "人名、地名、作品、ゲームキャラクター"},
@@ -81,7 +84,7 @@ def rime_entries(path):
 
 
 def load_readings(wanxiang):
-    """整词读音（取词频最高的）和单字最常用读音。"""
+    """整词读音（取词频最高的）、单字最常用读音和单字词频。"""
     words, chars = {}, {}
     for name in ["jichu", "duoyin", "diming", "mingren", "yiren"]:
         path = wanxiang / f"{name}.dict.yaml"
@@ -93,7 +96,7 @@ def load_readings(wanxiang):
     for text, code, weight in rime_entries(wanxiang / "zi.dict.yaml"):
         if len(text) == 1 and (text not in chars or weight > chars[text][1]):
             chars[text] = (code, weight)
-    return {k: v[0] for k, v in words.items()}, {k: v[0] for k, v in chars.items()}
+    return {k: v[0] for k, v in words.items()}, {k: v[0] for k, v in chars.items()}, {k: v[1] for k, v in chars.items()}
 
 
 def pinyin(word, words, chars):
@@ -170,6 +173,59 @@ def build(pack, kind, path, words, chars, blocklist, out):
     return {"id": pack, "entries": len(kept), "version": version, "size": target.stat().st_size}
 
 
+def build_baike(path, words, chars, char_freq, blocklist, out):
+    """维基标题没有词频，按「字常不常用、长度合不合适」打分，取前 20 万条。
+
+    跳过：万象里已经有的词（基础词库能打出来）、不是 2–8 个汉字的、有生僻字（万象单字表里没有）的。
+    分数 = 每个字的对数字频取平均，4 字以上每多一个字扣一点：常用字组成的短标题（人名、地名、作品名）排前面。"""
+    rows, blocked, skipped = [], [], 0
+    for text, code, _ in rime_entries(path):
+        if text in words or not re.fullmatch(r"[\u4e00-\u9fff]{2,8}", text):
+            continue
+        if text in blocklist:
+            blocked.append(text)
+            continue
+        if any(c not in char_freq for c in text):
+            skipped += 1
+            continue
+        reading = pinyin(text, words, chars)
+        if not reading or not re.fullmatch(r"[a-z]+( [a-z]+)*", reading) or len(reading.split()) != len(text):
+            reading = code if re.fullmatch(r"[a-z]+( [a-z]+)*", code or "") and len(code.split()) == len(text) else None
+        if not reading:
+            skipped += 1
+            continue
+        score = sum(math.log(char_freq[c] + 1) for c in text) / len(text) - 0.6 * max(0, len(text) - 4)
+        rows.append((score, text, reading))
+    rows.sort(key=lambda r: -r[0])
+    kept = rows[:BAIKE_LIMIT]
+    version = date.today().isoformat()
+    target = out / "ext_baike.dict.yaml"
+    with target.open("w", encoding="utf-8") as f:
+        f.write("# 飞地输入法扩展词库 · 来源：中文维基百科条目标题（zh.wikipedia.org），CC BY-SA 4.0；"
+                f"标题表取自 fcitx5-pinyin-zhwiki（github.com/felixonmars/fcitx5-pinyin-zhwiki，{path.name}）\n"
+                "# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注，按 CC BY-SA 4.0 分发。\n")
+        f.write(f"---\nname: ext_baike\nversion: \"{version}\"\nsort: by_weight\n...\n")
+        n = len(kept)
+        for i, (_, text, reading) in enumerate(kept):
+            f.write(f"{text}\t{reading}\t{max(1, 5 - (5 * i) // max(n, 1))}\n")
+    print(f"  baike: {len(kept)} 条（候选 {len(rows)}，生僻字或查不到读音 {skipped}，"
+          f"过滤 {len(blocked)}{'：' + '、'.join(blocked[:30]) + ('…' if len(blocked) > 30 else '') if blocked else ''}）")
+    return {**BAIKE, "entries": len(kept), "size": target.stat().st_size, "version": version,
+            "sha256": hashlib.sha256(target.read_bytes()).hexdigest(), "url": target.name}
+
+
+def previous_baike(out):
+    """没给 --baike：清单里上次生成的百科条目还对得上文件就沿用。"""
+    try:
+        old = json.loads((out / "catalog.json").read_text(encoding="utf-8"))
+        entry = next(d for d in old["dicts"] if d["id"] == "baike")
+        if entry.get("url") and (out / entry["url"]).exists():
+            return {**BAIKE, **{k: entry[k] for k in ("entries", "size", "version", "sha256", "url")}}
+    except (OSError, ValueError, KeyError, StopIteration):
+        pass
+    return BAIKE
+
+
 def main():
     args = sys.argv[1:]
     def option(name):
@@ -181,6 +237,7 @@ def main():
         return None
     online_dir = option("--online")
     block_path = option("--blocklist")
+    baike_path = option("--baike")
     wanxiang, thuocl = Path(args[0]), Path(args[1])
     blocklist = set()
     if block_path:
@@ -189,7 +246,7 @@ def main():
                      if l.strip() and not l.strip().startswith("#")}
     else:
         print("提醒：没给 --blocklist，没过敏感词过滤，只能用于开发测试。")
-    words, chars = load_readings(wanxiang)
+    words, chars, char_freq = load_readings(wanxiang)
     OUT.mkdir(parents=True, exist_ok=True)
     print("内置词库：")
     manifest = []
@@ -201,7 +258,7 @@ def main():
         out = Path(online_dir)
         out.mkdir(parents=True, exist_ok=True)
         print("在线词库：")
-        catalog = [BAIKE]
+        catalog = [build_baike(Path(baike_path), words, chars, char_freq, blocklist, out) if baike_path else previous_baike(out)]
         for pack, kind, name in ONLINE:
             info = build(pack, kind, thuocl / name, words, chars, blocklist, out)
             path = out / f"ext_{pack}.dict.yaml"
