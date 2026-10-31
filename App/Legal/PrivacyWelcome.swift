@@ -17,7 +17,7 @@ struct PrivacyWelcomeView: View {
                 VStack(spacing: 0) {
                     if updated {
                         // 隐私政策更新后再弹（同意过旧版的人才看到），首次安装不显示。
-                        Text(L("隐私说明有更新：识意问答联网新增腾讯混元", "Privacy notice updated: Ask web search now also supports Tencent Hunyuan", "プライバシーの説明を更新しました：質問のウェブ検索に Tencent Hunyuan を追加"))
+                        Text(L("隐私说明有更新：新增剪贴板记录、备份与恢复的说明", "Privacy notice updated: added clipboard history and backup & restore", "プライバシーの説明を更新しました：クリップボード履歴とバックアップと復元の説明を追加"))
                             .font(.system(size: 13))
                             .foregroundStyle(Color(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255))
                             .padding(.vertical, 8)
