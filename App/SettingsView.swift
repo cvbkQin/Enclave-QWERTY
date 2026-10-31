@@ -1148,6 +1148,7 @@ struct KeyboardSettingsView: View {
                     DashRow(icon: "star.fill", color: DashColor.phrase, title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), value: "\(phrases.phrases.count)")
                 }
             }
+            ClipboardSettingsSection(refresh: refresh)
         }
         .tint(AppColor.purple)
         .pinnedTabTitle(caption: caption, title: L("键盘", "Keyboard", "キーボード"))

@@ -68,6 +68,30 @@ struct KeysView: View {
             }
         }
         .frame(height: KeyboardMetrics.keysHeight)
+        // 「★ 已加到常用语…」「只能粘贴文字」这类小提示：盖在按键区顶上，不挡手指。
+        .overlay(alignment: .top) {
+            if let toast = model.keysToast {
+                KeysToast(text: toast).padding(.top, 4).transition(.opacity).allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+/// 按键区顶上的深色小胶囊，样子和自由编辑的提示一样。
+struct KeysToast: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13.5, weight: .semibold))
+            .foregroundStyle(Brand.candidateMenuText)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(Capsule().fill(Brand.candidateMenuFill))
+            .shadow(color: .black.opacity(0.22), radius: 9, y: 6)
+            .padding(.horizontal, 12)
     }
 }
 
@@ -88,13 +112,15 @@ struct KeyCapContext: Equatable {
     var trackpadActive: Bool
     var spaceTitle: String
     var returnLook: KeyboardModel.ReturnLook
+    /// 九宫格「常用」键右上角的紫点：剪贴板有新复制的内容（B1）。
+    var quickDot: Bool = false
 }
 
 extension KeyboardModel {
     var keyCapContext: KeyCapContext {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
-                      spaceTitle: spaceTitle, returnLook: returnLook)
+                      spaceTitle: spaceTitle, returnLook: returnLook, quickDot: clipboardHasNew)
     }
 }
 
@@ -139,6 +165,15 @@ struct KeyCapView: View, Equatable {
             label
                 .foregroundStyle(foreground)
                 .opacity(context.trackpadActive ? 0 : 1)
+        }
+        .overlay(alignment: .topTrailing) {
+            if case .quickWords = key.kind, context.quickDot {
+                Circle().fill(Brand.purple)
+                    .frame(width: 7, height: 7)
+                    .padding(.top, key.insetY + 6)
+                    .padding(.trailing, key.insetX + 6)
+                    .allowsHitTesting(false)
+            }
         }
     }
 

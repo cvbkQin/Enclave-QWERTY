@@ -201,6 +201,17 @@ final class KeyboardModel: ObservableObject {
     /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
     @Published var wordPanelText = ""
     @Published var wordPanelFading = false
+    /// 剪贴板（B1）：有没有新复制的内容（只看 changeCount、hasStrings，不读内容）、「常用」面板停在哪个标签、记录列表。
+    @Published var clipboardHasNew = false
+    @Published var quickTab: QuickTab = .phrases
+    @Published var clipItems: [ClipItem] = []
+    /// 长按剪贴板一条弹出的菜单。
+    @Published var clipMenu: UUID?
+    /// 「清空」点了一次，再点一次才清（3 秒内）。
+    @Published var clipClearArmed = false
+    /// 按键区顶上的深色小提示（「★ 已加到常用语…」「只能粘贴文字」），1.8 秒后淡掉。
+    @Published var keysToast: String?
+    var keysToastTimer: DispatchWorkItem?
     /// 刚进自由编辑时的小胶囊。
     @Published var freeEditToast = false
     var freeEditToastTimer: DispatchWorkItem?

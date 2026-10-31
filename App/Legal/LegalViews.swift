@@ -13,7 +13,7 @@ struct PrivacyView: View {
     @State private var confirmsRevoke = false
 
     private enum ClearTarget: Identifiable {
-        case history, learning, stats
+        case history, learning, stats, clipboard
         var id: Self { self }
     }
 
@@ -83,6 +83,8 @@ struct PrivacyView: View {
                 clearRow(L("清除使用统计", "Clear Usage Stats", "利用統計を消去"), target: .stats)
                 clearRow(L("清除 AI 历史", "Clear AI History", "AI の履歴を消去"), target: .history)
                 clearRow(L("清除拼音学习记录", "Clear Pinyin Learning", "ピンインの学習データを消去"), target: .learning)
+                // B1：和 App › 键盘 › 剪贴板 里的「清除剪贴板记录」是同一个操作。
+                clearRow(L("清除剪贴板记录", "Clear Clipboard History", "クリップボード履歴を消去"), target: .clipboard)
             } header: {
                 Text(L("本地数据", "Data on this iPhone", "この iPhone のデータ"))
             } footer: {
@@ -111,6 +113,7 @@ struct PrivacyView: View {
                     HistoryStore.shared.clear()
                 case .learning: RimeStore.clearLearning()
                 case .stats: UsageStats.clearStats()
+                case .clipboard: ClipboardHistory.clear()
                 }
                 cleared.insert(target)
             }
@@ -132,6 +135,8 @@ struct PrivacyView: View {
                                  "ピンインの学習データを消去しますか？候補は初期の順番に戻ります。")
         case .stats: return L("清除使用统计？首页的次数和图表会从零开始。", "Clear usage stats? The counts and charts on Home start over.",
                               "利用統計を消去しますか？ホームの回数とグラフはゼロからになります。")
+        case .clipboard: return L("清除剪贴板记录？键盘「常用 › 剪贴板」里的记录会全部删除。", "Clear clipboard history? Everything under Phrases › Clipboard on the keyboard will be deleted.",
+                                  "クリップボード履歴を消去しますか？キーボードの「定型文 › クリップボード」の記録がすべて削除されます。")
         case nil: return ""
         }
     }

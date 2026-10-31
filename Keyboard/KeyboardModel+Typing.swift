@@ -335,7 +335,7 @@ extension KeyboardModel {
     }
 
     /// 常用词短语表重写后引擎会重建会话，拼了一半的字母要原样再输一遍。
-    private func refreshCandidatesAfterPhraseChange() {
+    func refreshCandidatesAfterPhraseChange() {
         applyEngineResults(wait: true)
         let raw = engine.rawInput
         let kept = engine.selections
@@ -427,7 +427,7 @@ extension KeyboardModel {
         // 「常用」打字时也在：先把拼音原样上屏，再打开。
         case .quickWords:
             if isComposing { returnKey() }
-            openPanel(.quickWords)
+            openQuickPanel()
         case .globe: break
         }
     }

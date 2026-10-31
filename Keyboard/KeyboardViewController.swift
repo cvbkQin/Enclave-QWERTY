@@ -60,7 +60,10 @@ final class KeyboardViewController: UIInputViewController {
             .sink { [weak self] _ in
                 self?.hostInactive = false
                 // 真机上回前台不一定再走 viewDidAppear，这里也清一次。
-                DispatchQueue.main.async { self?.clearStaleMarkedText() }
+                DispatchQueue.main.async {
+                    self?.clearStaleMarkedText()
+                    self?.model.checkClipboard()
+                }
             }
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: .NSExtensionHostWillEnterForeground)
@@ -189,6 +192,8 @@ final class KeyboardViewController: UIInputViewController {
         #endif
         TypingStats.noteLaunchAppeared()
         clearStaleMarkedText()
+        // 剪贴板换没换过（只看 changeCount、hasStrings，不读内容）：「常用」键上的紫点。
+        model.checkClipboard()
         // 常用词要读系统文本替换和通讯录、可能重写词库里的短语表，不影响键盘长什么样，放到弹出以后再做，
         // 不占弹出前的那一段主线程。
         model.refreshCommonWords()
