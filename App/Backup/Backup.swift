@@ -3,7 +3,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 // 备份与恢复第一步（B3，对齐清单第 55 条，设计 design/backup/v2/BV0、BV2–BV4、design/backup/BK1、BK7）：
-// 本地导出成 .enclave 文件、从文件恢复；iCloud 同步是第二步。
+// 本地导出成 .enclave 文件、从文件恢复。不做 iCloud 同步（换机靠系统的 iCloud 整机备份，或导出 / 恢复）。
 // 备份文件是 zip 包：manifest.json（格式版本、App 版本、设备、导出时间、各项数量）和每项一个文件；只有 Key 加密。
 // 永远不备份：剪贴板记录、购买状态、试用日期、统计和诊断记录、下载的词库文件。
 
