@@ -242,7 +242,6 @@ sort: by_weight
 郡山	jun shan	5
 特雷斯	te lei si	5
 库尔兰	ku er lan	5
-台湾国	tai wan guo	5
 傅立叶	fu li ye	5
 阿尔瓦	a er wa	5
 儒格	ru ge	5
@@ -727,7 +726,6 @@ sort: by_weight
 滨町	bin ting	5
 德里地铁	de li di tie	5
 中条	zhong tiao	5
-送中	song zhong	5
 峇眼	ba yan	5
 移剌	yi la	5
 打猫	da mao	5
@@ -4554,7 +4552,6 @@ sort: by_weight
 都官司	dou guan si	5
 变旋	bian xuan	5
 马斯德	ma si de	5
-大西藏	da xi zang	5
 阿格罗	a ge luo	5
 亚特拉斯	ya te la si	5
 大阿尔	da a er	5
@@ -8500,13 +8497,11 @@ sort: by_weight
 双姓	shuang xing	5
 长球面	zhang qiu mian	5
 查马卡	cha ma ka	5
-亲中共	qin zhong gong	5
 旧长型	jiu chang xing	5
 近心点	jin xin dian	5
 干清门	gan qing men	5
 根登	gen deng	5
 经团连	jing tuan lian	5
-中共国	zhong gong guo	5
 无口	wu kou	5
 无地王	wu di wang	5
 布里勒	bu li le	5
@@ -11259,7 +11254,6 @@ sort: by_weight
 天福庙	tian fu miao	5
 新葛站	xin ge zhan	5
 全能主义	quan neng zhu yi	5
-中共胶	zhong gong jiao	5
 星风	xing feng	5
 抢铁	qiang tie	5
 印度空军	yin du kong jun	5
@@ -13963,7 +13957,6 @@ sort: by_weight
 张福运	zhang fu yun	5
 艾尔哈特	ai er ha te	5
 风藤	feng teng	5
-西藏国	xi zang guo	5
 英国电视	ying guo dian shi	5
 东本愿寺	dong ben yuan si	5
 菲勒斯	fei le si	5
@@ -24273,7 +24266,6 @@ sort: by_weight
 共青团真理报	gong qing tuan zhen li bao	5
 富山县立大学	fu shan xian li da xue	5
 中国商用飞机	zhong guo shang yong fei ji	5
-习近平吃包子	xi jin ping chi bao zi	5
 中共广东区委	zhong gong guang dong qu wei	5
 米尔维安大桥	mi er wei an da qiao	5
 上海电力公司	shang hai dian li gong si	5
@@ -31273,7 +31265,6 @@ sort: by_weight
 天床一	tian chuang yi	5
 教业中学	jiao ye zhong xue	5
 九七中战	jiu qi zhong zhan	5
-八九动乱	ba jiu dong luan	5
 半月号	ban yue hao	5
 厚毛里白	hou mao li bai	5
 三时业	san shi ye	5
@@ -32434,7 +32425,6 @@ sort: by_weight
 高铁体	gao tie ti	5
 分片段	fen pian duan	5
 格拉提安	ge la ti an	5
-八九学潮	ba jiu xue chao	5
 二次金改	er ci jin gai	5
 全像光学	quan xiang guang xue	5
 小高笑子	xiao gao xiao zi	5
@@ -33126,7 +33116,6 @@ sort: by_weight
 内部碎片	nei bu sui pian	5
 单值类型	dan zhi lei xing	5
 新光酒楼	xin guang jiu lou	5
-八九学运	ba jiu xue yun	5
 上条车站	shang tiao che zhan	5
 下条车站	xia tiao che zhan	5
 中条车站	zhong tiao che zhan	5
@@ -36919,7 +36908,6 @@ sort: by_weight
 太白山人	tai bai shan ren	5
 开西大会	kai xi da hui	5
 沈九如	shen jiu ru	5
-八九政变	ba jiu zheng bian	5
 水下八关	shui xia ba guan	5
 土将	tu jiang	5
 土类	tu lei	5
@@ -40005,18 +39993,18 @@ sort: by_weight
 野并车站	ye bing che zhan	5
 野里车站	ye li che zhan	5
 高野车站	gao ye che zhan	5
-两江新区	liang jiang xin qu	4
-内林根	nei lin gen	4
-入曾车站	ru ceng che zhan	4
-高子车站	gao zi che zhan	4
-普罗万区	pu luo wan qu	4
-法论	fa lun	4
-奥内勒	ao nei le	4
-中赞关系	zhong zan guan xi	4
-运算数学	yun suan shu xue	4
-东山高中	dong shan gao zhong	4
-具体数学	ju ti shu xue	4
-两江中学	liang jiang zhong xue	4
+两江新区	liang jiang xin qu	5
+内林根	nei lin gen	5
+入曾车站	ru ceng che zhan	5
+高子车站	gao zi che zhan	5
+普罗万区	pu luo wan qu	5
+法论	fa lun	5
+奥内勒	ao nei le	5
+中赞关系	zhong zan guan xi	5
+运算数学	yun suan shu xue	5
+东山高中	dong shan gao zhong	5
+具体数学	ju ti shu xue	5
+两江中学	liang jiang zhong xue	5
 四号战车	si hao zhan che	4
 中财办	zhong cai ban	4
 拉拉瓜	la la gua	4
@@ -51106,7 +51094,6 @@ sort: by_weight
 新柔地铁	xin rou di tie	4
 邓德强	deng de qiang	4
 流行学	liu xing xue	4
-八九风波	ba jiu feng bo	4
 周以尚	zhou yi shang	4
 七行四保	qi hang si bao	4
 四保七行	si bao qi hang	4
@@ -56876,7 +56863,6 @@ sort: by_weight
 北见站	bei jian zhan	4
 忌日快乐	ji ri kuai le	4
 时力分裂	shi li fen lie	4
-送中游行	song zhong you xing	4
 谢海门	xie hai men	4
 冯书先	feng shu xian	4
 雅高山地	ya gao shan di	4
@@ -61617,7 +61603,6 @@ sort: by_weight
 上纽米	shang niu mi	4
 下纽米	xia niu mi	4
 保山专区	bao shan zhuan qu	4
-送中运动	song zhong yun dong	4
 中华成棒	zhong hua cheng bang	4
 定远中学	ding yuan zhong xue	4
 飞鸟战队	fei niao zhan dui	4
@@ -65051,7 +65036,6 @@ sort: by_weight
 国票案	guo piao an	4
 周全池	zhou quan chi	4
 查某佛	cha mou fo	4
-返送中	fan song zhong	4
 张开明	zhang kai ming	4
 语言转换	yu yan zhuan huan	4
 真理之口	zhen li zhi kou	4
@@ -72341,7 +72325,6 @@ sort: by_weight
 三条公修	san tiao gong xiu	4
 宁夏一号	ning xia yi hao	4
 条子边	tiao zi bian	4
-翻送中	fan song zhong	4
 河同铁路	he tong tie lu	4
 费勒格角	fei le ge jiao	4
 载荷专家	zai he zhuan jia	4
@@ -73298,7 +73281,6 @@ sort: by_weight
 文报	wen bao	4
 真桑车站	zhen sang che zhan	4
 隼人车站	sun ren che zhan	4
-送中事件	song zhong shi jian	4
 人体无极	ren ti wu ji	4
 恩东加语	en dong jia yu	4
 大差市站	da cha shi zhan	4
@@ -74308,7 +74290,6 @@ sort: by_weight
 请王	qing wang	4
 达林条约	da lin tiao yue	4
 来福铁路	lai fu tie lu	4
-新疆问题	xin jiang wen ti	4
 王盘日	wang pan ri	4
 百日王朝	bai ri wang chao	4
 王达天	wang da tian	4
@@ -74471,7 +74452,6 @@ sort: by_weight
 真锅组	zhen guo zu	4
 张深发	zhang shen fa	4
 李尚用	li shang yong	4
-送中条例	song zhong tiao li	4
 日本木瓜	ri ben mu gua	4
 国安精神	guo an jing shen	4
 三毛夫人	san mao fu ren	4
@@ -75522,7 +75502,6 @@ sort: by_weight
 新五军	xin wu jun	4
 学田站	xue tian zhan	4
 阿内坦区	a nei tan qu	4
-送中风波	song zhong feng bo	4
 东别	dong bie	4
 中越边境	zhong yue bian jing	4
 牙刷家族	ya shua jia zu	4
@@ -77173,7 +77152,6 @@ sort: by_weight
 战舰大和	zhan jian da he	4
 吴中传	wu zhong chuan	4
 大兴安山	da xing an shan	4
-法轮佛法	fa lun fo fa	4
 金行直	jin xing zhi	4
 六次出幸	liu ci chu xing	4
 大通报春	da tong bao chun	4
@@ -80005,29 +79983,28 @@ sort: by_weight
 江朝会	jiang chao hui	4
 罪梦者	zui meng zhe	4
 多尔干语	duo er gan yu	4
-小国神社	xiao guo shen she	3
-老实人报	lao shi ren bao	3
-载宁龙二	zai ning long er	3
-沙地杯	sha di bei	3
-自由亚洲	zi you ya zhou	3
-第九大陆	di jiu da lu	3
-马恩国	ma en guo	3
-拉达昆德	la da kun de	3
-白夜猫子	bai ye mao zi	3
-入来智	ru lai zhi	3
-中华男排	zhong hua nan pai	3
-周增三	zhou zeng san	3
-玉门东站	yu men dong zhan	3
-让湖路站	rang hu lu zhan	3
-最上氏	zui shang shi	3
-蒋一中	jiang yi zhong	3
-蒋一先	jiang yi xian	3
-蒋中和	jiang zhong he	3
-蒋以中	jiang yi zhong	3
-蒋以任	jiang yi ren	3
-蒋元中	jiang yuan zhong	3
-蒋元用	jiang yuan yong	3
-蒋原中	jiang yuan zhong	3
+小国神社	xiao guo shen she	4
+老实人报	lao shi ren bao	4
+载宁龙二	zai ning long er	4
+沙地杯	sha di bei	4
+第九大陆	di jiu da lu	4
+马恩国	ma en guo	4
+拉达昆德	la da kun de	4
+白夜猫子	bai ye mao zi	4
+入来智	ru lai zhi	4
+中华男排	zhong hua nan pai	4
+周增三	zhou zeng san	4
+玉门东站	yu men dong zhan	4
+让湖路站	rang hu lu zhan	4
+最上氏	zui shang shi	4
+蒋一中	jiang yi zhong	4
+蒋一先	jiang yi xian	4
+蒋中和	jiang zhong he	4
+蒋以中	jiang yi zhong	4
+蒋以任	jiang yi ren	4
+蒋元中	jiang yuan zhong	4
+蒋元用	jiang yuan yong	4
+蒋原中	jiang yuan zhong	4
 蒋原用	jiang yuan yong	3
 原古马属	yuan gu ma shu	3
 中国政党	zhong guo zheng dang	3
@@ -83072,7 +83049,6 @@ sort: by_weight
 詹月如	zhan yue ru	3
 汤加国歌	tang jia guo ge	3
 国标麻将	guo biao ma jiang	3
-自由西藏	zi you xi zang	3
 高美英	gao mei ying	3
 荷里路德	he li lu de	3
 中正殿	zhong zheng dian	3
@@ -120005,30 +119981,30 @@ sort: by_weight
 立农国小	li nong guo xiao	3
 西门新宿	xi men xin su	3
 学习风格	xue xi feng ge	3
-相浦车站	xiang pu che zhan	2
-山本健二	shan ben jian er	2
-渡边万美	du bian wan mei	2
-渡边由美	du bian you mei	2
-渡边美里	du bian mei li	2
-欧式中文	ou shi zhong wen	2
-李乐善	li le shan	2
-李从善	li cong shan	2
-李元善	li yuan shan	2
-李和善	li he shan	2
-李善一	li shan yi	2
-李善中	li shan zhong	2
-李善元	li shan yuan	2
-李善单	li shan dan	2
-李善后	li shan hou	2
-参战飘带	can zhan piao dai	2
-豆家镇	dou jia zhen	2
-买方寡占	mai fang gua zhan	2
-英语名词	ying yu ming ci	2
-越战伤痕	yue zhan shang hen	2
-朱子学	zhu zi xue	2
-赣州中学	gan zhou zhong xue	2
-管致中	guan zhi zhong	2
-盘山公路	pan shan gong lu	2
+相浦车站	xiang pu che zhan	3
+山本健二	shan ben jian er	3
+渡边万美	du bian wan mei	3
+渡边由美	du bian you mei	3
+渡边美里	du bian mei li	3
+欧式中文	ou shi zhong wen	3
+李乐善	li le shan	3
+李从善	li cong shan	3
+李元善	li yuan shan	3
+李和善	li he shan	3
+李善一	li shan yi	3
+李善中	li shan zhong	3
+李善元	li shan yuan	3
+李善单	li shan dan	3
+李善后	li shan hou	3
+参战飘带	can zhan piao dai	3
+豆家镇	dou jia zhen	3
+买方寡占	mai fang gua zhan	3
+英语名词	ying yu ming ci	3
+越战伤痕	yue zhan shang hen	3
+朱子学	zhu zi xue	3
+赣州中学	gan zhou zhong xue	3
+管致中	guan zhi zhong	3
+盘山公路	pan shan gong lu	3
 片打街	pian da jie	2
 金精神	jin jing shen	2
 大猫公社	da mao gong she	2
@@ -124407,7 +124383,6 @@ sort: by_weight
 内江战斗	nei jiang zhan dou	2
 强克	qiang ke	2
 强胜	qiang sheng	2
-白纸学运	bai zhi xue yun	2
 明朝后宫	ming chao hou gong	2
 西高藏站	xi gao cang zhan	2
 博德加耶	bo de jia ye	2
@@ -155739,7 +155714,6 @@ sort: by_weight
 派对礼服	pai dui li fu	2
 澳州工党	ao zhou gong dang	2
 西昌一中	xi chang yi zhong	2
-上访妈妈	shang fang ma ma	2
 布勒松	bu le song	2
 好太王陵	hao tai wang ling	2
 中国间谍	zhong guo jian die	2
@@ -160005,32 +159979,32 @@ sort: by_weight
 妙手兰心	miao shou lan xin	2
 西码头站	xi ma tou zhan	2
 加奈日记	jia nai ri ji	2
-德山市	de shan shi	1
-车辆入侵	che liang ru qin	1
-府祝站	fu zhu zhan	1
-安怀县侯	an huai xian hou	1
-阿德赖河	a de lai he	1
-龙溪里站	long xi li zhan	1
-杨于清	yang yu qing	1
-杨清如	yang qing ru	1
-克夏拉湖	ke xia la hu	1
-水生植被	shui sheng zhi bei	1
-孟加拉扇	meng jia la shan	1
-保谷光学	bao gu guang xue	1
-千层蛋糕	qian ceng dan gao	1
-前镇运河	qian zhen yun he	1
-门丁肉饼	men ding rou bing	1
-帕拉瓦文	pa la wa wen	1
-胶装书	jiao zhuang shu	1
-博库德赖	bo ku de lai	1
-帕考	pa kao	1
-马比杉山	ma bi shan shan	1
-叶发青	ye fa qing	1
-新鲁平	xin lu ping	1
-倒跑	dao pao	1
-周文统	zhou wen tong	1
-于世平	yu shi ping	1
-元世平	yuan shi ping	1
+德山市	de shan shi	2
+车辆入侵	che liang ru qin	2
+府祝站	fu zhu zhan	2
+安怀县侯	an huai xian hou	2
+阿德赖河	a de lai he	2
+龙溪里站	long xi li zhan	2
+杨于清	yang yu qing	2
+杨清如	yang qing ru	2
+克夏拉湖	ke xia la hu	2
+水生植被	shui sheng zhi bei	2
+孟加拉扇	meng jia la shan	2
+保谷光学	bao gu guang xue	2
+千层蛋糕	qian ceng dan gao	2
+前镇运河	qian zhen yun he	2
+门丁肉饼	men ding rou bing	2
+帕拉瓦文	pa la wa wen	2
+胶装书	jiao zhuang shu	2
+博库德赖	bo ku de lai	2
+帕考	pa kao	2
+马比杉山	ma bi shan shan	2
+叶发青	ye fa qing	2
+新鲁平	xin lu ping	2
+倒跑	dao pao	2
+周文统	zhou wen tong	2
+于世平	yu shi ping	2
+元世平	yuan shi ping	2
 平世用	ping shi yong	1
 满族化	man zu hua	1
 李安泽	li an ze	1
@@ -174164,7 +174138,6 @@ sort: by_weight
 咪高风	mi gao feng	1
 全文偏误	quan wen pian wu	1
 一关藩	yi guan fan	1
-白纸运动	bai zhi yun dong	1
 少花谷木	shao hua gu mu	1
 耐心角	nai xin jiao	1
 万阿纳普	wan a na pu	1
@@ -176057,7 +176030,6 @@ sort: by_weight
 日落果	ri luo guo	1
 瓦文站	wa wen zhan	1
 雷盖乐	lei gai le	1
-习包子	xi bao zi	1
 古口站	gu kou zhan	1
 皮科尔内	pi ke er nei	1
 黄少梅	huang shao mei	1
@@ -191856,7 +191828,6 @@ sort: by_weight
 今宿车站	jin su che zhan	1
 渭原水库	wei yuan shui ku	1
 珠江专区	zhu jiang zhuan qu	1
-跨国镇压	kua guo zhen ya	1
 海保宣生	hai bao xuan sheng	1
 二甲九庄	er jia jiu zhuang	1
 加茨卡河	jia ci ka he	1
@@ -200005,3 +199976,32 @@ sort: by_weight
 韩德冲	han de chong	1
 常俊标	chang jun biao	1
 卡普塔县	ka pu ta xian	1
+角花蟾属	jiao hua chan shu	1
+李明国	li ming guo	1
+天柱增二	tian zhu zeng er	1
+卡丘林齐	ka qiu lin qi	1
+德山秀典	de shan xiu dian	1
+观音隧道	guan yin sui dao	1
+新闸镇站	xin zha zhen zhan	1
+上洛约什	shang luo yue shen	1
+绝地救援	jue di jiu yuan	1
+治平龙应	zhi ping long ying	1
+黄永楠	huang yong nan	1
+金根哲	jin gen zhe	1
+伊比廷加	yi bi ting jia	1
+马陆草	ma lu cao	1
+萨勒县	sa le xian	1
+度拔	du ba	1
+许文山	xu wen shan	1
+吴山广场	wu shan guang chang	1
+王行环	wang xing huan	1
+指叶毛兰	zhi ye mao lan	1
+程道惠	cheng dao hui	1
+奥里萨邦	ao li sa bang	1
+姚雪门	yao xue men	1
+黑暗弥漫	hei an mi man	1
+法夫低地	fa fu di di	1
+陈昌来	chen chang lai	1
+惠明王后	hui ming wang hou	1
+儿汤郡	er tang jun	1
+原麦山丘	yuan mai shan qiu	1

@@ -3,7 +3,7 @@
 
 用法：
   python3 scripts/build-ext-dicts.py <万象 dicts 目录> <THUOCL data 目录> [--online server/dicts] [--blocklist <敏感词表>]
-                                    [--baike <zhwiki-*.dict.yaml>]
+                                    [--baike <zhwiki-*.dict.yaml> [--baike-blocklist <百科补充屏蔽表>]]
 
 在线词库和清单 catalog.json 写到 --online 目录，原样放到 enclavekb.cn/dicts/（见 server/README.md）。
 
@@ -206,10 +206,30 @@ def starts_with_word(rest, words):
     return any(rest[:k] in words for k in (2, 3, 4) if len(rest) >= k)
 
 
-def build_baike(path, words, chars, char_freq, blocklist, out):
+BAIKE_LICENSE = """百科词库（ext_baike.dict.yaml）许可说明
+
+来源：中文维基百科条目标题（zh.wikipedia.org），词条由维基百科各位贡献者（Wikipedia contributors）撰写。
+标题表取自 fcitx5-pinyin-zhwiki 项目（https://github.com/felixonmars/fcitx5-pinyin-zhwiki，{source}）。
+飞地输入法转换为 Rime 格式：重新标注拼音，并按敏感词表过滤、精简到 20 万条。
+
+许可：CC BY-SA 4.0（知识共享 署名-相同方式共享 4.0 国际）
+https://creativecommons.org/licenses/by-sa/4.0/
+维基媒体的许可说明：https://dumps.wikimedia.org/legal.html
+
+本词库按同一许可分发：可以自由使用、修改和再分发，但需要署名，修改后的版本也要用 CC BY-SA 4.0 发布。
+"""
+
+
+def read_blocklist(path):
+    """一行一个词，# 开头是注释，空行跳过。"""
+    return {l.strip() for l in Path(path).read_text(encoding="utf-8").splitlines()
+            if l.strip() and not l.strip().startswith("#")}
+
+
+def build_baike(path, words, chars, char_freq, blocklist, extra_block, out):
     """维基标题没有词频，按「被别的条目引用得多不多、字常不常用、长度合不合适」打分，取前 20 万条。
 
-    敏感词表按包含匹配（标题里有表里的词就删），其他词包是整词匹配。
+    敏感词表按包含匹配（标题里有表里的词就删），其他词包是整词匹配；百科补充屏蔽表（05 审核加的）整词匹配。
     跳过：万象里已经有的词（基础词库能打出来）、不是 2–8 个汉字的、有生僻字（万象单字表里没有）的、
     像歌名或短句的（有代词、语气词，或者切出来有一段全是虚词；派生条目多的照收）。
     分数主要看有多少条别的标题是「它 + 一个词」（「周杰伦」有「周杰伦音乐作品列表」……），这比字频更能分出常被提到的东西；
@@ -225,7 +245,7 @@ def build_baike(path, words, chars, char_freq, blocklist, out):
     for text, code, _ in entries:
         if text in words or text in seen or not re.fullmatch(r"[\u4e00-\u9fff]{2,8}", text):
             continue
-        if text in blocklist or (contains and contains.search(text)):
+        if text in blocklist or text in extra_block or (contains and contains.search(text)):
             blocked.append(text)
             continue
         if any(c not in char_freq for c in text):
@@ -269,6 +289,7 @@ def build_baike(path, words, chars, char_freq, blocklist, out):
         n = len(kept)
         for i, (_, text, reading) in enumerate(kept):
             f.write(f"{text}\t{reading}\t{max(1, 5 - (5 * i) // max(n, 1))}\n")
+    (out / "LICENSE-baike.txt").write_text(BAIKE_LICENSE.format(source=path.name), encoding="utf-8")
     print(f"  baike: {len(kept)} 条（候选 {len(rows)}，生僻字或查不到读音 {skipped}，"
           f"过滤 {len(blocked)}{'：' + '、'.join(blocked[:30]) + ('…' if len(blocked) > 30 else '') if blocked else ''}）")
     return {**BAIKE, "entries": len(kept), "size": target.stat().st_size, "version": version,
@@ -300,12 +321,11 @@ def main():
     block_path = option("--blocklist")
     baike_path = option("--baike")
     wanxiang, thuocl = Path(args[0]), Path(args[1])
-    blocklist = set()
-    if block_path:
-        # 整词精确匹配：词和表里一模一样才删，不做包含匹配（见 05 的敏感词表说明）。# 开头是注释，空行跳过。
-        blocklist = {l.strip() for l in Path(block_path).read_text(encoding="utf-8").splitlines()
-                     if l.strip() and not l.strip().startswith("#")}
-    else:
+    baike_block_path = option("--baike-blocklist")
+    # 整词精确匹配：词和表里一模一样才删，不做包含匹配（见 05 的敏感词表说明）。
+    blocklist = read_blocklist(block_path) if block_path else set()
+    baike_block = read_blocklist(baike_block_path) if baike_block_path else set()
+    if not block_path:
         print("提醒：没给 --blocklist，没过敏感词过滤，只能用于开发测试。")
     words, chars, char_freq = load_readings(wanxiang)
     OUT.mkdir(parents=True, exist_ok=True)
@@ -319,7 +339,7 @@ def main():
         out = Path(online_dir)
         out.mkdir(parents=True, exist_ok=True)
         print("在线词库：")
-        catalog = [build_baike(Path(baike_path), words, chars, char_freq, blocklist, out) if baike_path else previous_baike(out)]
+        catalog = [build_baike(Path(baike_path), words, chars, char_freq, blocklist, baike_block, out) if baike_path else previous_baike(out)]
         for pack, kind, name in ONLINE:
             info = build(pack, kind, thuocl / name, words, chars, blocklist, out)
             path = out / f"ext_{pack}.dict.yaml"

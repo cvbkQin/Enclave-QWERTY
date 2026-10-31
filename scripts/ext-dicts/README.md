@@ -13,6 +13,6 @@ python3 scripts/build-ext-dicts.py <万象 dicts 目录> <THUOCL data 目录> --
 ```
 
 万象 dicts 目录是 rime_wanxiang 仓库的 `dicts/`（带声调的原版，用来标拼音）；THUOCL data 目录是 github.com/thunlp/THUOCL 的 `data/`。
-`server/dicts/` 里是在线词库和清单 `catalog.json`，拷到服务器 `/var/www/enclavekb/dicts/`。百科词库加 `--baike <zhwiki-*.dict.yaml>`（github.com/felixonmars/fcitx5-pinyin-zhwiki 的 release）：跳过万象里已有的词和有生僻字的，按字频和长度打分取前 20 万条；不给就沿用上次生成的。
+`server/dicts/` 里是在线词库和清单 `catalog.json`，拷到服务器 `/var/www/enclavekb/dicts/`。百科词库加 `--baike <zhwiki-*.dict.yaml>`（github.com/felixonmars/fcitx5-pinyin-zhwiki 的 release）：跳过万象里已有的词和有生僻字的，按派生条目数和字频打分取前 20 万条，同时写出 `LICENSE-baike.txt`；`--baike-blocklist <表>` 是 05 审核加的百科补充屏蔽表（整词匹配，表不进仓库）。不给 `--baike` 就沿用上次生成的。
 
 许可：THUOCL 是 MIT（Copyright (c) 2018 THUNLP），分发时附上 `Configs/ExtDicts/LICENSE-THUOCL.txt`。

@@ -212,7 +212,7 @@ struct ExtDictCatalog: Codable, Equatable {
     static let fallback = ExtDictCatalog(dicts: [
         Item(id: "baike", name: Text(zh: "百科词库", en: "Wikipedia", ja: "ウィキペディア辞書"),
              summary: Text(zh: "人名、地名、作品、游戏角色", en: "People, places, works and game characters", ja: "人名、地名、作品、ゲームキャラクター"),
-             license: .wiki, entries: 200_000, size: 5_467_856, version: "", sha256: nil, url: nil),
+             license: .wiki, entries: 200_000, size: 5_467_811, version: "", sha256: nil, url: nil),
         Item(id: "medical", name: Text(zh: "医学", en: "Medicine", ja: "医学"), summary: nil, license: .thuocl,
              entries: 18_749, size: 621_167, version: "2026-10-31", sha256: nil, url: "ext_medical.dict.yaml"),
         Item(id: "law", name: Text(zh: "法律", en: "Law", ja: "法律"), summary: nil, license: .thuocl,
