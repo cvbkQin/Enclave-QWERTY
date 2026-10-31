@@ -165,9 +165,11 @@ struct KeyboardView: View {
     /// 回答卡、风格一排、提示卡在最上面时整块不透明。
     @ViewBuilder
     private var boardBackground: some View {
-        // #19：整块系统毛玻璃，透出后面的颜色，顶边、底边和系统玻璃是同一种材质，不用渐变。
+        // #19（对齐清单 53）：键盘自己不画底色，露出系统给键盘的毛玻璃（和顶上 17 的系统条、地球键那条是同一块），
+        // 顶边、底边都没有线，也不用渐变。按键、回答卡、识意框、拼音列、下拉框、菜单和面板各自的底色照旧。
+        // 测试开关关掉时（Chrome 切回有系统按键残影）退回原来的不透明底色。
         if model.settings.keyboardGlass {
-            Rectangle().fill(.thickMaterial).ignoresSafeArea()
+            Color.clear
         } else {
             opaqueBackground
         }
