@@ -1058,7 +1058,6 @@ struct KeyboardSettingsView: View {
                     CorrectionToggles()
                     PredictionToggle()
                     EmojiToggle()
-                    // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
                     // B1 剪贴板第一步：真机实测读剪贴板会不会弹「允许粘贴」（临时，测完删）。
                     Toggle(isOn: $store.settings.clipboardProbe) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -1068,6 +1067,7 @@ struct KeyboardSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
+                    // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
                     Toggle(isOn: $store.settings.keyboardGlass) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L("毛玻璃背景（测试）", "Frosted background (test)", "すりガラス背景（テスト）"))
