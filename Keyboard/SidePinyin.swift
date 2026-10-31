@@ -294,6 +294,10 @@ struct PinyinKeyPopover: View {
         .frame(width: Self.width, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Brand.panelFill)
             .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.18), radius: 12, y: 6))
+        // 顶上的小尖角对着拼音键。
+        .overlay(alignment: .topLeading) {
+            PopoverPointer().fill(Brand.panelFill).frame(width: 16, height: 8).offset(x: 30, y: -8)
+        }
     }
 
     private func header(_ text: String) -> some View {
@@ -316,5 +320,17 @@ struct PinyinKeyPopover: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(KeyPressStyle())
+    }
+}
+
+/// 弹框顶上朝上的小尖角。
+private struct PopoverPointer: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
