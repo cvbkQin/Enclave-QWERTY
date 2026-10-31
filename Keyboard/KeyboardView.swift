@@ -654,14 +654,15 @@ struct PolishButton: View {
                 Button {
                     model.isRunning ? model.stop() : model.sparkleTapped()
                 } label: {
-                    Color.clear.frame(width: Self.joinedSplit).contentShape(Rectangle())
+                    // 不能用 .clear：底下的混色底不接触摸，完全透明的地方系统不把触摸交给键盘（同 KeyTouchView），点字缝、▾ 旁边会没反应。
+                    Self.touchFill.frame(width: Self.joinedSplit)
                 }
                 .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行当前提示词", "Run prompt", "プロンプトを実行"))
                 .coachTarget(.sparkle, active: model.coachDisplay?.target == .sparkle)
                 Button {
                     if model.isRunning { model.stop() } else if locked { model.showFullAccessTip() } else { model.toggleRow(.prompts) }
                 } label: {
-                    Color.clear.contentShape(Rectangle())
+                    Self.touchFill
                 }
                 .accessibilityLabel(L("润色风格", "Polish style", "整えるスタイル") + "：" + title)
                 .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
@@ -681,6 +682,9 @@ struct PolishButton: View {
 
     /// 点 ✨ 和点「润色 ▾」的分界：✨ 右边缘。
     static let joinedSplit: CGFloat = 46
+
+    /// 几乎透明、但系统认得的点按底（见 joinedButton）。
+    static let touchFill = Color.black.opacity(0.001)
 
     /// 12 + ✨ 20 + 7 + 字 + 3 + 竖线 1 + 3 + ▾ 10 + 9（FB1）。
     static func joinedWidth(_ title: String) -> CGFloat { 65 + StyleKey.textWidth(title) }

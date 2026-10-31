@@ -35,8 +35,9 @@ struct StyleKey: View {
             .background(GeometryReader { geometry in
                 Color.clear.preference(key: RowChipFrameKey.self, value: [row: geometry.frame(in: .named("keyboard"))])
             })
-            // 点按区上下各扩 5pt。
+            // 点按区上下各扩 5pt；垫一层几乎透明的底，系统才把字缝、▾ 旁边的触摸交给键盘（混色底不接触摸）。
             .padding(.vertical, 5)
+            .background(PolishButton.touchFill)
             .contentShape(Rectangle())
             .padding(.vertical, -5)
         }
