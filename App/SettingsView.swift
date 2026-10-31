@@ -1042,9 +1042,9 @@ struct KeyboardSettingsView: View {
                     }
                     .dashFormCard()
                 } footer: {
-                    Text(L("选「侧边」时没有拼音那一行，键盘矮一点，展开回答卡时也不留空白。在键盘上长按「中/英」也能切换。",
-                           "With Side there's no pinyin row, so the keyboard is shorter and the answer card has no gap. You can also long-press 中/英 on the keyboard to switch.",
-                           "「横」ではピンインの行がなく、キーボードが少し低くなり、回答カードを開いても隙間がありません。キーボードの「中/英」を長押ししても切り替えられます。"))
+                    Text(L("受 iOS 系统限制，选「上方一行」时拼音那一行和上面系统留的边加起来会显得比较宽，介意的话建议选「侧边」：没有拼音那一行，键盘矮一点，展开回答卡时也不留空白。在键盘上长按「中/英」也能切换。",
+                           "Due to an iOS limitation, Row above adds a pinyin row on top of the system's own margin, so it can look wide. If that bothers you, choose Side: there's no pinyin row, the keyboard is shorter and the answer card has no gap. You can also long-press 中/英 on the keyboard to switch.",
+                           "iOS の制限により、「上の行」ではピンインの行とシステムの余白が重なって幅広く見えることがあります。気になる場合は「横」をおすすめします。ピンインの行がなく、キーボードが少し低くなり、回答カードを開いても隙間がありません。キーボードの「中/英」を長押ししても切り替えられます。"))
                 }
                 Section {
                     NavigationLink(value: AppRouter.KeyboardPage.fuzzy) {
