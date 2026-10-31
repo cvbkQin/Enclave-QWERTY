@@ -77,10 +77,15 @@ struct StyleKey: View {
     }
 
     /// 风格名的宽度，最宽 76，太长截断。
+    /// 每画一次都要量好几遍（按钮、合起来的宽、尖角位置），冷启动时 CoreText 量字约 6 ms：量过的名字记下来。
     static func textWidth(_ title: String) -> CGFloat {
+        if let cached = textWidths[title] { return cached }
         let font = UIFont.systemFont(ofSize: 13.5, weight: .semibold)
-        return min(76, ceil((title as NSString).size(withAttributes: [.font: font]).width))
+        let width = min(76, ceil((title as NSString).size(withAttributes: [.font: font]).width))
+        textWidths[title] = width
+        return width
     }
+    private static var textWidths: [String: CGFloat] = [:]
 
     /// 名字和 ▾ 之间的竖线：1×14、白 45%，和放大镜里那条一样（FB）。两边的 3pt 由 HStack 间距给。
     static var chevronDivider: some View {
