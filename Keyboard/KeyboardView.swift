@@ -369,12 +369,16 @@ struct KeyboardView: View {
             }
             Divider().frame(height: 22)
             Button {
-                if predicting { model.dismissPredictions() } else { model.candidatesExpanded.toggle() }
+                if predicting {
+                    model.dismissPredictions()
+                } else {
+                    // 照系统键盘：展开从候选栏下面往下拉开，收起往上卷回，弹性很小、不拖泥带水；动画中途再点立刻反向。
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.92)) { model.candidatesExpanded.toggle() }
+                }
             } label: {
                 // 展开、收起是同一个箭头转半圈，不换图。
                 Image(systemName: predicting ? "xmark" : "chevron.down")
                     .rotationEffect(.degrees(!predicting && model.candidatesExpanded ? 180 : 0))
-                    .animation(.easeInOut(duration: 0.2), value: model.candidatesExpanded)
                     // 联想时的关闭键小一号、灰色：联想只是建议，关闭键不和字抢眼（UI 稿 KP1）。
                     .font(.system(size: predicting ? 15 : 17, weight: predicting ? .medium : .regular))
                     .foregroundStyle(predicting ? Color.secondary : Color.primary)

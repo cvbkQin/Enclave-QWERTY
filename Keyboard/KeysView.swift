@@ -23,12 +23,16 @@ struct KeysView: View {
                     // 拼音在上方一行时那一行展开时也留着，整页候选铺满按键区；
                     // 在侧边（F12）时九宫格左边的拼音列保持住、拉长到 4 行，候选铺在中间三列。
                     let column = model.pinyinSide && model.showsNineKey ? layout.pinyinColumn : nil
-                    CandidateGrid(model: model, leading: column?.maxX ?? 0)
-                        .frame(width: geo.size.width, height: geo.size.height)
-                    if let column {
-                        SidePinyinColumn(model: model, frame: CGRect(x: column.minX, y: column.minY,
-                                                                     width: column.width, height: column.height / 3 * 4))
+                    ZStack(alignment: .topLeading) {
+                        CandidateGrid(model: model, leading: column?.maxX ?? 0)
+                            .frame(width: geo.size.width, height: geo.size.height)
+                        if let column {
+                            SidePinyinColumn(model: model, frame: CGRect(x: column.minX, y: column.minY,
+                                                                         width: column.width, height: column.height / 3 * 4))
+                        }
                     }
+                    // 和系统键盘一样：从候选栏下面往下拉开，收起时往上卷回去（见 CandidateReveal）。
+                    .transition(.modifier(active: CandidateReveal(progress: 0), identity: CandidateReveal(progress: 1)))
                 } else {
                     ForEach(layout.keys) { key in
                         KeyCapCell(presses: model.keyPresses, context: context, key: key)
@@ -515,6 +519,28 @@ struct PopupShape: Shape {
     }
 }
 
+/// 展开整页候选的开收：像卷帘一样从顶上往下露出来（收起时往上卷回去），内容跟着往下滑一小段、淡入。
+/// 只在点候选栏箭头时带动画（KeyboardView 里 withAnimation），选词、打字时收起直接切换。
+struct CandidateReveal: ViewModifier, Animatable {
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: -18 * (1 - progress))
+            .opacity(Double(min(1, progress * 1.6)))
+            .mask(alignment: .top) {
+                GeometryReader { geo in
+                    Rectangle().frame(height: geo.size.height * progress + 18 * (1 - progress))
+                }
+            }
+    }
+}
+
 /// 候选词展开后铺满按键区，和系统键盘一样可以上下滑着挑。
 /// 每格最小 64pt；长词按字数占两三格甚至整行，不截断成省略号（排法见 CandidateRows）。
 struct CandidateGrid: View {
@@ -552,8 +578,16 @@ struct CandidateGrid: View {
             .padding(.leading, leading)
             .frame(maxWidth: .infinity)
             .hidingScrollEdgeEffect()
-            // 平时只取了第一屏候选，展开整页时补全；展开着选拼音、分段选词后候选换了，也再补全。
-            .onAppear { model.loadMoreCandidates() }
+            // 候选换了（补全、选拼音）时格子直接换，不跟着开收的动画一格格飞（会看到字往别的格子挪）。
+            .transaction { $0.animation = nil }
+            // 平时只取了第一屏候选（30 个，够铺满第一屏），展开整页时补全；放到展开动画之后再取，取的时候主线程要等引擎，
+            // 放在出现的那一下会卡住动画、连点箭头也像没反应。展开着选拼音、分段选词后候选换了，也再补全。
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak model] in
+                    guard let model, model.candidatesExpanded else { return }
+                    model.loadMoreCandidates()
+                }
+            }
             .onChange(of: model.composition) { _ in model.loadMoreCandidates() }
             // 收起用候选栏右边的箭头；这里只放退格和重输，上下平分整列。
             VStack(spacing: 0) {
