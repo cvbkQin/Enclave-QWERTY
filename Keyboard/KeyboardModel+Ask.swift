@@ -193,7 +193,9 @@ extension KeyboardModel {
         #endif
         coachTapped(.run)
         if askSelected { askSelected = false }
-        let extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        var extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 识意框里是点「问答」时自动填进去的那句（问题本身），不是要求：只改写输入框里的话（v308，FT13）。
+        if let auto = askAutoFill, extra == auto { extra = "" }
         lastRunKey = .rewrite
         start(from: .polish) { execute(extraInstruction: extra) }
     }
@@ -220,6 +222,7 @@ extension KeyboardModel {
                 return
             }
             setInstruction(text)
+            askAutoFill = text.trimmingCharacters(in: .whitespacesAndNewlines)
             lastRunKey = .answer
             coachTapped(.ask)
             askTapped(.answer, contextOverride: "")

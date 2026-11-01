@@ -434,13 +434,14 @@ struct StyleDropdown: View {
     private static let itemHeight: CGFloat = 36
     private static let headerHeight: CGFloat = 26
     private static let footerHeight: CGFloat = 38
+    private static let addHeight: CGFloat = 36
 
     private var answer: Bool { row == .answerStyles }
 
     var body: some View {
         let styles = answer ? model.settings.answerStyles : model.settings.styles
         let selectedID = answer ? model.settings.selectedAnswerStyle?.id : model.settings.selectedStyle?.id
-        let natural = Self.headerHeight + CGFloat(styles.count) * Self.itemHeight + Self.footerHeight + 12
+        let natural = Self.headerHeight + CGFloat(styles.count) * Self.itemHeight + Self.addHeight + Self.footerHeight + 12
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         VStack(alignment: .leading, spacing: 0) {
             Text((answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル"))
@@ -457,6 +458,7 @@ struct StyleDropdown: View {
                         ForEach(styles) { style in
                             item(style, selected: style.id == selectedID).id(style.id)
                         }
+                        addRow
                     }
                 }
                 .scrollDisabled(natural <= maxHeight)
@@ -477,13 +479,32 @@ struct StyleDropdown: View {
                 .frame(maxWidth: .infinity, minHeight: Self.footerHeight, maxHeight: Self.footerHeight, alignment: .leading)
         }
         .padding(6)
-        .frame(width: Self.width, height: max(Self.headerHeight + Self.itemHeight + Self.footerHeight + 12, min(natural, maxHeight)), alignment: .top)
+        .frame(width: Self.width, height: max(Self.headerHeight + Self.itemHeight + Self.addHeight + Self.footerHeight + 12, min(natural, maxHeight)), alignment: .top)
         .background(shape.fill(DropdownStyle.fill)
             .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8))
         // 深色下和按键颜色接近：加一圈细边（和拼音键弹框一样）。
         .overlay(shape.strokeBorder(DropdownStyle.stroke, lineWidth: 0.5))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル"))
+    }
+
+    /// 最后一行「＋ 添加润色风格 / 问答风格」（v308）：打开 App 里对应的风格列表。
+    private var addRow: some View {
+        Button {
+            model.aiRow = nil
+            model.openContainingApp(answer ? "enclave://prompts-answer" : "enclave://prompts")
+        } label: {
+            Label(answer ? L("添加问答风格", "Add answer style", "回答スタイルを追加") : L("添加润色风格", "Add polish style", "整えるスタイルを追加"),
+                  systemImage: "plus")
+                .font(.system(size: 15))
+                .foregroundStyle(DropdownStyle.selectedText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .padding(.horizontal, 10)
+                .frame(maxWidth: .infinity, minHeight: Self.addHeight, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
     }
 
     private func item(_ style: StylePreset, selected: Bool) -> some View {

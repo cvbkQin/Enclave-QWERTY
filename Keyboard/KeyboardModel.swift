@@ -252,6 +252,8 @@ final class KeyboardModel: ObservableObject {
     @Published var lastRunPin: UUID?
     /// 长按固定键弹出的「取消固定」。
     @Published var pinMenu: UUID?
+    /// 收着时点「问答」自动填进识意框的那句话（v308）：识意框还是这句时点润色键，不把它当修改要求。
+    var askAutoFill: String?
     /// 下拉框里满 5 个还点空心图钉：底部那行变红一会儿。
     @Published var pinLimitHit = false
     /// 快速模式点 ✨ 但输入框里没字（NC1）：按钮右边的「未检测到内容」。
