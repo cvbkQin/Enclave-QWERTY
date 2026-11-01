@@ -33,6 +33,17 @@ extension KeyboardModel {
         target = .host
     }
 
+    /// 点了回答卡的「替换」「插入」：文字已经写进输入框，打字和回车回到输入框，回车直接发送，不再在识意框里又跑一次润色 / 问答。
+    /// （自己刚改过对方输入框，系统那次光标通知被 0.5 秒的保护挡掉了，hostSelectionChanged 不会切。）
+    func focusHostAfterResult() {
+        guard target == .instruction else { return }
+        commitTopCandidates()
+        if aiRow != nil { aiRow = nil }
+        if askSelected { askSelected = false }
+        hostFocused = true
+        target = .host
+    }
+
     /// 识意框里拼音还没选字就离开：和按空格一样上屏第一个候选（一次只选得掉一段就接着选），不留下一串字母。
     private func commitTopCandidates() {
         var rounds = 0
