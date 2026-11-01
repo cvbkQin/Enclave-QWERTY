@@ -263,10 +263,11 @@ struct AIView: View {
                     }
                 }
                 .disabled(!configured || state == .running)
-                // 和润色用同一个时问答页没有自己的接口详情。
-                if !locked && (!answer || store.settings.separateAnswer) {
+                // 和润色用同一个时问答页没有自己的接口详情。内测版接口锁着，按钮换成「查看接口」，进去只能看。
+                if !answer || store.settings.separateAnswer {
                     cardButton {
-                        Text(configured ? L("更改接口 ›", "Change ›", "API を変更 ›") : L("去设置 ›", "Set Up ›", "設定する ›"))
+                        Text(locked ? L("查看接口 ›", "View ›", "API を見る ›")
+                             : configured ? L("更改接口 ›", "Change ›", "API を変更 ›") : L("去设置 ›", "Set Up ›", "設定する ›"))
                     } action: {
                         router.aiPath.append(AppRouter.AIPage.api(answer: answer))
                     }
