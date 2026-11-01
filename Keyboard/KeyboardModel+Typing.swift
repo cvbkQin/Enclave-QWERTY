@@ -1048,7 +1048,13 @@ extension KeyboardModel {
             showEmptyTapHint()
             return
         }
-        guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
+        // 点固定键发起的：提示卡点完再接着做时也按那个风格。
+        let style = runStyleOverride
+        guard passGate(then: { [weak self] in
+            self?.runStyleOverride = style
+            self?.sparkleTapped()
+            self?.runStyleOverride = nil
+        }) else { return }
         #if DEBUG
         if debugFakeRun { coachTapped(.sparkle); fakeCoachRun(); return }
         #endif

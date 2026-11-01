@@ -273,3 +273,92 @@ struct CoachHandShape: Shape {
         return path
     }
 }
+
+/// 问答图标（v306，用户选 A）：金色对话气泡里一个白色问号，右下一颗四角星、右上一颗小星。
+/// 问答键 17pt、问答类固定键 16pt、回答卡标题 15pt。矢量源 design/answer-key/ask-icon.svg（24×24），颜色固定，不随底色变。
+struct AskIcon: View {
+    var size: CGFloat
+
+    static let gold = LinearGradient(colors: [Color(red: 1, green: 0xE2 / 255, blue: 0x7A / 255),
+                                              Color(red: 1, green: 0xB0 / 255, blue: 0x20 / 255)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing)
+
+    var body: some View {
+        ZStack {
+            Bubble().fill(Self.gold)
+            Bubble().stroke(Color(red: 0xE8 / 255, green: 0x9A / 255, blue: 0), lineWidth: 0.6 * size / 24)
+            Question().stroke(Color.white, style: StrokeStyle(lineWidth: 1.6 * size / 24, lineCap: .round))
+            Dot().fill(Color.white)
+            Sparkle(cx: 20.2, cy: 15.8, r: 3.4).fill(Self.gold)
+            Sparkle(cx: 21, cy: 3.6, r: 1.7).fill(Color(red: 1, green: 0xD5 / 255, blue: 0x4F / 255))
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    /// 按 24×24 画布换算。
+    private static func scale(_ rect: CGRect) -> (CGFloat, CGFloat) -> CGPoint {
+        let k = min(rect.width, rect.height) / 24
+        return { x, y in CGPoint(x: rect.minX + x * k, y: rect.minY + y * k) }
+    }
+
+    private struct Bubble: Shape {
+        func path(in rect: CGRect) -> Path {
+            let p = AskIcon.scale(rect)
+            let k = min(rect.width, rect.height) / 24
+            var path = Path()
+            path.move(to: p(3.5, 5.5))
+            path.addArc(tangent1End: p(3.5, 2.5), tangent2End: p(6.5, 2.5), radius: 3 * k)
+            path.addArc(tangent1End: p(18.5, 2.5), tangent2End: p(18.5, 5.5), radius: 3 * k)
+            path.addArc(tangent1End: p(18.5, 15), tangent2End: p(15.5, 15), radius: 3 * k)
+            path.addLine(to: p(10, 15))
+            path.addLine(to: p(6, 18.6))
+            path.addLine(to: p(6, 15))
+            path.addQuadCurve(to: p(3.5, 12), control: p(3.5, 15))
+            path.closeSubpath()
+            return path
+        }
+    }
+
+    private struct Question: Shape {
+        func path(in rect: CGRect) -> Path {
+            let p = AskIcon.scale(rect)
+            var path = Path()
+            // 圆弧：圆心 (11.10, 7.43)、半径 1.9，从 -179° 顺时针（屏幕上）转到 68°。
+            let start = -178.98 * Double.pi / 180, end = 68.37 * Double.pi / 180
+            for i in 0...16 {
+                let a = start + (end - start) * Double(i) / 16
+                let point = p(11.0997 + 1.9 * CGFloat(cos(a)), 7.4338 + 1.9 * CGFloat(sin(a)))
+                if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            path.addCurve(to: p(10.9, 10.5), control1: p(11.2, 9.5), control2: p(10.9, 9.8))
+            return path
+        }
+    }
+
+    private struct Dot: Shape {
+        func path(in rect: CGRect) -> Path {
+            let p = AskIcon.scale(rect)
+            let k = min(rect.width, rect.height) / 24
+            let c = p(10.9, 12.6)
+            return Path(ellipseIn: CGRect(x: c.x - 0.95 * k, y: c.y - 0.95 * k, width: 1.9 * k, height: 1.9 * k))
+        }
+    }
+
+    /// 四角星：上下左右四个尖，腰收到 18%（同 svg）。
+    private struct Sparkle: Shape {
+        var cx: CGFloat, cy: CGFloat, r: CGFloat
+        func path(in rect: CGRect) -> Path {
+            let p = AskIcon.scale(rect)
+            let w = r * 0.18
+            var path = Path()
+            path.move(to: p(cx, cy - r))
+            path.addCurve(to: p(cx + r, cy), control1: p(cx + w, cy - w), control2: p(cx + w, cy - w))
+            path.addCurve(to: p(cx, cy + r), control1: p(cx + w, cy + w), control2: p(cx + w, cy + w))
+            path.addCurve(to: p(cx - r, cy), control1: p(cx - w, cy + w), control2: p(cx - w, cy + w))
+            path.addCurve(to: p(cx, cy - r), control1: p(cx - w, cy - w), control2: p(cx - w, cy - w))
+            path.closeSubpath()
+            return path
+        }
+    }
+}

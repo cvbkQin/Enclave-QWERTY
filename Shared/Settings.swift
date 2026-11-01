@@ -137,6 +137,9 @@ struct EnclaveSettings: Codable, Equatable {
     var selectedAnswerStyleID: UUID?
     /// 联网倾向 0–4（问答提示词页那根条）：只管模型想不想联网，能不能联网仍看 webSearchMode。nil 当 2（适中）。
     var searchTendency: Int?
+    /// 固定到 AI 栏的风格（AK5）：改写风格或问答风格的 id，按固定的先后排，最多 5 个。
+    var pinnedStyleIDs: [UUID] = []
+    static let maxPinnedStyles = 5
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -179,6 +182,7 @@ struct EnclaveSettings: Codable, Equatable {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, clipboardProbe, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
+        case pinnedStyleIDs
     }
 
     private enum LegacyKeys: String, CodingKey { case webSearch }
@@ -198,6 +202,31 @@ struct EnclaveSettings: Codable, Equatable {
 
     /// 联网倾向，0–4，没设过是 2。
     var tendency: Int { min(max(searchTendency ?? 2, 0), 4) }
+
+    /// 固定在 AI 栏的风格，按固定的先后；删掉了的风格跳过。answer：是问答风格。
+    var pinnedStyles: [(style: StylePreset, answer: Bool)] {
+        pinnedStyleIDs.compactMap { id in
+            if let style = styles.first(where: { $0.id == id }) { return (style, false) }
+            if let style = answerStyles.first(where: { $0.id == id }) { return (style, true) }
+            return nil
+        }
+    }
+
+    func isPinned(_ id: UUID) -> Bool { pinnedStyles.contains { $0.style.id == id } }
+
+    /// 固定 / 取消固定；满 5 个时不加，返回 false。
+    @discardableResult
+    mutating func togglePin(_ id: UUID) -> Bool {
+        if let index = pinnedStyleIDs.firstIndex(of: id) {
+            pinnedStyleIDs.remove(at: index)
+            return true
+        }
+        // 已经删掉的风格不占名额。
+        pinnedStyleIDs = pinnedStyles.map(\.style.id)
+        guard pinnedStyleIDs.count < Self.maxPinnedStyles else { return false }
+        pinnedStyleIDs.append(id)
+        return true
+    }
 }
 
 extension EnclaveSettings {
@@ -248,6 +277,7 @@ extension EnclaveSettings {
         separateAnswer = try c.decodeIfPresent(Bool.self, forKey: .separateAnswer) ?? separateAnswer
         answerBaseURL = try c.decodeIfPresent(String.self, forKey: .answerBaseURL) ?? answerBaseURL
         answerModel = try c.decodeIfPresent(String.self, forKey: .answerModel) ?? answerModel
+        pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }

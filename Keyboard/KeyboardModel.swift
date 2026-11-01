@@ -245,6 +245,13 @@ final class KeyboardModel: ObservableObject {
     @Published var askHoldShowing = false
     /// 回答卡展开时最后点的是润色键还是问答键：识意框里回车照它来。
     var lastRunKey: AskMode?
+    /// 点 AI 栏上固定的风格键（AK5）：这一次按它的风格，不改当前选的风格。只在发起那一下有值。
+    var runStyleOverride: StylePreset?
+    var runAnswerStyleOverride: StylePreset?
+    /// 当前结果来自哪颗固定键（亮边画在它上面）；点两颗主键时为 nil。
+    @Published var lastRunPin: UUID?
+    /// 长按固定键弹出的「取消固定」。
+    @Published var pinMenu: UUID?
     /// 快速模式点 ✨ 但输入框里没字（NC1）：按钮右边的「未检测到内容」。
     @Published private(set) var emptyTapHint = false
     /// 每次没字时点 ✨ 加一，按钮跟着晃一下（NC2）。
@@ -505,10 +512,10 @@ final class KeyboardModel: ObservableObject {
         }
         // 输入框里的「// 要求」，再加上识意框里的要求（展开时点润色键）。
         var command = parsed
+        let style = runStyleOverride ?? settings.selectedStyle
         if let extra = extraInstruction, !extra.isEmpty {
             command.instruction = command.instruction.isEmpty ? extra : command.instruction + "\n" + extra
         }
-        let style = settings.selectedStyle
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
@@ -794,9 +801,9 @@ final class KeyboardModel: ObservableObject {
         askRunning = ask != nil
         if askKind != nil { askKind = nil }
         let started = Date()
-        let styleID = settings.selectedStyle?.id
-        let styleName = settings.selectedStyle?.displayName
-        let answerStyle = settings.selectedAnswerStyle
+        let styleID = (runStyleOverride ?? settings.selectedStyle)?.id
+        let styleName = (runStyleOverride ?? settings.selectedStyle)?.displayName
+        let answerStyle = runAnswerStyleOverride ?? settings.selectedAnswerStyle
         let tendency = settings.tendency
         // 仪表盘的统计：耗时按毫秒记。
         // 最后是问答接口回答的（单独设了问答接口）：不进接口页的小曲线，那里只看主接口。
