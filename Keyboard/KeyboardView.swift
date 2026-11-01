@@ -472,10 +472,10 @@ struct PolishButtonGlow: View {
 struct UndoRedoPair: View {
     @ObservedObject var model: KeyboardModel
 
-    /// 高 36、圆角 18、左右内边 12、18pt 箭头、中间 1×16 细竖线（AK4）；横屏跟着 AI 栏矮一点。
+    /// 高 34、圆角 17（和栏里别的键一样高，v307）、左右内边 12、18pt 箭头、中间 1×16 细竖线（AK4）。
     static let halfWidth: CGFloat = 44
     static var width: CGFloat { halfWidth * 2 + 1 }
-    static var height: CGFloat { KeyboardMetrics.landscape ? 30 : 36 }
+    static var height: CGFloat { KeyboardMetrics.chipHeight }
 
     var body: some View {
         HStack(spacing: 0) {
