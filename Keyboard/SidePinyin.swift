@@ -192,7 +192,8 @@ struct PinyinKey: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(KeyPressStyle())
-        .padding(.leading, 4)
+        // 和按键左边对齐（7），白底块不顶到键盘左上圆角外。
+        .padding(.leading, KeyboardMetrics.nineSideMargin)
         .padding(.trailing, 6)
         .frame(maxWidth: 150)
         .fixedSize(horizontal: true, vertical: false)
