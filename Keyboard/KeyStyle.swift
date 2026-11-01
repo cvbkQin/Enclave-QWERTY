@@ -203,13 +203,6 @@ enum Brand {
     static let aiTagText = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1)
         : UIColor(red: 0x6B / 255, green: 0x6B / 255, blue: 0x73 / 255, alpha: 1) })
-    /// 快速模式替换后的「AI 生成 · 已替换」胶囊（CP9）：底 #ECEAFD、字 #4A3BD6；深色用紫 28% 底、#B4A9FF 字。
-    static let replacedPillFill = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0x7C / 255, green: 0x6C / 255, blue: 0xF6 / 255, alpha: 0.28)
-        : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
-    static let replacedPillText = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)
-        : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
     /// 收起、有新结果时展开键的图标：#4A3BD6，深色键上看不清，深色用 #B4A9FF。
     static let newResultIcon = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)

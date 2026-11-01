@@ -58,7 +58,6 @@ extension KeyboardModel {
     /// 点 AI 栏的风格键：展开时整块下半格换成这一种的风格一排，收起时浮在 AI 栏上面；再点自己换回来。
     func toggleRow(_ row: AIRow) {
         endCoach()
-        hideEmptyTapHint()
         if target == .card { finishCardEdit() }
         finishComposition()
         aiRow = aiRow == row ? nil : row
@@ -174,6 +173,7 @@ extension KeyboardModel {
     /// 点润色键的名字（AK1、AK2、AK4）。收着时就是快速润色（✨）；展开时按当前润色风格改输入框里的话，识意框里写的要求一起带上。
     /// 输入框里没有字（也没有手改过的一版）时不调用 AI，只提示一句（AK3）。生成中点了是停止。
     func polishKeyTapped() {
+        endCelebration()
         if isRunning { stop(); return }
         lastRunPin = nil
         runPolish()
@@ -215,6 +215,7 @@ extension KeyboardModel {
     /// 展开时：回答识意框里的问题；框是空的就把光标放进框里、提示先写问题。
     /// 收着时：回答卡展开，把输入框里的话当问题回答，这句同时填进识意框（输入框不动）；输入框也空就只展开、光标进识意框。
     func askKeyTapped() {
+        endCelebration()
         if isRunning { stop(); return }
         lastRunPin = nil
         runAsk()
@@ -253,6 +254,7 @@ extension KeyboardModel {
     /// 点 AI 栏上固定的风格键（AK5）：按这个风格执行一次，不改润色键 / 问答键当前选的风格。生成中点了是停止。
     func pinTapped(_ style: StylePreset, answer: Bool) {
         pinMenu = nil
+        endCelebration()
         if isRunning { stop(); return }
         lastRunPin = style.id
         if answer {

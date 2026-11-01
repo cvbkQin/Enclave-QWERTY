@@ -437,7 +437,6 @@ extension KeyboardModel {
         if gate != nil { dismissGate() }
         // 开始打字，小手指引导就结束。
         endCoach()
-        hideEmptyTapHint()
         pressedKeys.insert(key.id)
         if feedback { keyFeedback(for: key.kind) }
     }
@@ -1043,9 +1042,9 @@ extension KeyboardModel {
 
     /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
-        // 快速模式、输入框里没字：不展开回答卡、不调接口、不计次数，也不先弹提示卡；按钮晃一下、右边提示「未检测到内容」（NC1）。
+        // 快速模式、输入框里没字：不展开回答卡、不调接口、不计次数，也不先弹提示卡；被点的键晃一下（NC1，右边不再出字）。
         if !aiExpanded, target == .host, !isComposing, !isRunning, fieldIsBlank {
-            showEmptyTapHint()
+            emptyTapped()
             return
         }
         // 点固定键发起的：提示卡点完再接着做时也按那个风格。
@@ -1065,7 +1064,6 @@ extension KeyboardModel {
             return
         }
         finishComposition()
-        hideEmptyTapHint()
         beginQuickMode(source: readField().text)
         start(from: .polish) { execute() }
         // 没开始生成（空输入框提示、没配置、没开完全访问）就展开，把原因显示出来。
@@ -1081,7 +1079,7 @@ extension KeyboardModel {
         // 收起就看不到卡片了，改到一半的先存下来。
         if target == .card { finishCardEdit() }
         finishComposition()
-        if expanded { clearQuickStatus(); hideEmptyTapHint() }
+        if expanded { clearQuickStatus() }
         aiExpanded = expanded
     }
 
@@ -1268,7 +1266,8 @@ extension KeyboardModel {
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
             case "quick:cycle": loadDebugQuickCycle()
-            // 截图用：输入框空着时点 ✨ 的「未检测到内容」（NC1）；1 秒后点一次，再过 1 秒又点一次看重新计时。
+            case "ask:cycle": loadDebugQuickCycle(answer: true)
+            // 截图用：输入框空着时点 ✨（NC1）：1 秒后点一次，再过 1 秒又点一次，看按钮晃。
             case "emptyTap":
                 debugUnblocked = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.sparkleTapped() }

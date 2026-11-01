@@ -400,8 +400,12 @@ private final class TourModel: ObservableObject {
     /// 回答卡标题上的风格：重新回答时才跟上 answerStyle（FT18 选完「列要点」，标题等点了「问答」再换）。
     @Published var cardAnswerStyle = 0
 
+    /// 润色键、问答键、「✨ 英文」的执行中和成功动效（对齐清单第 61 条，和键盘同一份 Shared/AIKeyEffects.swift）。
     @Published var sparkRunning = false
     @Published var sparkDone: Date?
+    @Published var askRunning = false
+    @Published var askDone: Date?
+    @Published var pinDone: Date?
     @Published var undoOn = false
     @Published var redoOn = false
     @Published var undoTurns = 0
@@ -599,6 +603,9 @@ private final class TourModel: ObservableObject {
         improved = nil
         sparkRunning = false
         sparkDone = nil
+        askRunning = false
+        askDone = nil
+        pinDone = nil
         undoOn = n == 2
         redoOn = n == 3
         canSearch = n == 16 || n == 17
@@ -722,6 +729,7 @@ private final class TourModel: ObservableObject {
             try await pause(0.6)
             try await typeReplace(\.field, to: s.nineResult)
             pinRunning = false
+            pinDone = Date()
             try await pause(0.4)
             withAnimation(.easeOut(duration: 0.25)) { part = 1 }
             withAnimation(.easeOut(duration: 0.2)) { sendReady = true }
@@ -840,7 +848,7 @@ private final class TourModel: ObservableObject {
         target = nil
     }
 
-    /// 快速模式润色：按钮套流光 0.6 秒 → 原文变淡、结果打出来 → 闪金。
+    /// 快速模式润色：按钮执行中（logo 动、键下投影）0.6 秒 → 原文变淡、结果打出来 → 成功动效。
     private func polish(to text: String) async throws {
         sparkRunning = true
         try await pause(0.6)
@@ -849,8 +857,20 @@ private final class TourModel: ObservableObject {
         sparkDone = Date()
     }
 
+    /// 点了润色键 / 问答键出回答卡：那颗键执行中，写完放成功动效。
+    private func keyRunning(_ mode: Mode, _ on: Bool) {
+        if mode == .answer {
+            askRunning = on
+            if !on { askDone = Date() }
+        } else {
+            sparkRunning = on
+            if !on { sparkDone = Date() }
+        }
+    }
+
     /// 回答卡：生成中 → 模式块亮起 → 逐字流出。
     private func generate(_ mode: Mode, _ text: String, delay: Double = 0.6, keepSearched: Bool = false) async throws {
+        keyRunning(mode, true)
         withAnimation(.easeOut(duration: 0.2)) {
             generating = true
             canSearch = false
@@ -863,6 +883,7 @@ private final class TourModel: ObservableObject {
             generating = false
         }
         try await stream(text)
+        keyRunning(mode, false)
     }
 
     /// 演示接口出字：和写进输入框一样快，0.25–0.4 秒从左往右打出来（cvbk 10-29：回答卡里出字要快）。
@@ -1981,31 +2002,38 @@ private struct TourKeyboard: View {
         let active = !model.pinRunning && model.activeStyle == (answer ? .answer : .rewrite)
         let open = answer ? model.answerStylesOpen : model.promptsOpen
         let title = answer ? L("问答", "Ask", "質問") : promptNames[min(model.selectedPrompt, promptNames.count - 1)]
-        return HStack(spacing: 0) {
-            HStack(spacing: 3) {
-                if answer {
-                    AskIcon(size: 17)
-                } else {
-                    PolishStars(size: 17, running: model.sparkRunning, glowing: !reduceMotion, doneAt: model.sparkDone, tint: AIVisuals.gold)
-                        .frame(width: 17, height: 17)
+        let running = answer ? model.askRunning : model.sparkRunning
+        let done = running ? nil : (answer ? model.askDone : model.sparkDone)
+        let textWidth = ceil((title as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 14, weight: .semibold)]).width)
+        return KeySuccessClock(since: done, reduced: reduceMotion) { fx in
+            let animating = running || fx?.logoAnimating == true
+            HStack(spacing: 0) {
+                HStack(spacing: 3) {
+                    if answer {
+                        AskIcon(size: 17, running: animating, glowing: !reduceMotion, bounce: fx?.logoScale ?? 1)
+                    } else {
+                        PolishStars(size: 17, running: animating, glowing: !reduceMotion, doneAt: nil, tint: AIVisuals.gold)
+                            .frame(width: 17, height: 17)
+                            .scaleEffect(fx?.logoScale ?? 1)
+                    }
+                    Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1).fixedSize()
+                        .successText(fx)
                 }
-                Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1).fixedSize()
+                .padding(.leading, 9).padding(.trailing, 5)
+                .frame(maxHeight: .infinity)
+                .tourPress(answer ? .askKey : .sparkle, model: model)
+                Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
+                Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 11, weight: .semibold))
+                    .frame(width: 24).frame(maxHeight: .infinity)
+                    .tourPress(answer ? .answerStyle : .chevron, model: model)
             }
-            .padding(.leading, 9).padding(.trailing, 5)
-            .frame(maxHeight: .infinity)
-            .tourPress(answer ? .askKey : .sparkle, model: model)
-            Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
-            Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 11, weight: .semibold))
-                .frame(width: 24).frame(maxHeight: .infinity)
-                .tourPress(answer ? .answerStyle : .chevron, model: model)
-        }
-        .foregroundStyle(.white)
-        .frame(height: 34)
-        .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()))
-        .overlay {
-            if !answer && model.sparkRunning {
-                Capsule().strokeBorder(Color.white.opacity(0.7), lineWidth: 1.5).blur(radius: 1).transition(.opacity)
+            .foregroundStyle(.white)
+            .frame(height: 34)
+            .overlay {
+                // 绿勾在名字那块正中：左内边 9 + 图标 17 + 间距 3。
+                if let fx { KeySuccessOverlay(frame: fx, checkCenter: CGPoint(x: 29 + textWidth / 2, y: 17)) }
             }
+            .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()).runningShadow(running, answer: answer))
         }
         .overlay {
             Capsule().strokeBorder(answer ? Color(hex: 0x4C8FF8) : Color(hex: 0xA78BFA), lineWidth: 2)
@@ -2021,19 +2049,24 @@ private struct TourKeyboard: View {
 
     /// 固定在 AI 栏的「✨ 英文」：浅紫底主色字，没有 ⌄；点了按这个风格出字。
     private var pinnedKey: some View {
-        HStack(spacing: 4) {
-            PolishStars(size: 15, running: model.pinRunning, glowing: !reduceMotion, doneAt: nil, tint: TourColor.purple)
-                .frame(width: 15, height: 15)
-            Text(model.customPrompt ?? model.script.promptName).font(.system(size: 14.5, weight: .semibold)).lineLimit(1).fixedSize()
-        }
-        .foregroundStyle(TourColor.purple)
-        .padding(.horizontal, 12)
-        .frame(height: 34)
-        .background(Capsule().fill(TourColor.pillOn))
-        .overlay {
-            if model.pinRunning {
-                Capsule().strokeBorder(TourColor.ring, lineWidth: 1.5).transition(.opacity)
+        let title = model.customPrompt ?? model.script.promptName
+        let textWidth = ceil((title as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 14.5, weight: .semibold)]).width)
+        return KeySuccessClock(since: model.pinRunning ? nil : model.pinDone, reduced: reduceMotion) { fx in
+            HStack(spacing: 4) {
+                PolishStars(size: 15, running: model.pinRunning || fx?.logoAnimating == true, glowing: !reduceMotion, doneAt: nil, tint: TourColor.purple)
+                    .frame(width: 15, height: 15)
+                    .scaleEffect(fx?.logoScale ?? 1)
+                Text(title).font(.system(size: 14.5, weight: .semibold)).lineLimit(1).fixedSize()
+                    .successText(fx)
             }
+            .foregroundStyle(TourColor.purple)
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .overlay {
+                // 绿勾在名字那块正中：左内边 12 + 图标 15 + 间距 4。
+                if let fx { KeySuccessOverlay(frame: fx, checkCenter: CGPoint(x: 31 + textWidth / 2, y: 17)) }
+            }
+            .background(Capsule().fill(TourColor.pillOn).runningShadow(model.pinRunning, answer: false))
         }
         .tourPress(.pinned, model: model)
     }

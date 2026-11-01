@@ -8,13 +8,15 @@ import SwiftUI
 /// 问答键展开时回答识意框里的问题，收着时展开回答卡、回答输入框里的话。
 /// 竖线右边 ⌄ 那块（28pt，整块都算）弹风格下拉框，选完收起、不执行。生成中点名字是停止。
 /// 回答卡上的结果来自哪颗，那颗外面一圈 2pt 亮边（离键 2pt），两小段白光沿着亮边转（3 秒一圈）。
+/// 执行中、成功、失败的动效见 Shared/AIKeyEffects.swift（对齐清单第 61 条）：执行中键下同色投影、logo 动；
+/// 成功时文字隐去、绿勾画出、扫光 5 次，约 18.7 秒后文字回来；快速模式失败时晃一下、红底「↻ 重试」，点它重试。
 struct StyleKey: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var doneAt: Date?
 
     private var answer: Bool { row == .answerStyles }
+    private var key: KeyboardModel.AIKey { answer ? .ask : .polish }
 
     var body: some View {
         let locked = !model.hasFullAccess
@@ -22,22 +24,21 @@ struct StyleKey: View {
         let active = !locked && isActive
         let running = model.isRunning && model.lastRunPin == nil
             && model.runOrigin == (answer ? KeyboardModel.RunOrigin.ask : KeyboardModel.RunOrigin.polish)
+        let failed = !answer && !running && model.quickStatus == .failed && model.lastRunPin == nil
+        let success = model.keySuccess?.key == key ? model.keySuccess?.at : nil
         let title = Self.title(model, answer: answer)
         let layout = Self.layout(title: title)
         ZStack(alignment: .leading) {
-            Self.face(answer: answer, title: title, open: open, running: running, glowing: fullMotion,
-                      doneAt: answer || !fullMotion ? nil : doneAt, faded: !answer && (model.aiBlocked || model.aiQuotaUsed))
-                .overlay {
-                    if open { Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5) }
-                }
-                .overlay {
-                    if running && fullMotion {
-                        PolishButtonGlow(ring: answer ? Brand.answerRing : Brand.gradient).clipShape(Capsule())
-                    }
-                }
-                .overlay { if active { ActiveRing(answer: answer) } }
-                .opacity(locked ? 0.45 : 1)
-                .allowsHitTesting(false)
+            KeySuccessClock(since: running ? nil : success, reduced: !fullMotion) { fx in
+                Self.face(answer: answer, title: title, open: open, running: running, glowing: fullMotion,
+                          fx: fx, failed: failed, faded: !answer && (model.aiBlocked || model.aiQuotaUsed))
+            }
+            .overlay {
+                if open { Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5) }
+            }
+            .overlay { if active { ActiveRing(answer: answer) } }
+            .opacity(locked ? 0.45 : 1)
+            .allowsHitTesting(false)
             HStack(spacing: 0) {
                 Button {
                     answer ? model.askKeyTapped() : model.polishKeyTapped()
@@ -46,6 +47,7 @@ struct StyleKey: View {
                     Self.touchFill.frame(width: layout.dividerX)
                 }
                 .accessibilityLabel(running ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル")
+                                    : failed ? L("润色失败，轻点重试", "Polish failed. Tap to retry", "失敗しました。タップで再試行")
                                     : (answer ? L("问答", "Ask", "質問") : L("润色：\(title)", "Polish: \(title)", "整える：\(title)")))
                 .modifier(CoachKeyTarget(model: model, answer: answer))
                 Button {
@@ -60,21 +62,10 @@ struct StyleKey: View {
         }
         .frame(width: layout.width, height: KeyboardMetrics.chipHeight)
         .modifier(AIKeyBadges(model: model, enabled: !answer))
-        .onChange(of: model.finished) { finished in
-            if !answer, model.lastRunPin == nil { flashDone(at: finished?.at) }
-        }
+        .modifier(EmptyTapShake(trigger: model.keyShakes[key] ?? 0))
         .background(GeometryReader { geometry in
             Color.clear.preference(key: RowChipFrameKey.self, value: [row: geometry.frame(in: .named("keyboard"))])
         })
-    }
-
-    /// 完成时星星闪金 1.2 秒，之后清掉（一直留着的话星星里的 TimelineView 会一直重画）。
-    private func flashDone(at date: Date?) {
-        doneAt = date
-        guard let date else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
-            if doneAt == date { doneAt = nil }
-        }
     }
 
     /// 关了发光动画或开了减弱动态效果：只留星星轻微闪动。
@@ -111,28 +102,32 @@ struct StyleKey: View {
                       chevronX: dividerX + 1 + chevronZone / 2 - 1, width: dividerX + 1 + chevronZone)
     }
 
-    /// 柔和混色底、白字白图标。生成中图标换成白色方块。润色键的图标收起、展开都是金色 ✨（13:20 cvbk），问答键是问答图标（AskIcon，v306）。
+    /// 柔和混色底、白字白图标。润色键的图标收起、展开都是金色 ✨（13:20 cvbk），问答键是问答图标（AskIcon，v306）。
+    /// 执行中 logo 动、键下同色投影（不再换成白色方块）；fx 是成功动效这一刻的样子；failed：红底「↻ 重试」。
     static func face(answer: Bool, title: String, open: Bool = false, running: Bool = false, glowing: Bool = false,
-                     doneAt: Date? = nil, faded: Bool = false) -> some View {
+                     fx: KeySuccessFrame? = nil, failed: Bool = false, faded: Bool = false) -> some View {
         let h = KeyboardMetrics.chipHeight
         let layout = Self.layout(title: title)
+        let animating = running || fx?.logoAnimating == true
+        let bounce = fx?.logoScale ?? 1
         return ZStack(alignment: .topLeading) {
             Group {
-                if running {
-                    RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(Color.white).frame(width: 12, height: 12)
+                if failed {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 13, weight: .bold))
                 } else if answer {
-                    AskIcon(size: 17)
+                    AskIcon(size: 17, running: animating, glowing: glowing, bounce: bounce)
                 } else {
-                    PolishStars(size: 17, running: false, glowing: glowing, doneAt: doneAt, tint: Brand.gold)
+                    PolishStars(size: 17, running: animating, glowing: glowing, doneAt: nil, tint: Brand.gold)
                         .frame(width: 17, height: 17)
+                        .scaleEffect(bounce)
                 }
             }
-            .transition(.opacity)
             .position(x: layout.iconX, y: h / 2)
-            Text(title)
+            Text(failed ? L("重试", "Retry", "再試行") : title)
                 .font(.system(size: fontSize, weight: .semibold))
                 .lineLimit(1)
                 .fixedSize()
+                .successText(fx)
                 .position(x: layout.textX + layout.textWidth / 2, y: h / 2)
             chevronDivider
                 .position(x: layout.dividerX + 0.5, y: h / 2)
@@ -142,7 +137,19 @@ struct StyleKey: View {
         }
         .foregroundStyle(.white)
         .frame(width: layout.width, height: h, alignment: .topLeading)
-        .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()).opacity(faded ? 0.35 : 1))
+        .overlay {
+            if let fx { KeySuccessOverlay(frame: fx, checkCenter: CGPoint(x: layout.textX + layout.textWidth / 2, y: h / 2)) }
+        }
+        .background {
+            Group {
+                if failed {
+                    Capsule().fill(AIKeyFX.failFill)
+                } else {
+                    NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()).opacity(faded ? 0.35 : 1)
+                }
+            }
+            .runningShadow(running, answer: answer)
+        }
     }
 
     /// 名字的宽（14pt 600）。
@@ -253,34 +260,23 @@ struct PinnedStyleKey: View {
     let style: StylePreset
     let answer: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         let running = model.isRunning && model.lastRunPin == style.id
         let active = model.lastRunPin == style.id && StyleKey.activeAnswer(model) == answer
         let locked = !model.hasFullAccess
-        HStack(spacing: 4) {
-            Group {
-                if running {
-                    RoundedRectangle(cornerRadius: 2.5, style: .continuous).frame(width: 11, height: 11)
-                } else if answer {
-                    AskIcon(size: 16)
-                } else {
-                    // 改写类和润色键同一组 ✨（13:20 cvbk），浅紫底上用主色。
-                    PolishStars(size: 15, running: false, glowing: false, doneAt: nil, tint: Self.rewriteText)
-                        .frame(width: 15, height: 15)
-                }
-            }
-            .frame(width: 16)
-            Text(style.displayName)
-                .font(.system(size: 14.5, weight: .semibold))
-                .lineLimit(1)
-                .fixedSize()
+        let key = KeyboardModel.AIKey.pin(style.id)
+        // 快速模式失败（只有改写类会走快速模式）：晃一下、红底「↻ 重试」，点它照常重来（对齐清单第 61 条）。
+        let failed = !answer && !running && model.quickStatus == .failed && model.lastRunPin == style.id
+        let success = model.keySuccess?.key == key ? model.keySuccess?.at : nil
+        let glowing = model.settings.polishAnimation && !reduceMotion
+        KeySuccessClock(since: running ? nil : success, reduced: !glowing) { fx in
+            face(running: running, glowing: glowing, fx: fx, failed: failed)
         }
-        .foregroundStyle(answer ? Self.answerText : Self.rewriteText)
-        .padding(.horizontal, 12)
-        .frame(height: KeyboardMetrics.chipHeight)
-        .background(Capsule().fill(answer ? Self.answerFill : Self.rewriteFill))
         .overlay { if active { ActiveRing(answer: answer) } }
         .opacity(locked ? 0.45 : 1)
+        .modifier(EmptyTapShake(trigger: model.keyShakes[key] ?? 0))
         .contentShape(Capsule())
         .onTapGesture { model.pinTapped(style, answer: answer) }
         .onLongPressGesture(minimumDuration: 0.45) {
@@ -292,10 +288,63 @@ struct PinnedStyleKey: View {
         })
         .accessibilityElement(children: .ignore)
         .accessibilityLabel((answer ? L("固定的问答风格：", "Pinned answer style: ", "固定した回答スタイル：") : L("固定的润色风格：", "Pinned polish style: ", "固定した整えるスタイル："))
-                            + style.displayName)
+                            + style.displayName
+                            + (failed ? L("，失败，轻点重试", ". Failed, tap to retry", "、失敗・タップで再試行") : ""))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.pinTapped(style, answer: answer) }
         .accessibilityAction(named: L("取消固定", "Unpin", "固定を解除")) { model.togglePin(style) }
+    }
+
+    /// 浅色底、主色字「✨ 简短」；执行中 logo 动、键下同色投影；成功时文字隐去、绿勾、扫光；失败红底白字「↻ 重试」（宽度不变）。
+    private func face(running: Bool, glowing: Bool, fx: KeySuccessFrame?, failed: Bool) -> some View {
+        let animating = running || fx?.logoAnimating == true
+        let bounce = fx?.logoScale ?? 1
+        let textWidth = ceil((style.displayName as NSString)
+            .size(withAttributes: [.font: UIFont.systemFont(ofSize: 14.5, weight: .semibold)]).width)
+        return HStack(spacing: 4) {
+            Group {
+                if failed {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .bold))
+                } else if answer {
+                    AskIcon(size: 16, running: animating, glowing: glowing, bounce: bounce)
+                } else {
+                    // 改写类和润色键同一组 ✨（13:20 cvbk），浅紫底上用主色。
+                    PolishStars(size: 15, running: animating, glowing: glowing, doneAt: nil, tint: Self.rewriteText)
+                        .frame(width: 15, height: 15)
+                        .scaleEffect(bounce)
+                }
+            }
+            .frame(width: 16)
+            Text(style.displayName)
+                .font(.system(size: 14.5, weight: .semibold))
+                .lineLimit(1)
+                .fixedSize()
+                .opacity(failed ? 0 : 1)
+                .overlay {
+                    if failed {
+                        Text(L("重试", "Retry", "再試行")).font(.system(size: 14.5, weight: .semibold))
+                            .lineLimit(1).fixedSize()
+                    }
+                }
+                .successText(fx)
+        }
+        .foregroundStyle(failed ? Color.white : answer ? Self.answerText : Self.rewriteText)
+        .padding(.horizontal, 12)
+        .frame(height: KeyboardMetrics.chipHeight)
+        .overlay {
+            // 绿勾在名字那块正中：左内边 12 + 图标 16 + 间距 4。
+            if let fx { KeySuccessOverlay(frame: fx, checkCenter: CGPoint(x: 32 + textWidth / 2, y: KeyboardMetrics.chipHeight / 2)) }
+        }
+        .background {
+            Group {
+                if failed {
+                    Capsule().fill(AIKeyFX.failFill)
+                } else {
+                    Capsule().fill(answer ? Self.answerFill : Self.rewriteFill)
+                }
+            }
+            .runningShadow(running, answer: answer)
+        }
     }
 
     private static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {

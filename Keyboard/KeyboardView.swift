@@ -265,28 +265,12 @@ struct KeyboardView: View {
             AIKeyStrip {
                 HStack(spacing: 5) {
                     StyleKey(model: model, row: .prompts)
-                        .modifier(EmptyTapShake(trigger: model.emptyTapShake))
                     StyleKey(model: model, row: .answerStyles)
                     if !pins.isEmpty {
                         Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
                             .padding(.horizontal, -1)
                         ForEach(pins, id: \.style.id) { pin in
                             PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
-                        }
-                    }
-                    if !model.aiExpanded {
-                        // 没字时点 ✨：右边「未检测到内容」，从左边 6pt 滑出（NC1、NC2）。
-                        if model.emptyTapHint {
-                            EmptyTapHint()
-                                .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(x: -6)))
-                        }
-                        // 快速模式替换成功后 3 秒，旁边出「AI 生成 · 已替换」（CP9），点它展开看结果。
-                        if model.quickStatus == .done, model.aiRow == nil {
-                            ReplacedPill { model.setAIExpanded(true) }
-                                .transition(.opacity)
-                        }
-                        if model.quickStatus == .failed {
-                            QuickRetryLabel(model: model)
                         }
                     }
                 }
@@ -296,8 +280,6 @@ struct KeyboardView: View {
         }
         .padding(.horizontal, inset)
     }
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// 打拼音、或者上屏后有联想时显示候选栏。
     private var showsCandidateBar: Bool { model.isComposing || model.showsPredictions }
@@ -411,62 +393,6 @@ struct PanelToggleButton: View {
     private var accessibilityText: String {
         let base = expanded ? L("收起结果", "Hide result", "結果を隠す") : L("展开结果", "Show result", "結果を表示")
         return hasNew ? base + L("，有新结果", ", new result", "、新しい結果あり") : base
-    }
-}
-
-/// 生成中按钮里的动画：1.5pt 流光描边（1.6 秒一圈，外面不加光晕）、60pt 白色光带扫过、一圈白色小闪光。
-/// 描边按 ✨ 当时的颜色：润色和改写是品牌色，识意自动是粉紫，问答是天蓝。
-struct PolishButtonGlow: View {
-    typealias Sparkle = (x: CGFloat, y: CGFloat, d: CGFloat, period: Double, offset: Double)
-
-    /// 小闪光的位置（相对 84×34 的按钮，x、y、大小）和周期。
-    static let polishSparkles: [Sparkle] = [
-        (4, 8, 6, 1.5, 0.0), (9, 22, 5, 1.7, 0.6), (21, 2, 6, 1.9, 1.1), (29, 26, 5, 1.6, 0.3), (39, 1, 5, 1.8, 0.9),
-        (52, 27, 6, 1.5, 1.3), (60, 1, 5, 1.7, 0.2), (72, 6, 6, 1.9, 0.7), (76, 20, 6, 1.6, 1.5), (65, 26, 5, 1.8, 0.4),
-    ]
-    /// 粉紫描边（识意自动）：#A855F7 → #EC4899 → #FDE68A → #F0ABFC。
-    static let rerunRing: [Color] = [
-        Color(red: 0xA8 / 255, green: 0x55 / 255, blue: 0xF7 / 255),
-        Color(red: 0xEC / 255, green: 0x48 / 255, blue: 0x99 / 255),
-        Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255),
-        Color(red: 0xF0 / 255, green: 0xAB / 255, blue: 0xFC / 255),
-    ]
-
-    var ring: [Color] = Brand.gradient
-    var sparkles: [Sparkle] = Self.polishSparkles
-    /// 闪光坐标对应的按钮大小。
-    var designSize = CGSize(width: 84, height: 34)
-
-    var body: some View {
-        GeometryReader { geo in
-            TimelineView(.animation) { context in
-                let time = context.date.timeIntervalSinceReferenceDate
-                let phase = time.truncatingRemainder(dividingBy: 1.6) / 1.6
-                let sx = geo.size.width / designSize.width, sy = geo.size.height / designSize.height
-                ZStack(alignment: .topLeading) {
-                    LinearGradient(colors: [.white.opacity(0), .white.opacity(0.32), .white.opacity(0)],
-                                   startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 60, height: geo.size.height)
-                        .blur(radius: 4)
-                        .offset(x: -60 + (geo.size.width + 60) * phase)
-                    ForEach(Array(sparkles.enumerated()), id: \.offset) { _, s in
-                        let t = (time + s.offset).truncatingRemainder(dividingBy: s.period) / s.period
-                        let scale = sin(.pi * t)
-                        FourPointStar()
-                            .fill(Color.white)
-                            .frame(width: s.d, height: s.d)
-                            .scaleEffect(scale)
-                            .rotationEffect(.degrees(20 * t))
-                            .shadow(color: .white.opacity(0.8), radius: 1.5)
-                            .position(x: (s.x + s.d / 2) * sx, y: (s.y + s.d / 2) * sy)
-                    }
-                    Capsule().strokeBorder(AngularGradient(colors: ring + [ring[0]], center: .center,
-                                                           angle: .degrees(phase * 360)),
-                                           lineWidth: 1.5)
-                }
-            }
-        }
-        .allowsHitTesting(false)
     }
 }
 
@@ -1570,27 +1496,6 @@ struct FlowingBorder: View {
     }
 }
 
-/// 快速模式出错：AI 栏风格按钮右边「润色失败，点重试」。
-struct QuickRetryLabel: View {
-    @ObservedObject var model: KeyboardModel
-
-    var body: some View {
-        Button { model.sparkleTapped() } label: {
-            ViewThatFits(in: .horizontal) {
-                Text(L("润色失败，点重试", "Polish failed. Tap to retry", "失敗しました。タップで再試行"))
-                Text(L("失败，重试", "Failed, retry", "失敗・再試行"))
-                Image(systemName: "arrow.clockwise")
-                    .accessibilityLabel(L("失败，重试", "Failed, retry", "失敗・再試行"))
-            }
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Brand.deepPurple)
-            .lineLimit(1)
-        }
-        .buttonStyle(KeyPressStyle())
-        .padding(.leading, 2)
-    }
-}
-
 /// 卡片里的扫光：约 300pt 宽的斜向光带从左往右匀速扫过，中间最深（#7C3AED 16%），一趟 1.6 秒，和边框同步。
 struct SweepBand: View {
     var body: some View {
@@ -1773,29 +1678,7 @@ struct RunningLabel: View {
     }
 }
 
-/// 快速模式替换后 AI 栏上的浅紫胶囊（CP9）：高 28、圆角 14，紫色四角星 +「AI 改写 · 已替换」。
-/// 「ⓘ 未检测到内容」：高 28、圆角 14、左 8 右 10，按键底色，13pt 500 次要色（NC1）。只是提示，点不了。
-struct EmptyTapHint: View {
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "info.circle").font(.system(size: 13, weight: .semibold))
-            Text(L("未检测到内容", "No text detected", "テキストがありません"))
-                .font(.system(size: 13, weight: .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .foregroundStyle(.secondary)
-        .padding(.leading, 8)
-        .padding(.trailing, 10)
-        .frame(height: 28)
-        .background(Capsule().fill(KeyStyle.charKey))
-        .allowsHitTesting(false)
-        // 出现时已经用 announcement 读过一次，这里不再重复读。
-        .accessibilityHidden(true)
-    }
-}
-
-/// 没字时点 ✨ 的按钮动效（NC2）：按下缩到 96%，60 ms 后回弹，同时左右 ±3pt 晃两下共 240 ms。减弱动态效果时不动。
+/// 没字时点 ✨、快速模式失败时被点那颗键的动效（NC2、对齐清单第 61 条）：按下缩到 96%，60 ms 后回弹，同时左右 ±3pt 晃两下共 240 ms。减弱动态效果时不动。
 struct EmptyTapShake: ViewModifier {
     var trigger: Int
     @State private var scale: CGFloat = 1
@@ -1822,24 +1705,3 @@ struct EmptyTapShake: ViewModifier {
     }
 }
 
-struct ReplacedPill: View {
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: "sparkle").font(.system(size: 11, weight: .semibold))
-                Text(L("AI 改写 · 已替换", "AI rewrite · Replaced", "AI 書き換え・置き換え済み"))
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .foregroundStyle(Brand.replacedPillText)
-            .padding(.horizontal, 11)
-            .frame(height: 28)
-            .background(Capsule().fill(Brand.replacedPillFill))
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint(L("展开看结果", "Shows the result", "結果を表示"))
-    }
-}

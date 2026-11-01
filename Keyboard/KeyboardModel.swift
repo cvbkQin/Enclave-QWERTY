@@ -238,7 +238,7 @@ final class KeyboardModel: ObservableObject {
     private var task: Task<Void, Never>?
     /// 快速模式：收起时点 ✨，记下当时输入框的内容，润完直接替换；输入框中途被改过就不替换，展开给人看。
     var quickSource: String?
-    /// 快速模式在 AI 栏上的状态：润色中（流光圈住 AI 栏）、✓ 已润色（1.5 秒后消失）、润色失败点重试。
+    /// 快速模式在 AI 栏上的状态：润色中、已替换（3 秒后清掉）、失败（被点的键红底「↻ 重试」，对齐清单第 61 条）。
     @Published private(set) var quickStatus: QuickStatus?
     enum QuickStatus { case running, done, failed }
     /// 按住放大镜弹出了「改写 / 问答」：这时 AI 栏整行要盖在回答卡上面，不然上面那颗「改写」被回答卡挡住。
@@ -256,20 +256,21 @@ final class KeyboardModel: ObservableObject {
     var askAutoFill: String?
     /// 下拉框里满 5 个还点空心图钉：底部那行变红一会儿。
     @Published var pinLimitHit = false
-    /// 快速模式点 ✨ 但输入框里没字（NC1）：按钮右边的「未检测到内容」。
-    @Published private(set) var emptyTapHint = false
-    /// 每次没字时点 ✨ 加一，按钮跟着晃一下（NC2）。
-    @Published private(set) var emptyTapShake = 0
-    private var emptyTapToken = 0
+    /// AI 栏上的一颗键：执行中、成功、失败、没字时的抖动都作用在被点的那颗上（对齐清单第 61 条）。
+    enum AIKey: Hashable { case polish, ask, pin(UUID) }
+    /// 被点的那颗：固定键发起的是那颗，否则看是润色还是问答。
+    var tappedKey: AIKey { lastRunPin.map(AIKey.pin) ?? (runOrigin == .ask ? .ask : .polish) }
+    /// 成功动效（替换完成 / 回答写完）：哪颗键、什么时候。18.7 秒（减弱动态效果 1.6 秒）后清掉；再点键立即结束。
+    struct KeySuccess: Equatable {
+        var key: AIKey
+        var at: Date
+    }
+    @Published private(set) var keySuccess: KeySuccess?
+    /// 每颗键抖了几次（没字时点 ✨、快速模式失败）：左右 3pt 晃两下（NC2），键上的 EmptyTapShake 看自己那一格。
+    @Published private(set) var keyShakes: [AIKey: Int] = [:]
     /// 这次生成是怎么开始的：✨ 按提示词润色，或识意展开时的 ✨。特效都在 ✨ 上。
     enum RunOrigin { case polish, ask }
     @Published private(set) var runOrigin: RunOrigin?
-    /// 刚完成的一次，按钮上的星星闪金用。
-    struct Finished: Equatable {
-        var origin: RunOrigin
-        var at: Date
-    }
-    @Published private(set) var finished: Finished?
     enum QuickOutcome { case replaced, changed, failed }
     /// 每次替换或插入记一笔：写进去的文字和被它换掉的原文。撤销和重做在两个栈之间来回挪。
     private var undoStack: [FieldEdit] = []
@@ -985,16 +986,18 @@ final class KeyboardModel: ObservableObject {
                         updated.conversation.append(.assistant(result))
                     }
                     self.session = updated
-                    self.finished = Finished(origin: self.runOrigin ?? .polish, at: Date())
                     self.resultUse = nil
                     self.resultUses = []
                     self.resultStale = false
                     SessionStore.save(updated)
+                    var replaced = false
                     if let source = self.quickSource {
                         let unchanged = self.readField().text == source
                         if unchanged { self.replace() }
+                        replaced = unchanged
                         self.endQuickMode(unchanged ? .replaced : .changed)
                     }
+                    self.celebrate(replaced: replaced)
                 }
             } catch is CancellationError {
                 // 点「使用联网查询」后又拒绝了联网：什么都不改，原来的回答留着。
@@ -1057,6 +1060,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 点了「润色」或「再润」：记下是哪个按钮，没开始生成（提示、出错）就清掉。
     func start(from origin: RunOrigin, _ action: () -> Void) {
+        endCelebration()
         runOrigin = origin
         action()
         if !isRunning { runOrigin = nil }
@@ -1082,31 +1086,34 @@ final class KeyboardModel: ObservableObject {
         return (before + after).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// 没字时点 ✨（NC2）：轻触感 + 按钮晃一下，120 ms 后右边滑出提示，停 2 秒淡出。提示还在时再点只重新晃、重新计时。
-    func showEmptyTapHint() {
-        emptyTapToken += 1
-        let token = emptyTapToken
+    /// 没字时点 ✨（NC2）：轻触感 + 被点的键晃一下，读屏读「未检测到内容」。右边不再出字（对齐清单第 61 条）。
+    func emptyTapped() {
         if hasFullAccess { haptic.impactOccurred() }
-        emptyTapShake += 1
+        shake(tappedKey)
         UIAccessibility.post(notification: .announcement, argument: L("未检测到内容", "No text detected", "テキストがありません"))
-        let delay = UIAccessibility.isReduceMotionEnabled ? 0 : 0.12
-        if !emptyTapHint {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, token == self.emptyTapToken else { return }
-                withAnimation(.easeOut(duration: 0.15)) { self.emptyTapHint = true }
-            }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay + 0.15 + 2) { [weak self] in
-            guard let self, token == self.emptyTapToken else { return }
-            self.hideEmptyTapHint()
+    }
+
+    func shake(_ key: AIKey) {
+        keyShakes[key, default: 0] += 1
+    }
+
+    /// 成功（替换完成 / 回答写完）：被点的那颗键上放成功动效，读屏读一次「已替换」/「已回答」。
+    func celebrate(replaced: Bool) {
+        let at = Date()
+        keySuccess = KeySuccess(key: tappedKey, at: at)
+        let text = session?.currentIsAnswer == true ? L("已回答", "Answered", "回答しました")
+            : replaced ? L("已替换", "Replaced", "置き換えました") : L("已改写", "Rewritten", "書き換えました")
+        UIAccessibility.post(notification: .announcement, argument: text)
+        let reduced = UIAccessibility.isReduceMotionEnabled || !settings.polishAnimation
+        let duration = reduced ? KeySuccessFrame.reducedDuration : KeySuccessFrame.duration
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.05) { [weak self] in
+            if self?.keySuccess?.at == at { self?.keySuccess = nil }
         }
     }
 
-    /// 打字、点别处、展开抽屉时提示立刻淡出。
-    func hideEmptyTapHint() {
-        emptyTapToken += 1
-        guard emptyTapHint else { return }
-        withAnimation(.easeIn(duration: 0.2)) { emptyTapHint = false }
+    /// 成功动效期间再点键：立即结束，恢复文字，照常执行。
+    func endCelebration() {
+        if keySuccess != nil { keySuccess = nil }
     }
 
     /// 快速模式开始：AI 栏进入「润色中」。
@@ -1116,8 +1123,8 @@ final class KeyboardModel: ObservableObject {
         unseenResult = false
     }
 
-    /// 快速模式结束：替换成功后提示词按钮的位置显示「AI 生成 · 已替换」3 秒（CP9）；出错留在 AI 栏上「润色失败，点重试」；
-    /// 输入框中途被改过就不替换，展开面板给人看结果。
+    /// 快速模式结束：替换成功后键上放成功动效（celebrate，对齐清单第 61 条，「AI 改写 · 已替换」胶囊不要了）；
+    /// 出错时被点的键晃一下、变红底「↻ 重试」，点它重试；输入框中途被改过就不替换，展开面板给人看结果。
     func endQuickMode(_ outcome: QuickOutcome) {
         guard quickSource != nil else { return }
         quickSource = nil
@@ -1135,6 +1142,7 @@ final class KeyboardModel: ObservableObject {
         case .failed:
             endCoach()
             quickStatus = .failed
+            shake(tappedKey)
         case .changed:
             endCoach()
             quickStatus = nil
@@ -1170,9 +1178,10 @@ final class KeyboardModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard let self else { return }
             self.loadDebugVersions()
-            self.isRunning = false
-            // 快速模式和真的一样走完：小手淡出，AI 栏显示「AI 生成 · 已替换」3 秒。
+            // 和真的一样走完：小手淡出，键上放成功动效。
             if quick { self.endQuickMode(.replaced) }
+            self.celebrate(replaced: quick)
+            self.isRunning = false
         }
     }
 
@@ -1191,11 +1200,14 @@ final class KeyboardModel: ObservableObject {
     /// 截图用：收起状态下 AI 栏上的快速模式（-keyboardDebug quick:running|done|failed）。
     func loadDebugQuick(_ status: QuickStatus) {
         quickStatus = status
-        // 完成时带一份结果，看展开键的「有新结果」紫点。
+        // 完成时带一份结果，看展开键的「有新结果」紫点和润色键上的成功动效。
         if status == .done {
             if session == nil { loadDebugVersions() }
             unseenResult = true
+            lastRunPin = nil
+            celebrate(replaced: true)
         }
+        if status == .failed { shake(.polish) }
         if status == .running {
             isRunning = true
             runOrigin = .polish
@@ -1215,17 +1227,19 @@ final class KeyboardModel: ObservableObject {
         streamingText = ""
     }
 
-    /// 截图用：润色中 3 秒后完成，看完成时星星闪金（-keyboardDebug quick:cycle），每 5 秒重来一次。
-    func loadDebugQuickCycle() {
+    /// 截图用：润色中 3 秒后成功，看完整的成功动效（-keyboardDebug quick:cycle），23 秒重来一次。
+    /// ask:cycle 同样走问答键（收着，不真的展开回答卡）。
+    func loadDebugQuickCycle(answer: Bool = false) {
         Task { [weak self] in
             while let self {
-                self.loadDebugQuick(.running)
+                self.lastRunPin = nil
+                self.isRunning = true
+                self.runOrigin = answer ? .ask : .polish
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
+                self.celebrate(replaced: !answer)
                 self.isRunning = false
                 self.runOrigin = nil
-                self.quickStatus = .done
-                self.finished = Finished(origin: .polish, at: Date())
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
             }
         }
     }
@@ -1246,7 +1260,6 @@ final class KeyboardModel: ObservableObject {
 
     /// 输入框的文字变了（系统通知）：和当前结果对不上就把卡片变灰。
     func fieldDidChange() {
-        hideEmptyTapHint()
         refreshHostState()
         // 对方 App 清空或改了输入框（比如发送后）：重新判断句首大写。
         if !isComposing { updateAutoShift() }

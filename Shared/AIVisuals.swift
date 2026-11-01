@@ -276,21 +276,66 @@ struct CoachHandShape: Shape {
 
 /// 问答图标（v306，用户选 A）：金色对话气泡里一个白色问号，右下一颗四角星、右上一颗小星。
 /// 问答键 17pt、问答类固定键 16pt、回答卡标题 15pt。矢量源 design/answer-key/ask-icon.svg（24×24），颜色固定，不随底色变。
+/// 执行中（对齐清单第 61 条，照润色 ✨ 的路子）：气泡连问号 1→1.06 呼吸（1.6 秒）；问号下的点透明 .45↔1（相位错开 0.7）；
+/// 右下大星、右上小星照润色小星闪（0.6↔1.4 倍、35%↔100%、白色微光，相位 0.35 / 0.7）；左上偶尔冒一颗白色小星（透明 .2→.9）。
+/// glowing 为 false（关了发光动画、减弱动态效果）时只让两颗星轻微闪动。
 struct AskIcon: View {
     var size: CGFloat
+    var running = false
+    var glowing = true
+    /// 成功时 logo 轻弹的倍数，乘在气泡和右下大星上。
+    var bounce: CGFloat = 1
 
     static let gold = LinearGradient(colors: [Color(red: 1, green: 0xE2 / 255, blue: 0x7A / 255),
                                               Color(red: 1, green: 0xB0 / 255, blue: 0x20 / 255)],
                                      startPoint: .topLeading, endPoint: .bottomTrailing)
 
     var body: some View {
-        ZStack {
-            Bubble().fill(Self.gold)
-            Bubble().stroke(Color(red: 0xE8 / 255, green: 0x9A / 255, blue: 0), lineWidth: 0.6 * size / 24)
-            Question().stroke(Color.white, style: StrokeStyle(lineWidth: 1.6 * size / 24, lineCap: .round))
-            Dot().fill(Color.white)
+        if running {
+            TimelineView(.animation) { context in
+                icon(time: context.date.timeIntervalSinceReferenceDate)
+            }
+        } else {
+            icon(time: nil)
+        }
+    }
+
+    /// 1.6 秒一个周期的 0…1 波，phase 错开。
+    private static func wave(_ time: Double?, _ phase: Double) -> CGFloat {
+        guard let time else { return 0 }
+        return CGFloat((1 - cos(2 * .pi * (time / 1.6 + phase))) / 2)
+    }
+
+    private func icon(time: Double?) -> some View {
+        let w = Self.wave(time, 0), w2 = Self.wave(time, 0.35), w3 = Self.wave(time, 0.7)
+        let live = time != nil
+        let full = live && glowing
+        let bigScale = full ? 0.6 + 0.8 * w2 : 1
+        let smallScale = full ? 0.6 + 0.8 * w3 : 1
+        let bigOpacity = full ? 0.35 + 0.65 * w2 : (live ? 1 - 0.3 * w2 : 1)
+        let smallOpacity = full ? 0.35 + 0.65 * w3 : (live ? 1 - 0.3 * w3 : 1)
+        func anchor(_ x: CGFloat, _ y: CGFloat) -> UnitPoint { UnitPoint(x: x / 24, y: y / 24) }
+        return ZStack {
+            ZStack {
+                Bubble().fill(Self.gold)
+                Bubble().stroke(Color(red: 0xE8 / 255, green: 0x9A / 255, blue: 0), lineWidth: 0.6 * size / 24)
+                Question().stroke(Color.white, style: StrokeStyle(lineWidth: 1.6 * size / 24, lineCap: .round))
+                Dot().fill(Color.white).opacity(full ? 0.45 + 0.55 * Double(w3) : 1)
+            }
+            .scaleEffect((full ? 1 + 0.06 * w : 1) * bounce, anchor: anchor(11, 10.5))
             Sparkle(cx: 20.2, cy: 15.8, r: 3.4).fill(Self.gold)
+                .scaleEffect(bigScale * bounce, anchor: anchor(20.2, 15.8))
+                .opacity(Double(bigOpacity))
+                .shadow(color: .white.opacity(full ? 0.9 * Double(w2) : 0), radius: 1.5)
             Sparkle(cx: 21, cy: 3.6, r: 1.7).fill(Color(red: 1, green: 0xD5 / 255, blue: 0x4F / 255))
+                .scaleEffect(smallScale, anchor: anchor(21, 3.6))
+                .opacity(Double(smallOpacity))
+                .shadow(color: .white.opacity(full ? 0.9 * Double(w3) : 0), radius: 1.5)
+            if full {
+                Sparkle(cx: 2.2, cy: 3, r: 1.2).fill(Color.white)
+                    .scaleEffect(0.4 + 0.8 * w2, anchor: anchor(2.2, 3))
+                    .opacity(0.2 + 0.7 * Double(w2))
+            }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
