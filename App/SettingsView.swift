@@ -266,9 +266,9 @@ private struct TestBadge: View {
 
 // MARK: - 模型接口
 
-/// 接口详情（AI › 润色 / 问答 › 更改接口，原接口页两页的内容）：我的预设、服务商、连接。连接状态和测试在 AI 页的接口卡上。
-/// 润色：我的预设 → 服务商（DeepSeek、Kimi、千问、Ollama）→ 连接（地址 / 模型 / Key / 生成参数）。
-/// 问答：我的预设 → 服务商（千问、Kimi、智谱、腾讯混元，都能联网）→ 连接。联网搜索在 AI › 问答页。
+/// 接口配置页（AC1 润色、AC2 问答，v310）：只有一层，AI 页接口卡「接口配置 ›」点进来。
+/// 从上到下：状态卡（logo、服务商、模型、连接状态、「测试」）→（问答）「和润色用同一个接口」→ 服务商 2×2 + 整行「自定义」
+/// → 连接（地址 / 模型下拉 / Key）→ 生成参数（温度、最多字数，就在这页）→ 我的预设。还没配置时（AC4）同一页，状态卡写「还没有配置」。
 struct ModelSettingsView: View {
     /// 问答接口；false 是润色接口。
     let answer: Bool
@@ -279,7 +279,7 @@ struct ModelSettingsView: View {
 
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
-    /// 没同意隐私政策时点「选择」：和键盘里的锁卡片一样，先去同意。
+    /// 没同意隐私政策时点「测试」或模型下拉：和键盘里的锁卡片一样，先去同意。
     @State private var needsPrivacy = false
     @State private var importResult: Bool?
     /// 「存为预设」弹框（AP5）。
@@ -290,38 +290,47 @@ struct ModelSettingsView: View {
     @State private var duplicateName: String?
     @State private var renaming: SavedAPI?
     @State private var renameText = ""
-    /// 「选择」模型的 sheet（ML2）：给哪一页选。
-    @State private var pickerFor: PickerTarget?
-    /// 「手动输入模型名」后聚焦模型一栏。
+    /// 模型下拉（AC3）展开着。
+    @State private var modelMenuOpen = false
+    /// 点了「手动输入模型名」：模型一栏换成输入框。
+    @State private var typingModel = false
+    /// 点过「自定义」：地址和模型空着时不再默认显示选中 DeepSeek。
+    @State private var customPicked = false
     @FocusState private var modelFocused: Bool
-
-    private enum PickerTarget: Identifiable {
-        case main, answer
-        var id: Self { self }
-    }
+    @FocusState private var urlFocused: Bool
 
     /// 内测版：接口统一用自带的，这一页只能看。测试连接、联网调用、调用偏好在 AI 页。
     private var locked: Bool { BuiltinAPI.isInternalBuild }
+
+    /// 问答页且和润色分开：这一页管问答自己的接口。
+    private var ownAnswer: Bool { answer && store.settings.separateAnswer }
+    /// 下面的服务商、连接、参数、预设显示不显示（问答页打开「和润色用同一个接口」时都收起）。
+    private var showsDetails: Bool { !answer || store.settings.separateAnswer }
+
+    private var baseURL: Binding<String> { answer ? $store.settings.answerBaseURL : $store.settings.baseURL }
+    private var model: Binding<String> { answer ? $store.settings.answerModel : $store.settings.model }
+    private var apiKey: Binding<String> { answer ? $store.answerApiKey : $store.apiKey }
 
     var body: some View {
             Form {
                 Section {
                 } header: {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(answer
-                             ? L("在键盘上点「问答」时用这一页的接口回答。可以想久一点、可以联网，用和润色不同的服务商或模型。", "Tapping Ask on the keyboard uses this API to answer. It can think longer and search the web, using a different provider or model from Polish.", "キーボードで「質問」をタップするとこのページの API で答えます。じっくり考えたりウェブ検索したりでき、整えると別のサービスやモデルを使えます。")
-                             : L("点 ✨ 或润色键改写文字都用这一页的接口。要快，选不带深度思考的模型。", "✨ and the polish key use this API to edit your text. Speed matters, so pick a model without deep thinking.", "✨ と整えるキーでの書き換えはこの API を使います。速さ重視なので、深い思考のないモデルを選んでください。"))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 4)
+                        statusCard
                         if locked { InternalLockNotice() }
                     }
                     .dashFormCard()
                 }
                 if answer {
-                    answerSections
-                } else {
-                    mainSections
+                    Section {
+                        SameAPIToggle(locked: locked)
+                    }
+                }
+                if showsDetails {
+                    providerSection
+                    connectionSection
+                    generationSection
+                    if pageConfigured || !store.savedAPIs.isEmpty { presetsSection }
                 }
                 if SharedStorage.usesClipboardConfig {
                     Section {
@@ -375,157 +384,353 @@ struct ModelSettingsView: View {
             }
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) { pendingPreset = nil }
         }
-        .sheet(item: $pickerFor) { target in
-            let answer = target == .answer
-            ModelPickerSheet(baseURL: answer ? store.settings.answerBaseURL : store.settings.baseURL,
-                             apiKey: answer ? store.answerApiKey : store.apiKey,
-                             current: answer ? store.settings.answerModel : store.settings.model,
-                             answer: answer) { model in
-                if answer { store.settings.answerModel = model } else { store.settings.model = model }
-            } onManual: {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { modelFocused = true }
-            }
-        }
     }
 
-    // MARK: 润色
+    // MARK: 状态卡
 
-    @ViewBuilder
-    private var mainSections: some View {
-        presetsSection
+    /// 状态卡：logo 42×42 + 服务商 + 灰字模型；「● 连接正常 · 1.0 秒」（问答页能联网再加蓝字「可联网」）；右边「测试」。
+    /// 还没配置：灰「?」+「还没有配置 / 选服务商 → 填 API Key → 测试」，「测试」半透明点不了。
+    private var statusCard: some View {
+        let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
+        let url = ownAnswer ? store.settings.answerBaseURL : store.settings.baseURL
+        let modelName = ownAnswer ? store.settings.answerModel : store.settings.model
+        let state = ownAnswer ? store.answerTest : store.test
+        let status = statusLine(configured: configured, state: state)
+        return HStack(spacing: 12) {
+            if configured {
+                ProviderLogo(provider: Provider.detect(url), size: 42, corner: 11)
+            } else {
+                Text("?")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 42, height: 42)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color(.tertiarySystemFill)))
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(configured ? ProviderName.of(url) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
+                        .font(.system(size: 20, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+                    if configured {
+                        Text(modelName).font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    }
+                }
+                if configured {
+                    HStack(spacing: 5) {
+                        Circle().fill(status.color).frame(width: 8, height: 8)
+                        Text(status.text).foregroundStyle(status.color).lineLimit(1)
+                        if answer, store.settings.answerSearch != nil {
+                            Text("·").foregroundStyle(.secondary)
+                            Text(L("可联网", "Web", "ウェブ可")).foregroundStyle(Color(hex: 0x0A84FF))
+                        }
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    if let error = status.error {
+                        Text(error).font(.system(size: 12)).foregroundStyle(.red).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text(L("选服务商 → 填 API Key → 测试", "Pick a provider → enter the API key → test", "サービスを選ぶ → API キーを入力 → テスト"))
+                        .font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+                }
+            }
+            Spacer(minLength: 6)
+            Button {
+                if router.privacyAgreed {
+                    Task { ownAnswer ? await store.runAnswerTest() : await store.runTest() }
+                } else {
+                    needsPrivacy = true
+                }
+            } label: {
+                Group {
+                    if state == .running {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text(L("测试", "Test", "テスト"))
+                    }
+                }
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(DashColor.ai)
+                .padding(.horizontal, 16)
+                .frame(minWidth: 60, minHeight: 34)
+                .background(Capsule().fill(DashColor.ai.opacity(0.12)))
+            }
+            .buttonStyle(.plain)
+            .disabled(!configured || state == .running)
+            .opacity(configured ? 1 : 0.45)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+    }
+
+    private func statusLine(configured: Bool, state: AppStore.TestState) -> (text: String, color: Color, error: String?) {
+        func connected(_ seconds: Double?) -> (String, Color, String?) {
+            let text = L("连接正常", "Connected", "接続 OK")
+            guard let seconds else { return (text, DashColor.ok, nil) }
+            return (text + " · " + L("\(String(format: "%.1f", seconds)) 秒", "\(String(format: "%.1f", seconds)) s", "\(String(format: "%.1f", seconds)) 秒"), DashColor.ok, nil)
+        }
+        switch state {
+        case .running: return (L("正在测试…", "Testing…", "テスト中…"), .orange, nil)
+        case .failure(let message): return (L("连不上", "Can't connect", "接続できません"), .red, message)
+        case .success(_, let seconds): return connected(seconds)
+        case .idle: break
+        }
+        if !ownAnswer, store.lastTestOK == true { return connected(nil) }
+        if !ownAnswer, store.lastTestOK == false { return (L("连不上", "Can't connect", "接続できません"), .red, nil) }
+        return (L("还没测试", "Not tested", "未テスト"), DashColor.system, nil)
+    }
+
+    // MARK: 服务商
+
+    private var shownProviders: [Provider] { answer ? Provider.answerShown : Provider.shown }
+
+    /// 卡片选中哪个跟着地址和模型走：自己改过就不选中预设，算「自定义」。
+    private var selectedProvider: Provider? {
+        Provider.matching(baseURL: baseURL.wrappedValue, model: model.wrappedValue, answer: answer)
+    }
+
+    /// 地址和模型都空着（还没配置）。
+    private var fieldsEmpty: Bool {
+        baseURL.wrappedValue.trimmingCharacters(in: .whitespaces).isEmpty && model.wrappedValue.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// 还没配置（AC4）时润色页默认显示选中 DeepSeek（地址、模型的占位就是它的），填了 Key 再真的填进去；
+    /// 不先写进设置，免得没有 Key 也算「已配置」。问答页空着时哪张都不选中。
+    private var defaultsToDeepSeek: Bool { !answer && fieldsEmpty && !customPicked }
+
+    private func isSelected(_ item: Provider) -> Bool {
+        defaultsToDeepSeek ? item == .deepseek : selectedProvider == item
+    }
+
+    private var customSelected: Bool { fieldsEmpty ? customPicked : selectedProvider == nil }
+
+    private var providerSection: some View {
         Section {
         } header: {
-            providerGrid(Provider.shown, selected: selectedProvider, badges: false) { choose($0) }
-                .lockedBox(locked)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L("服务商", "Provider", "サービス"))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 16)
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    ForEach(shownProviders) { item in
+                        ProviderCard(provider: item, selected: isSelected(item),
+                                     badge: answer ? (item.canSearch ? .web : .noWeb) : nil,
+                                     tutorial: GuideTutorial.of(item) == nil ? nil : { router.openTutorial(item, answer: answer) }) { choose(item) }
+                    }
+                }
+                // 整行「自定义」：Ollama、vLLM、LM Studio，没有教程；问答页灰标签「能不能联网看服务本身」。
+                ProviderCard(provider: .custom, selected: customSelected,
+                             badge: answer ? .dependsOnService : nil, tutorial: nil) { chooseCustom() }
+            }
+            .lockedBox(locked)
+            .dashFormCard()
         } footer: {
             if Storefront.isMainlandChina {
                 // 审核和合规：国区只列已完成生成式人工智能服务备案的模型；App 自己不提供模型。
-                Text("DeepSeek（杭州深度求索人工智能基础技术研究有限公司）、Kimi（北京月之暗面科技有限公司）、通义千问（阿里云）均已完成生成式人工智能服务备案。Ollama 在你自己的电脑上运行。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
+                Text(answer
+                     ? "通义千问（阿里云）、Kimi（北京月之暗面科技有限公司）、智谱 GLM（北京智谱华章科技股份有限公司）均已完成生成式人工智能服务备案。Ollama 等自己搭的服务选「自定义」。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。"
+                     : "DeepSeek（杭州深度求索人工智能基础技术研究有限公司）、Kimi（北京月之暗面科技有限公司）、通义千问（阿里云）、智谱 GLM（北京智谱华章科技股份有限公司）均已完成生成式人工智能服务备案。Ollama 等自己搭的服务选「自定义」。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
             }
-        }
-        Section {
-            LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
-                .lockedRow(locked)
-            modelField($store.settings.model, placeholder: "deepseek-flash", target: .main)
-                .lockedRow(locked)
-            keyField($store.apiKey)
-                .lockedRow(locked)
-            NavigationLink {
-                GenerationSettingsView()
-            } label: {
-                HStack {
-                    Text(L("生成参数", "Generation", "生成パラメータ"))
-                    Spacer()
-                    Text(generationSummary).foregroundStyle(.secondary)
-                }
-            }
-            .lockedRow(locked)
-        } header: {
-            Text(L("连接", "Connection", "接続"))
-        } footer: {
-            Text(selectedProvider == .ollama
-                 ? L("把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。", "Replace the IP with the local address of the computer running Ollama. The URL ends with /v1. ", "IP を Ollama を動かしているパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
-                 : L("选一个服务商会自动填好地址和模型；改了就算自定义，上面不再选中。", "Pick a provider to fill in the URL and model. Edit them and it counts as custom. ", "サービスを選ぶと URL とモデルが入力されます。書き換えるとカスタム扱いになります。"))
-                + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
-                + Text(showsPicker(.main) ? pickerFootnote : "")
         }
     }
 
-    /// 模型一栏（ML1、ML5）：右边「选择」；当前模型可能已下线时值变橙，下面一行「⚠ 可能已下线」。
-    private func modelField(_ text: Binding<String>, placeholder: String, target: PickerTarget) -> some View {
-        let missing = (target == .answer ? store.answerMissingModel : store.missingModel) != nil
-        let warning = Color(hex: 0xD97706)
-        return VStack(alignment: .trailing, spacing: 4) {
+    private func choose(_ item: Provider) {
+        guard item != selectedProvider, let preset = answer ? item.answerPreset : item.preset else { return }
+        customPicked = false
+        modelMenuOpen = false
+        typingModel = false
+        baseURL.wrappedValue = preset.baseURL
+        model.wrappedValue = preset.model
+        if !answer {
+            // 生成参数跟着预设走：温度回到默认；Kimi K3、智谱先思考，思考也算在最大输出里，给 4096，其他家 1024。
+            store.settings.temperature = EnclaveSettings().temperature
+            store.settings.maxTokens = item.maxTokens
+        }
+    }
+
+    /// 「自定义」：清空地址和模型，光标进地址一栏（自己填 Ollama、vLLM、LM Studio 的地址）。已经是自定义就只聚焦。
+    private func chooseCustom() {
+        modelMenuOpen = false
+        customPicked = true
+        typingModel = true
+        if selectedProvider != nil {
+            baseURL.wrappedValue = ""
+            model.wrappedValue = ""
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { urlFocused = true }
+    }
+
+    // MARK: 连接
+
+    private var connectionSection: some View {
+        let custom = customSelected
+        return Section {
             HStack {
-                Text(L("模型", "Model", "モデル"))
-                TextField(placeholder, text: text)
+                Text(L("API 地址", "API URL", "API の URL"))
+                TextField(custom ? "http://192.168.1.100:11434/v1" : (answer ? Provider.kimi.preset?.baseURL ?? "" : "https://api.deepseek.com/v1"),
+                          text: baseURL)
                     .multilineTextAlignment(.trailing)
+                    .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .focused($modelFocused)
-                    .foregroundStyle(missing ? warning : Color.primary)
-                if showsPicker(target) { ModelPickButton { openPicker(target) } }
+                    .focused($urlFocused)
+            }
+            .lockedRow(locked)
+            modelRow(placeholder: custom ? "qwen2.5:7b" : (answer ? Provider.kimiAnswerModel : "deepseek-flash"))
+                .lockedRow(locked)
+            keyField
+                .lockedRow(locked)
+                .onChange(of: apiKey.wrappedValue) { key in
+                    // 还没配置、默认显示 DeepSeek：填了 Key 就把 DeepSeek 的地址和模型真的填进去。
+                    if defaultsToDeepSeek, !key.trimmingCharacters(in: .whitespaces).isEmpty { choose(.deepseek) }
+                }
+        } header: {
+            Text(L("连接", "Connection", "接続"))
+        } footer: {
+            Text(custom
+                 ? L("Ollama 这类自己电脑上的模型：把地址里的 IP 换成运行它的电脑的局域网地址，地址填到 /v1。", "For a model on your own computer, such as Ollama, replace the IP with that computer's local address. The URL ends with /v1. ", "Ollama など自分のパソコンのモデルは、IP をそのパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
+                 : L("选一个服务商会自动填好地址和模型；改了就算自定义，上面不再选中。", "Pick a provider to fill in the URL and model. Edit them and it counts as custom. ", "サービスを選ぶと URL とモデルが入力されます。書き換えるとカスタム扱いになります。"))
+                + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
+                + Text(showsMenu ? L("点模型会用上面的地址和 Key 向服务商获取可用的模型。", " Tap the model to load the available models from the provider with the URL and key above.", "モデルをタップすると、上の URL とキーでサービスから利用できるモデルを取得します。") : "")
+        }
+    }
+
+    /// 模型一栏（AC3）：右边浅灰圆角框「当前模型 ▼」，点开在这一行下面就地展开下拉。
+    /// 内测版锁着、没填地址、服务商返回过 404、点过「手动输入模型名」时是输入框。当前模型可能已下线时值变橙，下面「⚠ 可能已下线」。
+    private func modelRow(placeholder: String) -> some View {
+        let missing = (answer ? store.answerMissingModel : store.missingModel) != nil
+        let warning = Color(hex: 0xD97706)
+        let current = model.wrappedValue.trimmingCharacters(in: .whitespaces)
+        return VStack(alignment: .trailing, spacing: 8) {
+            HStack {
+                Text(L("模型", "Model", "モデル"))
+                Spacer(minLength: 8)
+                if showsMenu && !typingModel {
+                    Button {
+                        if router.privacyAgreed {
+                            withAnimation(.easeOut(duration: 0.2)) { modelMenuOpen.toggle() }
+                        } else {
+                            needsPrivacy = true
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(current.isEmpty ? placeholder : current)
+                                .foregroundStyle(current.isEmpty ? Color.secondary : (missing ? warning : Color.primary))
+                                .lineLimit(1).truncationMode(.middle)
+                            Image(systemName: modelMenuOpen ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .frame(height: 32)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.tertiarySystemFill)))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(DashColor.ai, lineWidth: modelMenuOpen ? 1.5 : 0))
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(L("模型：\(current)，轻点从服务商的列表选择", "Model: \(current). Tap to choose from the provider's list", "モデル：\(current)。タップしてサービスの一覧から選択"))
+                } else {
+                    TextField(placeholder, text: model)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($modelFocused)
+                        .foregroundStyle(missing ? warning : Color.primary)
+                }
             }
             if missing {
                 Text("⚠ " + L("可能已下线", "May be retired", "提供終了の可能性"))
                     .font(.system(size: 12.5))
                     .foregroundStyle(warning)
             }
+            if modelMenuOpen && showsMenu && !typingModel {
+                ModelDropdown(baseURL: baseURL.wrappedValue, apiKey: apiKey.wrappedValue, current: current, answer: answer) { picked in
+                    model.wrappedValue = picked
+                    withAnimation(.easeOut(duration: 0.2)) { modelMenuOpen = false }
+                } onManual: {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        modelMenuOpen = false
+                        typingModel = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { modelFocused = true }
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .topTrailing)))
+            }
         }
+        .onChange(of: baseURL.wrappedValue) { _ in modelMenuOpen = false }
     }
 
-    /// 内测版锁着、还没填地址、服务商返回过 404 时不显示「选择」。
-    private func showsPicker(_ target: PickerTarget) -> Bool {
-        let base = target == .answer ? store.settings.answerBaseURL : store.settings.baseURL
+    /// 内测版锁着、还没填地址、服务商返回过 404 时没有下拉，只能手填。
+    private var showsMenu: Bool {
+        let base = baseURL.wrappedValue
         return !locked && !base.trimmingCharacters(in: .whitespaces).isEmpty && !ModelList.isUnsupported(base)
     }
 
-    private var pickerFootnote: String {
-        L("点「选择」会用上面的地址和 Key 向服务商获取可用的模型。", " Tap Choose to load the available models from the provider with the URL and key above.", "「選択」を押すと、上の URL とキーでサービスから利用できるモデルを取得します。")
-    }
-
-    /// 选模型要把 Key 发给服务商：没同意隐私政策时先去同意。
-    private func openPicker(_ target: PickerTarget) {
-        if router.privacyAgreed { pickerFor = target } else { needsPrivacy = true }
-    }
-
-    private var generationSummary: String {
-        let temperature = String(format: "%.1f", store.settings.temperature)
-        return store.settings.usesFixedTemperature
-            ? L("最多 \(store.settings.maxTokens)", "Max \(store.settings.maxTokens)", "最大 \(store.settings.maxTokens)")
-            : L("温度 \(temperature) · 最多 \(store.settings.maxTokens)", "Temp \(temperature) · Max \(store.settings.maxTokens)", "温度 \(temperature)・最大 \(store.settings.maxTokens)")
-    }
-
-    // MARK: 问答页
-
-    @ViewBuilder
-    private var answerSections: some View {
-        // 开关平时在 AI › 问答页；还和润色用同一个时（从深链进来）这里也给一个，打开后显示下面的内容。
-        if !store.settings.separateAnswer {
-            Section {
-                SameAPIToggle(locked: locked)
+    /// API Key：SecureField，占位「自建服务可以留空」；还没填时右边「粘贴」（系统粘贴按钮，不弹剪贴板授权）。
+    private var keyField: some View {
+        HStack {
+            Text("API Key")
+            SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: apiKey)
+                .multilineTextAlignment(.trailing)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if apiKey.wrappedValue.isEmpty && !locked {
+                PasteButton(payloadType: String.self) { strings in
+                    guard let text = strings.first?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
+                    DispatchQueue.main.async { apiKey.wrappedValue = text }
+                }
+                .labelStyle(.titleOnly)
+                .buttonBorderShape(.capsule)
+                .tint(DashColor.ai)
+                .controlSize(.small)
             }
         }
-        if store.settings.separateAnswer {
-            presetsSection
-            Section {
-            } header: {
-                providerGrid(Provider.answerShown, selected: selectedAnswerProvider, badges: true) { chooseAnswer($0) }
-                    .lockedBox(locked)
-            } footer: {
-                if Storefront.isMainlandChina {
-                    Text("通义千问（阿里云）、Kimi（北京月之暗面科技有限公司）、智谱 GLM（北京智谱华章科技股份有限公司）、DeepSeek（杭州深度求索人工智能基础技术研究有限公司）均已完成生成式人工智能服务备案。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
+    }
+
+    // MARK: 生成参数
+
+    /// 直接两行（不再点进下一级）：温度滑杆 + 数值、最多字数 + − / ＋。固定温度的模型温度行置灰。润色、问答共用。
+    private var generationSection: some View {
+        let fixed = store.settings.usesFixedTemperature
+        return Section {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 12) {
+                    Text(L("温度", "Temperature", "温度"))
+                    Slider(value: $store.settings.temperature, in: 0...1.5, step: 0.1)
+                        .tint(DashColor.ai)
+                    Text(String(format: "%.1f", store.settings.temperature))
+                        .font(.system(size: 15, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, alignment: .trailing)
+                }
+                .disabled(fixed)
+                .opacity(fixed ? 0.45 : 1)
+                if fixed {
+                    Text(L("Kimi K 系列用固定温度，这里不生效", "Kimi K models use a fixed temperature; this setting is ignored", "Kimi K シリーズは温度が固定のため、この設定は使われません"))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
                 }
             }
-            Section {
-                LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.answerBaseURL, placeholder: Provider.kimi.preset?.baseURL ?? "", keyboard: .URL)
-                    .lockedRow(locked)
-                modelField($store.settings.answerModel, placeholder: Provider.kimiAnswerModel, target: .answer)
-                    .lockedRow(locked)
-                keyField($store.answerApiKey)
-                    .lockedRow(locked)
-            } header: {
-                Text(L("连接", "Connection", "接続"))
-            } footer: {
-                Text(L("Ollama 这类自己电脑上的模型，直接在这里填地址就行，算自定义、不联网。", "For a model on your own computer, such as Ollama, just enter its URL here. It counts as custom and can't search the web.", "Ollama など自分のパソコンのモデルは、ここに URL を入力するだけです。カスタム扱いで、ウェブ検索はしません。"))
-                    + Text(showsPicker(.answer) ? pickerFootnote : "")
+            .lockedRow(locked)
+            HStack(spacing: 12) {
+                Text(L("最多字数", "Max output", "最大出力"))
+                Text("\(store.settings.maxTokens)")
+                    .font(.system(size: 15, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Stepper("", value: $store.settings.maxTokens, in: 256...8192, step: 256)
+                    .labelsHidden()
             }
+            .lockedRow(locked)
+        } header: {
+            Text(L("生成参数", "Generation", "生成パラメータ"))
+        } footer: {
+            Text(L("温度越低越稳定，润色建议 0.2–0.5。", "Lower is steadier. 0.2–0.5 works well for polishing.", "低いほど安定します。整えるには 0.2〜0.5 がおすすめです。")
+                 + (answer ? L("润色和问答共用这两项。", " Polish and Q&A share these settings.", "整えると質問で共通です。") : ""))
         }
-    }
-
-    private var selectedAnswerProvider: Provider? {
-        Provider.matching(baseURL: store.settings.answerBaseURL, model: store.settings.answerModel, answer: true)
-    }
-
-    private func chooseAnswer(_ item: Provider) {
-        guard item != selectedAnswerProvider, let preset = item.answerPreset else { return }
-        store.settings.answerBaseURL = preset.baseURL
-        store.settings.answerModel = preset.model
     }
 
     // MARK: 我的预设（AP1、AP2、AP5）
 
-    /// 两页共用一份列表，点了只换当前这一页。当前页三样都和某条一样才打勾。
+    /// 两页共用一份列表，点了只换当前这一页。当前页三样都和某条一样才打勾。右上「＋ 存当前」。
     private var presetsSection: some View {
         let current = store.currentSavedAPI(answer: answer)
         return Section {
@@ -550,17 +755,24 @@ struct ModelSettingsView: View {
                     }
                 }
             }
-            Button {
-                presetName = defaultPresetName
-                savingPreset = true
-            } label: {
-                Label(L("把当前配置存为预设", "Save current setup as preset", "今の設定を保存"), systemImage: "plus")
-                    .foregroundStyle(AppColor.purple)
-            }
-            .disabled(!pageConfigured)
-            .lockedRow(locked)
         } header: {
-            Text(L("我的预设", "My presets", "保存した設定"))
+            HStack {
+                Text(L("我的预设", "My presets", "保存した設定"))
+                Spacer()
+                if !locked {
+                    Button {
+                        presetName = defaultPresetName
+                        savingPreset = true
+                    } label: {
+                        Label(L("存当前", "Save current", "今の設定を保存"), systemImage: "plus")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(AppColor.purple)
+                            .textCase(nil)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(!pageConfigured)
+                }
+            }
         } footer: {
             Text(L("点一下就换成这一套地址、模型和 Key，只换这一页。两页共用这份列表。左滑改名或删除。Key 只存在本机钥匙串里，这里只显示尾号。", "Tap to switch this page to that URL, model and key. Both pages share this list. Swipe left to rename or delete. Keys stay in this iPhone's keychain; only the last 4 characters are shown.", "タップするとこのページだけその URL・モデル・キーに切り替わります。2 つのページで同じリストを使います。左にスワイプで名前変更・削除。キーは本機のキーチェーンにだけ保存され、末尾だけ表示します。"))
         }
@@ -572,9 +784,7 @@ struct ModelSettingsView: View {
 
     /// 默认名字「服务商 · 模型」，自定义地址用主机名。
     private var defaultPresetName: String {
-        let url = answer ? store.settings.answerBaseURL : store.settings.baseURL
-        let model = answer ? store.settings.answerModel : store.settings.model
-        return ProviderName.of(url) + " · " + model.trimmingCharacters(in: .whitespaces)
+        ProviderName.of(baseURL.wrappedValue) + " · " + model.wrappedValue.trimmingCharacters(in: .whitespaces)
     }
 
     private func tapPreset(_ item: SavedAPI, current: SavedAPI?) {
@@ -597,51 +807,6 @@ struct ModelSettingsView: View {
         if let item = pendingPreset {
             store.applySavedAPI(item, answer: answer)
             pendingPreset = nil
-        }
-    }
-
-    // MARK: 共用
-
-    private func keyField(_ key: Binding<String>) -> some View {
-        HStack {
-            Text("API Key")
-            SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: key)
-                .multilineTextAlignment(.trailing)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-        }
-    }
-
-    private func providerGrid(_ items: [Provider], selected: Provider?, badges: Bool, choose: @escaping (Provider) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L("服务商", "Provider", "サービス"))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.leading, 16)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                ForEach(items) { item in
-                    ProviderCard(provider: item, selected: selected == item,
-                                 badge: badges ? (item.canSearch ? .web : .noWeb) : nil,
-                                 tutorial: GuideTutorial.of(item) == nil ? nil : { router.openTutorial(item, answer: answer) }) { choose(item) }
-                }
-            }
-        }
-        .dashFormCard()
-    }
-
-    /// 卡片选中哪个跟着地址和模型走：自己改过就不选中预设。
-    private var selectedProvider: Provider? {
-        Provider.matching(baseURL: store.settings.baseURL, model: store.settings.model)
-    }
-
-    private func choose(_ item: Provider) {
-        guard item != selectedProvider else { return }
-        if let preset = item.preset {
-            store.settings.baseURL = preset.baseURL
-            store.settings.model = preset.model
-            // 生成参数跟着预设走：温度回到默认；Kimi K3 先思考，思考也算在最大输出里，给 4096，其他家 1024。
-            store.settings.temperature = EnclaveSettings().temperature
-            store.settings.maxTokens = item.maxTokens
         }
     }
 
@@ -699,47 +864,6 @@ private struct PresetRow: View {
         } ?? item.baseURL
         let key = item.keySuffix.map { L("Key 尾号 \($0)", "Key …\($0)", "キー末尾 \($0)") } ?? L("无 Key", "No key", "キーなし")
         return "\(host) · \(item.model) · \(key)"
-    }
-}
-
-/// 改写页「生成参数」二级页：温度、最大输出。
-private struct GenerationSettingsView: View {
-    @EnvironmentObject private var store: AppStore
-
-    var body: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 2) {
-                    Stepper(value: $store.settings.temperature, in: 0...1.5, step: 0.1) {
-                        HStack {
-                            Text(L("温度", "Temperature", "温度"))
-                            Spacer()
-                            Text(store.settings.temperature, format: .number.precision(.fractionLength(1)))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    // Kimi K 系列：温度变灰不能调，数值留着，换回别的模型恢复；下面的说明不跟着变淡。
-                    .disabled(store.settings.usesFixedTemperature)
-                    .opacity(store.settings.usesFixedTemperature ? 0.45 : 1)
-                    if store.settings.usesFixedTemperature {
-                        Text(L("Kimi K 系列用固定温度，这里不生效", "Kimi K models use a fixed temperature; this setting is ignored", "Kimi K シリーズは温度が固定のため、この設定は使われません"))
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
-                    }
-                }
-                Stepper(value: $store.settings.maxTokens, in: 256...8192, step: 256) {
-                    HStack {
-                        Text(L("最大输出", "Max output", "最大出力"))
-                        Spacer()
-                        Text("\(store.settings.maxTokens)").foregroundStyle(.secondary)
-                    }
-                }
-            } footer: {
-                Text(L("温度越低越稳定，润色建议 0.2–0.5。", "Lower is steadier. 0.2–0.5 works well for polishing.", "低いほど安定します。整えるには 0.2〜0.5 がおすすめです。"))
-            }
-        }
-        .navigationTitle(L("生成参数", "Generation", "生成パラメータ"))
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -845,30 +969,34 @@ extension View {
     }
 }
 
-/// 服务商卡片：名字和说明，选中的描紫边、右上打勾。问答页的卡片下面再加「🌐 可联网」/「不联网」小标签。
+/// 服务商卡片（AC1、AC2）：logo + 名字、灰字说明，选中的描紫边、右上打勾；右下「📖 配置教程」。
+/// 问答页下面再加「🌐 可联网」小标签。「自定义」占整行，没有教程，问答页标「能不能联网看服务本身」。
 private struct ProviderCard: View {
-    enum Badge { case web, noWeb }
+    enum Badge { case web, noWeb, dependsOnService }
 
     var provider: Provider
     var selected: Bool
     var badge: Badge? = nil
-    /// 右下角「配置教程」（有教程的四家）；点它不选中这一格。
+    /// 右下角「配置教程」（有教程的几家）；点它不选中这一格。
     var tutorial: (() -> Void)? = nil
     var action: () -> Void
+
+    private var custom: Bool { provider == .custom }
 
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 3) {
-                HStack {
-                    Text(provider.title).font(.body.weight(.semibold))
+                HStack(spacing: 8) {
+                    ProviderLogo(provider: provider, size: 24, corner: 7)
+                    Text(provider.title).font(.body.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
                     Spacer(minLength: 4)
                     if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(DashColor.ai) }
                 }
-                Text(provider.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                // 问答页：可联网标签和「配置教程」同一行；改写页没有标签、Ollama 没有教程，也留出这一行，格子一样高。
+                Text(custom ? "Ollama、vLLM、LM Studio" : provider.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                // 问答页：可联网标签和「配置教程」同一行；改写页没有标签，也留出这一行，格子一样高。自定义那张没有就不留。
                 if let badge {
                     badgeView(badge).padding(.top, 5)
-                } else {
+                } else if !custom {
                     Color.clear.frame(height: 18).padding(.top, 5)
                 }
             }
@@ -876,8 +1004,10 @@ private struct ProviderCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(DashColor.ai, lineWidth: selected ? 2 : 0))
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .overlay(alignment: .bottomTrailing) {
             if let tutorial {
                 // 12.5pt semibold #5B4BE8，前面 12pt 书本图标。
@@ -886,7 +1016,7 @@ private struct ProviderCard: View {
                         Image(systemName: "book").font(.system(size: 12, weight: .semibold))
                         Text(L("配置教程", "Setup guide", "設定ガイド")).font(.system(size: 12.5, weight: .semibold))
                     }
-                    .foregroundStyle(Color(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255))
+                    .foregroundStyle(Color(light: 0x5B4BE8, dark: 0xB4A9FF))
                     .frame(height: 18)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 12)
@@ -898,36 +1028,67 @@ private struct ProviderCard: View {
         }
     }
 
-    /// 可联网：#E3F4EA 底、#248A3D 字；不联网：#F2F2F7 底、#8E8E93 字。高 18、圆角 5、11pt semibold。
+    /// 可联网：#E3F4EA 底、#248A3D 字；不联网 / 看服务本身：#F2F2F7 底、#8E8E93 字。高 18、圆角 5、11pt semibold。
     private func badgeView(_ badge: Badge) -> some View {
         let web = badge == .web
         return HStack(spacing: 3) {
             if web { Image(systemName: "globe").font(.system(size: 9.5, weight: .semibold)) }
-            Text(web ? L("可联网", "Web search", "検索可") : L("不联网", "No web", "検索なし"))
+            Text(badge == .web ? L("可联网", "Web search", "検索可")
+                 : badge == .noWeb ? L("不联网", "No web", "検索なし")
+                 : L("能不能联网看服务本身", "Web search depends on the service", "検索の可否はサービス次第"))
                 .font(.system(size: 11, weight: .semibold))
         }
-        .foregroundStyle(web ? Color(red: 0x24 / 255, green: 0x8A / 255, blue: 0x3D / 255) : Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
+        .foregroundStyle(web ? Color(light: 0x248A3D, dark: 0x6EE7A0) : Color(light: 0x8E8E93, dark: 0xAEAEB2))
         .padding(.horizontal, 6)
         .frame(height: 18)
         .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(web ? Color(red: 0xE3 / 255, green: 0xF4 / 255, blue: 0xEA / 255) : Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255)))
+            .fill(web ? Color(light: 0xE3F4EA, dark: 0x173A24) : Color(light: 0xF2F2F7, dark: 0x2C2C2E)))
     }
 }
 
-private struct LabeledField: View {
-    var title: String
-    @Binding var text: String
-    var placeholder: String
-    var keyboard: UIKeyboardType = .default
+/// 服务商 logo：品牌色圆角方块 + 首字（AC1 的占位样式；没有放各家官方图标，图标要授权）。
+/// 自定义是灰底「＋」。
+struct ProviderLogo: View {
+    var provider: Provider
+    var size: CGFloat
+    var corner: CGFloat
 
     var body: some View {
-        HStack {
-            Text(title)
-            TextField(placeholder, text: $text)
-                .multilineTextAlignment(.trailing)
-                .keyboardType(keyboard)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+        ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous).fill(color)
+            if provider == .custom {
+                Image(systemName: "plus").font(.system(size: size * 0.5, weight: .bold))
+            } else {
+                Text(letter).font(.system(size: size * 0.5, weight: .bold))
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    private var letter: String {
+        switch provider {
+        case .deepseek: return "D"
+        case .openai: return "O"
+        case .kimi: return "K"
+        case .qwen: return L("通", "Q", "Q")
+        case .glm: return L("智", "Z", "Z")
+        case .hunyuan: return L("混", "H", "H")
+        case .ollama: return "O"
+        case .custom: return "+"
+        }
+    }
+
+    private var color: Color {
+        switch provider {
+        case .deepseek: return Color(hex: 0x4D6BFE)
+        case .kimi: return Color(light: 0x111111, dark: 0x3A3A3C)
+        case .qwen: return Color(hex: 0x615CED)
+        case .glm: return Color(hex: 0x3366FF)
+        case .hunyuan: return Color(hex: 0x0052D9)
+        case .openai, .ollama: return Color(light: 0x111111, dark: 0x3A3A3C)
+        case .custom: return Color(hex: 0x8E8E93)
         }
     }
 }

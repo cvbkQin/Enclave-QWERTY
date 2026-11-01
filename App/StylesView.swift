@@ -204,8 +204,9 @@ struct AIView: View {
     // MARK: 接口卡
 
     /// 接口卡（AT1）：小字「润色 / 问答」+ 右上状态；大字服务商 + 灰字模型（问答能联网时右边蓝字「● 可联网」）；
-    /// 「19/20 成功 · 平均 1.0 秒」+「最近 20 次 ›」和 20 根小柱；「测试连接」「更改接口 ›」。
-    /// 问答和润色用同一个时显示润色那家，写「和润色用同一个」，没有「更改接口」，统计照样记问答自己的。内测版只有「测试连接」。
+    /// 「19/20 成功 · 平均 1.0 秒」+「最近 20 次 ›」和 20 根小柱；「测试连接」「接口配置 ›」（AC0，v310）。
+    /// 还没配置：「还没有配置」+「配好后键盘里的 ✨ 润色 / 问答才能用」，只有一个整行实心紫底「去配置 ›」。
+    /// 问答和润色用同一个时显示润色那家，写「和润色用同一个」，没有「接口配置」，统计照样记问答自己的。内测版是「查看接口 ›」。
     private func apiCard(answer: Bool) -> some View {
         let ownAnswer = answer && store.settings.separateAnswer
         let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
@@ -227,8 +228,9 @@ struct AIView: View {
                 .foregroundStyle(status.color)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(configured ? ProviderName.of(baseURL) : L("还没设置", "Not set up", "未設定"))
+                Text(configured ? ProviderName.of(baseURL) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
                     .font(.system(size: 26, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+                    .foregroundStyle(configured ? Color.primary : Color.secondary)
                 if configured {
                     Text(model).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -245,10 +247,29 @@ struct AIView: View {
             if answer, !store.settings.separateAnswer {
                 Text(L("和润色用同一个", "Same as Polish", "整えると同じ")).font(.footnote).foregroundStyle(.secondary)
             }
-            recentSummary(answer ? answerRecent : recent, answer: answer)
+            if configured || locked {
+                recentSummary(answer ? answerRecent : recent, answer: answer)
+            } else {
+                (Text(L("配好后键盘里的 ", "Set it up to use ", "設定するとキーボードの ")) + Text(answer ? L("问答", "Ask", "質問") : L("✨ 润色", "✨ Polish", "✨ 整える"))
+                    + Text(L("才能用", " on the keyboard", "が使えます")))
+                    .font(.system(size: 14)).foregroundStyle(.secondary)
+            }
             if let error = status.error {
                 Text(error).font(.footnote).foregroundStyle(.red).lineLimit(3).fixedSize(horizontal: false, vertical: true)
             }
+            if !configured && !locked && (!answer || store.settings.separateAnswer) {
+                Button {
+                    router.aiPath.append(AppRouter.AIPage.api(answer: answer))
+                } label: {
+                    Text(L("去配置 ›", "Set Up ›", "設定する ›"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DashColor.ai))
+                }
+                .buttonStyle(.plain)
+            } else {
             HStack(spacing: 10) {
                 cardButton {
                     HStack(spacing: 6) {
@@ -267,11 +288,12 @@ struct AIView: View {
                 if !answer || store.settings.separateAnswer {
                     cardButton {
                         Text(locked ? L("查看接口 ›", "View ›", "API を見る ›")
-                             : configured ? L("更改接口 ›", "Change ›", "API を変更 ›") : L("去设置 ›", "Set Up ›", "設定する ›"))
+                             : L("接口配置 ›", "API Setup ›", "API 設定 ›"))
                     } action: {
                         router.aiPath.append(AppRouter.AIPage.api(answer: answer))
                     }
                 }
+            }
             }
             if !locked, let missing {
                 missingModelTip(missing) { router.aiPath.append(AppRouter.AIPage.api(answer: ownAnswer)) }
@@ -321,7 +343,7 @@ struct AIView: View {
     /// 右上状态：● 连接正常 · 0.8 秒 / 连不上 / 还没测试。测试刚失败时下面红字写原因。
     private func status(_ ownAnswer: Bool) -> (text: String, color: Color, error: String?) {
         let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
-        guard configured else { return (L("未设置", "Not set up", "未設定"), DashColor.system, nil) }
+        guard configured else { return (L("未配置", "Not set up", "未設定"), DashColor.system, nil) }
         let state = ownAnswer ? store.answerTest : store.test
         let requests = ownAnswer ? answerRecent : recent
         func connected(_ seconds: Double?) -> (String, Color, String?) {

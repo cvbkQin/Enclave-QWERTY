@@ -13,13 +13,13 @@ enum ProviderName {
 }
 
 /// 常用服务商，选了自动填地址和模型。
-/// 所有地区都列 DeepSeek、Kimi、通义千问，加上跑在自己电脑上的 Ollama（0.86 起，原来只有中国大陆店面这样）；
-/// 没有「自定义」卡片，自己改了地址或模型就四个都不选中，算自定义。OpenAI 和自定义只留着认旧设置的地址。
+/// 润色页列 DeepSeek、Kimi、通义千问、智谱 GLM，下面一张整行「自定义」（Ollama、vLLM、LM Studio，v310 起 Ollama 不再单列）；
+/// 自己改了地址或模型就四个都不选中，算自定义。OpenAI、Ollama 只留着认旧设置的地址。
 enum Provider: CaseIterable, Identifiable {
     case deepseek, openai, kimi, qwen, glm, hunyuan, ollama, custom
 
     /// 服务商卡片按这个顺序排，2×2。
-    static let shown: [Provider] = [.deepseek, .kimi, .qwen, .ollama]
+    static let shown: [Provider] = [.deepseek, .kimi, .qwen, .glm]
     /// 问答页的服务商：四家都能联网（千问、Kimi、智谱、腾讯混元）。都是国内已备案的服务商。
     /// DeepSeek 不能联网，0.93 起问答页不再列（cvbk）；已经填了 DeepSeek 的照样能用，只是四个都不选中。
     static let answerShown: [Provider] = [.qwen, .kimi, .glm, .hunyuan]
