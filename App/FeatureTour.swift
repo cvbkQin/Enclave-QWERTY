@@ -1663,7 +1663,8 @@ private struct TourHand: View {
     private func hand(tip: CGPoint, ripple: Bool) -> some View {
         let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
         let dx = size.width / 2 - fingertip.x
-        let center = CGPoint(x: tip.x + (flipped ? -dx : dx), y: tip.y + size.height / 2 - fingertip.y)
+        // 翻转是绕指尖镜像（CoachHandShape.hand 的 anchor），指尖在框里的位置不变，所以框心不随翻转改。
+        let center = CGPoint(x: tip.x + dx, y: tip.y + size.height / 2 - fingertip.y)
         return ZStack {
             Circle()
                 .fill(Self.rippleColor.opacity(0.16))
@@ -1898,7 +1899,8 @@ private struct TourKeyboard: View {
     /// 一排（AK4、AK5）：▭ ｜ 润色键、问答键、竖线、固定的「✨ 英文」｜撤销重做。窄屏放不下时中间那段跟着小手要点的键滚过去（演示里不让手指拖）。
     private var aiBar: some View {
         // 同真键盘方案 A（v309）：间距 5、▭ 宽 36、⌄ 区 24、撤销重做小胶囊 64。
-        HStack(spacing: 5) {
+        // 滑动区自带左右 5 的内边（给亮边留地方），所以它和两边之间不再加间距，看上去也是 5。
+        HStack(spacing: 0) {
             Image(systemName: "rectangle.tophalf.inset.filled")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(model.expanded ? TourColor.purple : GuideColor.text)

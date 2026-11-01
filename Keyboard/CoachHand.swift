@@ -152,6 +152,7 @@ private struct CoachHandLayer: View {
     private func handCenter(tip: CGPoint, flipped: Bool) -> CGPoint {
         let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
         let dx = size.width / 2 - fingertip.x
-        return CGPoint(x: tip.x + (flipped ? -dx : dx), y: tip.y + size.height / 2 - fingertip.y)
+        // 翻转是绕指尖镜像（CoachHandShape.hand 的 anchor），指尖在框里的位置不变，所以框心不随翻转改。
+        return CGPoint(x: tip.x + dx, y: tip.y + size.height / 2 - fingertip.y)
     }
 }

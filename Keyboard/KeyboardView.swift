@@ -254,9 +254,10 @@ struct KeyboardView: View {
     /// 收起和展开同一排（AK4、AK5）：▭ 抽屉（固定）｜ 中间滑动区：润色键、问答键、1×20 竖线、固定的风格键 ｜ 撤销 / 重做（固定）。
     /// 放不下就左右滑，哪边还有被遮住的内容哪边渐隐（AIKeyStrip）。没固定任何风格时不显示竖线。
     /// 方案 A（v309）：间距 5、▭ 宽 36、撤销重做小胶囊约 64，402 宽的屏上至少完整露出一颗两字固定键。
+    /// 滑动区自带左右 5 的内边（给亮边留地方），所以它和 ▭、撤销重做之间不再加间距，看上去也是 5。
     private var aiBar: some View {
         let pins = model.settings.pinnedStyles
-        return HStack(spacing: 5) {
+        return HStack(spacing: 0) {
             PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) {
                 model.endCoach()
                 model.setAIExpanded(!model.aiExpanded)
