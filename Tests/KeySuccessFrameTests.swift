@@ -17,27 +17,32 @@ final class KeySuccessFrameTests: XCTestCase {
         let gone = try XCTUnwrap(frame(300))
         XCTAssertEqual(gone.textOpacity, 0, accuracy: 0.001)
         XCTAssertEqual(gone.textBlur, 3, accuracy: 0.001)
-        XCTAssertEqual(try XCTUnwrap(frame(10_000)).textOpacity, 0, accuracy: 0.001)
-        let back = try XCTUnwrap(frame(18_699))
-        XCTAssertEqual(back.textOpacity, 1, accuracy: 0.01)
-        XCTAssertEqual(back.textDrop, 0, accuracy: 0.05)
-        XCTAssertEqual(try XCTUnwrap(frame(18_300)).textDrop, 3, accuracy: 0.001)
-        XCTAssertNil(frame(18_700))
+        // 绿勾画完停约 1 秒，文字 1880–2280 回来，之后一直显示。
+        XCTAssertEqual(try XCTUnwrap(frame(1_700)).textOpacity, 0, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(frame(1_880)).textDrop, 3, accuracy: 0.001)
+        let back = try XCTUnwrap(frame(2_280))
+        XCTAssertEqual(back.textOpacity, 1, accuracy: 0.001)
+        XCTAssertEqual(back.textDrop, 0, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(frame(10_000)).textOpacity, 1, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(frame(10_000)).textBlur, 0, accuracy: 0.001)
+        XCTAssertNil(frame(18_200))
     }
 
-    func testCheckDrawsFrom80To680AndShrinksAway() throws {
+    func testCheckDrawsFrom80To680HoldsASecondAndShrinksAway() throws {
         XCTAssertEqual(try XCTUnwrap(frame(79)).checkOpacity, 0)
         XCTAssertEqual(try XCTUnwrap(frame(380)).check, 0.5, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(frame(680)).check, 1, accuracy: 0.001)
-        let fading = try XCTUnwrap(frame(18_500))
+        XCTAssertEqual(try XCTUnwrap(frame(1_680)).checkOpacity, 1, accuracy: 0.001)
+        let fading = try XCTUnwrap(frame(2_080))
         XCTAssertEqual(fading.checkOpacity, 0, accuracy: 0.001)
         XCTAssertEqual(fading.checkScale, 0.92, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(frame(10_000)).checkOpacity, 0, accuracy: 0.001)
     }
 
     func testSweepRunsFiveTimesWithGaps() throws {
         var sweeps = 0
         var inside = false
-        for ms in stride(from: 0.0, to: 18_700, by: 50) {
+        for ms in stride(from: 0.0, to: 18_200, by: 50) {
             let on = try XCTUnwrap(frame(ms)).sweep != nil
             if on && !inside { sweeps += 1 }
             inside = on
@@ -45,14 +50,16 @@ final class KeySuccessFrameTests: XCTestCase {
         XCTAssertEqual(sweeps, 5)
         XCTAssertNil(try XCTUnwrap(frame(3_400)).sweep)
         XCTAssertEqual(try XCTUnwrap(try XCTUnwrap(frame(3_800 + 1_500)).sweep), 0.5, accuracy: 0.001)
-        XCTAssertNil(try XCTUnwrap(frame(18_300)).sweep)
+        XCTAssertNotNil(try XCTUnwrap(frame(18_150)).sweep)
     }
 
     func testLogoBouncesAndKeepsAnimating() throws {
         XCTAssertEqual(try XCTUnwrap(frame(175)).logoScale, 1.25, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(frame(420)).logoScale, 1.05, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(frame(700)).logoScale, 1, accuracy: 0.001)
-        XCTAssertTrue(try XCTUnwrap(frame(18_000)).logoAnimating)
+        // logo 一直动，和最后一次扫光一起在 18.2 秒结束。
+        XCTAssertTrue(try XCTUnwrap(frame(18_150)).logoAnimating)
+        XCTAssertNil(frame(18_200))
     }
 
     func testReduceMotionOnlyFadesTheCheck() throws {

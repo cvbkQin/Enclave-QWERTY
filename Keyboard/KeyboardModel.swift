@@ -260,7 +260,7 @@ final class KeyboardModel: ObservableObject {
     enum AIKey: Hashable { case polish, ask, pin(UUID) }
     /// 被点的那颗：固定键发起的是那颗，否则看是润色还是问答。
     var tappedKey: AIKey { lastRunPin.map(AIKey.pin) ?? (runOrigin == .ask ? .ask : .polish) }
-    /// 成功动效（替换完成 / 回答写完）：哪颗键、什么时候。18.7 秒（减弱动态效果 1.6 秒）后清掉；再点键立即结束。
+    /// 成功动效（替换完成 / 回答写完）：哪颗键、什么时候。18.2 秒（减弱动态效果 1.6 秒）后清掉；再点键立即结束。
     struct KeySuccess: Equatable {
         var key: AIKey
         var at: Date

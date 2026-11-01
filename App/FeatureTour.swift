@@ -426,8 +426,6 @@ private final class TourModel: ObservableObject {
     private var demo: Task<Void, Never>?
     private var lastTap: TourTarget?
 
-    var activeStyle: Mode? { card != nil && !generating && !searching ? cardMode : nil }
-
     // MARK: 进退
 
     func go(_ next: Int) {
@@ -1997,9 +1995,8 @@ private struct TourKeyboard: View {
         .animation(.easeOut(duration: 0.2), value: model.pinnedCustom)
     }
 
-    /// 润色键「✨ 润色 ⌄」、问答键「[问答图标] 问答 ⌄」：竖线左边点了执行，右边 ⌄ 弹风格下拉。结果来自哪颗，那颗带亮边。
+    /// 润色键「✨ 润色 ⌄」、问答键「[问答图标] 问答 ⌄」：竖线左边点了执行，右边 ⌄ 弹风格下拉。外面不再加亮边（cvbk 11-02）。
     private func mainKey(answer: Bool) -> some View {
-        let active = !model.pinRunning && model.activeStyle == (answer ? .answer : .rewrite)
         let open = answer ? model.answerStylesOpen : model.promptsOpen
         let title = answer ? L("问答", "Ask", "質問") : promptNames[min(model.selectedPrompt, promptNames.count - 1)]
         let running = answer ? model.askRunning : model.sparkRunning
@@ -2035,12 +2032,6 @@ private struct TourKeyboard: View {
             }
             .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()).runningShadow(running, answer: answer))
         }
-        .overlay {
-            Capsule().strokeBorder(answer ? Color(hex: 0x4C8FF8) : Color(hex: 0xA78BFA), lineWidth: 2)
-                .padding(-4)
-                .opacity(active ? 1 : 0)
-        }
-        .animation(.easeOut(duration: 0.25), value: active)
         .fixedSize()
         .background(GeometryReader { geo in
             Color.clear.preference(key: TourKeyFramesKey.self, value: [answer: geo.frame(in: .named("tourKeyboard"))])

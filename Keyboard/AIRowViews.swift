@@ -7,9 +7,8 @@ import SwiftUI
 /// 竖线左边（图标 + 名字）点了就执行：润色键收着时快速润色、展开时按当前风格改输入框里的话（识意框里的要求一起带上）；
 /// 问答键展开时回答识意框里的问题，收着时展开回答卡、回答输入框里的话。
 /// 竖线右边 ⌄ 那块（28pt，整块都算）弹风格下拉框，选完收起、不执行。生成中点名字是停止。
-/// 回答卡上的结果来自哪颗，那颗外面一圈 2pt 亮边（离键 2pt），两小段白光沿着亮边转（3 秒一圈）。
 /// 执行中、成功、失败的动效见 Shared/AIKeyEffects.swift（对齐清单第 61 条）：执行中键下同色投影、logo 动；
-/// 成功时文字隐去、绿勾画出、扫光 5 次，约 18.7 秒后文字回来；快速模式失败时晃一下、红底「↻ 重试」，点它重试。
+/// 成功时文字隐去、绿勾画出停约 1 秒后文字回来，扫光 5 次、logo 一直动，18.2 秒一起结束；快速模式失败时晃一下、红底「↻ 重试」，点它重试。
 struct StyleKey: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
@@ -21,7 +20,6 @@ struct StyleKey: View {
     var body: some View {
         let locked = !model.hasFullAccess
         let open = !locked && model.aiRow == row
-        let active = !locked && isActive
         let running = model.isRunning && model.lastRunPin == nil
             && model.runOrigin == (answer ? KeyboardModel.RunOrigin.ask : KeyboardModel.RunOrigin.polish)
         let failed = !answer && !running && model.quickStatus == .failed && model.lastRunPin == nil
@@ -36,7 +34,6 @@ struct StyleKey: View {
             .overlay {
                 if open { Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5) }
             }
-            .overlay { if active { ActiveRing(answer: answer) } }
             .opacity(locked ? 0.45 : 1)
             .allowsHitTesting(false)
             HStack(spacing: 0) {
@@ -76,9 +73,6 @@ struct StyleKey: View {
 
     static let rewriteBorder = NebulaFill.color(0xC4B5FD)
     static let answerBorder = NebulaFill.color(0x7DD3FC)
-    /// 亮边颜色（AK2）：润色 #a78bfa、问答 #4c8ff8。
-    static let rewriteRing = NebulaFill.color(0xA78BFA)
-    static let answerRing = NebulaFill.color(0x4C8FF8)
 
     static let fontSize: CGFloat = 14
     static let chevronSize: CGFloat = 11
@@ -163,38 +157,10 @@ struct StyleKey: View {
         Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
     }
 
-    /// 有结果、结果来自这颗主键（不是固定键）时亮。
-    private var isActive: Bool {
-        model.lastRunPin == nil && Self.activeAnswer(model) == answer
-    }
-
-    /// 回答卡上的结果是问答（true）还是改写（false）；nil：没结果、生成中、在改卡片、回答卡收着。
-    static func activeAnswer(_ model: KeyboardModel) -> Bool? {
-        guard model.aiExpanded, model.target != .card, let session = model.session, session.current != nil, !model.isRunning else { return nil }
-        return session.currentIsAnswer
-    }
-
     /// 润色键写当前润色风格的名字；问答键固定写「问答」，不写风格名（KB1）。
     static func title(_ model: KeyboardModel, answer: Bool) -> String {
         if answer { return L("问答", "Ask", "質問") }
         return model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
-    }
-}
-
-/// 结果来自哪颗键，那颗外面一圈亮边：离键 2pt、宽 2pt（AK2），两小段白光沿着转。
-struct ActiveRing: View {
-    var answer: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        ZStack {
-            Capsule().strokeBorder(answer ? StyleKey.answerRing : StyleKey.rewriteRing, lineWidth: 2)
-            if !reduceMotion {
-                StyleKeySpots().mask(Capsule().strokeBorder(lineWidth: 2))
-            }
-        }
-        .padding(-4)
-        .allowsHitTesting(false)
     }
 }
 
@@ -254,7 +220,7 @@ private struct AIKeyBadges: ViewModifier {
 // MARK: - 固定的风格键（AK5）
 
 /// 固定在 AI 栏上的风格：高 34、圆角 17、左右内边 12、14.5pt 600；改写类浅紫底主色字「✨ 简短」，问答类浅蓝底蓝字「[问答图标] 列要点」；没有 ⌄。
-/// 点一下按这个风格执行（不改当前选的风格），长按弹「取消固定」。点过的带亮边。
+/// 点一下按这个风格执行（不改当前选的风格），长按弹「取消固定」。外面不再加亮边（cvbk 11-02）。
 struct PinnedStyleKey: View {
     @ObservedObject var model: KeyboardModel
     let style: StylePreset
@@ -264,7 +230,6 @@ struct PinnedStyleKey: View {
 
     var body: some View {
         let running = model.isRunning && model.lastRunPin == style.id
-        let active = model.lastRunPin == style.id && StyleKey.activeAnswer(model) == answer
         let locked = !model.hasFullAccess
         let key = KeyboardModel.AIKey.pin(style.id)
         // 快速模式失败（只有改写类会走快速模式）：晃一下、红底「↻ 重试」，点它照常重来（对齐清单第 61 条）。
@@ -274,7 +239,6 @@ struct PinnedStyleKey: View {
         KeySuccessClock(since: running ? nil : success, reduced: !glowing) { fx in
             face(running: running, glowing: glowing, fx: fx, failed: failed)
         }
-        .overlay { if active { ActiveRing(answer: answer) } }
         .opacity(locked ? 0.45 : 1)
         .modifier(EmptyTapShake(trigger: model.keyShakes[key] ?? 0))
         .contentShape(Capsule())
@@ -403,7 +367,7 @@ struct AIKeyStrip<Content: View>: View {
             let right = offset + width < contentWidth - 0.5
             ScrollView(.horizontal, showsIndicators: false) {
                 content
-                    // 亮边、小锁伸出键外 4–6pt：两头各留一点，不被裁掉。
+                    // 小锁、执行中投影伸出键外 4–6pt：两头各留一点，不被裁掉。
                     .padding(.horizontal, 5)
                     .frame(height: geo.size.height)
                     // 直接读内容在滚动区里的位置，不走 preference：ScrollView 里别的子视图会带默认值把它冲掉，渐隐就一直不出（0.95_14 验证）。
@@ -435,29 +399,6 @@ struct AIKeyStrip<Content: View>: View {
     }
 }
 
-
-/// 激活的风格键边框上两小段亮光，相隔 180°，匀速 3 秒一圈。只在激活时出现，外面用边框形状遮住。
-struct StyleKeySpots: View {
-    @State private var spin = false
-
-    var body: some View {
-        GeometryReader { geo in
-            let side = max(geo.size.width, geo.size.height) * 1.5
-            AngularGradient(stops: [
-                .init(color: .clear, location: 0), .init(color: Brand.styleSpot, location: 0.05), .init(color: .clear, location: 0.1),
-                .init(color: .clear, location: 0.5), .init(color: Brand.styleSpot, location: 0.55), .init(color: .clear, location: 0.6),
-                .init(color: .clear, location: 1),
-            ], center: .center)
-            .frame(width: side, height: side)
-            .rotationEffect(.degrees(spin ? 360 : 0))
-            .position(x: geo.size.width / 2, y: geo.size.height / 2)
-        }
-        .allowsHitTesting(false)
-        .onAppear {
-            withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) { spin = true }
-        }
-    }
-}
 
 /// 两颗风格键在键盘里的位置（键盘坐标），下拉框从它下面弹出。
 struct RowChipFrameKey: PreferenceKey {

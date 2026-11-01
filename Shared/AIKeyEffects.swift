@@ -4,13 +4,13 @@ import SwiftUI
 
 // 功能对照表「AI 栏：润色 / 问答键的执行中与成功动效」。时间、曲线照样片源文件 design/polish-success/ps3.html 的 bs()。
 // 执行中：被点的那颗键下面一层同色柔投影，logo 动（PolishStars running、AskIcon running），不扫光、不描边。
-// 成功：白光一闪、文字淡出模糊、绿勾一笔画出、斜向扫光 5 次，logo 一直动，约 18.7 秒后文字回来。
+// 成功：白光一闪、文字淡出模糊、绿勾一笔画出，停约 1 秒后文字回来（cvbk 11-02）；斜向扫光 5 次，logo 一直动，和扫光一起在 18.2 秒结束。
 // 键盘的润色键、问答键、固定键和 App 里的功能演示共用这一份。
 
 /// 成功后某一刻按钮上各层的样子。
 struct KeySuccessFrame: Equatable {
-    /// 全程 18.7 秒；减弱动态效果（或关了发光动画）时 1.6 秒。
-    static let duration: Double = 18.7
+    /// 全程 18.2 秒（最后一次扫光结束，logo 同时停）；减弱动态效果（或关了发光动画）时 1.6 秒。
+    static let duration: Double = 18.2
     static let reducedDuration: Double = 1.6
 
     /// 白色闪光的透明度。
@@ -64,14 +64,14 @@ struct KeySuccessFrame: Equatable {
         let cycle = ms.truncatingRemainder(dividingBy: 3800)
         if ms < 18200, cycle < 3000 { f.sweep = easeInOut(cycle / 3000) }
         f.logoScale = bounce(ms / 700)
-        // 18100–18500 绿勾淡出并缩到 0.92；18300–18700 文字淡回、模糊 3 → 0、从下 3pt 回到原位。
-        if ms >= 18100 {
-            let k = easeInOut(clamp((ms - 18100) / 400))
+        // 绿勾画完停约 1 秒（cvbk 11-02）：1680–2080 淡出并缩到 0.92；1880–2280 文字淡回、模糊 3 → 0、从下 3pt 回到原位。
+        if ms >= 1680 {
+            let k = easeInOut(clamp((ms - 1680) / 400))
             f.checkOpacity = 1 - k
             f.checkScale = 1 - 0.08 * k
         }
-        if ms >= 18300 {
-            let k = easeInOut(clamp((ms - 18300) / 400))
+        if ms >= 1880 {
+            let k = easeInOut(clamp((ms - 1880) / 400))
             f.textOpacity = k
             f.textBlur = 3 * (1 - k)
             f.textDrop = 3 * (1 - k)
