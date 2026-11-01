@@ -192,8 +192,12 @@ struct AIView: View {
 
     /// 标题上的灰字：「润色 DeepSeek · 问答 Kimi」，同一个接口时「润色、问答都用 DeepSeek」。
     private var caption: String {
-        guard store.settings.isConfigured else { return L("还没设置", "Not set up", "未設定") }
+        guard store.settings.isConfigured else { return L("还没有配置接口", "No API set up yet", "API はまだ設定されていません") }
         let main = ProviderName.of(store.settings.baseURL)
+        // 问答单独配、但还没配好：别写成「都用」。
+        if store.settings.separateAnswer && !store.settings.usesAnswerEndpoint {
+            return L("润色 \(main) · 问答未配置", "Polish \(main) · Q&A not set up", "整える \(main)・質問は未設定")
+        }
         guard store.settings.usesAnswerEndpoint else {
             return L("润色、问答都用 \(main)", "Polish & Q&A: \(main)", "整える・質問とも \(main)")
         }
@@ -250,7 +254,7 @@ struct AIView: View {
             if configured || locked {
                 recentSummary(answer ? answerRecent : recent, answer: answer)
             } else {
-                (Text(L("配好后键盘里的 ", "Set it up to use ", "設定するとキーボードの ")) + Text(answer ? L("问答", "Ask", "質問") : L("✨ 润色", "✨ Polish", "✨ 整える"))
+                (Text(L("配好后键盘里的", "Set it up to use", "設定するとキーボードの")) + Text(answer ? L("「问答」", " Ask", "「質問」") : L(" ✨ 润色", " ✨ Polish", " ✨ 整える"))
                     + Text(L("才能用", " on the keyboard", "が使えます")))
                     .font(.system(size: 14)).foregroundStyle(.secondary)
             }

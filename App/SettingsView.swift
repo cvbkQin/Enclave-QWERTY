@@ -407,11 +407,18 @@ struct ModelSettingsView: View {
                     .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color(.tertiarySystemFill)))
             }
             VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(configured ? ProviderName.of(url) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
-                        .font(.system(size: 20, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
-                    if configured {
-                        Text(modelName).font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                // 服务商和模型一行放得下就一行（AC1），窄屏（SE）放不下时模型换到下一行，不截断。
+                let name = Text(configured ? ProviderName.of(url) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
+                    .font(.system(size: 20, weight: .bold))
+                let modelText = Text(modelName).font(.system(size: 14)).foregroundStyle(.secondary)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        name.lineLimit(1).fixedSize()
+                        if configured { modelText.lineLimit(1).fixedSize() }
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        name.lineLimit(1).minimumScaleFactor(0.7)
+                        if configured { modelText.lineLimit(1).truncationMode(.middle) }
                     }
                 }
                 if configured {
@@ -448,14 +455,14 @@ struct ModelSettingsView: View {
                     }
                 }
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(DashColor.ai)
+                // 点不了时（还没配置）浅紫字、浅紫底，深色下也看得出是个按钮（不整体调透明度，深色下会几乎看不见）。
+                .foregroundStyle(configured ? DashColor.ai : DashColor.ai.opacity(0.45))
                 .padding(.horizontal, 16)
                 .frame(minWidth: 60, minHeight: 34)
-                .background(Capsule().fill(DashColor.ai.opacity(0.12)))
+                .background(Capsule().fill(DashColor.ai.opacity(configured ? 0.12 : 0.16)))
             }
             .buttonStyle(.plain)
             .disabled(!configured || state == .running)
-            .opacity(configured ? 1 : 0.45)
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
@@ -1062,7 +1069,7 @@ struct ProviderLogo: View {
                 Text(letter).font(.system(size: size * 0.5, weight: .bold))
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(provider == .kimi ? Color(light: 0xFFFFFF, dark: 0x111111) : Color.white)
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
@@ -1083,7 +1090,8 @@ struct ProviderLogo: View {
     private var color: Color {
         switch provider {
         case .deepseek: return Color(hex: 0x4D6BFE)
-        case .kimi: return Color(light: 0x111111, dark: 0x3A3A3C)
+        // Kimi：浅色黑底白字，深色反过来白底黑字（AC1 深色图）。
+        case .kimi: return Color(light: 0x111111, dark: 0xFFFFFF)
         case .qwen: return Color(hex: 0x615CED)
         case .glm: return Color(hex: 0x3366FF)
         case .hunyuan: return Color(hex: 0x0052D9)
