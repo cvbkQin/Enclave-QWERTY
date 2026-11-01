@@ -278,7 +278,8 @@ struct KeyboardView: View {
                            closing: !model.aiExpanded,
                            rewriteTitle: StyleKey.title(model, answer: false),
                            answerTitle: StyleKey.title(model, answer: true),
-                           keyWidth: keyWidth)
+                           keyWidth: keyWidth,
+                           activeAnswer: StyleKey.activeAnswer(model))
                     .padding(.leading, inset + 44 + 6)
                     .allowsHitTesting(false)
             }
@@ -424,6 +425,8 @@ struct AIBarMorph: View, Animatable {
     var answerTitle: String
     /// 展开后每颗键的宽（和 StyleKey 一样）。
     var keyWidth: CGFloat
+    /// 回答卡上的结果来自哪颗键（true 问答、false 润色）：那颗的亮边跟着展开淡入，免得动画画完才突然出现。
+    var activeAnswer: Bool?
 
     var animatableData: CGFloat {
         get { u }
@@ -443,12 +446,12 @@ struct AIBarMorph: View, Animatable {
     private static func clamp(_ x: CGFloat) -> CGFloat { min(max(x, 0), 1) }
     private static func smooth(_ x: CGFloat) -> CGFloat { let k = clamp(x); return k * k * (3 - 2 * k) }
 
-    /// 问答键最后冲过头 5pt 再回 −1.5pt 落定（弹簧 response 0.3、阻尼 0.6 的样子）。
+    /// 问答键最后冲过头 3pt 再回 −1pt 落定（右边离撤销重做不远，不能冲太多）。
     private static func overshoot(_ ms: CGFloat) -> CGFloat {
         if ms < 150 { return 0 }
-        if ms < 220 { return 5 * smooth((ms - 150) / 70) }
-        if ms < 280 { return 5 - 6.5 * smooth((ms - 220) / 60) }
-        return -1.5 + 1.5 * smooth((ms - 280) / 30)
+        if ms < 220 { return 3 * smooth((ms - 150) / 70) }
+        if ms < 280 { return 3 - 4 * smooth((ms - 220) / 60) }
+        return -1 + smooth((ms - 280) / 30)
     }
 
     var body: some View {
@@ -472,7 +475,7 @@ struct AIBarMorph: View, Animatable {
         var a = Span.lerp(a0, a1, e)
         a.minX += bounce
         a.maxX += bounce
-        let aScale = 1 + 0.04 * max(bounce, 0) / 5
+        let aScale = 1 + 0.02 * max(bounce, 0) / 3
         // 颈：半高从 h/2 掐到 0。
         let neck = h / 2 * (1 - Self.smooth(ms / 150))
         let ra = (r.maxX + a.minX) / 2
@@ -526,6 +529,16 @@ struct AIBarMorph: View, Animatable {
                 .font(.system(size: 10 + (StyleKey.chevronSize - 10) * e, weight: .semibold))
                 .foregroundStyle(.white)
                 .position(x: chevronX, y: h / 2)
+        }
+        .overlay(alignment: .topLeading) {
+            if let activeAnswer {
+                let span = activeAnswer ? a : r
+                Capsule()
+                    .strokeBorder(activeAnswer ? StyleKey.answerRing : StyleKey.rewriteRing, lineWidth: 2)
+                    .frame(width: span.width + 8, height: h + 8)
+                    .position(x: span.midX, y: h / 2)
+                    .opacity(Self.smooth((ms - 120) / 130))
+            }
         }
         .frame(width: total, height: h, alignment: .topLeading)
     }

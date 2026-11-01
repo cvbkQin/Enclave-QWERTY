@@ -85,11 +85,11 @@ struct StyleKey: View {
 
     static let fontSize: CGFloat = 14.5
     static let chevronSize: CGFloat = 12
-    /// ⌄ 那块（含竖线右边）的宽，整块都点得中。
-    static let chevronZone: CGFloat = 36
-    /// 两颗键的宽：放得下时 112pt，不铺满（AK1）。
+    /// ⌄ 那块（含竖线右边）的宽，整块都点得中（≥34）。
+    static let chevronZone: CGFloat = 34
+    /// 两颗键的宽：放得下时 112pt，不铺满（AK1）；375 宽的屏约 99。最窄也要放得下两个字。
     static let preferredWidth: CGFloat = 112
-    static let minimumWidth: CGFloat = 88
+    static let minimumWidth: CGFloat = 96
 
     struct Layout {
         var iconX: CGFloat
@@ -99,13 +99,14 @@ struct StyleKey: View {
         var chevronX: CGFloat
     }
 
-    /// 一颗键里各部分的位置（键的左边为 0）：竖线左边是图标 + 名字（居中，左边至少留 10），右边 36pt 是 ⌄。AI 栏开收动画也按这个摆。
+    /// 一颗键里各部分的位置（键的左边为 0）：竖线左边是图标 + 名字（居中，左边至少留 8、右边 4），右边 34pt 是 ⌄。AI 栏开收动画也按这个摆。
+    /// 名字放不下时先缩小字（最小 80%），再截断。
     static func layout(width: CGFloat, title: String) -> Layout {
         let dividerX = width - chevronZone
-        let room = max(0, dividerX - 10 - 20 - 6)
+        let room = max(0, dividerX - 8 - 20 - 4)
         let textWidth = min(keyTextWidth(title), room)
         let content = 20 + textWidth
-        let leading = max(10, (dividerX - content) / 2)
+        let leading = max(8, (dividerX - content) / 2)
         return Layout(iconX: leading + 8, textX: leading + 20, textWidth: textWidth,
                       dividerX: dividerX, chevronX: dividerX + 1 + (chevronZone - 1) / 2)
     }
@@ -127,6 +128,7 @@ struct StyleKey: View {
             Text(title)
                 .font(.system(size: fontSize, weight: .semibold))
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .truncationMode(.tail)
                 .frame(width: layout.textWidth, alignment: .leading)
                 .position(x: layout.textX + layout.textWidth / 2, y: h / 2)
@@ -168,8 +170,14 @@ struct StyleKey: View {
 
     /// 有结果时，回答卡上是问答就是问答键亮，否则润色键亮（润色、改写都算）。
     private var isActive: Bool {
-        guard model.aiExpanded, model.target != .card, let session = model.session, session.current != nil, !model.isRunning else { return false }
-        return session.currentIsAnswer == answer
+        guard model.aiExpanded else { return false }
+        return Self.activeAnswer(model) == answer
+    }
+
+    /// 哪颗键该亮：true 问答、false 润色、nil 都不亮（没结果、生成中、在改卡片）。AI 栏开收动画也用它。
+    static func activeAnswer(_ model: KeyboardModel) -> Bool? {
+        guard model.target != .card, let session = model.session, session.current != nil, !model.isRunning else { return nil }
+        return session.currentIsAnswer
     }
 
     /// 润色键写当前润色风格的名字；问答键固定写「问答」，不写风格名（KB1）。
