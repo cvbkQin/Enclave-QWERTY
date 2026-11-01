@@ -991,6 +991,8 @@ struct FeatureTourView: View {
     @StateObject private var model = TourModel()
     /// 完成页进场（各块的先后靠各自的 delay）。
     @State private var doneShown = false
+    /// 完成页已经浮上来的总结卡片条数：一条一条往上浮，前一条还在动时下一条就开始（时间有重叠）。
+    @State private var rowsShown = 0
     /// 对话区里气泡排起来的总高度：超出限高时顶上渐隐。
     @State private var messagesHeight: CGFloat = 0
     /// 对话区实际露出来的高度（矮屏放不下时比 limit 还小）。
@@ -1143,11 +1145,12 @@ struct FeatureTourView: View {
                 Spacer(minLength: compact ? 12 : 20).frame(maxHeight: 40)
                 VStack(spacing: compact ? 8 : 10) {
                     ForEach(Array(Self.summary.enumerated()), id: \.offset) { index, row in
-                        summaryCard(index, row.0, row.1, row.2, compact)
-                            .offset(y: doneShown || reduceMotion ? 0 : 28)
-                            .opacity(doneShown ? 1 : 0)
-                            .animation(reduceMotion ? .easeOut(duration: 0.2).delay(0.1 * Double(index + 1))
-                                       : .easeOut(duration: 0.35).delay(Self.cardsStart + 0.06 * Double(index)), value: doneShown)
+                        // 整条（编号、标题、标签、圆圈）先看不见，再往上浮出来；圆圈在这一条快停稳时打勾。
+                        let shown = index < rowsShown
+                        summaryCard(index, row.0, row.1, row.2, compact, checked: shown)
+                            .offset(y: shown || reduceMotion ? 0 : 28)
+                            .opacity(shown ? 1 : 0)
+                            .animation(reduceMotion ? .easeOut(duration: 0.2) : .easeOut(duration: Self.rowRise), value: shown)
                     }
                 }
                 Spacer(minLength: compact ? 10 : 16)
@@ -1178,26 +1181,39 @@ struct FeatureTourView: View {
         .onAppear {
             FeatureTour.seen = true
             doneShown = false
-            // 先按没进场的样子画一帧，再一起放动画（各块的先后靠各自的 delay）。
+            rowsShown = 0
+            // 先按没进场的样子画一帧，再放动画：标题区和按钮靠各自的 delay，卡片一条一条放出来。
             DispatchQueue.main.async { doneShown = true }
-            if !reduceMotion {
-                // 最后一个勾打完轻震一下。
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: UInt64(Self.checksEnd * 1_000_000_000))
-                    TourModel.haptic()
+            Task { @MainActor in
+                if reduceMotion {
+                    rowsShown = Self.summary.count
+                    return
                 }
+                try? await Task.sleep(nanoseconds: UInt64(Self.cardsStart * 1_000_000_000))
+                for count in 1...Self.summary.count {
+                    rowsShown = count
+                    if count < Self.summary.count {
+                        try? await Task.sleep(nanoseconds: UInt64(Self.rowGap * 1_000_000_000))
+                    }
+                }
+                // 最后一个勾打完轻震一下。
+                try? await Task.sleep(nanoseconds: UInt64((Self.checkDelay + Self.checkDraw) * 1_000_000_000))
+                TourModel.haptic()
             }
         }
     }
 
-    /// 标题区开始 0.25 秒后卡片起浮，每张间隔 0.06 秒、0.35 秒停稳；五张到齐后每 0.1 秒打一个勾（0.2 秒画完）。
+    /// 标题区开始 0.25 秒后第一条起浮；每条从看不见往上浮 0.45 秒，下一条隔 0.18 秒就开始（前后重叠）；
+    /// 每条起浮 0.3 秒后它的圆圈打勾（0.2 秒画完）。最后一个勾打完，提示和按钮浮上来。
     private static let cardsStart = 0.25
-    private static var checksStart: Double { cardsStart + 0.06 * Double(summary.count - 1) + 0.35 }
-    private static var checksEnd: Double { checksStart + 0.1 * Double(summary.count - 1) + 0.2 }
+    private static let rowGap = 0.18
+    private static let rowRise = 0.45
+    private static let checkDelay = 0.3
+    private static let checkDraw = 0.2
+    private static var checksEnd: Double { cardsStart + rowGap * Double(summary.count - 1) + checkDelay + checkDraw }
 
-    private func summaryCard(_ index: Int, _ chapter: TourChapter, _ title: String, _ tags: [String], _ compact: Bool) -> some View {
-        let checked = doneShown
-        let checkAnimation: Animation? = reduceMotion ? nil : .easeOut(duration: 0.2).delay(Self.checksStart + 0.1 * Double(index))
+    private func summaryCard(_ index: Int, _ chapter: TourChapter, _ title: String, _ tags: [String], _ compact: Bool, checked: Bool) -> some View {
+        let checkAnimation: Animation? = reduceMotion ? nil : .easeOut(duration: Self.checkDraw).delay(Self.checkDelay)
         return HStack(spacing: 12) {
             Text("\(index + 1)")
                 .font(.system(size: 16, weight: .bold))
