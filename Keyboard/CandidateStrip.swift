@@ -26,7 +26,8 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     private var showsFirstBlock = false
     private static let font = UIFont.systemFont(ofSize: 20)
     private static let padding: CGFloat = 11
-    private static let leading: CGFloat = 2
+    /// 第一个候选左边和按键左边对齐（九宫格、全键盘都是 7）：原来贴着左边 2，首选的白底块顶到键盘左上圆角外被切掉。
+    private static let leading: CGFloat = KeyboardMetrics.nineSideMargin
 
     override init(frame: CGRect) {
         super.init(frame: frame)
