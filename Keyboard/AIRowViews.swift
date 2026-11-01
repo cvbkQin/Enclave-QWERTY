@@ -365,6 +365,8 @@ struct AIKeyStrip<Content: View>: View {
                             .onChange(of: frame) { track($0) }
                     })
             }
+            // iOS 26 给滚动区边缘加的渐变模糊：这条只有 34 高，会整排糊掉、发暗（真机 0.95_14），关掉，渐隐只用下面的遮罩。
+            .hidingScrollEdgeEffect()
             .coordinateSpace(name: "aiStrip")
             .mask(HStack(spacing: 0) {
                 LinearGradient(colors: [.black.opacity(0), .black], startPoint: .leading, endPoint: .trailing)
