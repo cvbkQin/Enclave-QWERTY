@@ -215,9 +215,9 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
             firstBlock.isHidden = true
             return
         }
-        // 方案 A（design/candidate-corner/CC1）：高 30，左边往里缩 5、右边收 2.5，离开 iOS 26 键盘外框的大圆角；字的位置不动。
+        // 方案 A（design/candidate-corner/CC1）：高 30，两边各往里缩 5（左边距 7→12），离开 iOS 26 键盘外框的大圆角；字不动，仍在块里居中。
         let height = min(30, bounds.height - 4)
-        let inset: (left: CGFloat, right: CGFloat) = (5, 2.5)
+        let inset: (left: CGFloat, right: CGFloat) = (5, 5)
         firstBlock.frame = CGRect(x: frame.minX + inset.left, y: (bounds.height - height) / 2,
                                   width: frame.width - inset.left - inset.right, height: height)
         firstBlock.backgroundColor = UIColor(KeyStyle.charKey).resolvedColor(with: traitCollection).cgColor
