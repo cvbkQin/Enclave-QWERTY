@@ -49,7 +49,7 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         highlight.cornerRadius = 6
         highlight.isHidden = true
         layer.insertSublayer(highlight, at: 0)
-        firstBlock.cornerRadius = 9
+        firstBlock.cornerRadius = 8
         firstBlock.shadowOffset = CGSize(width: 0, height: 1)
         firstBlock.shadowRadius = 0
         firstBlock.shadowOpacity = 1
@@ -215,8 +215,11 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
             firstBlock.isHidden = true
             return
         }
-        let height = min(34, bounds.height - 4)
-        firstBlock.frame = CGRect(x: frame.minX, y: (bounds.height - height) / 2, width: frame.width, height: height)
+        // 方案 A（design/candidate-corner/CC1）：高 30，左边往里缩 5、右边收 2.5，离开 iOS 26 键盘外框的大圆角；字的位置不动。
+        let height = min(30, bounds.height - 4)
+        let inset: (left: CGFloat, right: CGFloat) = (5, 2.5)
+        firstBlock.frame = CGRect(x: frame.minX + inset.left, y: (bounds.height - height) / 2,
+                                  width: frame.width - inset.left - inset.right, height: height)
         firstBlock.backgroundColor = UIColor(KeyStyle.charKey).resolvedColor(with: traitCollection).cgColor
         firstBlock.shadowColor = UIColor(white: 0, alpha: traitCollection.userInterfaceStyle == .dark ? 0.35 : 0.18).cgColor
         firstBlock.isHidden = false
