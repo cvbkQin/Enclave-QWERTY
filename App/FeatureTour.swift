@@ -397,6 +397,8 @@ private final class TourModel: ObservableObject {
     @Published var cardTall = false
     @Published var answerStylesOpen = false
     @Published var answerStyle = 0
+    /// 回答卡标题上的风格：重新回答时才跟上 answerStyle（FT18 选完「列要点」，标题等点了「问答」再换）。
+    @Published var cardAnswerStyle = 0
 
     @Published var sparkRunning = false
     @Published var sparkDone: Date?
@@ -575,7 +577,7 @@ private final class TourModel: ObservableObject {
         case 5, 6: card = s.rewritten; cardMode = .rewrite
         case 7: card = s.shorter; cardMode = .rewrite
         case 13: card = s.riddleAnswer; cardMode = .answer
-        case 14, 15: card = s.riddleRewrite; cardMode = .rewrite
+        case 14: card = s.riddleRewrite; cardMode = .rewrite
         case 16, 17: card = s.foodAnswer; cardMode = .answer
         case 18: card = s.foodWeb; cardMode = .answer
         case 19, 20: card = s.foodPoints; cardMode = .answer
@@ -605,6 +607,7 @@ private final class TourModel: ObservableObject {
         cardTall = (17...19).contains(n) || n == 21
         answerStylesOpen = false
         answerStyle = n >= 19 ? 2 : 0
+        cardAnswerStyle = answerStyle
         panel = false
         picked = []
         dragPick = false
@@ -856,6 +859,7 @@ private final class TourModel: ObservableObject {
         try await pause(delay)
         withAnimation(.easeOut(duration: 0.2)) {
             cardMode = mode
+            if mode == .answer { cardAnswerStyle = answerStyle }
             generating = false
         }
         try await stream(text)
@@ -1842,6 +1846,9 @@ private struct TourKeyboard: View {
         }
     }
 
+    /// 小屏（SE）每行 28，6 条风格加「＋」整个下拉不超出键盘底边。
+    private var menuRow: CGFloat { compact ? 28 : 32 }
+
     /// 宽 216、圆角 12：小标题，每条右边一颗图钉（演示里只有「英文」那颗能点），当前那条打勾；润色那一个最底下「＋ 添加润色风格」。
     private func styleMenu(answer: Bool) -> some View {
         let names = answer ? Self.answerStyles : promptNames
@@ -1850,7 +1857,7 @@ private struct TourKeyboard: View {
             Text((answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル"))
                  + L(" · 点图钉固定到 AI 栏", " · Pin to the AI bar", " · ピンで AI バーに固定"))
                 .font(.system(size: 11)).foregroundStyle(GuideColor.secondary).lineLimit(1).minimumScaleFactor(0.8)
-                .padding(.horizontal, 10).frame(height: 24)
+                .padding(.horizontal, 10).frame(height: compact ? 20 : 24)
             ForEach(Array(names.enumerated()), id: \.offset) { index, name in
                 let on = index == selected
                 let pinned = !answer && index == 5 && model.pinnedCustom
@@ -1863,11 +1870,11 @@ private struct TourKeyboard: View {
                         .font(.system(size: 12, weight: .semibold))
                         .rotationEffect(.degrees(45))
                         .foregroundStyle(pinned ? TourColor.purple : GuideColor.secondary.opacity(0.7))
-                        .frame(width: 30, height: 30)
+                        .frame(width: 30, height: menuRow)
                         .modifier(TourMenuPin(index: index, answer: answer, model: model))
                 }
                 .padding(.leading, 10)
-                .frame(height: 32)
+                .frame(height: menuRow)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(on ? TourColor.pillOn : .clear))
                 .transition(.opacity)
                 .modifier(TourMenuRow(index: index, answer: answer, model: model))
@@ -1876,7 +1883,7 @@ private struct TourKeyboard: View {
                 Label(L("添加润色风格", "Add Polish Style", "整えるスタイルを追加"), systemImage: "plus")
                     .font(.system(size: 14.5)).foregroundStyle(TourColor.purple).lineLimit(1)
                     .padding(.horizontal, 10)
-                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                    .frame(maxWidth: .infinity, minHeight: menuRow, alignment: .leading)
                     .tourPress(.addStyle, model: model)
             }
         }
@@ -1919,6 +1926,8 @@ private struct TourKeyboard: View {
                     let id: TourTarget = target == .chevron ? .sparkle : target == .answerStyle ? .askKey : target
                     withAnimation(.easeOut(duration: 0.25)) { reader.scrollTo(id) }
                 }
+                // 换一步先回到最左（FT11 滚到「✨ 英文」后，FT12 润色键要完整露出来）。
+                .onChange(of: model.step) { _ in reader.scrollTo(TourTarget.sparkle, anchor: .leading) }
             }
             .frame(height: 44)
             HStack(spacing: 0) {
@@ -2153,7 +2162,7 @@ private struct TourKeyboard: View {
             } else {
                 PolishStars(size: 15, running: false, glowing: false, doneAt: nil, tint: color).frame(width: 15, height: 15)
             }
-            Text(answer ? L("AI 回答", "AI answer", "AI の回答") + " · " + Self.answerStyles[model.answerStyle]
+            Text(answer ? L("AI 回答", "AI answer", "AI の回答") + " · " + Self.answerStyles[model.cardAnswerStyle]
                  : L("AI 改写", "AI rewrite", "AI 書き換え") + " · " + promptNames[min(model.selectedPrompt, promptNames.count - 1)])
                 .font(.system(size: 13, weight: .bold)).lineLimit(1)
             if answer { webTag.padding(.leading, 2) }
@@ -2173,7 +2182,7 @@ private struct TourKeyboard: View {
         .foregroundStyle(on ? Color(light: 0x2F7BF6, dark: 0x5EA0FF) : Color(light: 0x8A8A8E, dark: 0x98989D))
         .padding(.horizontal, 7)
         .frame(height: 18)
-        .background(Capsule().fill(on ? Color(light: 0xE3EEFE, dark: 0x1D2A44) : Color(light: 0xEEEEF1, dark: 0x2C2C30)))
+        .background(Capsule().fill(on ? Color(light: 0xE3EEFE, dark: 0x1D2A44) : Color(light: 0xEEEEF1, dark: 0x3A3A3E)))
         .fixedSize()
     }
 
