@@ -221,6 +221,7 @@ extension KeyboardModel {
             }
             setInstruction(text)
             lastRunKey = .answer
+            coachTapped(.ask)
             askTapped(.answer, contextOverride: "")
             return
         }
@@ -231,6 +232,7 @@ extension KeyboardModel {
             return
         }
         lastRunKey = .answer
+        coachTapped(.ask)
         askTapped(.answer)
     }
 

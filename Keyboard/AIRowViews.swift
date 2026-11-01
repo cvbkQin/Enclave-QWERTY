@@ -47,7 +47,7 @@ struct StyleKey: View {
                 }
                 .accessibilityLabel(running ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル")
                                     : (answer ? L("问答", "Ask", "質問") : L("润色：\(title)", "Polish: \(title)", "整える：\(title)")))
-                .modifier(CoachKeyTarget(model: model, enabled: !answer))
+                .modifier(CoachKeyTarget(model: model, answer: answer))
                 Button {
                     locked ? model.showFullAccessTip() : model.toggleRow(row)
                 } label: {
@@ -191,18 +191,18 @@ struct ActiveRing: View {
     }
 }
 
-/// 使用指引里点 ✨（收着）/ 「执行」（展开）那一步指着润色键的名字。
+/// 使用指引里点 ✨（收着）/ 「执行」（展开）那一步指着润色键的名字，点「问答」那一步指着问答键的名字。
 private struct CoachKeyTarget: ViewModifier {
     @ObservedObject var model: KeyboardModel
-    var enabled: Bool
+    var answer: Bool
 
     func body(content: Content) -> some View {
-        if enabled {
+        if answer {
+            content.coachTarget(.ask, active: model.coachDisplay?.target == .ask)
+        } else {
             content
                 .coachTarget(.sparkle, active: !model.aiExpanded && model.coachDisplay?.target == .sparkle)
                 .coachTarget(.run, active: model.aiExpanded && model.coachDisplay?.target == .run)
-        } else {
-            content
         }
     }
 }

@@ -521,7 +521,7 @@ final class KeyboardModel: ObservableObject {
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
-            notice = L("先在输入框里写点什么，或者点「识意」说说想写什么，让它帮你写。", "Type something first, or tap Ask and say what you want written.", "先に何か入力するか、「たずねる」で書いてほしい内容を伝えてください。")
+            notice = L("先在输入框里写点什么；想让它帮你写，就在下面的框里写下要求，再点「问答」。", "Type something first. To have it write for you, describe what you want in the box below, then tap Ask.", "先に何か入力してください。下書きしてほしいときは、下の欄に内容を書いて「質問」をタップします。")
 
         case (false, true):
             // 润色：总是润输入框里现在的文字（可能是替换后又手改过的），结果接在这次会话后面，翻页还能找回之前的版本。
