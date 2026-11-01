@@ -243,8 +243,8 @@ struct PromptKindTabs: View {
             }
             .background(alignment: .bottom) { Rectangle().fill(Color(.separator)).frame(height: 1) }
             Text(kind == .polish
-                 ? L("点 ✨ 润色时用「默认」那条；在键盘上点名字换一条，默认也跟着换。", "Tapping ✨ uses the Default one. Picking another from the name on the keyboard makes it the default.", "✨ で整えるときは「デフォルト」を使います。キーボードで名前をタップして選ぶと、それがデフォルトになります。")
-                 : L("按住 ✨ 问答时用「默认」那种；在键盘上点「问答 ⌄」换一种，默认也跟着换。", "Holding ✨ to ask uses the Default one. Picking another from Ask ⌄ on the keyboard makes it the default.", "✨ 長押しの質問では「デフォルト」を使います。キーボードの「質問 ⌄」で選ぶと、それがデフォルトになります。"))
+                 ? L("润色时用「默认」那条；在键盘上点润色键的 ⌄ 换一条，默认也跟着换。", "Polishing uses the Default one. Picking another from ⌄ on the polish key makes it the default.", "整えるときは「デフォルト」を使います。キーボードで整えるキーの ⌄ から選ぶと、それがデフォルトになります。")
+                 : L("点「问答」时用「默认」那种；在键盘上点「问答」的 ⌄ 换一种，默认也跟着换。", "Tapping Ask uses the Default one. Picking another from ⌄ on Ask makes it the default.", "「質問」では「デフォルト」を使います。キーボードの「質問」の ⌄ から選ぶと、それがデフォルトになります。"))
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

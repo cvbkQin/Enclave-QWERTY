@@ -1,12 +1,15 @@
 import SwiftUI
 
-// MARK: - AI 栏的两颗风格键（MG1–MG5）
+// MARK: - AI 栏的润色键、问答键（AK1–AK3）
 
-/// 改写风格键、问答风格键（AB2）：展开时才有，紫色 / 蓝色柔和混色底、白字白图标。
-/// 回答卡上是哪一种结果，那一颗就激活：1.5pt 浅色边框、两小段白光沿边框转（3 秒一圈）、外面 3pt 淡外圈（扁平化后不再有 10pt 的光）。
+/// 回答卡展开时 AI 栏的两颗键：润色键「✎ 正式 ｜ ⌄」、问答键「? 问答 ｜ ⌄」，紫色 / 蓝色柔和混色底、白字白图标。
+/// 竖线左边（图标 + 名字）点了就执行：润色键按当前润色风格改输入框里的话（识意框里的要求一起带上），问答键回答识意框里的问题。
+/// 竖线右边 ⌄ 那块（36pt 宽，整块都算）弹风格下拉框，选完收起、不执行。生成中点名字是停止。
+/// 回答卡上的结果来自哪颗，那颗外面一圈 2pt 亮边（离键 2pt），两小段白光沿着亮边转（3 秒一圈）。
 struct StyleKey: View {
     @ObservedObject var model: KeyboardModel
     let row: KeyboardModel.AIRow
+    var width: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var answer: Bool { row == .answerStyles }
@@ -15,85 +18,157 @@ struct StyleKey: View {
         let locked = !model.hasFullAccess
         let open = !locked && model.aiRow == row
         let active = !locked && isActive
-        Button { locked ? model.showFullAccessTip() : model.toggleRow(row) } label: {
-            Self.face(answer: answer, title: Self.title(model, answer: answer), open: open)
-            .background {
-                // 激活：外面 3pt 淡外圈，润色 rgba(124,58,237,.25)、直击要害 rgba(14,165,233,.25)。
-                if active {
-                    Capsule().fill(answer ? Self.answerGlow : Self.rewriteGlow).padding(-3)
+        let running = model.isRunning && model.runOrigin == (answer ? KeyboardModel.RunOrigin.ask : KeyboardModel.RunOrigin.polish)
+        let title = Self.title(model, answer: answer)
+        let layout = Self.layout(width: width, title: title)
+        ZStack(alignment: .leading) {
+            Self.face(answer: answer, title: title, width: width, open: open, running: running)
+                .overlay {
+                    if open { Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5) }
                 }
+                .overlay {
+                    if running && model.settings.polishAnimation && !reduceMotion {
+                        PolishButtonGlow(ring: answer ? Brand.answerRing : Brand.gradient).clipShape(Capsule())
+                    }
+                }
+                .overlay {
+                    // 亮边：离键 2pt、宽 2pt（AK2）。
+                    if active {
+                        ZStack {
+                            Capsule().strokeBorder(answer ? Self.answerRing : Self.rewriteRing, lineWidth: 2)
+                            if !reduceMotion {
+                                StyleKeySpots().mask(Capsule().strokeBorder(lineWidth: 2))
+                            }
+                        }
+                        .padding(-4)
+                        .allowsHitTesting(false)
+                    }
+                }
+                .opacity(locked ? 0.45 : 1)
+                .allowsHitTesting(false)
+            HStack(spacing: 0) {
+                Button {
+                    answer ? model.askKeyTapped() : model.polishKeyTapped()
+                } label: {
+                    // 几乎透明的底：完全透明的地方系统不把触摸交给键盘（混色底不接触摸）。
+                    PolishButton.touchFill.frame(width: layout.dividerX)
+                }
+                .accessibilityLabel(running ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル")
+                                    : (answer ? L("问答：回答下面写的问题", "Ask: answer the question below", "質問：下に書いた質問に答える")
+                                       : L("润色：按「\(title)」改输入框里的话", "Polish with \(title)", "「\(title)」で整える")))
+                .modifier(CoachRunTarget(model: model, enabled: !answer))
+                Button {
+                    locked ? model.showFullAccessTip() : model.toggleRow(row)
+                } label: {
+                    PolishButton.touchFill
+                }
+                .accessibilityLabel((answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル")) + "：" + title)
+                .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
             }
-            .overlay {
-                if active || open {
-                    Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5)
-                }
-                if active && !reduceMotion {
-                    StyleKeySpots().mask(Capsule().strokeBorder(lineWidth: 1.5))
-                }
-            }
-            .opacity(locked ? 0.45 : 1)
-            .background(GeometryReader { geometry in
-                Color.clear.preference(key: RowChipFrameKey.self, value: [row: geometry.frame(in: .named("keyboard"))])
-            })
-            // 点按区上下各扩 5pt；垫一层几乎透明的底，系统才把字缝、▾ 旁边的触摸交给键盘（混色底不接触摸）。
-            .padding(.vertical, 5)
-            .background(PolishButton.touchFill)
-            .contentShape(Rectangle())
-            .padding(.vertical, -5)
+            .buttonStyle(KeyPressStyle())
         }
-        .buttonStyle(KeyPressStyle())
-        .accessibilityLabel((answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル")) + "：" + Self.title(model, answer: answer))
-        .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
+        .frame(width: width, height: KeyboardMetrics.chipHeight)
+        .background(GeometryReader { geometry in
+            Color.clear.preference(key: RowChipFrameKey.self, value: [row: geometry.frame(in: .named("keyboard"))])
+        })
+        // 点按区上下各扩 5pt。
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+        .padding(.vertical, -5)
     }
 
     static let rewriteBorder = NebulaFill.color(0xC4B5FD)
     static let answerBorder = NebulaFill.color(0x7DD3FC)
-    static let rewriteGlow = Color(red: 124 / 255, green: 58 / 255, blue: 237 / 255).opacity(0.25)
-    static let answerGlow = Color(red: 14 / 255, green: 165 / 255, blue: 233 / 255).opacity(0.25)
+    /// 亮边颜色（AK2）：润色 #a78bfa、问答 #4c8ff8。
+    static let rewriteRing = NebulaFill.color(0xA78BFA)
+    static let answerRing = NebulaFill.color(0x4C8FF8)
 
-    /// 柔和混色底、白字白图标（AB2；底色、竖线和内边距按 FB2）：高 34、左内边 7、右内边 6；15pt 图标、间距 3、13.5pt 600 风格名（最宽 76）、竖线、10pt ▾。
-    /// 宽度按字算死，AI 栏分裂动画里画的那几颗和这里一样宽。
-    static func face(answer: Bool, title: String, open: Bool = false, filled: Bool = true) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: answer ? "questionmark.circle" : "pencil")
-                .font(.system(size: 15, weight: .semibold))
-                .frame(width: 16)
+    static let fontSize: CGFloat = 14.5
+    static let chevronSize: CGFloat = 12
+    /// ⌄ 那块（含竖线右边）的宽，整块都点得中。
+    static let chevronZone: CGFloat = 36
+    /// 两颗键的宽：放得下时 112pt，不铺满（AK1）。
+    static let preferredWidth: CGFloat = 112
+    static let minimumWidth: CGFloat = 88
+
+    struct Layout {
+        var iconX: CGFloat
+        var textX: CGFloat
+        var textWidth: CGFloat
+        var dividerX: CGFloat
+        var chevronX: CGFloat
+    }
+
+    /// 一颗键里各部分的位置（键的左边为 0）：竖线左边是图标 + 名字（居中，左边至少留 10），右边 36pt 是 ⌄。AI 栏开收动画也按这个摆。
+    static func layout(width: CGFloat, title: String) -> Layout {
+        let dividerX = width - chevronZone
+        let room = max(0, dividerX - 10 - 20 - 6)
+        let textWidth = min(keyTextWidth(title), room)
+        let content = 20 + textWidth
+        let leading = max(10, (dividerX - content) / 2)
+        return Layout(iconX: leading + 8, textX: leading + 20, textWidth: textWidth,
+                      dividerX: dividerX, chevronX: dividerX + 1 + (chevronZone - 1) / 2)
+    }
+
+    /// 柔和混色底、白字白图标：16pt 图标、14.5pt 600 名字、竖线、12pt ⌄。生成中图标换成白色方块。
+    static func face(answer: Bool, title: String, width: CGFloat, open: Bool = false, running: Bool = false, filled: Bool = true) -> some View {
+        let h = KeyboardMetrics.chipHeight
+        let layout = Self.layout(width: width, title: title)
+        return ZStack(alignment: .topLeading) {
+            Group {
+                if running {
+                    RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(Color.white).frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: answer ? "questionmark.circle" : "pencil")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+            }
+            .position(x: layout.iconX, y: h / 2)
             Text(title)
-                .font(.system(size: 13.5, weight: .semibold))
+                .font(.system(size: fontSize, weight: .semibold))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(width: textWidth(title))
+                .frame(width: layout.textWidth, alignment: .leading)
+                .position(x: layout.textX + layout.textWidth / 2, y: h / 2)
             chevronDivider
+                .position(x: layout.dividerX + 0.5, y: h / 2)
             Image(systemName: open ? "chevron.up" : "chevron.down")
-                .font(.system(size: 10, weight: .semibold))
-                .frame(width: 10)
+                .font(.system(size: chevronSize, weight: .semibold))
+                .position(x: layout.chevronX, y: h / 2)
         }
         .foregroundStyle(.white)
-        .padding(.leading, 7)
-        .padding(.trailing, 6)
-        .frame(width: width(title), height: KeyboardMetrics.chipHeight)
+        .frame(width: width, height: h, alignment: .topLeading)
         .background {
             if filled { NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()) }
         }
     }
 
-    /// 风格名的宽度，最宽 76，太长截断。
+    /// 合成那一颗里风格名的宽（13.5pt），最宽 76，太长截断。
     static func textWidth(_ title: String) -> CGFloat {
         let font = UIFont.systemFont(ofSize: 13.5, weight: .semibold)
         return min(76, ceil((title as NSString).size(withAttributes: [.font: font]).width))
     }
 
-    /// 名字和 ▾ 之间的竖线：1×14、白 45%，和放大镜里那条一样（FB）。两边的 3pt 由 HStack 间距给。
+    /// 润色键、问答键里名字的宽（14.5pt）。
+    static func keyTextWidth(_ title: String) -> CGFloat {
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        return ceil((title as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    /// 名字和 ⌄ 之间的竖线：1×14、白 45%（FB）。
     static var chevronDivider: some View {
         Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
     }
 
-    /// 整颗的宽：7 + 图标 16 + 3 + 字 + 3 + 竖线 1 + 3 + ▾ 10 + 6。
-    static func width(_ title: String) -> CGFloat { 49 + textWidth(title) }
+    /// AI 栏有多宽时两颗键各多宽：放得下 112，放不下平分剩下的地方，最窄 88（名字截断）。
+    static func width(barWidth: CGFloat, fixed: CGFloat) -> CGFloat {
+        guard barWidth > 0 else { return preferredWidth }
+        return max(minimumWidth, min(preferredWidth, floor((barWidth - fixed) / 2)))
+    }
 
-    /// 展开、有结果时，回答卡上是问答就激活问答那颗，否则激活改写那颗（润色也算改写）。
+    /// 有结果时，回答卡上是问答就是问答键亮，否则润色键亮（润色、改写都算）。
     private var isActive: Bool {
-        guard model.aiExpanded, model.target != .card, let session = model.session, session.current != nil else { return false }
+        guard model.aiExpanded, model.target != .card, let session = model.session, session.current != nil, !model.isRunning else { return false }
         return session.currentIsAnswer == answer
     }
 
@@ -101,6 +176,20 @@ struct StyleKey: View {
     static func title(_ model: KeyboardModel, answer: Bool) -> String {
         if answer { return L("问答", "Ask", "質問") }
         return model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
+    }
+}
+
+/// 使用指引里「执行」那一步指着润色键的名字（原来指着放大镜）。
+private struct CoachRunTarget: ViewModifier {
+    @ObservedObject var model: KeyboardModel
+    var enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.coachTarget(.run, active: model.coachDisplay?.target == .run)
+        } else {
+            content
+        }
     }
 }
 

@@ -139,7 +139,7 @@ extension KeyboardModel {
         if layer != .letters && layer != .digits { layer = .letters }
     }
 
-    /// 组字时回车把字母原样上屏；在识意框里回车就是 ✨。
+    /// 组字时回车把字母原样上屏；在识意框里回车等于再点一次上次点的润色键或问答键。
     func returnKey() {
         if isComposing {
             if let raw = engine.commitComposition() { commit(raw) }
@@ -149,7 +149,7 @@ extension KeyboardModel {
         switch target {
         case .host: editProxy?.insertText("\n")
         case .instruction:
-            askTapped(askButtonMode)
+            runFromAskField()
         case .card:
             commit("\n")
         }
@@ -1249,7 +1249,6 @@ extension KeyboardModel {
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
             case "ask", "askEmpty", "askSelected", "askRewrite", "askAnswerMode", "askAnswer", "askRewriteResult", "askRunning":
                 loadDebugAsk(option)
-            case "askHold": debugAskHold = true; askHoldShowing = true
             // 结果卡左边的键：key:insert 默认插入，key:down 滚轮下滑，key:pop 弹出；key:rolled / key:popped 停在换过去的样子。
             case "key:insert": debugResultKey(primary: .insert)
             case "key:down": debugResultKey(swipe: .wheel, wheelUp: false)

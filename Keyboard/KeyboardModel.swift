@@ -243,6 +243,8 @@ final class KeyboardModel: ObservableObject {
     enum QuickStatus { case running, done, failed }
     /// 按住放大镜弹出了「改写 / 问答」：这时 AI 栏整行要盖在回答卡上面，不然上面那颗「改写」被回答卡挡住。
     @Published var askHoldShowing = false
+    /// 回答卡展开时最后点的是润色键还是问答键：识意框里回车照它来。
+    var lastRunKey: AskMode?
     /// 快速模式点 ✨ 但输入框里没字（NC1）：按钮右边的「未检测到内容」。
     @Published private(set) var emptyTapHint = false
     /// 每次没字时点 ✨ 加一，按钮跟着晃一下（NC2）。
@@ -322,7 +324,6 @@ final class KeyboardModel: ObservableObject {
     /// 截图用（-keyboardDebug coach:…）：点 ✨ /「执行」不真的请求，2 秒后出三个假版本，看小手飞到下一步。
     var debugFakeRun = false
     /// 截图用（-keyboardDebug askHold）：✨ 上停着按住时弹出的「改写 / 问答」（QA11）。
-    var debugAskHold = false
     /// 截图用（-keyboardDebug key:…）：结果卡左边的键停在滑过 16pt 换过去（rolled）或弹出另一个（popped）的样子。
     var debugResultKeyPose: String?
 
@@ -488,7 +489,8 @@ final class KeyboardModel: ObservableObject {
     // MARK: - 执行
 
     /// 读取输入框，按「内容 // 要求」决定润色、按要求改或帮我写。
-    func execute() {
+    /// extraInstruction：回答卡展开时点润色键，识意框里写的要求（AK2），和输入框里的「// 要求」一起用。
+    func execute(extraInstruction: String? = nil) {
         guard !isRunning else { return }
         reload()
 
@@ -501,8 +503,11 @@ final class KeyboardModel: ObservableObject {
         } else {
             dropSession(unlessItBelongsTo: parsed.content)
         }
-        // 「识意」框里的话只在识意展开时用（askTapped），这里只看输入框里的「// 要求」。
-        let command = parsed
+        // 输入框里的「// 要求」，再加上识意框里的要求（展开时点润色键）。
+        var command = parsed
+        if let extra = extraInstruction, !extra.isEmpty {
+            command.instruction = command.instruction.isEmpty ? extra : command.instruction + "\n" + extra
+        }
         let style = settings.selectedStyle
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {

@@ -309,8 +309,8 @@ struct ModelSettingsView: View {
                 } header: {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(answer
-                             ? L("识意判断是问答时用这一页的接口回答。可以想久一点、可以联网，用和润色不同的服务商或模型。", "When Ask decides it's a question, this API answers it. It can think longer and search the web, using a different provider or model from Polish.", "質問だと判断されたときはこのページの API で答えます。じっくり考えたりウェブ検索したりでき、整えると別のサービスやモデルを使えます。")
-                             : L("点 ✨ 润色、识意改写都用这一页的接口。要快，选不带深度思考的模型。", "✨ Polish and Ask rewrites use this API. Speed matters, so pick a model without deep thinking.", "✨ で整える・質問での書き換えはこの API を使います。速さ重視なので、深い思考のないモデルを選んでください。"))
+                             ? L("在键盘上点「问答」时用这一页的接口回答。可以想久一点、可以联网，用和润色不同的服务商或模型。", "Tapping Ask on the keyboard uses this API to answer. It can think longer and search the web, using a different provider or model from Polish.", "キーボードで「質問」をタップするとこのページの API で答えます。じっくり考えたりウェブ検索したりでき、整えると別のサービスやモデルを使えます。")
+                             : L("点 ✨ 或润色键改写文字都用这一页的接口。要快，选不带深度思考的模型。", "✨ and the polish key use this API to edit your text. Speed matters, so pick a model without deep thinking.", "✨ と整えるキーでの書き換えはこの API を使います。速さ重視なので、深い思考のないモデルを選んでください。"))
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 4)

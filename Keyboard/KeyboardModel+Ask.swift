@@ -150,24 +150,47 @@ extension KeyboardModel {
         lastAsk = LastAsk(question: question, kind: kind, index: session.currentIndex)
     }
 
-    /// 结果卡左边模式控件「⇄ 切换」（SW4）：同一句、同样的原文换另一种方式重做，结果作为新的一版进翻页。
-    func switchAskMode() {
-        guard !isRunning, let session, session.currentIsAsk, let source = session.currentAskSource else { return }
-        guard passGate(then: { [weak self] in self?.switchAskMode() }) else { return }
-        reload()
-        guard checkCanAsk() else { return }
-        let target: AskMode = session.currentIsAnswer ? .rewrite : .answer
-        if target == .answer {
-            guard passAnswerConsent(then: { [weak self] in self?.switchAskMode() }) else { return }
+    /// 回答卡展开时点润色键的名字（AK1、AK2）：按当前润色风格改输入框里的话，识意框里写的要求一起带上。
+    /// 输入框里没有字（也没有手改过的一版）时不调用 AI，只提示一句（AK3）。生成中点了是停止。
+    func polishKeyTapped() {
+        if isRunning { stop(); return }
+        if target == .card { finishCardEdit() }
+        finishComposition()
+        if aiRow != nil { aiRow = nil }
+        let parsed = CommandParser.parse(readField().text)
+        if parsed.content.isEmpty, parsed.instruction.isEmpty, session?.currentIsEdited != true {
+            showKeysToast(L("输入框里没有要改的话，想问问题请点「问答」", "Nothing to edit in the text field. To ask a question, tap Ask.",
+                            "入力欄に直す文章がありません。質問するときは「質問」をタップ"))
+            return
         }
-        // 新的一版，不顶掉现在这一版。
-        lastAsk = nil
-        let search = target == .answer ? settings.answerSearch : nil
-        let request = AskRequest(question: source.question, forced: target, fallbackAnswer: target == .answer,
-                                 context: source.context, search: search)
-        let messages = Prompts.ask(source.question, context: source.context, forceAnswer: target == .answer, search: search != nil,
-                                   answerStyle: settings.selectedAnswerStyle, tendency: settings.tendency)
-        start(from: .ask) { run(messages, pending: session, ask: request) }
+        guard passGate(then: { [weak self] in self?.polishKeyTapped() }) else { return }
+        #if DEBUG
+        if debugFakeRun { coachTapped(.run); fakeCoachRun(); return }
+        #endif
+        coachTapped(.run)
+        if askSelected { askSelected = false }
+        let extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        lastRunKey = .rewrite
+        start(from: .polish) { execute(extraInstruction: extra) }
+    }
+
+    /// 回答卡展开时点问答键的名字（AK1、AK2）：回答识意框里的问题。框是空的就把光标放进框里、提示先写问题。
+    func askKeyTapped() {
+        if isRunning { stop(); return }
+        if aiRow != nil { aiRow = nil }
+        guard canAsk else {
+            focusAsk()
+            showKeysToast(L("先在下面的框里写问题，再点「问答」", "Type your question in the box below, then tap Ask.",
+                            "下の欄に質問を書いてから「質問」をタップ"))
+            return
+        }
+        lastRunKey = .answer
+        askTapped(.answer)
+    }
+
+    /// 识意框里按回车「执行」：和上次点的那颗键一样（没点过就是问答）。不再有自动判断（AK1）。
+    func runFromAskField() {
+        if lastRunKey == .rewrite { polishKeyTapped() } else { askKeyTapped() }
     }
 
     /// 识意框右边「使用联网查询」能不能出现（MG6）：正在显示没联网的问答，问答接口能联网，三档不是禁止。
