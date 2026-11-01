@@ -1897,17 +1897,18 @@ private struct TourKeyboard: View {
 
     /// 一排（AK4、AK5）：▭ ｜ 润色键、问答键、竖线、固定的「✨ 英文」｜撤销重做。窄屏放不下时中间那段跟着小手要点的键滚过去（演示里不让手指拖）。
     private var aiBar: some View {
-        HStack(spacing: 6) {
+        // 同真键盘方案 A（v309）：间距 5、▭ 宽 36、⌄ 区 24、撤销重做小胶囊 64。
+        HStack(spacing: 5) {
             Image(systemName: "rectangle.tophalf.inset.filled")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(model.expanded ? TourColor.purple : GuideColor.text)
-                .frame(width: 44, height: 34)
+                .frame(width: 36, height: 34)
                 .background(Capsule().fill(model.expanded ? Color(light: 0xEDEBFD, dark: 0x2E2766) : TourColor.key))
                 .overlay(Capsule().strokeBorder(TourColor.ring, lineWidth: model.expanded ? 1.5 : 0))
                 .tourPress(.drawer, model: model)
             ScrollViewReader { reader in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
                         mainKey(answer: false).id(TourTarget.sparkle)
                         mainKey(answer: true).id(TourTarget.askKey)
                         // FT11 点图钉后下拉先收起，「✨ 英文」再弹进来。
@@ -1934,16 +1935,18 @@ private struct TourKeyboard: View {
                 Image(systemName: "arrow.uturn.backward")
                     .rotationEffect(.degrees(Double(model.undoTurns) * -180))
                     .foregroundStyle(model.undoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.leading, 9)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .tourPress(.undo, model: model)
                 Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1, height: 16)
                 Image(systemName: "arrow.uturn.forward")
                     .foregroundStyle(model.redoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.trailing, 9)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                     .tourPress(.redo, model: model)
             }
             .font(.system(size: 16, weight: .medium))
-            .frame(width: 82, height: 34)
+            .frame(width: 64, height: 34)
             .background(Capsule().fill(TourColor.key))
         }
         .animation(.easeOut(duration: 0.2), value: model.pinnedCustom)
@@ -1964,12 +1967,12 @@ private struct TourKeyboard: View {
                 }
                 Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1).fixedSize()
             }
-            .padding(.leading, 10).padding(.trailing, 5)
+            .padding(.leading, 9).padding(.trailing, 5)
             .frame(maxHeight: .infinity)
             .tourPress(answer ? .askKey : .sparkle, model: model)
             Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
             Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 11, weight: .semibold))
-                .frame(width: 28).frame(maxHeight: .infinity)
+                .frame(width: 24).frame(maxHeight: .infinity)
                 .tourPress(answer ? .answerStyle : .chevron, model: model)
         }
         .foregroundStyle(.white)

@@ -91,8 +91,8 @@ struct StyleKey: View {
 
     static let fontSize: CGFloat = 14
     static let chevronSize: CGFloat = 11
-    /// ⌄ 那块（竖线右边）的宽，整块都点得中。
-    static let chevronZone: CGFloat = 28
+    /// ⌄ 那块（竖线右边）的宽，整块都点得中。AI 栏收紧（方案 A，v309）：28 → 24。
+    static let chevronZone: CGFloat = 24
 
     struct Layout {
         var iconX: CGFloat
@@ -103,11 +103,11 @@ struct StyleKey: View {
         var width: CGFloat
     }
 
-    /// 按内容宽（AK4）：左内边 10、图标 16、间距 3、名字 14pt、竖线左边 5、竖线 1、⌄ 区 28。
+    /// 按内容宽（AK4，v309 收紧）：左内边 9、图标 16、间距 3、名字 14pt、竖线左边 5、竖线 1、⌄ 区 24。
     static func layout(title: String) -> Layout {
         let textWidth = keyTextWidth(title)
-        let dividerX = 10 + 16 + 3 + textWidth + 5
-        return Layout(iconX: 18, textX: 29, textWidth: textWidth, dividerX: dividerX,
+        let dividerX = 9 + 16 + 3 + textWidth + 5
+        return Layout(iconX: 17, textX: 28, textWidth: textWidth, dividerX: dividerX,
                       chevronX: dividerX + 1 + chevronZone / 2 - 1, width: dividerX + 1 + chevronZone)
     }
 
