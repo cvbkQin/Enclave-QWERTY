@@ -84,12 +84,14 @@ struct StyleKey: View {
     static let answerRing = NebulaFill.color(0x4C8FF8)
 
     static let fontSize: CGFloat = 14.5
+    static let compactFontSize: CGFloat = 13.5
     static let chevronSize: CGFloat = 12
-    /// ⌄ 那块（含竖线右边）的宽，整块都点得中（≥34）。
+    /// ⌄ 那块（含竖线右边）的宽，整块都点得中：平时 34，名字放不下时最窄 30。
     static let chevronZone: CGFloat = 34
-    /// 两颗键的宽：放得下时 112pt，不铺满（AK1）；375 宽的屏约 99。最窄也要放得下两个字。
+    static let minimumChevronZone: CGFloat = 30
+    /// 问答键 112；润色键按名字放宽，112–128（AK1、窄屏让位）。
     static let preferredWidth: CGFloat = 112
-    static let minimumWidth: CGFloat = 96
+    static let maximumPolishWidth: CGFloat = 128
 
     struct Layout {
         var iconX: CGFloat
@@ -97,18 +99,45 @@ struct StyleKey: View {
         var textWidth: CGFloat
         var dividerX: CGFloat
         var chevronX: CGFloat
+        var fontSize: CGFloat
     }
 
-    /// 一颗键里各部分的位置（键的左边为 0）：竖线左边是图标 + 名字（居中，左边至少留 8、右边 4），右边 34pt 是 ⌄。AI 栏开收动画也按这个摆。
-    /// 名字放不下时先缩小字（最小 80%），再截断。
+    /// 平时：左内边 12、图标 16、间距 5、名字 14.5pt、名字后留 6、⌄ 区 34。
+    static func regularWidth(_ title: String) -> CGFloat { 12 + 16 + 5 + keyTextWidth(title, size: fontSize) + 6 + chevronZone }
+    /// 放不下时：字号 13.5、左内边 8、间距 3、名字后留 4，⌄ 区先 34 再最窄 30。这是名字完整显示需要的最小宽。
+    static func compactWidth(_ title: String, chevron: CGFloat) -> CGFloat { 8 + 16 + 3 + keyTextWidth(title, size: compactFontSize) + 4 + chevron }
+
+    /// 一颗键里各部分的位置（键的左边为 0）。AI 栏开收动画也按这个摆。
+    /// 宽度够就用平时的样子（图标 + 名字在竖线左边居中）；不够依次：字号 14.5→13.5、左内边 12→8、间距 5→3，⌄ 区 34→30，最后才省略号。
     static func layout(width: CGFloat, title: String) -> Layout {
-        let dividerX = width - chevronZone
-        let room = max(0, dividerX - 8 - 20 - 4)
-        let textWidth = min(keyTextWidth(title), room)
-        let content = 20 + textWidth
-        let leading = max(8, (dividerX - content) / 2)
-        return Layout(iconX: leading + 8, textX: leading + 20, textWidth: textWidth,
-                      dividerX: dividerX, chevronX: dividerX + 1 + (chevronZone - 1) / 2)
+        if width >= regularWidth(title) {
+            let dividerX = width - chevronZone
+            let textWidth = keyTextWidth(title, size: fontSize)
+            let leading = max(12, (dividerX - (21 + textWidth)) / 2)
+            return Layout(iconX: leading + 8, textX: leading + 21, textWidth: textWidth,
+                          dividerX: dividerX, chevronX: dividerX + 1 + (chevronZone - 1) / 2, fontSize: fontSize)
+        }
+        let full = compactWidth(title, chevron: chevronZone)
+        let chevron = width >= full ? chevronZone : max(minimumChevronZone, chevronZone - (full - width))
+        let dividerX = width - chevron
+        let natural = keyTextWidth(title, size: compactFontSize)
+        let textWidth = min(natural, max(0, dividerX - 8 - 19 - 4))
+        let leading = max(8, (dividerX - (19 + textWidth)) / 2)
+        return Layout(iconX: leading + 8, textX: leading + 19, textWidth: textWidth,
+                      dividerX: dividerX, chevronX: dividerX + 1 + (chevron - 1) / 2, fontSize: compactFontSize)
+    }
+
+    /// AI 栏里两颗键各多宽（AK1 窄屏让位）：
+    /// 宽屏：润色键按名字放宽到 112–128，问答键 112。放不下时问答键先缩到刚好放下「? 问答 ⌄」，省出来的给润色键；
+    /// 润色键还放不下就按 layout 里的顺序收字号、内边距、⌄ 区，最后省略号。
+    static func widths(barWidth: CGFloat, fixed: CGFloat, polishTitle: String, askTitle: String) -> (polish: CGFloat, ask: CGFloat) {
+        let polishWanted = min(maximumPolishWidth, max(preferredWidth, regularWidth(polishTitle)))
+        guard barWidth > 0 else { return (polishWanted, preferredWidth) }
+        let room = floor(barWidth - fixed)
+        if room >= polishWanted + preferredWidth { return (polishWanted, preferredWidth) }
+        let askMin = min(preferredWidth, ceil(compactWidth(askTitle, chevron: minimumChevronZone)))
+        let ask = max(askMin, room - polishWanted)
+        return (max(0, min(polishWanted, room - ask)), ask)
     }
 
     /// 柔和混色底、白字白图标：16pt 图标、14.5pt 600 名字、竖线、12pt ⌄。生成中图标换成白色方块。
@@ -126,9 +155,8 @@ struct StyleKey: View {
             }
             .position(x: layout.iconX, y: h / 2)
             Text(title)
-                .font(.system(size: fontSize, weight: .semibold))
+                .font(.system(size: layout.fontSize, weight: .semibold))
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
                 .truncationMode(.tail)
                 .frame(width: layout.textWidth, alignment: .leading)
                 .position(x: layout.textX + layout.textWidth / 2, y: h / 2)
@@ -151,21 +179,15 @@ struct StyleKey: View {
         return min(76, ceil((title as NSString).size(withAttributes: [.font: font]).width))
     }
 
-    /// 润色键、问答键里名字的宽（14.5pt）。
-    static func keyTextWidth(_ title: String) -> CGFloat {
-        let font = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+    /// 润色键、问答键里名字的宽。
+    static func keyTextWidth(_ title: String, size: CGFloat) -> CGFloat {
+        let font = UIFont.systemFont(ofSize: size, weight: .semibold)
         return ceil((title as NSString).size(withAttributes: [.font: font]).width)
     }
 
     /// 名字和 ⌄ 之间的竖线：1×14、白 45%（FB）。
     static var chevronDivider: some View {
         Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
-    }
-
-    /// AI 栏有多宽时两颗键各多宽：放得下 112，放不下平分剩下的地方，最窄 88（名字截断）。
-    static func width(barWidth: CGFloat, fixed: CGFloat) -> CGFloat {
-        guard barWidth > 0 else { return preferredWidth }
-        return max(minimumWidth, min(preferredWidth, floor((barWidth - fixed) / 2)))
     }
 
     /// 有结果时，回答卡上是问答就是问答键亮，否则润色键亮（润色、改写都算）。

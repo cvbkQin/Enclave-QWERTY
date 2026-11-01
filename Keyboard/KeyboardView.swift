@@ -236,7 +236,7 @@ struct KeyboardView: View {
     /// 开收时中间这几颗换成 AIBarMorph 画 250 ms 的分裂 / 融合，画完再露出真按钮。
     private var aiBar: some View {
         let hidden = barMorphing || barExpanded != model.aiExpanded
-        let keyWidth = self.keyWidth
+        let widths = keyWidths
         return HStack(spacing: 6) {
             PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) {
                 model.endCoach()
@@ -244,8 +244,8 @@ struct KeyboardView: View {
             }
             HStack(spacing: 6) {
                 if model.aiExpanded {
-                    StyleKey(model: model, row: .prompts, width: keyWidth)
-                    StyleKey(model: model, row: .answerStyles, width: keyWidth)
+                    StyleKey(model: model, row: .prompts, width: widths.polish)
+                    StyleKey(model: model, row: .answerStyles, width: widths.ask)
                 } else {
                     PolishButton(model: model)
                         .modifier(EmptyTapShake(trigger: model.emptyTapShake))
@@ -268,7 +268,8 @@ struct KeyboardView: View {
             .opacity(hidden && !reduceMotion ? 0 : 1)
             // 减弱动态效果：不分裂，直接交叉淡入。
             .animation(reduceMotion ? .easeInOut(duration: 0.25) : nil, value: model.aiExpanded)
-            Spacer(minLength: 0)
+            // 中间空着的地方算在这一组里（不另放 Spacer），撤销重做前只隔 6。
+            .frame(maxWidth: .infinity, alignment: .leading)
             UndoRedoPair(model: model)
         }
         .padding(.horizontal, inset)
@@ -278,7 +279,8 @@ struct KeyboardView: View {
                            closing: !model.aiExpanded,
                            rewriteTitle: StyleKey.title(model, answer: false),
                            answerTitle: StyleKey.title(model, answer: true),
-                           keyWidth: keyWidth,
+                           polishWidth: widths.polish,
+                           askWidth: widths.ask,
                            activeAnswer: StyleKey.activeAnswer(model))
                     .padding(.leading, inset + 44 + 6)
                     .allowsHitTesting(false)
@@ -296,9 +298,10 @@ struct KeyboardView: View {
     /// AI 栏的宽，用来算润色键、问答键各多宽。
     @State private var barWidth: CGFloat = 0
 
-    /// 放得下 112，放不下就平分：AI 栏左右内边、抽屉 44、三处间距 6（抽屉后、两颗之间、空白前后算两处）、撤销重做。
-    private var keyWidth: CGFloat {
-        StyleKey.width(barWidth: barWidth, fixed: inset * 2 + 44 + 6 * 4 + UndoRedoPair.width)
+    /// 两颗键各多宽（StyleKey.widths）：AI 栏减去左右内边、抽屉 44、三处间距 6（抽屉后、两颗之间、撤销重做前）、撤销重做。
+    private var keyWidths: (polish: CGFloat, ask: CGFloat) {
+        StyleKey.widths(barWidth: barWidth, fixed: inset * 2 + 44 + 6 * 3 + UndoRedoPair.width,
+                        polishTitle: StyleKey.title(model, answer: false), askTitle: StyleKey.title(model, answer: true))
     }
 
     /// AI 栏上次画完停在哪个样子；和 model.aiExpanded 不一样时说明正在开收。
@@ -423,8 +426,9 @@ struct AIBarMorph: View, Animatable {
     var closing = false
     var rewriteTitle: String
     var answerTitle: String
-    /// 展开后每颗键的宽（和 StyleKey 一样）。
-    var keyWidth: CGFloat
+    /// 展开后两颗键的宽（和 StyleKey 一样）。
+    var polishWidth: CGFloat
+    var askWidth: CGFloat
     /// 回答卡上的结果来自哪颗键（true 问答、false 润色）：那颗的亮边跟着展开淡入，免得动画画完才突然出现。
     var activeAnswer: Bool?
 
@@ -468,9 +472,9 @@ struct AIBarMorph: View, Animatable {
         }
         let gap: CGFloat = 6
         let wJ = PolishButton.joinedWidth(rewriteTitle)
-        let wK = keyWidth
+        let wK = polishWidth, wA = askWidth
         let r = Span.lerp(Span(minX: 0, maxX: wJ), Span(minX: 0, maxX: wK), e)
-        let a0 = Span(minX: wJ - h, maxX: wJ), a1 = Span(minX: wK + gap, maxX: 2 * wK + gap)
+        let a0 = Span(minX: wJ - h, maxX: wJ), a1 = Span(minX: wK + gap, maxX: wK + gap + wA)
         let bounce = closing ? 0 : Self.overshoot(ms)
         var a = Span.lerp(a0, a1, e)
         a.minX += bounce
@@ -496,9 +500,9 @@ struct AIBarMorph: View, Animatable {
             // 问答键：在最下面，一开始藏在润色右端。
             blob(a, h: h, total: total, left: (ra, neck), right: nil, palette: .answer)
                 .scaleEffect(aScale, anchor: UnitPoint(x: a.midX / total, y: 0.5))
-            StyleKey.face(answer: true, title: answerTitle, width: wK, filled: false)
+            StyleKey.face(answer: true, title: answerTitle, width: wA, filled: false)
                 .opacity(answerText)
-                .position(x: a.minX + wK / 2, y: h / 2)
+                .position(x: a.minX + wA / 2, y: h / 2)
                 .frame(width: total, height: h, alignment: .topLeading)
                 .mask(Capsule().frame(width: a.width, height: h).position(x: a.midX, y: h / 2)
                     .frame(width: total, height: h, alignment: .topLeading))
@@ -518,7 +522,7 @@ struct AIBarMorph: View, Animatable {
                 .opacity(pen)
                 .position(x: key.iconX, y: h / 2)
             Text(rewriteTitle)
-                .font(.system(size: 13.5 + (StyleKey.fontSize - 13.5) * e, weight: .semibold))
+                .font(.system(size: 13.5 + (key.fontSize - 13.5) * e, weight: .semibold))
                 .lineLimit(1)
                 .foregroundStyle(.white)
                 .frame(width: textWidth, alignment: .leading)
