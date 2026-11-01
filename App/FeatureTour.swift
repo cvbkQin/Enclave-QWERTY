@@ -981,10 +981,12 @@ struct FeatureTourView: View {
         case skip
         /// 完成页「开始设置」。
         case setup
-        /// 完成页「暂不配置，仅使用打字」。
+        /// 完成页「暂不配置，仅使用打字」；从设置里再看时完成页的「完成」。
         case later
     }
 
+    /// 从设置里再看一次（tourReplay）：完成页只有「完成」，点了直接退出，不进接口配置。
+    var replay = false
     var onExit: (Exit) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1155,6 +1157,9 @@ struct FeatureTourView: View {
                 }
                 Spacer(minLength: compact ? 10 : 16)
                 VStack(spacing: compact ? 10 : 14) {
+                    if replay {
+                        GuidePrimaryButton(L("完成", "Done", "完了")) { exit(.later) }
+                    } else {
                     HStack(spacing: 6) {
                         Image(systemName: "key").font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Color(light: 0x5B4BE8, dark: 0xB4A9FF))
@@ -1168,6 +1173,7 @@ struct FeatureTourView: View {
                     .background(Capsule().fill(Color(light: 0xECEAFD, dark: 0x25204F)))
                     GuidePrimaryButton(L("开始设置", "Start Setup", "設定をはじめる")) { exit(.setup) }
                     GuideSecondaryButton(L("暂不配置，仅使用打字", "Not Now, Typing Only", "今は設定せず入力のみ使う")) { exit(.later) }
+                    }
                 }
                 .offset(y: doneShown || reduceMotion ? 0 : 12)
                 .opacity(doneShown ? 1 : 0)

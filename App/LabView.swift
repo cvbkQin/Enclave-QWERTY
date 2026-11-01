@@ -225,7 +225,7 @@ struct LabView: View {
 
     var body: some View {
         DashPage {
-            tourCard
+            // 功能演示只从设置 › 上手进（cvbk 11-01：使用指引里不再放入口）。
             progressCard
             modesCard
             ForEach(LabScene.Category.allCases, id: \.self) { category in
@@ -251,30 +251,6 @@ struct LabView: View {
         .onAppear {
             tried = UsageStats.labTried
         }
-    }
-
-    /// 再玩一次首次打开时的功能演示（模拟键盘、预设结果，不调用 API）。
-    private var tourCard: some View {
-        Button { router.setupGuide = .tourReplay } label: {
-            DashCard {
-                HStack(spacing: 12) {
-                    Image(systemName: "hand.tap.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
-                        .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .fill(LinearGradient(colors: [Color(hex: 0x8A7BFF), Color(hex: 0x5B4BE8)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L("功能演示 · 约 4 分钟", "Feature Tour · About 4 min", "機能デモ · 約 4 分")).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                        Text(L("用模拟键盘把润色、改写、润色风格、问答、分词插入点一遍，不调用 API", "Try Polish, Rewrite, Polish styles, Answer and word picking on a simulated keyboard. No API calls", "模擬キーボードで整える・書き換え・整えるスタイル・回答・単語挿入を試せます。API は使いません")).font(.footnote).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 4)
-                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                }
-            }
-        }
-        .buttonStyle(.plain)
     }
 
     private var progressCard: some View {
