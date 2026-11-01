@@ -73,7 +73,7 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(Provider.matching(baseURL: Provider.kimiGlobal, model: model), .kimi)
         XCTAssertEqual(Provider.matching(baseURL: Provider.kimiChina + "/", model: model), .kimi)
         XCTAssertNil(Provider.matching(baseURL: Provider.kimiChina, model: "my-model"))
-        // Ollama 不再单列（v310），归到「自定义」：哪张都不选中。
+        // Ollama 不再单列（11-01），归到「自定义」：哪张都不选中。
         XCTAssertNil(Provider.matching(baseURL: "http://10.0.0.2:11434/v1", model: "anything"))
         XCTAssertEqual(Provider.matching(baseURL: Provider.glmChina, model: Provider.glm.preset!.model), .glm)
         XCTAssertEqual(Provider.matching(baseURL: Provider.kimiChina, model: Provider.kimiAnswerModel, answer: true), .kimi)

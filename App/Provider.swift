@@ -13,7 +13,7 @@ enum ProviderName {
 }
 
 /// 常用服务商，选了自动填地址和模型。
-/// 润色页列 DeepSeek、Kimi、通义千问、智谱 GLM，下面一张整行「自定义」（Ollama、vLLM、LM Studio，v310 起 Ollama 不再单列）；
+/// 润色页列 DeepSeek、Kimi、通义千问、智谱 GLM，下面一张整行「自定义」（Ollama、vLLM、LM Studio，11-01 起 Ollama 不再单列）；
 /// 自己改了地址或模型就四个都不选中，算自定义。OpenAI、Ollama 只留着认旧设置的地址。
 enum Provider: CaseIterable, Identifiable {
     case deepseek, openai, kimi, qwen, glm, hunyuan, ollama, custom
