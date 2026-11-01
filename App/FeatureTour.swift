@@ -1893,7 +1893,7 @@ private struct TourKeyboard: View {
     /// 展开：蓝紫混色的放大镜。FT6 按住往上拖，正上方「改写」、正下方「问答」。
     private var magnifier: some View {
         HStack(spacing: 5) {
-            AskIcon().frame(width: 18, height: 18)
+            MagnifierIcon().frame(width: 18, height: 18)
             Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
             Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
         }

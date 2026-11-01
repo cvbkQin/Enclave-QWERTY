@@ -69,9 +69,9 @@ struct NebulaFill: View {
     }
 }
 
-/// 识意展开、自动时 ✨ 里的图标（方案 E3，design/ask-icon/ask-icon-e3.svg，24×24 画布）：
+/// 旧的放大镜图标（方案 E3，design/ask-icon/ask-icon-e3.svg，24×24 画布），键盘上已不用，功能演示里还在用（演示晚点再改）：
 /// 白色实心镜片的放大镜，镜片里一颗紫粉渐变四角星，右上、左上两颗小黄星。
-struct AskIcon: View {
+struct MagnifierIcon: View {
     /// 和 ✨ 同款的四角星，24×24 画布里的路径。
     static func star(_ path: inout Path, center: CGPoint, scale k: CGFloat) {
         func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: center.x + (x - 12) * k, y: center.y + (y - 12) * k) }
@@ -89,7 +89,7 @@ struct AskIcon: View {
         var scale: CGFloat
         func path(in rect: CGRect) -> Path {
             var path = Path()
-            AskIcon.star(&path, center: center, scale: scale)
+            MagnifierIcon.star(&path, center: center, scale: scale)
             return path.applying(CGAffineTransform(scaleX: rect.width / 24, y: rect.height / 24))
         }
     }
