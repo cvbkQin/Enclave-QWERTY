@@ -201,6 +201,17 @@ final class KeyboardModel: ObservableObject {
     /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
     @Published var wordPanelText = ""
     @Published var wordPanelFading = false
+    /// 剪贴板（B1）：有没有新复制的内容（只看 changeCount、hasStrings，不读内容）、「常用」面板停在哪个标签、记录列表。
+    @Published var clipboardHasNew = false
+    @Published var quickTab: QuickTab = .phrases
+    @Published var clipItems: [ClipItem] = []
+    /// 长按剪贴板一条弹出的菜单。
+    @Published var clipMenu: UUID?
+    /// 「清空」点了一次，再点一次才清（3 秒内）。
+    @Published var clipClearArmed = false
+    /// 按键区顶上的深色小提示（「★ 已加到常用语…」「只能粘贴文字」），1.8 秒后淡掉。
+    @Published var keysToast: String?
+    var keysToastTimer: DispatchWorkItem?
     /// 刚进自由编辑时的小胶囊。
     @Published var freeEditToast = false
     var freeEditToastTimer: DispatchWorkItem?
@@ -232,6 +243,19 @@ final class KeyboardModel: ObservableObject {
     enum QuickStatus { case running, done, failed }
     /// 按住放大镜弹出了「改写 / 问答」：这时 AI 栏整行要盖在回答卡上面，不然上面那颗「改写」被回答卡挡住。
     @Published var askHoldShowing = false
+    /// 回答卡展开时最后点的是润色键还是问答键：识意框里回车照它来。
+    var lastRunKey: AskMode?
+    /// 点 AI 栏上固定的风格键（AK5）：这一次按它的风格，不改当前选的风格。只在发起那一下有值。
+    var runStyleOverride: StylePreset?
+    var runAnswerStyleOverride: StylePreset?
+    /// 当前结果来自哪颗固定键（亮边画在它上面）；点两颗主键时为 nil。
+    @Published var lastRunPin: UUID?
+    /// 长按固定键弹出的「取消固定」。
+    @Published var pinMenu: UUID?
+    /// 收着时点「问答」自动填进识意框的那句话（v308）：识意框还是这句时点润色键，不把它当修改要求。
+    var askAutoFill: String?
+    /// 下拉框里满 5 个还点空心图钉：底部那行变红一会儿。
+    @Published var pinLimitHit = false
     /// 快速模式点 ✨ 但输入框里没字（NC1）：按钮右边的「未检测到内容」。
     @Published private(set) var emptyTapHint = false
     /// 每次没字时点 ✨ 加一，按钮跟着晃一下（NC2）。
@@ -311,7 +335,6 @@ final class KeyboardModel: ObservableObject {
     /// 截图用（-keyboardDebug coach:…）：点 ✨ /「执行」不真的请求，2 秒后出三个假版本，看小手飞到下一步。
     var debugFakeRun = false
     /// 截图用（-keyboardDebug askHold）：✨ 上停着按住时弹出的「改写 / 问答」（QA11）。
-    var debugAskHold = false
     /// 截图用（-keyboardDebug key:…）：结果卡左边的键停在滑过 16pt 换过去（rolled）或弹出另一个（popped）的样子。
     var debugResultKeyPose: String?
 
@@ -366,7 +389,7 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: aiRow != nil, gate: gate,
+        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
                                freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide)
     }
@@ -477,7 +500,8 @@ final class KeyboardModel: ObservableObject {
     // MARK: - 执行
 
     /// 读取输入框，按「内容 // 要求」决定润色、按要求改或帮我写。
-    func execute() {
+    /// extraInstruction：回答卡展开时点润色键，识意框里写的要求（AK2），和输入框里的「// 要求」一起用。
+    func execute(extraInstruction: String? = nil) {
         guard !isRunning else { return }
         reload()
 
@@ -490,13 +514,16 @@ final class KeyboardModel: ObservableObject {
         } else {
             dropSession(unlessItBelongsTo: parsed.content)
         }
-        // 「识意」框里的话只在识意展开时用（askTapped），这里只看输入框里的「// 要求」。
-        let command = parsed
-        let style = settings.selectedStyle
+        // 输入框里的「// 要求」，再加上识意框里的要求（展开时点润色键）。
+        var command = parsed
+        let style = runStyleOverride ?? settings.selectedStyle
+        if let extra = extraInstruction, !extra.isEmpty {
+            command.instruction = command.instruction.isEmpty ? extra : command.instruction + "\n" + extra
+        }
 
         switch (command.content.isEmpty, command.instruction.isEmpty) {
         case (true, true):
-            notice = L("先在输入框里写点什么，或者点「识意」说说想写什么，让它帮你写。", "Type something first, or tap Ask and say what you want written.", "先に何か入力するか、「たずねる」で書いてほしい内容を伝えてください。")
+            notice = L("先在输入框里写点什么；想让它帮你写，就在下面的框里写下要求，再点「问答」。", "Type something first. To have it write for you, describe what you want in the box below, then tap Ask.", "先に何か入力してください。下書きしてほしいときは、下の欄に内容を書いて「質問」をタップします。")
 
         case (false, true):
             // 润色：总是润输入框里现在的文字（可能是替换后又手改过的），结果接在这次会话后面，翻页还能找回之前的版本。
@@ -778,9 +805,9 @@ final class KeyboardModel: ObservableObject {
         askRunning = ask != nil
         if askKind != nil { askKind = nil }
         let started = Date()
-        let styleID = settings.selectedStyle?.id
-        let styleName = settings.selectedStyle?.displayName
-        let answerStyle = settings.selectedAnswerStyle
+        let styleID = (runStyleOverride ?? settings.selectedStyle)?.id
+        let styleName = (runStyleOverride ?? settings.selectedStyle)?.displayName
+        let answerStyle = runAnswerStyleOverride ?? settings.selectedAnswerStyle
         let tendency = settings.tendency
         // 仪表盘的统计：耗时按毫秒记。
         // 最后是问答接口回答的（单独设了问答接口）：不进接口页的小曲线，那里只看主接口。
@@ -1247,15 +1274,15 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
-    /// 换风格只换下一次用的那条，不重新调用接口；展开时选完换回识意框（MG5）。
+    /// 换风格只换下一次用的那条，不重新调用接口；选完下拉框收起（KB2）。
     func selectStyle(_ style: StylePreset) {
         updateSettings { $0.selectedStyleID = style.id }
-        if aiExpanded, aiRow != nil { aiRow = nil }
+        aiRow = nil
     }
 
     func selectAnswerStyle(_ style: StylePreset) {
         updateSettings { $0.selectedAnswerStyleID = style.id }
-        if aiExpanded, aiRow != nil { aiRow = nil }
+        aiRow = nil
     }
 
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {

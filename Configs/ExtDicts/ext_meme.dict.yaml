@@ -2,15 +2,146 @@
 # 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
 ---
 name: ext_meme
-version: "2026-10-30"
+version: "2026-10-31"
 sort: by_weight
 ...
-肉鸽	rou ge	9
+内卷	nei juan	9
+躺平	tang ping	9
+破防	po fang	9
+摆烂	bai lan	9
+打工人	da gong ren	9
+干饭人	gan fan ren	9
 显眼包	xian yan bao	9
-搭子	da zi	8
-情绪价值	qing xu jia zhi	8
-遥遥领先	yao yao ling xian	7
-松弛感	song chi gan	7
-特种兵旅游	te zhong bing lv you	6
-尊嘟假嘟	zun du jia du	5
-泰酷辣	tai ku la	3
+搭子	da zi	9
+情绪价值	qing xu jia zhi	9
+松弛感	song chi gan	9
+班味	ban wei	9
+硬控	ying kong	9
+遥遥领先	yao yao ling xian	9
+绝绝子	jue jue zi	9
+凡尔赛	fan er sai	9
+后浪	hou lang	9
+社恐	she kong	9
+社牛	she niu	9
+社死	she si	9
+精神内耗	jing shen nei hao	9
+嘴替	zui ti	9
+拿捏	na nie	9
+天花板	tian hua ban	9
+氛围感	fen wei gan	9
+上头	shang tou	9
+下头	xia tou	9
+破圈	po quan	9
+出圈	chu quan	9
+顶流	ding liu	9
+塌房	ta fang	9
+人设	ren she	9
+整活	zheng huo	9
+名场面	ming chang mian	9
+吃瓜	chi gua	9
+吃瓜群众	chi gua qun zhong	9
+种草	zhong cao	9
+拔草	ba cao	9
+安利	an li	9
+真香	zhen xiang	8
+柠檬精	ning meng jing	8
+硬核	ying he	8
+佛系	fo xi	8
+锦鲤	jin li	8
+盘它	pan ta	8
+奥利给	ao li gei	8
+好家伙	hao jia huo	8
+云监工	yun jian gong	8
+光盘行动	guang pan xing dong	8
+逆行者	ni xing zhe	8
+尾款人	wei kuan ren	8
+特种兵旅游	te zhong bing lv you	8
+特种兵式旅游	te zhong bing shi lv you	8
+多巴胺穿搭	duo ba an chuan da	8
+城市漫步	cheng shi man bu	8
+电子榨菜	dian zi zha cai	8
+发疯文学	fa feng wen xue	8
+孔乙己文学	kong yi ji wen xue	8
+脆皮大学生	cui pi da xue sheng	8
+小镇做题家	xiao zhen zuo ti jia	8
+小孩哥	xiao hai ge	8
+小孩姐	xiao hai jie	8
+偷感	tou gan	8
+水灵灵	shui ling ling	8
+水灵灵地	shui ling ling de	8
+情绪稳定	qing xu wen ding	8
+主打一个	zhu da yi ge	8
+有被冒犯到	you bei mao fan dao	8
+破大防	po da fang	8
+我真的会谢	wo zhen de hui xie	8
+退退退	tui tui tui	8
+大冤种	da yuan zhong	8
+冤种	yuan zhong	8
+泰酷辣	tai ku la	8
+尊嘟假嘟	zun du jia du	8
+哈基米	ha ji mi	8
+蚌埠住了	beng bu zhu le	8
+绷不住了	beng bu zhu le	8
+笑死	xiao si	8
+哭死	ku si	8
+无语子	wu yu zi	8
+一整个	yi zheng ge	8
+宝藏男孩	bao zang nan hai	8
+宝藏女孩	bao zang nv hai	8
+宝藏	bao zang	8
+爷青回	ye qing hui	8
+爷青结	ye qing jie	8
+双向奔赴	shuang xiang ben fu	7
+村超	cun chao	7
+村晚	cun wan	7
+新质生产力	xin zhi sheng chan li	7
+银发经济	yin fa jing ji	7
+早八	zao ba	7
+疯狂星期四	feng kuang xing qi si	7
+电子木鱼	dian zi mu yu	7
+赛博朋克	sai bo peng ke	7
+二创	er chuang	7
+高光时刻	gao guang shi ke	7
+双减	shuang jian	7
+元宇宙	yuan yu zhou	7
+躺赢	tang ying	7
+卷王	juan wang	7
+上岸	shang an	7
+考公	kao gong	7
+打卡	da ka	7
+网红打卡地	wang hong da ka di	7
+直播带货	zhi bo dai huo	7
+带货	dai huo	7
+雪糕刺客	xue gao ci ke	7
+烟火气	yan huo qi	7
+踔厉奋发	chuo li fen fa	7
+笃行不怠	du xing bu dai	7
+强国有我	qiang guo you wo	6
+觉醒年代	jue xing nian dai	6
+人民至上	ren min zhi shang	6
+这很难评	zhe hen nan ping	6
+难评	nan ping	6
+抽象	chou xiang	6
+已老实	yi lao shi	6
+求放过	qiu fang guo	6
+命运的齿轮开始转动	ming yun de chi lun kai shi zhuan dong	6
+古希腊掌管	gu xi la zhang guan	6
+微短剧	wei duan ju	6
+搭子社交	da zi she jiao	6
+饭搭子	fan da zi	6
+旅游搭子	lv you da zi	6
+健身搭子	jian shen da zi	5
+数字游民	shu zi you min	5
+反向旅游	fan xiang lv you	5
+挖呀挖	wa ya wa	5
+公主请上车	gong zhu qing shang che	5
+遛娃	liu wa	5
+晒娃	shai wa	5
+鸡娃	ji wa	5
+带娃	dai wa	4
+宝妈	bao ma	4
+萌宠	meng chong	4
+撸猫	lu mao	4
+吸猫	xi mao	3
+铲屎官	chan shi guan	3
+猫主子	mao zhu zi	2

@@ -96,8 +96,9 @@ struct SymbolPanel: View {
     }
 }
 
-/// 九宫格「常用」打开的面板（W6）：App 里的键盘常用语，一行四格，短词一格、中等两格、长的占整行。
-/// 点一个上屏并回到九宫格；底排 返回、空格、⌫、回车，和九宫格底排对齐。
+/// 九宫格「常用」打开的面板：顶上分段「常用语 N | 剪贴板 N」（B1，CB1–CB3），右边在剪贴板时是「清空」。
+/// 常用语（W6）：App 里的键盘常用语，一行四格，短词一格、中等两格、长的占整行；点一个上屏并回到九宫格。
+/// 剪贴板：见 ClipboardList。底排 返回、空格、⌫、回车，和九宫格底排对齐。
 struct QuickWordsPanel: View {
     @ObservedObject var model: KeyboardModel
 
@@ -111,26 +112,73 @@ struct QuickWordsPanel: View {
         GeometryReader { geo in
             let width = geo.size.width - Self.sideInset * 2
             VStack(spacing: 0) {
-                HStack(spacing: 4) {
-                    Text("★").foregroundStyle(Self.star)
-                    Text(L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"))
-                    Text("\(words.count)").foregroundStyle(Color.secondary.opacity(0.6))
-                }
-                .font(.system(size: 12.5))
-                .foregroundStyle(Color.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, Self.sideInset + 2)
-                .frame(height: 22)
+                tabBar(phrases: words.count)
+                    .padding(.horizontal, Self.sideInset)
+                    .frame(height: 36)
                 Group {
-                    if words.isEmpty { emptyCard } else { grid(words, width: width) }
+                    if model.quickTab == .clipboard {
+                        ClipboardList(model: model)
+                    } else if words.isEmpty {
+                        emptyCard
+                    } else {
+                        grid(words, width: width)
+                    }
                 }
                 .padding(.horizontal, Self.sideInset)
                 .frame(maxHeight: .infinity)
+                // 长按菜单可以盖到底排上面。
+                .zIndex(model.clipMenu != nil ? 1 : 0)
                 bottomRow(width: geo.size.width)
                     .frame(height: KeyboardMetrics.nineRowPitch)
                     .padding(.bottom, KeyboardMetrics.nineTopOffset)
             }
         }
+    }
+
+    /// 「常用语 N | 剪贴板 N」：选中浅紫底、主色 600；剪贴板有新内容时标签右上角一个紫点。
+    private func tabBar(phrases: Int) -> some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 2) {
+                tab(.phrases, title: L("常用语", "Phrases", "定型文"), count: phrases, dot: false)
+                tab(.clipboard, title: L("剪贴板", "Clipboard", "クリップボード"), count: model.hasFullAccess ? model.clipItems.count : 0,
+                    dot: model.clipboardHasNew && model.quickTab != .clipboard)
+            }
+            .padding(2)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(KeyStyle.charKey))
+            Spacer(minLength: 8)
+            if model.quickTab == .clipboard, model.hasFullAccess, !model.clipItems.isEmpty {
+                Button { model.tapClearClips() } label: {
+                    Text(model.clipClearArmed ? L("确认清空", "Clear all?", "すべて消去？") : L("清空", "Clear", "消去"))
+                        .font(.system(size: 13, weight: model.clipClearArmed ? .semibold : .regular))
+                        .foregroundStyle(model.clipClearArmed ? Color.red : Color.secondary)
+                        .padding(.horizontal, 6)
+                        .frame(height: 30)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func tab(_ tab: QuickTab, title: String, count: Int, dot: Bool) -> some View {
+        let selected = model.quickTab == tab
+        return Button { model.selectQuickTab(tab) } label: {
+            HStack(spacing: 4) {
+                Text(title).font(.system(size: 14, weight: selected ? .semibold : .regular))
+                if count > 0 {
+                    Text("\(count)").font(.system(size: 13)).opacity(selected ? 0.8 : 0.5)
+                }
+            }
+            .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(selected ? Brand.returnSoftFill : Color.clear))
+            .overlay(alignment: .topTrailing) {
+                if dot { Circle().fill(Brand.purple).frame(width: 7, height: 7).offset(x: -3, y: 3) }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func grid(_ words: [String], width: CGFloat) -> some View {
@@ -157,6 +205,8 @@ struct QuickWordsPanel: View {
                     }
                 }
             }
+            // 只有一两个词时也靠左，不居中。
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 2)
             .padding(.bottom, 22)
         }
@@ -406,5 +456,220 @@ struct AlternatesView: View {
             .shadow(color: .black.opacity(0.28), radius: 3, x: 0, y: 1))
         .offset(x: frame.minX, y: frame.minY)
         .allowsHitTesting(false)
+    }
+}
+
+/// 「常用 › 剪贴板」（B1，CB1–CB3）。最上面「有新复制的内容，点一下粘贴」（只有新内容时出现，点了才读剪贴板）；
+/// 下面每条一张按键底色卡片，点一下插入、面板不关；长按 0.45 秒弹菜单：粘贴 / 加到常用语 / 复制 / 删除。
+/// 没开完全访问时读不了剪贴板，换成说明卡。
+struct ClipboardList: View {
+    @ObservedObject var model: KeyboardModel
+
+    private struct RowAnchors: PreferenceKey {
+        static var defaultValue: [UUID: Anchor<CGRect>] = [:]
+        static func reduce(value: inout [UUID: Anchor<CGRect>], nextValue: () -> [UUID: Anchor<CGRect>]) {
+            value.merge(nextValue()) { $1 }
+        }
+    }
+
+    var body: some View {
+        if !model.hasFullAccess {
+            fullAccessCard
+        } else {
+            VStack(spacing: 0) {
+                if model.clipItems.isEmpty {
+                    VStack(spacing: 6) {
+                        if model.clipboardHasNew { promptRow }
+                        Spacer(minLength: 0)
+                        Text(L("还没有剪贴板记录", "No clipboard history yet", "クリップボードの履歴はまだありません"))
+                            .font(.system(size: 15, weight: .semibold))
+                        Text(L("在别的 App 复制文字后，这里会提示你粘贴", "Copy text in another app and you'll be offered to paste it here.",
+                               "ほかのアプリでテキストをコピーすると、ここに貼り付けの案内が出ます"))
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(Color.secondary)
+                            .multilineTextAlignment(.center)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 2)
+                } else {
+                    list.zIndex(1)
+                }
+                Text(footnote)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .frame(height: 18)
+            }
+        }
+    }
+
+    private var footnote: String {
+        ClipboardHistory.isEnabled
+            ? L("只存在本机 · 最多 20 条 · 24 小时后自动删除 · 长按可加到常用语",
+                "Only on this iPhone · up to 20 · deleted after 24 hours · long-press to add to phrases",
+                "この iPhone のみ · 最大 20 件 · 24 時間後に自動削除 · 長押しで定型文に追加")
+            : L("剪贴板记录已关闭：粘贴后不保存（App › 键盘 里可以打开）",
+                "Clipboard history is off: pasted text isn't kept (turn it on in the app under Keyboard)",
+                "クリップボード履歴はオフです：貼り付けたテキストは保存しません（アプリの キーボード でオン）")
+    }
+
+    private var list: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 6) {
+                if model.clipboardHasNew { promptRow }
+                ForEach(Array(model.clipItems.enumerated()), id: \.element.id) { index, item in
+                    row(item, fresh: index == 0 && Date().timeIntervalSince(item.date) < 60)
+                }
+            }
+            .padding(.top, 2)
+            .padding(.bottom, 18)
+        }
+        .hidingScrollEdgeEffect()
+        .mask(VStack(spacing: 0) {
+            Color.black
+            LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 18)
+        })
+        .overlayPreferenceValue(RowAnchors.self) { anchors in
+            GeometryReader { geo in
+                if let id = model.clipMenu, let anchor = anchors[id], let item = model.clipItems.first(where: { $0.id == id }) {
+                    let rect = geo[anchor]
+                    ZStack(alignment: .topLeading) {
+                        // 点菜单外面只收起菜单：挡住整块按键区（标签栏、脚注、底排、AI 栏），不点到底下的东西。
+                        Color.black.opacity(0.001)
+                            .frame(width: geo.size.width + 40, height: Self.menuAreaBottom(listHeight: geo.size.height) - Self.menuAreaTop)
+                            .offset(x: -20, y: Self.menuAreaTop)
+                            .onTapGesture { model.clipMenu = nil }
+                        ClipMenu(model: model, item: item)
+                            .offset(x: min(max(rect.minX + 40, 0), max(geo.size.width - ClipMenu.width, 0)),
+                                    y: Self.menuY(row: rect, listHeight: geo.size.height))
+                    }
+                }
+            }
+        }
+    }
+
+    /// 菜单的上边（列表坐标）。能放下就在这条下面（可以盖住脚注和底排），放不下就在上面；
+    /// 往上最多盖到标签栏和 AI 栏，不伸出键盘顶（键盘画不到外面，会被截掉）。
+    static var menuAreaTop: CGFloat { -(36 + KeyboardMetrics.topRow) }
+
+    static func menuAreaBottom(listHeight: CGFloat) -> CGFloat {
+        listHeight + 18 + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset
+    }
+
+    static func menuY(row: CGRect, listHeight: CGFloat) -> CGFloat {
+        let top = menuAreaTop
+        let bottom = menuAreaBottom(listHeight: listHeight) - ClipMenu.height
+        let below = row.maxY + 6
+        let preferred = below <= bottom ? below : row.minY - ClipMenu.height - 6
+        return min(max(preferred, top), max(bottom, top))
+    }
+
+    /// 44 高、浅紫底、1.5pt 主色虚线框、剪贴板图标 + 主色 15 粗。
+    private var promptRow: some View {
+        Button { model.pasteNewClipboard() } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
+                Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Brand.deepPurple)
+            .padding(.horizontal, 12)
+            .frame(height: 44)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.returnSoftFill))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(Brand.purple, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+    }
+
+    private func row(_ item: ClipItem, fresh: Bool) -> some View {
+        let menuOpen = model.clipMenu == item.id
+        return HStack(alignment: .top, spacing: 8) {
+            Text(item.text)
+                .font(.system(size: 14.5))
+                .foregroundStyle(Color.primary)
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(ClipboardHistory.age(item.date))
+                .font(.system(size: 11.5))
+                .foregroundStyle(fresh ? Brand.deepPurple : Color.secondary)
+                .padding(.top, 2)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(fresh ? Brand.returnSoftFill : KeyStyle.charKey))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Brand.purple, lineWidth: menuOpen ? 1.5 : 0))
+        .contentShape(Rectangle())
+        .onTapGesture { model.pasteClip(item) }
+        .onLongPressGesture(minimumDuration: 0.45) {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            model.clipMenu = item.id
+        }
+        .anchorPreference(key: RowAnchors.self, value: .bounds) { [item.id: $0] }
+    }
+
+    /// 没开完全访问（CB3 右）。
+    private var fullAccessCard: some View {
+        VStack(spacing: 8) {
+            Text(L("剪贴板要先打开「允许完全访问」", "Clipboard needs Full Access", "クリップボードには「フルアクセスを許可」が必要です"))
+                .font(.system(size: 15, weight: .semibold))
+            Text(L("设置 › 通用 › 键盘 › 键盘 › 飞地输入法 › 允许完全访问。打开后只在你点粘贴时才读剪贴板。",
+                   "Settings › General › Keyboard › Keyboards › Enclave › Allow Full Access. The clipboard is read only when you tap paste.",
+                   "設定 › 一般 › キーボード › キーボード › Enclave › フルアクセスを許可。オンにしても、貼り付けをタップしたときだけ読み取ります。"))
+                .font(.system(size: 12.5))
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KeyStyle.charKey))
+        .frame(maxHeight: .infinity, alignment: .top)
+        .padding(.top, 2)
+    }
+}
+
+/// 长按剪贴板一条弹出的菜单（CB2）：粘贴 / 加到常用语 ★ / 复制 / 删除（红）。
+struct ClipMenu: View {
+    static let width: CGFloat = 200
+    static let height: CGFloat = 4 * 40 + 9 + 12
+
+    @ObservedObject var model: KeyboardModel
+    let item: ClipItem
+
+    var body: some View {
+        VStack(spacing: 0) {
+            option(L("粘贴", "Paste", "貼り付け"), action: .paste)
+            option(L("加到常用语", "Add to phrases", "定型文に追加"), action: .addToPhrases, star: true)
+            option(L("复制", "Copy", "コピー"), action: .copy)
+            Divider().padding(.vertical, 4).padding(.horizontal, 8)
+            option(L("删除", "Delete", "削除"), action: .delete, destructive: true)
+        }
+        .padding(6)
+        .frame(width: Self.width)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KeyStyle.charKey))
+        .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8)
+    }
+
+    private func option(_ title: String, action: KeyboardModel.ClipAction, star: Bool = false, destructive: Bool = false) -> some View {
+        Button { model.performClipAction(action, item: item) } label: {
+            HStack {
+                Text(title).font(.system(size: 15, weight: star ? .semibold : .regular))
+                Spacer(minLength: 4)
+                if star { Text("★").font(.system(size: 14)) }
+            }
+            .foregroundStyle(destructive ? Color.red : (star ? Brand.deepPurple : Color.primary))
+            .padding(.horizontal, 10)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(star ? Brand.returnSoftFill : Color.clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -33,7 +33,7 @@ extension KeyboardModel {
         dismissCandidateMenu()
         closeCandidateUndo()
         guard let queued = engine as? QueuedEngine else {
-            if let output = engine.input(key) { commit(output) }
+            if let output = engine.input(key) { commit(outputText(output)) }
             syncEngine()
             return
         }
@@ -49,7 +49,7 @@ extension KeyboardModel {
         let results = wait ? queued.drain() : queued.takeResults()
         guard !results.isEmpty else { return }
         for result in results {
-            if let text = result.commit { commit(text) }
+            if let text = result.commit { commit(outputText(text)) }
         }
         syncEngine()
         // 下一轮主循环时界面已经按新候选画完，这时记耗时。
@@ -89,7 +89,7 @@ extension KeyboardModel {
         }
         // 首选和符号一起上屏：分两次（先把标记区换成首选、马上再 insertText 符号）时，输入框会把符号插到首选前面（「。壹元整」）。
         var text = symbol
-        if isComposing, let first = engine.select(0) { text = first + symbol }
+        if isComposing, let first = engine.select(0) { text = outputText(first) + symbol }
         commit(text)
         engine.reset()
         syncEngine()
@@ -139,7 +139,7 @@ extension KeyboardModel {
         if layer != .letters && layer != .digits { layer = .letters }
     }
 
-    /// 组字时回车把字母原样上屏；在识意框里回车就是 ✨。
+    /// 组字时回车把字母原样上屏；在识意框里回车等于再点一次上次点的润色键或问答键。
     func returnKey() {
         if isComposing {
             if let raw = engine.commitComposition() { commit(raw) }
@@ -149,7 +149,7 @@ extension KeyboardModel {
         switch target {
         case .host: editProxy?.insertText("\n")
         case .instruction:
-            askTapped(askButtonMode)
+            runFromAskField()
         case .card:
             commit("\n")
         }
@@ -161,7 +161,7 @@ extension KeyboardModel {
         let before = choiceState
         let segmented = !engine.selections.isEmpty
         let text = engine.select(index)
-        if let text { commit(text) }
+        if let text { commit(outputText(text)) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
         recordChoice(from: before)
@@ -335,7 +335,7 @@ extension KeyboardModel {
     }
 
     /// 常用词短语表重写后引擎会重建会话，拼了一半的字母要原样再输一遍。
-    private func refreshCandidatesAfterPhraseChange() {
+    func refreshCandidatesAfterPhraseChange() {
         applyEngineResults(wait: true)
         let raw = engine.rawInput
         let kept = engine.selections
@@ -357,7 +357,7 @@ extension KeyboardModel {
         guard predictions.indices.contains(index) else { return }
         if !chineseMode { return selectEnglishSuggestion(index) }
         let word = predictions[index]
-        commit(word)
+        commit(outputText(word))
         // 点联想词省掉的字数（首页「联想帮你少打了 N 个字」）。
         DailyStats.add("prediction.tapped")
         DailyStats.add("prediction.chars", word.count)
@@ -427,7 +427,7 @@ extension KeyboardModel {
         // 「常用」打字时也在：先把拼音原样上屏，再打开。
         case .quickWords:
             if isComposing { returnKey() }
-            openPanel(.quickWords)
+            openQuickPanel()
         case .globe: break
         }
     }
@@ -1048,7 +1048,13 @@ extension KeyboardModel {
             showEmptyTapHint()
             return
         }
-        guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
+        // 点固定键发起的：提示卡点完再接着做时也按那个风格。
+        let style = runStyleOverride
+        guard passGate(then: { [weak self] in
+            self?.runStyleOverride = style
+            self?.sparkleTapped()
+            self?.runStyleOverride = nil
+        }) else { return }
         #if DEBUG
         if debugFakeRun { coachTapped(.sparkle); fakeCoachRun(); return }
         #endif
@@ -1084,6 +1090,19 @@ extension KeyboardModel {
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         syncEngine()
+    }
+
+    // MARK: - 繁体输出（B5）
+
+    /// 开了繁体输出时，拼音打出的字转成繁体再上屏；引擎、学到的词、联想都还按简体走（传给它们的仍是简体）。
+    /// 只用在拼音候选、联想上屏的地方，AI 的结果、英文、符号不经过这里。
+    func outputText(_ text: String) -> String {
+        settings.traditionalOutput ? TraditionalChinese.convert(text) : text
+    }
+
+    /// 候选栏、整页候选显示用：和 candidates 一一对应（下标不变），只是换成繁体。
+    func displayWords(_ words: [String]) -> [String] {
+        settings.traditionalOutput ? words.map(TraditionalChinese.convert) : words
     }
 
     // MARK: - 内部
@@ -1236,7 +1255,6 @@ extension KeyboardModel {
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
             case "ask", "askEmpty", "askSelected", "askRewrite", "askAnswerMode", "askAnswer", "askRewriteResult", "askRunning":
                 loadDebugAsk(option)
-            case "askHold": debugAskHold = true; askHoldShowing = true
             // 结果卡左边的键：key:insert 默认插入，key:down 滚轮下滑，key:pop 弹出；key:rolled / key:popped 停在换过去的样子。
             case "key:insert": debugResultKey(primary: .insert)
             case "key:down": debugResultKey(swipe: .wheel, wheelUp: false)

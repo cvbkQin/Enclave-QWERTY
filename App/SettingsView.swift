@@ -160,6 +160,11 @@ struct SettingsView: View {
                     Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
                 }
                 Section {
+                    NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
+                } header: {
+                    Text(L("数据", "Data", "データ"))
+                }
+                Section {
                     NavigationLink(value: AppRouter.SettingsPage.privacy) {
                         DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
                                 value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
@@ -205,6 +210,7 @@ struct SettingsView: View {
                 case .licenses: LicensesView()
                 case .diagnostics: DiagnosticsView()
                 case .feedback: FeedbackFormView()
+                case .backup: BackupView()
                 }
             }
         }
@@ -303,8 +309,8 @@ struct ModelSettingsView: View {
                 } header: {
                     VStack(alignment: .leading, spacing: 12) {
                         Text(answer
-                             ? L("识意判断是问答时用这一页的接口回答。可以想久一点、可以联网，用和润色不同的服务商或模型。", "When Ask decides it's a question, this API answers it. It can think longer and search the web, using a different provider or model from Polish.", "質問だと判断されたときはこのページの API で答えます。じっくり考えたりウェブ検索したりでき、整えると別のサービスやモデルを使えます。")
-                             : L("点 ✨ 润色、识意改写都用这一页的接口。要快，选不带深度思考的模型。", "✨ Polish and Ask rewrites use this API. Speed matters, so pick a model without deep thinking.", "✨ で整える・質問での書き換えはこの API を使います。速さ重視なので、深い思考のないモデルを選んでください。"))
+                             ? L("在键盘上点「问答」时用这一页的接口回答。可以想久一点、可以联网，用和润色不同的服务商或模型。", "Tapping Ask on the keyboard uses this API to answer. It can think longer and search the web, using a different provider or model from Polish.", "キーボードで「質問」をタップするとこのページの API で答えます。じっくり考えたりウェブ検索したりでき、整えると別のサービスやモデルを使えます。")
+                             : L("点 ✨ 或润色键改写文字都用这一页的接口。要快，选不带深度思考的模型。", "✨ and the polish key use this API to edit your text. Speed matters, so pick a model without deep thinking.", "✨ と整えるキーでの書き換えはこの API を使います。速さ重視なので、深い思考のないモデルを選んでください。"))
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 4)
@@ -1058,7 +1064,6 @@ struct KeyboardSettingsView: View {
                     CorrectionToggles()
                     PredictionToggle()
                     EmojiToggle()
-                    // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
                     // B1 剪贴板第一步：真机实测读剪贴板会不会弹「允许粘贴」（临时，测完删）。
                     Toggle(isOn: $store.settings.clipboardProbe) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -1068,6 +1073,7 @@ struct KeyboardSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
+                    // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
                     Toggle(isOn: $store.settings.keyboardGlass) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L("毛玻璃背景（测试）", "Frosted background (test)", "すりガラス背景（テスト）"))
@@ -1076,10 +1082,24 @@ struct KeyboardSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
+                    // B5：拼音组最后一行（TC1），默认关，第一个版本带「新」。
+                    Toggle(isOn: $store.settings.traditionalOutput) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(L("繁体输出", "Traditional Chinese output", "繁体字で出力"))
+                                NewBadge()
+                            }
+                            Text(L("候选和上屏都是繁体字，例：输入法 → 輸入法", "Candidates and typed text use Traditional characters, e.g. 输入法 → 輸入法",
+                                   "候補と確定する文字が繁体字になります。例：输入法 → 輸入法"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Text(L("拼音", "Pinyin", "ピンイン"))
                 } footer: {
-                    Text(CorrectionToggles.footnote)
+                    Text(CorrectionToggles.footnote + "\n\n" + L("繁体输出：还是用拼音打，模糊拼音、纠错、联想都照常；常用词和学到的词也会显示成繁体。只转换你打出的字，AI 润色和回答的结果不转换。",
+                                                              "Traditional output: you still type pinyin, and fuzzy pinyin, autocorrect and predictions work as usual. Your words and learned words show in Traditional too. Only what you type is converted; AI polish and answers are not.",
+                                                              "繁体字で出力：入力はピンインのままで、あいまい入力・自動修正・予測もそのまま使えます。ユーザ辞書や学習した語も繁体字で表示されます。変換するのは入力した文字だけで、AI の整え・回答の結果は変換しません。"))
                 }
             }
             Section(L("英文", "English", "英語")) {
@@ -1128,6 +1148,7 @@ struct KeyboardSettingsView: View {
                     DashRow(icon: "star.fill", color: DashColor.phrase, title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), value: "\(phrases.phrases.count)")
                 }
             }
+            ClipboardSettingsSection(refresh: refresh)
         }
         .tint(AppColor.purple)
         .pinnedTabTitle(caption: caption, title: L("键盘", "Keyboard", "キーボード"))
@@ -1525,7 +1546,7 @@ struct FuzzyPinyinView: View {
                     } else if deployer.state == .done && selection == store.settings.fuzzyPinyin {
                         Text(L("已生效，切回键盘就能用。", "Done. Switch back to the keyboard to use it.", "反映されました。キーボードに戻ると使えます。")).foregroundStyle(.green)
                     } else {
-                        Text(L("改动后要重新部署一次词库才生效，约 1 分钟。", "Changes take effect after reinstalling the dictionary, about 1 minute.", "変更は辞書の再インストール後に反映されます（約 1 分）。")).foregroundStyle(.secondary)
+                        Text(L("改动后要重新部署一次词库才生效，\(RimeDeployer.durationText)。", "Changes take effect after reinstalling the dictionary, \(RimeDeployer.durationText).", "変更は辞書の再インストール後に反映されます（\(RimeDeployer.durationText)）。")).foregroundStyle(.secondary)
                     }
                 }
                 .font(.footnote)

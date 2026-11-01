@@ -1,8 +1,8 @@
-# 飞地输入法扩展词库 · 来源：THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2016 THUNLP
+# 飞地输入法扩展词库 · 来源：THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2018 THUNLP
 # 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
 ---
 name: ext_lishimingren
-version: "2026-10-30"
+version: "2026-10-31"
 sort: by_weight
 ...
 毛泽东	mao ze dong	9
@@ -945,7 +945,6 @@ sort: by_weight
 瑞穗	rui sui	6
 哈罗德	ha luo de	6
 杜斌	du bin	6
-王丹	wang dan	6
 徐凯	xu kai	6
 宁财神	ning cai shen	6
 王力	wang li	6
@@ -2079,7 +2078,6 @@ sort: by_weight
 高剑父	gao jian fu	5
 巴尔德斯	ba er de si	5
 张敬轩	zhang jing xuan	5
-胡佳	hu jia	5
 张梁	zhang liang	5
 杨致远	yang zhi yuan	5
 陈景润	chen jing run	5
@@ -2747,7 +2745,6 @@ sort: by_weight
 陈沛	chen pei	5
 刘万永	liu wan yong	5
 辜严倬云	gu yan zhuo yun	5
-艾未未	ai wei wei	5
 郑铮	zheng zheng	5
 王志坚	wang zhi jian	5
 紫苑	zi yuan	5
@@ -10642,7 +10639,6 @@ sort: by_weight
 向朗	xiang lang	2
 郭琇	guo xiu	2
 柯奇士	ke qi shi	2
-赵紫阳	zhao zi yang	2
 白行简	bai xing jian	2
 谭一平	tan yi ping	2
 周淑禧	zhou shu xi	2

@@ -1,8 +1,8 @@
-# 飞地输入法扩展词库 · 来源：THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2016 THUNLP
+# 飞地输入法扩展词库 · 来源：THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2018 THUNLP
 # 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。
 ---
 name: ext_medical
-version: "2026-10-30"
+version: "2026-10-31"
 sort: by_weight
 ...
 精神	jing shen	9

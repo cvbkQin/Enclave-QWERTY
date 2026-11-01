@@ -13,6 +13,16 @@ void enclave_rime_finalize(void);
 /// 部署（编译词库），会阻塞到完成，只在主 App 里调用。
 bool enclave_rime_deploy(const char *shared_dir, const char *user_dir, const char *log_dir);
 
+/// 同步用户词库（librime 的 sync_user_data），会阻塞到完成，只在主 App 里调用（备份与恢复 B3）：
+/// 先把同步目录（用户目录下 sync/）里所有快照合并进用户词库（两边都有的词取权重大的），再把当前词库导出成快照
+/// sync/<installation_id>/<词库>.userdb.txt。调用前键盘不能开着会话（LevelDB 的锁）。
+/// librime 只同步已经存在的用户词库：ensure_schema 不为空时先用这个方案开一次会话再关掉，没打过字的新手机上也先建好空词库。
+bool enclave_rime_sync_user_data(const char *shared_dir, const char *user_dir, const char *log_dir, const char *ensure_schema);
+
+/// 用户词库（LevelDB）的 LOCK 文件是不是被别的进程锁着（键盘正开着会话）。LevelDB 用 fcntl 写锁，
+/// 这里试着加同样的锁，加不上就是别人拿着；加上了马上放开。只在主 App 里、librime 没开着这个库时调用。
+bool enclave_userdb_locked(const char *lock_path);
+
 uint64_t enclave_rime_create_session(const char *schema_id);
 void enclave_rime_destroy_session(uint64_t session);
 bool enclave_rime_select_schema(uint64_t session, const char *schema_id);

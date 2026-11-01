@@ -319,7 +319,7 @@ private struct GridCard: View {
     }
 }
 
-/// 拼音词库部署进度。编译没有真实进度，按大约一分钟估一条进度条。
+/// 拼音词库部署进度。编译没有真实进度，按上次实际用的时间估一条进度条（没部署过按一分钟）。
 struct DeployCard: View {
     @ObservedObject private var deployer = RimeDeployer.shared
 
@@ -332,9 +332,11 @@ struct DeployCard: View {
                     Text(L("正在部署拼音词库…", "Installing the pinyin dictionary…", "ピンイン辞書をインストール中…")).font(.subheadline)
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         let elapsed = context.date.timeIntervalSince(deployer.startedAt ?? context.date)
+                        let expected = RimeDeployer.expectedSeconds
                         HStack {
-                            ProgressView(value: min(elapsed / 60, 0.95)).tint(.orange)
-                            Text(L("约 \(max(5, 60 - Int(elapsed))) 秒", "About \(max(5, 60 - Int(elapsed))) s", "約 \(max(5, 60 - Int(elapsed))) 秒")).font(.caption).foregroundStyle(.secondary)
+                            ProgressView(value: min(elapsed / expected, 0.95)).tint(.orange)
+                            Text(elapsed < expected - 5 ? L("还要", "", "残り") + RimeDeployer.durationText(expected - elapsed) : L("快好了", "Almost done", "まもなく完了"))
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }

@@ -537,7 +537,7 @@ extension AIHistoryEntry {
             steps.append(HistoryStep(dot: .gray, title: L("原文", "Original", "元の文"), note: legacy ? nil : L("你打的", "You typed", "入力した文"),
                                      time: date, text: original))
         } else {
-            steps.append(HistoryStep(dot: .gray, title: L("问题", "Question", "質問"), note: legacy ? nil : L("按住 ✨ 问答", "Held ✨ to ask", "✨ 長押しで質問"),
+            steps.append(HistoryStep(dot: .gray, title: L("问题", "Question", "質問"), note: legacy ? nil : L("你问的", "You asked", "あなたの質問"),
                                      time: date, text: original))
             if !context.isEmpty {
                 steps.append(HistoryStep(dot: .gray, title: L("一起发送的上下文", "Context sent with it", "一緒に送った文脈"),
