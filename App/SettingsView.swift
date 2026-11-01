@@ -89,7 +89,7 @@ struct SettingsView: View {
                     }
                     .dashFormCard()
                 }
-                // 上手：首次设置（欢迎页四步）、功能演示、API Key 配置教程、使用指引。
+                // 上手：首次设置（欢迎页四步）、功能演示、使用指引。
                 Section {
                     NavigationLink(value: AppRouter.SettingsPage.setup) {
                         let left = setupStepsLeft
@@ -111,16 +111,6 @@ struct SettingsView: View {
                         HStack(spacing: 12) {
                             DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
                                     value: L("约 4 分钟", "About 4 min", "約 4 分"))
-                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    // 配 API Key 和接口的教程，和功能演示分开（cvbk 11-01）：说明 → 选服务商 → 分步教程，填进润色接口。
-                    Button { router.setupGuide = .intro } label: {
-                        HStack(spacing: 12) {
-                            DashRow(icon: "key", color: DashColor.ai, title: L("API Key 配置教程", "API Key Setup Guide", "API キー設定ガイド"),
-                                    value: L("选服务商、填 Key", "Provider & key", "サービスとキー"))
                             Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                         }
                         .contentShape(Rectangle())
