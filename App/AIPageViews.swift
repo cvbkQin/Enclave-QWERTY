@@ -323,14 +323,20 @@ struct PromptListSections: View {
                             .foregroundStyle(.secondary)
                     }
                     .frame(minHeight: 44)
+                    // 左滑只是取消固定，不删风格：不用系统的「删除」，自己写「取消固定」；编辑状态下也不出 −。
+                    .deleteDisabled(true)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button {
+                            settings.pinnedStyleIDs.removeAll { $0 == pin.style.id }
+                        } label: {
+                            Label(L("取消固定", "Unpin", "固定を解除"), systemImage: "pin.slash")
+                        }
+                        .tint(.orange)
+                    }
                 }
                 .onMove { offsets, destination in
                     settings.pinnedStyleIDs = settings.pinnedStyles.map(\.style.id)
                     settings.pinnedStyleIDs.move(fromOffsets: offsets, toOffset: destination)
-                }
-                .onDelete { offsets in
-                    let ids = settings.pinnedStyles.map(\.style.id)
-                    settings.pinnedStyleIDs = ids.enumerated().filter { !offsets.contains($0.offset) }.map(\.element)
                 }
             } header: {
                 Text(L("固定在 AI 栏（\(settings.pinnedStyles.count) / \(EnclaveSettings.maxPinnedStyles)）",

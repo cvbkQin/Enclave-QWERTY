@@ -255,7 +255,13 @@ extension KeyboardModel {
         var full = false
         updateSettings { full = !$0.togglePin(style.id) }
         if full {
-            showKeysToast(L("最多固定 5 个", "You can pin up to 5", "固定できるのは 5 つまで"))
+            if aiRow != nil {
+                // 下拉框开着：提示写在下拉框底部那一行（变红 1.8 秒）。
+                pinLimitHit = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in self?.pinLimitHit = false }
+            } else {
+                showKeysToast(L("最多固定 5 个", "You can pin up to 5", "固定できるのは 5 つまで"))
+            }
         }
         if pinMenu != nil { pinMenu = nil }
     }

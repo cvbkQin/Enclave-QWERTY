@@ -357,15 +357,15 @@ struct AIKeyStrip<Content: View>: View {
                     // 亮边、小锁伸出键外 4–6pt：两头各留一点，不被裁掉。
                     .padding(.horizontal, 5)
                     .frame(height: geo.size.height)
+                    // 直接读内容在滚动区里的位置，不走 preference：ScrollView 里别的子视图会带默认值把它冲掉，渐隐就一直不出（0.95_14 验证）。
                     .background(GeometryReader { inner in
-                        Color.clear.preference(key: StripFrameKey.self, value: inner.frame(in: .named("aiStrip")))
+                        let frame = inner.frame(in: .named("aiStrip"))
+                        Color.clear
+                            .onAppear { track(frame) }
+                            .onChange(of: frame) { track($0) }
                     })
             }
             .coordinateSpace(name: "aiStrip")
-            .onPreferenceChange(StripFrameKey.self) { frame in
-                offset = -frame.minX
-                contentWidth = frame.width
-            }
             .mask(HStack(spacing: 0) {
                 LinearGradient(colors: [.black.opacity(0), .black], startPoint: .leading, endPoint: .trailing)
                     .frame(width: left ? fade : 0)
@@ -377,12 +377,13 @@ struct AIKeyStrip<Content: View>: View {
             .animation(.easeOut(duration: 0.15), value: right))
         }
     }
+
+    private func track(_ frame: CGRect) {
+        if abs(offset + frame.minX) > 0.25 { offset = -frame.minX }
+        if abs(contentWidth - frame.width) > 0.25 { contentWidth = frame.width }
+    }
 }
 
-private struct StripFrameKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
-}
 
 /// 激活的风格键边框上两小段亮光，相隔 180°，匀速 3 秒一圈。只在激活时出现，外面用边框形状遮住。
 struct StyleKeySpots: View {
@@ -459,11 +460,15 @@ struct StyleDropdown: View {
                 .scrollDisabled(natural <= maxHeight)
                 .onAppear { if let selectedID, natural > maxHeight { reader.scrollTo(selectedID, anchor: .center) } }
             }
-            Text(L("已固定 \(model.settings.pinnedStyleIDs.count) / \(EnclaveSettings.maxPinnedStyles) · 长按 AI 栏上的固定键也能取消",
-                   "\(model.settings.pinnedStyleIDs.count) / \(EnclaveSettings.maxPinnedStyles) pinned · Long-press a pinned key to unpin",
-                   "固定 \(model.settings.pinnedStyleIDs.count) / \(EnclaveSettings.maxPinnedStyles) · AI バーで長押しでも解除"))
-                .font(.system(size: 11))
-                .foregroundStyle(DropdownStyle.hint)
+            // 满 5 个再点空心图钉：这一行变红写「最多固定 5 个」（按键区顶上的提示会被下拉框盖住）。
+            let count = model.settings.pinnedStyles.count, limit = EnclaveSettings.maxPinnedStyles
+            Text(model.pinLimitHit
+                 ? L("最多固定 \(limit) 个，先点实心图钉取消一个", "Up to \(limit) pins. Unpin one first.", "固定は \(limit) つまで。先に 1 つ解除してください")
+                 : L("已固定 \(count) / \(limit) · 长按 AI 栏上的固定键也能取消",
+                     "\(count) / \(limit) pinned · Long-press a pinned key to unpin",
+                     "固定 \(count) / \(limit) · AI バーで長押しでも解除"))
+                .font(.system(size: 11, weight: model.pinLimitHit ? .semibold : .regular))
+                .foregroundStyle(model.pinLimitHit ? Color(UIColor.systemRed) : DropdownStyle.hint)
                 .lineLimit(2)
                 .minimumScaleFactor(0.85)
                 .padding(.horizontal, 10)
