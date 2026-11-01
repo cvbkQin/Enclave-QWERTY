@@ -300,13 +300,60 @@ struct PromptListSections: View {
 
     private var styles: Binding<[StylePreset]> { answer ? $settings.answerStyles : $settings.styles }
     private var defaultID: UUID? { answer ? settings.selectedAnswerStyle?.id : settings.selectedStyle?.id }
+    @State private var pinFull = false
 
     var body: some View {
+        // 固定在键盘 AI 栏上的风格（AK5）：润色、问答两种都在这里，拖动改 AI 栏上的顺序，左滑取消固定。
+        if !settings.pinnedStyles.isEmpty {
+            Section {
+                ForEach(settings.pinnedStyles, id: \.style.id) { pin in
+                    HStack(spacing: 10) {
+                        Group {
+                            if pin.answer {
+                                AskIcon(size: 18)
+                            } else {
+                                PolishStars(size: 18, running: false, glowing: false, doneAt: nil, tint: DashColor.ai)
+                            }
+                        }
+                        .frame(width: 22)
+                        Text(pin.style.displayName).font(.system(size: 17))
+                        Spacer(minLength: 8)
+                        Text(pin.answer ? L("问答", "Ask", "質問") : L("润色", "Polish", "整える"))
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(minHeight: 44)
+                }
+                .onMove { offsets, destination in
+                    settings.pinnedStyleIDs = settings.pinnedStyles.map(\.style.id)
+                    settings.pinnedStyleIDs.move(fromOffsets: offsets, toOffset: destination)
+                }
+                .onDelete { offsets in
+                    let ids = settings.pinnedStyles.map(\.style.id)
+                    settings.pinnedStyleIDs = ids.enumerated().filter { !offsets.contains($0.offset) }.map(\.element)
+                }
+            } header: {
+                Text(L("固定在 AI 栏（\(settings.pinnedStyles.count) / \(EnclaveSettings.maxPinnedStyles)）",
+                       "Pinned to the AI bar (\(settings.pinnedStyles.count) / \(EnclaveSettings.maxPinnedStyles))",
+                       "AI バーに固定（\(settings.pinnedStyles.count) / \(EnclaveSettings.maxPinnedStyles)）"))
+                    .font(.system(size: 13))
+                    .textCase(nil)
+            } footer: {
+                Text(L("顺序就是键盘 AI 栏上固定键的顺序，点「编辑」后拖动排序；向左滑取消固定。",
+                       "Same order as the pinned keys on the keyboard's AI bar. Tap Edit to reorder; swipe left to unpin.",
+                       "キーボードの AI バーと同じ順番です。「編集」で並べ替え、左にスワイプで固定を解除。"))
+            }
+        }
         Section {
             ForEach(styles.wrappedValue) { style in
-                PromptListRow(name: style.displayName, summary: summary(style), isDefault: style.id == defaultID,
-                              count: UsageStats.week((answer ? "answer.style." : "polish.style.") + style.id.uuidString)) {
-                    edit(style.id)
+                HStack(spacing: 4) {
+                    PromptListRow(name: style.displayName, summary: summary(style), isDefault: style.id == defaultID,
+                                  count: UsageStats.week((answer ? "answer.style." : "polish.style.") + style.id.uuidString)) {
+                        edit(style.id)
+                    }
+                    PromptPinButton(pinned: settings.isPinned(style.id)) {
+                        if !settings.togglePin(style.id) { pinFull = true }
+                    }
                 }
             }
             .onDelete(perform: delete)
@@ -326,6 +373,11 @@ struct PromptListSections: View {
             .textCase(nil)
         } footer: {
             PromptListFooter(answer: answer)
+        }
+        .alert(L("最多固定 5 个", "You can pin up to 5", "固定できるのは 5 つまで"), isPresented: $pinFull) {
+            Button(L("好", "OK", "OK"), role: .cancel) {}
+        } message: {
+            Text(L("先取消一个再固定。", "Unpin one first.", "先にどれかの固定を解除してください。"))
         }
         if !missingDefaults.isEmpty {
             Section {
@@ -393,6 +445,28 @@ struct PromptListSections: View {
         let defaults = answer ? StylePreset.answerDefaults : StylePreset.defaults
         return defaults.filter { preset in
             !styles.wrappedValue.contains { $0.name == preset.name || $0.prompt == preset.prompt }
+        }
+    }
+}
+
+/// 每行右边的图钉（AK5）：空心没固定，实心主色已固定；点一下切换。编辑状态不显示。
+private struct PromptPinButton: View {
+    let pinned: Bool
+    let toggle: () -> Void
+    @Environment(\.editMode) private var editMode
+
+    var body: some View {
+        if editMode?.wrappedValue.isEditing != true {
+            Button(action: toggle) {
+                Image(systemName: pinned ? "pin.fill" : "pin")
+                    .font(.system(size: 15, weight: .semibold))
+                    .rotationEffect(.degrees(45))
+                    .foregroundStyle(pinned ? DashColor.ai : Color(.tertiaryLabel))
+                    .frame(width: 36, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(pinned ? L("取消固定", "Unpin", "固定を解除") : L("固定到 AI 栏", "Pin to AI bar", "AI バーに固定"))
         }
     }
 }
