@@ -1486,6 +1486,7 @@ final class KeyboardModel: ObservableObject {
         undoStack.append(FieldEdit(inserted: inserted, original: original, use: use))
         redoStack.removeAll()
         updateUndoState()
+        focusHostAfterResult()
     }
 
     /// 历史页标「已替换」「已插入」：记在会话里正在显示的这一版上；撤销时去掉。
