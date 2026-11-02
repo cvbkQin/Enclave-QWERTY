@@ -503,8 +503,9 @@ final class KeyboardModel: ObservableObject {
         let entries = CommonWordStore.phraseEntries(words)
         // 没变就不交给引擎：重写短语表要排在 Rime 队列上读文件比对，弹出后的第一个键得等它。
         // 带上词库版本和用哪份词库：App 重新部署、开关完全访问后短语表要写到新的用户目录里。
-        let signature = ["\(hasFullAccess)", RimeStore.deployedVersion ?? ""] + priority.map { "!" + $0.text + "\t" + $0.code }
-            + entries.map { $0.text + "\t" + $0.code }
+        var signature: [String] = ["\(hasFullAccess)", RimeStore.deployedVersion ?? ""]
+        signature += priority.map { (entry: (text: String, code: String)) -> String in "!\(entry.text)\t\(entry.code)" }
+        signature += entries.map { (entry: (text: String, code: String)) -> String in "\(entry.text)\t\(entry.code)" }
         guard signature != lastPhraseSignature else { return }
         lastPhraseSignature = signature
         QueuedEngine.shared.updatePhrases(entries, priority: priority)
