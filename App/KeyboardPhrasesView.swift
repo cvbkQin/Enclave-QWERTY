@@ -242,7 +242,12 @@ private struct PhraseEditor: View {
                     field(L("标题", "Title", "タイトル"),
                           note: L("可不填。键盘里显示在内容上面，一眼找到是哪条；最多 10 个字", "Optional. Shown above the text on the keyboard so you can find it fast. Up to 10 characters",
                                   "任意。キーボードで内容の上に表示され、すぐ見つけられます。10 文字まで")) {
-                        TextField(L("比如：公司地址", "e.g. Office address", "例：会社の住所"), text: Binding(get: { title }, set: { title = String($0.prefix(10)) }))
+                        TextField(L("比如：公司地址", "e.g. Office address", "例：会社の住所"), text: $title)
+                            // 不能用改写值的 Binding：每打一个字都回写一次，正在拼的拼音（marked text）会被系统当成已输入，
+                            // 前面的拼音字母留在框里（录屏 11-02 14:11）。超过 10 个字时才截。
+                            .onChange(of: title) { value in
+                                if value.count > 10 { title = String(value.prefix(10)) }
+                            }
                     }
                     field(L("内容", "Text", "内容"),
                           note: L("点一下输入的就是这段；中文、英文、数字都可以", "This is what gets entered when you tap it. Any text works", "タップで入力されるのはこの文です。どんな文字でも可")) {
