@@ -420,7 +420,7 @@ extension EnclaveSettings {
         let base = baseURL.lowercased()
         if base.contains("api.deepseek.com") { return "DeepSeek" }
         if base.contains("moonshot.") { return "Kimi" }
-        if base.contains("dashscope") { return L("通义千问", "Qwen", "Qwen") }
+        if Self.isQwen(baseURL) { return L("通义千问", "Qwen", "Qwen") }
         if base.contains("bigmodel.cn") || base.contains("api.z.ai") { return L("智谱", "Zhipu", "Zhipu") }
         if base.contains("tokenhub.tencentmaas.com") { return L("腾讯混元", "Tencent Hunyuan", "Tencent Hunyuan") }
         if base.contains("api.openai.com") { return "OpenAI" }
@@ -433,10 +433,19 @@ extension EnclaveSettings {
     /// 这个接口能联网的话是哪一家：Kimi、千问（阿里云百炼）、智谱。别的服务商没有可用的联网接口，返回 nil。
     var searchProvider: SearchProvider? {
         if isKimi { return .kimi }
-        if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
+        if Self.isQwen(baseURL) { return .qwen }
         if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
         if baseURL.contains("tokenhub.tencentmaas.com") { return .hunyuan }
         return nil
+    }
+
+    /// 千问的接口地址：阿里云百炼（dashscope.aliyuncs.com、dashscope-intl.aliyuncs.com 等各地域、各工作空间的 dashscope 子域），
+    /// 以及千问 AI 平台（maas.qianwenaiapi.com、cn-beijing.maas.qianwenaiapi.com 等）。按主机名认，不看路径。
+    static func isQwen(_ baseURL: String) -> Bool {
+        let raw = baseURL.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let host = URL(string: raw)?.host ?? URL(string: "https://" + raw)?.host ?? raw
+        if host == "qianwenaiapi.com" || host.hasSuffix(".qianwenaiapi.com") { return true }
+        return host.hasSuffix(".aliyuncs.com") && host.contains("dashscope")
     }
     /// 联网确认卡上写的模型名：服务商预设的模型写模型名，自己改过的写「自定义模型」。
     var searchModelLabel: String {

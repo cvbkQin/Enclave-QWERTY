@@ -59,6 +59,13 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(Provider.detect("https://api.deepseek.com/v1"), .deepseek)
         XCTAssertEqual(Provider.detect("https://api.moonshot.ai/v1"), .kimi)
         XCTAssertEqual(Provider.detect("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"), .qwen)
+        // 千问 AI 平台的地址（含地域子域）也算千问，问答能联网。
+        XCTAssertEqual(Provider.detect("https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1"), .qwen)
+        XCTAssertEqual(Provider.detect("https://maas.qianwenaiapi.com/compatible-mode/v1"), .qwen)
+        XCTAssertEqual(Provider.detect("https://notqianwenaiapi.com/v1"), .custom)
+        var qwen = EnclaveSettings()
+        qwen.baseURL = "https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1"
+        XCTAssertEqual(qwen.searchProvider, .qwen)
         XCTAssertEqual(Provider.detect("https://api.z.ai/api/paas/v4"), .glm)
         XCTAssertEqual(Provider.detect("https://tokenhub.tencentmaas.com/v1"), .hunyuan)
         XCTAssertEqual(Provider.detect("http://192.168.1.5:11434/v1"), .ollama)

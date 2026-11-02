@@ -118,7 +118,7 @@ enum Provider: CaseIterable, Identifiable {
         if baseURL.contains("api.deepseek.com") { return .deepseek }
         if baseURL.contains("api.openai.com") { return .openai }
         if baseURL.contains("api.moonshot.cn") || baseURL.contains("api.moonshot.ai") { return .kimi }
-        if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
+        if EnclaveSettings.isQwen(baseURL) { return .qwen }
         if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
         if baseURL.contains("tokenhub.tencentmaas.com") { return .hunyuan }
         if baseURL.contains(":11434") { return .ollama }
