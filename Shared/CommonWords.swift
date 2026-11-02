@@ -63,10 +63,50 @@ enum CommonWordStore {
         set { SharedStorage.defaults.set(newValue, forKey: contactsKey) }
     }
 
-    /// 键盘常用语：九宫格「常用」面板里点着输入的词句，按用户排的顺序。和常用词分开，不用拼音。
+    private static let phrasesKey = "commonWords.keyboard.v2"
+    private static let phraseDisplayKey = "commonWords.keyboard.display"
+
+    /// 键盘常用语（对齐清单第 62 条）：九宫格「常用 / 剪贴板」面板左栏里点着输入的词句，按用户排的顺序。
+    /// 每条有标题（可空）、内容、简码（可空）；内容是这一条的身份，内容相同的两条合并。
+    /// 老数据（只有一串字）读出来时标题、简码都空。
+    static var keyboardPhrases: [KeyboardPhrase] {
+        get {
+            if let data = SharedStorage.defaults.data(forKey: phrasesKey),
+               let phrases = try? JSONDecoder().decode([KeyboardPhrase].self, from: data) {
+                return phrases
+            }
+            return (SharedStorage.defaults.stringArray(forKey: keyboardKey) ?? []).map { KeyboardPhrase(text: $0) }
+        }
+        set {
+            let merged = KeyboardPhrase.merged(newValue)
+            if let data = try? JSONEncoder().encode(merged) { SharedStorage.defaults.set(data, forKey: phrasesKey) }
+            // 老版本（和备份）还读这一份。
+            SharedStorage.defaults.set(merged.map(\.text), forKey: keyboardKey)
+        }
+    }
+
+    /// 只要内容：备份、老版本用。写回时按内容保留原来的标题和简码。
     static var keyboardTexts: [String] {
-        get { SharedStorage.defaults.stringArray(forKey: keyboardKey) ?? [] }
-        set { SharedStorage.defaults.set(newValue, forKey: keyboardKey) }
+        get { keyboardPhrases.map(\.text) }
+        set {
+            let old = Dictionary(keyboardPhrases.map { ($0.text, $0) }, uniquingKeysWith: { a, _ in a })
+            keyboardPhrases = newValue.map { old[$0] ?? KeyboardPhrase(text: $0) }
+        }
+    }
+
+    /// 常用语怎么显示：键盘左栏和 App 常用语页共用一个值（App Group），哪边改两边都变。
+    static var phraseDisplay: PhraseDisplay {
+        get { SharedStorage.defaults.string(forKey: phraseDisplayKey).flatMap(PhraseDisplay.init(rawValue:)) ?? .both }
+        set { SharedStorage.defaults.set(newValue.rawValue, forKey: phraseDisplayKey) }
+    }
+
+    /// 填了简码的常用语交给拼音引擎：打简码时内容排在候选第一，和常用词的简码同一套；同一个简码两边都有时常用语在前（权重高一点）。
+    /// 候选里一行放不下换行和制表符，写成空格；选中后由键盘换回原文（KeyboardPhrase.flattened）。
+    static func phraseShortcutEntries(_ phrases: [KeyboardPhrase]) -> [(text: String, code: String)] {
+        phrases.compactMap { phrase in
+            let code = normalizeCode(phrase.shortcut)
+            return code.isEmpty ? nil : (text: phrase.flattened, code: code)
+        }
     }
 
     /// 键盘这次要用的全部常用词：自己加的、导入的，加上打开了开关的系统来源。
@@ -173,13 +213,17 @@ enum CommonWordStore {
     // MARK: - 给拼音引擎
 
     /// 写成 librime 读的短语表（custom_phrase 格式：词、编码、权重）。九宫格用数字编码另写一份。
-    static func phraseTable(_ entries: [(text: String, code: String)], nineKey: Bool) -> String {
+    /// priority 的条目（填了简码的键盘常用语）权重 101，同一个编码排在常用词（100）前面。
+    static func phraseTable(_ entries: [(text: String, code: String)], nineKey: Bool,
+                            priority: [(text: String, code: String)] = []) -> String {
         var lines = ["# 由 Enclave 生成，改动会被覆盖。", "# no comment"]
-        for entry in entries {
-            let code = nineKey ? nineKeyCode(entry.code) : entry.code
-            let text = entry.text.replacingOccurrences(of: "\t", with: " ").replacingOccurrences(of: "\n", with: " ")
-            guard !code.isEmpty, !text.isEmpty else { continue }
-            lines.append("\(text)\t\(code)\t100")
+        for (list, weight) in [(priority, 101), (entries, 100)] {
+            for entry in list {
+                let code = nineKey ? nineKeyCode(entry.code) : entry.code
+                let text = entry.text.replacingOccurrences(of: "\t", with: " ").replacingOccurrences(of: "\n", with: " ")
+                guard !code.isEmpty, !text.isEmpty else { continue }
+                lines.append("\(text)\t\(code)\t\(weight)")
+            }
         }
         return lines.joined(separator: "\n") + "\n"
     }
@@ -190,43 +234,78 @@ enum CommonWordStore {
     }
 }
 
-/// 键盘「常用」面板的排法（W6）：一行四格，格高 32、间距 5、字 13.5pt。
-/// 键盘面板和 App 里的「键盘里的样子」共用，App 按键盘的实际宽度排好再缩小画，两边分行一致。
-enum KeyboardWordsLayout {
-    static let gap: CGFloat = 5
-    static let cellHeight: CGFloat = 32
-    static let fontSize: CGFloat = 13.5
-    static let textPadding: CGFloat = 9
-    /// 词格左右和九宫格的键对齐：离屏幕边 7pt。
-    static let sideMargin: CGFloat = 7
+/// 一条键盘常用语：标题（可空，键盘里显示在内容上面）、内容（点一下输入的就是它）、简码（可空，只收字母）。
+struct KeyboardPhrase: Codable, Equatable, Hashable, Identifiable {
+    var title: String = ""
+    var text: String
+    var shortcut: String = ""
 
-    struct Cell: Hashable {
-        let text: String
-        /// 占几格：1、2 或整行 4。
-        let span: Int
+    var id: String { text }
+
+    init(title: String = "", text: String, shortcut: String = "") {
+        self.title = title
+        self.text = text
+        self.shortcut = shortcut
     }
 
-    static func columnWidth(gridWidth: CGFloat) -> CGFloat { (gridWidth - gap * 3) / 4 }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        text = try container.decode(String.self, forKey: .text)
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
+        shortcut = try container.decodeIfPresent(String.self, forKey: .shortcut) ?? ""
+    }
 
-    /// 按顺序排进一行四格：显示宽度放得下一格的占一格，放得下两格的占两格，否则占整行；这一行剩下的格子不够就换行。
-    static func rows(_ texts: [String], gridWidth: CGFloat) -> [[Cell]] {
-        let column = columnWidth(gridWidth: gridWidth)
-        let font = UIFont.systemFont(ofSize: fontSize)
-        var rows: [[Cell]] = []
-        var current: [Cell] = []
-        var used = 0
-        for text in texts {
-            let width = (text as NSString).size(withAttributes: [.font: font]).width + textPadding * 2
-            let span = width <= column ? 1 : width <= column * 2 + gap ? 2 : 4
-            if used + span > 4 {
-                rows.append(current)
-                current = []
-                used = 0
+    /// 标题去掉首尾空白后为空就当没填。
+    var displayTitle: String? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// 写进候选的样子：换行、制表符换成空格（短语表一行一条）。
+    var flattened: String {
+        text.replacingOccurrences(of: "\r\n", with: " ").replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ").replacingOccurrences(of: "\t", with: " ")
+    }
+
+    /// 内容相同的合并成一条：留先出现那条的位置，标题、简码哪条填了用哪条。
+    static func merged(_ phrases: [KeyboardPhrase]) -> [KeyboardPhrase] {
+        var result: [KeyboardPhrase] = []
+        var index: [String: Int] = [:]
+        for phrase in phrases where !phrase.text.isEmpty {
+            if let at = index[phrase.text] {
+                if result[at].displayTitle == nil { result[at].title = phrase.title }
+                if result[at].shortcut.isEmpty { result[at].shortcut = phrase.shortcut }
+            } else {
+                index[phrase.text] = result.count
+                result.append(phrase)
             }
-            current.append(Cell(text: text, span: span))
-            used += span
         }
-        if !current.isEmpty { rows.append(current) }
-        return rows
+        return result
     }
+}
+
+/// 常用语的显示方式（CW3）：点一下依次 标题和内容 → 标题 → 内容 → 标题和内容。
+enum PhraseDisplay: String, CaseIterable {
+    case both, title, content
+
+    var next: PhraseDisplay {
+        switch self {
+        case .both: return .title
+        case .title: return .content
+        case .content: return .both
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .both: return L("标题和内容", "Title & text", "タイトルと内容")
+        case .title: return L("标题", "Title", "タイトル")
+        case .content: return L("内容", "Text", "内容")
+        }
+    }
+}
+
+/// 键盘「常用 / 剪贴板」面板的边距：内容左右和九宫格的键对齐，离屏幕边 7pt。
+enum KeyboardWordsLayout {
+    static let sideMargin: CGFloat = 7
 }

@@ -1,17 +1,12 @@
 import SwiftUI
 import UIKit
 
-/// 九宫格「常用」面板的两个标签。
-enum QuickTab: String {
-    case phrases, clipboard
-}
-
 // 剪贴板（B1，CB1–CB4）：判断有没有新复制的内容只看 changeCount 和 hasStrings，不读内容（系统不弹提示）；
 // 用户点「有新复制的内容，点一下粘贴」时才读 UIPasteboard.general.string，系统这时在顶部弹「粘贴自…」横幅。
 extension KeyboardModel {
-    private static let quickTabKey = "quick.lastTab"
+    private static let splitKey = "quick.split"
 
-    /// 键盘出现、回到前台时查一次。没开完全访问时读不了剪贴板，不出紫点。
+    /// 键盘出现、回到前台时查一次。没开完全访问时读不了剪贴板。
     func checkClipboard() {
         guard hasFullAccess else {
             if clipboardHasNew { clipboardHasNew = false }
@@ -22,27 +17,28 @@ extension KeyboardModel {
         if clipboardHasNew != new { clipboardHasNew = new }
     }
 
-    /// 打开「常用」：有新内容时直接停在剪贴板，否则停在上次用的标签。
+    /// 打开「常用 / 剪贴板」（对齐清单第 62 条）：左常用语、右剪贴板，比例照上次。
     func openQuickPanel() {
         checkClipboard()
-        let last = SharedStorage.defaults.string(forKey: Self.quickTabKey).flatMap(QuickTab.init(rawValue:)) ?? .phrases
-        quickTab = clipboardHasNew ? .clipboard : last
-        if quickTab == .clipboard { reloadClips() }
+        reloadClips()
+        quickPhrases = CommonWordStore.keyboardPhrases
+        phraseDisplay = CommonWordStore.phraseDisplay
+        quickSplit = QuickSplit.stored(SharedStorage.defaults.object(forKey: Self.splitKey) as? Double)
         clipMenu = nil
         clipClearArmed = false
         openPanel(.quickWords)
     }
 
-    func selectQuickTab(_ tab: QuickTab) {
-        guard quickTab != tab else { return }
-        quickTab = tab
-        clipMenu = nil
-        clipClearArmed = false
-        SharedStorage.defaults.set(tab.rawValue, forKey: Self.quickTabKey)
-        if tab == .clipboard {
-            checkClipboard()
-            reloadClips()
-        }
+    /// 常用语栏头的切换钮：标题和内容 → 标题 → 内容 → 标题和内容。和 App 共用一个值。
+    func cyclePhraseDisplay() {
+        phraseDisplay = phraseDisplay.next
+        CommonWordStore.phraseDisplay = phraseDisplay
+    }
+
+    /// 拖完分割线、点竖条恢复：记下比例，下次打开照旧。
+    func setQuickSplit(_ split: CGFloat) {
+        quickSplit = split
+        SharedStorage.defaults.set(Double(split), forKey: Self.splitKey)
     }
 
     func reloadClips() {
@@ -86,11 +82,12 @@ extension KeyboardModel {
                 words.append(CommonWord(text: item.text, pinyin: CommonWordStore.pinyin(of: item.text)))
                 CommonWordStore.save(words)
             }
-            var texts = CommonWordStore.keyboardTexts
-            if !texts.contains(item.text) {
-                texts.append(item.text)
-                CommonWordStore.keyboardTexts = texts
+            var phrases = CommonWordStore.keyboardPhrases
+            if !phrases.contains(where: { $0.text == item.text }) {
+                phrases.append(KeyboardPhrase(text: item.text))
+                CommonWordStore.keyboardPhrases = phrases
             }
+            quickPhrases = phrases
             refreshCandidatesAfterPhraseChange()
             showKeysToast(L("★ 已加到常用语，可在 App 里改拼音和简码", "★ Added to phrases. Edit pinyin and shortcut in the app.",
                             "★ 定型文に追加しました。読みと短縮はアプリで変更できます"))

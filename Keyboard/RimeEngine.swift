@@ -70,15 +70,16 @@ final class RimeEngine: InputEngine {
     }
 
     /// 把常用词写成两份短语表（全拼、九宫格数字）放进现在用的用户目录。内容变了就重建会话，让引擎重新读。
-    func updatePhrases(_ entries: [(text: String, code: String)]) {
+    /// priority：填了简码的键盘常用语，权重高一点，同一个编码排在常用词前面。
+    func updatePhrases(_ entries: [(text: String, code: String)], priority: [(text: String, code: String)] = []) {
         guard let (paths, _) = location() else { return }
         var changed = false
         let files = [
-            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false)),
-            ("enclave_phrase_t9", CommonWordStore.phraseTable(entries, nineKey: true)),
+            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false, priority: priority)),
+            ("enclave_phrase_t9", CommonWordStore.phraseTable(entries, nineKey: true, priority: priority)),
             // 九宫格拼写栏显示常用词的拼音用（enclave_t9_preedit.lua 读）。
             // 同一个词有全拼和简码时只记第一个（全拼）。
-            ("enclave_phrase_t9_pinyin", firstCodes(entries).map { "\($0.text)\t\($0.code)" }.joined(separator: "\n") + "\n"),
+            ("enclave_phrase_t9_pinyin", firstCodes(priority + entries).map { "\($0.text)\t\($0.code)" }.joined(separator: "\n") + "\n"),
         ]
         for (name, table) in files {
             let url = paths.user.appendingPathComponent(name + ".txt")

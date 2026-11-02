@@ -115,7 +115,7 @@ private struct Dashboard: View {
                      value: "\(words.all.count)", detail: wordsDetail) { router.openKeyboard(.commonWords) }
             GridCard(icon: "star.fill", title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), color: DashColor.phrase,
                      value: "\(phrases.phrases.count)",
-                     detail: phrases.phrases.isEmpty ? L("还没有，点进去添加", "None yet. Tap to add", "まだありません。タップして追加") : phrases.phrases.prefix(2).joined(separator: " · ")) { router.openKeyboard(.keyboardWords) }
+                     detail: phrases.phrases.isEmpty ? L("还没有，点进去添加", "None yet. Tap to add", "まだありません。タップして追加") : phrases.phrases.prefix(2).map { $0.displayTitle ?? $0.flattened }.joined(separator: " · ")) { router.openKeyboard(.keyboardWords) }
         }
         .onAppear {
             words.reload()

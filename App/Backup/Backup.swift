@@ -253,7 +253,8 @@ enum BackupService {
                 counts["polishStyles"] = settings.styles.count
                 counts["answerStyles"] = settings.answerStyles.count
             case .commonWords:
-                let words = CommonWordsFile(words: CommonWordStore.load(), keyboardTexts: CommonWordStore.keyboardTexts)
+                let phrases = CommonWordStore.keyboardPhrases
+                let words = CommonWordsFile(words: CommonWordStore.load(), keyboardTexts: phrases.map(\.text), keyboardPhrases: phrases)
                 files.append((item.fileName, try encoder.encode(words)))
                 counts[item.rawValue] = words.words.count
             case .learnedWords:
@@ -417,7 +418,10 @@ enum BackupService {
         if let words {
             let result = BackupMerge.commonWords(current: CommonWordStore.load(), backup: words.words, mode: mode)
             CommonWordStore.save(result.words)
-            CommonWordStore.keyboardTexts = BackupMerge.keyboardTexts(current: CommonWordStore.keyboardTexts, backup: words.keyboardTexts, mode: mode)
+            // 新备份带标题和简码（keyboardPhrases）；老备份只有内容。
+            CommonWordStore.keyboardPhrases = BackupMerge.keyboardPhrases(current: CommonWordStore.keyboardPhrases,
+                                                                          backup: words.keyboardPhrases ?? words.keyboardTexts.map { KeyboardPhrase(text: $0) },
+                                                                          mode: mode)
             let value = result.existing > 0
                 ? L("+\(result.added) 个，\(result.existing) 个已有", "+\(result.added), \(result.existing) already here", "+\(result.added) 語、\(result.existing) 語は登録済み")
                 : L("+\(result.added) 个", "+\(result.added)", "+\(result.added) 語")
@@ -472,6 +476,8 @@ enum BackupService {
     struct CommonWordsFile: Codable {
         var words: [CommonWord]
         var keyboardTexts: [String]
+        /// 0.96 起：常用语带标题和简码。老备份没有这一项。
+        var keyboardPhrases: [KeyboardPhrase]?
     }
 }
 

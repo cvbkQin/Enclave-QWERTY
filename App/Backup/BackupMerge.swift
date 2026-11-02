@@ -74,6 +74,12 @@ enum BackupMerge {
         return result
     }
 
+    /// 键盘常用语（带标题、简码）：合并时没有的加在最后；内容已有的那条，自己没填的标题、简码用备份里的补上。
+    static func keyboardPhrases(current: [KeyboardPhrase], backup: [KeyboardPhrase], mode: Mode) -> [KeyboardPhrase] {
+        guard mode == .merge else { return KeyboardPhrase.merged(backup) }
+        return KeyboardPhrase.merged(current + backup)
+    }
+
     struct HistoryResult: Equatable {
         var entries: [AIHistoryEntry]
         var added: Int

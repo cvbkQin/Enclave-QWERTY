@@ -141,8 +141,8 @@ final class QueuedEngine: InputEngine {
         }
     }
 
-    func updatePhrases(_ entries: [(text: String, code: String)]) {
-        queue.async { [inner] in inner.updatePhrases(entries) }
+    func updatePhrases(_ entries: [(text: String, code: String)], priority: [(text: String, code: String)] = []) {
+        queue.async { [inner] in inner.updatePhrases(entries, priority: priority) }
     }
 
     // MARK: - 同步（先处理完排着的键）

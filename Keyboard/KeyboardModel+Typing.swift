@@ -89,7 +89,7 @@ extension KeyboardModel {
         }
         // 首选和符号一起上屏：分两次（先把标记区换成首选、马上再 insertText 符号）时，输入框会把符号插到首选前面（「。壹元整」）。
         var text = symbol
-        if isComposing, let first = engine.select(0) { text = outputText(first) + symbol }
+        if isComposing, let first = engine.select(0) { text = outputText(expandPhrase(first)) + symbol }
         commit(text)
         engine.reset()
         syncEngine()
@@ -161,7 +161,7 @@ extension KeyboardModel {
         let before = choiceState
         let segmented = !engine.selections.isEmpty
         let text = engine.select(index)
-        if let text { commit(outputText(text)) }
+        if let text { commit(outputText(expandPhrase(text))) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
         recordChoice(from: before)
@@ -634,12 +634,7 @@ extension KeyboardModel {
         if keysPanel == .emoji { RecentEmoji.add(text) }
     }
 
-    /// 「常用」面板里的词句：App 里的键盘常用语，按用户排的顺序。
-    var quickWords: [String] {
-        CommonWordStore.keyboardTexts
-    }
-
-    /// 「常用」面板里点了一个：上屏，回到九宫格。
+    /// 「常用 / 剪贴板」左栏里点了一条常用语：上屏，回到九宫格。
     func pickQuickWord(_ text: String) {
         typeSymbol(text)
         closePanel()
@@ -1274,7 +1269,7 @@ extension KeyboardModel {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.sparkleTapped() }
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
-            case "quickWords": keysPanel = .quickWords
+            case "quickWords": openQuickPanel()
             case "undo": loadDebugUndo()
             case "memtest": runMemoryTest()
             // 小手指引导：quick / quickrun 是快速模式（收起），其余展开。

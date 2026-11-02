@@ -112,15 +112,13 @@ struct KeyCapContext: Equatable {
     var trackpadActive: Bool
     var spaceTitle: String
     var returnLook: KeyboardModel.ReturnLook
-    /// 九宫格「常用」键右上角的紫点：剪贴板有新复制的内容（B1）。
-    var quickDot: Bool = false
 }
 
 extension KeyboardModel {
     var keyCapContext: KeyCapContext {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
-                      spaceTitle: spaceTitle, returnLook: returnLook, quickDot: clipboardHasNew)
+                      spaceTitle: spaceTitle, returnLook: returnLook)
     }
 }
 
@@ -165,15 +163,6 @@ struct KeyCapView: View, Equatable {
             label
                 .foregroundStyle(foreground)
                 .opacity(context.trackpadActive ? 0 : 1)
-        }
-        .overlay(alignment: .topTrailing) {
-            if case .quickWords = key.kind, context.quickDot {
-                Circle().fill(Brand.purple)
-                    .frame(width: 7, height: 7)
-                    .padding(.top, key.insetY + 6)
-                    .padding(.trailing, key.insetX + 6)
-                    .allowsHitTesting(false)
-            }
         }
     }
 
@@ -267,7 +256,7 @@ struct KeyCapView: View, Equatable {
         case .emoji:
             Image(systemName: "face.smiling").font(KeyStyle.iconFont)
         case .quickWords:
-            Text("常用").font(KeyStyle.nineKeyFont).tracking(1)
+            QuickKeyLabel()
         case .layer(let target):
             if context.nineGrid {
                 if key.id == "symbols" {
@@ -749,5 +738,27 @@ struct LayoutMenuView: View {
         .padding(.horizontal, 10)
         .frame(height: LayoutMenuPopup.rowHeight)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(selected ? Brand.returnSoftFill : Color.clear))
+    }
+}
+
+/// 九宫格左列「常 用 / 剪贴板」（对齐清单第 62 条，CW1 方案 a）：两行同字号 14.5pt、同颜色；
+/// 「常 用」两字两端对齐到和「剪贴板」一样宽（3 个字宽），两行整体在键里居中，行高 1.25。剪贴板有新内容不再出紫点。
+struct QuickKeyLabel: View {
+    private static let size: CGFloat = 14.5
+
+    var body: some View {
+        VStack(spacing: Self.size * 0.25 - 2) {
+            HStack(spacing: 0) {
+                Text("常")
+                Spacer(minLength: 0)
+                Text("用")
+            }
+            .frame(width: Self.size * 3)
+            Text("剪贴板")
+        }
+        .font(.system(size: Self.size))
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("常用和剪贴板", "Phrases and clipboard", "定型文とクリップボード"))
     }
 }

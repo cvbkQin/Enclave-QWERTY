@@ -96,37 +96,52 @@ struct SymbolPanel: View {
     }
 }
 
-/// 九宫格「常用」打开的面板：顶上分段「常用语 N | 剪贴板 N」（B1，CB1–CB3），右边在剪贴板时是「清空」。
-/// 常用语（W6）：App 里的键盘常用语，一行四格，短词一格、中等两格、长的占整行；点一个上屏并回到九宫格。
-/// 剪贴板：见 ClipboardList。底排 返回、空格、⌫、回车，和九宫格底排对齐。
+/// 九宫格「常用 / 剪贴板」打开的面板（对齐清单第 62 条，CW2、CW3）：左「常用语 N」、右「剪贴板 N · 清空」，默认各 1/2。
+/// 中间分割线按住把手左右拖（见 QuickSplit）：松手在 1/3、1/2、2/3 附近吸附；任一栏小于 1/6 收成竖条，点竖条恢复 1/2；比例记住。
+/// 常用语栏：栏头一颗切换钮（标题和内容 → 标题 → 内容），点一条上屏并回到九宫格。剪贴板栏：见 ClipboardList。
+/// 底排 返回、空格、⌫、回车，和九宫格底排对齐。
 struct QuickWordsPanel: View {
     @ObservedObject var model: KeyboardModel
+    /// 正在拖分割线：手指所在的比例（还没吸附）。
+    @State private var dragSplit: CGFloat?
 
-    private static let gap = KeyboardWordsLayout.gap
-    private static let star = Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255)
-    /// 词格和底排按键的左右边缘对齐九宫格的键。
+    /// 两栏和底排按键的左右边缘对齐九宫格的键。
     private static let sideInset = KeyboardWordsLayout.sideMargin - KeyboardMetrics.sidePadding
+    /// 中间分割线那一列的宽（竖线在正中，整列都能按住拖）。
+    private static let dividerWidth: CGFloat = 14
+    static let headerHeight: CGFloat = 36
 
     var body: some View {
-        let words = model.quickWords
         GeometryReader { geo in
-            let width = geo.size.width - Self.sideInset * 2
+            let inner = geo.size.width - Self.sideInset * 2
+            let available = inner - Self.dividerWidth
+            let split = dragSplit ?? model.quickSplit
+            let widths = QuickSplit.widths(split: dragSplit.map { min(max($0, 0.001), 0.999) } ?? split, available: available)
             VStack(spacing: 0) {
-                tabBar(phrases: words.count)
-                    .padding(.horizontal, Self.sideInset)
-                    .frame(height: 36)
-                Group {
-                    if model.quickTab == .clipboard {
-                        ClipboardList(model: model)
-                    } else if words.isEmpty {
-                        emptyCard
-                    } else {
-                        grid(words, width: width)
+                HStack(spacing: 0) {
+                    Group {
+                        if dragSplit == nil, QuickSplit.collapsedSide(split) == .phrases {
+                            strip(L("常用语", "Phrases", "定型文"))
+                        } else {
+                            PhraseColumn(model: model, fraction: widths.left / inner)
+                        }
                     }
+                    .frame(width: widths.left)
+                    divider(available: available)
+                    Group {
+                        if dragSplit == nil, QuickSplit.collapsedSide(split) == .clipboard {
+                            strip(L("剪贴板", "Clipboard", "クリップボード"))
+                        } else {
+                            clipboardColumn(leading: Self.sideInset + widths.left + Self.dividerWidth, width: widths.right)
+                        }
+                    }
+                    .frame(width: widths.right)
+                    // 长按菜单可以盖到底排上面。
+                    .zIndex(model.clipMenu != nil ? 1 : 0)
                 }
+                .coordinateSpace(name: "quickSplit")
                 .padding(.horizontal, Self.sideInset)
                 .frame(maxHeight: .infinity)
-                // 长按菜单可以盖到底排上面。
                 .zIndex(model.clipMenu != nil ? 1 : 0)
                 bottomRow(width: geo.size.width)
                     .frame(height: KeyboardMetrics.nineRowPitch)
@@ -135,104 +150,124 @@ struct QuickWordsPanel: View {
         }
     }
 
-    /// 「常用语 N | 剪贴板 N」：选中浅紫底、主色 600；剪贴板有新内容时标签右上角一个紫点。
-    private func tabBar(phrases: Int) -> some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 2) {
-                tab(.phrases, title: L("常用语", "Phrases", "定型文"), count: phrases, dot: false)
-                tab(.clipboard, title: L("剪贴板", "Clipboard", "クリップボード"), count: model.hasFullAccess ? model.clipItems.count : 0,
-                    dot: model.clipboardHasNew && model.quickTab != .clipboard)
-            }
-            .padding(2)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(KeyStyle.charKey))
-            Spacer(minLength: 8)
-            if model.quickTab == .clipboard, model.hasFullAccess, !model.clipItems.isEmpty {
-                Button { model.tapClearClips() } label: {
-                    Text(model.clipClearArmed ? L("确认清空", "Clear all?", "すべて消去？") : L("清空", "Clear", "消去"))
-                        .font(.system(size: 13, weight: model.clipClearArmed ? .semibold : .regular))
-                        .foregroundStyle(model.clipClearArmed ? Color.red : Color.secondary)
-                        .padding(.horizontal, 6)
-                        .frame(height: 30)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+    // MARK: 分割线
+
+    /// 1pt 竖线 + 中间把手（6×34 圆角，次要色 55%）。拖动时竖线和把手变主题紫，把手 8×40 带 4pt 紫色 18% 外圈，上面黑底小气泡写比例。
+    private func divider(available: CGFloat) -> some View {
+        let dragging = dragSplit != nil
+        return ZStack {
+            Rectangle()
+                .fill(dragging ? Brand.purple : Color(UIColor.separator))
+                .frame(width: 1)
+                .padding(.vertical, 6)
+            Capsule()
+                .fill(dragging ? Brand.purple : Color.secondary.opacity(0.55))
+                .frame(width: dragging ? 8 : 6, height: dragging ? 40 : 34)
+                .padding(dragging ? 4 : 0)
+                .background(Capsule().fill(Brand.purple.opacity(dragging ? 0.18 : 0)))
+        }
+        .frame(width: Self.dividerWidth)
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle().inset(by: -6))
+        .overlay(alignment: .top) {
+            if let dragSplit {
+                Text(L("常用 \(QuickSplit.fraction(dragSplit)) · 剪贴板 \(QuickSplit.fraction(1 - dragSplit))",
+                       "Phrases \(QuickSplit.fraction(dragSplit)) · Clipboard \(QuickSplit.fraction(1 - dragSplit))",
+                       "定型文 \(QuickSplit.fraction(dragSplit)) · クリップ \(QuickSplit.fraction(1 - dragSplit))"))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 10)
+                    .frame(height: 24)
+                    .background(Capsule().fill(Color.black.opacity(0.82)))
+                    .offset(y: 4)
+                    .allowsHitTesting(false)
             }
         }
-    }
-
-    private func tab(_ tab: QuickTab, title: String, count: Int, dot: Bool) -> some View {
-        let selected = model.quickTab == tab
-        return Button { model.selectQuickTab(tab) } label: {
-            HStack(spacing: 4) {
-                Text(title).font(.system(size: 14, weight: selected ? .semibold : .regular))
-                if count > 0 {
-                    Text("\(count)").font(.system(size: 13)).opacity(selected ? 0.8 : 0.5)
+        .zIndex(2)
+        .gesture(
+            DragGesture(minimumDistance: 1, coordinateSpace: .named("quickSplit"))
+                .onChanged { value in
+                    model.clipMenu = nil
+                    // 竖线在列的正中：手指位置减去半列宽就是左栏的宽。
+                    let raw = (value.location.x - Self.dividerWidth / 2) / max(available, 1)
+                    dragSplit = min(max(raw, 0), 1)
                 }
-            }
-            .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
-            .padding(.horizontal, 12)
-            .frame(height: 28)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(selected ? Brand.returnSoftFill : Color.clear))
-            .overlay(alignment: .topTrailing) {
-                if dot { Circle().fill(Brand.purple).frame(width: 7, height: 7).offset(x: -3, y: 3) }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func grid(_ words: [String], width: CGFloat) -> some View {
-        let column = KeyboardWordsLayout.columnWidth(gridWidth: width)
-        return ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Self.gap) {
-                ForEach(Array(KeyboardWordsLayout.rows(words, gridWidth: width).enumerated()), id: \.offset) { _, row in
-                    HStack(spacing: Self.gap) {
-                        ForEach(row, id: \.text) { cell in
-                            Button { model.pickQuickWord(cell.text) } label: {
-                                Text(cell.text)
-                                    .font(.system(size: KeyboardWordsLayout.fontSize))
-                                    .foregroundStyle(Color.primary)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                    .padding(.horizontal, KeyboardWordsLayout.textPadding)
-                                    .frame(width: column * CGFloat(cell.span) + Self.gap * CGFloat(cell.span - 1),
-                                           height: KeyboardWordsLayout.cellHeight, alignment: .leading)
-                                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(KeyStyle.charKey))
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(KeyPressStyle())
-                        }
+                .onEnded { _ in
+                    guard let raw = dragSplit else { return }
+                    let settled = QuickSplit.settle(raw)
+                    if settled.snapped { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                        dragSplit = nil
+                        model.setQuickSplit(settled.split)
                     }
                 }
-            }
-            // 只有一两个词时也靠左，不居中。
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 2)
-            .padding(.bottom, 22)
+        )
+        .accessibilityElement()
+        .accessibilityLabel(L("分割线", "Divider", "区切り"))
+        .accessibilityValue(L("常用语 \(Int((model.quickSplit * 100).rounded()))%", "Phrases \(Int((model.quickSplit * 100).rounded()))%",
+                              "定型文 \(Int((model.quickSplit * 100).rounded()))%"))
+        .accessibilityAdjustableAction { direction in
+            let steps: [CGFloat] = [0, 1.0 / 3, 0.5, 2.0 / 3, 1]
+            let index = steps.firstIndex { abs($0 - model.quickSplit) < 0.01 } ?? 2
+            let next = direction == .increment ? min(index + 1, steps.count - 1) : max(index - 1, 0)
+            model.setQuickSplit(steps[next])
         }
-        .hidingScrollEdgeEffect()
-        // 底部 22pt 渐隐，提示还能往下滑。
-        .mask(VStack(spacing: 0) {
-            Color.black
-            LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 22)
-        })
     }
 
-    private var emptyCard: some View {
-        VStack(spacing: 5) {
-            Text(L("还没有键盘常用语", "No keyboard phrases yet", "キーボードの定型文はまだありません"))
-                .font(.system(size: 15, weight: .semibold))
-            Text(L("在飞地输入法 App 的 键盘 › 键盘常用语 里添加", "Add them in Enclave under Keyboard › Keyboard Phrases.",
-                   "Enclave の キーボード › キーボードの定型文 で追加できます。"))
-                .font(.system(size: 12.5))
-                .foregroundStyle(Color.secondary)
-                .multilineTextAlignment(.center)
+    /// 收起那一栏：34pt 宽竖条，竖排写栏名；点一下两栏恢复各 1/2。
+    private func strip(_ title: String) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { model.setQuickSplit(QuickSplit.standard) }
+        } label: {
+            VStack(spacing: 1) {
+                ForEach(Array(title.enumerated()), id: \.offset) { _, char in
+                    Text(String(char)).font(.system(size: 13, weight: .semibold))
+                }
+            }
+            .foregroundStyle(Color.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(KeyStyle.charKey.opacity(0.7)))
+            .padding(.top, Self.headerHeight)
+            .padding(.bottom, 4)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(KeyStyle.charKey.opacity(0.6)))
-        .padding(.bottom, 4)
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(title)
+        .accessibilityHint(L("恢复两栏各一半", "Restores both columns", "2 列に戻す"))
     }
+
+    // MARK: 剪贴板栏
+
+    private func clipboardColumn(leading: CGFloat, width: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
+                Text(L("剪贴板", "Clipboard", "クリップボード")).font(.system(size: 14, weight: .semibold))
+                if model.hasFullAccess, !model.clipItems.isEmpty {
+                    Text("\(model.clipItems.count)").font(.system(size: 13)).foregroundStyle(Color.secondary)
+                }
+                Spacer(minLength: 4)
+                if model.hasFullAccess, !model.clipItems.isEmpty {
+                    Button { model.tapClearClips() } label: {
+                        Text(model.clipClearArmed ? L("确认清空", "Clear all?", "すべて消去？") : L("清空", "Clear", "消去"))
+                            .font(.system(size: 13, weight: model.clipClearArmed ? .semibold : .regular))
+                            .foregroundStyle(model.clipClearArmed ? Color.red : Color.secondary)
+                            .padding(.horizontal, 4)
+                            .frame(height: 30)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .lineLimit(1)
+            .padding(.leading, 2)
+            .frame(height: Self.headerHeight)
+            ClipboardList(model: model, leadingRoom: leading, trailingRoom: Self.sideInset)
+        }
+    }
+
+    // MARK: 底排
 
     private func bottomRow(width: CGFloat) -> some View {
         let edge = KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding - KeyboardMetrics.nineKeyInsetX
@@ -264,6 +299,104 @@ struct QuickWordsPanel: View {
             .frame(width: column)
         }
         .padding(.horizontal, edge)
+    }
+}
+
+/// 「常用 / 剪贴板」左栏：常用语（CW3）。栏头「常用语 N」，右边切换钮「⇄ 标题和内容」：栏宽小于 45% 只留 ⇄，小于 20% 不显示。
+/// 标题和内容：上行标题（紫色粗体 13）、下行内容（次要色 12.5，一行省略）；没标题的只显示内容（正文色 13.5，最多两行）。
+/// 标题：像标签一样一行排多个；没标题的显示内容（次要色）。内容：只显示内容，最多两行。点一条上屏并回到九宫格。
+struct PhraseColumn: View {
+    @ObservedObject var model: KeyboardModel
+    /// 这一栏占整个面板宽的比例。
+    var fraction: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
+                Text(L("常用语", "Phrases", "定型文")).font(.system(size: 14, weight: .semibold))
+                if !model.quickPhrases.isEmpty {
+                    Text("\(model.quickPhrases.count)").font(.system(size: 13)).foregroundStyle(Color.secondary)
+                }
+                Spacer(minLength: 4)
+                if fraction >= 0.2 { displayButton(iconOnly: fraction < 0.45) }
+            }
+            .lineLimit(1)
+            .padding(.leading, 2)
+            .frame(height: QuickWordsPanel.headerHeight)
+            if model.quickPhrases.isEmpty {
+                emptyCard
+            } else {
+                list
+            }
+        }
+    }
+
+    /// 浅紫底、紫字、⇄ + 当前方式；点一下换下一种（和 App 常用语页共用）。
+    private func displayButton(iconOnly: Bool) -> some View {
+        Button { withAnimation(.easeOut(duration: 0.15)) { model.cyclePhraseDisplay() } } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.left.arrow.right").font(.system(size: 10, weight: .bold))
+                if !iconOnly { Text(model.phraseDisplay.name).font(.system(size: 12, weight: .semibold)) }
+            }
+            .foregroundStyle(Brand.deepPurple)
+            .padding(.horizontal, iconOnly ? 7 : 8)
+            .frame(height: 24)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Brand.returnSoftFill))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(L("显示方式：\(model.phraseDisplay.name)", "Show: \(model.phraseDisplay.name)", "表示：\(model.phraseDisplay.name)"))
+    }
+
+    private var list: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            Group {
+                if model.phraseDisplay == .title {
+                    PhraseFlow(spacing: 5) {
+                        ForEach(model.quickPhrases) { phrase in
+                            Button { model.pickQuickWord(phrase.text) } label: {
+                                PhraseChip(phrase: phrase, accent: Brand.deepPurple, fill: KeyStyle.charKey)
+                            }
+                                .buttonStyle(KeyPressStyle())
+                        }
+                    }
+                } else {
+                    VStack(spacing: 5) {
+                        ForEach(model.quickPhrases) { phrase in
+                            Button { model.pickQuickWord(phrase.text) } label: {
+                                PhraseCard(phrase: phrase, showsTitle: model.phraseDisplay == .both, accent: Brand.deepPurple, fill: KeyStyle.charKey)
+                            }
+                            .buttonStyle(KeyPressStyle())
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 2)
+            .padding(.bottom, 18)
+        }
+        .hidingScrollEdgeEffect()
+        // 底部 18pt 渐隐，提示还能往下滑。
+        .mask(VStack(spacing: 0) {
+            Color.black
+            LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom).frame(height: 18)
+        })
+    }
+
+    private var emptyCard: some View {
+        VStack(spacing: 5) {
+            Text(L("还没有键盘常用语", "No keyboard phrases yet", "キーボードの定型文はまだありません"))
+                .font(.system(size: 14, weight: .semibold))
+            Text(L("在飞地输入法 App 的 键盘 › 键盘常用语 里添加", "Add them in Enclave under Keyboard › Keyboard Phrases.",
+                   "Enclave の キーボード › キーボードの定型文 で追加できます。"))
+                .font(.system(size: 12))
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(KeyStyle.charKey.opacity(0.6)))
+        .padding(.bottom, 4)
     }
 }
 
@@ -459,11 +592,14 @@ struct AlternatesView: View {
     }
 }
 
-/// 「常用 › 剪贴板」（B1，CB1–CB3）。最上面「有新复制的内容，点一下粘贴」（只有新内容时出现，点了才读剪贴板）；
-/// 下面每条一张按键底色卡片，点一下插入、面板不关；长按 0.45 秒弹菜单：粘贴 / 加到常用语 / 复制 / 删除。
+/// 「常用 / 剪贴板」右栏（B1，CB1–CB3，对齐清单第 62 条）。最上面「有新复制的内容，点一下粘贴」（只有新内容时出现，点了才读剪贴板）；
+/// 下面每条一张按键底色卡片，右上角灰色时间，点一下插入、面板不关；长按 0.45 秒弹菜单：粘贴 / 加到常用语 / 复制 / 删除。
 /// 没开完全访问时读不了剪贴板，换成说明卡。
 struct ClipboardList: View {
     @ObservedObject var model: KeyboardModel
+    /// 这一栏左边、右边到键盘边还有多宽：长按菜单比栏宽时往左伸，不出键盘。
+    var leadingRoom: CGFloat = 0
+    var trailingRoom: CGFloat = 0
 
     private struct RowAnchors: PreferenceKey {
         static var defaultValue: [UUID: Anchor<CGRect>] = [:]
@@ -494,12 +630,15 @@ struct ClipboardList: View {
                 } else {
                     list.zIndex(1)
                 }
-                Text(footnote)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .frame(height: 18)
+                // 两栏后地方小了：只在记录关着时提示一句。
+                if !ClipboardHistory.isEnabled {
+                    Text(footnote)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.secondary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .padding(.vertical, 2)
+                }
             }
         }
     }
@@ -537,11 +676,12 @@ struct ClipboardList: View {
                     ZStack(alignment: .topLeading) {
                         // 点菜单外面只收起菜单：挡住整块按键区（标签栏、脚注、底排、AI 栏），不点到底下的东西。
                         Color.black.opacity(0.001)
-                            .frame(width: geo.size.width + 40, height: Self.menuAreaBottom(listHeight: geo.size.height) - Self.menuAreaTop)
-                            .offset(x: -20, y: Self.menuAreaTop)
+                            .frame(width: leadingRoom + geo.size.width + trailingRoom + 40,
+                                   height: Self.menuAreaBottom(listHeight: geo.size.height) - Self.menuAreaTop)
+                            .offset(x: -leadingRoom - 20, y: Self.menuAreaTop)
                             .onTapGesture { model.clipMenu = nil }
                         ClipMenu(model: model, item: item)
-                            .offset(x: min(max(rect.minX + 40, 0), max(geo.size.width - ClipMenu.width, 0)),
+                            .offset(x: min(max(rect.minX + 40, -leadingRoom), geo.size.width + trailingRoom - ClipMenu.width),
                                     y: Self.menuY(row: rect, listHeight: geo.size.height))
                     }
                 }
@@ -551,10 +691,10 @@ struct ClipboardList: View {
 
     /// 菜单的上边（列表坐标）。能放下就在这条下面（可以盖住脚注和底排），放不下就在上面；
     /// 往上最多盖到标签栏和 AI 栏，不伸出键盘顶（键盘画不到外面，会被截掉）。
-    static var menuAreaTop: CGFloat { -(36 + KeyboardMetrics.topRow) }
+    static var menuAreaTop: CGFloat { -(QuickWordsPanel.headerHeight + KeyboardMetrics.topRow) }
 
     static func menuAreaBottom(listHeight: CGFloat) -> CGFloat {
-        listHeight + 18 + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset
+        listHeight + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset
     }
 
     static func menuY(row: CGRect, listHeight: CGFloat) -> CGFloat {

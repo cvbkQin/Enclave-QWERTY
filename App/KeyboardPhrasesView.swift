@@ -1,44 +1,55 @@
 import SwiftUI
 
-/// 键盘常用语：九宫格「常用」面板里点着输入的词句，比如邮箱、地址、信用代码。
-/// 和常用词分开存：不用拼音，也不进候选，只按用户排的顺序显示在面板里。
+/// 键盘常用语：九宫格「常用 / 剪贴板」左栏里点着输入的词句，比如邮箱、地址、信用代码（对齐清单第 62 条，CW4）。
+/// 每条有标题（可空）、内容、简码（可空）。填了简码的，打这个简码时内容排在候选第一；没简码的不进候选。
 @MainActor
 final class KeyboardPhrasesModel: ObservableObject {
-    @Published var phrases = CommonWordStore.keyboardTexts {
-        didSet { if phrases != oldValue { CommonWordStore.keyboardTexts = phrases } }
+    @Published var phrases = CommonWordStore.keyboardPhrases {
+        didSet { if phrases != oldValue { CommonWordStore.keyboardPhrases = phrases } }
+    }
+    /// 显示方式：和键盘左栏共用一个值。
+    @Published var display = CommonWordStore.phraseDisplay {
+        didSet { if display != oldValue { CommonWordStore.phraseDisplay = display } }
     }
 
-    func reload() { phrases = CommonWordStore.keyboardTexts }
-
-    /// 新加的排在最后；已经有的不重复加。
-    func add(_ text: String) {
-        if !phrases.contains(text) { phrases.append(text) }
+    func reload() {
+        phrases = CommonWordStore.keyboardPhrases
+        display = CommonWordStore.phraseDisplay
     }
 
-    /// 改成已经有的另一条时，两条并成一条。
-    func replace(_ old: String, with text: String) {
-        guard let index = phrases.firstIndex(of: old), old != text else { return }
-        if phrases.contains(text) { phrases.remove(at: index) } else { phrases[index] = text }
+    /// 新加的排在最后；内容已经有的那条，用新填的标题、简码更新它。
+    func add(_ phrase: KeyboardPhrase) {
+        if let index = phrases.firstIndex(where: { $0.text == phrase.text }) {
+            phrases[index] = phrase
+        } else {
+            phrases.append(phrase)
+        }
     }
 
-    func delete(_ text: String) { phrases.removeAll { $0 == text } }
+    /// 改成内容已有的另一条时，两条并成一条（留原来这条的位置）。
+    func replace(_ old: KeyboardPhrase, with phrase: KeyboardPhrase) {
+        guard let index = phrases.firstIndex(where: { $0.text == old.text }) else { return }
+        var list = phrases
+        list[index] = phrase
+        if phrase.text != old.text, let other = list.indices.first(where: { $0 != index && list[$0].text == phrase.text }) {
+            list.remove(at: other)
+        }
+        phrases = KeyboardPhrase.merged(list)
+    }
+
+    func delete(_ phrase: KeyboardPhrase) { phrases.removeAll { $0.text == phrase.text } }
 
     func move(from source: IndexSet, to destination: Int) {
         phrases.move(fromOffsets: source, toOffset: destination)
     }
 }
 
-/// 键盘常用语页（W8）：拖 ≡ 排序、点一行编辑、左滑删除、＋ 添加，下面预览键盘里的样子。
+/// 键盘常用语页（CW4）：分组头右边切换钮（和键盘共用），拖 ≡ 排序、点一行编辑、左滑删除、＋ 添加，下面「键盘里看起来」。
 struct KeyboardPhrasesView: View {
     @StateObject private var model = KeyboardPhrasesModel()
     @State private var adding = false
     /// 正在编辑的那一条。
-    @State private var editing: Phrase?
-
-    struct Phrase: Identifiable {
-        let text: String
-        var id: String { text }
-    }
+    @State private var editing: KeyboardPhrase?
 
     var body: some View {
         List {
@@ -48,12 +59,10 @@ struct KeyboardPhrasesView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                ForEach(model.phrases, id: \.self) { text in
+                ForEach(model.phrases) { phrase in
                     HStack(spacing: 12) {
-                        Button { editing = Phrase(text: text) } label: {
-                            Text(text)
-                                .font(.system(size: 16))
-                                .lineLimit(2)
+                        Button { editing = phrase } label: {
+                            PhraseRow(phrase: phrase, display: model.display)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
@@ -63,7 +72,7 @@ struct KeyboardPhrasesView: View {
                             .foregroundStyle(Color(hex: 0xC7C7CC))
                     }
                     .swipeActions {
-                        Button(role: .destructive) { model.delete(text) } label: { Label(L("删除", "Delete", "削除"), systemImage: "trash") }
+                        Button(role: .destructive) { model.delete(phrase) } label: { Label(L("删除", "Delete", "削除"), systemImage: "trash") }
                             .tint(.red)
                     }
                 }
@@ -72,17 +81,31 @@ struct KeyboardPhrasesView: View {
                     Label(L("添加", "Add", "追加"), systemImage: "plus")
                         .foregroundStyle(AppColor.purple)
                 }
+            } header: {
+                HStack {
+                    Text(L("常用语 \(model.phrases.count)", "Phrases \(model.phrases.count)", "定型文 \(model.phrases.count)"))
+                    Spacer()
+                    if !model.phrases.isEmpty {
+                        DisplayToggle(display: $model.display)
+                    }
+                }
+                .textCase(nil)
             } footer: {
-                Text(L("在键盘九宫格左边点「常用」，点一下就输入，不用打拼音。按住右边的 ≡ 上下拖动排顺序，左滑删除，点一下编辑。",
-                       "Tap 常用 on the left of the 9-key keyboard, then tap a phrase to enter it. No pinyin needed. Touch and hold ≡ to reorder, swipe left to delete, tap to edit.",
-                       "9 キーの左にある「常用」から、タップするだけで入力できます。≡ を長押しして並べ替え、左にスワイプで削除、タップで編集。"))
+                Text(L("在键盘九宫格左边点「常用/剪贴板」，左栏就是这些，点一下就输入。按住 ≡ 排顺序，左滑删除，点一下编辑。",
+                       "Tap 常用/剪贴板 on the left of the 9-key keyboard: these are in the left column. Tap one to enter it. Touch and hold ≡ to reorder, swipe left to delete, tap to edit.",
+                       "9 キーの左の「常用/剪贴板」を開くと左の列にこれらが並び、タップで入力できます。≡ を長押しで並べ替え、左にスワイプで削除、タップで編集。"))
             }
             if !model.phrases.isEmpty {
                 Section {
                 } header: {
-                    PreviewHeader(texts: model.phrases)
-                } footer: {
-                    Text(L("一行四格：短词一格，邮箱这类两格，地址和长句占一整行。", "Four per row: short words take one cell, emails two, addresses and sentences a full row.", "1 行 4 マス：短い語は 1 マス、メールアドレスなどは 2 マス、住所や長い文は 1 行。"))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L("键盘里看起来", "On the keyboard", "キーボードでの表示"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 16)
+                        KeyboardColumnPreview(phrases: model.phrases, display: model.display)
+                    }
+                    .dashFormCard()
                 }
             }
         }
@@ -99,50 +122,157 @@ struct KeyboardPhrasesView: View {
             PhraseEditor(original: nil) { model.add($0) } onDelete: {}
         }
         .sheet(item: $editing) { phrase in
-            PhraseEditor(original: phrase.text) { model.replace(phrase.text, with: $0) } onDelete: { model.delete(phrase.text) }
+            PhraseEditor(original: phrase) { model.replace(phrase, with: $0) } onDelete: { model.delete(phrase) }
         }
         .onAppear { model.reload() }
     }
 }
 
-/// 添加 / 编辑一条常用语：只有一栏，什么字都行。
+/// 分组头右边的切换钮：浅紫底、紫字、⇄ + 当前方式，点一下换下一种（标题和内容 → 标题 → 内容）。
+private struct DisplayToggle: View {
+    @Binding var display: PhraseDisplay
+
+    var body: some View {
+        Button { withAnimation(.easeOut(duration: 0.15)) { display = display.next } } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.left.arrow.right").font(.system(size: 11, weight: .bold))
+                Text(display.name).font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(AppColor.deepPurple)
+            .padding(.horizontal, 9)
+            .frame(height: 26)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(AppColor.purple.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L("显示方式：\(display.name)", "Show: \(display.name)", "表示：\(display.name)"))
+    }
+}
+
+/// 列表里的一行：标题紫色粗体 15.5、下行内容次要色 13.5 一行省略；没标题的只显示内容（最多两行）。
+/// 填了简码的在标题（或内容）后面带「简码 xx」小标签。「标题」方式只列标题（没标题的显示内容，灰色）；「内容」方式只列内容。
+private struct PhraseRow: View {
+    let phrase: KeyboardPhrase
+    let display: PhraseDisplay
+
+    var body: some View {
+        let title = display == .content ? nil : phrase.displayTitle
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                if let title {
+                    Text(title).font(.system(size: 15.5, weight: .bold)).foregroundStyle(AppColor.deepPurple).lineLimit(1)
+                } else {
+                    Text(display == .title ? phrase.flattened : phrase.text)
+                        .font(.system(size: 16))
+                        .foregroundStyle(display == .title ? Color.secondary : Color.primary)
+                        .lineLimit(display == .title ? 1 : 2)
+                }
+                if !phrase.shortcut.isEmpty { ShortcutTag(code: phrase.shortcut).layoutPriority(1) }
+            }
+            if title != nil, display == .both {
+                Text(phrase.flattened).font(.system(size: 13.5)).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+    }
+}
+
+/// 「键盘里看起来」：按当前方式画出键盘左栏的样子（灰底 #DCDEE4），最多画几条。
+private struct KeyboardColumnPreview: View {
+    let phrases: [KeyboardPhrase]
+    let display: PhraseDisplay
+
+    private static let background = Color(uiColor: UIColor { trait in
+        trait.userInterfaceStyle == .dark ? UIColor(white: 0.18, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1)
+    })
+
+    var body: some View {
+        Group {
+            if display == .title {
+                PhraseFlow(spacing: 5) {
+                    ForEach(phrases.prefix(12)) { phrase in
+                        PhraseChip(phrase: phrase, accent: AppColor.deepPurple, fill: Color(.systemBackground))
+                    }
+                }
+            } else {
+                VStack(spacing: 5) {
+                    ForEach(phrases.prefix(3)) { phrase in
+                        PhraseCard(phrase: phrase, showsTitle: display == .both, accent: AppColor.deepPurple, fill: Color(.systemBackground))
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Self.background))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .allowsHitTesting(false)
+    }
+}
+
+/// 添加 / 编辑一条常用语（CW4）：一个分组三行，排法照常用词编辑页（左边 36pt 栏名，右边输入框，下面一行说明）。
+/// 下面「打简码时的样子」预览候选第一位；编辑时最下面「删除这条常用语」。
 private struct PhraseEditor: View {
-    let original: String?
-    let onSave: (String) -> Void
+    let original: KeyboardPhrase?
+    let onSave: (KeyboardPhrase) -> Void
     let onDelete: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var title: String
     @State private var text: String
+    @State private var shortcut: String
     @FocusState private var focused: Bool
 
-    init(original: String?, onSave: @escaping (String) -> Void, onDelete: @escaping () -> Void) {
+    init(original: KeyboardPhrase?, onSave: @escaping (KeyboardPhrase) -> Void, onDelete: @escaping () -> Void) {
         self.original = original
         self.onSave = onSave
         self.onDelete = onDelete
-        _text = State(initialValue: original ?? "")
+        _title = State(initialValue: original?.title ?? "")
+        _text = State(initialValue: original?.text ?? "")
+        _shortcut = State(initialValue: original?.shortcut ?? "")
     }
 
-    private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var draft: KeyboardPhrase {
+        KeyboardPhrase(title: String(title.trimmingCharacters(in: .whitespacesAndNewlines).prefix(10)),
+                       text: text.trimmingCharacters(in: .whitespacesAndNewlines),
+                       shortcut: CommonWordStore.normalizeCode(shortcut))
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(L("比如：邮箱、地址、税号", "e.g. email, address, company ID", "例：メールアドレス、住所"), text: $text, axis: .vertical)
-                        .submitLabel(.return)
-                        .lineLimit(1...6)
-                        .focused($focused)
-                } footer: {
-                    Text(L("中文、英文、数字都可以，不用填拼音。", "Any text works. No pinyin needed.", "どんな文字でも登録できます。ピンインは不要です。"))
+                    field(L("标题", "Title", "タイトル"),
+                          note: L("可不填。键盘里显示在内容上面，一眼找到是哪条；最多 10 个字", "Optional. Shown above the text on the keyboard so you can find it fast. Up to 10 characters",
+                                  "任意。キーボードで内容の上に表示され、すぐ見つけられます。10 文字まで")) {
+                        TextField(L("比如：公司地址", "e.g. Office address", "例：会社の住所"), text: Binding(get: { title }, set: { title = String($0.prefix(10)) }))
+                    }
+                    field(L("内容", "Text", "内容"),
+                          note: L("点一下输入的就是这段；中文、英文、数字都可以", "This is what gets entered when you tap it. Any text works", "タップで入力されるのはこの文です。どんな文字でも可")) {
+                        TextField(L("比如：邮箱、地址、税号", "e.g. email, address, company ID", "例：メールアドレス、住所"), text: $text, axis: .vertical)
+                            .lineLimit(1...6)
+                            .focused($focused)
+                    }
+                    field(L("简码", "Shortcut", "略語"),
+                          note: L("可不填。打这几个字母，这段排在候选第一", "Optional. Type these letters and this text comes first in the candidates", "任意。この文字を入力すると候補の先頭に出ます")) {
+                        TextField(L("比如 gsdz", "e.g. gsdz", "例：gsdz"), text: Binding(get: { shortcut }, set: { shortcut = CommonWordStore.normalizeCode($0) }))
+                            .font(.body.monospaced())
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.asciiCapable)
+                    }
                 }
-                if !trimmed.isEmpty {
+                if !draft.shortcut.isEmpty {
                     Section {
+                        ShortcutPreview(phrase: draft)
+                            .listRowInsets(EdgeInsets())
                     } header: {
-                        PreviewHeader(texts: [trimmed])
+                        Text(L("打简码时的样子", "When you type the shortcut", "略語を入力したとき"))
+                    } footer: {
+                        Text(L("候选里显示内容，不显示标题；太长的末尾省略，选中后输入完整一段。", "Candidates show the text, not the title. Long text is cut off, but the whole text is entered.",
+                               "候補にはタイトルでなく内容が出ます。長い場合は末尾を省略し、選ぶと全文を入力します。"))
                     }
                 }
                 if original != nil {
                     Section {
-                        Button(L("删除这条", "Delete", "削除"), role: .destructive) {
+                        Button(L("删除这条常用语", "Delete this phrase", "この定型文を削除"), role: .destructive) {
                             onDelete()
                             dismiss()
                         }
@@ -156,92 +286,55 @@ private struct PhraseEditor: View {
                 ToolbarItem(placement: .cancellationAction) { Button(L("取消", "Cancel", "キャンセル")) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L("保存", "Save", "保存")) {
-                        onSave(trimmed)
+                        onSave(draft)
                         dismiss()
                     }
-                    .disabled(trimmed.isEmpty)
+                    .disabled(draft.text.isEmpty)
                 }
             }
             .tint(AppColor.purple)
             .onAppear { if original == nil { focused = true } }
         }
     }
-}
 
-/// 「键盘里的样子」：灰底 #DCDEE4。按键盘的实际宽度分好行（和键盘面板一致），再按比例缩小画。
-private struct KeyboardWordsPreview: View {
-    let texts: [String]
-
-    private static let padding: CGFloat = 8
-    private static let maxRows = 4
-
-    var body: some View {
-        let gridWidth = UIScreen.main.bounds.width - KeyboardWordsLayout.sideMargin * 2
-        let rows = Array(KeyboardWordsLayout.rows(texts, gridWidth: gridWidth).prefix(Self.maxRows))
-        // 行高按列表行的宽度估（分组列表两边各留 20），实际宽度用 GeometryReader 量。
-        let estimatedScale: CGFloat = (UIScreen.main.bounds.width - 40 - Self.padding * 2) / gridWidth
-        let rowCount = CGFloat(rows.count)
-        let rowsHeight: CGFloat = rowCount * KeyboardWordsLayout.cellHeight + (rowCount - 1) * KeyboardWordsLayout.gap
-        let height: CGFloat = rowsHeight * estimatedScale + Self.padding * 2
-        GeometryReader { geo in
-            let inner: CGFloat = geo.size.width - Self.padding * 2
-            let scale: CGFloat = inner / gridWidth
-            let gap: CGFloat = KeyboardWordsLayout.gap * scale
-            let column: CGFloat = KeyboardWordsLayout.columnWidth(gridWidth: gridWidth) * scale
-            VStack(alignment: .leading, spacing: gap) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                    HStack(spacing: gap) {
-                        ForEach(row, id: \.self) { cell in
-                            PreviewCell(text: cell.text, span: cell.span, column: column, gap: gap, scale: scale)
-                        }
-                    }
-                }
+    private func field<Content: View>(_ name: String, note: String, @ViewBuilder input: () -> Content) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            Text(name).frame(width: 36, alignment: .leading)
+            VStack(alignment: .leading, spacing: 3) {
+                input()
+                Text(note).font(.caption).foregroundStyle(.secondary)
             }
-            .padding(Self.padding)
-            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
-        .frame(height: height)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(uiColor: UIColor { trait in
-            trait.userInterfaceStyle == .dark ? UIColor(white: 0.18, alpha: 1) : UIColor(red: 0xDC / 255, green: 0xDE / 255, blue: 0xE4 / 255, alpha: 1)
-        })))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
-/// 「键盘里的样子」标题加预览，放在 Section 的 header 里，预览的圆角不会被分组圆角裁掉。
-private struct PreviewHeader: View {
-    var texts: [String]
+/// 「打 gsdz」：候选行第一位是内容（紫色、太长末尾省略、右上小紫点），后面两个普通候选。
+private struct ShortcutPreview: View {
+    let phrase: KeyboardPhrase
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L("键盘里的样子", "On the keyboard", "キーボードでの表示"))
-                .font(.footnote)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("打 \(phrase.shortcut)", "Type \(phrase.shortcut)", "\(phrase.shortcut) と入力"))
+                .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
-                .padding(.leading, 16)
-            KeyboardWordsPreview(texts: texts)
+            HStack(spacing: 16) {
+                Text(phrase.text.isEmpty ? L("这段内容", "Your text", "この内容") : phrase.flattened)
+                    .font(.system(size: 17))
+                    .foregroundStyle(AppColor.purple)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 220, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .overlay(alignment: .topTrailing) {
+                        Circle().fill(Color(hex: 0x8B7CF6)).frame(width: 5, height: 5).offset(x: 6, y: 1)
+                    }
+                Text("公司").font(.system(size: 17))
+                Text("高速").font(.system(size: 17))
+                Spacer(minLength: 0)
+            }
         }
-        .dashFormCard()
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(.systemGray5))
     }
 }
-
-/// 预览里的一格，按缩放比例画。
-private struct PreviewCell: View {
-    let text: String
-    let span: Int
-    let column: CGFloat
-    let gap: CGFloat
-    let scale: CGFloat
-
-    var body: some View {
-        let spans = CGFloat(span)
-        let width: CGFloat = column * spans + gap * (spans - 1)
-        let height: CGFloat = KeyboardWordsLayout.cellHeight * scale
-        return Text(text)
-            .font(.system(size: KeyboardWordsLayout.fontSize * scale))
-            .lineLimit(1)
-            .padding(.horizontal, KeyboardWordsLayout.textPadding * scale)
-            .frame(width: width, height: height, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous).fill(Color(.systemBackground)))
-    }
-}
-

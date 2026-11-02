@@ -168,13 +168,16 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     private static var widthCache: [String: CGFloat] = [:]
     private static let hanWidth = ("中" as NSString).size(withAttributes: [.font: font]).width
 
+    /// 一个候选最宽 12 个字：填了简码的常用语（一整段地址）末尾省略，选中后输入完整一段（对齐清单第 62 条）。
+    private static let maxWidth = ceil(hanWidth * 12) + padding * 2
+
     private static func width(of word: String) -> CGFloat {
         if word.unicodeScalars.allSatisfy({ (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }) {
-            return ceil(hanWidth * CGFloat(word.unicodeScalars.count)) + padding * 2
+            return min(ceil(hanWidth * CGFloat(word.unicodeScalars.count)) + padding * 2, maxWidth)
         }
         if let cached = widthCache[word] { return cached }
         if widthCache.count > 500 { widthCache.removeAll() }
-        let width = ceil((word as NSString).size(withAttributes: [.font: font]).width) + padding * 2
+        let width = min(ceil((word as NSString).size(withAttributes: [.font: font]).width) + padding * 2, maxWidth)
         widthCache[word] = width
         return width
     }

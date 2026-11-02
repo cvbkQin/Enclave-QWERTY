@@ -201,10 +201,13 @@ final class KeyboardModel: ObservableObject {
     /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
     @Published var wordPanelText = ""
     @Published var wordPanelFading = false
-    /// 剪贴板（B1）：有没有新复制的内容（只看 changeCount、hasStrings，不读内容）、「常用」面板停在哪个标签、记录列表。
+    /// 剪贴板（B1）：有没有新复制的内容（只看 changeCount、hasStrings，不读内容）、记录列表。
     @Published var clipboardHasNew = false
-    @Published var quickTab: QuickTab = .phrases
     @Published var clipItems: [ClipItem] = []
+    /// 「常用 / 剪贴板」面板（对齐清单第 62 条）：左栏的常用语（打开面板时读一次）、显示方式、左栏占的比例。
+    @Published var quickPhrases: [KeyboardPhrase] = []
+    @Published var phraseDisplay: PhraseDisplay = .both
+    @Published var quickSplit: CGFloat = 0.5
     /// 长按剪贴板一条弹出的菜单。
     @Published var clipMenu: UUID?
     /// 「清空」点了一次，再点一次才清（3 秒内）。
@@ -480,22 +483,36 @@ final class KeyboardModel: ObservableObject {
 
     /// 上次交给引擎的短语表（按内容比）。
     private var lastPhraseSignature: [String]?
+    /// 候选里的常用语（换行写成空格）→ 原文。
+    private var phraseOriginals: [String: String] = [:]
 
     /// 候选长按改了常用词：马上交给引擎，不等下次弹出键盘。
     func reloadCommonWords() {
         applyCommonWords(CommonWordStore.active(lexicon: CommonWordStore.lexicon))
     }
 
+    /// 常用词，加上填了简码的键盘常用语（对齐清单第 62 条：打简码时常用语的内容排候选第一，和常用词同一个简码时常用语在前）。
     private func applyCommonWords(_ words: [CommonWord]) {
-        let texts = Set(words.map(\.text))
+        let phrases = CommonWordStore.keyboardPhrases.filter { !CommonWordStore.normalizeCode($0.shortcut).isEmpty }
+        let priority = CommonWordStore.phraseShortcutEntries(phrases)
+        // 候选里换行写成了空格：选中后换回原文。
+        phraseOriginals = Dictionary(phrases.filter { $0.flattened != $0.text }.map { ($0.flattened, $0.text) },
+                                     uniquingKeysWith: { a, _ in a })
+        let texts = Set(words.map(\.text)).union(priority.map(\.text))
         if texts != commonWordTexts { commonWordTexts = texts }
         let entries = CommonWordStore.phraseEntries(words)
         // 没变就不交给引擎：重写短语表要排在 Rime 队列上读文件比对，弹出后的第一个键得等它。
         // 带上词库版本和用哪份词库：App 重新部署、开关完全访问后短语表要写到新的用户目录里。
-        let signature = ["\(hasFullAccess)", RimeStore.deployedVersion ?? ""] + entries.map { $0.text + "\t" + $0.code }
+        let signature = ["\(hasFullAccess)", RimeStore.deployedVersion ?? ""] + priority.map { "!" + $0.text + "\t" + $0.code }
+            + entries.map { $0.text + "\t" + $0.code }
         guard signature != lastPhraseSignature else { return }
         lastPhraseSignature = signature
-        QueuedEngine.shared.updatePhrases(entries)
+        QueuedEngine.shared.updatePhrases(entries, priority: priority)
+    }
+
+    /// 选中的候选是填了简码的常用语：换回带换行的原文。
+    func expandPhrase(_ text: String) -> String {
+        phraseOriginals[text] ?? text
     }
 
     // MARK: - 执行
