@@ -178,9 +178,12 @@ extension View {
             .offset(y: frame?.textDrop ?? 0)
     }
 
-    /// 执行中按钮下面的同色柔投影：y 3、模糊 10。
-    func runningShadow(_ on: Bool, answer: Bool) -> some View {
-        shadow(color: on ? (answer ? AIKeyFX.askShadow : AIKeyFX.polishShadow) : .clear, radius: 5, y: 3)
+    /// 执行中按钮下面的同色柔投影：样片是 y 3、模糊 10。
+    /// room：键下面还剩几 pt 不被裁掉。键盘 AI 栏的键在左右滑动区里，上下只剩 (44 − 34) / 2 = 5pt，
+    /// 照样片画会在 5pt 处被滑动区齐齐切掉、看着像一块脏边（cvbk 11-02 真机 0.95_19），所以按剩下的地方收小。
+    func runningShadow(_ on: Bool, answer: Bool, room: CGFloat = 8) -> some View {
+        shadow(color: on ? (answer ? AIKeyFX.askShadow : AIKeyFX.polishShadow) : .clear,
+               radius: min(5, room * 0.55), y: min(3, room * 0.35))
     }
 }
 

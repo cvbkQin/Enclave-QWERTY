@@ -42,6 +42,8 @@ enum KeyboardMetrics {
     static var topRow: CGFloat { landscape ? 34 : 44 }
     /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 30）。
     static var chipHeight: CGFloat { landscape ? 30 : 34 }
+    /// AI 栏的键上下各剩多少（滑动区会裁掉伸出去的投影）。
+    static var chipRoom: CGFloat { (topRow - chipHeight) / 2 }
     static let polishButtonWidth: CGFloat = 58
     /// 结果卡片：默认两行，展开到四行，再多就在卡片里滚动。
     static let cardHeight: CGFloat = 60

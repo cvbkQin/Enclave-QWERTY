@@ -142,7 +142,7 @@ struct StyleKey: View {
                     NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()).opacity(faded ? 0.35 : 1)
                 }
             }
-            .runningShadow(running, answer: answer)
+            .runningShadow(running, answer: answer, room: KeyboardMetrics.chipRoom)
         }
     }
 
@@ -307,7 +307,7 @@ struct PinnedStyleKey: View {
                     Capsule().fill(answer ? Self.answerFill : Self.rewriteFill)
                 }
             }
-            .runningShadow(running, answer: answer)
+            .runningShadow(running, answer: answer, room: KeyboardMetrics.chipRoom)
         }
     }
 
