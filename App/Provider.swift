@@ -5,6 +5,11 @@ import StoreKit
 
 /// 首页「接口」小卡上的服务商名字：认得出的写服务商，自定义的写地址里的主机名。
 enum ProviderName {
+    /// 带上模型时：这一组地址和模型存过预设，就写预设的名字。
+    static func of(_ baseURL: String, model: String) -> String {
+        SavedAPIStore.name(baseURL: baseURL, model: model) ?? of(baseURL)
+    }
+
     static func of(_ baseURL: String) -> String {
         let provider = Provider.detect(baseURL)
         guard provider == .custom else { return provider.title }

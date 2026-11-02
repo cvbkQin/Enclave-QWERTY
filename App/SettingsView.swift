@@ -408,7 +408,7 @@ struct ModelSettingsView: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 // 服务商和模型一行放得下就一行（AC1），窄屏（SE）放不下时模型换到下一行，不截断。
-                let name = Text(configured ? ProviderName.of(url) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
+                let name = Text(configured ? ProviderName.of(url, model: modelName) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
                     .font(.system(size: 20, weight: .bold))
                 let modelText = Text(modelName).font(.system(size: 14)).foregroundStyle(.secondary)
                 ViewThatFits(in: .horizontal) {

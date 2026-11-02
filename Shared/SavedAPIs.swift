@@ -52,6 +52,16 @@ enum SavedAPIStore {
         if let data = try? JSONEncoder().encode(list) { SharedStorage.defaults.set(data, forKey: key) }
     }
 
+    /// 现在用的地址和模型存过预设的话，显示预设的名字（App 的 AI 页、首页、键盘出错卡等）。不比 Key：键盘里只要名字。
+    static func name(baseURL: String, model: String) -> String? {
+        let url = normalized(baseURL)
+        let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty, !model.isEmpty else { return nil }
+        let name = all.first { normalized($0.baseURL) == url && $0.model == model }?.name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return name?.isEmpty == false ? name : nil
+    }
+
     static func normalized(_ url: String) -> String {
         var text = url.trimmingCharacters(in: .whitespacesAndNewlines)
         while text.hasSuffix("/") { text.removeLast() }

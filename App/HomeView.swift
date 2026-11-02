@@ -173,12 +173,12 @@ private struct Dashboard: View {
                     Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 6) {
                         GridRow {
                             Text(L("润色", "Polish", "整える")).font(.system(size: 15, weight: .semibold))
-                            apiLine(ProviderName.of(store.settings.baseURL), polishDetail)
+                            apiLine(ProviderName.of(store.settings.baseURL, model: store.settings.model), polishDetail)
                         }
                         GridRow {
                             Text(L("问答", "Q&A", "質問")).font(.system(size: 15, weight: .semibold))
                             if store.settings.usesAnswerEndpoint {
-                                apiLine(ProviderName.of(store.settings.answerBaseURL), answerDetail)
+                                apiLine(ProviderName.of(store.settings.answerBaseURL, model: store.settings.answerModel), answerDetail)
                             } else {
                                 Text(L("和润色用同一个", "Same as Polish", "整えると同じ"))
                                     .font(.system(size: 15)).foregroundStyle(.secondary).lineLimit(1)

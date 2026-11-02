@@ -417,6 +417,7 @@ extension EnclaveSettings {
 extension EnclaveSettings {
     /// 键盘出错卡里写的服务商名字：认得出的写服务商，自定义的写主机名。
     var providerName: String {
+        if let saved = SavedAPIStore.name(baseURL: baseURL, model: model) { return saved }
         let base = baseURL.lowercased()
         if base.contains("api.deepseek.com") { return "DeepSeek" }
         if base.contains("moonshot.") { return "Kimi" }

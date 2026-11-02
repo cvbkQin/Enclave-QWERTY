@@ -193,7 +193,7 @@ struct AIView: View {
     /// 标题上的灰字：「润色 DeepSeek · 问答 Kimi」，同一个接口时「润色、问答都用 DeepSeek」。
     private var caption: String {
         guard store.settings.isConfigured else { return L("还没有配置接口", "No API set up yet", "API はまだ設定されていません") }
-        let main = ProviderName.of(store.settings.baseURL)
+        let main = ProviderName.of(store.settings.baseURL, model: store.settings.model)
         // 问答单独配、但还没配好：别写成「都用」。
         if store.settings.separateAnswer && !store.settings.usesAnswerEndpoint {
             return L("润色 \(main) · 问答未配置", "Polish \(main) · Q&A not set up", "整える \(main)・質問は未設定")
@@ -201,7 +201,7 @@ struct AIView: View {
         guard store.settings.usesAnswerEndpoint else {
             return L("润色、问答都用 \(main)", "Polish & Q&A: \(main)", "整える・質問とも \(main)")
         }
-        let ask = ProviderName.of(store.settings.answerBaseURL)
+        let ask = ProviderName.of(store.settings.answerBaseURL, model: store.settings.answerModel)
         return L("润色 \(main) · 问答 \(ask)", "Polish \(main) · Q&A \(ask)", "整える \(main)・質問 \(ask)")
     }
 
@@ -232,7 +232,7 @@ struct AIView: View {
                 .foregroundStyle(status.color)
             }
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(configured ? ProviderName.of(baseURL) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
+                Text(configured ? ProviderName.of(baseURL, model: model) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
                     .font(.system(size: 26, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
                     .foregroundStyle(configured ? Color.primary : Color.secondary)
                 if configured {
@@ -442,7 +442,7 @@ struct AIView: View {
 
     private func webSearchFooter(_ provider: SearchProvider?) -> String {
         guard let provider else {
-            let name = ProviderName.of(store.settings.forAnswers.baseURL)
+            let name = ProviderName.of(store.settings.forAnswers.baseURL, model: store.settings.forAnswers.model)
             return L("\(name) 不能联网，问答只用模型自己的知识。想联网，请选通义千问、Kimi、智谱 GLM 或腾讯混元。", "\(name) can't search the web, so answers use only the model's own knowledge. To search, choose Qwen, Kimi, Zhipu GLM or Tencent Hunyuan.", "\(name) はウェブ検索できないため、回答はモデル自身の知識だけを使います。検索するには Qwen・Kimi・Zhipu GLM・Tencent Hunyuan を選んでください。")
         }
         let lead = L("只对问答有效。", "Q&A only. ", "質問だけに使います。")
