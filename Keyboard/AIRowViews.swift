@@ -32,6 +32,13 @@ struct StyleKey: View {
                           fx: fx, failed: failed, faded: !answer && (model.aiBlocked || model.aiQuotaUsed))
             }
             .overlay {
+                // 执行中文字周围闪 7 颗小星（对齐清单第 63 条）；减弱动态效果、关了发光动画时不放。
+                if fullMotion {
+                    KeySparkles(running: running, successAt: success, textX: layout.textX, textWidth: layout.textWidth,
+                                seed: answer ? 2 : 1)
+                }
+            }
+            .overlay {
                 if open { Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5) }
             }
             .opacity(locked ? 0.45 : 1)
@@ -239,6 +246,13 @@ struct PinnedStyleKey: View {
         KeySuccessClock(since: running ? nil : success, reduced: !glowing) { fx in
             face(running: running, glowing: glowing, fx: fx, failed: failed)
         }
+        .overlay {
+            // 执行中名字周围闪 7 颗小星（对齐清单第 63 条）：名字从左内边 12 + 图标 16 + 间距 4 开始。
+            if glowing {
+                KeySparkles(running: running, successAt: success, textX: 32, textWidth: Self.textWidth(style.displayName),
+                            seed: 3 + abs(style.id.uuidString.hashValue % 61))
+            }
+        }
         .opacity(locked ? 0.45 : 1)
         .modifier(EmptyTapShake(trigger: model.keyShakes[key] ?? 0))
         .contentShape(Capsule())
@@ -263,8 +277,7 @@ struct PinnedStyleKey: View {
     private func face(running: Bool, glowing: Bool, fx: KeySuccessFrame?, failed: Bool) -> some View {
         let animating = running || fx?.logoAnimating == true
         let bounce = fx?.logoScale ?? 1
-        let textWidth = ceil((style.displayName as NSString)
-            .size(withAttributes: [.font: UIFont.systemFont(ofSize: 14.5, weight: .semibold)]).width)
+        let textWidth = Self.textWidth(style.displayName)
         return HStack(spacing: 4) {
             Group {
                 if failed {
@@ -309,6 +322,11 @@ struct PinnedStyleKey: View {
             }
             .runningShadow(running, answer: answer, room: KeyboardMetrics.chipRoom)
         }
+    }
+
+    /// 名字的宽（14.5pt 600）。
+    static func textWidth(_ name: String) -> CGFloat {
+        ceil((name as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 14.5, weight: .semibold)]).width)
     }
 
     private static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {

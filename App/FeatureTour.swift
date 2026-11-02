@@ -2032,6 +2032,11 @@ private struct TourKeyboard: View {
             }
             .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()).runningShadow(running, answer: answer))
         }
+        .overlay {
+            if !reduceMotion {
+                KeySparkles(running: running, successAt: done, textX: 29, textWidth: textWidth, seed: answer ? 2 : 1)
+            }
+        }
         .fixedSize()
         .background(GeometryReader { geo in
             Color.clear.preference(key: TourKeyFramesKey.self, value: [answer: geo.frame(in: .named("tourKeyboard"))])
@@ -2058,6 +2063,11 @@ private struct TourKeyboard: View {
                 if let fx { KeySuccessOverlay(frame: fx, checkCenter: CGPoint(x: 31 + textWidth / 2, y: 17)) }
             }
             .background(Capsule().fill(TourColor.pillOn).runningShadow(model.pinRunning, answer: false))
+        }
+        .overlay {
+            if !reduceMotion {
+                KeySparkles(running: model.pinRunning, successAt: model.pinRunning ? nil : model.pinDone, textX: 31, textWidth: textWidth, seed: 3)
+            }
         }
         .tourPress(.pinned, model: model)
     }

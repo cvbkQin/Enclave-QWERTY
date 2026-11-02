@@ -196,3 +196,118 @@ enum AIKeyFX {
                                                   Color(red: 0xDC / 255, green: 0x26 / 255, blue: 0x26 / 255)],
                                          startPoint: .topLeading, endPoint: .bottomTrailing)
 }
+
+// MARK: - 执行中文字周围的星光（对齐清单第 63 条）
+
+/// 执行中围着键上文字闪的 7 颗小四角星（照样片源文件 ps3.html 的 sparks()）。
+/// 每颗周期 650–1300ms 各不相同，周期里大小 0 → 最大 → 0、透明 0 → 90% → 0，带同色微光，每个周期换一个随机位置；
+/// 约 60% 淡黄 #FDE68A，其余白色。5 颗在文字外沿（上沿、下沿、左沿），2 颗在文字里面；右边（文字和 ⌄ 之间）和 logo 上不放。
+/// 开始执行时 250ms 淡入；成功时 300ms 淡出（之后才是闪光、绿勾、扫光）；失败、停止直接消失。减弱动态效果不显示（调用方不放这一层）。
+struct KeySparkles: View {
+    var running: Bool
+    /// 成功那一刻：从这里淡出 300ms。
+    var successAt: Date?
+    /// 文字那块在键里的左边和宽（键自己的坐标）。
+    var textX: CGFloat
+    var textWidth: CGFloat
+    /// 润色键 1、问答键 2、固定键各自一个，让相邻两颗键闪的位置不一样。
+    var seed: Int
+    @State private var start = Date()
+
+    static let yellow = Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255)
+
+    var body: some View {
+        GeometryReader { geo in
+            if running || fading {
+                TimelineView(.animation) { context in
+                    stars(at: context.date, height: geo.size.height)
+                }
+            }
+        }
+        .clipShape(Capsule())
+        .allowsHitTesting(false)
+        .onAppear { if running { start = Date() } }
+        .onChange(of: running) { if $0 { start = Date() } }
+    }
+
+    private var fading: Bool {
+        guard let successAt else { return false }
+        return Date().timeIntervalSince(successAt) < 0.3
+    }
+
+    /// 和样片一样的伪随机：同一组输入总给同一个 0…1。
+    static func hash(_ a: Double, _ b: Double) -> Double {
+        let x = sin(a * 127.1 + b * 311.7) * 43758.5453
+        return x - floor(x)
+    }
+
+    /// 整体透明度：执行中 250ms 淡入；成功后 300ms 淡出。
+    private func level(_ now: Date) -> Double {
+        if running { return min(max(now.timeIntervalSince(start) / 0.25, 0), 1) }
+        guard let successAt else { return 0 }
+        return 1 - min(max(now.timeIntervalSince(successAt) / 0.3, 0), 1)
+    }
+
+    private struct Spark {
+        var point: CGPoint
+        var radius: CGFloat
+        var alpha: Double
+        var yellow: Bool
+    }
+
+    /// 这一刻 7 颗星各自在哪、多大、多亮。
+    private func sparks(at now: Date, height: CGFloat) -> [Spark] {
+        let level = level(now)
+        let u = now.timeIntervalSince(start) * 1000
+        let seed = Double(seed)
+        let tx = Double(textX), tw = Double(textWidth)
+        // 样片的键高 34：上沿 y 5、下沿 y 29、里面 12…23、左沿 8…26，按实际高度换算。
+        let ky = Double(height) / 34
+        return (0..<7).map { index in
+            let i = Double(index)
+            let period = 650 + Self.hash(i, seed) * 650
+            let t = u + Self.hash(seed, i) * period
+            let k = floor(t / period)
+            let f = t.truncatingRemainder(dividingBy: period) / period
+            let h1 = Self.hash(i * 7 + seed, k), h2 = Self.hash(k, i * 3 + seed), h3 = Self.hash(i + seed * 5, k * 2 + 1)
+            let jitter = (h3 - 0.5) * 3
+            var x: Double, y: Double
+            if index < 2 {
+                x = tx + 3 + h1 * max(tw - 8, 4)
+                y = 12 + h2 * 11
+            } else if h2 < 0.4 {
+                x = tx - 1 + h1 * (tw - 1)
+                y = 5 + jitter
+            } else if h2 < 0.8 {
+                x = tx - 1 + h1 * (tw - 1)
+                y = 29 + jitter
+            } else {
+                x = tx - 2 + jitter * 0.6
+                y = 8 + h1 * 18
+            }
+            let wave = sin(.pi * f)
+            let radius = (1 + Self.hash(i, k + seed) * 1.3) * pow(wave, 1.2)
+            return Spark(point: CGPoint(x: x, y: y * ky), radius: CGFloat(radius),
+                         alpha: pow(wave, 1.5) * level, yellow: Self.hash(k, i) < 0.6)
+        }
+    }
+
+    private func stars(at now: Date, height: CGFloat) -> some View {
+        let list = sparks(at: now, height: height)
+        return ZStack(alignment: .topLeading) {
+            ForEach(list.indices, id: \.self) { index in
+                let spark = list[index]
+                if spark.radius > 0.2 {
+                    let color = spark.yellow ? Self.yellow : Color.white
+                    FourPointStar()
+                        .fill(color)
+                        .frame(width: spark.radius * 2, height: spark.radius * 2)
+                        .shadow(color: color.opacity(spark.alpha), radius: 1.25 * spark.alpha)
+                        .opacity(0.9 * spark.alpha)
+                        .position(spark.point)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
