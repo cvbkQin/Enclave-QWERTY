@@ -1293,6 +1293,13 @@ extension KeyboardModel {
         }
         if options.contains("candidates") && !candidates.isEmpty { candidatesExpanded = true }
         #if DEBUG
+        // 「常用 / 剪贴板」面板（第 62 条）：quickWords:title / content 换显示方式，quickWords:0.33 定比例（0、1 收成竖条）。
+        for option in options where option.hasPrefix("quickWords:") {
+            let value = String(option.dropFirst("quickWords:".count))
+            if keysPanel != .quickWords { openQuickPanel() }
+            if let display = PhraseDisplay(rawValue: value) { phraseDisplay = display }
+            if let split = Double(value) { quickSplit = QuickSplit.stored(split) }
+        }
         // cross:1:right 按住「,｡?!」往右滑；cross:3:up 按住 DEF 往上滑。
         for option in options where option.hasPrefix("cross:") {
             let parts = option.split(separator: ":").map(String.init)

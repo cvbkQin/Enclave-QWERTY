@@ -38,6 +38,14 @@ struct EnclaveApp: App {
         if let index = args.firstIndex(of: "-keyboardWords"), args.indices.contains(index + 1) {
             CommonWordStore.keyboardTexts = args[index + 1].split(separator: ",").map(String.init)
         }
+        // -keyboardPhrases "公司地址|北京市海淀区中关村大街 1 号|gsdz;好的" 写进键盘常用语（标题|内容|简码，分号隔开）。
+        if let index = args.firstIndex(of: "-keyboardPhrases"), args.indices.contains(index + 1) {
+            CommonWordStore.keyboardPhrases = args[index + 1].split(separator: ";").map { item in
+                let parts = item.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                if parts.count == 1 { return KeyboardPhrase(text: parts[0]) }
+                return KeyboardPhrase(title: parts[0], text: parts[1], shortcut: parts.count > 2 ? parts[2] : "")
+            }
+        }
         #endif
     }
 
