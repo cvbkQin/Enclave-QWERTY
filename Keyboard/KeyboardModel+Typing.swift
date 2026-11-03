@@ -455,6 +455,11 @@ extension KeyboardModel {
         if KeyboardDebug.options.contains("send") { returnKey = .send }
         #endif
         if hasText != hostHasText { hostHasText = hasText }
+        // 换了输入框、挪了光标：光标前已经不是刚上屏的那个词，联想就不带过去（不然新框里第一下删除只是收起联想，看着像删不动）。
+        if chineseMode, showsPredictions, target == .host, !lastHostCommit.isEmpty,
+           let before = proxy?.documentContextBeforeInput, !before.hasSuffix(lastHostCommit) {
+            dismissPredictions()
+        }
         if returnKey != hostReturnKey { hostReturnKey = returnKey }
         let keyboardType = proxy?.keyboardType ?? .default
         if keyboardType != hostKeyboardType {
@@ -1125,6 +1130,7 @@ extension KeyboardModel {
         recentCorrection = nil
         switch target {
         case .host:
+            lastHostCommit = text
             // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
             // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下（「hao de好的」）；
             // 非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
