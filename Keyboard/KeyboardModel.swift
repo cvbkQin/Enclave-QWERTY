@@ -980,7 +980,7 @@ final class KeyboardModel: ObservableObject {
                     let results: String
                     let searchStarted = Date()
                     do {
-                        results = WebSearch.digest(try await search.search(ask.question))
+                        results = WebSearch.digest(try await search.search(WebSearch.query(for: ask.question)))
                     } catch {
                         if Task.isCancelled { throw error }
                         results = ""
