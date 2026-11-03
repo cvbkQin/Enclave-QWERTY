@@ -429,13 +429,16 @@ struct ConfigEditor: View {
                         .autocorrectionDisabled()
                         .keyboardType(.asciiCapable)
                         .focused($keyFocused)
-                        .opacity(keyFocused || apiKey.isEmpty ? 1 : 0)
+                        // 完全透明的视图收不到点击：留 0.01，盖着的掩码字本身也能点进编辑。
+                        .opacity(keyFocused || apiKey.isEmpty ? 1 : 0.01)
                     if !keyFocused, !apiKey.isEmpty {
                         Text(Self.masked(apiKey))
                             .font(.system(size: 15, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .allowsHitTesting(false)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .contentShape(Rectangle())
+                            .onTapGesture { keyFocused = true }
                     }
                 }
                 if apiKey.isEmpty {
