@@ -742,6 +742,8 @@ extension KeyboardModel {
 
     /// 点了纠正读法：按改过的串重输，候选换成按它出（九宫格记一步，按删除能退回）。
     func chooseCorrectedReading(_ reading: String) {
+        // 和点候选一样：轻触震动和按键音（设置里开着才有）。
+        keyFeedback(for: .space)
         applyEngineResults(wait: true)
         let before = choiceState
         engine.replaceInput(reading, keeping: [])
@@ -751,6 +753,8 @@ extension KeyboardModel {
 
     /// 全键盘点了一种切法：按这种切法重输。
     func chooseSegmentation(_ segmentation: String) {
+        // 和点候选一样：轻触震动和按键音（设置里开着才有）。
+        keyFeedback(for: .space)
         applyEngineResults(wait: true)
         engine.replaceInput(segmentation, keeping: [])
         syncEngine()
@@ -774,6 +778,8 @@ extension KeyboardModel {
 
     /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼；分段选过的词重输后选回来。
     func choosePinyin(_ syllable: String) {
+        // 和点候选一样：轻触震动和按键音（设置里开着才有）。
+        keyFeedback(for: .space)
         // 拼音栏按的是已经算完的输入，后面还排着的数字先算完再拆。
         applyEngineResults(wait: true)
         let kept = engine.selections
@@ -842,6 +848,8 @@ extension KeyboardModel {
 
     /// 拼音栏顶上点已选的词：取消最后选的那个词（选过的拼音留着）。
     func unselectLastWord() {
+        // 和点候选一样：轻触震动和按键音（设置里开着才有）。
+        keyFeedback(for: .space)
         applyEngineResults(wait: true)
         let selections = engine.selections
         guard !selections.isEmpty else { return }
