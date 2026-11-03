@@ -1148,9 +1148,14 @@ extension KeyboardModel {
         if candidatesChanged { candidates = newCandidates }
         if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
-        if target == .host && isComposing {
+        if target == .host && isComposing && inlinePinyinOff {
+            // 输入框不认标记文字：拼音只在键盘上显示，不往输入框里写。
+        } else if target == .host && isComposing {
+            let previous = hasMarkedText ? lastMarkedText : ""
             editProxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
             hasMarkedText = true
+            lastMarkedText = composition
+            if !previous.isEmpty, previous != composition { checkMarkedTextReplaced(previous: previous, current: composition) }
         } else {
             clearMarkedText()
         }
@@ -1163,7 +1168,31 @@ extension KeyboardModel {
         }
     }
 
+    /// 换拼音以后看一眼输入框：正常的输入框里光标前是「…现在的拼音」；不认标记文字的输入框（亚朵）
+    /// 会把上一次的拼音当正文留下、再插一遍新的，光标前变成「…上一次的拼音 + 现在的拼音」。
+    /// 发现了就把这两段都删掉，这个输入框里改成只在键盘上显示拼音。对方输入框更新有时慢一拍，所以稍等再看。
+    func checkMarkedTextReplaced(previous: String, current: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            guard let self, !self.inlinePinyinOff, self.hasMarkedText, self.target == .host,
+                  self.lastMarkedText == current else { return }
+            let before = self.proxy?.documentContextBeforeInput ?? ""
+            guard Self.markedTextWasKept(before: before, previous: previous, current: current) else { return }
+            self.inlinePinyinOff = true
+            self.editProxy?.unmarkText()
+            self.hasMarkedText = false
+            self.lastMarkedText = ""
+            for _ in 0..<(previous.count + current.count) { self.editProxy?.deleteBackward() }
+        }
+    }
+
+    /// 光标前是不是「上一次的拼音 + 现在的拼音」（上一次的没被换掉）。纯函数，单元测试用。
+    static func markedTextWasKept(before: String, previous: String, current: String) -> Bool {
+        guard !previous.isEmpty, !current.isEmpty, previous != current else { return false }
+        return before.hasSuffix(previous + current)
+    }
+
     func clearMarkedText() {
+        lastMarkedText = ""
         guard hasMarkedText else { return }
         editProxy?.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
         editProxy?.unmarkText()

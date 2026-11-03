@@ -234,6 +234,11 @@ final class KeyboardModel: ObservableObject {
     var hostKeyboardType: UIKeyboardType?
     /// 输入框里是否有带下划线的拼音（marked text）。
     var hasMarkedText = false
+    /// 上一次放进输入框的标记文字（拼音），用来看输入框有没有把它换掉。
+    var lastMarkedText = ""
+    /// 这个输入框不认标记文字（亚朵 App 的姓名框：每次更新拼音都当正文插进去，越打越长）：
+    /// 发现后删掉多出来的字母，之后拼音只在键盘上显示，选好字再上屏。键盘每次弹出时重置。
+    @Published var inlinePinyinOff = false
     var lastSpaceTime = Date.distantPast
     var lastPunctuationTap = Date.distantPast
     lazy var haptic = UIImpactFeedbackGenerator(style: .light)
