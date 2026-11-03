@@ -432,9 +432,11 @@ extension EnclaveSettings {
     /// 连的是 Kimi（api.moonshot.cn / .ai）。
     var isKimi: Bool { baseURL.contains("moonshot.") }
     /// 这个接口能联网的话是哪一家：Kimi、千问（阿里云百炼）、智谱。别的服务商没有可用的联网接口，返回 nil。
-    var searchProvider: SearchProvider? {
-        if isKimi { return .kimi }
-        if Self.isQwen(baseURL) { return .qwen }
+    var searchProvider: SearchProvider? { Self.searchProvider(baseURL: baseURL) }
+
+    static func searchProvider(baseURL: String) -> SearchProvider? {
+        if baseURL.contains("moonshot.") { return .kimi }
+        if isQwen(baseURL) { return .qwen }
         if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
         if baseURL.contains("tokenhub.tencentmaas.com") { return .hunyuan }
         return nil

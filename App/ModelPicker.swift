@@ -5,6 +5,7 @@ import SwiftUI
 /// 宽 300、圆角 14、阴影。顶行灰字「api.deepseek.com · 共 4 个」+「↻ 重新获取」；每行等宽字体模型名，
 /// 当前的打 ✓ 加粗，「推荐」绿标签、「深度思考 · 较慢」橙标签（问答页不标）；隔一道灰缝，最后一行「✎ 手动输入模型名」。
 /// 转圈、失败、空列表都在下拉里同一个位置。点一个即填入并收起，不自动测试。
+/// 筛选（MF）：非对话模型藏到最底下一行「另有 N 个非对话模型 · 显示」后面；问答页、千问或混元时只列能联网的模型。
 struct ModelDropdown: View {
     let baseURL: String
     let apiKey: String
@@ -24,11 +25,35 @@ struct ModelDropdown: View {
     private var host: String { URL(string: baseURL.trimmingCharacters(in: .whitespaces))?.host ?? baseURL }
     private var recommended: String? { answer ? provider.answerPreset?.model : provider.preset?.model }
 
-    private var shown: [String] {
-        let all = ModelList.ordered(models ?? [], current: current)
-        let q = query.trimmingCharacters(in: .whitespaces)
-        return q.isEmpty ? all : all.filter { $0.localizedCaseInsensitiveContains(q) }
+    @State private var showsNonChat = false
+
+    private var searchProvider: SearchProvider? { EnclaveSettings.searchProvider(baseURL: baseURL) }
+    /// 从问答页进来、服务商是千问或混元：只列能联网的模型（MF3、MF4），不再列非对话模型。
+    private var filtersOnline: Bool { answer && ModelList.filtersForWebSearch(searchProvider) }
+
+    /// 对话模型（非对话模型都藏起来，MF1）。
+    private var chatModels: [String] {
+        (models ?? []).filter { ModelList.nonChatKind($0) == nil }
     }
+
+    /// 主列表：对话模型；问答页按联网过滤。当前模型排第一。
+    private var mainModels: [String] {
+        let chat = chatModels
+        let list = filtersOnline ? chat.filter { ModelList.supportsWebSearch($0, provider: searchProvider) } : chat
+        return ModelList.ordered(list, current: current)
+    }
+
+    /// 非对话模型（MF2，灰着列出、不能选）。问答页按联网过滤时不列。
+    private var nonChatModels: [String] {
+        filtersOnline ? [] : (models ?? []).filter { ModelList.nonChatKind($0) != nil }
+    }
+
+    private func matching(_ list: [String]) -> [String] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        return q.isEmpty ? list : list.filter { $0.localizedCaseInsensitiveContains(q) }
+    }
+
+    private var shown: [String] { matching(mainModels) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -70,8 +95,19 @@ struct ModelDropdown: View {
         .frame(height: 34)
     }
 
+    /// 顶行灰字：「dashscope · 38 个对话模型」；问答页按联网过滤时「共 128 个 · 已隐藏 119 个不能联网的」。
     private var subtitle: String {
         guard let models else { return host }
+        if filtersOnline {
+            let hidden = models.count - mainModels.count
+            let total = L("共 \(models.count) 个", "\(models.count) models", "全 \(models.count) 件")
+            guard hidden > 0 else { return total }
+            return total + " · " + L("已隐藏 \(hidden) 个不能联网的", "\(hidden) without web search hidden", "Web 検索非対応の \(hidden) 件を非表示")
+        }
+        let chat = chatModels.count
+        if chat < models.count {
+            return host + " · " + L("\(chat) 个对话模型", "\(chat) chat models", "チャットモデル \(chat) 件")
+        }
         return host + " · " + L("共 \(models.count) 个", "\(models.count) models", "\(models.count) 件")
     }
 
@@ -80,7 +116,7 @@ struct ModelDropdown: View {
         if let failure {
             failureView(failure.message, retry: failure != .unsupported)
         } else if let models {
-            if models.isEmpty {
+            if models.isEmpty || (mainModels.isEmpty && nonChatModels.isEmpty) {
                 failureView(L("服务商返回的列表是空的。", "The provider returned an empty list.", "サービスから空の一覧が返されました。"), retry: true)
             } else {
                 list
@@ -97,7 +133,7 @@ struct ModelDropdown: View {
     /// 超过 8 个先给一行搜索；最多露出约 6 行，多了在框里滑。
     private var list: some View {
         VStack(spacing: 0) {
-            if (models?.count ?? 0) > 8 {
+            if mainModels.count > 8 {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(.secondary)
                     TextField(L("搜索模型", "Search models", "モデルを検索"), text: $query)
@@ -111,6 +147,7 @@ struct ModelDropdown: View {
                 .padding(.horizontal, 10)
                 .padding(.bottom, 6)
             }
+            let others = matching(nonChatModels)
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(shown, id: \.self) { model in
@@ -118,10 +155,73 @@ struct ModelDropdown: View {
                             .buttonStyle(.borderless)
                         if model != shown.last { Divider().padding(.leading, 38) }
                     }
+                    if filtersOnline {
+                        // MF3、MF4：要别的模型走手动输入。
+                        note(L("想用别的模型？点下面「手动输入模型名」", "Want another model? Tap “Type a model name” below.", "ほかのモデルは下の「モデル名を手入力」から"))
+                    } else if !others.isEmpty {
+                        nonChatSection(others)
+                    }
                 }
             }
-            .frame(maxHeight: min(CGFloat(shown.count), 6) * 44)
+            .frame(maxHeight: min(CGFloat(shown.count + extraRows(others)), 6) * 44)
         }
+    }
+
+    private func extraRows(_ others: [String]) -> Int {
+        if filtersOnline { return 1 }
+        if others.isEmpty { return 0 }
+        return showsNonChat ? others.count + 1 : 1
+    }
+
+    /// 主列表最底下「另有 N 个非对话模型 · 显示」；点开后一组灰着列出、右边写类型，不能选，行头「收起」（MF2）。
+    @ViewBuilder
+    private func nonChatSection(_ others: [String]) -> some View {
+        if showsNonChat {
+            Rectangle().fill(Color(.systemGroupedBackground)).frame(height: 6)
+            HStack(spacing: 6) {
+                Text(L("另有 \(others.count) 个非对话模型 · 不能用来\(answer ? "问答" : "润色")",
+                       "\(others.count) non-chat models · can't be used for \(answer ? "answers" : "rewriting")",
+                       "チャット以外のモデル \(others.count) 件・\(answer ? "質問" : "書き直し")には使えません"))
+                    .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                Spacer(minLength: 6)
+                Button { showsNonChat = false } label: {
+                    Text(L("收起", "Hide", "閉じる")).font(.system(size: 12, weight: .semibold)).foregroundStyle(DashColor.ai)
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding(.horizontal, 14)
+            .frame(minHeight: 34)
+            ForEach(others, id: \.self) { model in
+                HStack(spacing: 8) {
+                    Text(model)
+                        .font(.system(size: 14.5, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 6)
+                    Text(ModelList.nonChatKind(model) ?? "").font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+                .padding(.leading, 38)
+                .padding(.trailing, 14)
+                .frame(minHeight: 44)
+                .opacity(0.45)
+                .accessibilityElement(children: .combine)
+                if model != others.last { Divider().padding(.leading, 38) }
+            }
+        } else {
+            Button { showsNonChat = true } label: {
+                note(L("另有 \(others.count) 个非对话模型 · 显示", "\(others.count) non-chat models · Show", "チャット以外のモデル \(others.count) 件・表示"))
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private func note(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12.5))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.horizontal, 14)
+            .contentShape(Rectangle())
     }
 
     private func row(_ model: String) -> some View {
