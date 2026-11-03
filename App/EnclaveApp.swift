@@ -635,30 +635,34 @@ final class AppStore: ObservableObject {
         let client = LLMClient(settings: settings, apiKey: apiKey)
         var raw = ""
         var failure: String?
+        let result: TestState
+        var reason: TestFailure?
         do {
             for try await piece in client.stream([.user("只回复两个字：你好")], retries: 0) {
                 raw += piece
             }
             if ModelOutput.clean(raw).isEmpty { failure = UsageStats.Request.Failure.empty }
             let reply = ModelOutput.clean(raw)
-            test = reply.isEmpty ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
+            result = reply.isEmpty ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success(String(reply.prefix(40)), Date().timeIntervalSince(start))
         } catch {
             failure = UsageStats.Request.Failure.of(error)
-            test = .failure(Self.testFailureText(error, failure))
+            result = .failure(Self.testFailureText(error, failure))
             switch error {
-            case LLMError.http(let code, _) where code == 401 || code == 403: testFailure = .unauthorized
-            case LLMError.http(402, _): testFailure = .noBalance
-            case LLMError.timeout: testFailure = .network
-            case is URLError: testFailure = .network
-            default: testFailure = .other
+            case LLMError.http(let code, _) where code == 401 || code == 403: reason = .unauthorized
+            case LLMError.http(402, _): reason = .noBalance
+            case LLMError.timeout: reason = .network
+            case is URLError: reason = .network
+            default: reason = .other
             }
         }
         var ok = false
-        if case .success = test { ok = true }
+        if case .success = result { ok = true }
         SharedStorage.defaults.set(ok, forKey: testKey)
-        if ok { await checkModelListed(answer: false) }
-        // 测试也算一次请求，润色卡的最近 20 次里有它。
+        // 测试也算一次请求，润色卡的最近 20 次里有它；先记再改状态，接口卡收到变化时就能读到这一次。
         UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.model, error: failure, test: true)
+        testFailure = reason
+        test = result
+        if ok { await checkModelListed(answer: false) }
     }
 }
