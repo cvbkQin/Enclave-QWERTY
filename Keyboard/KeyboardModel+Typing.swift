@@ -464,8 +464,17 @@ extension KeyboardModel {
     }
 
     /// 数字、电话、金额输入框直接出数字键盘；数字和标点框出数字符号页；其他输入框回到字母（正在组字时不动）。
+    /// 邮箱、网址框像系统键盘一样直接用英文；离开这类框回到别的框时，再切回中文（用户在框里自己切过就不管）。
     private func applyLayer(for keyboardType: UIKeyboardType) {
         guard target == .host, !isComposing else { return }
+        let englishField = keyboardType == .emailAddress || keyboardType == .URL
+        if englishField, chineseMode {
+            toggleChinese()
+            autoEnglishField = true
+        } else if !englishField, autoEnglishField {
+            autoEnglishField = false
+            if !chineseMode { toggleChinese() }
+        }
         switch keyboardType {
         case .numberPad, .phonePad, .decimalPad, .asciiCapableNumberPad:
             if layer != .digits { switchLayer(.digits) }
@@ -544,6 +553,8 @@ extension KeyboardModel {
     func toggleChinese() {
         // 只用英文时没有中文；九宫格布局菜单之类的入口也不切过去。
         if !chineseMode && settings.inputLanguage == .englishOnly { return }
+        // 在邮箱框里自己切了中英：之后按用户的来，不再自动切回。
+        autoEnglishField = false
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         chineseMode.toggle()
@@ -1206,7 +1217,9 @@ extension KeyboardModel {
         let trimmed = before.trimmingCharacters(in: .whitespaces)
         let sentenceStart = trimmed.isEmpty || before.hasSuffix("\n")
             || (before.hasSuffix(" ") && [".", "?", "!"].contains(trimmed.last.map(String.init) ?? ""))
-        let wanted: ShiftState = sentenceStart ? .on : .off
+        // 邮箱、网址、用户名这类输入框说了不要自动大写（autocapitalizationType = .none）：照它的来。
+        let hostWantsNone = proxy?.autocapitalizationType == UITextAutocapitalizationType.none
+        let wanted: ShiftState = sentenceStart && !hostWantsNone ? .on : .off
         // 没变就不设（同 syncEngine），英文打字时每个键都会走到这里。
         if shift != wanted { shift = wanted }
     }
