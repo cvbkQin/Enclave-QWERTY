@@ -152,6 +152,9 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var unseenResult = false
     var showsNewResult: Bool { unseenResult && !aiExpanded && hasResult }
     @Published var composition = ""
+    /// 上次 syncEngine 时引擎的原始输入（不发布）。拼音栏的选项按它算：选了一个拼音而拼写栏、候选正好没变时，
+    /// 靠它变了来重画，不然拼音栏还停在上一个音节（选拼音「没反应」，再点就点到了后面那个音节上）。
+    var syncedRawInput = ""
     /// 打拼音时候选栏上面的拼音行有内容（PY7）。这一行一直占位，键盘高度不变。
     @Published var pinyinRowShown = false
     /// 拼音显示在侧边（F12）：九宫格打字时左列上三格是拼音列，全键盘候选栏最左边一颗拼音键；不留拼音行。

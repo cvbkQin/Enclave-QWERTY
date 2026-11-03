@@ -1129,7 +1129,8 @@ extension KeyboardModel {
         if !isComposing && !choiceSteps.isEmpty { choiceSteps = [] }
         // 没变的不设：@Published 设一次就让整个键盘重画一遍。
         let newComposition = engine.composition
-        if newComposition != composition { composition = newComposition }
+        let compositionChanged = newComposition != composition
+        if compositionChanged { composition = newComposition }
         // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
         let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
         if row != pinyinRowShown { pinyinRowShown = row }
@@ -1146,6 +1147,12 @@ extension KeyboardModel {
             clearMarkedText()
         }
         if candidatesChanged { forgetRejectedPick() }
+        let raw = engine.rawInput
+        if raw != syncedRawInput {
+            syncedRawInput = raw
+            // 拼写栏和候选都没变（选的拼音就是原来首选的读法）：拼音栏、侧边拼音照样要换成下一个音节的选项。
+            if !compositionChanged, !candidatesChanged { objectWillChange.send() }
+        }
     }
 
     func clearMarkedText() {
