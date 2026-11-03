@@ -413,6 +413,8 @@ struct ConfigEditor: View {
             HStack {
                 Text("API Key")
                 SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: $apiKey)
+                    // 不当成密码框：保存配置时系统不再弹「保存密码？」。
+                    .textContentType(.oneTimeCode)
                     .multilineTextAlignment(.trailing)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
