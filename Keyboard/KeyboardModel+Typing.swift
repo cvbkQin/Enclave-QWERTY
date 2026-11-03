@@ -1163,10 +1163,13 @@ extension KeyboardModel {
             // 输入框不认标记文字：拼音只在键盘上显示，不往输入框里写。
         } else if target == .host && isComposing {
             let previous = hasMarkedText ? lastMarkedText : ""
-            editProxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
+            // 九宫格：输入框里只写按了的键（一个键一个字母），不写首选补全出来的字母（按一下 4 显示 g，不是 gao），和系统九宫格一样。
+            let marked = showsNineKey ? Self.nineKeyTyped(composition: composition, raw: engine.rawInput,
+                                                           from: engine.selections.last?.end ?? 0) : composition
+            editProxy?.setMarkedText(marked, selectedRange: NSRange(location: (marked as NSString).length, length: 0))
             hasMarkedText = true
-            lastMarkedText = composition
-            if !previous.isEmpty, previous != composition { checkMarkedTextReplaced(previous: previous, current: composition) }
+            lastMarkedText = marked
+            if !previous.isEmpty, previous != marked { checkMarkedTextReplaced(previous: previous, current: marked) }
         } else {
             clearMarkedText()
         }
@@ -1194,6 +1197,50 @@ extension KeyboardModel {
             self.lastMarkedText = ""
             for _ in 0..<(previous.count + current.count) { self.editProxy?.deleteBackward() }
         }
+    }
+
+    /// 九宫格的拼写（首选词的整拼，比如按了 4 是「gao」）截成真正按了的键：每个数字键配一个字母，补全出来的字母不要。
+    /// 分段选过的字（汉字）原样留着，它们用掉的键从 from（最后一个分段的结束位置）往后算；选过的拼音（raw 里的字母）照抄。
+    /// 纯函数，单元测试用。
+    static func nineKeyTyped(composition: String, raw: String, from: Int) -> String {
+        let keys = Array(raw.lowercased())
+        var p = min(max(from, 0), keys.count)
+        var out = ""
+        func digit(of letter: Character) -> Character? {
+            switch letter {
+            case "a"..."c": return "2"
+            case "d"..."f": return "3"
+            case "g"..."i": return "4"
+            case "j"..."l": return "5"
+            case "m"..."o": return "6"
+            case "p"..."s": return "7"
+            case "t"..."v": return "8"
+            case "w"..."z": return "9"
+            default: return nil
+            }
+        }
+        for c in composition {
+            if c.isASCII, c.isLetter {
+                let lower = Character(c.lowercased())
+                guard p < keys.count else { continue }
+                if keys[p] == "'" { p += 1 }
+                guard p < keys.count else { continue }
+                if keys[p] == lower || (keys[p].isNumber && digit(of: lower) == keys[p]) {
+                    out.append(c)
+                    p += 1
+                }
+                // 不对上就是补全出来的字母：不写，等下一个音节。
+            } else if c == " " || c == "'" {
+                if p < keys.count, keys[p] == "'" { p += 1 }
+                if p < keys.count, let last = out.last, last != " ", last != "'" { out.append(c) }
+            } else {
+                out.append(c)
+            }
+        }
+        // 对不上的键（拼写和按键不一致，不该出现）：别把按了的吞掉，退回原来的拼写。
+        let typedLetters = keys[min(max(from, 0), keys.count)...].filter { $0 != "'" }.count
+        let shownLetters = out.filter { $0.isASCII && $0.isLetter }.count
+        return shownLetters == typedLetters ? out.trimmingCharacters(in: .whitespaces) : composition
     }
 
     /// 光标前是不是「上一次的拼音 + 现在的拼音」（上一次的没被换掉）。纯函数，单元测试用。
