@@ -7,6 +7,8 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var session: EditSession? { didSet { aiLabelMayChange() } }
     @Published private(set) var streamingText = ""
     @Published private(set) var isRunning = false { didSet { aiLabelMayChange(); markScreen() } }
+    /// 每开始一次生成加一：上一次的收尾只在它还是最新一次时才清「生成中」。
+    var runToken = 0
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
     /// 复制后卡片上的复制图标变紫，短暂显示「已复制」。
@@ -848,6 +850,8 @@ final class KeyboardModel: ObservableObject {
                                     styleName: ask == nil ? styleName : (answeredByAnswerAPI ? answerStyle?.displayName : nil),
                                     model: client.settings.model, error: error, webSearchMs: webSearchMs)
         }
+        runToken &+= 1
+        let token = runToken
         task = Task { [weak self] in
             var raw = ""
             var shownAt = Date.distantPast
@@ -974,6 +978,8 @@ final class KeyboardModel: ObservableObject {
                                            results: results.isEmpty ? L("（联网搜索失败或没有搜到，按已有知识回答，并说明可能不是最新信息。）", "(The web search failed or found nothing. Answer from what you know and say it may be out of date.)", "（検索に失敗したか結果がありません。手持ちの知識で答え、最新でない可能性を伝えてください。）") : results,
                                            answerStyle: answerStyle)
                 }
+                // 中途点了停止：流在取消时可能正常结束、不抛错，已出的半截不能当结果存进历史或替换输入框。
+                try Task.checkCancellation()
                 guard let self else { return }
                 let cleaned = ModelOutput.clean(raw)
                 let split = ask.map { Prompts.splitAsk(cleaned, final: true, fallback: $0.fallbackAnswer || answerLocked) } ?? nil
@@ -1052,12 +1058,15 @@ final class KeyboardModel: ObservableObject {
                     self.endQuickMode(.failed)
                 }
             }
-            self?.isRunning = false
-            self?.responseSlow = false
-            self?.runOrigin = nil
-            self?.askRunning = false
-            if self?.askSearching == true { self?.askSearching = false }
-            if self?.askKind != nil { self?.askKind = nil }
+            // 点了停止又马上开始了新的一次：这里是上一次的收尾，不能把新一次的「生成中」清掉
+            //（清掉的话再点键不是停止而是又生成一次，出两份结果）。
+            guard let self, self.runToken == token else { return }
+            self.isRunning = false
+            self.responseSlow = false
+            self.runOrigin = nil
+            self.askRunning = false
+            if self.askSearching { self.askSearching = false }
+            if self.askKind != nil { self.askKind = nil }
         }
     }
 
