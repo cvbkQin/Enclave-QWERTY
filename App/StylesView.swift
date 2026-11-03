@@ -546,7 +546,7 @@ struct AIView: View {
             if store.settings.answerEnabled {
                 Text(webSearchFooter(provider))
             } else {
-                Text(L("问答已关闭：下面的联网设置先不生效，打开后照旧。", "Q&A is off: these web settings don't apply until you turn it back on.", "質問はオフです。下のウェブ設定はオンに戻すまで効きません。"))
+                Text(L("问答已关闭：上面的联网设置先不生效，打开后照旧。", "Q&A is off: these web settings don't apply until you turn it back on.", "質問はオフです。下のウェブ設定はオンに戻すまで効きません。"))
             }
         }
         .id("webSearch")
@@ -1103,7 +1103,8 @@ struct SearchTendencyCard: View {
                 .opacity(active ? 1 : 0)
         )
         .padding(active ? -10 : 0)
-        .overlay(alignment: .top) { tipOverlay }
+        // 提示盖在下面的说明框上，不挡条和滑块。
+        .overlay(alignment: .bottom) { tipOverlay }
         .animation(.easeInOut(duration: 0.2), value: editing)
         .animation(.easeInOut(duration: 0.2), value: changed)
         .accessibilityElement(children: .contain)
@@ -1176,7 +1177,7 @@ struct SearchTendencyCard: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(Capsule().fill(fill))
-            .offset(y: 40)
+            .padding(.bottom, 12)
             .transition(.opacity)
             .allowsHitTesting(false)
     }

@@ -584,25 +584,27 @@ final class AppStore: ObservableObject {
         let client = LLMClient(settings: settings.forAnswers, apiKey: answerApiKey)
         var raw = ""
         var failure: String?
+        let result: TestState
         do {
             for try await piece in client.stream([.user("只回复两个字：你好")], retries: 0) { raw += piece }
             if ModelOutput.clean(raw).isEmpty { failure = UsageStats.Request.Failure.empty }
-            answerTest = ModelOutput.clean(raw).isEmpty
+            result = ModelOutput.clean(raw).isEmpty
                 ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success("", Date().timeIntervalSince(start))
         } catch {
             failure = UsageStats.Request.Failure.of(error)
-            answerTest = .failure(Self.testFailureText(error, failure))
+            result = .failure(Self.testFailureText(error, failure))
         }
         var ok = false
-        if case .success = answerTest { ok = true }
+        if case .success = result { ok = true }
         // 键盘按它决定显不显示问答键（QE）。
         let answerConfig = settings.forAnswers
         SharedStorage.defaults.set(ok, forKey: EnclaveSettings.testKey(baseURL: answerConfig.baseURL, model: answerConfig.model))
-        if ok { await checkModelListed(answer: true) }
-        // 问答卡的最近 20 次里有它。
+        // 问答卡的最近 20 次里有它；先记再改状态，接口卡收到变化时就能读到这一次。
         UsageStats.recordAnswerRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.forAnswers.model,
                                        error: failure, test: true)
+        answerTest = result
+        if ok { await checkModelListed(answer: true) }
     }
 
     private func checkModelListed(answer: Bool) async {
