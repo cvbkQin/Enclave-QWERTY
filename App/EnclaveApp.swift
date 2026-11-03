@@ -488,14 +488,55 @@ final class AppStore: ObservableObject {
             settings.separateAnswer = true
             settings.answerBaseURL = saved.baseURL
             settings.answerModel = saved.model
+            settings.answerTemperature = saved.temperature
+            settings.answerMaxTokens = saved.maxTokens
             answerApiKey = key
         } else {
             settings.baseURL = saved.baseURL
             settings.model = saved.model
+            // 生成参数跟着配置走（旧预设没有就不动）。
+            if let temperature = saved.temperature { settings.temperature = temperature }
+            if let maxTokens = saved.maxTokens { settings.maxTokens = maxTokens }
             apiKey = key
         }
         guard PrivacyConsent.isAgreed else { return }
         Task { answer ? await runAnswerTest() : await runTest() }
+    }
+
+    // MARK: 接口配置（CF）
+
+    /// 第一次打开新的接口配置页：原来润色、问答正在用的接口各存成一条配置。
+    func migrateConfigsIfNeeded() {
+        var current: [(baseURL: String, model: String, apiKey: String?, temperature: Double?, maxTokens: Int?)] = []
+        if settings.isConfigured { current.append((settings.baseURL, settings.model, apiKey, settings.temperature, settings.maxTokens)) }
+        if settings.usesAnswerEndpoint {
+            current.append((settings.answerBaseURL, settings.answerModel, answerApiKey,
+                            settings.answerTemperature ?? settings.temperature, settings.answerMaxTokens ?? settings.maxTokens))
+        }
+        SavedAPIStore.migrateIfNeeded(current: current) { ProviderName.of($0) }
+        savedAPIs = SavedAPIStore.all
+    }
+
+    /// 新建配置；这一页还没有正在用的配置时直接用上它。
+    @discardableResult
+    func addConfig(_ item: SavedAPI, apiKey key: String, answer: Bool) -> SavedAPI {
+        let hadCurrent = currentSavedAPI(answer: answer) != nil
+            || (answer ? settings.usesAnswerEndpoint : settings.isConfigured)
+        let saved = SavedAPIStore.add(item, apiKey: key)
+        savedAPIs = SavedAPIStore.all
+        if !hadCurrent { applySavedAPI(saved, answer: answer) }
+        return saved
+    }
+
+    /// 改配置；润色或问答正在用这一条的话，改完接着用改后的。
+    func updateConfig(_ item: SavedAPI, apiKey key: String) {
+        let polishUses = currentSavedAPI(answer: false)?.id == item.id
+        let answerUses = settings.separateAnswer && currentSavedAPI(answer: true)?.id == item.id
+        SavedAPIStore.update(item, apiKey: key)
+        savedAPIs = SavedAPIStore.all
+        guard let saved = savedAPIs.first(where: { $0.id == item.id }) else { return }
+        if polishUses { applySavedAPI(saved, answer: false) }
+        if answerUses { applySavedAPI(saved, answer: true) }
     }
 
     func renameSavedAPI(_ id: UUID, to name: String) {
@@ -575,7 +616,7 @@ final class AppStore: ObservableObject {
 
     /// 测试失败时接口卡上的红字：认得的原因用短句（同「最近 20 次」，比如「Key 无效（401）」），
     /// 不把服务商返回的原始 JSON（里面可能带 Key 的后几位）显示出来；认不得的才用原始信息。
-    private static func testFailureText(_ error: Error, _ failure: String?) -> String {
+    static func testFailureText(_ error: Error, _ failure: String?) -> String {
         guard let failure, failure != UsageStats.Request.Failure.other else { return error.localizedDescription }
         return UsageStats.Request(ms: 0, ok: false, at: Date(), error: failure).failureText
     }

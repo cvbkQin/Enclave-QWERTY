@@ -174,6 +174,9 @@ struct EnclaveSettings: Codable, Equatable {
     var separateAnswer: Bool = false
     var answerBaseURL: String = ""
     var answerModel: String = ""
+    /// 问答用的配置自己的温度、最多字数（接口配置跟着配置走）；nil 跟润色一样。
+    var answerTemperature: Double?
+    var answerMaxTokens: Int?
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     var appearance: Appearance = .system
@@ -181,7 +184,7 @@ struct EnclaveSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, clipboardProbe, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
-        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens
         case pinnedStyleIDs
     }
 
@@ -277,6 +280,8 @@ extension EnclaveSettings {
         separateAnswer = try c.decodeIfPresent(Bool.self, forKey: .separateAnswer) ?? separateAnswer
         answerBaseURL = try c.decodeIfPresent(String.self, forKey: .answerBaseURL) ?? answerBaseURL
         answerModel = try c.decodeIfPresent(String.self, forKey: .answerModel) ?? answerModel
+        answerTemperature = try c.decodeIfPresent(Double.self, forKey: .answerTemperature)
+        answerMaxTokens = try c.decodeIfPresent(Int.self, forKey: .answerMaxTokens)
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
@@ -471,6 +476,8 @@ extension EnclaveSettings {
         var copy = self
         copy.baseURL = answerBaseURL
         copy.model = answerModel
+        if let answerTemperature { copy.temperature = answerTemperature }
+        if let answerMaxTokens { copy.maxTokens = answerMaxTokens }
         // Kimi K3、智谱 GLM 会先思考，思考也算在最大输出里。
         if copy.usesFixedTemperature || copy.searchProvider == .glm { copy.maxTokens = max(copy.maxTokens, 4096) }
         return copy

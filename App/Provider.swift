@@ -130,3 +130,115 @@ enum Provider: CaseIterable, Identifiable {
         return .custom
     }
 }
+
+/// 「添加配置」里的服务商模板（CF2）：只用来新建时预填地址和推荐模型，之后改什么只改这一条配置。
+/// 千问分两个平台：阿里云百炼和千问 AI 平台，两边的 Key 不通用，在哪儿申请的 Key 就选哪个。
+enum ConfigTemplate: String, CaseIterable, Identifiable {
+    case deepseek, kimi, qwenBailian, qwenAI, glm, hunyuan, custom
+
+    var id: String { rawValue }
+
+    /// 「选一家服务商」分组里的几家（自定义另起一组）。
+    static let providers: [ConfigTemplate] = [.deepseek, .kimi, .qwenBailian, .qwenAI, .glm, .hunyuan]
+
+    static let qwenAIURL = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+
+    /// logo、教程、能力按哪一家算。
+    var provider: Provider {
+        switch self {
+        case .deepseek: return .deepseek
+        case .kimi: return .kimi
+        case .qwenBailian, .qwenAI: return .qwen
+        case .glm: return .glm
+        case .hunyuan: return .hunyuan
+        case .custom: return .custom
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .qwenBailian: return L("千问（阿里云百炼）", "Qwen (Alibaba Cloud Model Studio)", "Qwen（Alibaba Cloud Model Studio）")
+        case .qwenAI: return L("千问 AI 平台", "Qwen AI Platform", "Qwen AI プラットフォーム")
+        default: return provider.title
+        }
+    }
+
+    /// 新建时名字的默认值：服务商名（千问两个平台都叫「千问」再看重名）。
+    var defaultName: String {
+        switch self {
+        case .qwenBailian, .qwenAI: return L("千问", "Qwen", "Qwen")
+        case .custom: return L("自定义", "Custom", "カスタム")
+        default: return provider.title
+        }
+    }
+
+    /// 平台名（配置页顶部服务商卡的灰字）。
+    var platform: String {
+        switch self {
+        case .deepseek: return L("DeepSeek 开放平台", "DeepSeek platform", "DeepSeek プラットフォーム")
+        case .kimi: return L("月之暗面", "Moonshot AI", "Moonshot AI")
+        case .qwenBailian: return L("阿里云百炼", "Alibaba Cloud Model Studio", "Alibaba Cloud Model Studio")
+        case .qwenAI: return L("千问 AI 平台", "Qwen AI Platform", "Qwen AI プラットフォーム")
+        case .glm: return L("智谱开放平台", "Z.ai platform", "Z.ai プラットフォーム")
+        case .hunyuan: return L("腾讯云 TokenHub", "Tencent Cloud TokenHub", "Tencent Cloud TokenHub")
+        case .custom: return L("自己搭的服务", "Self-hosted", "セルフホスト")
+        }
+    }
+
+    var baseURL: String {
+        switch self {
+        case .deepseek: return "https://api.deepseek.com/v1"
+        case .kimi: return Storefront.isMainlandChina ? Provider.kimiChina : Provider.kimiGlobal
+        case .qwenBailian: return Storefront.isMainlandChina ? Provider.qwenChina : Provider.qwenGlobal
+        case .qwenAI: return Self.qwenAIURL
+        case .glm: return Storefront.isMainlandChina ? Provider.glmChina : Provider.glmGlobal
+        case .hunyuan: return Provider.hunyuanURL
+        case .custom: return ""
+        }
+    }
+
+    /// 推荐模型（CF2）。
+    var model: String {
+        switch self {
+        case .deepseek: return "deepseek-flash"
+        case .kimi: return Provider.kimiAnswerModel
+        case .qwenBailian, .qwenAI: return "qwen-flash"
+        case .glm: return "glm-5-flash"
+        case .hunyuan: return "hy3"
+        case .custom: return ""
+        }
+    }
+
+    /// 副标题：「地址或平台名 · 推荐模型」。
+    var subtitle: String {
+        switch self {
+        case .deepseek: return "api.deepseek.com · " + model
+        case .kimi: return L("月之暗面", "Moonshot AI", "Moonshot AI") + " · " + model
+        case .qwenBailian: return "dashscope.aliyuncs.com · " + model
+        case .qwenAI: return "maas.qianwenaiapi.com · " + model
+        case .glm: return L("智谱开放平台", "Z.ai platform", "Z.ai") + " · " + model
+        case .hunyuan: return L("腾讯云 TokenHub", "Tencent Cloud TokenHub", "Tencent Cloud TokenHub") + " · " + model
+        case .custom: return L("Ollama、vLLM、LM Studio，或任何 OpenAI 兼容地址", "Ollama, vLLM, LM Studio, or any OpenAI-compatible URL", "Ollama、vLLM、LM Studio、または OpenAI 互換の URL")
+        }
+    }
+
+    /// Kimi K3、智谱会先思考，思考也算在最多字数里。
+    var maxTokens: Int { provider.maxTokens }
+
+    /// 旧配置没记模板：按地址认（千问 AI 平台的地址单独认）。
+    static func detect(_ baseURL: String) -> ConfigTemplate {
+        if baseURL.lowercased().contains("qianwenaiapi.com") { return .qwenAI }
+        switch Provider.detect(baseURL) {
+        case .deepseek: return .deepseek
+        case .kimi: return .kimi
+        case .qwen: return .qwenBailian
+        case .glm: return .glm
+        case .hunyuan: return .hunyuan
+        default: return .custom
+        }
+    }
+
+    static func of(_ config: SavedAPI) -> ConfigTemplate {
+        config.template.flatMap(ConfigTemplate.init(rawValue:)) ?? detect(config.baseURL)
+    }
+}
