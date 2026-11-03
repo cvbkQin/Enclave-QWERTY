@@ -50,7 +50,7 @@ struct StyleKey: View {
                     // 几乎透明的底：完全透明的地方系统不把触摸交给键盘（混色底不接触摸）。
                     Self.touchFill.frame(width: layout.dividerX)
                 }
-                .accessibilityLabel(running ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル")
+                .accessibilityLabel(running ? (answer ? L("停止问答", "Stop answering", "質問を停止") : L("停止润色", "Stop polishing", "整えるのを停止"))
                                     : failed ? L("润色失败，轻点重试", "Polish failed. Tap to retry", "失敗しました。タップで再試行")
                                     : (answer ? L("问答", "Ask", "質問") : L("润色：\(title)", "Polish: \(title)", "整える：\(title)")))
                 .modifier(CoachKeyTarget(model: model, answer: answer))
@@ -129,6 +129,10 @@ struct StyleKey: View {
                 .lineLimit(1)
                 .fixedSize()
                 .successText(fx)
+                .runningFade(running)
+                .position(x: layout.textX + layout.textWidth / 2, y: h / 2)
+            // 执行中文字换成停止图标（PS6），点一下就停。
+            AIStopIcon(running: running, moving: glowing, tint: .white)
                 .position(x: layout.textX + layout.textWidth / 2, y: h / 2)
             chevronDivider
                 .position(x: layout.dividerX + 0.5, y: h / 2)
@@ -265,7 +269,8 @@ struct PinnedStyleKey: View {
             Color.clear.preference(key: PinFrameKey.self, value: [style.id: geometry.frame(in: .named("keyboard"))])
         })
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel((answer ? L("固定的问答风格：", "Pinned answer style: ", "固定した回答スタイル：") : L("固定的润色风格：", "Pinned polish style: ", "固定した整えるスタイル："))
+        .accessibilityLabel(running ? (answer ? L("停止问答", "Stop answering", "質問を停止") : L("停止润色", "Stop polishing", "整えるのを停止")) + "：" + style.displayName
+                            : (answer ? L("固定的问答风格：", "Pinned answer style: ", "固定した回答スタイル：") : L("固定的润色风格：", "Pinned polish style: ", "固定した整えるスタイル："))
                             + style.displayName
                             + (failed ? L("，失败，轻点重试", ". Failed, tap to retry", "、失敗・タップで再試行") : ""))
         .accessibilityAddTraits(.isButton)
@@ -304,6 +309,8 @@ struct PinnedStyleKey: View {
                     }
                 }
                 .successText(fx)
+                .runningFade(running)
+                .overlay { AIStopIcon(running: running, moving: glowing, tint: answer ? Self.answerText : Self.rewriteText) }
         }
         .foregroundStyle(failed ? Color.white : answer ? Self.answerText : Self.rewriteText)
         .padding(.horizontal, 12)
@@ -688,5 +695,61 @@ struct AskField: View {
 
     private func caretImage(_ visible: Bool) -> some View {
         Image(uiImage: Self.caret).foregroundStyle(Brand.askCaret.opacity(visible ? 1 : 0))
+    }
+}
+
+
+// MARK: - 停止图标（PS6）
+
+/// 执行中按键上的停止图标：26×15 胶囊（两端半圆），白 18% 底、白 38% 细边；中间 6.4pt 白色圆角方块；
+/// 一段白色高光沿边每 1.2 秒绕一圈。开始生成时淡入（略放大），停止 / 完成后淡回文字。logo 和小星照常动。
+struct AIStopIcon: View {
+    var running: Bool
+    /// 关了发光动画或减弱动态效果：高光不绕圈，停在上边。
+    var moving: Bool
+    var tint: Color
+
+    var body: some View {
+        Group {
+            if moving {
+                TimelineView(.animation) { context in
+                    icon(phase: context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2) / 1.2)
+                }
+            } else {
+                icon(phase: 0)
+            }
+        }
+        .frame(width: 26, height: 15)
+        .opacity(running ? 1 : 0)
+        .scaleEffect(running ? 1 : 0.85)
+        .animation(.easeInOut(duration: 0.25), value: running)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func icon(phase: Double) -> some View {
+        let length = 0.22
+        let start = phase, end = phase + length
+        return ZStack {
+            Capsule().fill(tint.opacity(0.18))
+            Capsule().strokeBorder(tint.opacity(0.38), lineWidth: 1.4)
+            // 高光一段占周长 22%，绕到起点时分两截画。
+            Capsule().inset(by: 0.8).trim(from: start, to: min(end, 1))
+                .stroke(tint, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            if end > 1 {
+                Capsule().inset(by: 0.8).trim(from: 0, to: end - 1)
+                    .stroke(tint, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            }
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(tint).frame(width: 6.4, height: 6.4)
+        }
+    }
+}
+
+private extension View {
+    /// 执行中文字淡出（带一点模糊），停止后淡回来，和停止图标交叉淡变。
+    func runningFade(_ running: Bool) -> some View {
+        opacity(running ? 0 : 1)
+            .blur(radius: running ? 2 : 0)
+            .animation(.easeInOut(duration: 0.25), value: running)
     }
 }

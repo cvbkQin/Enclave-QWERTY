@@ -35,7 +35,7 @@ struct ResultKey: View {
     /// 卡片展开 4 行（键高 100）时图标、字、间距跟着放大。
     private var tall: Bool { model.cardTall }
     /// 生成中、要联网的选择卡、出错卡（含没写完）时 45% 变淡不能点。
-    private var blocked: Bool { model.isRunning || model.searchPrompt != nil || model.errorMessage != nil || model.partialResult != nil }
+    private var blocked: Bool { model.isRunning || model.searchPrompt != nil || model.errorMessage != nil || model.partialResult != nil || model.stoppedAnswer != nil }
 
     var body: some View {
         GeometryReader { geo in

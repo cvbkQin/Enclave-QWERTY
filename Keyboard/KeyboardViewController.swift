@@ -166,6 +166,7 @@ final class KeyboardViewController: UIInputViewController {
         model.dropStaleSessionOnAppear()
         // 换了输入框重新试标记文字（上一个框不认，不代表这个也不认）。
         model.inlinePinyinOff = false
+        model.stoppedAnswer = nil
         model.lastMarkedText = ""
         // 弹出时系统会通知一次文字变了，那次不算点了输入框：先不记光标，下一次通知只记下来。
         model.hostCaret = nil

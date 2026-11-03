@@ -248,6 +248,14 @@ struct ConfigEditor: View {
     @State private var needsPrivacy = false
     @State private var confirmDelete = false
     @FocusState private var modelFocused: Bool
+    @FocusState private var keyFocused: Bool
+
+    /// 只露前 3 位和后 4 位：「sk-••••••3f9a」。
+    static func masked(_ key: String) -> String {
+        let key = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard key.count > 8 else { return String(repeating: "•", count: max(key.count, 4)) }
+        return String(key.prefix(3)) + String(repeating: "•", count: 6) + String(key.suffix(4))
+    }
 
     enum Connection: Equatable { case idle, running, ok(Double), failed(String) }
     enum Probe: Equatable { case untested, running, online, offline, failed }
@@ -412,12 +420,27 @@ struct ConfigEditor: View {
             modelRow
             HStack {
                 Text("API Key")
-                SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: $apiKey)
-                    // 不当成密码框：保存配置时系统不再弹「保存密码？」。
-                    .textContentType(.oneTimeCode)
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                // 不用 SecureField：系统会把地址 + 密码框当成登录表单，保存时弹「保存密码？」。
+                // 改成普通输入框，没在编辑时盖上只露头尾的「sk-••••••3f9a」（CF3）。
+                ZStack(alignment: .trailing) {
+                    TextField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: $apiKey)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.asciiCapable)
+                        .focused($keyFocused)
+                        // 不编辑时完全藏起原文（0.01 放大截图还能读出来）；点击由上面的掩码字接，点了进编辑。
+                        .opacity(keyFocused || apiKey.isEmpty ? 1 : 0)
+                    if !keyFocused, !apiKey.isEmpty {
+                        Text(Self.masked(apiKey))
+                            .font(.system(size: 15, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .contentShape(Rectangle())
+                            .onTapGesture { keyFocused = true }
+                    }
+                }
                 if apiKey.isEmpty {
                     PasteButton(payloadType: String.self) { strings in
                         guard let text = strings.first?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
