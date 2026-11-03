@@ -457,7 +457,8 @@ extension KeyboardModel {
         if hasText != hostHasText { hostHasText = hasText }
         // 换了输入框、挪了光标：光标前已经不是刚上屏的那个词，联想就不带过去（不然新框里第一下删除只是收起联想，看着像删不动）。
         if chineseMode, showsPredictions, target == .host, !lastHostCommit.isEmpty,
-           let before = proxy?.documentContextBeforeInput, !before.hasSuffix(lastHostCommit) {
+           // 空框、光标在最前时系统给 nil，当空的算。
+           !(proxy?.documentContextBeforeInput ?? "").hasSuffix(lastHostCommit) {
             dismissPredictions()
         }
         if returnKey != hostReturnKey { hostReturnKey = returnKey }
