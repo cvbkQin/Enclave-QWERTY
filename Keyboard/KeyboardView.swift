@@ -256,7 +256,10 @@ struct KeyboardView: View {
     /// 方案 A（v309）：间距 5、▭ 宽 36、撤销重做小胶囊约 64，402 宽的屏上至少完整露出一颗两字固定键。
     /// 滑动区自带左右 5 的内边（给亮边留地方），所以它和 ▭、撤销重做之间不再加间距，看上去也是 5。
     private var aiBar: some View {
-        let pins = model.settings.pinnedStyles
+        // 功能关掉或不能用时，它固定的风格键也不显示（QE）。
+        let pins = model.settings.pinnedStyles.filter {
+            model.debugUnblocked || ($0.answer ? model.settings.showsAnswerKey : model.settings.showsPolishKey)
+        }
         return HStack(spacing: 0) {
             PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) {
                 model.endCoach()
@@ -264,11 +267,14 @@ struct KeyboardView: View {
             }
             AIKeyStrip {
                 HStack(spacing: 5) {
-                    StyleKey(model: model, row: .prompts)
-                    StyleKey(model: model, row: .answerStyles)
+                    // AI 页关掉了、或配置不能用（没配、测试没通过）：这颗键不显示，后面的往左补位（QE）。
+                    if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
+                    if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
                     if !pins.isEmpty {
-                        Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
-                            .padding(.horizontal, -1)
+                        if model.settings.showsPolishKey || model.settings.showsAnswerKey || model.debugUnblocked {
+                            Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
+                                .padding(.horizontal, -1)
+                        }
                         ForEach(pins, id: \.style.id) { pin in
                             PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
                         }

@@ -192,6 +192,17 @@ struct AIView: View {
 
     /// 标题上的灰字：「润色 DeepSeek · 问答 Kimi」，同一个接口时「润色、问答都用 DeepSeek」。
     private var caption: String {
+        let polishOn = store.settings.polishEnabled, answerOn = store.settings.answerEnabled
+        if !polishOn || !answerOn {
+            let polish = polishOn ? L("润色 ", "Polish ", "整える ") + (store.settings.isConfigured ? ProviderName.of(store.settings.baseURL, model: store.settings.model) : L("未配置", "not set up", "未設定"))
+                : L("润色已关闭", "Polish off", "整えるはオフ")
+            let ask: String = {
+                guard answerOn else { return L("问答已关闭", "Q&A off", "質問はオフ") }
+                let c = store.settings.forAnswers
+                return L("问答 ", "Q&A ", "質問 ") + (!(store.settings.separateAnswer && !store.settings.usesAnswerEndpoint) && c.isConfigured ? ProviderName.of(c.baseURL, model: c.model) : L("未配置", "not set up", "未設定"))
+            }()
+            return polish + " · " + ask
+        }
         guard store.settings.isConfigured else { return L("还没有配置接口", "No API set up yet", "API はまだ設定されていません") }
         let main = ProviderName.of(store.settings.baseURL, model: store.settings.model)
         // 问答单独配、但还没配好：别写成「都用」。
@@ -207,101 +218,196 @@ struct AIView: View {
 
     // MARK: 接口卡
 
-    /// 接口卡（AT1）：小字「润色 / 问答」+ 右上状态；大字服务商 + 灰字模型（问答能联网时右边蓝字「● 可联网」）；
-    /// 「19/20 成功 · 平均 1.0 秒」+「最近 20 次 ›」和 20 根小柱；「测试连接」「接口配置 ›」（AC0，对齐清单第 60 条）。
-    /// 还没配置：「还没有配置」+「配好后键盘里的 ✨ 润色 / 问答才能用」，只有一个整行实心紫底「去配置 ›」。
-    /// 问答和润色用同一个时显示润色那家，写「和润色用同一个」，没有「接口配置」，统计照样记问答自己的。内测版是「查看接口 ›」。
+    /// 接口卡（QE，11-03）：润色、问答两张同一个排法。
+    /// 卡片头：34pt 功能图标 + 名称 + 一行状态（● 正常 · 平均 1.0 秒 / ● 测试没通过 · Key 无效 / 已关闭 · 键盘上不显示润色键），右上开关。
+    /// 中间灰底一块是现用配置（logo、名称 + 等宽模型名、「19/20 成功 · 最近 20 次 ›」、12 根小条）；配置不能用时写「能用之前，键盘上先不显示…」。
+    /// 底下「测试连接」「接口配置 ›」。开关关掉时中间和底部像抽屉收进卡片头（0.45 秒）。内测版是「查看接口 ›」。
     private func apiCard(answer: Bool) -> some View {
         let ownAnswer = answer && store.settings.separateAnswer
         let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
         let baseURL = ownAnswer ? store.settings.answerBaseURL : store.settings.baseURL
         let model = ownAnswer ? store.settings.answerModel : store.settings.model
         let state = ownAnswer ? store.answerTest : store.test
-        let status = self.status(ownAnswer)
+        let enabled = answer ? store.settings.answerEnabled : store.settings.polishEnabled
+        let usable = answer ? store.settings.answerUsable : store.settings.polishUsable
+        let requests = answer ? answerRecent : recent
+        let status = cardStatus(answer: answer, ownAnswer: ownAnswer, configured: configured, enabled: enabled)
         let missing = ownAnswer ? store.answerMissingModel : store.missingModel
-        return DashCard {
-            HStack(spacing: 6) {
-                Text(answer ? L("问答", "Q&A", "質問") : L("润色", "Polish", "整える"))
-                    .font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+        let keyName = answer ? L("问答键", "the Ask key", "質問キー") : L("润色键", "the Polish key", "整えるキー")
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                FeatureIcon(answer: answer)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(answer ? L("问答", "Q&A", "質問") : L("润色", "Polish", "整える"))
+                        .font(.system(size: 17, weight: .bold))
+                    HStack(spacing: 4) {
+                        if let color = status.dot { Circle().fill(color).frame(width: 7, height: 7) }
+                        Text(status.text).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(status.color)
+                }
                 Spacer(minLength: 8)
-                HStack(spacing: 4) {
-                    Circle().fill(status.color).frame(width: 7, height: 7)
-                    Text(status.text).lineLimit(1)
-                }
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(status.color)
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(configured ? ProviderName.of(baseURL, model: model) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
-                    .font(.system(size: 26, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
-                    .foregroundStyle(configured ? Color.primary : Color.secondary)
-                if configured {
-                    Text(model).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                if answer, configured, store.settings.answerSearch != nil {
-                    HStack(spacing: 5) {
-                        Circle().fill(Color(hex: 0x0A84FF)).frame(width: 7, height: 7)
-                        Text(L("可联网", "Web", "ウェブ可"))
+                Toggle("", isOn: Binding(get: { enabled }, set: { on in
+                    withAnimation(.easeInOut(duration: 0.45)) {
+                        if answer { store.settings.answerEnabled = on } else { store.settings.polishEnabled = on }
                     }
-                    .font(.footnote).foregroundStyle(Color(hex: 0x0A84FF))
-                    .fixedSize()
-                }
+                }))
+                .labelsHidden()
+                .tint(Color(hex: 0x34C759))
+                .accessibilityLabel(answer ? L("问答", "Q&A", "質問") : L("润色", "Polish", "整える"))
             }
-            if answer, !store.settings.separateAnswer {
-                Text(L("和润色用同一个", "Same as Polish", "整えると同じ")).font(.footnote).foregroundStyle(.secondary)
-            }
-            if configured || locked {
-                recentSummary(answer ? answerRecent : recent, answer: answer)
-            } else {
-                (Text(L("配好后键盘里的", "Set it up to use", "設定するとキーボードの")) + Text(answer ? L("「问答」", " Ask", "「質問」") : L(" ✨ 润色", " ✨ Polish", " ✨ 整える"))
-                    + Text(L("才能用", " on the keyboard", "が使えます")))
-                    .font(.system(size: 14)).foregroundStyle(.secondary)
-            }
-            if let error = status.error {
-                Text(error).font(.footnote).foregroundStyle(.red).lineLimit(3).fixedSize(horizontal: false, vertical: true)
-            }
-            if !configured && !locked && (!answer || store.settings.separateAnswer) {
-                Button {
-                    router.aiPath.append(AppRouter.AIPage.api(answer: answer))
-                } label: {
-                    Text(L("去配置 ›", "Set Up ›", "設定する ›"))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 42)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DashColor.ai))
-                }
-                .buttonStyle(.plain)
-            } else {
-            HStack(spacing: 10) {
-                cardButton {
-                    HStack(spacing: 6) {
-                        if state == .running { ProgressView().controlSize(.small) }
-                        Text(L("测试连接", "Test", "接続テスト"))
+            if enabled {
+                VStack(alignment: .leading, spacing: 12) {
+                    configBlock(answer: answer, configured: configured, usable: usable, baseURL: baseURL, model: model,
+                                requests: requests, keyName: keyName)
+                    if answer, !store.settings.separateAnswer {
+                        Text(L("和润色用同一个配置", "Same setup as Polish", "整えると同じ設定")).font(.footnote).foregroundStyle(.secondary)
                     }
-                } action: {
-                    if router.privacyAgreed {
-                        Task { ownAnswer ? await store.runAnswerTest() : await store.runTest() }
+                    if !configured && !locked && (!answer || store.settings.separateAnswer) {
+                        Button {
+                            router.aiPath.append(AppRouter.AIPage.api(answer: answer))
+                        } label: {
+                            Text(L("去配置 ›", "Set Up ›", "設定する ›"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 42)
+                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DashColor.ai))
+                        }
+                        .buttonStyle(.plain)
                     } else {
-                        needsPrivacy = true
+                        HStack(spacing: 10) {
+                            cardButton {
+                                HStack(spacing: 6) {
+                                    if state == .running { ProgressView().controlSize(.small) }
+                                    Text(L("测试连接", "Test", "接続テスト"))
+                                }
+                            } action: {
+                                if router.privacyAgreed {
+                                    Task { ownAnswer ? await store.runAnswerTest() : await store.runTest() }
+                                } else {
+                                    needsPrivacy = true
+                                }
+                            }
+                            .disabled(!configured || state == .running)
+                            if !answer || store.settings.separateAnswer {
+                                cardButton {
+                                    Text(locked ? L("查看接口 ›", "View ›", "API を見る ›")
+                                         : L("接口配置 ›", "API Setup ›", "API 設定 ›"))
+                                } action: {
+                                    router.aiPath.append(AppRouter.AIPage.api(answer: answer))
+                                }
+                            }
+                        }
+                    }
+                    if !locked, let missing {
+                        missingModelTip(missing) { router.aiPath.append(AppRouter.AIPage.api(answer: ownAnswer)) }
                     }
                 }
-                .disabled(!configured || state == .running)
-                // 和润色用同一个时问答页没有自己的接口详情。内测版接口锁着，按钮换成「查看接口」，进去只能看。
-                if !answer || store.settings.separateAnswer {
-                    cardButton {
-                        Text(locked ? L("查看接口 ›", "View ›", "API を見る ›")
-                             : L("接口配置 ›", "API Setup ›", "API 設定 ›"))
-                    } action: {
-                        router.aiPath.append(AppRouter.AIPage.api(answer: answer))
+                // 抽屉：往上收进卡片头，先淡出、内容上移 16。
+                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: -16)),
+                                        removal: .opacity.combined(with: .offset(y: -16))))
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// 卡片中间灰底那块：现用配置 + 最近 20 次；不能用时橙字写键盘上先不显示这颗键。
+    private func configBlock(answer: Bool, configured: Bool, usable: Bool, baseURL: String, model: String,
+                             requests: [UsageStats.Request], keyName: String) -> some View {
+        let open = { router.aiPath.append(AppRouter.AIPage.recent(answer: answer)) }
+        let name = configured ? (store.currentSavedAPI(answer: answer && store.settings.separateAnswer)?.name ?? ProviderName.of(baseURL, model: model))
+            : L("还没有配置", "Not set up yet", "まだ設定されていません")
+        return HStack(spacing: 10) {
+            if configured {
+                ProviderLogo(provider: Provider.detect(baseURL), size: 26, corner: 7)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(name).font(.system(size: 16, weight: .bold)).lineLimit(1)
+                        .foregroundStyle(configured ? Color.primary : Color.secondary)
+                    if configured {
+                        Text(model).font(.system(size: 13, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
+                if usable || locked {
+                    Button(action: open) {
+                        let ok = requests.filter(\.ok).count
+                        Text((requests.isEmpty ? L("还没有调用记录", "No requests yet", "まだ呼び出しはありません")
+                              : L("\(ok)/\(requests.count) 成功", "\(ok)/\(requests.count) OK", "\(ok)/\(requests.count) 成功"))
+                             + " · " + L("最近 \(UsageStats.recentLimit) 次 ›", "Last \(UsageStats.recentLimit) ›", "直近 \(UsageStats.recentLimit) 回 ›"))
+                            .font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text(L("能用之前，键盘上先不显示\(keyName)", "\(keyName.prefix(1).uppercased() + keyName.dropFirst()) stays off the keyboard until this works", "使えるようになるまで、キーボードに\(keyName)は表示しません"))
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(Color(hex: 0xEA580C))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            Spacer(minLength: 6)
+            if (usable || locked), !requests.isEmpty {
+                MiniBars(requests: Array(requests.suffix(12)))
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: open)
             }
-            if !locked, let missing {
-                missingModelTip(missing) { router.aiPath.append(AppRouter.AIPage.api(answer: ownAnswer)) }
-            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.tertiarySystemFill).opacity(0.6)))
+    }
+
+    /// 卡片头的状态行。
+    private func cardStatus(answer: Bool, ownAnswer: Bool, configured: Bool, enabled: Bool) -> (text: String, color: Color, dot: Color?) {
+        let gray = Color.secondary, green = DashColor.ok, orange = Color(hex: 0xEA580C)
+        guard enabled else {
+            return (L("已关闭 · 键盘上不显示\(answer ? "问答键" : "润色键")", "Off · \(answer ? "Ask" : "Polish") key hidden on the keyboard",
+                      "オフ・キーボードに\(answer ? "質問" : "整える")キーを表示しません"), gray, nil)
+        }
+        if !configured {
+            return (L("还没有配置", "Not set up", "未設定"), orange, orange)
+        }
+        let state = ownAnswer ? store.answerTest : store.test
+        let requests = answer ? answerRecent : recent
+        let config = answer ? store.settings.forAnswers : store.settings
+        func normal(_ seconds: Double?) -> (String, Color, Color?) {
+            let text = L("正常", "Working", "正常")
+            guard let seconds else { return (text, green, green) }
+            return (text + " · " + L("平均 \(String(format: "%.1f", seconds)) 秒", "avg \(String(format: "%.1f", seconds)) s", "平均 \(String(format: "%.1f", seconds)) 秒"), green, green)
+        }
+        let average: Double? = {
+            let ok = requests.filter(\.ok)
+            return ok.isEmpty ? nil : Double(ok.reduce(0) { $0 + $1.ms }) / Double(ok.count) / 1000
+        }()
+        switch state {
+        case .running: return (L("正在测试…", "Testing…", "テスト中…"), orange, orange)
+        case .failure: return (failedText(answer: answer), orange, orange)
+        case .success(_, let seconds): return normal(average ?? seconds)
+        case .idle: break
+        }
+        switch EnclaveSettings.testOK(baseURL: config.baseURL, model: config.model) {
+        case false?: return (failedText(answer: answer), orange, orange)
+        case true?: return normal(average)
+        case nil: break
+        }
+        if requests.last?.ok == true { return normal(average) }
+        return (L("还没测试", "Not tested", "未テスト"), gray, Color(.systemGray3))
+    }
+
+    /// 「测试没通过 · Key 无效」：润色知道失败原因，问答只写测试没通过。
+    private func failedText(answer: Bool) -> String {
+        let head = L("测试没通过", "Test failed", "テスト失敗")
+        guard !answer, let failure = store.testFailure else { return head }
+        switch failure {
+        case .unauthorized: return head + " · " + L("Key 无效", "invalid key", "キーが無効")
+        case .noBalance: return head + " · " + L("余额不足", "no balance", "残高不足")
+        case .network: return head + " · " + L("连不上", "can't connect", "接続できません")
+        case .other: return head
         }
     }
 
@@ -430,12 +536,18 @@ struct AIView: View {
                 SearchTendencyCard(settings: $store.settings)
             }
             .padding(.vertical, 6)
-            .opacity(provider == nil ? 0.45 : 1)
-            .disabled(provider == nil)
+            .opacity(!store.settings.answerEnabled ? 0.38 : provider == nil ? 0.45 : 1)
+            .saturation(store.settings.answerEnabled ? 1 : 0)
+            .disabled(provider == nil || !store.settings.answerEnabled)
+            .animation(.easeInOut(duration: 0.45), value: store.settings.answerEnabled)
         } header: {
-            AISectionTitle(text: L("联网搜索", "Web search", "ウェブ検索"))
+            AISectionTitle(text: L("问答 · 联网搜索", "Q&A · Web search", "質問・ウェブ検索"))
         } footer: {
-            Text(webSearchFooter(provider))
+            if store.settings.answerEnabled {
+                Text(webSearchFooter(provider))
+            } else {
+                Text(L("问答已关闭：下面的联网设置先不生效，打开后照旧。", "Q&A is off: these web settings don't apply until you turn it back on.", "質問はオフです。下のウェブ設定はオンに戻すまで効きません。"))
+            }
         }
         .id("webSearch")
     }
@@ -869,17 +981,66 @@ enum AnswerColor {
 }
 
 /// 调用偏好（QP1–QP4，原「联网倾向」）：5 档的条，只能停在档上；下面说明框跟着档位换。联网调用是「禁止」时整张变灰、不能拖。
+/// 接口卡头的功能图标：34pt、圆角 10；润色 #8B5CF6→#6D4AE8 渐变底 ✨，问答 #3B82F6→#4F7FE8 渐变底 ?。
+struct FeatureIcon: View {
+    var answer: Bool
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(LinearGradient(colors: answer ? [Color(hex: 0x3B82F6), Color(hex: 0x4F7FE8)] : [Color(hex: 0x8B5CF6), Color(hex: 0x6D4AE8)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+            if answer {
+                Text("?").font(.system(size: 19, weight: .bold)).foregroundStyle(.white)
+            } else {
+                Image(systemName: "sparkles").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color(hex: 0xFFE27A))
+            }
+        }
+        .frame(width: 34, height: 34)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 接口卡里 12 根小条：最近 12 次耗时，绿成功、橙超过 3 秒、红失败。
+struct MiniBars: View {
+    let requests: [UsageStats.Request]
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(Array(requests.enumerated()), id: \.offset) { _, request in
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(RecentBars.color(request))
+                    .frame(width: 3, height: request.ok ? max(5, min(CGFloat(request.ms) / 4000, 1) * 18) : 18)
+            }
+        }
+        .frame(height: 18, alignment: .bottom)
+        .accessibilityHidden(true)
+    }
+}
+
 struct SearchTendencyCard: View {
     @Binding var settings: EnclaveSettings
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
+    /// 第 69 条：点「编辑」才能改；改了要点「确认」才存，离开这页、切走、退到后台都回到原来的档。
+    @State private var editing = false
+    @State private var draft: Int?
+    @State private var showsLockTip = false
+    @State private var savedToast: String?
 
     private var off: Bool { (settings.webSearchMode ?? .off) == .off }
-    private var level: Int { settings.tendency }
+    private var saved: Int { settings.tendency }
+    private var level: Int { draft ?? saved }
+    private var changed: Bool { draft != nil && draft != saved }
+    private static let blue = Color(hex: 0x0284C7)
 
     static let names = [L("不联网", "Never", "しない"), L("很少", "Rarely", "少なめ"), L("适中", "Balanced", "ふつう"),
                         L("积极", "Often", "多め"), L("尽量查", "When unsure", "できるだけ")]
 
+    private static func name(_ i: Int) -> String { names[i] + (i == 2 ? L("（默认）", " (default)", "（デフォルト）") : "") }
+
     var body: some View {
+        let active = editing && !off
         let accent = off ? Color(.systemGray) : AnswerColor.text
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
@@ -891,23 +1052,28 @@ struct SearchTendencyCard: View {
                 Text(L("调用偏好", "Search preference", "検索の頻度"))
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(off ? .secondary : .primary)
-                Spacer(minLength: 8)
-                Text(Self.names[level] + (level == 2 ? L("（默认）", " (default)", "（デフォルト）") : ""))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 6)
+                levelLabel(active: active)
+                editButton
             }
-            TendencySlider(level: Binding(get: { level }, set: { settings.searchTendency = $0 }), disabled: off)
+            TendencySlider(level: Binding(get: { level }, set: { next in draft = next == saved ? nil : next }),
+                           disabled: off, locked: !active, onLockedTouch: lockedTouch)
                 .frame(height: 26)
             HStack(spacing: 0) {
                 ForEach(0..<5, id: \.self) { i in
                     Text(Self.names[i])
                         .font(.system(size: 12, weight: i == level && !off ? .semibold : .regular))
-                        .foregroundStyle(i == level && !off ? AnswerColor.text : .secondary)
+                        .foregroundStyle(i == level && active ? AnswerColor.text : .secondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            guard !off else { return }
+                            guard active else { lockedTouch(); return }
+                            draft = i == saved ? nil : i
+                            UISelectionFeedbackGenerator().selectionChanged()
+                        }
                 }
             }
             // 档名和条上的圆点对齐：两端各收进半个滑块。
@@ -920,8 +1086,112 @@ struct SearchTendencyCard: View {
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(level == 4 && !off ? Color(hex: 0xFFF4E0) : Color(.systemGray6)))
+            if active {
+                Text(changed ? L("点「确认」才保存；不确认就离开这页，回到「\(Self.names[saved])」",
+                                 "Tap Confirm to save. Leave without confirming and it goes back to \(Self.names[saved]).",
+                                 "「確定」で保存します。確定せずに離れると「\(Self.names[saved])」に戻ります")
+                             : L("拖动或点档位来调；不想改点「取消」", "Drag or tap a level. Tap Cancel to keep it.", "ドラッグか段階をタップして調整。変えないなら「キャンセル」"))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(changed ? Self.blue : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
+        .padding(active ? 10 : 0)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Self.blue, lineWidth: 2)
+                .opacity(active ? 1 : 0)
+        )
+        .padding(active ? -10 : 0)
+        .overlay(alignment: .top) { tipOverlay }
+        .animation(.easeInOut(duration: 0.2), value: editing)
+        .animation(.easeInOut(duration: 0.2), value: changed)
         .accessibilityElement(children: .contain)
+        .onDisappear(perform: discard)
+        .onChange(of: scenePhase) { phase in if phase != .active { discard() } }
+        .onChange(of: off) { isOff in if isOff { discard() } }
+    }
+
+    /// 右上档位：锁着是灰字，改了是「~~原~~ → 新」。
+    @ViewBuilder private func levelLabel(active: Bool) -> some View {
+        Group {
+            if changed, let draft {
+                (Text(Self.names[saved]).strikethrough().foregroundColor(.secondary)
+                 + Text(" → ").foregroundColor(.secondary)
+                 + Text(Self.names[draft]).foregroundColor(Self.blue))
+            } else {
+                Text(Self.name(level)).foregroundColor(active ? AnswerColor.text : .secondary)
+            }
+        }
+        .font(.system(size: 15, weight: .semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .accessibilityLabel(changed ? L("从\(Self.names[saved])改成\(Self.names[level])", "From \(Self.names[saved]) to \(Self.names[level])", "\(Self.names[saved])から\(Self.names[level])へ") : Self.name(level))
+    }
+
+    /// 「编辑」浅蓝底、「取消」、改了以后实心「确认」。联网调用是「禁止」时不能点。
+    private var editButton: some View {
+        let title = !editing ? L("编辑", "Edit", "編集") : changed ? L("确认", "Confirm", "確定") : L("取消", "Cancel", "キャンセル")
+        return Button {
+            if !editing {
+                editing = true
+            } else if changed, let draft {
+                settings.searchTendency = draft
+                discard()
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                let text = L("✓ 已保存 · \(Self.names[draft])", "✓ Saved · \(Self.names[draft])", "✓ 保存しました・\(Self.names[draft])")
+                withAnimation { savedToast = text }
+                UIAccessibility.post(notification: .announcement, argument: text)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    if savedToast == text { withAnimation { savedToast = nil } }
+                }
+            } else {
+                discard()
+            }
+        } label: {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(off ? Color(.systemGray) : changed ? Color.white : Self.blue)
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                .background(Capsule().fill(off ? Color(.systemGray5) : changed ? Self.blue : Color(hex: 0xE0F2FE)))
+        }
+        .buttonStyle(.plain)
+        .disabled(off)
+        .accessibilityHint(!editing ? L("打开后才能改调用偏好", "Unlocks the search preference", "検索の頻度を変更できるようにします") : "")
+    }
+
+    @ViewBuilder private var tipOverlay: some View {
+        if let savedToast {
+            bubble(savedToast, fill: DashColor.ok)
+        } else if showsLockTip {
+            bubble(L("点右上「编辑」再调", "Tap Edit at the top right first", "右上の「編集」をタップしてから調整"), fill: Color.black.opacity(0.78))
+        }
+    }
+
+    private func bubble(_ text: String, fill: Color) -> some View {
+        Text(text)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Capsule().fill(fill))
+            .offset(y: 40)
+            .transition(.opacity)
+            .allowsHitTesting(false)
+    }
+
+    private func lockedTouch() {
+        guard !off, !showsLockTip else { return }
+        withAnimation { showsLockTip = true }
+        UIAccessibility.post(notification: .announcement, argument: L("点右上「编辑」再调", "Tap Edit at the top right first", "右上の「編集」をタップしてから調整"))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { withAnimation { showsLockTip = false } }
+    }
+
+    /// 不保存，回到原来的档，重新锁上。
+    private func discard() {
+        editing = false
+        draft = nil
     }
 
     private var detail: String {
@@ -939,9 +1209,12 @@ struct SearchTendencyCard: View {
 }
 
 /// 5 档的条：轨道 6 高 #E5E5EA，已选部分 #7DD3FC→#0284C7，档位 6pt 小圆点（已过白、未到 #C7C7CC），26pt 白色滑块带阴影。
+/// 锁着（第 69 条）：已选部分淡一些 #BAE6FD→#7DB8D6，滑块描 1pt 边、中间一把小锁；点、拖都只提示先点「编辑」。
 private struct TendencySlider: View {
     @Binding var level: Int
     var disabled: Bool
+    var locked: Bool = false
+    var onLockedTouch: () -> Void = {}
 
     var body: some View {
         GeometryReader { geo in
@@ -949,12 +1222,13 @@ private struct TendencySlider: View {
             let width = geo.size.width - inset * 2
             let x = { (i: Int) in inset + width * CGFloat(i) / 4 }
             let mid = geo.size.height / 2
+            let colors = locked ? [Color(hex: 0xBAE6FD), Color(hex: 0x7DB8D6)] : [Color(hex: 0x7DD3FC), Color(hex: 0x0284C7)]
             ZStack(alignment: .topLeading) {
                 Capsule().fill(Color(hex: 0xE5E5EA))
                     .frame(width: width, height: 6)
                     .position(x: inset + width / 2, y: mid)
                 Capsule().fill(disabled ? AnyShapeStyle(Color(.systemGray3))
-                               : AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x7DD3FC), Color(hex: 0x0284C7)], startPoint: .leading, endPoint: .trailing)))
+                               : AnyShapeStyle(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)))
                     .frame(width: max(x(level) - inset, 6), height: 6)
                     .position(x: inset + max(x(level) - inset, 6) / 2, y: mid)
                 ForEach(0..<5, id: \.self) { i in
@@ -963,13 +1237,20 @@ private struct TendencySlider: View {
                         .position(x: x(i), y: mid)
                 }
                 Circle().fill(Color.white)
+                    .overlay(Circle().strokeBorder(Color(hex: 0xC7C7CC), lineWidth: locked && !disabled ? 1 : 0))
+                    .overlay {
+                        if locked && !disabled {
+                            Image(systemName: "lock.fill").font(.system(size: 9, weight: .semibold)).foregroundStyle(Color(hex: 0x8E8E93))
+                        }
+                    }
                     .frame(width: 26, height: 26)
-                    .shadow(color: .black.opacity(disabled ? 0.08 : 0.2), radius: 3, y: 1)
+                    .shadow(color: .black.opacity(disabled || locked ? 0.08 : 0.2), radius: 3, y: 1)
                     .position(x: x(level), y: mid)
             }
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { value in
                 guard !disabled else { return }
+                guard !locked else { onLockedTouch(); return }
                 let step = Int(((value.location.x - inset) / width * 4).rounded())
                 let next = min(max(step, 0), 4)
                 if next != level {
@@ -982,8 +1263,10 @@ private struct TendencySlider: View {
         .accessibilityElement()
         .accessibilityLabel(L("调用偏好", "Search preference", "検索の頻度"))
         .accessibilityValue(SearchTendencyCard.names[level])
+        .accessibilityHint(locked && !disabled ? L("先点「编辑」才能调", "Tap Edit first to change", "先に「編集」をタップ") : "")
         .accessibilityAdjustableAction { direction in
             guard !disabled else { return }
+            guard !locked else { onLockedTouch(); return }
             switch direction {
             case .increment: level = min(level + 1, 4)
             case .decrement: level = max(level - 1, 0)

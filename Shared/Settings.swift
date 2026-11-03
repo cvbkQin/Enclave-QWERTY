@@ -174,6 +174,9 @@ struct EnclaveSettings: Codable, Equatable {
     var separateAnswer: Bool = false
     var answerBaseURL: String = ""
     var answerModel: String = ""
+    /// AI 页「接口」上润色 / 问答两张卡右上的开关（QE）：关掉后键盘 AI 栏不显示这颗键，配置、提示词都保留。
+    var polishEnabled: Bool = true
+    var answerEnabled: Bool = true
     /// 问答用的配置自己的温度、最多字数（接口配置跟着配置走）；nil 跟润色一样。
     var answerTemperature: Double?
     var answerMaxTokens: Int?
@@ -184,7 +187,7 @@ struct EnclaveSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, clipboardProbe, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
-        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
         case pinnedStyleIDs
     }
 
@@ -282,6 +285,8 @@ extension EnclaveSettings {
         answerModel = try c.decodeIfPresent(String.self, forKey: .answerModel) ?? answerModel
         answerTemperature = try c.decodeIfPresent(Double.self, forKey: .answerTemperature)
         answerMaxTokens = try c.decodeIfPresent(Int.self, forKey: .answerMaxTokens)
+        polishEnabled = try c.decodeIfPresent(Bool.self, forKey: .polishEnabled) ?? polishEnabled
+        answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
@@ -438,6 +443,29 @@ extension EnclaveSettings {
     var isKimi: Bool { baseURL.contains("moonshot.") }
     /// 这个接口能联网的话是哪一家：Kimi、千问（阿里云百炼）、智谱。别的服务商没有可用的联网接口，返回 nil。
     var searchProvider: SearchProvider? { Self.searchProvider(baseURL: baseURL) }
+
+    // MARK: 键盘上显示不显示润色键 / 问答键（QE）
+
+    /// 「测试连接」记下的结果（App 写、键盘读）：这组地址 + 模型最近一次测试通过没有；没测过是 nil。
+    static func testOK(baseURL: String, model: String) -> Bool? {
+        SharedStorage.defaults.object(forKey: testKey(baseURL: baseURL, model: model)) as? Bool
+    }
+
+    static func testKey(baseURL: String, model: String) -> String { "test.ok.\(baseURL)|\(model)" }
+
+    /// 润色这一路能不能用：有配置、最近一次测试没失败。
+    var polishUsable: Bool { isConfigured && Self.testOK(baseURL: baseURL, model: model) != false }
+
+    /// 问答这一路能不能用（和润色用同一个时看润色那组）。
+    var answerUsable: Bool {
+        if separateAnswer && !usesAnswerEndpoint { return false }
+        let config = forAnswers
+        return config.isConfigured && Self.testOK(baseURL: config.baseURL, model: config.model) != false
+    }
+
+    /// 键盘 AI 栏显示润色键 / 问答键：开关开着、配置能用。关掉或不能用时这颗键不显示，固定键往左补位。
+    var showsPolishKey: Bool { polishEnabled && polishUsable }
+    var showsAnswerKey: Bool { answerEnabled && answerUsable }
 
     static func searchProvider(baseURL: String) -> SearchProvider? {
         if baseURL.contains("moonshot.") { return .kimi }

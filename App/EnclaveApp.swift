@@ -562,7 +562,7 @@ final class AppStore: ObservableObject {
         SharedStorage.defaults.object(forKey: testKey) as? Bool
     }
 
-    private var testKey: String { "test.ok.\(settings.baseURL)|\(settings.model)" }
+    private var testKey: String { EnclaveSettings.testKey(baseURL: settings.baseURL, model: settings.model) }
 
     #if DEBUG
     /// 截图用：不联网，直接当作测试成功。
@@ -596,6 +596,9 @@ final class AppStore: ObservableObject {
         }
         var ok = false
         if case .success = answerTest { ok = true }
+        // 键盘按它决定显不显示问答键（QE）。
+        let answerConfig = settings.forAnswers
+        SharedStorage.defaults.set(ok, forKey: EnclaveSettings.testKey(baseURL: answerConfig.baseURL, model: answerConfig.model))
         if ok { await checkModelListed(answer: true) }
         // 问答卡的最近 20 次里有它。
         UsageStats.recordAnswerRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.forAnswers.model,
