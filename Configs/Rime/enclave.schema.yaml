@@ -14,6 +14,8 @@ switches:
 
 engine:
   processors:
+    # 分段选过的词告诉键盘（enclave_selected）：删除撤回分段选词、重输后选回来要用（和九宫格一样）。
+    - lua_processor@*enclave_t9_state
     - speller
     - selector
     - navigator

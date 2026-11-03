@@ -773,8 +773,11 @@ extension KeyboardModel {
         // 和点候选一样：轻触震动和按键音（设置里开着才有）。
         keyFeedback(for: .space)
         applyEngineResults(wait: true)
+        let before = choiceState
         engine.replaceInput(segmentation, keeping: [])
         syncEngine()
+        // 删除先撤回这次切法（和九宫格选拼音一样），不是删掉最后一个字母。
+        recordChoice(from: before)
     }
 
     /// 首选候选在第一个没定的字上的读法：拼写栏是首选的拼音（「你好ma」「mi hao」），去掉前面选过的词和已经定下的音节。
@@ -825,9 +828,10 @@ extension KeyboardModel {
         var after: ChoiceState
     }
 
-    /// 九宫格组字时现在的状态；不是九宫格或没在组字时为 nil。
+    /// 组字时现在的状态；没在组字时为 nil。全键盘也记：分段选词后删除，按原来的键重输再选回去，
+    /// 不交给 Rime 自己退格（那样拼写会变成「ni haoshijie」，后面的音节连在一起）。
     private var choiceState: ChoiceState? {
-        guard showsNineKey, isComposing else { return nil }
+        guard isComposing else { return nil }
         applyEngineResults(wait: true)
         return ChoiceState(raw: engine.rawInput, selections: engine.selections)
     }
@@ -846,7 +850,7 @@ extension KeyboardModel {
     /// Rime 自己的退格在分段选词后又打过键时会直接删掉前面的数字，不会取消选词，所以撤回由这里按记下的状态重输。
     private func undoLastChoice() -> Bool {
         // 还有键排着没算完：最后一步是打键，照常删键。
-        guard QueuedEngine.shared.pending == 0 else { return false }
+        guard QueuedEngine.shared.pending == 0, !choiceSteps.isEmpty else { return false }
         guard let current = choiceState else {
             choiceSteps = []
             return false
