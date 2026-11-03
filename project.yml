@@ -17,8 +17,8 @@ settings:
     # DEV_LABEL 写「0.95_N」显示在关于页。测好合并进 main 时版本号进一位（0.95_N 合并叫 0.96，构建号 96），DEV_LABEL 清空；
     # 下一轮开发版是 0.96_1、0.96_2…。版本号、构建号统一由版本管理（04）分配和修改，功能线程不自己改。
     MARKETING_VERSION: "0.95"
-    CURRENT_PROJECT_VERSION: "9521"
-    DEV_LABEL: "0.95_21"
+    CURRENT_PROJECT_VERSION: "9522"
+    DEV_LABEL: "0.95_22"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。
