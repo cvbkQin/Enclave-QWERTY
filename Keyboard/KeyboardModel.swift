@@ -244,6 +244,10 @@ final class KeyboardModel: ObservableObject {
     @Published var hostReturnKey: UIReturnKeyType = .default
     /// 上次按输入框类型切过页的 keyboardType；换了输入框、类型变了才再切一次，不打断用户自己切的页。
     var hostKeyboardType: UIKeyboardType?
+    /// 进邮箱、网址框时自动切成了英文：离开到别的框时切回中文。
+    var autoEnglishField = false
+    /// 最近一次上屏到对方输入框的字：判断联想是不是还接着它（换框、挪光标后不带过去）。
+    var lastHostCommit = ""
     /// 输入框里是否有带下划线的拼音（marked text）。
     var hasMarkedText = false
     /// 上一次放进输入框的标记文字（拼音），用来看输入框有没有把它换掉。
@@ -976,7 +980,7 @@ final class KeyboardModel: ObservableObject {
                     let results: String
                     let searchStarted = Date()
                     do {
-                        results = WebSearch.digest(try await search.search(ask.question))
+                        results = WebSearch.digest(try await search.search(WebSearch.query(for: ask.question)))
                     } catch {
                         if Task.isCancelled { throw error }
                         results = ""

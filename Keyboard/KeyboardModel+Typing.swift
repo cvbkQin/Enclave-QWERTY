@@ -455,6 +455,12 @@ extension KeyboardModel {
         if KeyboardDebug.options.contains("send") { returnKey = .send }
         #endif
         if hasText != hostHasText { hostHasText = hasText }
+        // 换了输入框、挪了光标：光标前已经不是刚上屏的那个词，联想就不带过去（不然新框里第一下删除只是收起联想，看着像删不动）。
+        if chineseMode, showsPredictions, target == .host, !lastHostCommit.isEmpty,
+           // 空框、光标在最前时系统给 nil，当空的算。
+           !(proxy?.documentContextBeforeInput ?? "").hasSuffix(lastHostCommit) {
+            dismissPredictions()
+        }
         if returnKey != hostReturnKey { hostReturnKey = returnKey }
         let keyboardType = proxy?.keyboardType ?? .default
         if keyboardType != hostKeyboardType {
@@ -464,8 +470,17 @@ extension KeyboardModel {
     }
 
     /// 数字、电话、金额输入框直接出数字键盘；数字和标点框出数字符号页；其他输入框回到字母（正在组字时不动）。
+    /// 邮箱、网址框像系统键盘一样直接用英文；离开这类框回到别的框时，再切回中文（用户在框里自己切过就不管）。
     private func applyLayer(for keyboardType: UIKeyboardType) {
         guard target == .host, !isComposing else { return }
+        let englishField = keyboardType == .emailAddress || keyboardType == .URL
+        if englishField, chineseMode {
+            toggleChinese()
+            autoEnglishField = true
+        } else if !englishField, autoEnglishField {
+            autoEnglishField = false
+            if !chineseMode { toggleChinese() }
+        }
         switch keyboardType {
         case .numberPad, .phonePad, .decimalPad, .asciiCapableNumberPad:
             if layer != .digits { switchLayer(.digits) }
@@ -544,6 +559,8 @@ extension KeyboardModel {
     func toggleChinese() {
         // 只用英文时没有中文；九宫格布局菜单之类的入口也不切过去。
         if !chineseMode && settings.inputLanguage == .englishOnly { return }
+        // 在邮箱框里自己切了中英：之后按用户的来，不再自动切回。
+        autoEnglishField = false
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         chineseMode.toggle()
@@ -1114,6 +1131,7 @@ extension KeyboardModel {
         recentCorrection = nil
         switch target {
         case .host:
+            lastHostCommit = text
             // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
             // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下（「hao de好的」）；
             // 非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
@@ -1152,10 +1170,13 @@ extension KeyboardModel {
             // 输入框不认标记文字：拼音只在键盘上显示，不往输入框里写。
         } else if target == .host && isComposing {
             let previous = hasMarkedText ? lastMarkedText : ""
-            editProxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
+            // 九宫格：输入框里只写按了的键（一个键一个字母），不写首选补全出来的字母（按一下 4 显示 g，不是 gao），和系统九宫格一样。
+            let marked = showsNineKey ? Self.nineKeyTyped(composition: composition, raw: engine.rawInput,
+                                                           from: engine.selections.last?.end ?? 0) : composition
+            editProxy?.setMarkedText(marked, selectedRange: NSRange(location: (marked as NSString).length, length: 0))
             hasMarkedText = true
-            lastMarkedText = composition
-            if !previous.isEmpty, previous != composition { checkMarkedTextReplaced(previous: previous, current: composition) }
+            lastMarkedText = marked
+            if !previous.isEmpty, previous != marked { checkMarkedTextReplaced(previous: previous, current: marked) }
         } else {
             clearMarkedText()
         }
@@ -1185,6 +1206,50 @@ extension KeyboardModel {
         }
     }
 
+    /// 九宫格的拼写（首选词的整拼，比如按了 4 是「gao」）截成真正按了的键：每个数字键配一个字母，补全出来的字母不要。
+    /// 分段选过的字（汉字）原样留着，它们用掉的键从 from（最后一个分段的结束位置）往后算；选过的拼音（raw 里的字母）照抄。
+    /// 纯函数，单元测试用。
+    static func nineKeyTyped(composition: String, raw: String, from: Int) -> String {
+        let keys = Array(raw.lowercased())
+        var p = min(max(from, 0), keys.count)
+        var out = ""
+        func digit(of letter: Character) -> Character? {
+            switch letter {
+            case "a"..."c": return "2"
+            case "d"..."f": return "3"
+            case "g"..."i": return "4"
+            case "j"..."l": return "5"
+            case "m"..."o": return "6"
+            case "p"..."s": return "7"
+            case "t"..."v": return "8"
+            case "w"..."z": return "9"
+            default: return nil
+            }
+        }
+        for c in composition {
+            if c.isASCII, c.isLetter {
+                let lower = Character(c.lowercased())
+                guard p < keys.count else { continue }
+                if keys[p] == "'" { p += 1 }
+                guard p < keys.count else { continue }
+                if keys[p] == lower || (keys[p].isNumber && digit(of: lower) == keys[p]) {
+                    out.append(c)
+                    p += 1
+                }
+                // 不对上就是补全出来的字母：不写，等下一个音节。
+            } else if c == " " || c == "'" {
+                if p < keys.count, keys[p] == "'" { p += 1 }
+                if p < keys.count, let last = out.last, last != " ", last != "'" { out.append(c) }
+            } else {
+                out.append(c)
+            }
+        }
+        // 对不上的键（拼写和按键不一致，不该出现）：别把按了的吞掉，退回原来的拼写。
+        let typedLetters = keys[min(max(from, 0), keys.count)...].filter { $0 != "'" }.count
+        let shownLetters = out.filter { $0.isASCII && $0.isLetter }.count
+        return shownLetters == typedLetters ? out.trimmingCharacters(in: .whitespaces) : composition
+    }
+
     /// 光标前是不是「上一次的拼音 + 现在的拼音」（上一次的没被换掉）。纯函数，单元测试用。
     static func markedTextWasKept(before: String, previous: String, current: String) -> Bool {
         guard !previous.isEmpty, !current.isEmpty, previous != current else { return false }
@@ -1206,7 +1271,9 @@ extension KeyboardModel {
         let trimmed = before.trimmingCharacters(in: .whitespaces)
         let sentenceStart = trimmed.isEmpty || before.hasSuffix("\n")
             || (before.hasSuffix(" ") && [".", "?", "!"].contains(trimmed.last.map(String.init) ?? ""))
-        let wanted: ShiftState = sentenceStart ? .on : .off
+        // 邮箱、网址、用户名这类输入框说了不要自动大写（autocapitalizationType = .none）：照它的来。
+        let hostWantsNone = proxy?.autocapitalizationType == UITextAutocapitalizationType.none
+        let wanted: ShiftState = sentenceStart && !hostWantsNone ? .on : .off
         // 没变就不设（同 syncEngine），英文打字时每个键都会走到这里。
         if shift != wanted { shift = wanted }
     }
