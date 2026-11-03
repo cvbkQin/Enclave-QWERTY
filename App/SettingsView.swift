@@ -246,6 +246,20 @@ struct TestToolsView: View {
         DashPage {
             TypingSpeedCard()
             StressTestCard()
+            #if DEBUG
+            // 输入框测试台：只在开发版（内测、公测包里没有）。
+            NavigationLink { HostCompatBench() } label: {
+                DashCard {
+                    HStack {
+                        Text("输入框测试台").font(.system(size: 17, weight: .semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    Text("12 种输入框，模仿亚朵、闲鱼、网页等会出问题的 App").font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            #endif
         }
         .navigationTitle(L("测试工具", "Test tools", "テストツール"))
         .navigationBarTitleDisplayMode(.inline)
