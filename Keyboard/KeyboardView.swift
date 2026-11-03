@@ -320,6 +320,14 @@ struct KeyboardView: View {
             if let title = model.pinyinKeyTitle {
                 PinyinKey(model: model, title: title)
                 Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 22)
+            } else if model.pinyinSide, model.showsNineKey, let pinyin = model.offFieldPinyin {
+                // 侧边九宫格、输入框不认标记文字（NM2）：整串拼音放在候选栏最左边，后面一条竖线再接候选。
+                OffFieldPinyinText(text: pinyin, size: 16)
+                    .padding(.leading, KeyboardMetrics.nineSideMargin + 10)
+                    .padding(.trailing, 10)
+                    .frame(maxWidth: 170, alignment: .leading)
+                    .layoutPriority(1)
+                Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 22)
             }
             // 点击判定在 UIKit 里做，见 CandidateStrip。删了候选后 3 秒内换成撤销条（CL4）。
             ZStack {

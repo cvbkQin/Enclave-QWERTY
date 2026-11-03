@@ -412,6 +412,13 @@ struct PinyinRow: View {
         let reading = model.correctedReading
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
+                // 输入框不认标记文字（NM1）：整串拼音放在最左边，后面一道竖线再接平时的拼音选项。
+                if let pinyin = model.offFieldPinyin {
+                    OffFieldPinyinText(text: pinyin)
+                        .padding(.horizontal, 10)
+                        .frame(maxHeight: .infinity)
+                    Rectangle().fill(Self.dividerColor).frame(width: 1, height: 18).padding(.horizontal, 2)
+                }
                 if nine, let reading {
                     item(reading.text, marked: reading.marked) { model.chooseCorrectedReading(reading.text) }
                     Rectangle().fill(Self.dividerColor).frame(width: 1, height: 18).padding(.horizontal, 2)

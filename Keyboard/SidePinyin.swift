@@ -43,12 +43,24 @@ extension KeyboardModel {
     }
 
     /// 全键盘拼音键：现在的切法；切法只有一种、也没有纠正读法时不显示这颗键。
+    /// 输入框不认标记文字时（NM2）拼音只在这里显示，所以一直显示，没有切法可选就用整串拼音。
     var pinyinKeyTitle: String? {
         guard pinyinSide, !showsNineKey, isComposing, chineseMode else { return nil }
         let segmentations = pinyinSegmentations
+        if offFieldPinyin != nil { return segmentations.first ?? correctedReading?.text ?? composition }
         guard segmentations.count > 1 || correctedReading != nil else { return nil }
         return segmentations.first ?? correctedReading?.text
     }
+
+    /// 输入框不认标记文字（inlinePinyinOff，亚朵姓名框）时整串拼音只在键盘上显示（NM1、NM2）：
+    /// 拼音在上方一行时放在拼音行最左边，侧边九宫格放在候选栏最左边，侧边全键盘就是拼音键本身。普通输入框是 nil。
+    var offFieldPinyin: String? {
+        guard inlinePinyinOff, target == .host, isComposing, !composition.isEmpty else { return nil }
+        return composition
+    }
+
+    /// 拼音键能不能点开：有切法可选或有纠正读法。
+    var pinyinKeyOpens: Bool { pinyinSegmentations.count > 1 || correctedReading != nil }
 
     /// 纠正读法右边的灰字：改了哪个字母（「按错 u → o」）。
     var correctionNote: String? {
@@ -178,17 +190,27 @@ struct PinyinKey: View {
 
     var body: some View {
         let open = model.pinyinPopoverOpen
-        Button { model.pinyinPopoverOpen.toggle() } label: {
+        // 输入框不认标记文字（NM2）：去掉灰底，改成次要色 + 下划线的文字；点开照旧选切法。
+        let plain = model.offFieldPinyin != nil
+        let opens = model.pinyinKeyOpens
+        Button { if opens { model.pinyinPopoverOpen.toggle() } } label: {
             HStack(spacing: 3) {
-                Text(title).font(.system(size: 16, weight: open ? .semibold : .regular))
-                    .foregroundStyle(open ? SidePinyinStyle.mainText : Color.primary)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 12))
-                    .foregroundStyle(open ? SidePinyinStyle.mainText : SidePinyinStyle.hint)
+                if plain && !open {
+                    OffFieldPinyinText(text: title, size: 16)
+                } else {
+                    Text(title).font(.system(size: 16, weight: open ? .semibold : .regular))
+                        .foregroundStyle(open ? SidePinyinStyle.mainText : Color.primary)
+                        .lineLimit(1)
+                }
+                if opens {
+                    Image(systemName: "chevron.down").font(.system(size: 12))
+                        .foregroundStyle(open ? SidePinyinStyle.mainText : SidePinyinStyle.hint)
+                }
             }
             .padding(.horizontal, 10)
             .frame(height: 32)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(open ? SidePinyinStyle.firstFill : KeyStyle.charKey))
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(open ? SidePinyinStyle.firstFill : plain ? Color.clear : KeyStyle.charKey))
             .contentShape(Rectangle())
         }
         .buttonStyle(KeyPressStyle())
@@ -266,5 +288,23 @@ private struct PopoverPointer: Shape {
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
         path.closeSubpath()
         return path
+    }
+}
+
+/// 输入框不认标记文字时显示在键盘上的整串拼音（NM1、NM2）：次要色、同色下划线，像输入框里正在拼的拼音。不能点。
+struct OffFieldPinyinText: View {
+    let text: String
+    var size: CGFloat = 17
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: size))
+            .foregroundStyle(Color.secondary)
+            .lineLimit(1)
+            .truncationMode(.head)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color.secondary).frame(height: 1).offset(y: 1)
+            }
+            .accessibilityLabel(text)
     }
 }
