@@ -429,8 +429,8 @@ struct ConfigEditor: View {
                         .autocorrectionDisabled()
                         .keyboardType(.asciiCapable)
                         .focused($keyFocused)
-                        // 完全透明的视图收不到点击：留 0.01，盖着的掩码字本身也能点进编辑。
-                        .opacity(keyFocused || apiKey.isEmpty ? 1 : 0.01)
+                        // 不编辑时完全藏起原文（0.01 放大截图还能读出来）；点击由上面的掩码字接，点了进编辑。
+                        .opacity(keyFocused || apiKey.isEmpty ? 1 : 0)
                     if !keyFocused, !apiKey.isEmpty {
                         Text(Self.masked(apiKey))
                             .font(.system(size: 15, design: .monospaced))
