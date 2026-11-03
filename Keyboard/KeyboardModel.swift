@@ -7,6 +7,8 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var session: EditSession? { didSet { aiLabelMayChange() } }
     @Published private(set) var streamingText = ""
     @Published private(set) var isRunning = false { didSet { aiLabelMayChange(); markScreen() } }
+    /// 问答中途点了停止（PS6）：回答卡保留已经出来的字，标题行加「· 已停止」。不进历史，下一次生成时清掉。
+    @Published var stoppedAnswer: String?
     /// 每开始一次生成加一：上一次的收尾只在它还是最新一次时才清「生成中」。
     var runToken = 0
     @Published private(set) var canUndo = false
@@ -329,7 +331,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 预览区显示的文字。
     var displayText: String {
-        isRunning ? streamingText : (session?.current ?? "")
+        isRunning ? streamingText : (stoppedAnswer ?? session?.current ?? "")
     }
 
     /// 没开完全访问或没配置 API：✨ 置灰，卡片位置显示检查清单。
@@ -831,6 +833,7 @@ final class KeyboardModel: ObservableObject {
         clearFailure()
         lastRun = (messages, pending, ask, runOrigin ?? .polish)
         streamingText = ""
+        stoppedAnswer = nil
         askRunning = ask != nil
         if askKind != nil { askKind = nil }
         let started = Date()
@@ -1102,6 +1105,12 @@ final class KeyboardModel: ObservableObject {
     }
 
     func stop() {
+        if isRunning {
+            // 问答键发起的：已经出来的字留在回答卡上（PS6）。
+            let shown = ModelOutput.clean(streamingText)
+            if runOrigin == .ask, askKind != .rewrite, !shown.isEmpty { stoppedAnswer = shown }
+            UIAccessibility.post(notification: .announcement, argument: L("已停止", "Stopped", "停止しました"))
+        }
         task?.cancel()
         task = nil
         resolveSearchPrompt(allow: false)
@@ -1515,7 +1524,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 卡片上的复制图标：复制当前版本。
     func copy() {
-        guard hasResult, let text = session?.current else { return }
+        guard let text = stoppedAnswer ?? (hasResult ? session?.current : nil) else { return }
         markAskUsed()
         UIPasteboard.general.string = text
         keyFeedback(for: .space)

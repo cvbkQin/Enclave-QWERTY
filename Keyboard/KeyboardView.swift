@@ -765,6 +765,7 @@ struct ResultCard: View {
         if let error = model.errorMessage { return .error(error) }
         if let prompt = model.searchPrompt { return .search(prompt) }
         if model.isRunning { return .running }
+        if model.stoppedAnswer != nil { return .fresh }
         if model.session?.current != nil {
             return model.resultUse != nil || model.resultStale ? .faded : .fresh
         }
@@ -871,7 +872,12 @@ struct ResultCard: View {
         HStack(alignment: .top, spacing: 2) {
             VStack(alignment: .leading, spacing: 0) {
             // 出结果后正文上面一行标题（AK2）：改写「✨ AI 改写 · 正式」主色，问答「[问答图标] AI 回答 · 直击要害」蓝色 + 联网标签。
-            if !model.isRunning, let session = model.session, session.current != nil {
+            if !model.isRunning, model.stoppedAnswer != nil {
+                // 问答中途停了（PS6）：「AI 回答 · 已停止」。
+                ResultHeader(answer: true, style: nil, searched: false, stopped: true)
+                    .padding(.leading, textLeading)
+                    .padding(.top, 8)
+            } else if !model.isRunning, let session = model.session, session.current != nil {
                 ResultHeader(answer: session.currentIsAnswer,
                              style: session.versionInfo?[String(session.currentIndex)]?.style,
                              searched: session.currentSearchedBy != nil)
@@ -1595,6 +1601,7 @@ struct ResultHeader: View {
     var answer: Bool
     var style: String?
     var searched: Bool
+    var stopped = false
 
     var body: some View {
         let color = answer ? Brand.answerText : Brand.purpleText
@@ -1609,11 +1616,11 @@ struct ResultHeader: View {
                 }
             }
             .padding(.trailing, 4)
-            Text(style.map { "\(head) · \($0)" } ?? head)
+            Text((style.map { "\(head) · \($0)" } ?? head) + (stopped ? L(" · 已停止", " · Stopped", "・停止") : ""))
                 .font(.system(size: 13, weight: .bold))
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if answer {
+            if answer, !stopped {
                 WebTag(on: searched).padding(.leading, 6).fixedSize()
             }
         }
