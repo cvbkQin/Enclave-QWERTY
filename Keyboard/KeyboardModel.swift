@@ -4,7 +4,15 @@ import UIKit
 @MainActor
 final class KeyboardModel: ObservableObject {
     @Published private(set) var settings = EnclaveSettings()
-    @Published private(set) var session: EditSession? { didSet { aiLabelMayChange() } }
+    @Published private(set) var session: EditSession? {
+        didSet {
+            aiLabelMayChange()
+            // 翻到别的版本或出了新的一版：问答「已停止」那张卡让位，不再盖住每一页。
+            if stoppedAnswer != nil, session?.currentIndex != oldValue?.currentIndex || session?.versions.count != oldValue?.versions.count {
+                stoppedAnswer = nil
+            }
+        }
+    }
     @Published private(set) var streamingText = ""
     @Published private(set) var isRunning = false { didSet { aiLabelMayChange(); markScreen() } }
     /// 问答中途点了停止（PS6）：回答卡保留已经出来的字，标题行加「· 已停止」。不进历史，下一次生成时清掉。
