@@ -5,7 +5,8 @@ import Foundation
 struct LabCoachMark: Codable {
     /// 小手要指的按钮，按顺序一步步走。
     enum Step: String, Codable {
-        case sparkle, run, versions, replace, insert
+        /// sparkle：收着时点润色键；run：展开时点润色键的名字；ask：点「问答」。
+        case sparkle, run, ask, versions, replace, insert
     }
 
     var scene: Int

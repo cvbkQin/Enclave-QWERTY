@@ -6,6 +6,8 @@ import SwiftUI
 // 21 步版：问答用上海美食；第五章「分词 · 插入」3 步，最后演示按住替换键上滑插入；发送后界面依次下滑淡出，再进完成页。
 // 润色、改写、提示词三章的对方是说英文的同事 Alex（英文界面是说中文的同事），气泡下带译文；改写、提示词两章各发送一次。
 // 小手只做示范；用户自己点了才触发，抬起那一帧才算。
+// v308（11-01）按新 AI 栏改：没有放大镜、按住拖动、自动判断和「切换」；润色键、问答键点名字执行、点 ⌄ 弹风格下拉；
+// 第三章在下拉里点图钉把「英文」固定到 AI 栏；回答卡标题带风格名和联网标签。剧本见 design/tour/v5/功能演示剧本-新AI栏.md。
 
 enum FeatureTour {
     private static let seenKey = "featureTour.seen"
@@ -199,15 +201,18 @@ private struct TourScript {
 
 /// 小手能指的地方，也是能点的地方。
 private enum TourTarget: Hashable {
-    case sparkle, chevron, undo, redo, drawer, magnifier, switchMode, replace, send, search, card, insert, plus
+    /// sparkle：润色键名字那半边（收起、展开都是它）；chevron：润色键的 ⌄；askKey：问答键名字那半边。
+    case sparkle, chevron, askKey, undo, redo, drawer, replace, send, search, card, insert
+    /// 润色风格下拉：某一条右边的图钉、最底下「＋ 添加润色风格」；AI 栏上固定的「✨ 英文」。
+    case pin(Int), addStyle, pinned
     /// 模拟的 App 提示词页：「添加提示词」「✨ AI 优化提示词」「用这一版」「完成」。
     case addPrompt, improve, useVersion, done
     /// 编辑页的建议标签。
     case tag(Int)
-    /// 结果卡右下展开、「直击要害 ▾」、问答风格一排（0 直击要害，1 详细，2 列要点，3 通俗）。
+    /// 结果卡右下展开、问答键的 ⌄、问答风格下拉里的一条（0 直击要害，1 详细，2 列要点，3 通俗）。
     case expand, answerStyle
     case answerPill(Int)
-    /// 提示词一排：0 润色，1–4 内置，5 演示里加的那条。
+    /// 润色风格下拉里的一条：0 润色，1–4 内置，5 演示里加的那条。
     case pill(Int)
     /// 分词面板虚线框的第一块、最后一块（小手横划示范用）。
     case words, wordsEnd
@@ -220,7 +225,7 @@ private enum TourChapter {
         switch self {
         case .polish: return L("润色", "Polish", "整える")
         case .rewrite: return L("改写", "Rewrite", "書き換え")
-        case .prompt: return L("提示词", "Prompts", "プロンプト")
+        case .prompt: return L("润色风格", "Polish styles", "整えるスタイル")
         case .answer: return L("问答", "Answer", "回答")
         case .words: return L("分词 · 插入", "Pick & Insert", "単語・挿入")
         }
@@ -261,59 +266,56 @@ private struct TourStep {
     static func info(_ step: Int, part: Int) -> TourStep {
         switch step {
         case 1: return TourStep(chapter: .polish, index: 1, total: 2,
-                                title: L("点击 ✨，润色输入内容", "Tap ✨ to polish your text", "✨ をタップして文章を整える"),
+                                title: L("点击「✨ 润色」，润色输入内容", "Tap ✨ Polish to polish your text", "「✨ 整える」をタップして文章を整える"),
                                 detail: L("AI 将修正语病和标点，并直接替换输入框中的文字。", "AI fixes grammar and punctuation and replaces the text in the input field.", "AI が文法と句読点を直し、入力欄の文章をそのまま置き換えます。"))
         case 2: return TourStep(chapter: .polish, index: 2, total: 2,
                                 title: L("润色完成，可随时撤销", "Done. You can undo anytime", "完了。いつでも元に戻せます"),
                                 detail: L("点击 ↶ 恢复原文；点击 ↷ 重新应用润色结果。", "Tap ↶ to restore the original; tap ↷ to apply the polished text again.", "↶ で元の文章に戻り、↷ で整えた文章を再び適用します。"))
         case 3: return TourStep(chapter: .rewrite, index: 1, total: 4,
                                 title: L("点击此处，展开回答卡", "Tap here to open the answer card", "ここをタップして回答カードを開く"),
-                                detail: L("展开后，可在识意框中输入修改要求或问题。", "Then type an instruction or a question in the Ask field.", "開いたら、識意欄に修正の指示や質問を入力できます。"))
+                                detail: L("展开后，可以在下面的框里写修改要求或问题。", "Then type an instruction or a question in the box below.", "開いたら、下の欄に修正の指示や質問を入力できます。"))
         case 4: return TourStep(chapter: .rewrite, index: 2, total: 4,
-                                title: L("写下要求，点击放大镜", "Write an instruction, then tap the magnifier", "指示を入力して虫めがねをタップ"),
-                                detail: L("识意框中已预填修改要求。点击放大镜，AI 按要求改写输入框中的文字。", "An instruction is already in the Ask field. Tap the magnifier and AI rewrites your text as asked.", "識意欄には指示が入力済みです。虫めがねをタップすると、AI が指示どおりに文章を書き換えます。"))
+                                title: L("写下要求，点击「✨ 润色」", "Write an instruction, then tap ✨ Polish", "指示を書いて「✨ 整える」をタップ"),
+                                detail: L("下面框里的要求会一起带上，AI 按要求改写输入框里的话。", "The instruction in the box below goes along, and AI rewrites your text as asked.", "下の欄の指示もいっしょに送られ、AI が指示どおりに文章を書き換えます。"))
         case 5: return TourStep(chapter: .rewrite, index: 3, total: 4,
                                 title: L("点击「替换」，应用结果", "Tap Replace to use the result", "「置換」で結果を反映"),
                                 detail: L("改写结果显示在回答卡中。点击「替换」写入输入框；按住上滑可改为「插入」，保留原文。", "The rewrite appears in the card. Tap Replace to put it in the input field; hold and slide up for Insert to keep the original.", "書き換え結果はカードに表示されます。「置換」で入力欄に反映し、長押しして上にスライドすると元の文章を残す「挿入」になります。"))
         case 6 where part == 1: return TourStep(chapter: .rewrite, index: 4, total: 4,
-                                title: L("按住放大镜，上下拖动", "Hold the magnifier and slide", "虫めがねを長押しして上下にスライド"),
+                                title: L("改个要求，再点一次", "Change the instruction and tap again", "指示を変えてもう一度"),
                                 detail: L("满意后点击「替换」，再点击「发送」。", "Happy with it? Tap Replace, then Send.", "よければ「置換」、続いて「送信」をタップします。"))
         case 6: return TourStep(chapter: .rewrite, index: 4, total: 4,
-                                title: L("按住放大镜，上下拖动", "Hold the magnifier and slide", "虫めがねを長押しして上下にスライド"),
-                                detail: L("可预先指定处理方式：上滑为改写，下滑为问答，松手即执行。请按住放大镜向上拖动。", "Choose the mode in advance: slide up to rewrite, down to answer, and release to run. Hold the magnifier and slide up.", "上で書き換え、下で回答を指定し、指を離すと実行します。虫めがねを長押しして上にスライドしてください。"))
+                                title: L("改个要求，再点一次", "Change the instruction and tap again", "指示を変えてもう一度"),
+                                detail: L("把要求改成「再简短一点」，再点击「✨ 润色」。", "The instruction now says \"Make it shorter\". Tap ✨ Polish again.", "指示を「もっと短く」に変えて、もう一度「✨ 整える」をタップします。"))
         case 7: return TourStep(chapter: .prompt, index: 1, total: 5,
-                                title: L("常用英文发消息？存成一条提示词", "Write in Chinese often? Save it as a prompt", "英語でよく送るなら、プロンプトに保存"),
-                                detail: L("不用每次都写「翻成英文」。点击「润色 ▾」右侧箭头，再点击「＋」，到提示词页添加一条。", "No need to type \"Translate into Chinese\" every time. Tap the arrow on Polish ▾, then + to add one on the Prompts page.", "毎回「英語に翻訳」と書かなくても大丈夫です。「整える ▾」の矢印をタップし、「＋」でプロンプトページから追加します。"))
+                                title: L("常用英文发消息？加一个润色风格", "Write in Chinese often? Add a polish style", "英語でよく送るなら、整えるスタイルを追加"),
+                                detail: L("不用每次都写「翻成英文」。点击「✨ 润色」右边的 ⌄，再点击「＋ 添加润色风格」。", "No need to type \"Translate into Chinese\" every time. Tap the ⌄ next to ✨ Polish, then tap + Add Polish Style.", "毎回「英語に翻訳」と書かなくても大丈夫です。「✨ 整える」の右の ⌄ をタップし、「＋ 整えるスタイルを追加」をタップします。"))
         case 8: return TourStep(chapter: .prompt, index: 2, total: 5,
-                                title: L("在提示词页添加", "Add it on the Prompts page", "プロンプトページで追加"),
-                                detail: L("键盘上的提示词都在 App 的提示词页管理，可以改名、改内容、调顺序。点击「添加提示词」。", "Keyboard prompts are managed on the app's Prompts page, where you can rename, edit and reorder them. Tap Add Prompt.", "キーボードのプロンプトはアプリのプロンプトページで管理し、名前や内容、並び順を変えられます。「プロンプトを追加」をタップしてください。"))
+                                title: L("在 App 里添加润色风格", "Add one in the app", "アプリで追加"),
+                                detail: L("润色风格都在 App 的「AI › 润色风格」里管理，可以改名、改内容、调顺序。点击「添加润色风格」。", "Polish styles are managed under AI › Polish styles in the app, where you can rename, edit and reorder them. Tap Add Polish Style.", "整えるスタイルはアプリの「AI › 整えるスタイル」で管理し、名前や内容、並び順を変えられます。「整えるスタイルを追加」をタップしてください。"))
         case 9: return TourStep(chapter: .prompt, index: 3, total: 5,
                                 title: L("点建议标签，快速补充要求", "Tap a suggestion to add to it", "候補タグで指示をすばやく追加"),
-                                detail: L("名称和内容已填好。点一下建议标签，就接到提示词后面；再点一下去掉。点击「保持原意」。", "The name and prompt are filled in. Tap a suggestion to add it to the prompt; tap again to remove it. Tap Keep the meaning.", "名前と内容は入力済みです。候補タグをタップするとプロンプトの後ろに付き、もう一度タップすると外れます。「意味はそのまま」をタップしてください。"))
+                                detail: L("名称和内容已填好。点一下建议标签，就接到内容后面；再点一下去掉。点击「保持原意」。", "The name and prompt are filled in. Tap a suggestion to add it to the prompt; tap again to remove it. Tap Keep the meaning.", "名前と内容は入力済みです。候補タグをタップするとプロンプトの後ろに付き、もう一度タップすると外れます。「意味はそのまま」をタップしてください。"))
         case 10: return TourStep(chapter: .prompt, index: 4, total: 5,
-                                 title: L("AI 帮你把提示词写清楚", "Let AI write the prompt clearly", "AI がプロンプトを整理"),
+                                 title: L("AI 帮你把要求写清楚", "Let AI write it clearly", "AI が指示を整理"),
                                  detail: L("点击「✨ AI 优化提示词」，AI 会把要求改得更完整。看完点击「用这一版」，再点击「完成」。", "Tap ✨ Improve with AI and AI makes the instruction more complete. Tap Use This, then Done.", "「✨ AI でプロンプトを改善」をタップすると、AI が指示をより分かりやすくします。「これを使う」、続いて「完了」をタップしてください。"))
         case 11 where part == 0: return TourStep(chapter: .prompt, index: 5, total: 5,
-                                 title: L("切到「英文」，点 ✨ 直接出英文", "Pick Chinese, then tap ✨", "「英語」を選んで ✨"),
-                                 detail: L("点击「英文」，再点击 ✨，输入框里的中文直接改成英文。", "Tap Chinese, then ✨. Your text turns into Chinese right in the input field.", "「英語」を選んで ✨ をタップすると、入力欄の文章がそのまま英語になります。"))
-        case 11 where part == 1: return TourStep(chapter: .prompt, index: 5, total: 5,
-                                 title: L("发给对方", "Send it", "相手に送る"),
-                                 detail: L("点击「发送」，发给对方。", "Tap Send to send it.", "「送信」をタップして相手に送ります。"))
+                                 title: L("固定到 AI 栏，一键出英文", "Pin it for one-tap Chinese", "AI バーに固定して、ワンタップで英語に"),
+                                 detail: L("点击「英文」右边的图钉，AI 栏多出一颗「✨ 英文」。点击它，输入框里的中文直接改成英文。", "Tap the pin next to Chinese, and ✨ Chinese appears on the AI bar. Tap it and your text turns into Chinese in the input field.", "「英語」の右のピンをタップすると、AI バーに「✨ 英語」が出ます。タップすると入力欄の文章がそのまま英語になります。"))
         case 11: return TourStep(chapter: .prompt, index: 5, total: 5,
-                                 title: L("随时换回", "Switch back anytime", "いつでも戻せます"),
-                                 detail: L("点击「润色」即可换回。", "Tap Polish to switch back.", "「整える」をタップすると元に戻ります。"))
+                                 title: L("发给对方", "Send it", "相手に送る"),
+                                 detail: L("点击「发送」，发给对方。润色键还是「润色」，不用换回。", "Tap Send to send it. The polish key still says Polish; nothing to switch back.", "「送信」をタップして相手に送ります。整えるキーは「整える」のままなので、戻す必要はありません。"))
         case 12: return TourStep(chapter: .answer, index: 1, total: 7,
-                                 title: L("点击放大镜，自动判断", "Tap the magnifier to let it decide", "虫めがねで自動判断"),
-                                 detail: L("识意框留空时，放大镜会根据输入框中的文字判断是修改还是回答。", "With the Ask field empty, the magnifier looks at the text in the input field and decides whether to rewrite it or answer it.", "識意欄が空のときは、入力欄の文章から修正か回答かを判断します。"))
+                                 title: L("点击「问答」，直接回答", "Tap Ask to get an answer", "「質問」をタップしてすぐ回答"),
+                                 detail: L("输入框里是个问题？点「问答」，回答卡自动展开并回答。", "Is your text a question? Tap Ask and the answer card opens with the answer.", "入力欄の文章が質問なら、「質問」をタップすると回答カードが開いて答えます。"))
         case 13: return TourStep(chapter: .answer, index: 2, total: 7,
-                                 title: L("判断有误？可快速切换", "Wrong guess? Switch in one tap", "判断違い？すぐ切り替え"),
-                                 detail: L("放大镜把这句当成问题回答了，其实你是想发给对方。点击「切换」，改为润色这句话。", "The magnifier answered this as a question, but you meant to send it. Tap Switch to polish the sentence instead.", "虫めがねが質問として回答しましたが、本当は相手に送る文です。「切替」をタップすると、文章を整える処理に切り替わります。"))
+                                 title: L("其实想发给对方？点击「✨ 润色」", "Meant to send it? Tap ✨ Polish", "相手に送りたいなら「✨ 整える」"),
+                                 detail: L("想把这句发出去，不想要答案？点润色键，改写这句话。", "Want to send this instead of getting an answer? Tap the polish key to rewrite the sentence.", "答えではなく、この文を送りたいときは整えるキーで書き直します。"))
         case 14: return TourStep(chapter: .answer, index: 3, total: 7,
                                  title: L("替换后发送", "Replace, then send", "置換して送信"),
                                  detail: L("点击「替换」写入输入框，再点击「发送」。", "Tap Replace to put it in the input field, then tap Send.", "「置換」で入力欄に反映し、「送信」をタップします。"))
         case 15: return TourStep(chapter: .answer, index: 4, total: 7,
-                                 title: L("输入问题，点击放大镜", "Ask a question, then tap the magnifier", "質問を入力して虫めがねをタップ"),
-                                 detail: L("放大镜会自动判断：修改文字，或回答问题。", "It decides on its own: rewrite the text, or answer the question.", "文章の修正か質問への回答かを自動で判断します。"))
+                                 title: L("输入问题，点击「问答」", "Type a question, then tap Ask", "質問を入力して「質問」をタップ"),
+                                 detail: L("在下面的框里写问题，点「问答」就回答。", "Write your question in the box below and tap Ask to get an answer.", "下の欄に質問を書いて「質問」をタップすると回答します。"))
         case 16: return TourStep(chapter: .answer, index: 5, total: 7,
                                  title: L("回答显示不全？点击展开", "Answer cut off? Expand it", "回答が収まらないときは展開"),
                                  detail: L("结果卡默认显示 2 行。点击右下角的展开按钮可显示 4 行，内容再长可在卡片里上下滑动。", "The result card shows 2 lines by default. Tap the expand button at the bottom right to show 4; scroll inside the card for more.", "結果カードは通常 2 行表示です。右下の展開ボタンで 4 行になり、さらに長い場合はカード内をスクロールできます。"))
@@ -322,13 +324,13 @@ private struct TourStep {
                                  detail: L("默认回答基于模型已有知识。点击「使用联网查询」获取最新信息（通义千问、Kimi、智谱 GLM、腾讯混元支持）。", "Answers use the model's own knowledge by default. Tap Search the web for the latest information (supported by Qwen, Kimi, Zhipu GLM and Tencent Hunyuan).", "通常はモデルの知識で回答します。「ウェブで調べる」で最新情報を取得できます（Qwen、Kimi、Zhipu GLM、Tencent Hunyuan に対応）。"))
         case 18: return TourStep(chapter: .answer, index: 7, total: 7,
                                  title: L("想要更有条理？换个问答风格", "Want it tidier? Change the answer style", "整理したいときは回答スタイルを変更"),
-                                 detail: L("点击「直击要害 ▾」，可换成详细、列要点、通俗。选择「列要点」，再点击放大镜重新回答。", "Tap To the point ▾ to switch to Detailed, Key points or Plain words. Pick Key points, then tap the magnifier to answer again.", "「要点だけ ▾」をタップすると、詳しく・要点を列挙・やさしく に変えられます。「要点を列挙」を選び、虫めがねで回答し直してください。"))
+                                 detail: L("点击「问答」右边的 ⌄，选「列要点」，再点击「问答」重新回答。", "Tap the ⌄ next to Ask, pick Key points, then tap Ask to answer again.", "「質問」の右の ⌄ で「要点を列挙」を選び、もう一度「質問」をタップします。"))
         case 19: return TourStep(chapter: .words, index: 1, total: 3,
                                  title: L("长按结果卡，选词插入", "Hold the card to pick words", "カードを長押しして単語を挿入"),
                                  detail: L("只需部分内容时，长按结果卡，点选或横划选中词语，再点击「插入」。", "Need only part of it? Hold the result card, tap or swipe to select words, then tap Insert.", "一部だけ使いたいときは、結果カードを長押しし、タップかスワイプで単語を選んで「挿入」をタップしてください。"))
         case 20: return TourStep(chapter: .words, index: 2, total: 3,
                                  title: L("发送后，接着问去哪家", "Send it, then ask where to go", "送信して、お店を聞く"),
-                                 detail: L("点击「发送」。小林想知道去哪家吃，识意框已填好问题，点击放大镜。", "Tap Send. Alex wants to know where to eat; the question is already in the Ask field, so tap the magnifier.", "「送信」をタップします。佐藤さんがお店を知りたがっています。識意欄に質問が入っているので、虫めがねをタップしてください。"))
+                                 detail: L("点击「发送」。小林想知道去哪家吃，框里已填好问题，点击「问答」。", "Tap Send. Alex wants to know where to eat; the question is already in the box, so tap Ask.", "「送信」をタップします。佐藤さんがお店を知りたがっています。欄に質問が入っているので、「質問」をタップしてください。"))
         default: return TourStep(chapter: .words, index: 3, total: 3,
                                  title: L("按住替换键上滑，插入回答", "Hold Replace and slide up to insert", "置換キーを上にスライドして挿入"),
                                  detail: L("点一下「替换」会换掉输入框里的话。按住往上滑到「插入」再松手，回答接在原来的字后面。", "Tapping Replace swaps out your text. Hold it, slide up to Insert and let go, and the answer goes after what you wrote.", "「置換」をタップすると入力欄の文章が置き換わります。長押しして「挿入」まで上にスライドして離すと、回答が元の文章の後ろに入ります。"))
@@ -375,9 +377,12 @@ private final class TourModel: ObservableObject {
     @Published var generating = false
     @Published var ask = ""
 
+    /// 润色风格下拉开着（FT7、FT11）；演示里加的那条风格；「✨ 英文」固定到 AI 栏、刚弹进来那一下；它正在出字。
     @Published var promptsOpen = false
     @Published var customPrompt: String?
     @Published var customPop = false
+    @Published var pinnedCustom = false
+    @Published var pinRunning = false
     @Published var selectedPrompt = 0
     /// 模拟的 App 提示词页：列表或添加页；nil 时显示键盘。
     enum AppPage { case list, edit }
@@ -388,13 +393,19 @@ private final class TourModel: ObservableObject {
     @Published var improving = false
     @Published var improved: String?
 
-    /// 结果卡展开到 4 行；「直击要害 ▾」换成问答风格一排；当前问答风格（0 直击要害，2 列要点）。
+    /// 结果卡展开到 4 行；问答风格下拉开着；当前问答风格（0 直击要害，2 列要点）。
     @Published var cardTall = false
     @Published var answerStylesOpen = false
     @Published var answerStyle = 0
+    /// 回答卡标题上的风格：重新回答时才跟上 answerStyle（FT18 选完「列要点」，标题等点了「问答」再换）。
+    @Published var cardAnswerStyle = 0
 
+    /// 润色键、问答键、「✨ 英文」的执行中和成功动效（对齐清单第 61 条，和键盘同一份 Shared/AIKeyEffects.swift）。
     @Published var sparkRunning = false
     @Published var sparkDone: Date?
+    @Published var askRunning = false
+    @Published var askDone: Date?
+    @Published var pinDone: Date?
     @Published var undoOn = false
     @Published var redoOn = false
     @Published var undoTurns = 0
@@ -414,8 +425,6 @@ private final class TourModel: ObservableObject {
     private var run: Task<Void, Never>?
     private var demo: Task<Void, Never>?
     private var lastTap: TourTarget?
-
-    var activeStyle: Mode? { card != nil && !generating && !searching ? cardMode : nil }
 
     // MARK: 进退
 
@@ -501,16 +510,10 @@ private final class TourModel: ObservableObject {
         Self.haptic()
     }
 
-    /// 这一步要按住往上拖的那一颗：FT6 放大镜（上滑改写），FT21 替换键（上滑插入）。
-    var dragTarget: TourTarget? {
-        switch step {
-        case 6: return .magnifier
-        case TourStep.count: return .replace
-        default: return nil
-        }
-    }
+    /// 这一步要按住往上拖的那一颗：FT21 替换键（上滑插入）。
+    var dragTarget: TourTarget? { step == TourStep.count ? .replace : nil }
 
-    /// FT6、FT21：按住往上拖。只认上滑过 16 后松手。
+    /// FT21：按住往上拖。只认上滑过 16 后松手。
     func drag(_ translation: CGFloat?, ended: Bool) {
         guard let hit = dragTarget, target == hit else { return }
         if ended {
@@ -566,6 +569,8 @@ private final class TourModel: ObservableObject {
         switch n {
         case 4, 5, 6: ask = s.askRewrite
         case 7: ask = s.askShorter
+        // FT12 点「问答」时自动填进识意框的那句，一直留到 FT15 换成新问题。
+        case 13...15: ask = s.riddleField
         case 16...20: ask = s.askFood
         case 21: ask = s.askShop
         default: ask = ""
@@ -574,7 +579,7 @@ private final class TourModel: ObservableObject {
         case 5, 6: card = s.rewritten; cardMode = .rewrite
         case 7: card = s.shorter; cardMode = .rewrite
         case 13: card = s.riddleAnswer; cardMode = .answer
-        case 14, 15: card = s.riddleRewrite; cardMode = .rewrite
+        case 14: card = s.riddleRewrite; cardMode = .rewrite
         case 16, 17: card = s.foodAnswer; cardMode = .answer
         case 18: card = s.foodWeb; cardMode = .answer
         case 19, 20: card = s.foodPoints; cardMode = .answer
@@ -585,6 +590,8 @@ private final class TourModel: ObservableObject {
         promptsOpen = (8...11).contains(n)
         customPrompt = n >= 11 ? s.promptName : nil
         customPop = false
+        pinnedCustom = n >= 12
+        pinRunning = false
         selectedPrompt = 0
         appPage = n == 9 || n == 10 ? .edit : nil
         sheetName = n == 10 ? s.promptName : ""
@@ -594,6 +601,9 @@ private final class TourModel: ObservableObject {
         improved = nil
         sparkRunning = false
         sparkDone = nil
+        askRunning = false
+        askDone = nil
+        pinDone = nil
         undoOn = n == 2
         redoOn = n == 3
         canSearch = n == 16 || n == 17
@@ -602,6 +612,7 @@ private final class TourModel: ObservableObject {
         cardTall = (17...19).contains(n) || n == 21
         answerStylesOpen = false
         answerStyle = n >= 19 ? 2 : 0
+        cardAnswerStyle = answerStyle
         panel = false
         picked = []
         dragPick = false
@@ -637,14 +648,14 @@ private final class TourModel: ObservableObject {
             try await pause(0.35)
             try await type(\.ask, s.askRewrite, duration: 0.6)
         case 4:
-            try await wait(.magnifier)
+            try await wait(.sparkle)
             try await generate(.rewrite, s.rewritten)
         case 5:
             try await wait(.replace)
             try await typeReplace(\.field, to: s.rewritten)
         case 6:
             try await retype(\.ask, to: s.askShorter)
-            try await wait(.magnifier)
+            try await wait(.sparkle)
             try await generate(.rewrite, s.shorter)
             try await pause(0.4)
             withAnimation(.easeOut(duration: 0.25)) { part = 1 }
@@ -658,11 +669,12 @@ private final class TourModel: ObservableObject {
             withAnimation(.easeOut(duration: 0.25)) { expanded = false }
             try await pause(0.3)
             try await wait(.chevron)
-            withAnimation(.easeOut(duration: 0.25)) { promptsOpen = true }
+            withAnimation(.easeOut(duration: 0.2)) { promptsOpen = true }
             try await pause(0.3)
-            try await wait(.plus)
+            // 下拉最底下「＋ 添加润色风格」去 App（v308）。
+            try await wait(.addStyle)
         case 8:
-            // 键盘上的「＋」本来就是去 App 管提示词：键盘下沉，模拟的 App 提示词页升起。
+            // 润色风格在 App 里管：键盘下沉，模拟的 App 润色风格页升起。
             withAnimation(.easeOut(duration: 0.35)) { appPage = .list }
             try await pause(0.4)
             try await wait(.addPrompt)
@@ -693,41 +705,46 @@ private final class TourModel: ObservableObject {
             }
             try await wait(.done)
         case 11:
+            // App 页下沉、键盘升回，下拉还开着，末尾多出「英文」。
             withAnimation(.easeOut(duration: 0.35)) { appPage = nil }
             try await pause(0.4)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                 customPrompt = sheetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? s.promptName : sheetName
-                customPop = true
             }
-            Self.haptic()
             try await pause(0.2)
-            customPop = false
+            // 点图钉：变实心、轻震，下拉收起，「✨ 英文」弹进 AI 栏（0.9→1，0.2 秒）。
+            try await wait(.pin(5))
+            Self.haptic()
+            withAnimation(.easeOut(duration: 0.15)) { pinnedCustom = true }
+            try await pause(0.25)
+            // 下拉收起的同时，「✨ 英文」从 0.9 倍弹进 AI 栏。
+            withAnimation(.easeOut(duration: 0.2)) { promptsOpen = false }
+            try await pause(0.25)
             try await retype(\.field, to: s.nineField)
-            try await wait(.pill(5))
-            withAnimation(.easeOut(duration: 0.15)) { selectedPrompt = 5 }
-            try await wait(.sparkle)
-            try await polish(to: s.nineResult)
+            // 点「✨ 英文」：按它的风格出英文，润色键还写「润色」。
+            try await wait(.pinned)
+            pinRunning = true
+            try await pause(0.6)
+            try await typeReplace(\.field, to: s.nineResult)
+            pinRunning = false
+            pinDone = Date()
             try await pause(0.4)
             withAnimation(.easeOut(duration: 0.25)) { part = 1 }
             withAnimation(.easeOut(duration: 0.2)) { sendReady = true }
             try await wait(.send)
             try await send(reply: s.peerThanks, note: s.peerThanksNote)
-            try await pause(0.4)
-            withAnimation(.easeOut(duration: 0.25)) { part = 2 }
-            try await wait(.pill(0))
-            withAnimation(.easeOut(duration: 0.15)) { selectedPrompt = 0 }
-            try await pause(0.2)
-            withAnimation(.easeOut(duration: 0.25)) { promptsOpen = false }
         case 12:
-            try await wait(.drawer)
-            withAnimation(.easeOut(duration: 0.25)) { expanded = true }
+            // 收着点「问答」：回答卡升起，识意框填上输入框里的这句，回答它。
             try await incoming(s.riddleMessage)
             try await retype(\.field, to: s.riddleField)
-            try await wait(.magnifier)
+            try await wait(.askKey)
+            withAnimation(.easeOut(duration: 0.25)) { expanded = true }
+            try await pause(0.3)
+            try await type(\.ask, s.riddleField, duration: 0.3)
             try await generate(.answer, s.riddleAnswer)
         case 13:
-            try await wait(.switchMode)
-            withAnimation(.easeInOut(duration: 0.25)) { cardMode = .rewrite }
+            // 识意框里是自动填进去的问题，点润色键不把它当要求，只改写输入框里的话。
+            try await wait(.sparkle)
             try await generate(.rewrite, s.riddleRewrite, delay: 0.5)
         case 14:
             try await wait(.replace)
@@ -738,7 +755,7 @@ private final class TourModel: ObservableObject {
         case 15:
             try await incoming(s.foodMessage)
             try await retype(\.ask, to: s.askFood)
-            try await wait(.magnifier)
+            try await wait(.askKey)
             try await generate(.answer, s.foodAnswer)
             withAnimation(.easeIn(duration: 0.3)) { canSearch = true }
         case 16:
@@ -758,11 +775,12 @@ private final class TourModel: ObservableObject {
             try await wait(.answerStyle)
             withAnimation(.easeOut(duration: 0.2)) { answerStylesOpen = true }
             try await wait(.answerPill(2))
+            // 选完只收起，不自动执行；键上还写「问答」。
             withAnimation(.easeOut(duration: 0.2)) {
                 answerStyle = 2
                 answerStylesOpen = false
             }
-            try await wait(.magnifier)
+            try await wait(.askKey)
             // 沿用这次联网，重新回答。
             try await generate(.answer, s.foodPoints, keepSearched: true)
         case 19:
@@ -784,7 +802,7 @@ private final class TourModel: ObservableObject {
             try await wait(.send)
             try await send(reply: s.shopMessage)
             try await retype(\.ask, to: s.askShop)
-            try await wait(.magnifier)
+            try await wait(.askKey)
             withAnimation(.easeOut(duration: 0.25)) { cardTall = true }
             // 沿用联网和「列要点」。
             try await generate(.answer, s.shops, keepSearched: true)
@@ -828,7 +846,7 @@ private final class TourModel: ObservableObject {
         target = nil
     }
 
-    /// 快速模式润色：按钮套流光 0.6 秒 → 原文变淡、结果打出来 → 闪金。
+    /// 快速模式润色：按钮执行中（logo 动、键下投影）0.6 秒 → 原文变淡、结果打出来 → 成功动效。
     private func polish(to text: String) async throws {
         sparkRunning = true
         try await pause(0.6)
@@ -837,8 +855,20 @@ private final class TourModel: ObservableObject {
         sparkDone = Date()
     }
 
+    /// 点了润色键 / 问答键出回答卡：那颗键执行中，写完放成功动效。
+    private func keyRunning(_ mode: Mode, _ on: Bool) {
+        if mode == .answer {
+            askRunning = on
+            if !on { askDone = Date() }
+        } else {
+            sparkRunning = on
+            if !on { sparkDone = Date() }
+        }
+    }
+
     /// 回答卡：生成中 → 模式块亮起 → 逐字流出。
     private func generate(_ mode: Mode, _ text: String, delay: Double = 0.6, keepSearched: Bool = false) async throws {
+        keyRunning(mode, true)
         withAnimation(.easeOut(duration: 0.2)) {
             generating = true
             canSearch = false
@@ -847,9 +877,11 @@ private final class TourModel: ObservableObject {
         try await pause(delay)
         withAnimation(.easeOut(duration: 0.2)) {
             cardMode = mode
+            if mode == .answer { cardAnswerStyle = answerStyle }
             generating = false
         }
         try await stream(text)
+        keyRunning(mode, false)
     }
 
     /// 演示接口出字：和写进输入框一样快，0.25–0.4 秒从左往右打出来（cvbk 10-29：回答卡里出字要快）。
@@ -968,16 +1000,20 @@ struct FeatureTourView: View {
         case skip
         /// 完成页「开始设置」。
         case setup
-        /// 完成页「暂不配置，仅使用打字」。
+        /// 完成页「暂不配置，仅使用打字」；从设置里再看时完成页的「完成」。
         case later
     }
 
+    /// 从设置里再看一次（tourReplay）：完成页只有「完成」，点了直接退出，不进接口配置。
+    var replay = false
     var onExit: (Exit) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = TourModel()
     /// 完成页进场（各块的先后靠各自的 delay）。
     @State private var doneShown = false
+    /// 完成页已经浮上来的总结卡片条数：一条一条往上浮，前一条还在动时下一条就开始（时间有重叠）。
+    @State private var rowsShown = 0
     /// 对话区里气泡排起来的总高度：超出限高时顶上渐隐。
     @State private var messagesHeight: CGFloat = 0
     /// 对话区实际露出来的高度（矮屏放不下时比 limit 还小）。
@@ -1036,16 +1072,16 @@ struct FeatureTourView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 GuideCard {
                     overviewRow(1, L("一键润色", "One-tap Polish", "ワンタップで整える"),
-                                L("点击 ✨ 润色，可随时撤销", "Tap ✨ to polish; undo anytime", "✨ で整え、いつでも元に戻せる"), 2, .polish, compact)
+                                L("点「✨ 润色」，可随时撤销", "Tap ✨ Polish; undo anytime", "「✨ 整える」で整え、いつでも元に戻せる"), 2, .polish, compact)
                     GuideDivider()
                     overviewRow(2, L("识意 · 改写", "Ask: Rewrite", "識意：書き換え"),
-                                L("写下要求，按要求改写原文", "Write an instruction and rewrite your text", "指示を書いて、そのとおりに書き換え"), 4, .rewrite, compact)
+                                L("写下要求，点润色键按要求改写", "Write an instruction; the polish key rewrites as asked", "指示を書き、整えるキーで書き換え"), 4, .rewrite, compact)
                     GuideDivider()
-                    overviewRow(3, L("提示词", "Prompts", "プロンプト"),
-                                L("到提示词页添加，AI 帮你写清楚", "Add one on the Prompts page; AI helps write it", "プロンプトページで追加、AI が整理"), 5, .prompt, compact)
+                    overviewRow(3, L("润色风格", "Polish styles", "整えるスタイル"),
+                                L("添加风格，固定到 AI 栏一键直达", "Add a style and pin it to the AI bar", "スタイルを追加して AI バーに固定"), 5, .prompt, compact)
                     GuideDivider()
                     overviewRow(4, L("识意 · 问答", "Ask: Answer", "識意：回答"),
-                                L("自动判断，可切换、联网、换风格", "Decides on its own; switch, search, change style", "自動判断、切替・検索・スタイル変更"), 7, .answer, compact)
+                                L("点「问答」直接回答，可联网、换风格", "Tap Ask to answer; search the web, change style", "「質問」ですぐ回答、検索・スタイル変更"), 7, .answer, compact)
                     GuideDivider()
                     overviewRow(5, L("分词 · 插入", "Pick & Insert", "単語・挿入"),
                                 L("长按选词插入；按住替换键上滑插入", "Hold to pick words; slide Replace up to insert", "長押しで単語を挿入、置換キーを上で挿入"), 3, .words, compact)
@@ -1090,11 +1126,11 @@ struct FeatureTourView: View {
         (.polish, L("一键润色", "One-tap Polish", "ワンタップで整える"),
          [L("点 ✨ 润色", "Tap ✨", "✨ で整える"), L("撤销", "Undo", "元に戻す"), L("重做", "Redo", "やり直し")]),
         (.rewrite, L("识意 · 改写", "Ask: Rewrite", "識意：書き換え"),
-         [L("按要求改写", "By instruction", "指示で書き換え"), L("上下拖放大镜", "Slide 🔍", "虫めがねを上下"), L("替换", "Replace", "置換")]),
-        (.prompt, L("提示词", "Prompts", "プロンプト"),
-         [L("添加提示词", "Add a prompt", "プロンプト追加"), L("建议标签", "Suggestions", "候補タグ"), L("AI 优化", "AI help", "AI 改善")]),
+         [L("按要求改写", "By instruction", "指示で書き換え"), L("替换", "Replace", "置換"), L("发送", "Send", "送信")]),
+        (.prompt, L("润色风格", "Polish styles", "整えるスタイル"),
+         [L("添加风格", "Add a style", "スタイル追加"), L("AI 优化", "AI help", "AI 改善"), L("固定到 AI 栏", "Pin to AI bar", "AI バーに固定")]),
         (.answer, L("识意 · 问答", "Ask: Answer", "識意：回答"),
-         [L("自动判断", "Auto", "自動"), L("切换", "Switch", "切替"), L("展开", "Expand", "展開"), L("联网", "Web", "検索"), L("换风格", "Style", "スタイル")]),
+         [L("一键问答", "One-tap Ask", "ワンタップ質問"), L("展开", "Expand", "展開"), L("联网", "Web", "検索"), L("换风格", "Style", "スタイル")]),
         (.words, L("分词 · 插入", "Pick & Insert", "単語・挿入"),
          [L("长按选词", "Hold to pick", "長押しで選ぶ"), L("上滑插入", "Slide to insert", "上スライドで挿入")]),
     ] }
@@ -1130,15 +1166,19 @@ struct FeatureTourView: View {
                 Spacer(minLength: compact ? 12 : 20).frame(maxHeight: 40)
                 VStack(spacing: compact ? 8 : 10) {
                     ForEach(Array(Self.summary.enumerated()), id: \.offset) { index, row in
-                        summaryCard(index, row.0, row.1, row.2, compact)
-                            .offset(y: doneShown || reduceMotion ? 0 : 28)
-                            .opacity(doneShown ? 1 : 0)
-                            .animation(reduceMotion ? .easeOut(duration: 0.2).delay(0.1 * Double(index + 1))
-                                       : .easeOut(duration: 0.35).delay(Self.cardsStart + 0.06 * Double(index)), value: doneShown)
+                        // 整条（编号、标题、标签、圆圈）先看不见，再往上浮出来；圆圈在这一条快停稳时打勾。
+                        let shown = index < rowsShown
+                        summaryCard(index, row.0, row.1, row.2, compact, checked: shown)
+                            .offset(y: shown || reduceMotion ? 0 : 28)
+                            .opacity(shown ? 1 : 0)
+                            .animation(reduceMotion ? .easeOut(duration: 0.2) : .easeOut(duration: Self.rowRise), value: shown)
                     }
                 }
                 Spacer(minLength: compact ? 10 : 16)
                 VStack(spacing: compact ? 10 : 14) {
+                    if replay {
+                        GuidePrimaryButton(L("完成", "Done", "完了")) { exit(.later) }
+                    } else {
                     HStack(spacing: 6) {
                         Image(systemName: "key").font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(Color(light: 0x5B4BE8, dark: 0xB4A9FF))
@@ -1152,6 +1192,7 @@ struct FeatureTourView: View {
                     .background(Capsule().fill(Color(light: 0xECEAFD, dark: 0x25204F)))
                     GuidePrimaryButton(L("开始设置", "Start Setup", "設定をはじめる")) { exit(.setup) }
                     GuideSecondaryButton(L("暂不配置，仅使用打字", "Not Now, Typing Only", "今は設定せず入力のみ使う")) { exit(.later) }
+                    }
                 }
                 .offset(y: doneShown || reduceMotion ? 0 : 12)
                 .opacity(doneShown ? 1 : 0)
@@ -1165,26 +1206,39 @@ struct FeatureTourView: View {
         .onAppear {
             FeatureTour.seen = true
             doneShown = false
-            // 先按没进场的样子画一帧，再一起放动画（各块的先后靠各自的 delay）。
+            rowsShown = 0
+            // 先按没进场的样子画一帧，再放动画：标题区和按钮靠各自的 delay，卡片一条一条放出来。
             DispatchQueue.main.async { doneShown = true }
-            if !reduceMotion {
-                // 最后一个勾打完轻震一下。
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: UInt64(Self.checksEnd * 1_000_000_000))
-                    TourModel.haptic()
+            Task { @MainActor in
+                if reduceMotion {
+                    rowsShown = Self.summary.count
+                    return
                 }
+                try? await Task.sleep(nanoseconds: UInt64(Self.cardsStart * 1_000_000_000))
+                for count in 1...Self.summary.count {
+                    rowsShown = count
+                    if count < Self.summary.count {
+                        try? await Task.sleep(nanoseconds: UInt64(Self.rowGap * 1_000_000_000))
+                    }
+                }
+                // 最后一个勾打完轻震一下。
+                try? await Task.sleep(nanoseconds: UInt64((Self.checkDelay + Self.checkDraw) * 1_000_000_000))
+                TourModel.haptic()
             }
         }
     }
 
-    /// 标题区开始 0.25 秒后卡片起浮，每张间隔 0.06 秒、0.35 秒停稳；五张到齐后每 0.1 秒打一个勾（0.2 秒画完）。
+    /// 标题区开始 0.25 秒后第一条起浮；每条从看不见往上浮 0.45 秒，下一条隔 0.18 秒就开始（前后重叠）；
+    /// 每条起浮 0.3 秒后它的圆圈打勾（0.2 秒画完）。最后一个勾打完，提示和按钮浮上来。
     private static let cardsStart = 0.25
-    private static var checksStart: Double { cardsStart + 0.06 * Double(summary.count - 1) + 0.35 }
-    private static var checksEnd: Double { checksStart + 0.1 * Double(summary.count - 1) + 0.2 }
+    private static let rowGap = 0.18
+    private static let rowRise = 0.45
+    private static let checkDelay = 0.3
+    private static let checkDraw = 0.2
+    private static var checksEnd: Double { cardsStart + rowGap * Double(summary.count - 1) + checkDelay + checkDraw }
 
-    private func summaryCard(_ index: Int, _ chapter: TourChapter, _ title: String, _ tags: [String], _ compact: Bool) -> some View {
-        let checked = doneShown
-        let checkAnimation: Animation? = reduceMotion ? nil : .easeOut(duration: 0.2).delay(Self.checksStart + 0.1 * Double(index))
+    private func summaryCard(_ index: Int, _ chapter: TourChapter, _ title: String, _ tags: [String], _ compact: Bool, checked: Bool) -> some View {
+        let checkAnimation: Animation? = reduceMotion ? nil : .easeOut(duration: Self.checkDraw).delay(Self.checkDelay)
         return HStack(spacing: 12) {
             Text("\(index + 1)")
                 .font(.system(size: 16, weight: .bold))
@@ -1382,7 +1436,8 @@ struct FeatureTourView: View {
                     .onChange(of: geo.size.height) { messagesHeight = $0 }
             })
             // 矮屏整张卡放不下时先压对话区（minHeight 0），不把卡片顶边和联系人一行裁掉。
-            .frame(minHeight: 0, maxHeight: limit, alignment: .bottom)
+            // 上限取内容高和 limit 里小的那个：消息少时对话区跟着内容收，不在气泡上面空一截。
+            .frame(minHeight: 0, maxHeight: min(messagesHeight, limit), alignment: .bottom)
             .background(GeometryReader { geo in
                 Color.clear.onAppear { messagesShown = geo.size.height }
                     .onChange(of: geo.size.height) { messagesShown = $0 }
@@ -1410,6 +1465,8 @@ struct FeatureTourView: View {
             // 最多露 3 行，再多像聊天 App 一样在框里往上滚，露出最新的字。
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxHeight: 62, alignment: .bottom)
+            // 只问理想高度：一两行时框跟着字收，不撑满 62 在字上面空一截。
+            .fixedSize(horizontal: false, vertical: true)
             .clipped()
             .padding(.horizontal, 12).padding(.vertical, 10)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourColor.field))
@@ -1514,6 +1571,41 @@ private struct CheckShape: Shape {
 
 // MARK: - 按下态
 
+/// 模拟键盘里润色键（false）、问答键（true）的位置，风格下拉和它左对齐。
+private struct TourKeyFramesKey: PreferenceKey {
+    static var defaultValue: [Bool: CGRect] = [:]
+    static func reduce(value: inout [Bool: CGRect], nextValue: () -> [Bool: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+/// 风格下拉里的一条：问答风格那几条能点（FT18 选「列要点」），润色风格只看不点。
+private struct TourMenuRow: ViewModifier {
+    let index: Int
+    let answer: Bool
+    @ObservedObject var model: TourModel
+
+    func body(content: Content) -> some View {
+        content.tourPress(answer ? .answerPill(index) : .pill(index), model: model)
+    }
+}
+
+/// 润色风格下拉里每条右边的图钉：FT11 点「英文」那颗固定到 AI 栏。
+private struct TourMenuPin: ViewModifier {
+    let index: Int
+    let answer: Bool
+    @ObservedObject var model: TourModel
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if answer {
+            content
+        } else {
+            content.tourPress(.pin(index), model: model)
+        }
+    }
+}
+
 private struct TourFramesKey: PreferenceKey {
     static var defaultValue: [TourTarget: Anchor<CGRect>] = [:]
     static func reduce(value: inout [TourTarget: Anchor<CGRect>], nextValue: () -> [TourTarget: Anchor<CGRect>]) {
@@ -1565,7 +1657,7 @@ private struct ShakeEffect: GeometryEffect {
 }
 
 /// 小手和界面同一个时钟：示范按下的那一帧（down）按钮也轻轻按下；用户自己按着时退到 30%。
-/// FT6 示范按住放大镜往上拖，FT19 示范长按结果卡、在虚线框的词上横划，FT21 示范按住替换键往上推。减弱动态效果时静止。
+/// FT19 示范长按结果卡、在虚线框的词上横划，FT21 示范按住替换键往上推。减弱动态效果时静止。
 private struct TourHand: View {
     var rect: CGRect
     var bounds: CGSize
@@ -1583,7 +1675,7 @@ private struct TourHand: View {
         Group {
             if reduceMotion {
                 hand(tip: CGPoint(x: rect.midX, y: rect.midY + 4), ripple: false)
-            } else if step == 6 && target == .magnifier || step == TourStep.count && target == .replace {
+            } else if step == TourStep.count && target == .replace {
                 TimelineView(.animation) { context in
                     dragFrame(phase(context.date, Self.dragPeriod))
                 }
@@ -1612,7 +1704,8 @@ private struct TourHand: View {
     private func hand(tip: CGPoint, ripple: Bool) -> some View {
         let size = CoachHandShape.size, fingertip = CoachHandShape.fingertip
         let dx = size.width / 2 - fingertip.x
-        let center = CGPoint(x: tip.x + (flipped ? -dx : dx), y: tip.y + size.height / 2 - fingertip.y)
+        // 翻转是绕指尖镜像（CoachHandShape.hand 的 anchor），指尖在框里的位置不变，所以框心不随翻转改。
+        let center = CGPoint(x: tip.x + dx, y: tip.y + size.height / 2 - fingertip.y)
         return ZStack {
             Circle()
                 .fill(Self.rippleColor.opacity(0.16))
@@ -1735,18 +1828,16 @@ private struct TourKeyboard: View {
                 answerBlock
                     .padding(.horizontal, side + 2)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if model.promptsOpen {
-                promptRow
-                    .padding(.horizontal, side + 2)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            // FT6 放大镜下方弹出的「问答」要盖在按键上面。
             aiBar.padding(.horizontal, side + 2).zIndex(1)
             if model.panel {
                 wordPanel.padding(.horizontal, side + 2)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 keys.padding(.horizontal, side)
+                    // 风格下拉从被点的那颗键下面往下弹，盖在按键上（同真键盘 KB1）。
+                    .overlay(alignment: .topLeading) { dropdown }
+                    .zIndex(2)
             }
             HStack {
                 Image(systemName: "globe")
@@ -1761,6 +1852,10 @@ private struct TourKeyboard: View {
         }
         .padding(.top, 8)
         .frame(maxWidth: .infinity)
+        .coordinateSpace(name: "tourKeyboard")
+        .onPreferenceChange(TourKeyFramesKey.self) { frames in
+            if frames != keyFrames { keyFrames = frames }
+        }
         .background(
             TourColor.keyboard
                 .clipShape(TopRounded(radius: compact ? 22 : 26))
@@ -1770,7 +1865,7 @@ private struct TourKeyboard: View {
         .animation(.easeOut(duration: 0.25), value: model.promptsOpen)
     }
 
-    // MARK: 提示词一排
+    // MARK: 风格下拉
 
     private var promptNames: [String] {
         var names = [L("润色", "Polish", "整える"), L("正式", "Formal", "丁寧"), L("口语", "Casual", "カジュアル"),
@@ -1779,206 +1874,202 @@ private struct TourKeyboard: View {
         return names
     }
 
-    private var promptRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(Array(promptNames.enumerated()), id: \.offset) { index, name in
-                    pill(index, name)
-                }
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(GuideColor.secondary)
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(TourColor.key))
-                    .tourPress(.plus, model: model)
-            }
-            .padding(.horizontal, 6)
+    /// 润色键 / 问答键在 AI 栏里的位置（键盘自己的坐标），下拉的左边和它对齐。
+    @State private var keyFrames: [Bool: CGRect] = [:]
+
+    @ViewBuilder
+    private var dropdown: some View {
+        if model.promptsOpen || model.answerStylesOpen {
+            let answer = model.answerStylesOpen
+            let x = min(max(4, keyFrames[answer]?.minX ?? 60), UIScreen.main.bounds.width - 220)
+            styleMenu(answer: answer)
+                .offset(x: x, y: 4)
+                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
         }
-        .frame(height: 42)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourColor.rowFill))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(TourColor.ring.opacity(0.5), lineWidth: 1))
     }
 
-    private func pill(_ index: Int, _ name: String) -> some View {
-        let selected = model.selectedPrompt == index
-        return HStack(spacing: 3) {
-            if selected { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)) }
-            Text(name).font(.system(size: 13.5, weight: selected ? .semibold : .regular)).lineLimit(1)
+    /// 小屏（SE）每行 28，6 条风格加「＋」整个下拉不超出键盘底边。
+    private var menuRow: CGFloat { compact ? 28 : 32 }
+
+    /// 宽 216、圆角 12：小标题，每条右边一颗图钉（演示里只有「英文」那颗能点），当前那条打勾；润色那一个最底下「＋ 添加润色风格」。
+    private func styleMenu(answer: Bool) -> some View {
+        let names = answer ? Self.answerStyles : promptNames
+        let selected = answer ? model.answerStyle : model.selectedPrompt
+        return VStack(alignment: .leading, spacing: 0) {
+            Text((answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル"))
+                 + L(" · 点图钉固定到 AI 栏", " · Pin to the AI bar", " · ピンで AI バーに固定"))
+                .font(.system(size: 11)).foregroundStyle(GuideColor.secondary).lineLimit(1).minimumScaleFactor(0.8)
+                .padding(.horizontal, 10).frame(height: compact ? 20 : 24)
+            ForEach(Array(names.enumerated()), id: \.offset) { index, name in
+                let on = index == selected
+                let pinned = !answer && index == 5 && model.pinnedCustom
+                HStack(spacing: 6) {
+                    Text(name).font(.system(size: 14.5, weight: on ? .semibold : .regular))
+                        .foregroundStyle(on ? TourColor.purple : GuideColor.text).lineLimit(1)
+                    if on { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(TourColor.purple) }
+                    Spacer(minLength: 4)
+                    Image(systemName: pinned ? "pin.fill" : "pin")
+                        .font(.system(size: 12, weight: .semibold))
+                        .rotationEffect(.degrees(45))
+                        .foregroundStyle(pinned ? TourColor.purple : GuideColor.secondary.opacity(0.7))
+                        .frame(width: 30, height: menuRow)
+                        .modifier(TourMenuPin(index: index, answer: answer, model: model))
+                }
+                .padding(.leading, 10)
+                .frame(height: menuRow)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(on ? TourColor.pillOn : .clear))
+                .transition(.opacity)
+                .modifier(TourMenuRow(index: index, answer: answer, model: model))
+            }
+            if !answer {
+                Label(L("添加润色风格", "Add Polish Style", "整えるスタイルを追加"), systemImage: "plus")
+                    .font(.system(size: 14.5)).foregroundStyle(TourColor.purple).lineLimit(1)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, minHeight: menuRow, alignment: .leading)
+                    .tourPress(.addStyle, model: model)
+            }
         }
-        .foregroundStyle(selected ? TourColor.purple : GuideColor.text)
-        .padding(.horizontal, 10).frame(height: 30)
-        .background(Capsule().fill(selected ? TourColor.pillOn : TourColor.key))
-        .overlay(Capsule().strokeBorder(TourColor.ring, lineWidth: selected ? 1 : 0))
-        .scaleEffect(index == 5 && model.customPop ? 0.9 : 1)
-        .transition(.scale(scale: 0.9).combined(with: .opacity))
-        .fixedSize()
-        .tourPress(.pill(index), model: model)
+        .padding(5)
+        .frame(width: 216)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourColor.cardFill)
+            .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8))
     }
 
     // MARK: AI 栏
 
-    /// 窄屏（iPhone SE 等 375pt）：英文、日文的风格键名字长，整行会比屏幕宽、把整页撑出去，收紧间距和撤销键。
-    private var narrow: Bool { UIScreen.main.bounds.width < 390 }
-
+    /// 一排（AK4、AK5）：▭ ｜ 润色键、问答键、竖线、固定的「✨ 英文」｜撤销重做。窄屏放不下时中间那段跟着小手要点的键滚过去（演示里不让手指拖）。
     private var aiBar: some View {
-        HStack(spacing: narrow ? 4 : 6) {
+        // 同真键盘方案 A（v309）：间距 5、▭ 宽 36、⌄ 区 24、撤销重做小胶囊 64。
+        // 滑动区自带左右 5 的内边（给亮边留地方），所以它和两边之间不再加间距，看上去也是 5。
+        HStack(spacing: 0) {
             Image(systemName: "rectangle.tophalf.inset.filled")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(model.expanded ? TourColor.purple : GuideColor.text)
-                .frame(width: 44, height: 34)
+                .frame(width: 36, height: 34)
                 .background(Capsule().fill(model.expanded ? Color(light: 0xEDEBFD, dark: 0x2E2766) : TourColor.key))
                 .overlay(Capsule().strokeBorder(TourColor.ring, lineWidth: model.expanded ? 1.5 : 0))
                 .tourPress(.drawer, model: model)
-            if model.expanded {
-                magnifier
-                styleKey(answer: false)
-                styleKey(answer: true)
-            } else {
-                joined
-            }
-            Spacer(minLength: 0)
-            // 窄屏回答卡展开时省掉撤销 | 重做（演示只在润色那步用到），给风格键留出名字。
-            if !(narrow && model.expanded) {
-                HStack(spacing: 0) {
-                    Image(systemName: "arrow.uturn.backward")
-                        .rotationEffect(.degrees(Double(model.undoTurns) * -180))
-                        .foregroundStyle(model.undoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .tourPress(.undo, model: model)
-                    Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1).padding(.vertical, 9)
-                    Image(systemName: "arrow.uturn.forward")
-                        .foregroundStyle(model.redoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .tourPress(.redo, model: model)
+            ScrollViewReader { reader in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 5) {
+                        mainKey(answer: false).id(TourTarget.sparkle)
+                        mainKey(answer: true).id(TourTarget.askKey)
+                        // FT11 点图钉后下拉先收起，「✨ 英文」再弹进来。
+                        if model.pinnedCustom && !model.promptsOpen {
+                            Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1, height: 20)
+                            pinnedKey.id(TourTarget.pinned)
+                                .transition(.scale(scale: 0.9).combined(with: .opacity))
+                        }
+                    }
+                    .padding(.horizontal, 5)
+                    .frame(height: 44)
                 }
-                .font(.system(size: 14, weight: .medium))
-                .frame(width: narrow ? 62 : 76, height: 34)
-                .background(Capsule().fill(TourColor.key))
+                .scrollDisabled(true)
+                .onChange(of: model.target) { target in
+                    guard let target, [TourTarget.sparkle, .askKey, .pinned, .chevron, .answerStyle].contains(target) else { return }
+                    let id: TourTarget = target == .chevron ? .sparkle : target == .answerStyle ? .askKey : target
+                    withAnimation(.easeOut(duration: 0.25)) { reader.scrollTo(id) }
+                }
+                // 换一步先回到最左（FT11 滚到「✨ 英文」后，FT12 润色键要完整露出来）。
+                .onChange(of: model.step) { _ in reader.scrollTo(TourTarget.sparkle, anchor: .leading) }
             }
+            .frame(height: 44)
+            HStack(spacing: 0) {
+                Image(systemName: "arrow.uturn.backward")
+                    .rotationEffect(.degrees(Double(model.undoTurns) * -180))
+                    .foregroundStyle(model.undoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
+                    .padding(.leading, 9)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .tourPress(.undo, model: model)
+                Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1, height: 16)
+                Image(systemName: "arrow.uturn.forward")
+                    .foregroundStyle(model.redoOn ? GuideColor.text : GuideColor.secondary.opacity(0.6))
+                    .padding(.trailing, 9)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .tourPress(.redo, model: model)
+            }
+            .font(.system(size: 16, weight: .medium))
+            .frame(width: 64, height: 34)
+            .background(Capsule().fill(TourColor.key))
         }
+        .animation(.easeOut(duration: 0.2), value: model.pinnedCustom)
     }
 
-    /// 收着：✨ 和「润色 ▾」合成的一颗；左边点 ✨，右边箭头开关提示词一排。名字跟着选中的提示词变。
-    private var joined: some View {
-        let name = promptNames[min(model.selectedPrompt, promptNames.count - 1)]
-        return HStack(spacing: 0) {
-            // ✨ 和名字一起算点 ✨（cvbk 10-29：点到「润色」也要能触发），竖线和箭头算开关提示词一排。
+    /// 润色键「✨ 润色 ⌄」、问答键「[问答图标] 问答 ⌄」：竖线左边点了执行，右边 ⌄ 弹风格下拉。外面不再加亮边（cvbk 11-02）。
+    private func mainKey(answer: Bool) -> some View {
+        let open = answer ? model.answerStylesOpen : model.promptsOpen
+        let title = answer ? L("问答", "Ask", "質問") : promptNames[min(model.selectedPrompt, promptNames.count - 1)]
+        let running = answer ? model.askRunning : model.sparkRunning
+        let done = running ? nil : (answer ? model.askDone : model.sparkDone)
+        let textWidth = ceil((title as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 14, weight: .semibold)]).width)
+        return KeySuccessClock(since: done, reduced: reduceMotion) { fx in
+            let animating = running || fx?.logoAnimating == true
             HStack(spacing: 0) {
-                PolishStars(size: 20, running: model.sparkRunning, glowing: !reduceMotion, doneAt: model.sparkDone, tint: AIVisuals.gold)
-                    .frame(width: 20, height: 20)
-                    .padding(.trailing, 7)
-                Text(name).font(.system(size: 13.5, weight: .semibold)).lineLimit(1)
+                HStack(spacing: 3) {
+                    if answer {
+                        AskIcon(size: 17, running: animating, glowing: !reduceMotion, bounce: fx?.logoScale ?? 1)
+                    } else {
+                        PolishStars(size: 17, running: animating, glowing: !reduceMotion, doneAt: nil, tint: AIVisuals.gold)
+                            .frame(width: 17, height: 17)
+                            .scaleEffect(fx?.logoScale ?? 1)
+                    }
+                    Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1).fixedSize()
+                        .successText(fx)
+                }
+                .padding(.leading, 9).padding(.trailing, 5)
+                .frame(maxHeight: .infinity)
+                .tourPress(answer ? .askKey : .sparkle, model: model)
+                Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
+                Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 11, weight: .semibold))
+                    .frame(width: 24).frame(maxHeight: .infinity)
+                    .tourPress(answer ? .answerStyle : .chevron, model: model)
             }
-            .padding(.leading, 12)
-            .frame(maxHeight: .infinity)
-            .tourPress(.sparkle, model: model)
-            HStack(spacing: 0) {
-                divider.padding(.horizontal, 3)
-                Image(systemName: model.promptsOpen ? "chevron.up" : "chevron.down").font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(height: 34)
+            .overlay {
+                // 绿勾在名字那块正中：左内边 9 + 图标 17 + 间距 3。
+                if let fx { KeySuccessOverlay(frame: fx, checkCenter: CGPoint(x: 29 + textWidth / 2, y: 17)) }
             }
-            .padding(.trailing, 9)
-            .frame(maxHeight: .infinity)
-            .tourPress(.chevron, model: model)
+            .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()).runningShadow(running, answer: answer))
         }
-        .foregroundStyle(.white)
-        .frame(height: 34)
-        .background(NebulaFill(palette: .join).clipShape(Capsule()))
         .overlay {
-            if model.sparkRunning {
-                Capsule().strokeBorder(Color.white.opacity(0.7), lineWidth: 1.5)
-                    .blur(radius: 1)
-                    .transition(.opacity)
+            if !reduceMotion {
+                KeySparkles(running: running, successAt: done, textX: 29, textWidth: textWidth, seed: answer ? 2 : 1)
             }
         }
         .fixedSize()
+        .background(GeometryReader { geo in
+            Color.clear.preference(key: TourKeyFramesKey.self, value: [answer: geo.frame(in: .named("tourKeyboard"))])
+        })
     }
 
-    /// 展开：蓝紫混色的放大镜。FT6 按住往上拖，正上方「改写」、正下方「问答」。
-    private var magnifier: some View {
-        HStack(spacing: 5) {
-            AskIcon().frame(width: 18, height: 18)
-            Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
-            Image(systemName: "chevron.up.chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(.white)
+    /// 固定在 AI 栏的「✨ 英文」：浅紫底主色字，没有 ⌄；点了按这个风格出字。
+    private var pinnedKey: some View {
+        let title = model.customPrompt ?? model.script.promptName
+        let textWidth = ceil((title as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: 14.5, weight: .semibold)]).width)
+        return KeySuccessClock(since: model.pinRunning ? nil : model.pinDone, reduced: reduceMotion) { fx in
+            HStack(spacing: 4) {
+                PolishStars(size: 15, running: model.pinRunning || fx?.logoAnimating == true, glowing: !reduceMotion, doneAt: nil, tint: TourColor.purple)
+                    .frame(width: 15, height: 15)
+                    .scaleEffect(fx?.logoScale ?? 1)
+                Text(title).font(.system(size: 14.5, weight: .semibold)).lineLimit(1).fixedSize()
+                    .successText(fx)
+            }
+            .foregroundStyle(TourColor.purple)
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .overlay {
+                // 绿勾在名字那块正中：左内边 12 + 图标 15 + 间距 4。
+                if let fx { KeySuccessOverlay(frame: fx, checkCenter: CGPoint(x: 31 + textWidth / 2, y: 17)) }
+            }
+            .background(Capsule().fill(TourColor.pillOn).runningShadow(model.pinRunning, answer: false))
         }
-        .frame(width: 58, height: 34)
-        .background(NebulaFill(palette: .ask).clipShape(Capsule()))
         .overlay {
-            if model.generating {
-                Capsule().strokeBorder(Color(hex: 0x6366F1).opacity(0.4), lineWidth: 3).padding(-3)
+            if !reduceMotion {
+                KeySparkles(running: model.pinRunning, successAt: model.pinRunning ? nil : model.pinDone, textX: 31, textWidth: textWidth, seed: 3)
             }
         }
-        .overlay {
-            if model.step == 6 && model.target == .magnifier {
-                ZStack {
-                    Path { p in p.move(to: CGPoint(x: 29, y: 0)); p.addLine(to: CGPoint(x: 29, y: -24)) }
-                        .stroke(TourColor.ring, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
-                    dragOption(L("改写", "Rewrite", "書き換え"), colors: [Color(hex: 0x4F46E5), Color(hex: 0x7C3AED)], highlighted: true).offset(y: -42)
-                    dragOption(L("问答", "Answer", "回答"), colors: [Color(hex: 0x0EA5E9), Color(hex: 0x38BDF8)], highlighted: false).offset(y: 42)
-                }
-                .frame(width: 58, height: 34)
-                .allowsHitTesting(false)
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
-            }
-        }
-        .scaleEffect(model.pressed == .magnifier || model.dragging && model.dragTarget == .magnifier ? 0.96 : model.demoDown && model.target == .magnifier ? 0.98 : 1)
-        .contentShape(Rectangle())
-        // FT6 按住拖；别的步骤手指没怎么动就当点了一下。
-        .gesture(DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                if model.step == 6 && model.target == .magnifier {
-                    model.drag(value.translation.height, ended: false)
-                } else {
-                    model.pressBegan(.magnifier)
-                }
-            }
-            .onEnded { value in
-                if model.step == 6 && model.target == .magnifier {
-                    model.drag(nil, ended: true)
-                } else {
-                    model.pressEnded(.magnifier, inside: abs(value.translation.height) < 12)
-                }
-            })
-        .tourTarget(.magnifier)
-    }
-
-    private func dragOption(_ title: String, colors: [Color], highlighted: Bool) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: "sparkle").font(.system(size: 10, weight: .bold))
-            Text(title).font(.system(size: 13, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
-        }
-        .foregroundStyle(.white)
-        .frame(width: 64, height: 30)
-        .background(Capsule().fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)))
-        .overlay(Capsule().strokeBorder(Color.white, lineWidth: highlighted && (model.dragPick || reduceMotion) ? 2 : 0))
-        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
-    }
-
-    private var divider: some View {
-        Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
-    }
-
-    /// 润色 ▾（紫色）、直击要害 ▾（蓝色）；回答卡上是哪种结果，那颗亮边框加 3pt 淡外圈。
-    private func styleKey(answer: Bool) -> some View {
-        let active = model.activeStyle == (answer ? .answer : .rewrite)
-        return HStack(spacing: 3) {
-            Image(systemName: answer ? "questionmark.circle" : "pencil").font(.system(size: 14, weight: .semibold))
-            Text(answer ? Self.answerStyles[model.answerStyle] : L("润色", "Rewrite", "書き換え")).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                .minimumScaleFactor(0.8)
-            divider
-            Image(systemName: answer && model.answerStylesOpen ? "chevron.up" : "chevron.down").font(.system(size: 9, weight: .semibold))
-        }
-        .foregroundStyle(.white)
-        .padding(.leading, 7).padding(.trailing, 6)
-        .frame(height: 34)
-        .background(NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()))
-        .overlay(Capsule().strokeBorder(answer ? Color(hex: 0x7DD3FC) : Color(hex: 0xC4B5FD), lineWidth: active ? 1.5 : 0))
-        .background(Capsule().fill((answer ? Color(hex: 0x0EA5E9) : Color(hex: 0x7C3AED)).opacity(active ? 0.25 : 0)).padding(-3))
-        .animation(.easeOut(duration: 0.25), value: active)
-        // 窄屏放不下时名字略缩小，不撑宽整行。
-        .fixedSize(horizontal: !narrow, vertical: false)
-        .contentShape(Capsule())
-        // FT18「直击要害 ▾」打开问答风格一排；改写风格键演示里不用。
-        .tourPress(answer ? .answerStyle : .redo, model: model)
+        .tourPress(.pinned, model: model)
     }
 
     static var answerStyles: [String] {
@@ -1992,7 +2083,7 @@ private struct TourKeyboard: View {
             replaceKey
             VStack(spacing: 0) {
                 cardTop
-                    .frame(height: model.cardTall ? 100 : 62)
+                    .frame(height: model.cardTall ? 120 : 82)
                     .contentShape(Rectangle())
                     .onLongPressGesture(minimumDuration: 0.45) {
                         if model.target == .card { TourModel.haptic(); model.tap(.card) } else { model.wrong() }
@@ -2006,7 +2097,7 @@ private struct TourKeyboard: View {
                 .strokeBorder(model.cardMode == .answer ? TourColor.answerRing : TourColor.ring, lineWidth: 1.5))
             .animation(.easeInOut(duration: 0.25), value: model.cardMode)
         }
-        .frame(height: model.cardTall ? 141 : 103)
+        .frame(height: model.cardTall ? 161 : 123)
         .animation(.easeOut(duration: 0.25), value: model.cardTall)
     }
 
@@ -2077,7 +2168,11 @@ private struct TourKeyboard: View {
 
     private var cardTop: some View {
         HStack(alignment: .top, spacing: 8) {
-            if model.cardMode != nil, !model.generating { modeBlock.transition(.opacity) }
+            VStack(alignment: .leading, spacing: 4) {
+            // 正文上面一行标题（AK2）：改写「✨ AI 改写 · 润色」，问答「[问答图标] AI 回答 · 直击要害」+ 未联网 / 已联网。
+            if model.cardMode != nil, !model.generating, model.card != nil || model.searching {
+                cardHeader.transition(.opacity)
+            }
             Group {
                 if model.generating {
                     HStack(spacing: 6) {
@@ -2101,6 +2196,7 @@ private struct TourKeyboard: View {
             .font(.system(size: 14.5))
             .lineSpacing(2)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
             if model.card != nil, !model.generating {
                 VStack {
                     Image(systemName: "doc.on.doc")
@@ -2118,59 +2214,41 @@ private struct TourKeyboard: View {
         .padding(8)
     }
 
-    /// 左边模式块：上半「AI问答 / AI改写」，下半「⇄ 切换」；切换时上下翻一下。
-    private var modeBlock: some View {
+    private var cardHeader: some View {
         let answer = model.cardMode == .answer
-        let text = answer ? Color(light: 0x0369A1, dark: 0x7DD3FC) : Color(light: 0x4A3BD6, dark: 0xB4A9FF)
-        let fill = answer ? Color(light: 0xE0F2FE, dark: 0x0C3448) : Color(light: 0xECEAFD, dark: 0x2E2766)
-        return VStack(spacing: 0) {
-            Text(answer ? L("AI问答", "AI Q&A", "AI回答") : L("AI改写", "AI edit", "AI書換")).font(.system(size: 10, weight: .bold))
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .rotation3DEffect(.degrees(answer ? 0 : 360), axis: (x: 1, y: 0, z: 0))
-            Rectangle().fill(text.opacity(0.25)).frame(height: 0.5)
-            Text("⇄" + L("切换", "Switch", "切替")).font(.system(size: 10, weight: .semibold))
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .tourPress(.switchMode, model: model)
-        }
-        .foregroundStyle(text)
-        .frame(width: 42, height: 46)
-        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(fill))
-        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(text.opacity(0.3), lineWidth: 0.5))
-    }
-
-    /// 识意框（激活：紫色光标）；FT15–FT17 右边「使用联网查询」，联网后灰字「已联网 · Kimi」。
-    @ViewBuilder
-    private var askRow: some View {
-        if model.answerStylesOpen {
-            answerStyleRow
-        } else {
-            askField
-        }
-    }
-
-    /// FT18：识意框那一格换成问答风格一排（和真键盘一样）。
-    private var answerStyleRow: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(Self.answerStyles.enumerated()), id: \.offset) { index, name in
-                let selected = model.answerStyle == index
-                HStack(spacing: 3) {
-                    if selected { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)) }
-                    Text(name).font(.system(size: 13, weight: selected ? .semibold : .regular)).lineLimit(1)
-                }
-                .foregroundStyle(selected ? Color(hex: 0x0369A1) : GuideColor.text)
-                .padding(.horizontal, 9).frame(height: 28)
-                .background(Capsule().fill(selected ? Color(light: 0xE0F2FE, dark: 0x0C3448) : TourColor.rowFill))
-                .overlay(Capsule().strokeBorder(TourColor.answerRing, lineWidth: selected ? 1 : 0))
-                .fixedSize()
-                .tourPress(.answerPill(index), model: model)
+        let color = answer ? Color(light: 0x2F7BF6, dark: 0x5EA0FF) : TourColor.purple
+        return HStack(spacing: 4) {
+            if answer {
+                AskIcon(size: 15)
+            } else {
+                PolishStars(size: 15, running: false, glowing: false, doneAt: nil, tint: color).frame(width: 15, height: 15)
             }
-            Spacer(minLength: 0)
+            Text(answer ? L("AI 回答", "AI answer", "AI の回答") + " · " + Self.answerStyles[model.cardAnswerStyle]
+                 : L("AI 改写", "AI rewrite", "AI 書き換え") + " · " + promptNames[min(model.selectedPrompt, promptNames.count - 1)])
+                .font(.system(size: 13, weight: .bold)).lineLimit(1)
+            if answer { webTag.padding(.leading, 2) }
         }
-        .padding(.horizontal, 8)
-        .transition(.opacity)
+        .foregroundStyle(color)
+        .frame(height: 18)
+        .animation(.easeOut(duration: 0.2), value: model.searched)
     }
+
+    /// 问答标题后面的联网标签：联网前「未联网」浅灰，FT17 联网后换成「已联网」浅蓝（取代原来那行「已联网 · Kimi」）。
+    private var webTag: some View {
+        let on = model.searched
+        return HStack(spacing: 3) {
+            Image(systemName: "globe").font(.system(size: 11))
+            Text(on ? L("已联网", "Web", "ウェブ検索済み") : L("未联网", "No web", "ウェブなし")).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+        }
+        .foregroundStyle(on ? Color(light: 0x2F7BF6, dark: 0x5EA0FF) : Color(light: 0x8A8A8E, dark: 0x98989D))
+        .padding(.horizontal, 7)
+        .frame(height: 18)
+        .background(Capsule().fill(on ? Color(light: 0xE3EEFE, dark: 0x1D2A44) : Color(light: 0xEEEEF1, dark: 0x3A3A3E)))
+        .fixedSize()
+    }
+
+    /// 识意框（激活：紫色光标）；FT15–FT17 右边「使用联网查询」。联网后靠标题上的「已联网」标签，这里不再写。
+    private var askRow: some View { askField }
 
     private var askField: some View {
         HStack(spacing: 8) {
@@ -2179,14 +2257,8 @@ private struct TourKeyboard: View {
                 .foregroundStyle(GuideColor.text)
                 .lineLimit(1)
                 .truncationMode(.head)
-                // FT13 小手指着「切换」、FT6 放大镜正上方冒出「改写」气泡：字往右让开，不被挡住。
-                .padding(.leading, model.target == .switchMode ? 64 : model.step == 6 && model.target == .magnifier ? 120 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if model.searched {
-                Label(L("已联网 · Kimi", "Searched · Kimi", "検索済み · Kimi"), systemImage: "globe")
-                    .font(.system(size: 12)).foregroundStyle(GuideColor.secondary).fixedSize()
-                    .transition(.opacity)
-            } else if model.canSearch {
+            if model.canSearch, !model.searched {
                 Label(L("使用联网查询", "Search the web", "ウェブで調べる"), systemImage: "globe")
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(Color(hex: 0x0369A1))
@@ -2256,11 +2328,8 @@ private struct TourKeyboard: View {
                 .tourPress(.send, model: model)
                 .transition(.opacity)
         } else if model.expanded {
-            VStack(spacing: 4) {
-                Text(L("改写", "Edit", "修正")).font(.system(size: 10, weight: .semibold)).opacity(0.75)
-                Text(L("执行", "Go", "実行")).font(.system(size: 16, weight: .bold))
-                Text(L("问答", "Q&A", "質問")).font(.system(size: 10, weight: .semibold)).opacity(0.75)
-            }
+            // 识意框里按回车：照上次点的那颗键执行。
+            Text(L("执行", "Go", "実行")).font(.system(size: 16, weight: .bold))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(NebulaFill(palette: .ask).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)))
@@ -2450,8 +2519,8 @@ private struct TourAppPage: View {
             HStack(spacing: 6) {
                 Circle().fill(TourColor.purple).frame(width: 6, height: 6)
                 Text(model.appPage == .edit
-                     ? L("飞地输入法 App · 添加提示词（演示）", "Enclave app · Add Prompt (demo)", "Enclave アプリ · プロンプトを追加（デモ）")
-                     : L("飞地输入法 App · 提示词页（演示）", "Enclave app · Prompts (demo)", "Enclave アプリ · プロンプト（デモ）"))
+                     ? L("飞地输入法 App · 添加润色风格（演示）", "Enclave app · Add Polish Style (demo)", "Enclave アプリ · 整えるスタイルを追加（デモ）")
+                     : L("飞地输入法 App · 润色风格（演示）", "Enclave app · Polish styles (demo)", "Enclave アプリ · 整えるスタイル（デモ）"))
                     .font(.system(size: 11.5)).foregroundStyle(GuideColor.secondary)
             }
             .frame(height: 30)
@@ -2475,9 +2544,9 @@ private struct TourAppPage: View {
 
     private var listPage: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L("5 条 · 默认「润色」", "5 prompts · Default: Polish", "5 件 · 既定「整える」"))
+            Text(L("5 条 · 默认「润色」", "5 styles · Default: Polish", "5 件 · 既定「整える」"))
                 .font(.system(size: 12)).foregroundStyle(GuideColor.secondary)
-            Text(L("提示词", "Prompts", "プロンプト")).font(.system(size: 26, weight: .bold)).foregroundStyle(GuideColor.text)
+            Text(L("润色风格", "Polish styles", "整えるスタイル")).font(.system(size: 26, weight: .bold)).foregroundStyle(GuideColor.text)
             HStack(spacing: 0) {
                 Text(L("润色", "Polish", "整える"))
                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(GuideColor.text)
@@ -2520,7 +2589,7 @@ private struct TourAppPage: View {
                 .font(.system(size: 11.5)).foregroundStyle(GuideColor.secondary)
             HStack(spacing: 6) {
                 Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
-                Text(L("添加提示词", "Add Prompt", "プロンプトを追加")).font(.system(size: 15.5))
+                Text(L("添加润色风格", "Add Polish Style", "整えるスタイルを追加")).font(.system(size: 15.5))
             }
             .foregroundStyle(TourColor.purple)
             .padding(.horizontal, 14)
@@ -2542,12 +2611,12 @@ private struct TourAppPage: View {
                 HStack {
                     HStack(spacing: 2) {
                         Image(systemName: "chevron.left").font(.system(size: 15, weight: .semibold))
-                        Text(L("提示词", "Prompts", "プロンプト")).font(.system(size: 15.5))
+                        Text(L("润色风格", "Polish styles", "整えるスタイル")).font(.system(size: 15.5))
                     }
                     .foregroundStyle(TourColor.purple)
                     .onTapGesture { model.wrong() }
                     Spacer()
-                    Text(L("添加提示词", "Add Prompt", "プロンプトを追加")).font(.system(size: 16, weight: .semibold)).foregroundStyle(GuideColor.text)
+                    Text(L("添加润色风格", "Add Polish Style", "整えるスタイルを追加")).font(.system(size: 16, weight: .semibold)).foregroundStyle(GuideColor.text)
                     Spacer()
                     Text(L("完成", "Done", "完了")).font(.system(size: 15.5, weight: .semibold)).foregroundStyle(TourColor.purple)
                         .padding(.horizontal, 6).frame(height: 30)

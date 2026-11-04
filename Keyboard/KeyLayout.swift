@@ -78,6 +78,8 @@ enum KeyLayout {
         var englishOnly = false
         var composing = false
         var digitsMore = false
+        /// 拼音显示在侧边（F12）：九宫格打字时左列上三格让给拼音列。
+        var pinyinSide = false
     }
 
     static let letterRows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map { $0.map(String.init) }
@@ -212,17 +214,22 @@ enum KeyLayout {
                 add("n\(digit)", .nine(digit == "1" ? "'" : digit), col: col + 1, row: row)
             }
         }
-        // 打拼音时左列照平时留着，拼音选择在候选栏上面一行（PY1）。
-        add("layer", .layer(.digits), col: 0, row: 0)
-        add("symbols", .layer(.numbers), col: 0, row: 1)
-        add("quickWords", .quickWords, col: 0, row: 2)
+        // 拼音在上方一行时左列照平时留着（PY1）；在侧边（F12）时打字中左列上三格换成拼音列。
+        var pinyinColumn: CGRect?
+        if state.composing && state.pinyinSide {
+            pinyinColumn = CGRect(x: edge, y: top, width: column, height: slot * 3)
+        } else {
+            add("layer", .layer(.digits), col: 0, row: 0)
+            add("symbols", .layer(.numbers), col: 0, row: 1)
+            add("quickWords", .quickWords, col: 0, row: 2)
+        }
         add(state.needsGlobeKey ? "globe" : "emoji", state.needsGlobeKey ? .globe : .emoji, col: 0, row: 3)
         add("chinese", .toggleChinese, col: 1, row: 3)
         add("space", .space, col: 2, row: 3, cols: 2)
         add("delete", .delete, col: 4, row: 0)
         add("emoticon", .emoticon, col: 4, row: 1)
         add("return", .returnKey, col: 4, row: 2, rows: 2)
-        return KeyLayoutResult(keys: keys, pinyinColumn: nil)
+        return KeyLayoutResult(keys: keys, pinyinColumn: pinyinColumn)
     }
 
     /// 九宫格数字键盘，照 iOS 26：

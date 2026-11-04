@@ -21,7 +21,7 @@ enum SetupGuide {
 enum GuideTarget { case rewrite, answer }
 
 enum SetupGuidePage: Identifiable, Hashable {
-    /// tour：首次打开的功能演示，走完进欢迎页；tourReplay：使用指引里再玩一次，走完关掉。
+    /// tour：首次打开的功能演示，走完进欢迎页；tourReplay：从设置里再看一次，走完关掉。
     /// welcome：欢迎页四步（WL1–WL9）；answerProvider：第 4 步「配一个能联网的」选问答服务商。
     case tour, tourReplay, welcome, intro, provider, answerProvider, step(Int), done
 
@@ -80,7 +80,7 @@ struct SetupGuideView: View {
     var body: some View {
         ZStack {
             if page == .tour || page == .tourReplay {
-                FeatureTourView { tourExit($0) }
+                FeatureTourView(replay: page == .tourReplay) { tourExit($0) }
             } else {
                 GuideBackground(glow: ([.welcome, .intro, .provider, .answerProvider, .done] as [SetupGuidePage]).contains(page))
                 VStack(spacing: 0) {
@@ -94,10 +94,10 @@ struct SetupGuideView: View {
         .animation(.easeInOut(duration: 0.22), value: page)
     }
 
-    /// 功能演示结束：首次打开的接着进欢迎页（已配好接口的跳过就直接关）；
-    /// 从设置、使用指引里再玩的，完成页点「开始设置」也进欢迎页，跳过、暂不配置直接关。
+    /// 功能演示结束：首次打开的，完成页「开始设置」进欢迎页配 API Key 和接口（跳过时没配好接口也进）；
+    /// 从设置、实验室里再看的，演示完（或跳过）直接退出，不进配置（cvbk 11-01）。
     private func tourExit(_ exit: FeatureTourView.Exit) {
-        if page == .tourReplay, exit != .setup { return router.setupGuide = nil }
+        if page == .tourReplay { return router.setupGuide = nil }
         switch exit {
         case .setup: page = .welcome
         case .skip: if store.settings.isConfigured { finish() } else { page = .welcome }

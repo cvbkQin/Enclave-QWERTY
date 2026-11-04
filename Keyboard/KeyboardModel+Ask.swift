@@ -33,6 +33,17 @@ extension KeyboardModel {
         target = .host
     }
 
+    /// 点了回答卡的「替换」「插入」：文字已经写进输入框，打字和回车回到输入框，回车直接发送，不再在识意框里又跑一次润色 / 问答。
+    /// （自己刚改过对方输入框，系统那次光标通知被 0.5 秒的保护挡掉了，hostSelectionChanged 不会切。）
+    func focusHostAfterResult() {
+        guard target == .instruction else { return }
+        commitTopCandidates()
+        if aiRow != nil { aiRow = nil }
+        if askSelected { askSelected = false }
+        hostFocused = true
+        target = .host
+    }
+
     /// 识意框里拼音还没选字就离开：和按空格一样上屏第一个候选（一次只选得掉一段就接着选），不留下一串字母。
     private func commitTopCandidates() {
         var rounds = 0
@@ -47,7 +58,6 @@ extension KeyboardModel {
     /// 点 AI 栏的风格键：展开时整块下半格换成这一种的风格一排，收起时浮在 AI 栏上面；再点自己换回来。
     func toggleRow(_ row: AIRow) {
         endCoach()
-        hideEmptyTapHint()
         if target == .card { finishCardEdit() }
         finishComposition()
         aiRow = aiRow == row ? nil : row
@@ -70,9 +80,15 @@ extension KeyboardModel {
     var askButtonMode: AskMode? { askChoice != nil && instruction == askChoiceText ? askChoice : nil }
 
     /// 识意展开时的 ✨：mode 为 nil 让模型自己判断，改写 / 问答是按住滑出来选的（或上次手动选的）。
-    func askTapped(_ mode: AskMode?) {
+    /// contextOverride：收着时点「问答」，问的就是输入框里的话，不再把它当上下文带一遍（传 ""）。
+    func askTapped(_ mode: AskMode?, contextOverride: String? = nil) {
         guard !isRunning, canAsk else { return }
-        guard passGate(then: { [weak self] in self?.askTapped(mode) }) else { return }
+        let answerStyle = runAnswerStyleOverride
+        guard passGate(then: { [weak self] in
+            self?.runAnswerStyleOverride = answerStyle
+            self?.askTapped(mode, contextOverride: contextOverride)
+            self?.runAnswerStyleOverride = nil
+        }) else { return }
         #if DEBUG
         if debugFakeRun { coachTapped(.run); fakeCoachRun(); return }
         #endif
@@ -88,20 +104,24 @@ extension KeyboardModel {
         let question = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         // 卡片上是手改过的一版就拿它当原文，否则读输入框此刻的内容；输入框空就不带上下文。
         let edited = session?.currentIsEdited == true ? session?.current : nil
-        let context = edited ?? CommandParser.parse(readField(remember: true).text).content
+        let context = contextOverride ?? edited ?? CommandParser.parse(readField(remember: true).text).content
         if edited == nil { dropSession(unlessItBelongsTo: context) }
         let pending = session ?? (context.isEmpty
             ? EditSession(mode: .write, original: question)
             : EditSession(mode: .polish, original: context))
         let search = mode != .rewrite ? settings.answerSearch : nil
         if mode != .rewrite {
-            guard passAnswerConsent(then: { [weak self] in self?.askTapped(mode) }) else { return }
+            guard passAnswerConsent(then: { [weak self] in
+                self?.runAnswerStyleOverride = answerStyle
+                self?.askTapped(mode, contextOverride: contextOverride)
+                self?.runAnswerStyleOverride = nil
+            }) else { return }
         }
         let request = AskRequest(question: question, forced: mode,
                                  fallbackAnswer: mode.map { $0 == .answer } ?? context.isEmpty,
                                  context: context, search: search)
         let messages = Prompts.ask(question, context: context, forceAnswer: mode.map { $0 == .answer }, search: search != nil,
-                                   answerStyle: settings.selectedAnswerStyle, tendency: settings.tendency)
+                                   answerStyle: answerStyle ?? settings.selectedAnswerStyle, tendency: settings.tendency)
 
         // 抽屉先不展开：收起时按快速模式开始，判断是问答再展开（askDecided）。
         if !aiExpanded { beginQuickMode(source: readField().text) }
@@ -150,24 +170,123 @@ extension KeyboardModel {
         lastAsk = LastAsk(question: question, kind: kind, index: session.currentIndex)
     }
 
-    /// 结果卡左边模式控件「⇄ 切换」（SW4）：同一句、同样的原文换另一种方式重做，结果作为新的一版进翻页。
-    func switchAskMode() {
-        guard !isRunning, let session, session.currentIsAsk, let source = session.currentAskSource else { return }
-        guard passGate(then: { [weak self] in self?.switchAskMode() }) else { return }
-        reload()
-        guard checkCanAsk() else { return }
-        let target: AskMode = session.currentIsAnswer ? .rewrite : .answer
-        if target == .answer {
-            guard passAnswerConsent(then: { [weak self] in self?.switchAskMode() }) else { return }
+    /// 点润色键的名字（AK1、AK2、AK4）。收着时就是快速润色（✨）；展开时按当前润色风格改输入框里的话，识意框里写的要求一起带上。
+    /// 输入框里没有字（也没有手改过的一版）时不调用 AI，只提示一句（AK3）。生成中点了是停止。
+    func polishKeyTapped() {
+        endCelebration()
+        if isRunning { stop(); return }
+        lastRunPin = nil
+        runPolish()
+    }
+
+    private func runPolish() {
+        guard aiExpanded else {
+            sparkleTapped()
+            return
         }
-        // 新的一版，不顶掉现在这一版。
-        lastAsk = nil
-        let search = target == .answer ? settings.answerSearch : nil
-        let request = AskRequest(question: source.question, forced: target, fallbackAnswer: target == .answer,
-                                 context: source.context, search: search)
-        let messages = Prompts.ask(source.question, context: source.context, forceAnswer: target == .answer, search: search != nil,
-                                   answerStyle: settings.selectedAnswerStyle, tendency: settings.tendency)
-        start(from: .ask) { run(messages, pending: session, ask: request) }
+        if target == .card { finishCardEdit() }
+        finishComposition()
+        if aiRow != nil { aiRow = nil }
+        let parsed = CommandParser.parse(readField().text)
+        if parsed.content.isEmpty, parsed.instruction.isEmpty, session?.currentIsEdited != true {
+            showKeysToast(L("输入框里没有要改的话，想问问题请点「问答」", "Nothing to edit in the text field. To ask a question, tap Ask.",
+                            "入力欄に直す文章がありません。質問するときは「質問」をタップ"))
+            return
+        }
+        let style = runStyleOverride
+        guard passGate(then: { [weak self] in
+            self?.runStyleOverride = style
+            self?.runPolish()
+            self?.runStyleOverride = nil
+        }) else { return }
+        #if DEBUG
+        if debugFakeRun { coachTapped(.run); fakeCoachRun(); return }
+        #endif
+        coachTapped(.run)
+        if askSelected { askSelected = false }
+        var extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 识意框里是点「问答」时自动填进去的那句（问题本身），不是要求：只改写输入框里的话（v308，FT13）。
+        if let auto = askAutoFill, extra == auto { extra = "" }
+        lastRunKey = .rewrite
+        start(from: .polish) { execute(extraInstruction: extra) }
+    }
+
+    /// 点问答键的名字（AK1、AK2、AK4）。
+    /// 展开时：回答识意框里的问题；框是空的就把光标放进框里、提示先写问题。
+    /// 收着时：回答卡展开，把输入框里的话当问题回答，这句同时填进识意框（输入框不动）；输入框也空就只展开、光标进识意框。
+    func askKeyTapped() {
+        endCelebration()
+        if isRunning { stop(); return }
+        lastRunPin = nil
+        runAsk()
+    }
+
+    private func runAsk() {
+        if aiRow != nil { aiRow = nil }
+        if !aiExpanded {
+            if target == .card { finishCardEdit() }
+            finishComposition()
+            let text = CommandParser.parse(readField().text).content
+            setAIExpanded(true)
+            guard !text.isEmpty else {
+                focusAsk()
+                showKeysToast(L("写下想问的问题，再点「问答」", "Type your question, then tap Ask.", "質問を書いてから「質問」をタップ"))
+                return
+            }
+            setInstruction(text)
+            askAutoFill = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            lastRunKey = .answer
+            coachTapped(.ask)
+            askTapped(.answer, contextOverride: "")
+            return
+        }
+        guard canAsk else {
+            focusAsk()
+            showKeysToast(L("先在下面的框里写问题，再点「问答」", "Type your question in the box below, then tap Ask.",
+                            "下の欄に質問を書いてから「質問」をタップ"))
+            return
+        }
+        lastRunKey = .answer
+        coachTapped(.ask)
+        askTapped(.answer)
+    }
+
+    /// 点 AI 栏上固定的风格键（AK5）：按这个风格执行一次，不改润色键 / 问答键当前选的风格。生成中点了是停止。
+    func pinTapped(_ style: StylePreset, answer: Bool) {
+        pinMenu = nil
+        endCelebration()
+        if isRunning { stop(); return }
+        lastRunPin = style.id
+        if answer {
+            runAnswerStyleOverride = style
+            runAsk()
+            runAnswerStyleOverride = nil
+        } else {
+            runStyleOverride = style
+            runPolish()
+            runStyleOverride = nil
+        }
+    }
+
+    /// 下拉框里的图钉、长按固定键的「取消固定」：固定 / 取消固定，满 5 个提示。
+    func togglePin(_ style: StylePreset) {
+        var full = false
+        updateSettings { full = !$0.togglePin(style.id) }
+        if full {
+            if aiRow != nil {
+                // 下拉框开着：提示写在下拉框底部那一行（变红 1.8 秒）。
+                pinLimitHit = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in self?.pinLimitHit = false }
+            } else {
+                showKeysToast(L("最多固定 5 个", "You can pin up to 5", "固定できるのは 5 つまで"))
+            }
+        }
+        if pinMenu != nil { pinMenu = nil }
+    }
+
+    /// 识意框里按回车「执行」：和上次点的那颗键一样（没点过就是问答）。不再有自动判断（AK1）。
+    func runFromAskField() {
+        if lastRunKey == .rewrite { polishKeyTapped() } else { askKeyTapped() }
     }
 
     /// 识意框右边「使用联网查询」能不能出现（MG6）：正在显示没联网的问答，问答接口能联网，三档不是禁止。

@@ -26,7 +26,8 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     private var showsFirstBlock = false
     private static let font = UIFont.systemFont(ofSize: 20)
     private static let padding: CGFloat = 11
-    private static let leading: CGFloat = 2
+    /// 第一个候选左边和按键左边对齐（九宫格、全键盘都是 7）：原来贴着左边 2，首选的白底块顶到键盘左上圆角外被切掉。
+    private static let leading: CGFloat = KeyboardMetrics.nineSideMargin
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -48,7 +49,7 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
         highlight.cornerRadius = 6
         highlight.isHidden = true
         layer.insertSublayer(highlight, at: 0)
-        firstBlock.cornerRadius = 9
+        firstBlock.cornerRadius = 8
         firstBlock.shadowOffset = CGSize(width: 0, height: 1)
         firstBlock.shadowRadius = 0
         firstBlock.shadowOpacity = 1
@@ -167,13 +168,16 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
     private static var widthCache: [String: CGFloat] = [:]
     private static let hanWidth = ("中" as NSString).size(withAttributes: [.font: font]).width
 
+    /// 一个候选最宽 12 个字：填了简码的常用语（一整段地址）末尾省略，选中后输入完整一段（对齐清单第 62 条）。
+    private static let maxWidth = ceil(hanWidth * 12) + padding * 2
+
     private static func width(of word: String) -> CGFloat {
         if word.unicodeScalars.allSatisfy({ (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }) {
-            return ceil(hanWidth * CGFloat(word.unicodeScalars.count)) + padding * 2
+            return min(ceil(hanWidth * CGFloat(word.unicodeScalars.count)) + padding * 2, maxWidth)
         }
         if let cached = widthCache[word] { return cached }
         if widthCache.count > 500 { widthCache.removeAll() }
-        let width = ceil((word as NSString).size(withAttributes: [.font: font]).width) + padding * 2
+        let width = min(ceil((word as NSString).size(withAttributes: [.font: font]).width) + padding * 2, maxWidth)
         widthCache[word] = width
         return width
     }
@@ -214,8 +218,11 @@ final class CandidateStripView: UIScrollView, UIScrollViewDelegate {
             firstBlock.isHidden = true
             return
         }
-        let height = min(34, bounds.height - 4)
-        firstBlock.frame = CGRect(x: frame.minX, y: (bounds.height - height) / 2, width: frame.width, height: height)
+        // 方案 A（design/candidate-corner/CC1）：高 30，两边各往里缩 5（左边距 7→12），离开 iOS 26 键盘外框的大圆角；字不动，仍在块里居中。
+        let height = min(30, bounds.height - 4)
+        let inset: (left: CGFloat, right: CGFloat) = (5, 5)
+        firstBlock.frame = CGRect(x: frame.minX + inset.left, y: (bounds.height - height) / 2,
+                                  width: frame.width - inset.left - inset.right, height: height)
         firstBlock.backgroundColor = UIColor(KeyStyle.charKey).resolvedColor(with: traitCollection).cgColor
         firstBlock.shadowColor = UIColor(white: 0, alpha: traitCollection.userInterfaceStyle == .dark ? 0.35 : 0.18).cgColor
         firstBlock.isHidden = false
@@ -326,12 +333,14 @@ struct CandidateStrip: UIViewRepresentable {
     func updateUIView(_ view: CandidateStripView, context: Context) {
         // 没在打拼音时显示联想：不标常用词；开了「空格连续联想」时第一个也垫浅色块，和打字时一样提示按空格上屏的是它。
         guard model.isComposing else {
-            view.update(words: model.predictions, firstBlock: Predictor.spaceChains && model.chineseMode, commonWords: [])
+            view.update(words: model.displayWords(model.predictions), firstBlock: Predictor.spaceChains && model.chineseMode, commonWords: [])
             view.setHighlighted(nil)
             return
         }
-        let words = Array(model.candidates.prefix(60))
-        view.update(words: words, firstBlock: true, commonWords: model.commonWordTexts)
+        // 繁体输出：显示的词和常用词标记都换成繁体，下标和 candidates 一一对应，点了照常按下标选。
+        let words = model.displayWords(Array(model.candidates.prefix(60)))
+        let common = model.settings.traditionalOutput ? Set(model.displayWords(Array(model.commonWordTexts))) : model.commonWordTexts
+        view.update(words: words, firstBlock: true, commonWords: common)
         view.setHighlighted(model.candidateMenu?.index)
     }
 }

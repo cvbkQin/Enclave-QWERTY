@@ -1,7 +1,10 @@
 #include "EnclaveRime.h"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <rime_api.h>
 #include <CoreFoundation/CoreFoundation.h>
 
@@ -68,6 +71,46 @@ bool enclave_rime_deploy(const char *shared_dir, const char *user_dir, const cha
   bool ok = !api->is_maintenance_mode();
   enclave_rime_finalize();
   return ok;
+}
+
+bool enclave_rime_sync_user_data(const char *shared_dir, const char *user_dir, const char *log_dir, const char *ensure_schema) {
+  RimeApi *api = rime_get_api();
+  enclave_rime_finalize();
+  enclave_rime_start(shared_dir, user_dir, log_dir);
+  // 同步用的几个任务（installation_update、user_dict_sync 等）在部署模块组里注册：
+  // start_maintenance 会自己加载这组模块，sync_user_data 不会，不先加载就排不上任务、直接返回失败。
+  RIME_STRUCT(RimeTraits, traits);
+  fill_traits(&traits, shared_dir, user_dir, log_dir);
+  api->deployer_initialize(&traits);
+  if (ensure_schema) {
+    RimeSessionId session = api->create_session();
+    if (session) {
+      api->select_schema(session, ensure_schema);
+      api->destroy_session(session);
+    }
+  }
+  bool ok = api->sync_user_data();
+  api->join_maintenance_thread();
+  enclave_rime_finalize();
+  return ok;
+}
+
+bool enclave_userdb_locked(const char *lock_path) {
+  int fd = open(lock_path, O_RDWR);
+  if (fd < 0) return false;
+  struct flock info;
+  memset(&info, 0, sizeof(info));
+  info.l_type = F_WRLCK;
+  info.l_whence = SEEK_SET;
+  bool locked = false;
+  if (fcntl(fd, F_SETLK, &info) == -1) {
+    locked = (errno == EACCES || errno == EAGAIN);
+  } else {
+    info.l_type = F_UNLCK;
+    fcntl(fd, F_SETLK, &info);
+  }
+  close(fd);
+  return locked;
 }
 
 uint64_t enclave_rime_create_session(const char *schema_id) {

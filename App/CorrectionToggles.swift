@@ -38,7 +38,7 @@ struct CorrectionToggles: View {
 }
 
 /// 新功能的小标签：高 18、圆角 9、左右 6、字 11 半粗。
-private struct NewBadge: View {
+struct NewBadge: View {
     var body: some View {
         Text(L("新", "New", "新"))
             .font(.system(size: 11, weight: .semibold))

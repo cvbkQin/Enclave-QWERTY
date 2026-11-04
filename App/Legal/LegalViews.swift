@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 import UIKit
 
@@ -12,7 +13,7 @@ struct PrivacyView: View {
     @State private var confirmsRevoke = false
 
     private enum ClearTarget: Identifiable {
-        case history, learning, stats
+        case history, learning, stats, clipboard
         var id: Self { self }
     }
 
@@ -82,6 +83,8 @@ struct PrivacyView: View {
                 clearRow(L("清除使用统计", "Clear Usage Stats", "利用統計を消去"), target: .stats)
                 clearRow(L("清除 AI 历史", "Clear AI History", "AI の履歴を消去"), target: .history)
                 clearRow(L("清除拼音学习记录", "Clear Pinyin Learning", "ピンインの学習データを消去"), target: .learning)
+                // B1：和 App › 键盘 › 剪贴板 里的「清除剪贴板记录」是同一个操作。
+                clearRow(L("清除剪贴板记录", "Clear Clipboard History", "クリップボード履歴を消去"), target: .clipboard)
             } header: {
                 Text(L("本地数据", "Data on this iPhone", "この iPhone のデータ"))
             } footer: {
@@ -104,9 +107,13 @@ struct PrivacyView: View {
             Button(L("清除", "Clear", "消去"), role: .destructive) {
                 guard let target = confirm else { return }
                 switch target {
-                case .history: SessionStore.save(nil)
+                case .history:
+                    // 历史页的记录和键盘里正在用的这一轮一起清。
+                    SessionStore.save(nil)
+                    HistoryStore.shared.clear()
                 case .learning: RimeStore.clearLearning()
                 case .stats: UsageStats.clearStats()
+                case .clipboard: ClipboardHistory.clear()
                 }
                 cleared.insert(target)
             }
@@ -122,11 +129,14 @@ struct PrivacyView: View {
 
     private var confirmTitle: String {
         switch confirm {
-        case .history: return L("清除 AI 历史？", "Clear AI history?", "AI の履歴を消去しますか？")
+        case .history: return L("清除 AI 历史？历史页的记录和键盘里正在用的这一轮都会删除。", "Clear AI history? Records on the History tab and the round in use on the keyboard will be deleted.",
+                                "AI の履歴を消去しますか？履歴タブの記録とキーボードで使用中の回が削除されます。")
         case .learning: return L("清除拼音学习记录？候选会回到默认的顺序。", "Clear pinyin learning? Candidates go back to the default order.",
                                  "ピンインの学習データを消去しますか？候補は初期の順番に戻ります。")
         case .stats: return L("清除使用统计？首页的次数和图表会从零开始。", "Clear usage stats? The counts and charts on Home start over.",
                               "利用統計を消去しますか？ホームの回数とグラフはゼロからになります。")
+        case .clipboard: return L("清除剪贴板记录？键盘「常用 › 剪贴板」里的记录会全部删除。", "Clear clipboard history? Everything under Phrases › Clipboard on the keyboard will be deleted.",
+                                  "クリップボード履歴を消去しますか？キーボードの「定型文 › クリップボード」の記録がすべて削除されます。")
         case nil: return ""
         }
     }
@@ -375,6 +385,27 @@ struct LicensesView: View {
                         .foregroundStyle(.secondary)
                     Link("creativecommons.org/licenses/by/4.0", destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!)
                         .font(.footnote)
+                }
+                .padding(.vertical, 4)
+            }
+            // 扩展词库（B6）的署名：THUOCL（MIT）、百科词库（CC BY-SA 4.0）。
+            Section(L("扩展词库", "Extra dictionaries", "拡張辞書")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(L("THUOCL 清华大学开放中文词库", "THUOCL (Tsinghua Open Chinese Lexicon)", "THUOCL 清華大学オープン中国語辞書")).font(.headline)
+                    Text(ExtDictAttribution.thuocl).font(.subheadline)
+                    Text(L("内置的成语、地名、IT、财经，和在线的医学、法律、诗词、历史名人词库。", "Built-in idioms, place names, IT and finance, and the online medicine, law, poetry and historical figures dictionaries.", "内蔵の成語・地名・IT・財経と、オンラインの医学・法律・詩詞・歴史上の人物の辞書。"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Link("github.com/thunlp/THUOCL", destination: URL(string: "https://github.com/thunlp/THUOCL/blob/master/LICENSE")!).font(.footnote)
+                }
+                .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(Storefront.isMainlandChina ? L("百科词库", "Encyclopedia dictionary", "百科辞書") : L("维基百科词库", "Wikipedia dictionary", "ウィキペディア辞書")).font(.headline)
+                    Text(ExtDictAttribution.wiki).font(.subheadline)
+                    Text(L("原作品按现状提供，不附带任何担保；改动由飞地输入法做出，与原作者无关。",
+                           "The original work is provided as is, without warranty of any kind. Changes were made by Enclave and are not endorsed by the original authors.",
+                           "原著作物は現状のまま提供され、いかなる保証もありません。変更は Enclave によるもので、原作者とは関係ありません。"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Link("creativecommons.org/licenses/by-sa/4.0", destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!).font(.footnote)
                 }
                 .padding(.vertical, 4)
             }

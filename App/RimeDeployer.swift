@@ -25,11 +25,12 @@ final class RimeDeployer: ObservableObject {
         Bundle.main.url(forResource: "RimeData", withExtension: nil)
     }
 
-    /// 应该部署成的版本：自带词库版本 + 当前的模糊拼音 + 有没有整句模型。
+    /// 应该部署成的版本：自带词库版本 + 当前的模糊拼音 + 有没有整句模型 + 打开的扩展词库。
     static var targetVersion: String? {
         bundledVersion.map {
             $0 + schemaPatchTag + FuzzyPinyin.versionTag(SettingsStore.load().fuzzyPinyin)
                 + GrammarModel.versionTag(installed: GrammarModel.isActive)
+                + ExtDict.versionTag(ExtDict.active)
         }
     }
 
@@ -54,6 +55,27 @@ final class RimeDeployer: ObservableObject {
     }
 
     /// 上次部署完成的时间。
+    /// 上次部署实际用了多少秒，提示「约多久」和画进度条用。
+    static var lastSeconds: Double? {
+        get { (SharedStorage.defaults.object(forKey: "rime.deploySeconds") as? Double).flatMap { $0 > 0 ? $0 : nil } }
+        set { SharedStorage.defaults.set(newValue, forKey: "rime.deploySeconds") }
+    }
+
+    /// 这次大概要多久（秒）：按上次实际用的时间，没部署过按 60 秒。
+    static var expectedSeconds: Double { max(5, lastSeconds ?? 60) }
+
+    /// 「约 40 秒」「约 2 分钟」，按上次实际用的时间。
+    static var durationText: String { durationText(expectedSeconds) }
+
+    static func durationText(_ seconds: Double) -> String {
+        if seconds < 90 {
+            let s = max(5, Int((seconds / 5).rounded()) * 5)
+            return L("约 \(s) 秒", "about \(s) s", "約 \(s) 秒")
+        }
+        let m = Int((seconds / 60).rounded())
+        return L("约 \(m) 分钟", "about \(m) min", "約 \(m) 分")
+    }
+
     static var deployedAt: Date? {
         get { SharedStorage.defaults.object(forKey: "rime.deployedAt") as? Date }
         set { SharedStorage.defaults.set(newValue, forKey: "rime.deployedAt") }
@@ -88,18 +110,21 @@ final class RimeDeployer: ObservableObject {
         }
         let fuzzy = SettingsStore.load().fuzzyPinyin
         let grammar = GrammarModel.isActive
+        let ext = ExtDict.active.map { (id: $0.id, url: $0.url) }
         state = .deploying
-        startedAt = Date()
+        let start = Date()
+        startedAt = start
         Task.detached(priority: .userInitiated) {
-            let result = Self.run(source: source, paths: paths, fuzzy: fuzzy, grammar: grammar)
+            let result = Self.run(source: source, paths: paths, fuzzy: fuzzy, grammar: grammar, ext: ext)
             await MainActor.run {
                 self.startedAt = nil
                 switch result {
                 case .success:
                     RimeStore.deployedVersion = version
                     Self.deployedAt = Date()
+                    Self.lastSeconds = Date().timeIntervalSince(start)
                     self.state = .done
-                    // 部署途中又装上或删掉了整句模型、改了模糊拼音：再部署一次。
+                    // 部署途中又装上或删掉了整句模型、改了模糊拼音、开关了扩展词库：再部署一次。
                     if version != Self.targetVersion { self.deploy() }
                 case .failure(let error):
                     self.state = .failed(error.localizedDescription)
@@ -112,7 +137,8 @@ final class RimeDeployer: ObservableObject {
         let errorDescription: String?
     }
 
-    nonisolated private static func run(source: URL, paths: RimeStore.Paths, fuzzy: Set<FuzzyPinyin>, grammar: Bool) -> Result<Void, Error> {
+    nonisolated private static func run(source: URL, paths: RimeStore.Paths, fuzzy: Set<FuzzyPinyin>, grammar: Bool,
+                                       ext: [(id: String, url: URL)]) -> Result<Void, Error> {
         let fm = FileManager.default
         do {
             // 共享数据整份替换；用户目录保留（里面有学习到的词频），只删掉旧的编译结果。
@@ -137,6 +163,18 @@ final class RimeDeployer: ObservableObject {
                 let text = try String(contentsOf: url, encoding: .utf8)
                 try GrammarModel.patchSchema(text).write(to: url, atomically: true, encoding: .utf8)
             }
+            // 扩展词库：拷进共享副本的 ext_dicts/，加到 enclave.dict.yaml 的 import_tables 最后。
+            if !ext.isEmpty {
+                let folder = paths.shared.appendingPathComponent("ext_dicts", isDirectory: true)
+                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                for dict in ext {
+                    try fm.copyItem(at: dict.url, to: folder.appendingPathComponent("ext_\(dict.id).dict.yaml"))
+                }
+                let url = paths.shared.appendingPathComponent("\(RimeStore.schemaID).dict.yaml")
+                let text = try String(contentsOf: url, encoding: .utf8)
+                try ExtDictFormat.patchImportTables(text, tables: ext.map { "ext_dicts/ext_\($0.id)" })
+                    .write(to: url, atomically: true, encoding: .utf8)
+            }
             try fm.createDirectory(at: paths.user, withIntermediateDirectories: true)
             let build = paths.user.appendingPathComponent("build", isDirectory: true)
             if fm.fileExists(atPath: build.path) {
@@ -145,7 +183,7 @@ final class RimeDeployer: ObservableObject {
         } catch {
             return .failure(error)
         }
-        let ok = enclave_rime_deploy(paths.shared.path, paths.user.path, nil)
+        let ok = RimeStore.withAppEngine { enclave_rime_deploy(paths.shared.path, paths.user.path, nil) }
         let schema = paths.user.appendingPathComponent("build/\(RimeStore.schemaID).schema.yaml")
         guard ok, fm.fileExists(atPath: schema.path) else {
             return .failure(DeployError(errorDescription: L("词库编译失败。", "Couldn't build the dictionary.", "辞書の作成に失敗しました。")))

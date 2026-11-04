@@ -15,16 +15,16 @@ struct HomeView: View {
                 if WelcomeSetup.Progress(store: store).allDone(privacyAgreed: router.privacyAgreed) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
-                            TabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
-                                     title: L("摘要", "Summary", "概要"), showsBuildBadge: true)
-                                .padding(.top, 8)
                             Dashboard()
                         }
+                        .padding(.top, 8)
                         // 左右 20，和提示词、接口、设置三页的分组卡片对齐。
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
                     }
                     .background(Color(.systemGroupedBackground))
+                    .pinnedTabTitle(caption: Date.now.formatted(Date.FormatStyle(locale: Loc.locale).month().day().weekday(.wide)),
+                                    title: L("摘要", "Summary", "概要"), showsBuildBadge: true)
                 } else {
                     WelcomeSetupView(inGuide: false)
                 }
@@ -115,7 +115,7 @@ private struct Dashboard: View {
                      value: "\(words.all.count)", detail: wordsDetail) { router.openKeyboard(.commonWords) }
             GridCard(icon: "star.fill", title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), color: DashColor.phrase,
                      value: "\(phrases.phrases.count)",
-                     detail: phrases.phrases.isEmpty ? L("还没有，点进去添加", "None yet. Tap to add", "まだありません。タップして追加") : phrases.phrases.prefix(2).joined(separator: " · ")) { router.openKeyboard(.keyboardWords) }
+                     detail: phrases.phrases.isEmpty ? L("还没有，点进去添加", "None yet. Tap to add", "まだありません。タップして追加") : phrases.phrases.prefix(2).map { $0.displayTitle ?? $0.flattened }.joined(separator: " · ")) { router.openKeyboard(.keyboardWords) }
         }
         .onAppear {
             words.reload()
@@ -173,12 +173,12 @@ private struct Dashboard: View {
                     Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 6) {
                         GridRow {
                             Text(L("润色", "Polish", "整える")).font(.system(size: 15, weight: .semibold))
-                            apiLine(ProviderName.of(store.settings.baseURL), polishDetail)
+                            apiLine(ProviderName.of(store.settings.baseURL, model: store.settings.model), polishDetail)
                         }
                         GridRow {
                             Text(L("问答", "Q&A", "質問")).font(.system(size: 15, weight: .semibold))
                             if store.settings.usesAnswerEndpoint {
-                                apiLine(ProviderName.of(store.settings.answerBaseURL), answerDetail)
+                                apiLine(ProviderName.of(store.settings.answerBaseURL, model: store.settings.answerModel), answerDetail)
                             } else {
                                 Text(L("和润色用同一个", "Same as Polish", "整えると同じ"))
                                     .font(.system(size: 15)).foregroundStyle(.secondary).lineLimit(1)
@@ -225,9 +225,12 @@ private struct Dashboard: View {
         return L("\(value) 秒", "\(value) s", "\(value) 秒")
     }
 
-    /// 拼音词库格子的状态：已就绪绿点、需要重新部署橙点、部署中灰字；开了整句模型后面加「· 整句模型」。
+    /// 拼音词库格子的状态：已就绪绿点、需要重新部署橙点、部署中灰字；开了整句模型后面加「· 整句模型」，
+    /// 开着扩展词库再加「· 扩展 N」。
     private var pinyinStatus: (text: String, dot: Color?) {
-        let grammarTag = GrammarModel.isActive ? L(" · 整句模型", " · Sentence model", "・文章モデル") : ""
+        let ext = ExtDict.activeCount
+        let grammarTag = (GrammarModel.isActive ? L(" · 整句模型", " · Sentence model", "・文章モデル") : "")
+            + (ext > 0 ? L(" · 扩展 \(ext)", " · +\(ext) extra", "・拡張 \(ext)") : "")
         switch deployer.state {
         case .deploying: return (L("部署中…", "Installing…", "インストール中…"), nil)
         case .failed: return (L("部署失败", "Install failed", "インストール失敗"), .red)
@@ -316,7 +319,7 @@ private struct GridCard: View {
     }
 }
 
-/// 拼音词库部署进度。编译没有真实进度，按大约一分钟估一条进度条。
+/// 拼音词库部署进度。编译没有真实进度，按上次实际用的时间估一条进度条（没部署过按一分钟）。
 struct DeployCard: View {
     @ObservedObject private var deployer = RimeDeployer.shared
 
@@ -329,9 +332,11 @@ struct DeployCard: View {
                     Text(L("正在部署拼音词库…", "Installing the pinyin dictionary…", "ピンイン辞書をインストール中…")).font(.subheadline)
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         let elapsed = context.date.timeIntervalSince(deployer.startedAt ?? context.date)
+                        let expected = RimeDeployer.expectedSeconds
                         HStack {
-                            ProgressView(value: min(elapsed / 60, 0.95)).tint(.orange)
-                            Text(L("约 \(max(5, 60 - Int(elapsed))) 秒", "About \(max(5, 60 - Int(elapsed))) s", "約 \(max(5, 60 - Int(elapsed))) 秒")).font(.caption).foregroundStyle(.secondary)
+                            ProgressView(value: min(elapsed / expected, 0.95)).tint(.orange)
+                            Text(elapsed < expected - 5 ? L("还要", "", "残り") + RimeDeployer.durationText(expected - elapsed) : L("快好了", "Almost done", "まもなく完了"))
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }

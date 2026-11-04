@@ -20,9 +20,19 @@ struct KeysView: View {
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
                 } else if model.candidatesExpanded {
-                    // 九宫格的拼音行在候选栏上面，展开时也留着；整页候选铺满按键区。
-                    CandidateGrid(model: model)
+                    // 拼音在上方一行时那一行展开时也留着，整页候选铺满按键区；
+                    // 在侧边（F12）时九宫格左边的拼音列保持住、拉长到 4 行，候选铺在中间三列。
+                    let column = model.pinyinSide && model.showsNineKey ? layout.pinyinColumn : nil
+                    // 和系统键盘一样：从候选栏下面往下拉开，收起时往上卷回去（见 CandidateReveal）。
+                    CandidateGrid(model: model, leading: column?.maxX ?? 0)
                         .frame(width: geo.size.width, height: geo.size.height)
+                        .transition(.modifier(active: CandidateReveal(progress: 0), identity: CandidateReveal(progress: 1)))
+                    // 拼音列不跟着卷：按键页那份和这份同一刻换掉，开收途中不会叠出两列。
+                    if let column {
+                        SidePinyinColumn(model: model, frame: CGRect(x: column.minX, y: column.minY,
+                                                                     width: column.width, height: column.height / 3 * 4))
+                            .transition(.identity)
+                    }
                 } else {
                     ForEach(layout.keys) { key in
                         KeyCapCell(presses: model.keyPresses, context: context, key: key)
@@ -31,6 +41,10 @@ struct KeysView: View {
                     }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)
+                    if let column = layout.pinyinColumn {
+                        SidePinyinColumn(model: model, frame: column)
+                            .transition(.identity)
+                    }
                     if let column = layout.operatorColumn {
                         OperatorColumn(model: model, frame: column)
                     }
@@ -54,6 +68,30 @@ struct KeysView: View {
             }
         }
         .frame(height: KeyboardMetrics.keysHeight)
+        // 「★ 已加到常用语…」「只能粘贴文字」这类小提示：盖在按键区顶上，不挡手指。
+        .overlay(alignment: .top) {
+            if let toast = model.keysToast {
+                KeysToast(text: toast).padding(.top, 4).transition(.opacity).allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+/// 按键区顶上的深色小胶囊，样子和自由编辑的提示一样。
+struct KeysToast: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13.5, weight: .semibold))
+            .foregroundStyle(Brand.candidateMenuText)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(Capsule().fill(Brand.candidateMenuFill))
+            .shadow(color: .black.opacity(0.22), radius: 9, y: 6)
+            .padding(.horizontal, 12)
     }
 }
 
@@ -218,7 +256,7 @@ struct KeyCapView: View, Equatable {
         case .emoji:
             Image(systemName: "face.smiling").font(KeyStyle.iconFont)
         case .quickWords:
-            Text("常用").font(KeyStyle.nineKeyFont).tracking(1)
+            QuickKeyLabel()
         case .layer(let target):
             if context.nineGrid {
                 if key.id == "symbols" {
@@ -506,6 +544,28 @@ struct PopupShape: Shape {
     }
 }
 
+/// 展开整页候选的开收：像卷帘一样从顶上往下露出来（收起时往上卷回去），内容跟着往下滑一小段、淡入。
+/// 只在点候选栏箭头时带动画（KeyboardView 里 withAnimation），选词、打字时收起直接切换。
+struct CandidateReveal: ViewModifier, Animatable {
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: -18 * (1 - progress))
+            .opacity(Double(min(1, progress * 1.6)))
+            .mask(alignment: .top) {
+                GeometryReader { geo in
+                    Rectangle().frame(height: geo.size.height * progress + 18 * (1 - progress))
+                }
+            }
+    }
+}
+
 /// 候选词展开后铺满按键区，和系统键盘一样可以上下滑着挑。
 /// 每格最小 64pt；长词按字数占两三格甚至整行，不截断成省略号（排法见 CandidateRows）。
 struct CandidateGrid: View {
@@ -518,7 +578,7 @@ struct CandidateGrid: View {
             GeometryReader { geo in
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        ForEach(CandidateRows.rows(model.candidates, width: geo.size.width)) { row in
+                        ForEach(CandidateRows.rows(model.displayWords(model.candidates), width: geo.size.width)) { row in
                             HStack(spacing: 0) {
                                 ForEach(row.cells, id: \.index) { cell in
                                     Button { model.selectCandidate(cell.index) } label: {
@@ -543,8 +603,16 @@ struct CandidateGrid: View {
             .padding(.leading, leading)
             .frame(maxWidth: .infinity)
             .hidingScrollEdgeEffect()
-            // 平时只取了第一屏候选，展开整页时补全；展开着选拼音、分段选词后候选换了，也再补全。
-            .onAppear { model.loadMoreCandidates() }
+            // 候选换了（补全、选拼音）时格子直接换，不跟着开收的动画一格格飞（会看到字往别的格子挪）。
+            .transaction { $0.animation = nil }
+            // 平时只取了第一屏候选（30 个，够铺满第一屏），展开整页时补全；放到展开动画之后再取，取的时候主线程要等引擎，
+            // 放在出现的那一下会卡住动画、连点箭头也像没反应。展开着选拼音、分段选词后候选换了，也再补全。
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak model] in
+                    guard let model, model.candidatesExpanded else { return }
+                    model.loadMoreCandidates()
+                }
+            }
             .onChange(of: model.composition) { _ in model.loadMoreCandidates() }
             // 收起用候选栏右边的箭头；这里只放退格和重输，上下平分整列。
             VStack(spacing: 0) {
@@ -627,25 +695,13 @@ struct LayoutMenuView: View {
                 .frame(width: menu.key.cap.width, height: menu.key.cap.height)
                 .offset(x: menu.key.cap.minX, y: menu.key.cap.minY)
             VStack(alignment: .leading, spacing: 0) {
-                Text(L("拼音布局", "Pinyin layout", "ピンインの配列"))
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
-                    .padding(.leading, 10)
-                    .frame(height: LayoutMenuPopup.titleHeight, alignment: .center)
-                ForEach(LayoutMenuPopup.options, id: \.self) { option in
-                    let selected = menu.selected == option
-                    HStack {
-                        Text(option == .nineKey ? L("九宫格", "10-key", "10キー") : L("全键盘", "QWERTY", "QWERTY"))
-                            .font(.system(size: 15, weight: selected ? .semibold : .regular))
-                        Spacer()
-                        if selected { Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)) }
-                    }
-                    .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
-                    .padding(.horizontal, 10)
-                    .frame(height: LayoutMenuPopup.rowHeight)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(selected ? Brand.returnSoftFill : Color.clear))
-                }
+                title(L("拼音布局", "Pinyin layout", "ピンインの配列"))
+                ForEach(0..<2, id: \.self) { row($0) }
+                Rectangle().fill(Color(UIColor.separator)).frame(height: 0.5)
+                    .padding(.vertical, (LayoutMenuPopup.dividerHeight - 0.5) / 2)
+                    .padding(.horizontal, 4)
+                title(L("拼音显示", "Pinyin display", "ピンインの表示"))
+                ForEach(2..<4, id: \.self) { row($0) }
             }
             .padding(LayoutMenuPopup.padding)
             .frame(width: frame.width, height: frame.height, alignment: .topLeading)
@@ -655,5 +711,54 @@ struct LayoutMenuView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(false)
+    }
+
+    private func title(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11.5))
+            .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
+            .padding(.leading, 10)
+            .frame(height: LayoutMenuPopup.titleHeight, alignment: .center)
+    }
+
+    private func row(_ index: Int) -> some View {
+        let option = LayoutMenuPopup.options[index]
+        let selected = menu.isChecked(option)
+        let name: String
+        switch option {
+        case .layout(let layout): name = layout == .nineKey ? L("九宫格", "10-key", "10キー") : L("全键盘", "QWERTY", "QWERTY")
+        case .display(let display): name = display.title
+        }
+        return HStack {
+            Text(name).font(.system(size: 15, weight: selected ? .semibold : .regular))
+            Spacer()
+            if selected { Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)) }
+        }
+        .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
+        .padding(.horizontal, 10)
+        .frame(height: LayoutMenuPopup.rowHeight)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(selected ? Brand.returnSoftFill : Color.clear))
+    }
+}
+
+/// 九宫格左列「常 用 / 剪贴板」（对齐清单第 62 条，CW1 方案 a）：两行同字号 14.5pt、同颜色；
+/// 「常 用」两字两端对齐到和「剪贴板」一样宽（3 个字宽），两行整体在键里居中，行高 1.25。剪贴板有新内容不再出紫点。
+struct QuickKeyLabel: View {
+    private static let size: CGFloat = 14.5
+
+    var body: some View {
+        VStack(spacing: Self.size * 0.25 - 2) {
+            HStack(spacing: 0) {
+                Text("常")
+                Spacer(minLength: 0)
+                Text("用")
+            }
+            .frame(width: Self.size * 3)
+            Text("剪贴板")
+        }
+        .font(.system(size: Self.size))
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("常用和剪贴板", "Phrases and clipboard", "定型文とクリップボード"))
     }
 }

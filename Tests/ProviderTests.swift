@@ -59,6 +59,13 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(Provider.detect("https://api.deepseek.com/v1"), .deepseek)
         XCTAssertEqual(Provider.detect("https://api.moonshot.ai/v1"), .kimi)
         XCTAssertEqual(Provider.detect("https://dashscope-intl.aliyuncs.com/compatible-mode/v1"), .qwen)
+        // 千问 AI 平台的地址（含地域子域）也算千问，问答能联网。
+        XCTAssertEqual(Provider.detect("https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1"), .qwen)
+        XCTAssertEqual(Provider.detect("https://maas.qianwenaiapi.com/compatible-mode/v1"), .qwen)
+        XCTAssertEqual(Provider.detect("https://notqianwenaiapi.com/v1"), .custom)
+        var qwen = EnclaveSettings()
+        qwen.baseURL = "https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1"
+        XCTAssertEqual(qwen.searchProvider, .qwen)
         XCTAssertEqual(Provider.detect("https://api.z.ai/api/paas/v4"), .glm)
         XCTAssertEqual(Provider.detect("https://tokenhub.tencentmaas.com/v1"), .hunyuan)
         XCTAssertEqual(Provider.detect("http://192.168.1.5:11434/v1"), .ollama)
@@ -73,7 +80,25 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(Provider.matching(baseURL: Provider.kimiGlobal, model: model), .kimi)
         XCTAssertEqual(Provider.matching(baseURL: Provider.kimiChina + "/", model: model), .kimi)
         XCTAssertNil(Provider.matching(baseURL: Provider.kimiChina, model: "my-model"))
-        XCTAssertEqual(Provider.matching(baseURL: "http://10.0.0.2:11434/v1", model: "anything"), .ollama)
+        // Ollama 不再单列（11-01），归到「自定义」：哪张都不选中。
+        XCTAssertNil(Provider.matching(baseURL: "http://10.0.0.2:11434/v1", model: "anything"))
+        XCTAssertEqual(Provider.matching(baseURL: Provider.glmChina, model: Provider.glm.preset!.model), .glm)
         XCTAssertEqual(Provider.matching(baseURL: Provider.kimiChina, model: Provider.kimiAnswerModel, answer: true), .kimi)
+    }
+
+    func testConfigTemplates() {
+        XCTAssertEqual(ConfigTemplate.detect("https://maas.qianwenaiapi.com/compatible-mode/v1"), .qwenAI)
+        XCTAssertEqual(ConfigTemplate.detect("https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1"), .qwenAI)
+        XCTAssertEqual(ConfigTemplate.detect("https://dashscope.aliyuncs.com/compatible-mode/v1"), .qwenBailian)
+        XCTAssertEqual(ConfigTemplate.detect("https://tokenhub.tencentmaas.com/v1"), .hunyuan)
+        XCTAssertEqual(ConfigTemplate.detect("http://192.168.1.5:8000/v1"), .custom)
+        XCTAssertEqual(ConfigTemplate.qwenAI.provider, .qwen)
+        XCTAssertEqual(ConfigTemplate.qwenAI.model, "qwen-flash")
+    }
+
+    func testUniqueConfigName() {
+        let list = [SavedAPI(name: "DeepSeek", baseURL: "a", model: "m"), SavedAPI(name: "DeepSeek 2", baseURL: "b", model: "m")]
+        XCTAssertEqual(SavedAPIStore.uniqueName("DeepSeek", in: list), "DeepSeek 3")
+        XCTAssertEqual(SavedAPIStore.uniqueName("Kimi", in: list), "Kimi")
     }
 }

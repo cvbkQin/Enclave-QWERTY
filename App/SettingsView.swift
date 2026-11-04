@@ -76,7 +76,6 @@ struct SettingsView: View {
                 Section {
                 } header: {
                     VStack(spacing: 12) {
-                        TabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
                         // 整张卡可点，不要列表行的箭头。
                         // 内测版没有试用和解锁：换成内置接口今天的用量。
                         if BuiltinAPI.isInternalBuild {
@@ -161,6 +160,11 @@ struct SettingsView: View {
                     Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
                 }
                 Section {
+                    NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
+                } header: {
+                    Text(L("数据", "Data", "データ"))
+                }
+                Section {
                     NavigationLink(value: AppRouter.SettingsPage.privacy) {
                         DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
                                 value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
@@ -189,6 +193,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .pinnedTabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
             .navigationTitle(L("设置", "Settings", "設定"))
             .tabRootPage()
             .navigationDestination(for: AppRouter.SettingsPage.self) { page in
@@ -205,6 +210,7 @@ struct SettingsView: View {
                 case .licenses: LicensesView()
                 case .diagnostics: DiagnosticsView()
                 case .feedback: FeedbackFormView()
+                case .backup: BackupView()
                 }
             }
         }
@@ -240,6 +246,20 @@ struct TestToolsView: View {
         DashPage {
             TypingSpeedCard()
             StressTestCard()
+            #if DEBUG
+            // 输入框测试台：只在开发版（内测、公测包里没有）。
+            NavigationLink { HostCompatBench() } label: {
+                DashCard {
+                    HStack {
+                        Text("输入框测试台").font(.system(size: 17, weight: .semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    Text("12 种输入框，模仿亚朵、闲鱼、网页等会出问题的 App").font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            #endif
         }
         .navigationTitle(L("测试工具", "Test tools", "テストツール"))
         .navigationBarTitleDisplayMode(.inline)
@@ -260,9 +280,9 @@ private struct TestBadge: View {
 
 // MARK: - 模型接口
 
-/// 接口详情（AI › 润色 / 问答 › 更改接口，原接口页两页的内容）：我的预设、服务商、连接。连接状态和测试在 AI 页的接口卡上。
-/// 润色：我的预设 → 服务商（DeepSeek、Kimi、千问、Ollama）→ 连接（地址 / 模型 / Key / 生成参数）。
-/// 问答：我的预设 → 服务商（千问、Kimi、智谱、腾讯混元，都能联网）→ 连接。联网搜索在 AI › 问答页。
+/// 接口配置页（11-03 重排 CF1–CF5，AI 页接口卡「接口配置 ›」点进来）：
+/// 状态卡（正在用的配置 +「测试」）→（问答）「和润色用同一个配置」→ 我的配置（一开始是空的，CF1）→「＋ 添加配置」。
+/// 点一条换成用它；点 › 编辑（CF3）；左滑删除。润色、问答共用一组配置，各选各的。
 struct ModelSettingsView: View {
     /// 问答接口；false 是润色接口。
     let answer: Bool
@@ -273,49 +293,59 @@ struct ModelSettingsView: View {
 
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
-    /// 没同意隐私政策时点「选择」：和键盘里的锁卡片一样，先去同意。
+    /// 没同意隐私政策时点「测试」：和键盘里的锁卡片一样，先去同意。
     @State private var needsPrivacy = false
     @State private var importResult: Bool?
-    /// 「存为预设」弹框（AP5）。
-    @State private var savingPreset = false
-    @State private var presetName = ""
-    /// 点了预设、当前配置还没存：先问一次。
-    @State private var pendingPreset: SavedAPI?
-    @State private var duplicateName: String?
-    @State private var renaming: SavedAPI?
-    @State private var renameText = ""
-    /// 「选择」模型的 sheet（ML2）：给哪一页选。
-    @State private var pickerFor: PickerTarget?
-    /// 「手动输入模型名」后聚焦模型一栏。
-    @FocusState private var modelFocused: Bool
+    @State private var sheet: ConfigSheet?
+    /// 「添加配置」里点了教程：弹层收起后再打开教程。
+    @State private var pendingTutorial: Provider?
 
-    private enum PickerTarget: Identifiable {
-        case main, answer
-        var id: Self { self }
+    /// 弹层：添加（先选服务商再进新建页）或编辑某一条。
+    enum ConfigSheet: Identifiable {
+        case add
+        case edit(SavedAPI)
+        var id: String {
+            switch self {
+            case .add: return "add"
+            case .edit(let item): return item.id.uuidString
+            }
+        }
     }
 
     /// 内测版：接口统一用自带的，这一页只能看。测试连接、联网调用、调用偏好在 AI 页。
     private var locked: Bool { BuiltinAPI.isInternalBuild }
+
+    /// 问答页且和润色分开：这一页管问答自己的接口。
+    private var ownAnswer: Bool { answer && store.settings.separateAnswer }
+    /// 下面的配置列表显示不显示（问答页打开「和润色用同一个配置」时收起）。
+    private var showsDetails: Bool { !answer || store.settings.separateAnswer }
 
     var body: some View {
             Form {
                 Section {
                 } header: {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(answer
-                             ? L("识意判断是问答时用这一页的接口回答。可以想久一点、可以联网，用和润色不同的服务商或模型。", "When Ask decides it's a question, this API answers it. It can think longer and search the web, using a different provider or model from Polish.", "質問だと判断されたときはこのページの API で答えます。じっくり考えたりウェブ検索したりでき、整えると別のサービスやモデルを使えます。")
-                             : L("点 ✨ 润色、识意改写都用这一页的接口。要快，选不带深度思考的模型。", "✨ Polish and Ask rewrites use this API. Speed matters, so pick a model without deep thinking.", "✨ で整える・質問での書き換えはこの API を使います。速さ重視なので、深い思考のないモデルを選んでください。"))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 4)
+                        statusCard
                         if locked { InternalLockNotice() }
                     }
                     .dashFormCard()
                 }
                 if answer {
-                    answerSections
-                } else {
-                    mainSections
+                    Section {
+                        SameAPIToggle(locked: locked)
+                    }
+                }
+                if showsDetails {
+                    if store.savedAPIs.isEmpty {
+                        Section {
+                        } header: {
+                            EmptyConfigCard(locked: locked) { sheet = .add }.dashFormCard()
+                        } footer: {
+                            Text(L("配置只存在这台 iPhone 上，API Key 放在钥匙串里。", "Setups stay on this iPhone; API keys are kept in the keychain.", "設定はこの iPhone にだけ保存され、API キーはキーチェーンに入ります。"))
+                        }
+                    } else {
+                        configsSection
+                    }
                 }
                 if SharedStorage.usesClipboardConfig {
                     Section {
@@ -330,312 +360,190 @@ struct ModelSettingsView: View {
             }
         .navigationTitle(answer ? L("问答接口", "Q&A API", "質問の API") : L("润色接口", "Polish API", "整える API"))
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { store.migrateConfigsIfNeeded() }
         .alert(L("用 AI 之前，先同意隐私政策", "Agree to the Privacy Policy to use AI", "AI を使う前にプライバシーポリシーに同意してください"), isPresented: $needsPrivacy) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
             Button(L("阅读并同意", "Read and Agree", "読んで同意する")) { router.showsPrivacyWelcome = true }
         } message: {
             Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
         }
-        .alert(L("存为预设", "Save as preset", "設定を保存"), isPresented: $savingPreset) {
-            TextField(L("名字", "Name", "名前"), text: $presetName)
-            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) { pendingPreset = nil }
-            Button(L("保存", "Save", "保存")) { savePreset() }
-        } message: {
-            Text(L("保存地址、模型和 Key。Key 存进钥匙串。", "Saves the URL, model and key. The key goes into the Keychain.", "URL、モデル、キーを保存します。キーはキーチェーンに保存されます。"))
-        }
-        .alert(L("已经存过了：\(duplicateName ?? "")", "Already saved: \(duplicateName ?? "")", "保存済みです：\(duplicateName ?? "")"), isPresented: Binding(
-            get: { duplicateName != nil }, set: { if !$0 { duplicateName = nil } })) {
-            Button(L("好", "OK", "OK"), role: .cancel) { duplicateName = nil }
-        }
-        .alert(L("改名", "Rename", "名前を変更"), isPresented: Binding(
-            get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
-            TextField(L("名字", "Name", "名前"), text: $renameText)
-            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) { renaming = nil }
-            Button(L("保存", "Save", "保存")) {
-                if let item = renaming { store.renameSavedAPI(item.id, to: renameText) }
-                renaming = nil
+        .sheet(item: $sheet, onDismiss: {
+            if let provider = pendingTutorial {
+                pendingTutorial = nil
+                router.openTutorial(provider, answer: answer)
             }
-        }
-        .confirmationDialog(L("当前配置还没存，要先存吗？", "Your current setup isn't saved. Save it first?", "今の設定は保存されていません。先に保存しますか？"),
-                            isPresented: Binding(get: { pendingPreset != nil && !savingPreset }, set: { if !$0 && !savingPreset { pendingPreset = nil } }),
-                            titleVisibility: .visible) {
-            Button(L("存为预设", "Save as preset", "設定を保存")) {
-                presetName = defaultPresetName
-                savingPreset = true
+        }) { which in
+            Group {
+                switch which {
+                case .add:
+                    NavigationStack(path: $addPath) {
+                        AddConfigSheet { template in
+                            addPath = [template]
+                        } onTutorial: { openTutorial($0) }
+                        .navigationDestination(for: ConfigTemplate.self) { template in
+                            ConfigEditor(existing: nil, template: template, answer: answer,
+                                         onTutorial: { openTutorial($0) }, onClose: { sheet = nil })
+                        }
+                    }
+                case .edit(let item):
+                    NavigationStack {
+                        ConfigEditor(existing: item, template: ConfigTemplate.of(item), answer: answer,
+                                     onTutorial: { openTutorial($0) }, onClose: { sheet = nil })
+                    }
+                }
             }
-            Button(L("不存，直接换", "Switch without saving", "保存せずに切り替え")) {
-                if let item = pendingPreset { store.applySavedAPI(item, answer: answer) }
-                pendingPreset = nil
-            }
-            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) { pendingPreset = nil }
-        }
-        .sheet(item: $pickerFor) { target in
-            let answer = target == .answer
-            ModelPickerSheet(baseURL: answer ? store.settings.answerBaseURL : store.settings.baseURL,
-                             apiKey: answer ? store.answerApiKey : store.apiKey,
-                             current: answer ? store.settings.answerModel : store.settings.model,
-                             answer: answer) { model in
-                if answer { store.settings.answerModel = model } else { store.settings.model = model }
-            } onManual: {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { modelFocused = true }
-            }
+            .environmentObject(store)
+            .environmentObject(router)
+            .onAppear { addPath = [] }
         }
     }
 
-    // MARK: 润色
+    /// 添加弹层里从服务商列表推到新建页。
+    @State private var addPath: [ConfigTemplate] = []
 
-    @ViewBuilder
-    private var mainSections: some View {
-        presetsSection
-        Section {
-        } header: {
-            providerGrid(Provider.shown, selected: selectedProvider, badges: false) { choose($0) }
-                .lockedBox(locked)
-        } footer: {
-            if Storefront.isMainlandChina {
-                // 审核和合规：国区只列已完成生成式人工智能服务备案的模型；App 自己不提供模型。
-                Text("DeepSeek（杭州深度求索人工智能基础技术研究有限公司）、Kimi（北京月之暗面科技有限公司）、通义千问（阿里云）均已完成生成式人工智能服务备案。Ollama 在你自己的电脑上运行。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
+    private func openTutorial(_ template: ConfigTemplate) {
+        pendingTutorial = template.provider
+        sheet = nil
+    }
+
+    // MARK: 状态卡
+
+    /// 状态卡：logo 42×42 + 服务商 + 灰字模型；「● 连接正常 · 1.0 秒」（问答页能联网再加蓝字「可联网」）；右边「测试」。
+    /// 还没配置（CF1）：灰「?」+「还没有配置 / 润色要先接上一个大模型」，「测试」半透明点不了。正在用的存成了配置就写配置的名字。
+    private var statusCard: some View {
+        let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
+        let url = ownAnswer ? store.settings.answerBaseURL : store.settings.baseURL
+        let modelName = ownAnswer ? store.settings.answerModel : store.settings.model
+        let state = ownAnswer ? store.answerTest : store.test
+        let status = statusLine(configured: configured, state: state)
+        return HStack(spacing: 12) {
+            if configured {
+                ProviderLogo(provider: Provider.detect(url), size: 42, corner: 11)
+            } else {
+                Text("?")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 42, height: 42)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color(.tertiarySystemFill)))
             }
-        }
-        Section {
-            LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.baseURL, placeholder: "https://api.deepseek.com/v1", keyboard: .URL)
-                .lockedRow(locked)
-            modelField($store.settings.model, placeholder: "deepseek-flash", target: .main)
-                .lockedRow(locked)
-            keyField($store.apiKey)
-                .lockedRow(locked)
-            NavigationLink {
-                GenerationSettingsView()
+            VStack(alignment: .leading, spacing: 3) {
+                // 服务商和模型一行放得下就一行（AC1），窄屏（SE）放不下时模型换到下一行，不截断。
+                let name = Text(configured ? (store.currentSavedAPI(answer: ownAnswer)?.name ?? ProviderName.of(url, model: modelName)) : L("还没有配置", "Not set up yet", "まだ設定されていません"))
+                    .font(.system(size: 20, weight: .bold))
+                let modelText = Text(modelName).font(.system(size: 14)).foregroundStyle(.secondary)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        name.lineLimit(1).fixedSize()
+                        if configured { modelText.lineLimit(1).fixedSize() }
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        name.lineLimit(1).minimumScaleFactor(0.7)
+                        if configured { modelText.lineLimit(1).truncationMode(.middle) }
+                    }
+                }
+                if configured {
+                    HStack(spacing: 5) {
+                        Circle().fill(status.color).frame(width: 8, height: 8)
+                        Text(status.text).foregroundStyle(status.color).lineLimit(1)
+                        // 「可联网」按联网测试结果（CF5），不再按服务商判断。
+                        if answer, WebSearchProbe.stored(baseURL: url, model: modelName) == .online {
+                            Text("·").foregroundStyle(.secondary)
+                            Text(L("可联网", "Web", "ウェブ可")).foregroundStyle(Color(hex: 0x0A84FF))
+                        }
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    if let error = status.error {
+                        Text(error).font(.system(size: 12)).foregroundStyle(.red).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text(answer ? L("问答要先接上一个大模型", "Connect a model for Q&A first", "質問にはまずモデルをつなぎます")
+                         : L("润色要先接上一个大模型", "Connect a model for Polish first", "整えるにはまずモデルをつなぎます"))
+                        .font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+                }
+            }
+            Spacer(minLength: 6)
+            Button {
+                if router.privacyAgreed {
+                    Task { ownAnswer ? await store.runAnswerTest() : await store.runTest() }
+                } else {
+                    needsPrivacy = true
+                }
             } label: {
-                HStack {
-                    Text(L("生成参数", "Generation", "生成パラメータ"))
-                    Spacer()
-                    Text(generationSummary).foregroundStyle(.secondary)
+                Group {
+                    if state == .running {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text(L("测试", "Test", "テスト"))
+                    }
                 }
+                .font(.system(size: 15, weight: .semibold))
+                // 点不了时（还没配置）浅紫字、浅紫底，深色下也看得出是个按钮（不整体调透明度，深色下会几乎看不见）。
+                .foregroundStyle(configured ? DashColor.ai : DashColor.ai.opacity(0.45))
+                .padding(.horizontal, 16)
+                .frame(minWidth: 60, minHeight: 34)
+                .background(Capsule().fill(DashColor.ai.opacity(configured ? 0.12 : 0.16)))
             }
-            .lockedRow(locked)
-        } header: {
-            Text(L("连接", "Connection", "接続"))
-        } footer: {
-            Text(selectedProvider == .ollama
-                 ? L("把地址里的 IP 换成运行 Ollama 的电脑的局域网地址，地址填到 /v1。", "Replace the IP with the local address of the computer running Ollama. The URL ends with /v1. ", "IP を Ollama を動かしているパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
-                 : L("选一个服务商会自动填好地址和模型；改了就算自定义，上面不再选中。", "Pick a provider to fill in the URL and model. Edit them and it counts as custom. ", "サービスを選ぶと URL とモデルが入力されます。書き換えるとカスタム扱いになります。"))
-                + Text(L("API Key 只存在本机钥匙串里，不经过任何第三方服务器。", "Your API key stays in this iPhone's keychain and never passes through a third-party server.", "API キーはこの iPhone のキーチェーンにだけ保存され、第三者のサーバーを通りません。"))
-                + Text(showsPicker(.main) ? pickerFootnote : "")
+            .buttonStyle(.plain)
+            .disabled(!configured || state == .running)
         }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
     }
 
-    /// 模型一栏（ML1、ML5）：右边「选择」；当前模型可能已下线时值变橙，下面一行「⚠ 可能已下线」。
-    private func modelField(_ text: Binding<String>, placeholder: String, target: PickerTarget) -> some View {
-        let missing = (target == .answer ? store.answerMissingModel : store.missingModel) != nil
-        let warning = Color(hex: 0xD97706)
-        return VStack(alignment: .trailing, spacing: 4) {
-            HStack {
-                Text(L("模型", "Model", "モデル"))
-                TextField(placeholder, text: text)
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($modelFocused)
-                    .foregroundStyle(missing ? warning : Color.primary)
-                if showsPicker(target) { ModelPickButton { openPicker(target) } }
-            }
-            if missing {
-                Text("⚠ " + L("可能已下线", "May be retired", "提供終了の可能性"))
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(warning)
-            }
+    private func statusLine(configured: Bool, state: AppStore.TestState) -> (text: String, color: Color, error: String?) {
+        func connected(_ seconds: Double?) -> (String, Color, String?) {
+            let text = L("连接正常", "Connected", "接続 OK")
+            guard let seconds else { return (text, DashColor.ok, nil) }
+            return (text + " · " + L("\(String(format: "%.1f", seconds)) 秒", "\(String(format: "%.1f", seconds)) s", "\(String(format: "%.1f", seconds)) 秒"), DashColor.ok, nil)
         }
-    }
-
-    /// 内测版锁着、还没填地址、服务商返回过 404 时不显示「选择」。
-    private func showsPicker(_ target: PickerTarget) -> Bool {
-        let base = target == .answer ? store.settings.answerBaseURL : store.settings.baseURL
-        return !locked && !base.trimmingCharacters(in: .whitespaces).isEmpty && !ModelList.isUnsupported(base)
-    }
-
-    private var pickerFootnote: String {
-        L("点「选择」会用上面的地址和 Key 向服务商获取可用的模型。", " Tap Choose to load the available models from the provider with the URL and key above.", "「選択」を押すと、上の URL とキーでサービスから利用できるモデルを取得します。")
-    }
-
-    /// 选模型要把 Key 发给服务商：没同意隐私政策时先去同意。
-    private func openPicker(_ target: PickerTarget) {
-        if router.privacyAgreed { pickerFor = target } else { needsPrivacy = true }
-    }
-
-    private var generationSummary: String {
-        let temperature = String(format: "%.1f", store.settings.temperature)
-        return store.settings.usesFixedTemperature
-            ? L("最多 \(store.settings.maxTokens)", "Max \(store.settings.maxTokens)", "最大 \(store.settings.maxTokens)")
-            : L("温度 \(temperature) · 最多 \(store.settings.maxTokens)", "Temp \(temperature) · Max \(store.settings.maxTokens)", "温度 \(temperature)・最大 \(store.settings.maxTokens)")
-    }
-
-    // MARK: 问答页
-
-    @ViewBuilder
-    private var answerSections: some View {
-        // 开关平时在 AI › 问答页；还和润色用同一个时（从深链进来）这里也给一个，打开后显示下面的内容。
-        if !store.settings.separateAnswer {
-            Section {
-                SameAPIToggle(locked: locked)
-            }
+        switch state {
+        case .running: return (L("正在测试…", "Testing…", "テスト中…"), .orange, nil)
+        case .failure(let message): return (L("连不上", "Can't connect", "接続できません"), .red, message)
+        case .success(_, let seconds): return connected(seconds)
+        case .idle: break
         }
-        if store.settings.separateAnswer {
-            presetsSection
-            Section {
-            } header: {
-                providerGrid(Provider.answerShown, selected: selectedAnswerProvider, badges: true) { chooseAnswer($0) }
-                    .lockedBox(locked)
-            } footer: {
-                if Storefront.isMainlandChina {
-                    Text("通义千问（阿里云）、Kimi（北京月之暗面科技有限公司）、智谱 GLM（北京智谱华章科技股份有限公司）、DeepSeek（杭州深度求索人工智能基础技术研究有限公司）均已完成生成式人工智能服务备案。飞地输入法不提供模型，用你自己的 API Key 直接连接服务商。")
-                }
-            }
-            Section {
-                LabeledField(title: L("API 地址", "API URL", "API の URL"), text: $store.settings.answerBaseURL, placeholder: Provider.kimi.preset?.baseURL ?? "", keyboard: .URL)
-                    .lockedRow(locked)
-                modelField($store.settings.answerModel, placeholder: Provider.kimiAnswerModel, target: .answer)
-                    .lockedRow(locked)
-                keyField($store.answerApiKey)
-                    .lockedRow(locked)
-            } header: {
-                Text(L("连接", "Connection", "接続"))
-            } footer: {
-                Text(L("Ollama 这类自己电脑上的模型，直接在这里填地址就行，算自定义、不联网。", "For a model on your own computer, such as Ollama, just enter its URL here. It counts as custom and can't search the web.", "Ollama など自分のパソコンのモデルは、ここに URL を入力するだけです。カスタム扱いで、ウェブ検索はしません。"))
-                    + Text(showsPicker(.answer) ? pickerFootnote : "")
-            }
-        }
+        if !ownAnswer, store.lastTestOK == true { return connected(nil) }
+        if !ownAnswer, store.lastTestOK == false { return (L("连不上", "Can't connect", "接続できません"), .red, nil) }
+        return (L("还没测试", "Not tested", "未テスト"), DashColor.system, nil)
     }
 
-    private var selectedAnswerProvider: Provider? {
-        Provider.matching(baseURL: store.settings.answerBaseURL, model: store.settings.answerModel, answer: true)
-    }
+    // MARK: 我的配置（CF4、CF5）
 
-    private func chooseAnswer(_ item: Provider) {
-        guard item != selectedAnswerProvider, let preset = item.answerPreset else { return }
-        store.settings.answerBaseURL = preset.baseURL
-        store.settings.answerModel = preset.model
-    }
-
-    // MARK: 我的预设（AP1、AP2、AP5）
-
-    /// 两页共用一份列表，点了只换当前这一页。当前页三样都和某条一样才打勾。
-    private var presetsSection: some View {
+    private var configsSection: some View {
         let current = store.currentSavedAPI(answer: answer)
         return Section {
             ForEach(store.savedAPIs) { item in
-                Button { tapPreset(item, current: current) } label: {
-                    PresetRow(item: item, current: item.id == current?.id)
+                ConfigRow(item: item, current: (!answer || ownAnswer) && item.id == current?.id, answer: answer) {
+                    guard item.id != current?.id || (answer && !ownAnswer) else { return }
+                    store.applySavedAPI(item, answer: answer)
+                } onEdit: {
+                    sheet = .edit(item)
                 }
-                .buttonStyle(.plain)
                 .lockedRow(locked)
                 .swipeActions(edge: .trailing, allowsFullSwipe: !locked) {
                     if !locked {
-                    Button(role: .destructive) { store.deleteSavedAPI(item.id) } label: {
-                        Text(L("删除", "Delete", "削除"))
-                    }
-                    Button {
-                        renameText = item.name
-                        renaming = item
-                    } label: {
-                        Text(L("改名", "Rename", "名前を変更"))
-                    }
-                    .tint(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
+                        Button(role: .destructive) { store.deleteSavedAPI(item.id) } label: {
+                            Text(L("删除", "Delete", "削除"))
+                        }
                     }
                 }
             }
-            Button {
-                presetName = defaultPresetName
-                savingPreset = true
-            } label: {
-                Label(L("把当前配置存为预设", "Save current setup as preset", "今の設定を保存"), systemImage: "plus")
-                    .foregroundStyle(AppColor.purple)
+            Button { sheet = .add } label: {
+                Label(L("添加配置", "Add setup", "設定を追加"), systemImage: "plus")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(DashColor.ai)
             }
-            .disabled(!pageConfigured)
             .lockedRow(locked)
         } header: {
-            Text(L("我的预设", "My presets", "保存した設定"))
+            Text(L("我的配置", "My setups", "保存した設定"))
         } footer: {
-            Text(L("点一下就换成这一套地址、模型和 Key，只换这一页。两页共用这份列表。左滑改名或删除。Key 只存在本机钥匙串里，这里只显示尾号。", "Tap to switch this page to that URL, model and key. Both pages share this list. Swipe left to rename or delete. Keys stay in this iPhone's keychain; only the last 4 characters are shown.", "タップするとこのページだけその URL・モデル・キーに切り替わります。2 つのページで同じリストを使います。左にスワイプで名前変更・削除。キーは本機のキーチェーンにだけ保存され、末尾だけ表示します。"))
-        }
-    }
-
-    private var pageConfigured: Bool {
-        answer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
-    }
-
-    /// 默认名字「服务商 · 模型」，自定义地址用主机名。
-    private var defaultPresetName: String {
-        let url = answer ? store.settings.answerBaseURL : store.settings.baseURL
-        let model = answer ? store.settings.answerModel : store.settings.model
-        return ProviderName.of(url) + " · " + model.trimmingCharacters(in: .whitespaces)
-    }
-
-    private func tapPreset(_ item: SavedAPI, current: SavedAPI?) {
-        guard item.id != current?.id else { return }
-        // 当前配置没存成任何预设、和预设都不一样：先问一次。
-        if current == nil, pageConfigured {
-            pendingPreset = item
-        } else {
-            store.applySavedAPI(item, answer: answer)
-        }
-    }
-
-    private func savePreset() {
-        let name = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let result = store.saveAPI(name: name.isEmpty ? defaultPresetName : name, answer: answer)
-        if case .duplicate(let existing) = result {
-            duplicateName = existing.name
-        }
-        // 「先存再换」：存好以后换成刚才点的那条。
-        if let item = pendingPreset {
-            store.applySavedAPI(item, answer: answer)
-            pendingPreset = nil
-        }
-    }
-
-    // MARK: 共用
-
-    private func keyField(_ key: Binding<String>) -> some View {
-        HStack {
-            Text("API Key")
-            SecureField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: key)
-                .multilineTextAlignment(.trailing)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-        }
-    }
-
-    private func providerGrid(_ items: [Provider], selected: Provider?, badges: Bool, choose: @escaping (Provider) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L("服务商", "Provider", "サービス"))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.leading, 16)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                ForEach(items) { item in
-                    ProviderCard(provider: item, selected: selected == item,
-                                 badge: badges ? (item.canSearch ? .web : .noWeb) : nil,
-                                 tutorial: GuideTutorial.of(item) == nil ? nil : { router.openTutorial(item, answer: answer) }) { choose(item) }
-                }
-            }
-        }
-        .dashFormCard()
-    }
-
-    /// 卡片选中哪个跟着地址和模型走：自己改过就不选中预设。
-    private var selectedProvider: Provider? {
-        Provider.matching(baseURL: store.settings.baseURL, model: store.settings.model)
-    }
-
-    private func choose(_ item: Provider) {
-        guard item != selectedProvider else { return }
-        if let preset = item.preset {
-            store.settings.baseURL = preset.baseURL
-            store.settings.model = preset.model
-            // 生成参数跟着预设走：温度回到默认；Kimi K3 先思考，思考也算在最大输出里，给 4096，其他家 1024。
-            store.settings.temperature = EnclaveSettings().temperature
-            store.settings.maxTokens = item.maxTokens
+            Text(answer
+                 ? L("标签来自你在配置里点的「联网 · 测试」。不能联网的灰着，也可以选，只是答不了最新消息；没测过的点进去测一下。",
+                     "Tags come from the Web search test inside each setup. Grey ones can't search but still work, just not for the latest news. Open an untested one to test it.",
+                     "タグは各設定の「Web 検索・テスト」の結果です。グレーは検索できませんが選べます。未テストのものは開いてテストしてください。")
+                 : L("点一条换成用它；点 › 编辑；左滑删除。润色和问答用的是同一组配置，各选各的。",
+                     "Tap one to switch to it; tap › to edit; swipe left to delete. Polish and Q&A share these setups and pick their own.",
+                     "タップで切り替え、› で編集、左スワイプで削除。整えると質問は同じ設定一覧からそれぞれ選びます。"))
         }
     }
 
@@ -656,84 +564,6 @@ private struct WebSearchLabelStyle: LabelStyle {
             configuration.icon.foregroundStyle(AppColor.purple)
             configuration.title
         }
-    }
-}
-
-/// 我的预设一行：左边 20pt 宽的勾选列（正在用的紫色勾、名字加粗），名字 17pt，下面 13pt 灰字「主机 · 模型 · Key 尾号 xxxx」。
-private struct PresetRow: View {
-    var item: SavedAPI
-    var current: Bool
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Color(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255))
-                .opacity(current ? 1 : 0)
-                .frame(width: 20)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.name)
-                    .font(.system(size: 17, weight: current ? .semibold : .regular))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(detail)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(minHeight: 56)
-        .contentShape(Rectangle())
-    }
-
-    private var detail: String {
-        let host = URL(string: item.baseURL)?.host.map { host in
-            URL(string: item.baseURL)?.port.map { "\(host):\($0)" } ?? host
-        } ?? item.baseURL
-        let key = item.keySuffix.map { L("Key 尾号 \($0)", "Key …\($0)", "キー末尾 \($0)") } ?? L("无 Key", "No key", "キーなし")
-        return "\(host) · \(item.model) · \(key)"
-    }
-}
-
-/// 改写页「生成参数」二级页：温度、最大输出。
-private struct GenerationSettingsView: View {
-    @EnvironmentObject private var store: AppStore
-
-    var body: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 2) {
-                    Stepper(value: $store.settings.temperature, in: 0...1.5, step: 0.1) {
-                        HStack {
-                            Text(L("温度", "Temperature", "温度"))
-                            Spacer()
-                            Text(store.settings.temperature, format: .number.precision(.fractionLength(1)))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    // Kimi K 系列：温度变灰不能调，数值留着，换回别的模型恢复；下面的说明不跟着变淡。
-                    .disabled(store.settings.usesFixedTemperature)
-                    .opacity(store.settings.usesFixedTemperature ? 0.45 : 1)
-                    if store.settings.usesFixedTemperature {
-                        Text(L("Kimi K 系列用固定温度，这里不生效", "Kimi K models use a fixed temperature; this setting is ignored", "Kimi K シリーズは温度が固定のため、この設定は使われません"))
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
-                    }
-                }
-                Stepper(value: $store.settings.maxTokens, in: 256...8192, step: 256) {
-                    HStack {
-                        Text(L("最大输出", "Max output", "最大出力"))
-                        Spacer()
-                        Text("\(store.settings.maxTokens)").foregroundStyle(.secondary)
-                    }
-                }
-            } footer: {
-                Text(L("温度越低越稳定，润色建议 0.2–0.5。", "Lower is steadier. 0.2–0.5 works well for polishing.", "低いほど安定します。整えるには 0.2〜0.5 がおすすめです。"))
-            }
-        }
-        .navigationTitle(L("生成参数", "Generation", "生成パラメータ"))
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -767,7 +597,7 @@ struct SameAPIToggle: View {
     var body: some View {
         Toggle(isOn: Binding(get: { !store.settings.separateAnswer }, set: { store.settings.separateAnswer = !$0 })) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(L("和润色用同一个接口", "Same API as Polish", "整えると同じ API"))
+                Text(L("和润色用同一个配置", "Same setup as Polish", "整えると同じ設定"))
                 Text(subtitle).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2)
             }
         }
@@ -778,10 +608,8 @@ struct SameAPIToggle: View {
     /// 「打开后问答也用 DeepSeek，不能联网搜索」。
     private var subtitle: String {
         guard store.settings.isConfigured else { return L("润色还没设置", "Polish isn't set up", "整えるは未設定") }
-        let name = ProviderName.of(store.settings.baseURL)
-        return store.settings.searchProvider != nil
-            ? L("打开后问答也用 \(name)，可以联网搜索", "When on, Q&A also uses \(name), with web search", "オンにすると質問も \(name) を使い、ウェブ検索できます")
-            : L("打开后问答也用 \(name)，不能联网搜索", "When on, Q&A also uses \(name), without web search", "オンにすると質問も \(name) を使い、ウェブ検索はしません")
+        let name = store.currentSavedAPI(answer: false)?.name ?? ProviderName.of(store.settings.baseURL, model: store.settings.model)
+        return L("打开后问答也用「\(name)」", "When on, Q&A also uses “\(name)”", "オンにすると質問も「\(name)」を使います")
     }
 }
 
@@ -839,89 +667,50 @@ extension View {
     }
 }
 
-/// 服务商卡片：名字和说明，选中的描紫边、右上打勾。问答页的卡片下面再加「🌐 可联网」/「不联网」小标签。
-private struct ProviderCard: View {
-    enum Badge { case web, noWeb }
-
+/// 服务商 logo：品牌色圆角方块 + 首字（AC1 的占位样式；没有放各家官方图标，图标要授权）。
+/// 自定义是灰底「＋」。
+struct ProviderLogo: View {
     var provider: Provider
-    var selected: Bool
-    var badge: Badge? = nil
-    /// 右下角「配置教程」（有教程的四家）；点它不选中这一格。
-    var tutorial: (() -> Void)? = nil
-    var action: () -> Void
+    var size: CGFloat
+    var corner: CGFloat
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack {
-                    Text(provider.title).font(.body.weight(.semibold))
-                    Spacer(minLength: 4)
-                    if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(DashColor.ai) }
-                }
-                Text(provider.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                // 问答页：可联网标签和「配置教程」同一行；改写页没有标签、Ollama 没有教程，也留出这一行，格子一样高。
-                if let badge {
-                    badgeView(badge).padding(.top, 5)
-                } else {
-                    Color.clear.frame(height: 18).padding(.top, 5)
-                }
+        ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous).fill(color)
+            if provider == .custom {
+                Image(systemName: "plus").font(.system(size: size * 0.5, weight: .bold))
+            } else {
+                Text(letter).font(.system(size: size * 0.5, weight: .bold))
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(DashColor.ai, lineWidth: selected ? 2 : 0))
         }
-        .buttonStyle(.plain)
-        .overlay(alignment: .bottomTrailing) {
-            if let tutorial {
-                // 12.5pt semibold #5B4BE8，前面 12pt 书本图标。
-                Button(action: tutorial) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "book").font(.system(size: 12, weight: .semibold))
-                        Text(L("配置教程", "Setup guide", "設定ガイド")).font(.system(size: 12.5, weight: .semibold))
-                    }
-                    .foregroundStyle(Color(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255))
-                    .frame(height: 18)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L("\(provider.title) 配置教程", "\(provider.title) setup guide", "\(provider.title) 設定ガイド"))
-            }
+        .foregroundStyle(provider == .kimi ? Color(light: 0xFFFFFF, dark: 0x111111) : Color.white)
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    private var letter: String {
+        switch provider {
+        case .deepseek: return "D"
+        case .openai: return "O"
+        case .kimi: return "K"
+        case .qwen: return L("通", "Q", "Q")
+        case .glm: return L("智", "Z", "Z")
+        case .hunyuan: return L("混", "H", "H")
+        case .ollama: return "O"
+        case .custom: return "+"
         }
     }
 
-    /// 可联网：#E3F4EA 底、#248A3D 字；不联网：#F2F2F7 底、#8E8E93 字。高 18、圆角 5、11pt semibold。
-    private func badgeView(_ badge: Badge) -> some View {
-        let web = badge == .web
-        return HStack(spacing: 3) {
-            if web { Image(systemName: "globe").font(.system(size: 9.5, weight: .semibold)) }
-            Text(web ? L("可联网", "Web search", "検索可") : L("不联网", "No web", "検索なし"))
-                .font(.system(size: 11, weight: .semibold))
-        }
-        .foregroundStyle(web ? Color(red: 0x24 / 255, green: 0x8A / 255, blue: 0x3D / 255) : Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
-        .padding(.horizontal, 6)
-        .frame(height: 18)
-        .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
-            .fill(web ? Color(red: 0xE3 / 255, green: 0xF4 / 255, blue: 0xEA / 255) : Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF7 / 255)))
-    }
-}
-
-private struct LabeledField: View {
-    var title: String
-    @Binding var text: String
-    var placeholder: String
-    var keyboard: UIKeyboardType = .default
-
-    var body: some View {
-        HStack {
-            Text(title)
-            TextField(placeholder, text: $text)
-                .multilineTextAlignment(.trailing)
-                .keyboardType(keyboard)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+    private var color: Color {
+        switch provider {
+        case .deepseek: return Color(hex: 0x4D6BFE)
+        // Kimi：浅色黑底白字，深色反过来白底黑字（AC1 深色图）。
+        case .kimi: return Color(light: 0x111111, dark: 0xFFFFFF)
+        case .qwen: return Color(hex: 0x615CED)
+        case .glm: return Color(hex: 0x3366FF)
+        case .hunyuan: return Color(hex: 0x0052D9)
+        case .openai, .ollama: return Color(light: 0x111111, dark: 0x3A3A3C)
+        case .custom: return Color(hex: 0x8E8E93)
         }
     }
 }
@@ -944,6 +733,15 @@ struct KeyboardTab: View {
                     case .touch: TouchCalibrationView()
                     }
                 }
+                .navigationDestination(for: AppRouter.ExtDictGroupPage.self) { group in
+                    switch group {
+                    case .hot: HotDictsView()
+                    case .imported: ImportedDictsView()
+                    }
+                }
+                .navigationDestination(for: AppRouter.ExtDictPage.self) { page in
+                    ExtDictDetailView(id: page.id)
+                }
         }
     }
 }
@@ -962,15 +760,16 @@ struct KeyboardSettingsView: View {
 
     var body: some View {
         Form {
+            // 读一下 refresh：从系统设置回来时 body 重算，完全访问的横幅跟着出现或消失。
+            let _ = refresh
             // B 卡片放在 Section 的 header 里，分组的大圆角裁不到，四角完整（见 dashFormCard）。
-            Section {
-            } header: {
-                VStack(alignment: .leading, spacing: 12) {
-                    TabTitle(caption: caption, title: L("键盘", "Keyboard", "キーボード"))
-                    if KeyboardStatus.fullAccess == false { NotSyncedBanner() }
+            // 只在没开完全访问时放这一组：空的 header 会在标题下面多出约 40pt 空白。
+            if KeyboardStatus.fullAccess == false {
+                Section {
+                } header: {
+                    NotSyncedBanner()
+                        .dashFormCard()
                 }
-                .id(refresh)
-                .dashFormCard()
             }
             // 主要语言（EM1/EM2）：小标题 + 白卡里的三段选择，脚注随选项变。
             Section {
@@ -1011,6 +810,31 @@ struct KeyboardSettingsView: View {
                 } footer: {
                     Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
                 }
+                // 拼音显示（F12）：上方一行（默认，同 iOS 原生）/ 侧边。键盘上长按「中/英」也能切。
+                Section {
+                } header: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text(L("拼音显示", "Pinyin display", "ピンインの表示"))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            NewBadge()
+                        }
+                        .padding(.leading, 16)
+                        HStack(spacing: 12) {
+                            ForEach(PinyinDisplay.allCases) { display in
+                                PinyinDisplayCard(display: display, selected: store.settings.pinyinDisplay == display) {
+                                    store.settings.pinyinDisplay = display
+                                }
+                            }
+                        }
+                    }
+                    .dashFormCard()
+                } footer: {
+                    Text(L("受 iOS 系统限制，选「上方一行」时拼音那一行和上面系统留的边加起来会显得比较宽，介意的话建议选「侧边」：没有拼音那一行，键盘矮一点，展开回答卡时也不留空白。在键盘上长按「中/英」也能切换。",
+                           "Due to an iOS limitation, Row above adds a pinyin row on top of the system's own margin, so it can look wide. If that bothers you, choose Side: there's no pinyin row, the keyboard is shorter and the answer card has no gap. You can also long-press 中/英 on the keyboard to switch.",
+                           "iOS の制限により、「上の行」ではピンインの行とシステムの余白が重なって幅広く見えることがあります。気になる場合は「横」をおすすめします。ピンインの行がなく、キーボードが少し低くなり、回答カードを開いても隙間がありません。キーボードの「中/英」を長押ししても切り替えられます。"))
+                }
                 Section {
                     NavigationLink(value: AppRouter.KeyboardPage.fuzzy) {
                         HStack {
@@ -1023,10 +847,33 @@ struct KeyboardSettingsView: View {
                     CorrectionToggles()
                     PredictionToggle()
                     EmojiToggle()
+                    // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
+                    Toggle(isOn: $store.settings.keyboardGlass) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("毛玻璃背景（测试）", "Frosted background (test)", "すりガラス背景（テスト）"))
+                            Text(L("键盘底色透出后面的颜色，和系统那截玻璃接上", "The keyboard lets the colors behind it show through and blends with the system glass",
+                                   "キーボードの背景に後ろの色が透け、システムのガラス部分となじみます"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    // B5：拼音组最后一行（TC1），默认关，第一个版本带「新」。
+                    Toggle(isOn: $store.settings.traditionalOutput) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(L("繁体输出", "Traditional Chinese output", "繁体字で出力"))
+                                NewBadge()
+                            }
+                            Text(L("候选和上屏都是繁体字，例：输入法 → 輸入法", "Candidates and typed text use Traditional characters, e.g. 输入法 → 輸入法",
+                                   "候補と確定する文字が繁体字になります。例：输入法 → 輸入法"))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Text(L("拼音", "Pinyin", "ピンイン"))
                 } footer: {
-                    Text(CorrectionToggles.footnote)
+                    Text(CorrectionToggles.footnote + "\n\n" + L("繁体输出：还是用拼音打，模糊拼音、纠错、联想都照常；常用词和学到的词也会显示成繁体。只转换你打出的字，AI 润色和回答的结果不转换。",
+                                                              "Traditional output: you still type pinyin, and fuzzy pinyin, autocorrect and predictions work as usual. Your words and learned words show in Traditional too. Only what you type is converted; AI polish and answers are not.",
+                                                              "繁体字で出力：入力はピンインのままで、あいまい入力・自動修正・予測もそのまま使えます。ユーザ辞書や学習した語も繁体字で表示されます。変換するのは入力した文字だけで、AI の整え・回答の結果は変換しません。"))
                 }
             }
             Section(L("英文", "English", "英語")) {
@@ -1075,8 +922,10 @@ struct KeyboardSettingsView: View {
                     DashRow(icon: "star.fill", color: DashColor.phrase, title: L("键盘常用语", "Keyboard Phrases", "キーボードの定型文"), value: "\(phrases.phrases.count)")
                 }
             }
+            ClipboardSettingsSection(refresh: refresh)
         }
         .tint(AppColor.purple)
+        .pinnedTabTitle(caption: caption, title: L("键盘", "Keyboard", "キーボード"))
         .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .tabRootPage()
         .onAppear {
@@ -1129,7 +978,7 @@ struct TouchCalibrationView: View {
     }
 }
 
-/// AI 标签两页都有的「键盘里的 AI · 润色和问答共用」：结果卡左边的按钮 ›、处理长文本、润色时的发光动画。
+/// AI › 接口页最下面「键盘里的 AI」：结果卡左边的按钮 ›、处理长文本、润色时的发光动画（润色和问答共用）。
 struct KeyboardAISection: View {
     @EnvironmentObject private var store: AppStore
     /// 打开「处理长文本」前的二次确认。
@@ -1160,7 +1009,7 @@ struct KeyboardAISection: View {
                 }
             }
         } header: {
-            Text(L("键盘里的 AI · 润色和问答共用", "AI on the keyboard · Polish & Q&A", "キーボードの AI・整える・質問で共通"))
+            AISectionTitle(text: L("键盘里的 AI", "AI on the keyboard", "キーボードの AI"))
         } footer: {
             Text(L("没选中文字时，AI 只处理光标前约 100 字，按整句截取；打开「处理长文本」后约 200 字。文字越长越慢、越容易改错，替换前请看一遍结果。替换只换送去处理的那一段，其余不动；要处理整段，先全选再点 ✨。",
                    "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences; about 200 with Process long text on. Longer text is slower and easier to get wrong, so check the result first. Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",
@@ -1271,6 +1120,70 @@ private struct LayoutCard: View {
                     }
                 }
                 .padding(.horizontal, layout == .qwerty && count < 10 ? CGFloat(10 - count) * 3 : 0)
+            }
+        }
+    }
+}
+
+/// 「拼音显示」二选一卡片（F12，SM3）：上面画出拼音在哪（上方一行 / 左边一列），下面名称、说明和勾选圈。
+private struct PinyinDisplayCard: View {
+    var display: PinyinDisplay
+    var selected: Bool
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                illustration
+                    .padding(8)
+                    .frame(height: 76)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
+                HStack {
+                    Text(display.title).font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(selected ? AppColor.purple : Color.secondary)
+                }
+                Text(display == .row
+                     ? L("候选栏上面单独一行，和 iOS 原生一样", "A row above the candidates, like iOS", "候補の上に 1 行、iOS と同じ")
+                     : L("九宫格在左边一列选，全键盘点左边的拼音键", "10-key: left column. QWERTY: pinyin key on the left", "10キーは左の列、QWERTY は左のピンインキー"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(10)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(selected ? AppColor.purple : Color.clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var illustration: some View {
+        let accent = AppColor.purple.opacity(0.35)
+        let key = RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Color(.systemBackground))
+        return VStack(spacing: 3) {
+            if display == .row {
+                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(accent).frame(height: 8)
+            }
+            ForEach(0..<4, id: \.self) { row in
+                HStack(spacing: 3) {
+                    if display == .side && row < 3 {
+                        Color.clear
+                    } else {
+                        key
+                    }
+                    ForEach(0..<4, id: \.self) { _ in key }
+                }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if display == .side {
+                GeometryReader { geo in
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(accent)
+                        .frame(width: (geo.size.width - 12) / 5, height: (geo.size.height - 9) / 4 * 3 + 6)
+                }
             }
         }
     }
@@ -1407,7 +1320,7 @@ struct FuzzyPinyinView: View {
                     } else if deployer.state == .done && selection == store.settings.fuzzyPinyin {
                         Text(L("已生效，切回键盘就能用。", "Done. Switch back to the keyboard to use it.", "反映されました。キーボードに戻ると使えます。")).foregroundStyle(.green)
                     } else {
-                        Text(L("改动后要重新部署一次词库才生效，约 1 分钟。", "Changes take effect after reinstalling the dictionary, about 1 minute.", "変更は辞書の再インストール後に反映されます（約 1 分）。")).foregroundStyle(.secondary)
+                        Text(L("改动后要重新部署一次词库才生效，\(RimeDeployer.durationText)。", "Changes take effect after reinstalling the dictionary, \(RimeDeployer.durationText).", "変更は辞書の再インストール後に反映されます（\(RimeDeployer.durationText)）。")).foregroundStyle(.secondary)
                     }
                 }
                 .font(.footnote)
@@ -1482,11 +1395,18 @@ struct PinyinView: View {
     /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
     @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
 
+    /// 上面三张卡照旧；下面是扩展词库的概况两行（第 49 条），点进热门词库、导入的词库。
     var body: some View {
-        DashPage {
-            dictionaryCard
-            grammarCard
-            englishCard
+        List {
+            Section {} header: {
+                VStack(spacing: 12) {
+                    dictionaryCard
+                    grammarCard
+                    englishCard
+                }
+                .dashFormCard()
+            }
+            ExtDictOverviewSection()
         }
         .navigationTitle(L("词库", "Dictionaries", "辞書"))
         .navigationBarTitleDisplayMode(.inline)

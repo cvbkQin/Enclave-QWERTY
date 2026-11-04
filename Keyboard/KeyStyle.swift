@@ -34,13 +34,16 @@ enum KeyboardMetrics {
     /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝（横屏 25.6）。
     static var pinyinCellHeight: CGFloat { landscape ? (nineKeyHeight * 3 + nineRowGap * 2) / 4 : 38 }
 
-    /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 28 高（比原生的 35 小一点），平时空着，键盘总高不随打字变化。
-    static var pinyinRowHeight: CGFloat { landscape ? 24 : 28 }
+    /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 36 高（横屏 28，和原生差不多），平时空着，键盘总高不随打字变化。
+    /// 竖屏收着时总高 36 + 44 + 216 = 296。
+    static var pinyinRowHeight: CGFloat { landscape ? 28 : 36 }
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     static var topRow: CGFloat { landscape ? 34 : 44 }
     /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 30）。
     static var chipHeight: CGFloat { landscape ? 30 : 34 }
+    /// AI 栏的键上下各剩多少（滑动区会裁掉伸出去的投影）。
+    static var chipRoom: CGFloat { (topRow - chipHeight) / 2 }
     static let polishButtonWidth: CGFloat = 58
     /// 结果卡片：默认两行，展开到四行，再多就在卡片里滚动。
     static let cardHeight: CGFloat = 60
@@ -86,8 +89,10 @@ enum KeyboardMetrics {
     static let wordPanelExtra: CGFloat = 40
 
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
-                       reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false) -> CGFloat {
-        var height = pinyinRowHeight + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
+                       reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false,
+                       pinyinRow: Bool = true) -> CGFloat {
+        // 拼音显示在侧边（F12）时不留拼音行。
+        var height = (pinyinRow ? pinyinRowHeight : 0) + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
@@ -200,13 +205,6 @@ enum Brand {
     static let aiTagText = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1)
         : UIColor(red: 0x6B / 255, green: 0x6B / 255, blue: 0x73 / 255, alpha: 1) })
-    /// 快速模式替换后的「AI 生成 · 已替换」胶囊（CP9）：底 #ECEAFD、字 #4A3BD6；深色用紫 28% 底、#B4A9FF 字。
-    static let replacedPillFill = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0x7C / 255, green: 0x6C / 255, blue: 0xF6 / 255, alpha: 0.28)
-        : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
-    static let replacedPillText = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)
-        : UIColor(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255, alpha: 1) })
     /// 收起、有新结果时展开键的图标：#4A3BD6，深色键上看不清，深色用 #B4A9FF。
     static let newResultIcon = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0xB4 / 255, green: 0xA9 / 255, blue: 0xFF / 255, alpha: 1)
@@ -334,8 +332,6 @@ enum Brand {
     /// 回答卡和识意框合成的一整块（MG3、MG4）：描边改写 #8B7CF6 / 深色 #9D92FF，问答 answerBorder；中间 0.5pt 细线。
     static let rewriteRing = dynamic(0x8B7CF6, 0x9D92FF)
     static let blockHair = dynamic(0xE2E2E7, 0x545458)
-    /// 风格键激活时边框上转的两小段亮光：浅色白，深色 #E0F2FE。
-    static let styleSpot = Color.white
     /// 分词面板（BB1）：直角框 1pt 描边 #C9C2F2 / 深色 #4A4380，底 #F1EFFB / 深色 #211F2E；划过的词块浅紫描边。
     static let wordPanelStroke = dynamic(0xC9C2F2, 0x4A4380)
     static let wordPanelFill = dynamic(0xF1EFFB, 0x211F2E)

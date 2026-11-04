@@ -60,6 +60,16 @@ enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     var shortTitle: String { self == .qwerty ? L("全键盘", "QWERTY", "QWERTY") : L("九宫格", "10-key", "10キー") }
 }
 
+/// 中文打字时拼音显示在哪（F12）：上方一行（候选栏上面，照 iOS 原生，默认）；侧边（九宫格左列上三格换成拼音列，
+/// 全键盘候选栏最左边一颗拼音键）。侧边模式不留拼音行，键盘矮 36。
+enum PinyinDisplay: String, Codable, CaseIterable, Identifiable {
+    case row, side
+
+    var id: String { rawValue }
+
+    var title: String { self == .row ? L("上方一行", "Row above", "上の行") : L("侧边", "Side", "横") }
+}
+
 /// 日间 / 夜间：跟随 iPhone，或者固定浅色、深色。只管 App；键盘跟着正在打字的 App 走，和系统键盘一样。
 enum Appearance: String, Codable, CaseIterable, Identifiable {
     case system, light, dark
@@ -127,10 +137,18 @@ struct EnclaveSettings: Codable, Equatable {
     var selectedAnswerStyleID: UUID?
     /// 联网倾向 0–4（问答提示词页那根条）：只管模型想不想联网，能不能联网仍看 webSearchMode。nil 当 2（适中）。
     var searchTendency: Int?
+    /// 固定到 AI 栏的风格（AK5）：改写风格或问答风格的 id，按固定的先后排，最多 5 个。
+    var pinnedStyleIDs: [UUID] = []
+    static let maxPinnedStyles = 5
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
     var keyboardLayout: KeyboardLayout = .qwerty
+    var pinyinDisplay: PinyinDisplay = .row
+    /// 键盘底色用系统毛玻璃（#19 测试版）：顶边、底边都和系统那截玻璃接上，不留硬线。关掉回到不透明底色。
+    var keyboardGlass: Bool = true
+    /// 繁体输出（B5）：候选、联想和上屏转成繁体；词库和学到的词照旧按简体存，AI 的结果不转。默认关。
+    var traditionalOutput: Bool = false
     /// 按键震动（需要打开完全访问）。
     var keyHaptics: Bool = true
     /// 按键声音（手机静音时不响）。
@@ -154,14 +172,21 @@ struct EnclaveSettings: Codable, Equatable {
     var separateAnswer: Bool = false
     var answerBaseURL: String = ""
     var answerModel: String = ""
+    /// AI 页「接口」上润色 / 问答两张卡右上的开关（QE）：关掉后键盘 AI 栏不显示这颗键，配置、提示词都保留。
+    var polishEnabled: Bool = true
+    var answerEnabled: Bool = true
+    /// 问答用的配置自己的温度、最多字数（接口配置跟着配置走）；nil 跟润色一样。
+    var answerTemperature: Double?
+    var answerMaxTokens: Int?
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
-        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
+        case pinnedStyleIDs
     }
 
     private enum LegacyKeys: String, CodingKey { case webSearch }
@@ -181,6 +206,31 @@ struct EnclaveSettings: Codable, Equatable {
 
     /// 联网倾向，0–4，没设过是 2。
     var tendency: Int { min(max(searchTendency ?? 2, 0), 4) }
+
+    /// 固定在 AI 栏的风格，按固定的先后；删掉了的风格跳过。answer：是问答风格。
+    var pinnedStyles: [(style: StylePreset, answer: Bool)] {
+        pinnedStyleIDs.compactMap { id in
+            if let style = styles.first(where: { $0.id == id }) { return (style, false) }
+            if let style = answerStyles.first(where: { $0.id == id }) { return (style, true) }
+            return nil
+        }
+    }
+
+    func isPinned(_ id: UUID) -> Bool { pinnedStyles.contains { $0.style.id == id } }
+
+    /// 固定 / 取消固定；满 5 个时不加，返回 false。
+    @discardableResult
+    mutating func togglePin(_ id: UUID) -> Bool {
+        if let index = pinnedStyleIDs.firstIndex(of: id) {
+            pinnedStyleIDs.remove(at: index)
+            return true
+        }
+        // 已经删掉的风格不占名额。
+        pinnedStyleIDs = pinnedStyles.map(\.style.id)
+        guard pinnedStyleIDs.count < Self.maxPinnedStyles else { return false }
+        pinnedStyleIDs.append(id)
+        return true
+    }
 }
 
 extension EnclaveSettings {
@@ -211,6 +261,9 @@ extension EnclaveSettings {
         searchTendency = try? c.decodeIfPresent(Int.self, forKey: .searchTendency)
         inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
+        pinyinDisplay = (try? c.decodeIfPresent(PinyinDisplay.self, forKey: .pinyinDisplay)) ?? pinyinDisplay
+        keyboardGlass = (try? c.decodeIfPresent(Bool.self, forKey: .keyboardGlass)) ?? keyboardGlass
+        traditionalOutput = (try? c.decodeIfPresent(Bool.self, forKey: .traditionalOutput)) ?? traditionalOutput
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
         autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize
@@ -227,6 +280,11 @@ extension EnclaveSettings {
         separateAnswer = try c.decodeIfPresent(Bool.self, forKey: .separateAnswer) ?? separateAnswer
         answerBaseURL = try c.decodeIfPresent(String.self, forKey: .answerBaseURL) ?? answerBaseURL
         answerModel = try c.decodeIfPresent(String.self, forKey: .answerModel) ?? answerModel
+        answerTemperature = try c.decodeIfPresent(Double.self, forKey: .answerTemperature)
+        answerMaxTokens = try c.decodeIfPresent(Int.self, forKey: .answerMaxTokens)
+        polishEnabled = try c.decodeIfPresent(Bool.self, forKey: .polishEnabled) ?? polishEnabled
+        answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
+        pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
@@ -366,10 +424,11 @@ extension EnclaveSettings {
 extension EnclaveSettings {
     /// 键盘出错卡里写的服务商名字：认得出的写服务商，自定义的写主机名。
     var providerName: String {
+        if let saved = SavedAPIStore.name(baseURL: baseURL, model: model) { return saved }
         let base = baseURL.lowercased()
         if base.contains("api.deepseek.com") { return "DeepSeek" }
         if base.contains("moonshot.") { return "Kimi" }
-        if base.contains("dashscope") { return L("通义千问", "Qwen", "Qwen") }
+        if Self.isQwen(baseURL) { return L("通义千问", "Qwen", "Qwen") }
         if base.contains("bigmodel.cn") || base.contains("api.z.ai") { return L("智谱", "Zhipu", "Zhipu") }
         if base.contains("tokenhub.tencentmaas.com") { return L("腾讯混元", "Tencent Hunyuan", "Tencent Hunyuan") }
         if base.contains("api.openai.com") { return "OpenAI" }
@@ -380,12 +439,46 @@ extension EnclaveSettings {
     /// 连的是 Kimi（api.moonshot.cn / .ai）。
     var isKimi: Bool { baseURL.contains("moonshot.") }
     /// 这个接口能联网的话是哪一家：Kimi、千问（阿里云百炼）、智谱。别的服务商没有可用的联网接口，返回 nil。
-    var searchProvider: SearchProvider? {
-        if isKimi { return .kimi }
-        if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
+    var searchProvider: SearchProvider? { Self.searchProvider(baseURL: baseURL) }
+
+    // MARK: 键盘上显示不显示润色键 / 问答键（QE）
+
+    /// 「测试连接」记下的结果（App 写、键盘读）：这组地址 + 模型最近一次测试通过没有；没测过是 nil。
+    static func testOK(baseURL: String, model: String) -> Bool? {
+        SharedStorage.defaults.object(forKey: testKey(baseURL: baseURL, model: model)) as? Bool
+    }
+
+    static func testKey(baseURL: String, model: String) -> String { "test.ok.\(baseURL)|\(model)" }
+
+    /// 润色这一路能不能用：有配置、最近一次测试没失败。
+    var polishUsable: Bool { isConfigured && Self.testOK(baseURL: baseURL, model: model) != false }
+
+    /// 问答这一路能不能用（和润色用同一个时看润色那组）。
+    var answerUsable: Bool {
+        if separateAnswer && !usesAnswerEndpoint { return false }
+        let config = forAnswers
+        return config.isConfigured && Self.testOK(baseURL: config.baseURL, model: config.model) != false
+    }
+
+    /// 键盘 AI 栏显示润色键 / 问答键：开关开着、配置能用。关掉或不能用时这颗键不显示，固定键往左补位。
+    var showsPolishKey: Bool { polishEnabled && polishUsable }
+    var showsAnswerKey: Bool { answerEnabled && answerUsable }
+
+    static func searchProvider(baseURL: String) -> SearchProvider? {
+        if baseURL.contains("moonshot.") { return .kimi }
+        if isQwen(baseURL) { return .qwen }
         if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
         if baseURL.contains("tokenhub.tencentmaas.com") { return .hunyuan }
         return nil
+    }
+
+    /// 千问的接口地址：阿里云百炼（dashscope.aliyuncs.com、dashscope-intl.aliyuncs.com 等各地域、各工作空间的 dashscope 子域），
+    /// 以及千问 AI 平台（maas.qianwenaiapi.com、cn-beijing.maas.qianwenaiapi.com 等）。按主机名认，不看路径。
+    static func isQwen(_ baseURL: String) -> Bool {
+        let raw = baseURL.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let host = URL(string: raw)?.host ?? URL(string: "https://" + raw)?.host ?? raw
+        if host == "qianwenaiapi.com" || host.hasSuffix(".qianwenaiapi.com") { return true }
+        return host.hasSuffix(".aliyuncs.com") && host.contains("dashscope")
     }
     /// 联网确认卡上写的模型名：服务商预设的模型写模型名，自己改过的写「自定义模型」。
     var searchModelLabel: String {
@@ -408,6 +501,8 @@ extension EnclaveSettings {
         var copy = self
         copy.baseURL = answerBaseURL
         copy.model = answerModel
+        if let answerTemperature { copy.temperature = answerTemperature }
+        if let answerMaxTokens { copy.maxTokens = answerMaxTokens }
         // Kimi K3、智谱 GLM 会先思考，思考也算在最大输出里。
         if copy.usesFixedTemperature || copy.searchProvider == .glm { copy.maxTokens = max(copy.maxTokens, 4096) }
         return copy

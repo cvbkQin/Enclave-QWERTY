@@ -3,7 +3,7 @@ import Foundation
 /// 隐私政策全文（P07），中英日三份；中文是中国大陆备案版（beian/隐私政策-中国大陆版.md）。网页 docs/privacy.html 和 PRIVACY.md 由 scripts/gen-privacy.py 从这里生成，改完运行一次。
 /// 开发者名称和联系邮箱在 LegalInfo 里改。
 enum PrivacyPolicy {
-    static let effectiveDate = DateComponents(calendar: .current, year: 2026, month: 10, day: 30).date ?? Date()
+    static let effectiveDate = DateComponents(calendar: .current, year: 2026, month: 10, day: 31).date ?? Date()
 
     static func text(_ language: AppLanguage) -> String {
         let raw: String
@@ -91,19 +91,28 @@ enum PrivacyPolicy {
 以下信息仅保存在您的设备上：
 
 1. 您填写的模型服务 API 密钥（包括主接口、问答接口及您保存的接口方案），保存在系统钥匙串中；
-2. AI 历史记录，包括原文与生成结果；
-3. 拼音输入学习记录；
-4. 您的提示词、常用词、键盘、接口及语言设置；
-5. 试用开始日期、购买状态、当日 AI 使用次数和按天使用统计；
-6. 您同意本政策的版本和时间。
+2. AI 历史记录（润色和问答），包括原文与生成结果；
+3. 剪贴板记录：您在键盘中点开剪贴板时读取到的文字，最多 20 条；
+4. 拼音输入学习记录；
+5. 您的提示词、常用词、键盘、接口及语言设置；
+6. 试用开始日期、购买状态、当日 AI 使用次数和按天使用统计；
+7. 您同意本政策的版本和时间。
 
-您可以在“设置 › 隐私”中清除 AI 历史记录和拼音输入学习记录。**卸载本应用后，上述信息将全部删除**（购买记录由 App Store 保存，重新安装后可恢复）。
+AI 历史记录仅保存在本机，不会上传。您可以在“历史”页右上角的 ⋯ 菜单中关闭记录、设置保留时长或清空历史；在“设置 › 隐私”中可以清除 AI 历史记录和拼音输入学习记录。
+
+本应用**只在您点开键盘上的剪贴板时**读取系统剪贴板，读取时系统会显示“飞地输入法粘贴自…”的提示；不会在后台读取或监听剪贴板，判断剪贴板是否有新内容时只查看系统提供的变更标记，不读取内容。剪贴板记录仅保存在本机，最多 20 条，超过 24 小时自动删除，不会上传；您可以在剪贴板面板中删除单条记录，在 App 的“键盘”页清除全部剪贴板记录，或关闭“剪贴板记录”开关（关闭时已有记录一并删除）。
+
+**卸载本应用后，上述信息将全部从设备上删除**（购买记录由 App Store 保存，重新安装后可恢复）。
+
+**备份与恢复：** 在“设置 › 数据 › 备份与恢复”中，您可以把数据导出为备份文件，或从备份文件恢复。备份文件存放的位置由您在系统文件选择器中选择，例如本机或 iCloud 云盘，由您自行保管和删除。备份文件默认包含您的设置（包括您保存的接口方案，不含密钥）、常用词、提示词和拼音学习记录；AI 历史记录默认不包含，可以勾选。备份文件**默认不包含 API 密钥**；如您主动勾选，密钥会用您设置的密码加密（PBKDF2 + AES-GCM）后写入备份文件，我们不保存这个密码，也无法帮您找回。剪贴板记录、购买状态和试用信息从不包含在备份文件中：购买可在新设备上通过“恢复购买”找回，试用期不会因恢复备份而重置或延长。导出和恢复都在您的设备上完成，**我们的服务器接触不到您的备份**。
 
 ## 四、权限说明
 
 **允许完全访问（键盘）：** 用于联网调用您配置的模型接口、按键振动、与 App 同步设置。不开启时，拼音和英文输入正常，AI 功能不可用。
 
 **通讯录（可选）：** 用于读取联系人姓名作为候选词。不开启时，候选词中不出现联系人姓名。
+
+**剪贴板：** 键盘读取剪贴板需要开启“允许完全访问”，且只在您点开剪贴板时读取（见第三条）。
 
 本应用不申请定位、相机、麦克风、相册等权限。
 
@@ -117,7 +126,7 @@ enum PrivacyPolicy {
 
 ## 六、您的权利
 
-1. **查阅和删除：** 您的信息都保存在您的设备上，您可以在本应用内查看 AI 历史记录和设置，并随时在“设置 › 隐私”中清除，或卸载本应用删除全部信息。
+1. **查阅和删除：** 您的信息都保存在您的设备上。您可以在本应用内查看 AI 历史记录、剪贴板记录和设置，并随时在“设置 › 隐私”中清除；在 App 的“键盘”页可以关闭“剪贴板记录”（已有记录一并删除）或清除剪贴板记录；或卸载本应用删除设备上的全部信息。
 2. **撤回同意：** 您可以在“设置 › 隐私”中撤回对本政策的同意，撤回后本应用回到基础输入功能模式；也可以撤回对某个接口地址的发送同意，撤回后下一次发送前会再次征求您的同意。撤回同意不影响撤回前基于您的同意已进行的处理。
 3. **关闭权限：** 您可以随时在系统设置中关闭“允许完全访问”或通讯录权限。
 4. **联系我们：** 对以上权利的行使有任何问题，可通过第九条的方式联系我们。
@@ -202,18 +211,27 @@ The server forwards it to us by email right away (sent through Tencent QQ Mail) 
 The following is stored only on your device:
 
 - the model service API keys you entered (for the main API, the answers API and any API setups you saved), in the system Keychain;
-- your polish history, including the original text and the results;
+- your AI history (Polish and Ask), including the original text and the results;
+- your clipboard history: text read when you open the clipboard in the keyboard, up to 20 items;
 - your pinyin input learning data;
 - your style, keyboard, endpoint and language settings;
 - the trial start date, purchase status and today's AI usage count.
 
-You can clear the polish history and the input learning data under Settings › Privacy. Deleting the App removes all of this information (your purchase is kept by the App Store and can be restored after reinstalling).
+Your AI history stays on your device and is never uploaded. From the ⋯ menu at the top right of the History tab you can turn history off, choose how long it is kept, or clear it; under Settings › Privacy you can clear the AI history and the input learning data.
+
+The App reads the system clipboard **only when you open the clipboard in the keyboard**, and the system then shows a "pasted from" banner for the App. It never reads or monitors the clipboard in the background: to tell whether there is something new, it only checks the change marker the system provides, without reading the contents. Clipboard history stays on your device only, is limited to 20 items, is deleted automatically after 24 hours, and is never uploaded. You can delete single items in the clipboard panel, clear all of them on the App's Keyboard page, or turn off Clipboard History there (which also deletes existing items).
+
+Deleting the App removes all of this information from your device (your purchase is kept by the App Store and can be restored after reinstalling).
+
+**Backup and restore.** In Settings › Data › Backup & Restore you can export your data to a backup file or restore from one. You choose where the file is saved in the system file picker, for example on your device or in iCloud Drive, and you keep and delete it yourself. By default the file includes your settings (including saved endpoint configurations, without keys), custom words, prompts and pinyin learning data. AI history is left out by default, and you can choose to include it. The file **leaves out your API keys by default**. If you choose to include them, they are encrypted with a password you set (PBKDF2 + AES-GCM) before being written to the file. We never store this password and cannot recover it for you. Clipboard history, purchase status and trial information are never included: you can get your purchase back on a new device with Restore Purchases, and restoring a backup does not reset or extend the trial. Export and restore happen on your device, and **our server cannot access your backups**.
 
 ## 4. Permissions
 
 **Allow Full Access.** The keyboard extension uses this permission only to connect to the model service endpoint, provide haptic feedback and sync settings with the App. Without it, Chinese and English typing work normally; only AI Polish is unavailable.
 
 **Contacts (optional).** Only if you turn on "Use names from Contacts", the keyboard reads contact names through the system interface to offer them as candidates. It does not read phone numbers or other details, and nothing is uploaded.
+
+**Clipboard.** Reading the clipboard from the keyboard requires Allow Full Access, and happens only when you open the clipboard (see section 3).
 
 ## 5. Third-Party Services
 
@@ -222,7 +240,7 @@ The App contains no third-party analytics, advertising or crash-reporting SDKs. 
 ## 6. Your Rights
 
 - **Withdraw consent:** under Settings › Privacy, at any time. The App will ask again before the next transmission.
-- **Delete data:** clear the locally stored polish history and input learning data at any time.
+- **Delete data:** clear the locally stored AI history, clipboard history and input learning data at any time; on the App's Keyboard page, turn off Clipboard History (existing items are deleted too) or clear it; or delete the App to remove everything from your device.
 - **Disable permissions:** turn off Allow Full Access in the system Settings at any time.
 
 ## 7. Children
@@ -302,18 +320,27 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 次の情報はお客様の端末にのみ保存されます。
 
 - お客様が入力したモデルサービスの API キー（メインの API、回答用 API、保存した API の設定を含む。システムのキーチェーンに保存）
-- 整えた履歴（元の文章と結果）
+- AI の履歴（整える・質問。元の文章と結果）
+- クリップボード履歴（キーボードでクリップボードを開いたときに読み取った文字。最大 20 件）
 - ピンイン入力の学習データ
 - 文体、キーボード、API、言語の設定
 - 無料体験の開始日、購入状況、当日の AI 使用回数
 
-整えた履歴と入力の学習データは「設定 › プライバシー」で消去できます。本アプリを削除すると、これらの情報もすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
+AI の履歴は端末内にのみ保存され、送信されることはありません。「履歴」タブ右上の ⋯ メニューで、記録をオフにする、保存期間を選ぶ、履歴を消去することができます。AI の履歴と入力の学習データは「設定 › プライバシー」でも消去できます。
+
+本アプリは、**キーボードでクリップボードを開いたときにのみ**システムのクリップボードを読み取ります。読み取る際はシステムが「ペースト元」のバナーを表示します。バックグラウンドでクリップボードを読み取ったり監視したりすることはなく、新しい内容があるかどうかはシステムが提供する変更の目印だけで判断し、内容は読み取りません。クリップボード履歴は端末内にのみ保存され、最大 20 件、24 時間を過ぎると自動的に削除され、送信されることはありません。クリップボードパネルで 1 件ずつ削除できるほか、本アプリの「キーボード」ページですべて消去したり、「クリップボード履歴」をオフにしたり（既存の履歴も削除されます）できます。
+
+本アプリを削除すると、これらの情報は端末からすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
+
+**バックアップと復元：** 「設定 › データ › バックアップと復元」で、データをバックアップファイルに書き出したり、バックアップファイルから復元したりできます。保存先はシステムのファイル選択画面でお客様が選び（端末内や iCloud Drive など）、保管と削除はお客様ご自身で行います。初期設定では設定（保存した API の設定を含み、キーは含みません）、ユーザー辞書、プロンプト、ピンイン学習データが含まれます。AI 履歴は初期設定では含まれず、選択して含めることができます。**API キーは初期設定では含まれません**。含めることを選択した場合、キーはお客様が設定したパスワードで暗号化（PBKDF2 + AES-GCM）されてからファイルに書き込まれます。当方はこのパスワードを保存せず、復元することもできません。クリップボード履歴、購入状況、無料体験の情報は含まれません。購入は新しい端末で「購入を復元」から取り戻せます。バックアップを復元しても無料体験の期間がリセットされたり延長されたりすることはありません。書き出しと復元は端末上で行われ、**当方のサーバーからバックアップにアクセスすることはできません**。
 
 ## 4. 権限について
 
 **フルアクセスを許可：** キーボード拡張はこの権限を、モデルサービスへの接続、触覚フィードバック、本アプリとの設定の同期にのみ使用します。オフでも中国語・英語の入力は通常どおり使え、AI 機能のみ使えなくなります。
 
 **連絡先（任意）：** 「連絡先の名前を使う」をオンにした場合に限り、キーボードはシステムの仕組みを通じて連絡先の名前を候補として読み込みます。電話番号などの情報は読み取らず、送信もしません。
+
+**クリップボード：** キーボードがクリップボードを読み取るには「フルアクセスを許可」が必要で、読み取るのはクリップボードを開いたときだけです（第 3 節を参照）。
 
 ## 5. 第三者のサービス
 
@@ -322,7 +349,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 ## 6. お客様の権利
 
 - **同意の撤回：**「設定 › プライバシー」からいつでも撤回できます。撤回後は、次回の送信前にあらためて同意をお願いします。
-- **情報の削除：** 端末に保存された整えた履歴と入力の学習データはいつでも消去できます。
+- **情報の削除：** 端末に保存された AI の履歴、クリップボード履歴、入力の学習データはいつでも消去できます。本アプリの「キーボード」ページで「クリップボード履歴」をオフにする（既存の履歴も削除されます）か、クリップボード履歴を消去できます。本アプリを削除して端末上のすべての情報を削除することもできます。
 - **権限の無効化：** システムの設定で「フルアクセスを許可」をいつでもオフにできます。
 
 ## 7. 未成年の方

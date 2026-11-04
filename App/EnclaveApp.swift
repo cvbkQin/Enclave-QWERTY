@@ -28,7 +28,7 @@ struct EnclaveApp: App {
         // -promptsDebug missing / empty / optimized：提示词页截图（删掉两条预设、空提示词的编辑页、AI 优化结果）。
         if let index = args.firstIndex(of: "-promptsDebug"), args.indices.contains(index + 1) {
             PromptsDebug.scene = args[index + 1]
-            AppRouter.shared.openAI(answer: false)
+            AppRouter.shared.openAI(prompts: true)
         }
         // -storefront CHN：按中国大陆店面显示（接口页服务商）。
         if let index = args.firstIndex(of: "-storefront"), args.indices.contains(index + 1) {
@@ -37,6 +37,14 @@ struct EnclaveApp: App {
         // -keyboardWords "张三丰,me@example.com" 写进键盘常用语。
         if let index = args.firstIndex(of: "-keyboardWords"), args.indices.contains(index + 1) {
             CommonWordStore.keyboardTexts = args[index + 1].split(separator: ",").map(String.init)
+        }
+        // -keyboardPhrases "公司地址|北京市海淀区中关村大街 1 号|gsdz;好的" 写进键盘常用语（标题|内容|简码，分号隔开）。
+        if let index = args.firstIndex(of: "-keyboardPhrases"), args.indices.contains(index + 1) {
+            CommonWordStore.keyboardPhrases = args[index + 1].split(separator: ";").map { item in
+                let parts = item.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                if parts.count == 1 { return KeyboardPhrase(text: parts[0]) }
+                return KeyboardPhrase(title: parts[0], text: parts[1], shortcut: parts.count > 2 ? parts[2] : "")
+            }
         }
         #endif
     }
@@ -63,6 +71,12 @@ struct EnclaveApp: App {
                     Task { await UnlockStore.shared.refresh() }
                 }
                 .onOpenURL { url in
+                    // 点开 .enclave 备份文件：到设置 › 备份与恢复，弹恢复面板。
+                    if url.isFileURL, url.pathExtension.lowercased() == BackupService.fileExtension {
+                        router.openedBackup = url
+                        router.openSettings(.backup)
+                        return
+                    }
                     // enclave://playground 直接打开「试一试」并弹出键盘，方便在模拟器里截图测试。
                     guard url.scheme == "enclave" else { return }
                     switch url.host {
@@ -75,23 +89,26 @@ struct EnclaveApp: App {
                                 UIApplication.shared.open(settings)
                             }
                         }
-                    // 键盘出错卡的「去设置」：AI 标签，进当前那页的接口详情（问答和润色用同一个时进润色的）。
+                    // 键盘出错卡的「去设置」：AI › 接口，进润色接口详情。
                     case "api":
                         router.openAI(detail: true, sharedAnswer: !store.settings.separateAnswer)
-                    // 键盘里要联网但已禁止时的「去开启」：AI › 问答，滚到「联网搜索」。
+                    // 键盘里要联网但已禁止时的「去开启」：AI › 接口，滚到「联网搜索」。
                     case "api-answer":
-                        router.openAI(answer: true)
+                        router.openAI()
                         router.showsAnswerWebSearch = true
                     case "privacy-policy":
                         router.settingsPath = [.privacy, .privacyPolicy]
                         router.tab = .settings
                     // 键盘提示卡「去解锁」。
                     case "unlock": router.openSettings(.unlock)
-                    // 键盘风格一排最右的「+」：AI 标签对应那一页（润色 / 问答）的提示词。
+                    // AI › 提示词（问答风格那一栏用 prompts-answer）。
                     case "prompts", "prompts-answer":
-                        router.openAI(answer: url.host == "prompts-answer")
+                        router.openAI(prompts: true, answerStyles: url.host == "prompts-answer")
                     case "common-words":
                         router.openKeyboard(.commonWords)
+                    case "history":
+                        router.historyPath = NavigationPath()
+                        router.tab = .history
                     default: break
                     }
                 }
@@ -99,7 +116,7 @@ struct EnclaveApp: App {
     }
 }
 
-/// 底部四个标签：首页、键盘、AI、设置。
+/// 底部五个标签：首页、键盘、AI、历史、设置。
 struct RootView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
@@ -150,6 +167,9 @@ struct RootView: View {
             AITab()
                 .tabItem { Label("AI", systemImage: "sparkles") }
                 .tag(AppRouter.Tab.ai)
+            HistoryTab()
+                .tabItem { Label(L("历史", "History", "履歴"), systemImage: "clock") }
+                .tag(AppRouter.Tab.history)
             SettingsView()
                 .tabItem { Label(L("设置", "Settings", "設定"), systemImage: "gearshape") }
                 .tag(AppRouter.Tab.settings)
@@ -162,18 +182,38 @@ struct RootView: View {
 final class AppRouter: ObservableObject {
     static let shared = AppRouter()
 
-    enum Tab: Hashable { case home, keyboard, ai, settings }
+    enum Tab: Hashable { case home, keyboard, ai, history, settings }
 
     /// 设置里的二级页。setup：首次设置（欢迎页四步）；firstScene：使用指引的第一个场景（enclave://playground）。
     enum SettingsPage: String, Hashable {
-        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools
+        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools, backup
     }
+
+    /// 在「文件」等处点开的 .enclave 备份文件：备份页读到后弹恢复面板。
+    @Published var openedBackup: URL?
 
     /// 键盘标签里的二级页：模糊拼音、词库、常用词、键盘常用语、按键判定。
     enum KeyboardPage: String, Hashable { case fuzzy, pinyin, commonWords, keyboardWords, touch }
 
-    /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮。
-    enum AIPage: Hashable { case api(answer: Bool), resultKey }
+    /// 词库页下面的两行：热门词库、导入的词库（三级页）。
+    typealias ExtDictGroupPage = ExtDict.Group
+
+    /// 热门词库、导入的词库页里点一个扩展词库进详情。
+    struct ExtDictPage: Hashable { let id: String }
+
+    /// 历史标签里的二级页：一条记录的详情、历史记录设置。
+    enum HistoryPage: Hashable { case detail(String), settings }
+
+    /// AI 标签里的二级页：润色 / 问答接口详情、结果卡左边的按钮、最近 20 次。
+    enum AIPage: Hashable { case api(answer: Bool), resultKey, recent(answer: Bool) }
+
+    /// AI 标签顶上的「接口 | 提示词」（第 51 条）。不存：每次冷启动停在「接口」，后台切回来保持当时那个。
+    enum AISegment: Hashable { case api, prompts }
+    @Published var aiSegment: AISegment = .api
+
+    /// 「提示词」下面的「润色风格 | 问答风格」（第 54 条）。不存：冷启动停在「润色风格」，后台切回来保持当时那个。
+    enum PromptKind: Hashable { case polish, answer }
+    @Published var promptKind: PromptKind = .polish
 
     @Published var tab: Tab = .home { didSet { markScreen() } }
     /// 界面语言，改了马上存进 App Group，整个界面按新语言重画（导航位置保留）。
@@ -185,6 +225,7 @@ final class AppRouter: ObservableObject {
     @Published var showsAnswerWebSearch = false
     @Published var keyboardPath = NavigationPath() { didSet { markScreen() } }
     @Published var aiPath = NavigationPath() { didSet { markScreen() } }
+    @Published var historyPath = NavigationPath() { didSet { markScreen() } }
     /// 隐私政策同意情况（CP1–CP5）：首次打开整页说明，设置 › 隐私里「阅读并同意」也打开它。
     @Published var privacyAgreed = PrivacyConsent.isAgreed
     @Published var showsPrivacyWelcome = PrivacyConsent.needsPrompt
@@ -216,7 +257,7 @@ final class AppRouter: ObservableObject {
     /// 内测版诊断记录用的「当时界面」：哪个标签、设置里哪一页。
     func markScreen(_ detail: String? = nil) {
         guard CrashLog.isEnabled else { return }
-        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "AI", .settings: "设置"]
+        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "AI", .history: "历史", .settings: "设置"]
         var parts = [names[tab] ?? ""]
         if tab == .settings, let page = settingsPath.last { parts.append(page.rawValue) }
         if let detail { parts.append(detail) }
@@ -296,7 +337,7 @@ final class AppRouter: ObservableObject {
             }
         }
         if let i = args.firstIndex(of: "-appTab"), args.indices.contains(i + 1) {
-            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "model": .ai, "settings": .settings][args[i + 1]] ?? .home
+            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "model": .ai, "history": .history, "settings": .settings][args[i + 1]] ?? .home
         }
         // -appPage keyboard / pinyin / api / api-answer / testTools / privacy/privacyPolicy：直接打开某一页。
         if let i = args.firstIndex(of: "-appPage"), args.indices.contains(i + 1) {
@@ -308,9 +349,25 @@ final class AppRouter: ObservableObject {
             case "resultKey":
                 openAI()
                 aiPath.append(AIPage.resultKey)
+            // 截图：AI › 提示词（润色风格 / 问答风格）、最近 20 次。manage 是以前的管理页，现在就地编辑，进同一页。
+            case "ai-prompts", "manage": openAI(prompts: true)
+            case "ai-prompts-answer", "manage-answer": openAI(prompts: true, answerStyles: true)
+            case "recent", "recent-answer":
+                openAI()
+                aiPath.append(AIPage.recent(answer: name == "recent-answer"))
             default:
                 if let page = KeyboardPage(rawValue: name) {
                     openKeyboard(page)
+                } else if name == "ext-hot" || name == "ext-imported" {
+                    // -appPage ext-hot / ext-imported：词库页下面的热门词库、导入的词库。
+                    openKeyboard(.pinyin)
+                    keyboardPath.append(name == "ext-hot" ? ExtDictGroupPage.hot : .imported)
+                } else if name.hasPrefix("ext:") {
+                    // -appPage ext:diming：某个扩展词库的详情（经过它所在的热门词库或导入的词库页）。
+                    let id = String(name.dropFirst(4))
+                    openKeyboard(.pinyin)
+                    keyboardPath.append(ExtDict.installed.first { $0.id == id }?.kind.group ?? ExtDictGroupPage.hot)
+                    keyboardPath.append(ExtDictPage(id: id))
                 } else {
                     let pages = name.split(separator: "/").compactMap { SettingsPage(rawValue: String($0)) }
                     if !pages.isEmpty {
@@ -335,18 +392,13 @@ final class AppRouter: ObservableObject {
         tab = .keyboard
     }
 
-    /// AI 标签记住上次停的那页（润色 / 问答）。
-    static var aiShowsAnswer: Bool {
-        get { UserDefaults.standard.string(forKey: "apiPage") == "answer" }
-        set { UserDefaults.standard.set(newValue ? "answer" : "main", forKey: "apiPage") }
-    }
-
-    /// 跳到 AI 标签。answer 为 nil 时停在上次那页；detail 再推入那页的接口详情。
-    /// sharedAnswer：问答和润色用同一个接口，问答页没有详情，进润色的。
-    func openAI(answer: Bool? = nil, detail: Bool = false, sharedAnswer: Bool = false) {
-        if let answer { Self.aiShowsAnswer = answer }
+    /// 跳到 AI 标签：默认「接口」，prompts 时「提示词」；detail 再推入润色（answer 时问答）接口详情。
+    /// sharedAnswer：问答和润色用同一个接口，问答没有自己的详情，进润色的。
+    func openAI(answer: Bool = false, detail: Bool = false, sharedAnswer: Bool = false, prompts: Bool = false, answerStyles: Bool = false) {
+        aiSegment = prompts ? .prompts : .api
+        if prompts { promptKind = answerStyles ? .answer : .polish }
         aiPath = NavigationPath()
-        if detail { aiPath.append(AIPage.api(answer: Self.aiShowsAnswer && !sharedAnswer)) }
+        if detail { aiPath.append(AIPage.api(answer: answer && !sharedAnswer)) }
         tab = .ai
     }
 
@@ -436,14 +488,55 @@ final class AppStore: ObservableObject {
             settings.separateAnswer = true
             settings.answerBaseURL = saved.baseURL
             settings.answerModel = saved.model
+            settings.answerTemperature = saved.temperature
+            settings.answerMaxTokens = saved.maxTokens
             answerApiKey = key
         } else {
             settings.baseURL = saved.baseURL
             settings.model = saved.model
+            // 生成参数跟着配置走（旧预设没有就不动）。
+            if let temperature = saved.temperature { settings.temperature = temperature }
+            if let maxTokens = saved.maxTokens { settings.maxTokens = maxTokens }
             apiKey = key
         }
         guard PrivacyConsent.isAgreed else { return }
         Task { answer ? await runAnswerTest() : await runTest() }
+    }
+
+    // MARK: 接口配置（CF）
+
+    /// 第一次打开新的接口配置页：原来润色、问答正在用的接口各存成一条配置。
+    func migrateConfigsIfNeeded() {
+        var current: [(baseURL: String, model: String, apiKey: String?, temperature: Double?, maxTokens: Int?)] = []
+        if settings.isConfigured { current.append((settings.baseURL, settings.model, apiKey, settings.temperature, settings.maxTokens)) }
+        if settings.usesAnswerEndpoint {
+            current.append((settings.answerBaseURL, settings.answerModel, answerApiKey,
+                            settings.answerTemperature ?? settings.temperature, settings.answerMaxTokens ?? settings.maxTokens))
+        }
+        SavedAPIStore.migrateIfNeeded(current: current) { ProviderName.of($0) }
+        savedAPIs = SavedAPIStore.all
+    }
+
+    /// 新建配置；这一页还没有正在用的配置时直接用上它。
+    @discardableResult
+    func addConfig(_ item: SavedAPI, apiKey key: String, answer: Bool) -> SavedAPI {
+        let hadCurrent = currentSavedAPI(answer: answer) != nil
+            || (answer ? settings.usesAnswerEndpoint : settings.isConfigured)
+        let saved = SavedAPIStore.add(item, apiKey: key)
+        savedAPIs = SavedAPIStore.all
+        if !hadCurrent { applySavedAPI(saved, answer: answer) }
+        return saved
+    }
+
+    /// 改配置；润色或问答正在用这一条的话，改完接着用改后的。
+    func updateConfig(_ item: SavedAPI, apiKey key: String) {
+        let polishUses = currentSavedAPI(answer: false)?.id == item.id
+        let answerUses = settings.separateAnswer && currentSavedAPI(answer: true)?.id == item.id
+        SavedAPIStore.update(item, apiKey: key)
+        savedAPIs = SavedAPIStore.all
+        guard let saved = savedAPIs.first(where: { $0.id == item.id }) else { return }
+        if polishUses { applySavedAPI(saved, answer: false) }
+        if answerUses { applySavedAPI(saved, answer: true) }
     }
 
     func renameSavedAPI(_ id: UUID, to name: String) {
@@ -469,7 +562,7 @@ final class AppStore: ObservableObject {
         SharedStorage.defaults.object(forKey: testKey) as? Bool
     }
 
-    private var testKey: String { "test.ok.\(settings.baseURL)|\(settings.model)" }
+    private var testKey: String { EnclaveSettings.testKey(baseURL: settings.baseURL, model: settings.model) }
 
     #if DEBUG
     /// 截图用：不联网，直接当作测试成功。
@@ -490,19 +583,28 @@ final class AppStore: ObservableObject {
         let start = Date()
         let client = LLMClient(settings: settings.forAnswers, apiKey: answerApiKey)
         var raw = ""
+        var failure: String?
+        let result: TestState
         do {
             for try await piece in client.stream([.user("只回复两个字：你好")], retries: 0) { raw += piece }
-            answerTest = ModelOutput.clean(raw).isEmpty
+            if ModelOutput.clean(raw).isEmpty { failure = UsageStats.Request.Failure.empty }
+            result = ModelOutput.clean(raw).isEmpty
                 ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success("", Date().timeIntervalSince(start))
         } catch {
-            answerTest = .failure(error.localizedDescription)
+            failure = UsageStats.Request.Failure.of(error)
+            result = .failure(Self.testFailureText(error, failure))
         }
         var ok = false
-        if case .success = answerTest { ok = true }
+        if case .success = result { ok = true }
+        // 键盘按它决定显不显示问答键（QE）。
+        let answerConfig = settings.forAnswers
+        SharedStorage.defaults.set(ok, forKey: EnclaveSettings.testKey(baseURL: answerConfig.baseURL, model: answerConfig.model))
+        // 问答卡的最近 20 次里有它；先记再改状态，接口卡收到变化时就能读到这一次。
+        UsageStats.recordAnswerRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.forAnswers.model,
+                                       error: failure, test: true)
+        answerTest = result
         if ok { await checkModelListed(answer: true) }
-        // 问答页的小曲线里有它。
-        UsageStats.recordAnswerRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok)
     }
 
     private func checkModelListed(answer: Bool) async {
@@ -517,6 +619,13 @@ final class AppStore: ObservableObject {
         if answer { answerMissingModel = missing } else { missingModel = missing }
     }
 
+    /// 测试失败时接口卡上的红字：认得的原因用短句（同「最近 20 次」，比如「Key 无效（401）」），
+    /// 不把服务商返回的原始 JSON（里面可能带 Key 的后几位）显示出来；认不得的才用原始信息。
+    static func testFailureText(_ error: Error, _ failure: String?) -> String {
+        guard let failure, failure != UsageStats.Request.Failure.other else { return error.localizedDescription }
+        return UsageStats.Request(ms: 0, ok: false, at: Date(), error: failure).failureText
+    }
+
     func runTest() async {
         // 没同意隐私政策前不发任何网络请求（测试会把 API Key 发到外部地址），入口处会先提示。
         guard PrivacyConsent.isAgreed else { return }
@@ -525,28 +634,35 @@ final class AppStore: ObservableObject {
         let start = Date()
         let client = LLMClient(settings: settings, apiKey: apiKey)
         var raw = ""
+        var failure: String?
+        let result: TestState
+        var reason: TestFailure?
         do {
             for try await piece in client.stream([.user("只回复两个字：你好")], retries: 0) {
                 raw += piece
             }
+            if ModelOutput.clean(raw).isEmpty { failure = UsageStats.Request.Failure.empty }
             let reply = ModelOutput.clean(raw)
-            test = reply.isEmpty ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
+            result = reply.isEmpty ? .failure(L("连上了，但模型没有返回内容。", "Connected, but the model returned nothing.", "接続できましたが、モデルから応答がありませんでした。"))
                 : .success(String(reply.prefix(40)), Date().timeIntervalSince(start))
         } catch {
-            test = .failure(error.localizedDescription)
+            failure = UsageStats.Request.Failure.of(error)
+            result = .failure(Self.testFailureText(error, failure))
             switch error {
-            case LLMError.http(let code, _) where code == 401 || code == 403: testFailure = .unauthorized
-            case LLMError.http(402, _): testFailure = .noBalance
-            case LLMError.timeout: testFailure = .network
-            case is URLError: testFailure = .network
-            default: testFailure = .other
+            case LLMError.http(let code, _) where code == 401 || code == 403: reason = .unauthorized
+            case LLMError.http(402, _): reason = .noBalance
+            case LLMError.timeout: reason = .network
+            case is URLError: reason = .network
+            default: reason = .other
             }
         }
         var ok = false
-        if case .success = test { ok = true }
+        if case .success = result { ok = true }
         SharedStorage.defaults.set(ok, forKey: testKey)
+        // 测试也算一次请求，润色卡的最近 20 次里有它；先记再改状态，接口卡收到变化时就能读到这一次。
+        UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.model, error: failure, test: true)
+        testFailure = reason
+        test = result
         if ok { await checkModelListed(answer: false) }
-        // 测试也算一次请求，接口页的小曲线里有它。
-        UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok)
     }
 }

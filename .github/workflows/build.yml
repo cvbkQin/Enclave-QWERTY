@@ -36,5 +36,12 @@ jobs:
             -sdk iphonesimulator \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
-            | tail -n 200
-          exit ${PIPESTATUS[0]}
+            > build.log 2>&1 || status=$?
+          tail -n 200 build.log
+          # 失败时把编译错误单独列出来（最后 200 行里常常看不到）。
+          if [ "${status:-0}" -ne 0 ]; then
+            echo "::group::Compiler errors"
+            grep -n -B3 -A8 "error:" build.log | head -n 400 || true
+            echo "::endgroup::"
+          fi
+          exit "${status:-0}"
