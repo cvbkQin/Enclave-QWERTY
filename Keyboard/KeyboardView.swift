@@ -157,10 +157,6 @@ struct KeyboardView: View {
                     .allowsHitTesting(false)
             }
         }
-        // B1 剪贴板实测条（临时）：盖在 AI 栏上。
-        .overlay(alignment: .top) {
-            if model.settings.clipboardProbe { ClipboardProbeStrip() }
-        }
         .coordinateSpace(name: "keyboard")
         .onPreferenceChange(PinFrameKey.self) { frames in
             if frames != pinFrames { pinFrames = frames }
