@@ -103,7 +103,11 @@ struct KeyboardView: View {
                 }
                 // 长按弹出的十字 / 备选 / 布局菜单会伸到上面一排：这时按键区整块盖在 AI 栏和回答卡上面，不被 ✨、风格键压住。
                 // 剪贴板的长按菜单也一样（往上可以盖到 AI 栏）。
-                .zIndex(model.cross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0)
+                // 按住字符键时，第一排的放大气泡会伸到 AI 栏、候选栏上面：这时按键区也要盖在上面，不然气泡里的字母被润色键、候选词挡住。
+                // 单独看 keyPresses（PressedKeysZ），按下松开不让整个键盘重画。
+                .modifier(PressedKeysZ(presses: model.keyPresses,
+                                       base: model.cross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
+                                       raises: !model.nineGrid && model.candidateMenu == nil && !model.askHoldShowing && !model.pinyinPopoverOpen))
         }
         // 横屏两边各留 48 给刘海 / 灵动岛。
         .padding(.horizontal, model.landscape ? KeyboardMetrics.landscapeSideMargin : 0)
@@ -1722,3 +1726,14 @@ struct EmptyTapShake: ViewModifier {
     }
 }
 
+/// 有键按着时把按键区抬到 AI 栏、候选栏上面（zIndex 2），让放大气泡完整露出来；长按菜单那几种照旧用更高的 4。
+/// 只改 zIndex 的值、不换视图结构，按键区不会因为按下松开被重建。
+private struct PressedKeysZ: ViewModifier {
+    @ObservedObject var presses: KeyPresses
+    let base: Double
+    let raises: Bool
+
+    func body(content: Content) -> some View {
+        content.zIndex(raises && !presses.pressed.isEmpty ? max(base, 2) : base)
+    }
+}
