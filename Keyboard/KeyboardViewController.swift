@@ -8,6 +8,18 @@ final class KeyboardViewController: UIInputViewController {
     private var cancellables = Set<AnyCancellable>()
 
 
+    /// 自己建键盘的根视图：一开始就按我们的高度建（frame 和 intrinsicContentSize 都给对），
+    /// 系统冷启动第一次摆键盘时就用这个高度，不再先按默认 216 摆、二三十毫秒后再换成我们的高度（对方输入框会跟着跳一下）。
+    override func loadView() {
+        // 高度和拼音显示方式等设置有关：先读一次设置（reload 在 viewWillAppear 里还会再读）。
+        model.loadSettings()
+        let height = model.keyboardHeight
+        let root = SizedInputView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: height), inputViewStyle: .keyboard)
+        root.preferredHeight = height
+        root.allowsSelfSizing = true
+        view = root
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         CrashLog.shared.start(source: "keyboard")
@@ -131,6 +143,7 @@ final class KeyboardViewController: UIInputViewController {
         let target = model.keyboardHeight
         guard let heightConstraint, heightConstraint.constant != target else { return }
         UIView.performWithoutAnimation {
+            (inputView as? SizedInputView)?.preferredHeight = target
             heightConstraint.constant = target
             view.setNeedsLayout()
             view.superview?.setNeedsLayout()
@@ -245,6 +258,17 @@ final class KeyboardViewController: UIInputViewController {
     private func updateGlobeKey() {
         let needs = needsInputModeSwitchKey
         if model.needsGlobeKey != needs { model.needsGlobeKey = needs }
+    }
+}
+
+/// 键盘根视图：intrinsicContentSize 报我们要的高度，系统第一次摆键盘时就按它来。
+final class SizedInputView: UIInputView {
+    var preferredHeight: CGFloat = 0 {
+        didSet { if preferredHeight != oldValue { invalidateIntrinsicContentSize() } }
+    }
+
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: preferredHeight)
     }
 }
 

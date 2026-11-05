@@ -436,6 +436,11 @@ final class KeyboardModel: ObservableObject {
         trialReminder = false
     }
 
+    /// 只读设置：键盘根视图建之前用（按设置算出第一次的高度）。
+    func loadSettings() {
+        settings = SettingsStore.load()
+    }
+
     func reload() {
         let display = settings.pinyinDisplay
         settings = SettingsStore.load()
