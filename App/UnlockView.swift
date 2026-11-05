@@ -416,6 +416,7 @@ extension UnlockStore.Message {
         case .pending: return L("等家长批准", "Waiting for approval", "保護者の承認待ち")
         case .notFound: return L("没有找到购买记录", "No purchase found", "購入履歴が見つかりません")
         case .offline: return L("暂时连不上 App Store", "Can't reach the App Store", "App Store に接続できません")
+        case .unavailable: return L("App Store 里暂时买不到", "Not available in the App Store yet", "App Store でまだ購入できません")
         case .failed: return L("没有完成购买", "Purchase not completed", "購入できませんでした")
         }
     }
@@ -427,6 +428,8 @@ extension UnlockStore.Message {
         case .notFound: return L("这个 Apple ID 还没有买过 AI 解锁。", "This Apple Account hasn't unlocked AI.",
                                  "この Apple アカウントでは AI を購入していません。")
         case .offline: return L("没有扣款，稍后再试。", "You weren't charged. Try again later.", "料金は請求されていません。後でもう一度お試しください。")
+        case .unavailable: return L("App Store 没有返回 AI 解锁这个商品，没有扣款。", "The App Store didn't return the AI unlock. You weren't charged.",
+                                    "App Store から AI 購入の商品が返されませんでした。料金は請求されていません。")
         case .failed(let reason): return reason
         }
     }

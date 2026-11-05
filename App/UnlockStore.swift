@@ -14,7 +14,8 @@ final class UnlockStore: ObservableObject {
     @Published var message: Message?
 
     enum Message: Identifiable, Equatable {
-        case unlocked, pending, notFound, offline, failed(String)
+        /// unavailable：连上了 App Store，但没给这个商品（App Store Connect 里没配好，开发版、沙盒里常见）。
+        case unlocked, pending, notFound, offline, unavailable, failed(String)
         var id: String { "\(self)" }
     }
 
@@ -85,8 +86,9 @@ final class UnlockStore: ObservableObject {
         defer { purchasing = false }
         do {
             if product == nil { product = try await Product.products(for: [AIAccess.productID]).first }
+            // 没抛错但列表是空的：网是通的，App Store 没给这个商品，不能说成连不上。
             guard let product else {
-                message = .offline
+                message = .unavailable
                 return
             }
             switch try await product.purchase() {
