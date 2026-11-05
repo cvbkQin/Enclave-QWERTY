@@ -712,7 +712,9 @@ struct AIStopIcon: View {
     var body: some View {
         Group {
             if moving {
-                TimelineView(.animation) { context in
+                // 不在执行时暂停逐帧重画：那时图标透明度是 0，但没暂停的 TimelineView(.animation) 照样每帧刷新，
+                // 每颗 AI 键一个，键盘一显示主线程就一直被占（0.96 真机上弹键盘发卡）。暂停后停在最后一帧，淡出时不跳。
+                TimelineView(.animation(minimumInterval: nil, paused: !running)) { context in
                     icon(phase: context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2) / 1.2)
                 }
             } else {
