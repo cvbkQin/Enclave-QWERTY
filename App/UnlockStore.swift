@@ -29,6 +29,7 @@ final class UnlockStore: ObservableObject {
                 }
             }
         }
+        AIAccess.applyDevDefault()
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
         // 启动参数只在截图时给；不给时保留解锁页「测试」块里选的状态。
@@ -36,6 +37,11 @@ final class UnlockStore: ObservableObject {
             AIAccess.setDebug(args[i + 1])
         }
         #endif
+    }
+
+    /// 设置里改了测试用的购买状态：马上更新解锁页和设置卡片。
+    func reloadAccess() {
+        access = AIAccess.current
     }
 
     /// 价格用 StoreKit 给的本地化价格；还没拿到时显示美元档位。
@@ -52,6 +58,7 @@ final class UnlockStore: ObservableObject {
     func refresh() async {
         if case .verified(let app) = try? await AppTransaction.shared {
             AIAccess.recordTrialStart(app.originalPurchaseDate)
+            AIAccess.recordStoreEnvironment(app.environment.rawValue)
             #if !DEBUG
             // 沙盒（TestFlight、App 审核）也按 App Store 的记录走，不再自动算已解锁：审核要能看到试用和购买流程，
             // 测试的人在沙盒里买是免费的。以前版本自动解锁时写下的状态清掉。

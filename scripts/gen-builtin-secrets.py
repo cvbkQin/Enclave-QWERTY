@@ -7,6 +7,7 @@
 - 证书绑定：连一次内置接口的服务器，记下证书链里中间证书和根证书（从 macOS 系统根证书里按名字找）的 SHA-256，
   运行时内置接口的请求只认这些证书（Shared/BuiltinAPI.swift 里的 PinnedSession）。
 - 检查：INTERNAL_BUILD 和 PUBLIC_BUILD 不能同时是 YES；内测包必须有 Key 和证书指纹，否则停编。
+- DEV_BUILD=YES（开发者版装机，App 设置里能切 AI 购买状态）不能和 INTERNAL_BUILD、PUBLIC_BUILD 一起打开：发给别人的包不能带这个开关。
 
 开发者版、公测版：生成空的。这个脚本从不打印 Key。
 """
@@ -76,10 +77,13 @@ def main():
     env = os.environ
     internal = env.get("INTERNAL_BUILD", "NO") == "YES"
     public = env.get("PUBLIC_BUILD", "NO") == "YES"
+    dev = env.get("DEV_BUILD", "NO") == "YES"
     # 每个 target 一份（Generated/<target>/），Xcode 不允许两个脚本声明同一个输出。
     out_dir = os.path.join(env.get("SRCROOT") or fail("没有 SRCROOT，要在 Xcode 里跑"), "Generated", env.get("TARGET_NAME", "Enclave"))
     if internal and public:
         fail("INTERNAL_BUILD 和 PUBLIC_BUILD 不能同时是 YES：内测包带内置 Key，不能当公测包发出去")
+    if dev and (internal or public):
+        fail("DEV_BUILD 不能和 INTERNAL_BUILD、PUBLIC_BUILD 同时是 YES：开发者版能在设置里切购买状态，不能发给测试的人")
 
     key = answer_key = ""
     pins = set()

@@ -15,6 +15,8 @@ enum BuiltinAPI {
     static let isInternalBuild = value("EnclaveInternalBuild") == "YES"
     /// 公测包（打包时 PUBLIC_BUILD=YES）：只用来在首页标「公测版」。
     static let isPublicBuild = value("EnclavePublicBuild") == "YES"
+    /// 开发者版装机（打包时 DEV_BUILD=YES）：App 设置里能切 AI 购买状态来测试，默认已解锁。
+    static let isDevBuild = value("EnclaveDevBuild") == "YES"
     /// 测试用的页面（压力测试、打字速度）：开发版、内测包、公测包显示，正式版不显示。
     static var showsTesterTools: Bool {
         #if DEBUG
