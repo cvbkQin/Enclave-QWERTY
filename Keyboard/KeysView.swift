@@ -61,6 +61,9 @@ struct KeysView: View {
                     if let popup = model.cross {
                         CrossView(model: model, popup: popup)
                     }
+                    if let popup = model.enterCross, let ai = context.returnLook.ai {
+                        EnterCrossView(popup: popup, ai: ai)
+                    }
                     if let menu = model.layoutMenu {
                         LayoutMenuView(menu: menu)
                     }
@@ -159,10 +162,19 @@ struct KeyCapView: View, Equatable {
     let pressed: Bool
 
     var body: some View {
-        KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY) {
-            label
-                .foregroundStyle(foreground)
+        if let ai = returnLook?.ai {
+            // 回答卡展开、焦点在识意框：三段式识意（第 70 条）。
+            EnterAskKey(ai: ai, pressed: pressed)
                 .opacity(context.trackpadActive ? 0 : 1)
+                .padding(.horizontal, key.insetX)
+                .padding(.vertical, key.insetY)
+                .contentShape(Rectangle())
+        } else {
+            KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY) {
+                label
+                    .foregroundStyle(foreground)
+                    .opacity(context.trackpadActive ? 0 : 1)
+            }
         }
     }
 

@@ -47,6 +47,8 @@ final class KeyboardModel: ObservableObject {
     /// 这次生成是「识意」发起的；askKind 是模型给出的判断，还没判断时为 nil。
     @Published var askRunning = false
     @Published var askKind: AskMode?
+    /// 这次识意是回车发起、让 AI 自己判断的（第 70 条）：生成中那一行写「识意 · 判断中 / 判断为改写」。
+    @Published var askAuto = false
     /// 识意问答正在联网搜索（Kimi）。卡片上的流光小字写「正在联网搜索…」。
     @Published var askSearching = false
     /// 模型说要联网、还没允许时，回答框换成这张选择框（见 searchAllowed）。
@@ -237,6 +239,8 @@ final class KeyboardModel: ObservableObject {
     @Published var alternates: AlternatesPopup?
     /// 九宫格长按的十字弹层。
     @Published var cross: CrossPopup?
+    /// 回答卡里按住回车弹出的「上润色、左问答」十字（第 70 条）。
+    @Published var enterCross: EnterCrossPopup?
     /// 长按「中/英」弹出的拼音布局菜单（P11）。
     @Published var layoutMenu: LayoutMenuPopup?
     /// 对方输入框有没有字、回车键是什么类型，决定发送键的颜色和文字。
@@ -270,8 +274,6 @@ final class KeyboardModel: ObservableObject {
     enum QuickStatus { case running, done, failed }
     /// 按住放大镜弹出了「改写 / 问答」：这时 AI 栏整行要盖在回答卡上面，不然上面那颗「改写」被回答卡挡住。
     @Published var askHoldShowing = false
-    /// 回答卡展开时最后点的是润色键还是问答键：识意框里回车照它来。
-    var lastRunKey: AskMode?
     /// 点 AI 栏上固定的风格键（AK5）：这一次按它的风格，不改当前选的风格。只在发起那一下有值。
     var runStyleOverride: StylePreset?
     var runAnswerStyleOverride: StylePreset?
@@ -365,6 +367,8 @@ final class KeyboardModel: ObservableObject {
     /// 截图用（-keyboardDebug askHold）：✨ 上停着按住时弹出的「改写 / 问答」（QA11）。
     /// 截图用（-keyboardDebug key:…）：结果卡左边的键停在滑过 16pt 换过去（rolled）或弹出另一个（popped）的样子。
     var debugResultKeyPose: String?
+    /// 截图用（-keyboardDebug enter:noAsk / enter:noPolish）：回车里当作问答 / 润色关掉了。
+    var debugEnterHides: Set<AskMode> = []
 
     /// 截图用：直接显示某张提示卡（quotaUsed：次数用完）。
     func debugShowGate(_ gate: AIGate) { self.gate = gate }
@@ -1275,10 +1279,11 @@ final class KeyboardModel: ObservableObject {
     }
 
     /// 截图用：识意生成中，已经判断出类型，还没出字（QA10）。
-    func loadDebugAskRunning(_ kind: AskMode) {
+    func loadDebugAskRunning(_ kind: AskMode?, auto: Bool = false) {
         isRunning = true
         runOrigin = .ask
         askRunning = true
+        askAuto = auto
         askKind = kind
         streamingText = ""
     }

@@ -139,7 +139,7 @@ extension KeyboardModel {
         if layer != .letters && layer != .digits { layer = .letters }
     }
 
-    /// 组字时回车把字母原样上屏；在识意框里回车等于再点一次上次点的润色键或问答键。
+    /// 组字时回车把字母原样上屏；回答卡展开、在识意框里时回车是「识意」（第 70 条）：AI 自己判断改写还是回答，执行中点了是停止。
     func returnKey() {
         if isComposing {
             if let raw = engine.commitComposition() { commit(raw) }
@@ -149,7 +149,7 @@ extension KeyboardModel {
         switch target {
         case .host: editProxy?.insertText("\n")
         case .instruction:
-            runFromAskField()
+            if enterAI != nil { enterAskTapped() } else { commit("\n") }
         case .card:
             commit("\n")
         }
@@ -1300,11 +1300,14 @@ extension KeyboardModel {
         var title: String?
         var solid: Bool
         var bold = false
+        /// 回答卡展开、焦点在识意框：三段式识意（第 70 条），这时 title / solid 不用。
+        var ai: EnterAI?
     }
 
     var returnLook: ReturnLook {
         if isComposing { return ReturnLook(title: "确认", solid: false) }
-        if target == .instruction { return ReturnLook(title: L("执行", "Go", "実行"), solid: true) }
+        if let ai = enterAI { return ReturnLook(title: nil, solid: true, ai: ai) }
+        if target == .instruction { return ReturnLook(title: nil, solid: false) }
         if target == .card { return ReturnLook(title: nil, solid: false) }
         if let title = sendTitle { return ReturnLook(title: title, solid: hostHasText, bold: true) }
         return ReturnLook(title: nil, solid: false)
@@ -1414,6 +1417,28 @@ extension KeyboardModel {
             if keysPanel != .quickWords { openQuickPanel() }
             if let display = PhraseDisplay(rawValue: value) { phraseDisplay = display }
             if let split = Double(value) { quickSplit = QuickSplit.stored(split) }
+        }
+        // 回车里的识意（第 70 条）：enter:ask 识意准备；enter:empty 框空着；enter:running 判断中；
+        // enter:center / enter:up / enter:left 按住回车弹出十字、选中中间 / 润色 / 问答；enter:noAsk / enter:noPolish 当作那个功能关掉。
+        let enterOptions = options.filter { $0.hasPrefix("enter:") }.map { String($0.dropFirst("enter:".count)) }
+        if !enterOptions.isEmpty {
+            loadDebugAsk(enterOptions.contains("empty") ? "askEmpty" : "ask")
+            if enterOptions.contains("noAsk") { debugEnterHides.insert(.answer) }
+            if enterOptions.contains("noPolish") { debugEnterHides.insert(.rewrite) }
+            hostFocused = false
+            target = .instruction
+            if enterOptions.contains("running") {
+                loadDebugAskRunning(nil, auto: true)
+            }
+            let choices: [String: EnterCrossPopup.Choice] = ["center": .auto, "up": .polish, "left": .ask]
+            if let choice = enterOptions.compactMap({ choices[$0] }).first {
+                let width = UIScreen.main.bounds.width - KeyboardMetrics.sidePadding * 2
+                let layout = KeyLayout.build(layoutState, size: CGSize(width: width, height: KeyboardMetrics.keysHeight))
+                if let key = layout.keys.first(where: { $0.kind == .returnKey }),
+                   showEnterCross(for: key, containerWidth: width, origin: CGPoint(x: key.cap.midX, y: key.cap.midY)) {
+                    enterCross?.selected = choice
+                }
+            }
         }
         // cross:1:right 按住「,｡?!」往右滑；cross:3:up 按住 DEF 往上滑。
         for option in options where option.hasPrefix("cross:") {

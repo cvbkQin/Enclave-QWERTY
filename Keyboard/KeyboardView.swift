@@ -106,7 +106,7 @@ struct KeyboardView: View {
                 // 按住字符键时，第一排的放大气泡会伸到 AI 栏、候选栏上面：这时按键区也要盖在上面，不然气泡里的字母被润色键、候选词挡住。
                 // 单独看 keyPresses（PressedKeysZ），按下松开不让整个键盘重画。
                 .modifier(PressedKeysZ(presses: model.keyPresses,
-                                       base: model.cross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
+                                       base: model.cross != nil || model.enterCross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
                                        raises: !model.nineGrid && model.candidateMenu == nil && !model.askHoldShowing && !model.pinyinPopoverOpen))
         }
         // 横屏两边各留 48 给刘海 / 灵动岛。
@@ -895,7 +895,8 @@ struct ResultCard: View {
             // 「AI 生成」标签（CP8）放在正文第一行开头，只在界面上标，不往正文里插任何标记。
             if model.isRunning {
                 HStack(spacing: 6) {
-                    RunningLabel(text: runningTitle, color: runningColor, animating: animating)
+                    RunningLabel(text: runningTitle, color: runningColor, animating: animating,
+                                 icon: model.askRunning && model.askAuto ? "magnifyingglass" : "sparkle")
                     // 8 秒还没出第一个字（ER4）：后面加灰字「模型响应较慢」，右边小「取消」。
                     if model.responseSlow {
                         Text(L("模型响应较慢", "Slow to respond", "応答が遅れています"))
@@ -1039,6 +1040,14 @@ struct ResultCard: View {
         if model.askSearching {
             let name = model.settings.answerSearch?.name ?? ""
             return L("正在用 \(name) 联网搜索…", "Searching the web with \(name)…", "\(name) でウェブを検索しています…")
+        }
+        // 回车里的识意（第 70 条）：AI 自己判断，先「识意 · 判断中」，判断出来后写判断结果。
+        if model.askAuto {
+            switch model.askKind {
+            case .answer: return L("识意 · 判断为回答", "Smart Ask · Answering", "意図を読む・回答")
+            case .rewrite: return L("识意 · 判断为改写", "Smart Ask · Rewriting", "意図を読む・書き換え")
+            case nil: return L("识意 · 判断中", "Smart Ask · Deciding…", "意図を読む・判断中")
+            }
         }
         switch model.askKind {
         case .answer: return L("AI 正在回答…", "AI is answering…", "AI が回答しています…")
@@ -1671,10 +1680,12 @@ struct RunningLabel: View {
     var text: String
     var color: Color
     var animating: Bool
+    /// 识意判断时是放大镜（第 70 条）。
+    var icon = "sparkle"
 
     var body: some View {
         let label = HStack(spacing: 5) {
-            Image(systemName: "sparkle").font(.system(size: 11, weight: .semibold))
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
             Text(text).font(.system(size: 13, weight: .semibold)).lineLimit(1)
         }
         .foregroundStyle(color)
