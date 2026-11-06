@@ -65,6 +65,8 @@ extension KeyboardModel {
 
     /// 点识意框：打字回到框里，取消全选；开着的风格一排收回去。
     func focusAsk() {
+        // 帮回倒计时中点了识意框：停下来等你写要求（HB29 ②）。
+        if helpReply?.countdownEnds != nil { cancelHelpCountdown() }
         if target == .card { finishCardEdit() }
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
@@ -176,7 +178,12 @@ extension KeyboardModel {
     func polishKeyTapped() {
         endCelebration()
         if isRunning { stop(); return }
+        if helpReply?.running != nil { stopHelpReply(); return }
         lastRunPin = nil
+        // 帮回卡上（RG3）：润色这条回复，算帮回的新一版；输入框里是无关的话就照平时润色。
+        if aiExpanded, helpReply != nil, helpPolishTapped() { return }
+        // 识意框换回润色 / 问答那份（帮回那份收起来）。
+        parkHelpReply()
         runPolish()
     }
 
@@ -218,6 +225,8 @@ extension KeyboardModel {
         endCelebration()
         if isRunning { stop(); return }
         lastRunPin = nil
+        // 帮回卡开着：帮回收起来，识意框换回问答那份（问题还在）。
+        parkHelpReply()
         runAsk()
     }
 
@@ -256,12 +265,16 @@ extension KeyboardModel {
         if isRunning { stop(); return }
         lastRunPin = style.id
         if answer {
+            parkHelpReply()
             runAnswerStyleOverride = style
             runAsk()
             runAnswerStyleOverride = nil
         } else {
             runStyleOverride = style
-            runPolish()
+            if !(aiExpanded && helpReply != nil && helpPolishTapped()) {
+                parkHelpReply()
+                runPolish()
+            }
             runStyleOverride = nil
         }
     }

@@ -149,8 +149,8 @@ extension KeyboardModel {
         switch target {
         case .host: editProxy?.insertText("\n")
         case .instruction:
-            // 帮回卡下面的框写的是回复方向：回车 = 按这个重写。
-            if helpReply != nil { helpRewriteTapped() } else if enterAI != nil { enterAskTapped() } else { commit("\n") }
+            // 帮回卡下面的框写的是要求：回车 = 按这条要求写当前风格的新一版（和点帮回键一样）。
+            if helpReply != nil { helpAskPending ? helpExecuteAsk() : helpKeyTapped() } else if enterAI != nil { enterAskTapped() } else { commit("\n") }
         case .card:
             commit("\n")
         }

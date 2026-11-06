@@ -20,19 +20,13 @@ struct KeyboardView: View {
                 // 替换 / 插入键在结果卡左边，和卡片一样高；弹出方式的另一个按钮浮在下面一行上，所以这一块叠在最上层。
                 // 自由编辑时左边的键收起，编辑框占满整行、连识意框那块一起用（FE3）。
                 let freeEdit = model.target == .card
+                // AI 帮回（T16）也用这一张回答卡和替换键（方案 C）：换成帮回绿，高度一样，切换不跳。
                 HStack(spacing: KeyboardMetrics.resultKeyGap) {
-                    if model.helpReply != nil {
-                        // AI 帮回（T16）：左边「↵ 上屏」，右边绿色「AI 帮回」卡。
-                        HelpInsertKey(model: model)
+                    if !freeEdit {
+                        ResultKey(model: model)
                             .frame(width: KeyboardMetrics.resultKeyWidth)
-                        HelpReplyCard(model: model)
-                    } else {
-                        if !freeEdit {
-                            ResultKey(model: model)
-                                .frame(width: KeyboardMetrics.resultKeyWidth)
-                        }
-                        ResultCard(model: model)
                     }
+                    ResultCard(model: model)
                 }
                 .frame(height: freeEdit
                        ? KeyboardMetrics.cardHeight(tall: model.freeEditTall, aiLabel: model.showsAILabel) + KeyboardMetrics.freeEditExtra
@@ -790,6 +784,15 @@ struct ResultCard: View {
     /// 只在生成中播放；App 里关了动画或系统开了「减弱动态效果」就不播。
     private var animating: Bool { model.isRunning && model.searchPrompt == nil && model.settings.polishAnimation && !reduceMotion }
 
+    /// 帮回（方案 C）：卡片换成帮回的内容和绿色。
+    private var help: HelpReplyState? { model.helpReply }
+
+    /// 帮回在写、还没出字：卡片扫光。
+    private var helpAnimating: Bool {
+        guard let help else { return false }
+        return help.running != nil && help.streaming.isEmpty && model.settings.polishAnimation && !reduceMotion
+    }
+
     var body: some View {
         let look = look
         VStack(spacing: 0) {
@@ -798,7 +801,8 @@ struct ResultCard: View {
             if model.target != .card {
                 // 激活（打字进识意框）：顶上 1pt 紫线；未激活：0.5pt 细线，下半格浅灰底（FC1–FC4）。
                 let active = askActive
-                Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair).frame(height: active ? 1 : 0.5)
+                Rectangle().fill(active ? (help != nil ? HelpStyle.green : Brand.askActiveLine) : Brand.blockHair)
+                    .frame(height: active ? 1 : 0.5)
                 lowerHalf.frame(height: KeyboardMetrics.askBoxHeight - (active ? 1 : 0.5))
             }
         }
@@ -812,12 +816,50 @@ struct ResultCard: View {
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .clipShape(shape)
             }
-            if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
+            if case .error = look, model.failure == nil, help == nil { shape.fill(Color.red.opacity(0.07)) }
         }
         .overlay {
-            if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
+            if animating || helpAnimating { SweepBand().clipShape(shape).allowsHitTesting(false) }
         }
-        .overlay { border(look).allowsHitTesting(false) }
+        .overlay {
+            Group {
+                if let help { helpBorder(help) } else { border(look) }
+            }
+            .allowsHitTesting(false)
+        }
+        // 帮回：⌄ 全部帮回风格往下盖在卡片上；回哪句话列表从识意框下面往下弹，盖在 AI 栏和按键上。
+        .overlay(alignment: .topLeading) {
+            if model.helpMenuOpen, let help { HelpStyleMenu(model: model, state: help) }
+        }
+        .overlay {
+            // 列表开着时点外面只收起列表。
+            if model.helpListOpen, help != nil {
+                Color.black.opacity(0.001)
+                    .frame(width: 3000, height: 3000)
+                    .onTapGesture { model.helpListOpen = false }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            // 从识意框下面往下弹（盖在 AI 栏和按键上），和卡片一样宽。
+            if model.helpListOpen, help != nil {
+                GeometryReader { geo in
+                    HelpSentenceList(model: model)
+                        .frame(width: geo.size.width)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .offset(y: geo.size.height + 4)
+                }
+            }
+        }
+    }
+
+    /// 帮回的边框：写的时候绿色流光，平时 1.5pt 绿边。
+    @ViewBuilder
+    private func helpBorder(_ help: HelpReplyState) -> some View {
+        if help.running != nil, model.settings.polishAnimation, !reduceMotion {
+            FlowingBorder(shape: shape, colors: [HelpStyle.hex(0x34D399), HelpStyle.hex(0x0E9F6E)])
+        } else {
+            shape.strokeBorder(HelpStyle.border, lineWidth: 1.5)
+        }
     }
 
     /// 识意框激活：打字进识意框。选风格改成下拉框（KB2）后下半格一直是识意框。
@@ -830,6 +872,9 @@ struct ResultCard: View {
     /// 上半格：回答卡。
     private func content(_ look: Look) -> some View {
         Group {
+            if help != nil {
+                HelpCardContent(model: model)
+            } else {
             switch look {
             case .checklist: checklist
             case .error(let message): errorView(message)
@@ -838,6 +883,7 @@ struct ResultCard: View {
             case .running, .fresh, .faded: resultView(faded: { if case .faded = look { return true } else { return false } }())
             case .editing: editView
             case .search(let prompt): searchPromptView(prompt)
+            }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -866,7 +912,7 @@ struct ResultCard: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .foregroundStyle(.white)
-                    .background(Capsule().fill(Brand.purple))
+                    .background(Capsule().fill(help != nil ? HelpStyle.green : Brand.purple))
                     .transition(.opacity)
                     .allowsHitTesting(false)
             }

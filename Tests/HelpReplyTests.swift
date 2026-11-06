@@ -49,6 +49,14 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertEqual(HelpReply.single("好的\n\n我晚点到"), "好的\n\n我晚点到")
     }
 
+    func testRelatedAllowsHandEditsButNotOtherText() {
+        let reply = "好的，明天上午能交，我今晚再过一遍细节。"
+        XCTAssertTrue(HelpReply.related(reply, reply))
+        XCTAssertTrue(HelpReply.related("好的，明天上午能交，我今晚再看一遍。", reply))
+        XCTAssertFalse(HelpReply.related("周末去爬山吗", reply))
+        XCTAssertFalse(HelpReply.related("", reply))
+    }
+
     func testSuitsSkipsTrackingNumbersLinksAndNumbers() {
         XCTAssertTrue(HelpReply.suits("一起吃个饭，叫上小王，就在公司楼下那家火锅"))
         XCTAssertTrue(HelpReply.suits("Are you free on Saturday?"))
