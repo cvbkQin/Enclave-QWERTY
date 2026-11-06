@@ -2,7 +2,7 @@
 
 # 飞地输入法隐私政策
 
-生效日期：2026 年 10 月 31 日  
+生效日期：2026 年 11 月 6 日  
 版本：5
 
 ## 引言
@@ -25,7 +25,9 @@
 
 拼音输入、候选词计算、联想预测和输入习惯学习均在您的设备本地完成，不通过网络传输任何内容。
 
-如您在拼音设置中主动选择下载“整句模型”等词库文件，本应用会从文件服务器（中国大陆店面为我们的服务器 enclavekb.cn，其他地区为 GitHub）下载该文件。下载请求不包含您的输入内容；我们的服务器会依法记录访问日志（IP 地址、时间、请求地址、设备标识），保存 6 个月后删除。
+如您主动下载词库文件，本应用会从文件服务器下载：在“键盘 › 词库 › 热门词库”中下载的在线词库（如游戏、网络流行语、百科词库），来自我们的服务器 enclavekb.cn；拼音设置中的“整句模型”，中国大陆店面来自 enclavekb.cn，其他地区来自 GitHub。下载请求不包含您的输入内容；我们的服务器会依法记录访问日志（IP 地址、时间、请求地址、设备标识），保存 6 个月后删除。
+
+您从文件导入的词库（细胞词库 .scel、Rime 词库 .dict.yaml）在您的设备本地读取和转换，不会上传。
 
 ### （二）AI 功能（点 ✨ 执行提示词，例如润色、翻译、改写）
 
@@ -141,7 +143,7 @@ ICP 备案号：皖ICP备2026038401号-1A
 
 # Enclave Privacy Policy
 
-Effective date: October 31, 2026  
+Effective date: November 6, 2026  
 Version 5
 
 ## Introduction
@@ -158,7 +160,9 @@ The App has no user accounts. Your AI requests go straight from your device to t
 
 Pinyin input, candidate generation and input learning are performed entirely on your device. No content is transmitted over the network.
 
-If you choose to download an optional dictionary file such as the sentence model in the Pinyin settings, the App downloads it from a file server (our server enclavekb.cn for the mainland China storefront, GitHub elsewhere). The download request contains nothing you type; our server keeps access logs (IP address, time, requested address, device identifier) for 6 months as required by law, then deletes them.
+If you choose to download a dictionary file, the App downloads it from a file server. Online dictionaries you download under Keyboard › Dictionaries › Popular dictionaries (such as games, internet slang or the encyclopedia dictionary) come from our server enclavekb.cn. The sentence model in the Pinyin settings comes from enclavekb.cn for the mainland China storefront and from GitHub elsewhere. The download request contains nothing you type; our server keeps access logs (IP address, time, requested address, device identifier) for 6 months as required by law, then deletes them.
+
+Dictionaries you import from a file (.scel cell dictionaries or Rime .dict.yaml files) are read and converted on your device and never uploaded.
 
 ### AI Polish
 
@@ -255,7 +259,7 @@ We will respond within 15 business days.
 
 # Enclave プライバシーポリシー
 
-施行日：2026 年 10 月 31 日  
+施行日：2026 年 11 月 6 日  
 バージョン：5
 
 ## はじめに
@@ -272,7 +276,9 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 ピンイン入力、候補の生成、入力の学習はすべてお客様の端末上で行われ、内容がネットワークで送信されることはありません。
 
-ピンイン設定で整句モデルなどの辞書ファイルをダウンロードすることを選んだ場合、本アプリはファイルサーバー（中国本土のストアは当方の enclavekb.cn、その他の地域は GitHub）からダウンロードします。リクエストに入力内容は含まれません。当方のサーバーは法令に基づきアクセスログ（IP アドレス、日時、リクエスト先、端末識別情報）を 6 か月保存した後に削除します。
+辞書ファイルをダウンロードすることを選んだ場合、本アプリはファイルサーバーからダウンロードします。「キーボード › 辞書 › 人気の辞書」でダウンロードするオンライン辞書（ゲーム、ネット流行語、百科辞書など）は当方のサーバー enclavekb.cn から、ピンイン設定の整句モデルは中国本土のストアでは enclavekb.cn、その他の地域では GitHub からダウンロードします。リクエストに入力内容は含まれません。当方のサーバーは法令に基づきアクセスログ（IP アドレス、日時、リクエスト先、端末識別情報）を 6 か月保存した後に削除します。
+
+ファイルから読み込んだ辞書（セル辞書 .scel、Rime 辞書 .dict.yaml）は端末内で読み込み・変換され、アップロードされることはありません。
 
 ### AI 機能
 
