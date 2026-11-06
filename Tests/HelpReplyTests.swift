@@ -33,6 +33,22 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertFalse(HelpReply.messages(message: "x", styles: styles, direction: " ")[1].content.contains("回复方向"))
     }
 
+    func testSingleStyleMessages() {
+        let style = StylePreset.replyDefaults[1]
+        let messages = HelpReply.messages(message: "周六有空吗？", style: style, direction: "委婉拒绝")
+        XCTAssertEqual(messages.count, 2)
+        XCTAssertTrue(messages[1].content.contains("风格「客气」：礼貌"))
+        XCTAssertTrue(messages[1].content.contains("回复方向：委婉拒绝"))
+        XCTAssertFalse(HelpReply.messages(message: "x", style: style, direction: "").last!.content.contains("回复方向"))
+    }
+
+    func testSingleStripsMarkersAndQuotes() {
+        XCTAssertEqual(HelpReply.single("【1】\n好啊，几点？"), "好啊，几点？")
+        XCTAssertEqual(HelpReply.single("“可以呀”"), "可以呀")
+        XCTAssertEqual(HelpReply.single("【"), "")
+        XCTAssertEqual(HelpReply.single("好的\n\n我晚点到"), "好的\n\n我晚点到")
+    }
+
     func testSuitsSkipsTrackingNumbersLinksAndNumbers() {
         XCTAssertTrue(HelpReply.suits("一起吃个饭，叫上小王，就在公司楼下那家火锅"))
         XCTAssertTrue(HelpReply.suits("Are you free on Saturday?"))

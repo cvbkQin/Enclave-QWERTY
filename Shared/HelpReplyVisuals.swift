@@ -7,7 +7,7 @@ enum HelpStyle {
               blue: Double(value & 0xFF) / 255, opacity: alpha)
     }
 
-    private static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
+    static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
         func color(_ value: UInt32) -> UIColor {
             UIColor(red: CGFloat(value >> 16 & 0xFF) / 255, green: CGFloat(value >> 8 & 0xFF) / 255,
                     blue: CGFloat(value & 0xFF) / 255, alpha: 1)
@@ -29,6 +29,11 @@ enum HelpStyle {
     /// 没选中的标签灰底灰字。
     static let tagFill = dynamic(0xE5E7EB, 0x3A3A3C)
     static let tagText = dynamic(0x6B7280, 0xA1A1AA)
+    /// 写好没选中的标签底（HB19）：浅色 #D1FAE5，深色 #0B3B2C。
+    static let doneFill = dynamic(0xD1FAE5, 0x0B3B2C)
+    /// 写失败的标签：浅红底红字。
+    static let failFill = dynamic(0xFEE2E2, 0x3B1418)
+    static let failText = dynamic(0xDC2626, 0xF87171)
     /// 生成中正文的三条扫光占位条。
     static let placeholder = dynamic(0xD1FAE5, 0x14532D)
     /// 「回」右上角的红点。
