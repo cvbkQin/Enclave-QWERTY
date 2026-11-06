@@ -39,7 +39,7 @@ struct UnlockView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(L("恢复购买", "Restore Purchases", "購入を復元")) { Task { await unlock.restore() } }
+                Button(L("恢复购买", "Restore", "購入を復元")) { Task { await unlock.restore() } }
                     .disabled(unlock.purchasing)
             }
         }
