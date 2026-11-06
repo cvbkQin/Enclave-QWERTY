@@ -29,7 +29,9 @@ struct StyleKey: View {
         ZStack(alignment: .leading) {
             KeySuccessClock(since: running ? nil : success, reduced: !fullMotion) { fx in
                 Self.face(answer: answer, title: title, open: open, running: running, glowing: fullMotion,
-                          fx: fx, failed: failed, faded: !answer && (model.aiBlocked || model.aiQuotaUsed))
+                          fx: fx, failed: failed, faded: !answer && (model.aiBlocked || model.aiQuotaUsed),
+                          // 帮回卡上是帮回结果（RG3 B）：✨ 换成绿色星星，点了润色这条回复。
+                          starTint: !answer && model.aiExpanded && model.helpReply?.current != nil ? HelpStyle.star : nil)
             }
             .overlay {
                 // 执行中文字周围闪 7 颗小星（对齐清单第 63 条）；减弱动态效果、关了发光动画时不放。
@@ -106,7 +108,7 @@ struct StyleKey: View {
     /// 柔和混色底、白字白图标。润色键的图标收起、展开都是金色 ✨（13:20 cvbk），问答键是问答图标（AskIcon，v306）。
     /// 执行中 logo 动、键下同色投影（不再换成白色方块）；fx 是成功动效这一刻的样子；failed：红底「↻ 重试」。
     static func face(answer: Bool, title: String, open: Bool = false, running: Bool = false, glowing: Bool = false,
-                     fx: KeySuccessFrame? = nil, failed: Bool = false, faded: Bool = false) -> some View {
+                     fx: KeySuccessFrame? = nil, failed: Bool = false, faded: Bool = false, starTint: Color? = nil) -> some View {
         let h = KeyboardMetrics.chipHeight
         let layout = Self.layout(title: title)
         let animating = running || fx?.logoAnimating == true
@@ -118,7 +120,7 @@ struct StyleKey: View {
                 } else if answer {
                     AskIcon(size: 17, running: animating, glowing: glowing, bounce: bounce)
                 } else {
-                    PolishStars(size: 17, running: animating, glowing: glowing, doneAt: nil, tint: Brand.gold)
+                    PolishStars(size: 17, running: animating, glowing: glowing, doneAt: nil, tint: starTint ?? Brand.gold)
                         .frame(width: 17, height: 17)
                         .scaleEffect(bounce)
                 }
@@ -592,6 +594,11 @@ struct AskField: View {
     var body: some View {
         let editing = model.target == .instruction
         HStack(spacing: 8) {
+            // 帮回（方案 C）：左边「回 这份方案… ⌄」，固定宽度、写要求时也不缩。
+            if model.helpReply != nil {
+                HelpSentenceCapsule(model: model)
+                    .layoutPriority(1)
+            }
             Group {
                 if editing {
                     TimelineView(.periodic(from: .now, by: 0.5)) { context in
@@ -622,28 +629,15 @@ struct AskField: View {
                     .onTapGesture { model.focusAsk() }
                     .accessibilityHidden(true)
             }
-            if model.helpReply != nil { rewriteButton } else { searchButton }
+            // 帮回：框里不放按钮，写完点键盘上的帮回键或回车执行（RG4）。
+            if model.helpReply == nil { searchButton }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, model.helpReply != nil ? 8 : 12)
         .font(.system(size: 15))
-    }
-
-    /// 帮回卡（T16，HB18 ⑤）：框里写了方向，右边出「↻ 重写这条」，只按这个方向重写现在这种；别的点到时再按新方向写。
-    @ViewBuilder
-    private var rewriteButton: some View {
-        if model.canAsk {
-            Button { model.helpRewriteTapped() } label: {
-                Label(L("重写这条", "Rewrite this", "これを書き直す"), systemImage: "arrow.clockwise")
-                    .font(.system(size: 12.5, weight: .bold))
-                    .lineLimit(1)
-                    .padding(.leading, 8)
-                    .padding(.trailing, 10)
-                    .frame(height: 28)
-                    .foregroundStyle(.white)
-                    .background(Capsule().fill(HelpStyle.gradient))
-                    .fixedSize()
-            }
-            .buttonStyle(KeyPressStyle())
+        .frame(maxHeight: .infinity)
+        .background(alignment: .leading) {
+            // 帮回倒计时：整条从左往右变绿（HB29 挪进识意框）。
+            if let ends = model.helpReply?.countdownEnds { HelpCountdownFill(ends: ends) }
         }
     }
 
@@ -674,8 +668,11 @@ struct AskField: View {
     }
 
     private var placeholder: String {
+        if model.helpReply?.countdownEnds != nil {
+            return L("点这里先说要求，不点就自动写", "Tap to add a request, or it writes on its own", "タップして要望を書く。触らなければ自動で作成")
+        }
         if model.helpReply != nil {
-            return L("想怎么回？比如「委婉拒绝」（可不填）", "How to reply? e.g. \"say no nicely\" (optional)", "どう返す？例：「やんわり断る」（任意）")
+            return L("想怎么回？比如：委婉拒绝", "How to reply? e.g. say no nicely", "どう返す？例：やんわり断る")
         }
         return L("问个问题，或说说这段话想怎么改", "Ask anything, or say how to change it", "質問するか、どう直すかを書いてください")
     }
@@ -685,7 +682,16 @@ struct AskField: View {
     private func line(caretVisible: Bool?) -> some View {
         let text = model.instruction
         let composing = model.target == .instruction ? model.composition : ""
-        if text.isEmpty && composing.isEmpty {
+        if text.isEmpty && composing.isEmpty, let ends = model.helpReply?.countdownEnds {
+            HStack(spacing: 5) {
+                HelpCountdownBadge(ends: ends)
+                Text(placeholder)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(HelpStyle.title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+        } else if text.isEmpty && composing.isEmpty {
             Text(placeholder)
                 .foregroundStyle(caretVisible == nil ? Brand.askFaint : Brand.askPlaceholderActive)
                 .lineLimit(1)
@@ -708,8 +714,9 @@ struct AskField: View {
                 + Text(composing).underline(color: Brand.askCaret)
                 + (caretVisible.map { Text(Image(uiImage: Self.caret)).foregroundColor(Brand.askCaret.opacity($0 ? 1 : 0)).baselineOffset(-4) } ?? Text(""))
                 + Text(text[split...]))
-                // 未激活时留着的字变灰。
-                .foregroundStyle(caretVisible == nil ? Brand.askSub : Brand.askText)
+                // 未激活时留着的字变灰；帮回时执行过的要求是绿字（RG4），再改就变回普通颜色。
+                .foregroundStyle(model.helpAskExecuted ? HelpStyle.title : (caretVisible == nil ? Brand.askSub : Brand.askText))
+                .fontWeight(model.helpAskExecuted ? .semibold : .regular)
                 .lineLimit(1)
                 .truncationMode(atEnd ? .head : .tail)
         }

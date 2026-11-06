@@ -107,6 +107,27 @@ enum HelpReply {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// 帮回卡上点润色：输入框里的字还算不算替换进去的那条回复（允许手改）。
+    /// 一半以上的字还在（按字数算，不管顺序），而且没比回复长出一倍多，就算同一条。
+    static func related(_ field: String, _ reply: String) -> Bool {
+        let field = field.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reply = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !field.isEmpty, !reply.isEmpty else { return false }
+        if field.contains(reply) { return field.count <= reply.count * 2 + 20 }
+        guard field.count <= reply.count * 2 + 20 else { return false }
+        var pool: [Character: Int] = [:]
+        for ch in field where !ch.isWhitespace { pool[ch, default: 0] += 1 }
+        var kept = 0, total = 0
+        for ch in reply where !ch.isWhitespace {
+            total += 1
+            if let n = pool[ch], n > 0 {
+                kept += 1
+                pool[ch] = n - 1
+            }
+        }
+        return total > 0 && Double(kept) / Double(total) >= 0.5
+    }
+
     /// 剪贴板记录里哪条显示「帮回」：单号、链接、纯数字、邮箱这类不显示（T16 入口二）。
     static func suits(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

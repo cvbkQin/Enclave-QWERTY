@@ -38,6 +38,8 @@ enum HelpStyle {
     static let placeholder = dynamic(0xD1FAE5, 0x14532D)
     /// 「回」右上角的红点。
     static let dot = hex(0xF43F5E)
+    /// 帮回卡上润色键的星星（RG3 B）：和帮回同一个绿，不加白描边。
+    static let star = hex(0x34D399)
     /// 十字里选中「^^ 颜文字」格。
     static let kaomojiCell = hex(0x5B4BE8)
 }

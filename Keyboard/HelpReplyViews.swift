@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - ^^ 键变「帮回」（T16，HB9）
 
-/// 有新复制的内容时九宫格 ^^ 键的样子：绿色两段式。上段 15 高「↑ ^^ 颜文字」（黑 16% 叠色 + 下方 1pt 白 35% 分隔线），
+/// 九宫格 ^^ 键常驻帮回（HB23）：绿色两段式；有新复制时「回」带红点，识意框有待执行的要求时亮起来。上段 15 高「↑ ^^ 颜文字」（黑 16% 叠色 + 下方 1pt 白 35% 分隔线），
 /// 下段 logo 14pt +「帮回」13.5pt 粗白字，「回」右上角红点。
 /// 生成中「帮回」两个字换成胶囊停止图标、logo 动、周围闪 7 颗白色小星、键下绿色柔投影；写好时白色对勾一笔画出（600ms）。
 struct HelpReplyKey: View {
@@ -42,7 +42,14 @@ struct HelpReplyKey: View {
                         .padding(.top, Self.topHeight)
                 }
             }
-            .shadow(color: look.running ? HelpStyle.green.opacity(0.5) : .clear, radius: 4, y: 3)
+            // 识意框里有还没执行的要求：绿描边 + 光晕，点它按这条要求写（RG4）。
+            .overlay {
+                if look.armed && !look.running {
+                    shape.strokeBorder(HelpStyle.hex(0x6EE7B7), lineWidth: 2)
+                }
+            }
+            .shadow(color: look.running || look.armed ? HelpStyle.green.opacity(look.armed ? 0.7 : 0.5) : .clear,
+                    radius: look.armed ? 6 : 4, y: look.armed ? 0 : 3)
             .opacity(pressed && !crossShowing ? 0.8 : 1)
         }
         .accessibilityElement(children: .ignore)
@@ -77,11 +84,13 @@ struct HelpReplyKey: View {
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .overlay(alignment: .topTrailing) {
-                // 「回」右上角 3pt 红点，1pt 白边，只偏出字一点点。
+                // 有新复制的内容（HB23）：「回」右上角 3pt 红点，1pt 白边，只偏出字一点点。
+                if look.newCopy {
                 Circle().fill(HelpStyle.dot)
                     .frame(width: 6, height: 6)
                     .overlay(Circle().strokeBorder(Color.white, lineWidth: 1))
                     .offset(x: 3.5, y: -2.5)
+                }
             }
     }
 
@@ -162,152 +171,282 @@ struct HelpChip: View {
     }
 }
 
-// MARK: - 绿色「AI 帮回」卡（HB1、HB2）
 
-/// 卡片左边的「↵ 上屏」：点一下把这条放进对方输入框；上屏后变「✓ 已上屏」（浅绿底深绿字）。生成中 45% 不能点。
-struct HelpInsertKey: View {
-    @ObservedObject var model: KeyboardModel
+// MARK: - 帮回在回答卡里（方案 C，11-06）
 
-    var body: some View {
-        let state = model.helpReply
-        let inserted = state?.currentInserted == true
-        let enabled = state?.current != nil && state?.currentRunning == false
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        Button { model.helpInsert() } label: {
-            VStack(spacing: 4) {
-                Image(systemName: inserted ? "checkmark" : "return.left")
-                    .font(.system(size: 13, weight: .bold))
-                Text(inserted ? L("已上屏", "Sent", "入力済") : L("上屏", "Insert", "入力"))
-                    .font(.system(size: 11.5, weight: .bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-            }
-            .padding(.horizontal, 2)
-            .foregroundStyle(inserted ? HelpStyle.softText : Color.white)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background {
-                if inserted { shape.fill(HelpStyle.softFill) } else { shape.fill(HelpStyle.gradient) }
-            }
-            .contentShape(shape)
-        }
-        .buttonStyle(KeyPressStyle())
-        .opacity(enabled ? 1 : 0.45)
-        .allowsHitTesting(enabled && !inserted)
-        .accessibilityLabel(inserted ? L("已上屏", "Inserted", "入力済み") : L("上屏", "Insert", "入力"))
-    }
-}
-
-struct HelpReplyCard: View {
+/// 回答卡上半格，帮回时：标题行（↩ + 风格标签 + ⌄）、正文、右边复制 / 展开 / ▲▼。
+/// 卡片外壳、识意框、左边的替换键都是润色、问答那一套，只是换成帮回绿；高度一样，切换不跳。
+struct HelpCardContent: View {
     @ObservedObject var model: KeyboardModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 12, style: .continuous) }
+    private var moving: Bool { model.settings.polishAnimation && !reduceMotion }
 
     var body: some View {
-        let state = model.helpReply
-        let active = model.target == .instruction
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                header(state)
-                    .padding(.top, 7)
-                    .padding(.horizontal, 10)
-                content(state)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                if let message = state?.message {
-                    Text(L("回：", "Re: ", "返信先：") + message.replacingOccurrences(of: "\n", with: " "))
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 6)
-                        .accessibilityLabel(L("回复对方：", "Replying to: ", "返信先：") + message)
+        if let state = model.helpReply {
+            HStack(alignment: .top, spacing: 2) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HelpTagsHeader(model: model, state: state)
+                        .padding(.leading, 10)
+                        .padding(.top, 7)
+                    main(state)
+                        .padding(.leading, 14)
+                        .padding(.top, 4)
+                        .padding(.bottom, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+                iconColumn(state)
+                    .padding(.vertical, 5)
+                if state.currentVersions.count > 1, state.running == nil {
+                    pager(index: state.currentPage, count: state.currentVersions.count)
+                        .contentShape(Rectangle())
+                        .highPriorityGesture(swipe)
                 }
             }
-            .frame(maxHeight: .infinity)
-            Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair).frame(height: active ? 1 : 0.5)
-            AskField(model: model)
-                .frame(height: KeyboardMetrics.askBoxHeight - (active ? 1 : 0.5))
-        }
-        .background {
-            shape.inset(by: -4).fill(HelpStyle.glow)
-            shape.fill(KeyStyle.charKey)
-            if !active {
-                Brand.askInactiveFill
-                    .frame(height: KeyboardMetrics.askBoxHeight)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    .clipShape(shape)
-            }
-        }
-        .overlay {
-            if state?.running != nil, state?.streaming.isEmpty == true, model.settings.polishAnimation, !reduceMotion {
-                SweepBand().clipShape(shape).allowsHitTesting(false)
-            }
-        }
-        .overlay { shape.strokeBorder(HelpStyle.border, lineWidth: 1.5).allowsHitTesting(false) }
-        .overlay(alignment: .topLeading) {
-            if model.helpMenuOpen, let state { styleMenu(state) }
+            .padding(.trailing, 4)
         }
     }
 
-    // MARK: 卡头（HB17–HB19）
+    // MARK: 正文
 
-    private func header(_ state: HelpReplyState?) -> some View {
-        HStack(spacing: 6) {
-            HStack(spacing: 4) {
-                HelpIcon(size: 15, running: state?.running != nil && model.settings.polishAnimation)
-                Text(L("AI 帮回", "Help Reply", "返信アシスト"))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(HelpStyle.title)
-                    .lineLimit(1)
-                    .fixedSize()
+    @ViewBuilder
+    private func main(_ state: HelpReplyState) -> some View {
+        if state.currentRunning {
+            if state.streaming.isEmpty {
+                // 还没出字：一条绿色占位条。
+                Capsule().fill(HelpStyle.placeholder).frame(height: 12).padding(.trailing, 30).padding(.top, 6)
+                    .accessibilityLabel(L("正在写回复", "Writing a reply", "返信を作成中"))
+            } else {
+                // 边写边出字，末尾一根绿色光标。
+                (Text(state.streaming) + Text("▍").foregroundColor(HelpStyle.green))
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(model.cardTall ? 4 : 2)
+                    .truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .accessibilityElement(children: .combine)
-            if let state {
-                // 放得下就挨着排、⌄ 紧跟在后面；放不下卡头可以左右滑，右边渐隐。
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 4) {
-                        tagRow(state)
-                        menuButton
-                    }
-                    HStack(spacing: 2) {
-                        ScrollViewReader { proxy in
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                tagRow(state).padding(.trailing, 10)
-                            }
-                            // iOS 26 滚动区两头的渐变模糊会把标签糊掉（0.96_3 真机）：关掉，自己在右边做渐隐。
-                            .hidingScrollEdgeEffect()
-                            .mask(HStack(spacing: 0) {
-                                Color.black
-                                LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 14)
-                            })
-                            .onAppear { if let id = state.currentTag?.id { proxy.scrollTo(id, anchor: .center) } }
-                            .onChange(of: state.index) { _ in
-                                guard let id = model.helpReply?.currentTag?.id else { return }
-                                withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .center) }
-                            }
-                        }
-                        menuButton
-                    }
+        } else if let reply = state.current, state.currentNote == nil {
+            replyText(reply)
+        } else if let note = state.currentNote, let name = state.currentTag?.name {
+            retryRow(note, name: name)
+        } else {
+            quote(state.message)
+        }
+    }
+
+    /// 回复正文：上下滑翻版本、左右滑换风格、长按分词（和润色、问答一样）。用润色改出来的那版前面标「✨ 正式」（待定）。
+    private func replyText(_ reply: HelpReplyState.Reply) -> some View {
+        ScrollView {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                if let polish = reply.polish {
+                    Text("✨ " + polish)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(Brand.tagSelectedText)
+                        .lineLimit(1)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Brand.softFill))
+                        .fixedSize()
                 }
-                .frame(height: 20)
-                .layoutPriority(-1)
+                Text(reply.text)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Spacer(minLength: 0)
-            if state?.currentInserted == true {
-                Label(L("已上屏", "Inserted", "入力済み"), systemImage: "checkmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(HelpStyle.title)
+        }
+        .hidingScrollEdgeEffect()
+        .contentShape(Rectangle())
+        .gesture(swipe)
+        .simultaneousGesture(LongPressGesture(minimumDuration: 0.45).onEnded { _ in model.openWordPanel() })
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(reply.name + "：" + reply.text)
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: model.helpTurnVersion(1)
+            case .decrement: model.helpTurnVersion(-1)
+            @unknown default: break
+            }
+        }
+        .accessibilityAction(named: L("分词", "Split into words", "単語に分ける")) { model.openWordPanel() }
+    }
+
+    /// 还没有回复（倒计时、等你写要求）：对方原话，灰色，左边一条绿色竖线。
+    private func quote(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Capsule().fill(HelpStyle.border).frame(width: 3)
+            Text(message.replacingOccurrences(of: "\n", with: " "))
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+                .lineLimit(model.cardTall ? 4 : 2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, 2)
+        .contentShape(Rectangle())
+        .gesture(swipe)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("回复对方：", "Replying to: ", "返信先：") + message)
+    }
+
+    /// 出错、停了（只影响这一种）：「「简短」没写出来（网络断了）」+「↻ 再写这条」。
+    private func retryRow(_ note: HelpReplyState.Note, name: String) -> some View {
+        let title: String
+        switch note {
+        case .error(let reason):
+            title = L("「\(name)」没写出来（\(reason)）", "\"\(name)\" didn't come through (\(reason))", "「\(name)」を作成できませんでした（\(reason)）")
+        case .stopped:
+            title = L("「\(name)」停了，没写完的不留", "\"\(name)\" stopped; the partial reply was dropped", "「\(name)」を停止しました")
+        }
+        return HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 4)
+            Button { model.retryHelpReply() } label: {
+                Label(L("再写这条", "Try again", "もう一度"), systemImage: "arrow.clockwise")
+                    .font(.system(size: 12.5, weight: .bold))
                     .lineLimit(1)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .frame(height: 26)
+                    .background(Capsule().fill(HelpStyle.gradient))
                     .fixedSize()
+            }
+            .buttonStyle(KeyPressStyle())
+        }
+        .padding(.top, 2)
+        .padding(.trailing, 4)
+    }
+
+    /// 上下滑翻版本，左右滑换风格。
+    private var swipe: some Gesture {
+        DragGesture(minimumDistance: 12).onEnded { value in
+            let dx = value.translation.width
+            let dy = abs(value.predictedEndTranslation.height) > abs(value.translation.height)
+                ? value.predictedEndTranslation.height : value.translation.height
+            if abs(dx) > abs(dy) {
+                if abs(dx) > 24 { model.helpTurn(dx < 0 ? 1 : -1) }
+            } else if dy < -20 {
+                turn(1)
+            } else if dy > 20 {
+                turn(-1)
+            }
+        }
+    }
+
+    private func turn(_ offset: Int) {
+        model.keyFeedback(for: .space)
+        withAnimation(.easeOut(duration: 0.2)) { model.helpTurnVersion(offset) }
+    }
+
+    // MARK: 右边一列（和润色、问答一样）
+
+    private func iconColumn(_ state: HelpReplyState) -> some View {
+        VStack(spacing: 0) {
+            iconButton(model.copied ? "doc.on.doc.fill" : "doc.on.doc", tint: model.copied ? HelpStyle.title : .secondary) {
+                model.copy()
+            }
+            .disabled(!model.hasResult)
+            .accessibilityLabel(model.copied ? L("已复制", "Copied", "コピーしました") : L("复制回复", "Copy reply", "返信をコピー"))
+            Spacer(minLength: 0)
+            iconButton(model.cardExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
+                       tint: .secondary) {
+                withAnimation(.easeOut(duration: 0.2)) { model.cardExpanded.toggle() }
+            }
+            .accessibilityLabel(model.cardExpanded ? L("缩小结果卡", "Shrink result card", "結果カードを縮小") : L("放大结果卡", "Enlarge result card", "結果カードを拡大"))
+            .accessibilityHidden(model.landscape)
+            .opacity(model.landscape ? 0 : 1)
+            .disabled(model.landscape || model.keysPanel == .words)
+        }
+        .frame(width: 24)
+    }
+
+    private func iconButton(_ systemImage: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(tint)
+                .frame(width: 24, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// ▲ 2/3 ▼：这句话、这种风格的第几版（卡上唯一的数字）。
+    private func pager(index: Int, count: Int) -> some View {
+        VStack(spacing: 0) {
+            Button { turn(-1) } label: {
+                Image(systemName: "chevron.up").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .accessibilityLabel(L("上一版", "Previous version", "前のバージョン"))
+            .disabled(index == 0)
+            Text("\(index + 1)/\(count)")
+                .font(.system(size: 10, weight: .bold).monospacedDigit())
+                .foregroundStyle(Color.primary)
+            Button { turn(1) } label: {
+                Image(systemName: "chevron.down").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .accessibilityLabel(L("下一版", "Next version", "次のバージョン"))
+            .disabled(index >= count - 1)
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(HelpStyle.title)
+        .buttonStyle(.plain)
+        .frame(width: 22)
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - 标题行：风格标签（HB17、HB19）
+
+/// ↩ 帮回 logo + 风格标签 + ⌄。标签放不下就左右滑、右边渐隐，卡片不加高；标签上不写版本数字。
+struct HelpTagsHeader: View {
+    @ObservedObject var model: KeyboardModel
+    let state: HelpReplyState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var moving: Bool { model.settings.polishAnimation && !reduceMotion }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            HelpIcon(size: 14, running: state.running != nil && moving)
+                .accessibilityHidden(true)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 4) {
+                    tagRow
+                    menuButton
+                    Spacer(minLength: 0)
+                }
+                HStack(spacing: 2) {
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            tagRow.padding(.trailing, 10)
+                        }
+                        // iOS 26 滚动区两头的渐变模糊会把标签糊掉（0.96_3 真机）：关掉，自己在右边做渐隐。
+                        .hidingScrollEdgeEffect()
+                        .mask(HStack(spacing: 0) {
+                            Color.black
+                            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 14)
+                        })
+                        .onAppear { if let id = state.currentTag?.id { proxy.scrollTo(id, anchor: .center) } }
+                        .onChange(of: state.index) { _ in
+                            guard let id = model.helpReply?.currentTag?.id else { return }
+                            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .center) }
+                        }
+                    }
+                    menuButton
+                }
             }
         }
         .frame(height: 20)
     }
 
-    private func tagRow(_ state: HelpReplyState) -> some View {
+    private var tagRow: some View {
         HStack(spacing: 4) {
             ForEach(Array(state.tags.enumerated()), id: \.element.id) { index, tag in
-                toneTag(tag.name, selected: index == state.index, look: look(of: tag, in: state)) { model.helpSelect(index) }
+                toneTag(tag.name, selected: index == state.index, look: look(of: tag)) { model.helpSelect(index) }
                     .id(tag.id)
             }
         }
@@ -329,24 +468,23 @@ struct HelpReplyCard: View {
         .accessibilityLabel(L("全部帮回风格", "All reply styles", "すべての返信スタイル"))
     }
 
-    /// 标签（和下面的圆点）的几种样子：没写、正在写、写好了、写失败。
+    /// 标签的几种样子：没写、正在写、写好了、写失败。
     private enum TagLook { case idle, running, done, failed }
 
-    private func look(of tag: HelpReplyState.Tag, in state: HelpReplyState) -> TagLook {
+    private func look(of tag: HelpReplyState.Tag) -> TagLook {
         if state.running == tag.id { return .running }
-        if state.isDone(tag) { return .done }
         if case .error? = state.notes[tag.id] { return .failed }
+        if state.isDone(tag) { return .done }
         return .idle
     }
 
-    /// HB19：选中且写好绿渐变白字；写好没选中浅绿底深绿字、前面小 ✓（点了直接显示，不再请求）；
-    /// 没写灰色（点了开始写）；正在写绿渐变 + 左到右扫光（1.2 秒一圈）+ 三个跳动小点；
-    /// 写失败浅红底红字、前面「!」（点它重写）。停了的回到灰色。
+    /// HB19：选中且写好绿渐变白字；写好没选中浅绿底深绿字、前面小 ✓；没写灰色；
+    /// 选中还没写（倒计时、停了、等你写要求）浅绿描边；正在写绿渐变 + 扫光 + 三个跳动小点；写失败浅红底红字「!」。
     private func toneTag(_ title: String, selected: Bool, look: TagLook, action: @escaping () -> Void) -> some View {
         let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
         let filled = look == .running || (selected && look == .done)
-        let color: Color = filled ? .white : look == .done ? HelpStyle.softText : look == .failed ? HelpStyle.failText : HelpStyle.tagText
-        let moving = model.settings.polishAnimation && !reduceMotion
+        let waiting = selected && look == .idle
+        let color = Self.textColor(look, filled: filled, waiting: waiting)
         return Button(action: action) {
             HStack(spacing: 2) {
                 if look == .done && !selected {
@@ -372,22 +510,30 @@ struct HelpReplyCard: View {
                 case .failed:
                     shape.fill(HelpStyle.failFill)
                 case .idle:
-                    shape.fill(HelpStyle.tagFill)
+                    if waiting { shape.fill(HelpStyle.doneFill.opacity(0.5)) } else { shape.fill(HelpStyle.tagFill) }
                 }
             }
-            // 现在这种停了、还没写：灰色，加一圈绿边看得出是它。
-            .overlay { if selected && look == .idle { shape.strokeBorder(HelpStyle.green, lineWidth: 1) } }
+            .overlay { if waiting { shape.strokeBorder(HelpStyle.border, lineWidth: 1) } }
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel(title + { () -> String in
-            switch look {
-            case .done: return L("，已写好", ", ready", "、作成済み")
-            case .running: return L("，正在写", ", writing", "、作成中")
-            case .failed: return L("，没写出来", ", failed", "、作成失敗")
-            case .idle: return ""
-            }
-        }())
+        .accessibilityLabel(title + Self.stateLabel(look))
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private static func textColor(_ look: TagLook, filled: Bool, waiting: Bool) -> Color {
+        if filled { return .white }
+        if look == .done || waiting { return HelpStyle.softText }
+        if look == .failed { return HelpStyle.failText }
+        return HelpStyle.tagText
+    }
+
+    private static func stateLabel(_ look: TagLook) -> String {
+        switch look {
+        case .done: return L("，已写好", ", ready", "、作成済み")
+        case .running: return L("，正在写", ", writing", "、作成中")
+        case .failed: return L("，没写出来", ", failed", "、作成失敗")
+        case .idle: return ""
+        }
     }
 
     /// 正在写的标签上一道白色扫光，从左到右 1.2 秒一圈。
@@ -411,7 +557,7 @@ struct HelpReplyCard: View {
         }
     }
 
-    /// 三个跳动的小点（标签里、正文右下「正在写」前面）。
+    /// 三个跳动的小点。
     private struct BouncingDots: View {
         var moving: Bool
         var size: CGFloat = 3
@@ -442,199 +588,19 @@ struct HelpReplyCard: View {
                 .offset(y: CGFloat(-1.5 * wave))
         }
     }
+}
 
-    // MARK: 正文
+// MARK: - ⌄ 全部帮回风格
 
-    @ViewBuilder
-    private func content(_ state: HelpReplyState?) -> some View {
-        if let state {
-            VStack(spacing: 0) {
-                Group {
-                    if let reply = state.current {
-                        replyBody(text: reply.text, name: reply.name, direction: reply.direction, writing: false)
-                    } else if state.currentRunning, !state.streaming.isEmpty {
-                        // 边写边出字，末尾一根绿色光标。
-                        replyBody(text: state.streaming, name: state.currentTag?.name ?? "", direction: state.direction, writing: true)
-                    } else if let note = state.currentNote, let name = state.currentTag?.name {
-                        retryRow(note, name: name, state: state)
-                    } else {
-                        placeholders
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                footer(state)
-            }
-        }
-    }
+/// 打勾的在卡头上（打勾的几种 + 上次用的 + 这次加的），写好的后面标「已写」；点没勾的就加一个标签并开始写（只在这一句）。
+struct HelpStyleMenu: View {
+    @ObservedObject var model: KeyboardModel
+    let state: HelpReplyState
 
-    /// 生成中、还没出字：三条绿色扫光占位条。
-    private var placeholders: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            bar(1)
-            bar(0.72)
-            bar(0.42)
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .accessibilityElement()
-        .accessibilityLabel(L("正在写回复", "Writing a reply", "返信を作成中"))
-    }
-
-    private func bar(_ ratio: CGFloat) -> some View {
-        GeometryReader { geo in
-            Capsule().fill(HelpStyle.placeholder).frame(width: geo.size.width * ratio)
-        }
-        .frame(height: 9)
-    }
-
-    private func replyBody(text: String, name: String, direction: String?, writing: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
-            if let direction {
-                Text(L("方向：", "Aim: ", "方向：") + direction)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(HelpStyle.softText)
-                    .lineLimit(1)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(HelpStyle.softFill))
-                    .fixedSize()
-            }
-            (Text(text) + Text(writing ? "▏" : "").foregroundColor(HelpStyle.green))
-                .font(.system(size: 15))
-                .foregroundStyle(Color.primary)
-                .lineLimit(3)
-                .truncationMode(writing ? .head : .tail)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .contentShape(Rectangle())
-        .onTapGesture { if !writing { model.helpInsert() } }
-        .gesture(DragGesture(minimumDistance: 16).onEnded { value in
-            let dx = value.translation.width
-            guard abs(dx) > abs(value.translation.height), abs(dx) > 24 else { return }
-            model.helpTurn(dx < 0 ? 1 : -1)
-        })
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(name + "：" + text)
-        .accessibilityHint(writing ? "" : L("轻点两下放进输入框，上下轻扫换一种", "Double-tap to insert; swipe up or down for another style",
-                                             "ダブルタップで入力、上下スワイプで切り替え"))
-        .accessibilityAddTraits(writing ? [] : .isButton)
-        .accessibilityAction { if !writing { model.helpInsert() } }
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment: model.helpTurn(1)
-            case .decrement: model.helpTurn(-1)
-            @unknown default: break
-            }
-        }
-    }
-
-    /// 正文最下面一行：中间圆点，右下「••• 正在写「客气」…」（卡头放不下，挪到这里）。
-    @ViewBuilder
-    private func footer(_ state: HelpReplyState) -> some View {
-        let writing = state.currentRunning ? state.currentTag?.name : nil
-        if state.tags.count > 1 || writing != nil {
-            ZStack {
-                if state.tags.count > 1 { dots(state) }
-                if let writing {
-                    HStack(spacing: 4) {
-                        BouncingDots(moving: model.settings.polishAnimation && !reduceMotion)
-                        Text(L("正在写「\(writing)」…", "Writing \"\(writing)\"…", "「\(writing)」を作成中…"))
-                            .font(.system(size: 11))
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(HelpStyle.title)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, 12)
-                }
-            }
-            .frame(height: 12)
-            .padding(.bottom, 2)
-        }
-    }
-
-    /// 圆点：长条＝现在这种（正在写的是虚线长条），实心绿＝写好，空心＝还没写，红＝写失败。
-    private func dots(_ state: HelpReplyState) -> some View {
-        HStack(spacing: 3) {
-            ForEach(Array(state.tags.enumerated()), id: \.element.id) { index, tag in
-                dot(look(of: tag, in: state), current: index == state.index)
-            }
-        }
-        .animation(.easeOut(duration: 0.15), value: state.index)
-        .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private func dot(_ look: TagLook, current: Bool) -> some View {
-        if current && look == .running {
-            HStack(spacing: 1) {
-                ForEach(0..<3, id: \.self) { _ in Rectangle().fill(HelpStyle.green).frame(width: 3) }
-            }
-            .frame(width: 12, height: 4)
-            .clipShape(Capsule())
-        } else if current {
-            Capsule().fill(look == .failed ? HelpStyle.failText : HelpStyle.green).frame(width: 12, height: 4)
-        } else {
-            switch look {
-            case .done, .running: Circle().fill(HelpStyle.green).frame(width: 4, height: 4)
-            case .failed: Circle().fill(HelpStyle.failText).frame(width: 4, height: 4)
-            case .idle: Circle().strokeBorder(HelpStyle.tagText.opacity(0.7), lineWidth: 0.8).frame(width: 4.5, height: 4.5)
-            }
-        }
-    }
-
-    /// 出错、停了（HB18 ⑥）：「「简短」没写出来（网络断了）」+「↻ 再写这条」，下面一行说写好的照样能用。
-    private func retryRow(_ note: HelpReplyState.Note, name: String, state: HelpReplyState) -> some View {
-        let title: String
-        switch note {
-        case .error(let reason):
-            title = L("「\(name)」没写出来（\(reason)）", "\"\(name)\" didn't come through (\(reason))", "「\(name)」を作成できませんでした（\(reason)）")
-        case .stopped:
-            title = L("「\(name)」停了，没写完的不留", "\"\(name)\" stopped; the partial reply was dropped", "「\(name)」を停止しました（途中までの文は破棄）")
-        }
-        let done = state.tags.filter { state.isDone($0) }.map { "「\($0.name)」" }
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(title)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 4)
-                Button { model.retryHelpReply() } label: {
-                    Label(L("再写这条", "Try again", "もう一度"), systemImage: "arrow.clockwise")
-                        .font(.system(size: 12.5, weight: .bold))
-                        .lineLimit(1)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .frame(height: 26)
-                        .background(Capsule().fill(HelpStyle.gradient))
-                        .fixedSize()
-                }
-                .buttonStyle(KeyPressStyle())
-            }
-            if !done.isEmpty {
-                Text(L("已写好的\(done.joined(separator: "、"))照样能点、能上屏", "Ready ones still work: tap to view or insert",
-                       "作成済みの\(done.joined(separator: "、"))はそのまま使えます"))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-    }
-
-    // MARK: ⌄ 全部帮回风格
-
-    /// 打勾的在卡头上（打勾的几种 + 上次用的 + 这次加的），写好的后面标「已写」；点没勾的就加一个标签并开始写（只在这一次）。
-    private func styleMenu(_ state: HelpReplyState) -> some View {
+    var body: some View {
         let shown = Set(state.tags.map(\.id))
-        let written = Set(state.results.keys)
-        return ZStack(alignment: .topLeading) {
+        let written = Set(state.results.filter { !$0.value.isEmpty }.keys)
+        ZStack(alignment: .topLeading) {
             // 点菜单外面只收起菜单。
             Color.black.opacity(0.001)
                 .frame(width: 3000, height: 3000)
@@ -681,12 +647,157 @@ struct HelpReplyCard: View {
                     .padding(.horizontal, 12)
                     .padding(.bottom, 4)
             }
-            .frame(width: 168)
+            .frame(width: 180)
             .padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KeyStyle.charKey))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Brand.blockHair, lineWidth: 0.5))
             .shadow(color: .black.opacity(0.18), radius: 10, y: 6)
-            .offset(x: 40, y: 30)
+            .offset(x: 30, y: 28)
         }
+    }
+}
+
+// MARK: - 回哪句话（识意框左边的胶囊，RG2 ③）
+
+/// 「回 这份方案… ⌄」：固定宽度、写要求时也不缩；点开是回哪句话列表。不读、不显示对方的名字。
+struct HelpSentenceCapsule: View {
+    @ObservedObject var model: KeyboardModel
+
+    static let maxWidth: CGFloat = 118
+
+    var body: some View {
+        let message = model.helpReply?.message.replacingOccurrences(of: "\n", with: " ") ?? ""
+        Button { model.helpListOpen.toggle() } label: {
+            HStack(spacing: 3) {
+                Text(L("回", "Re", "返"))
+                    .font(.system(size: 12, weight: .bold))
+                Text(message)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Image(systemName: model.helpListOpen ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(HelpStyle.softText)
+            .padding(.horizontal, 7)
+            .frame(width: Self.maxWidth, height: 26, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(HelpStyle.doneFill))
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(L("回复对方：", "Replying to: ", "返信先：") + message)
+        .accessibilityHint(L("轻点两下换一句", "Double-tap to pick another message", "ダブルタップで別の文を選ぶ"))
+    }
+}
+
+/// 回哪句话列表：一种行——句子、时间，右边「客气 3 版」或「还没回」；当前这句浅绿底。点哪句就切到哪句。
+struct HelpSentenceList: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        let rows = model.helpSentenceRows
+        VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text(L("回哪句话", "Reply to", "返信先")).font(.system(size: 12, weight: .semibold))
+                    Spacer(minLength: 4)
+                    Text(L("点一句就切过去", "Tap one to switch", "タップで切り替え")).font(.system(size: 11.5))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .frame(height: 28)
+                ForEach(rows) { row in
+                    Button { model.helpSentencePicked(row) } label: { line(row) }
+                        .buttonStyle(KeyPressStyle())
+                }
+                Rectangle().fill(Brand.blockHair).frame(height: 0.5)
+                Text(L("更早的在 App › AI 历史 › 帮回", "Older ones: app › AI History › Help Reply", "それより前は App › AI 履歴 › 返信"))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .frame(height: 28)
+            }
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KeyStyle.charKey))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Brand.blockHair, lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.2), radius: 12, y: 6)
+    }
+
+    private func line(_ row: HelpSentenceRow) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.text.replacingOccurrences(of: "\n", with: " "))
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                Text(Self.when(row.date) + Self.origin(row))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            Text(row.summary ?? L("还没回", "Not yet", "未返信"))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(row.summary == nil ? HelpStyle.tagText : HelpStyle.softText)
+                .padding(.horizontal, 6)
+                .frame(height: 20)
+                .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(row.summary == nil ? HelpStyle.tagFill : HelpStyle.doneFill))
+                .fixedSize()
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 46)
+        .frame(maxWidth: .infinity)
+        .background(row.source == .current ? HelpStyle.doneFill.opacity(0.55) : Color.clear)
+        .contentShape(Rectangle())
+    }
+
+    private static func origin(_ row: HelpSentenceRow) -> String {
+        if case .clip = row.source { return L(" · 剪贴板里", " · clipboard", " · クリップボード") }
+        return ""
+    }
+
+    /// 「刚刚」「12 分钟前」「3 小时前」「昨天」。
+    static func when(_ date: Date) -> String {
+        let seconds = max(0, Date().timeIntervalSince(date))
+        if seconds < 60 { return L("刚刚", "Just now", "たった今") }
+        let minutes = Int(seconds / 60)
+        if minutes < 60 { return L("\(minutes) 分钟前", "\(minutes) min ago", "\(minutes) 分前") }
+        let hours = minutes / 60
+        if hours < 24 { return L("\(hours) 小时前", "\(hours) h ago", "\(hours) 時間前") }
+        return L("\(hours / 24) 天前", "\(hours / 24) d ago", "\(hours / 24) 日前")
+    }
+}
+
+// MARK: - 识意框里的倒计时（HB29 → 放进识意框）
+
+/// 整条从左往右变绿、3 秒走完；左边小圆圈里是剩几秒。
+struct HelpCountdownFill: View {
+    let ends: Date
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30)) { context in
+            GeometryReader { geo in
+                let left = max(0, ends.timeIntervalSince(context.date))
+                let progress = CGFloat(min(1, 1 - left / 3))
+                HelpStyle.doneFill.opacity(0.85)
+                    .frame(width: geo.size.width * progress)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+struct HelpCountdownBadge: View {
+    let ends: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { context in
+            let left = Int(ceil(max(0, ends.timeIntervalSince(context.date))))
+            Text("\(left)")
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(HelpStyle.title)
+                .frame(width: 18, height: 18)
+                .overlay(Circle().strokeBorder(HelpStyle.green, lineWidth: 1.5))
+        }
+        .accessibilityHidden(true)
     }
 }
