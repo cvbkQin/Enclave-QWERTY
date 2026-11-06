@@ -686,15 +686,16 @@ struct AskField: View {
             HStack(spacing: 5) {
                 HelpCountdownBadge(ends: ends)
                 Text(placeholder)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 13.5, weight: .semibold))
                     .foregroundStyle(HelpStyle.title)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.65)
             }
         } else if text.isEmpty && composing.isEmpty {
             Text(placeholder)
                 .foregroundStyle(caretVisible == nil ? Brand.askFaint : Brand.askPlaceholderActive)
                 .lineLimit(1)
+                .minimumScaleFactor(model.helpReply != nil ? 0.8 : 1)
                 .overlay(alignment: .leading) {
                     if let caretVisible { caretImage(caretVisible).offset(x: -2) }
                 }

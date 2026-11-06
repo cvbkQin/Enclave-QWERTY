@@ -186,13 +186,13 @@ struct HelpCardContent: View {
         if let state = model.helpReply {
             HStack(alignment: .top, spacing: 2) {
                 VStack(alignment: .leading, spacing: 0) {
+                    // 收起时 60 高：标题行 5 + 18，正文两行整（不露半行）；展开四行。
                     HelpTagsHeader(model: model, state: state)
                         .padding(.leading, 10)
-                        .padding(.top, 7)
+                        .padding(.top, 5)
                     main(state)
                         .padding(.leading, 14)
-                        .padding(.top, 4)
-                        .padding(.bottom, 8)
+                        .padding(.top, 1)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
                 iconColumn(state)
@@ -281,7 +281,6 @@ struct HelpCardContent: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.top, 2)
         .contentShape(Rectangle())
         .gesture(swipe)
         .accessibilityElement(children: .ignore)
@@ -440,7 +439,7 @@ struct HelpTagsHeader: View {
                 }
             }
         }
-        .frame(height: 20)
+        .frame(height: 18)
     }
 
     private var tagRow: some View {
@@ -663,7 +662,8 @@ struct HelpStyleMenu: View {
 struct HelpSentenceCapsule: View {
     @ObservedObject var model: KeyboardModel
 
-    static let maxWidth: CGFloat = 118
+    /// 规格「约 118 以内」：SE 上给右边的要求多留点，取 104。
+    static let maxWidth: CGFloat = 104
 
     var body: some View {
         let message = model.helpReply?.message.replacingOccurrences(of: "\n", with: " ") ?? ""

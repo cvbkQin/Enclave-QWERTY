@@ -839,10 +839,15 @@ struct ResultCard: View {
                     .onTapGesture { model.helpListOpen = false }
             }
         }
-        .overlay(alignment: .bottomLeading) {
+        .overlay(alignment: .topLeading) {
+            // 从识意框下面往下弹（盖在 AI 栏和按键上），和卡片一样宽。
             if model.helpListOpen, help != nil {
-                HelpSentenceList(model: model)
-                    .alignmentGuide(.bottom) { $0[.top] - 4 }
+                GeometryReader { geo in
+                    HelpSentenceList(model: model)
+                        .frame(width: geo.size.width)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .offset(y: geo.size.height + 4)
+                }
             }
         }
     }
