@@ -261,10 +261,10 @@ struct UnlockHeroCard: View {
             return L("谢谢支持。AI 功能一直能用，模型随你换。", "Thanks for your support. AI features are yours to keep, with any model.",
                      "ご購入ありがとうございます。AI 機能はずっと使え、モデルも自由に変えられます。")
         case .expired:
-            return L("试用结束后每天免费用 \(uses) 次。一次买断，不限次数。", "After the trial: \(uses) free uses a day. Pay once for unlimited.",
+            return L("试用结束后每天免费用 \(uses) 次。一次买断，不限次数。", "\(uses) free uses a day. Pay once for unlimited.",
                      "無料体験のあとも 1 日 \(uses) 回まで無料。買い切りで回数無制限。")
         case .trial:
-            return L("接上你自己的模型润色。一次买断，没有订阅。", "Polish with your own model. One-time purchase, no subscription.",
+            return L("接上你自己的模型润色。一次买断，没有订阅。", "Use your own model. Pay once, no subscription.",
                      "自分のモデルで文章を整えます。買い切りで、サブスクはありません。")
         }
     }
@@ -383,7 +383,7 @@ private struct PurchaseBar: View {
                 .disabled(unlock.purchasing)
             }
             HStack(spacing: 4) {
-                Text(L("通过 Apple ID 付款 · 同一 Apple ID 的设备都能用", "Paid with your Apple Account · Works on all your devices",
+                Text(L("通过 Apple ID 付款 · 同一 Apple ID 的设备都能用", "Paid via your Apple Account · All your devices",
                        "Apple アカウントで支払い・同じアカウントの端末で使えます"))
                 Text("·")
                 Button(L("隐私政策", "Privacy Policy", "プライバシーポリシー")) { AppRouter.shared.settingsPath.append(.privacyPolicy) }
