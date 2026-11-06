@@ -270,6 +270,8 @@ struct HelpReplyCard: View {
                         }
                     }
                 }
+                // iOS 26 滚动区两头的渐变模糊会把标签糊掉（0.96_3 真机）：关掉。
+                .hidingScrollEdgeEffect()
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(-1)
             }
