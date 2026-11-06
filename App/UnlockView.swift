@@ -173,9 +173,9 @@ struct UnlockView: View {
             Feature(icon: "slider.horizontal.3", title: L("按要求改", "Custom changes", "指示して直す"),
                     detail: L("「委婉一点」「翻成英文」，配合风格一起用", "\"Softer\", \"In English\", together with a style",
                               "「やわらかく」「英語に」など、文体と組み合わせて使えます")),
-            Feature(icon: "pencil.line", title: L("帮我写", "Help me write", "下書きを作成"),
-                    detail: L("输入框空着时，按要求直接写一段", "With an empty field, write a draft from your prompt",
-                              "入力欄が空のとき、指示どおりに文章を書きます")),
+            Feature(icon: "questionmark.bubble", title: L("问答", "Ask", "質問"),
+                    detail: L("在回答卡里问问题，答案直接显示在卡上", "Ask a question and read the answer in the card",
+                              "質問すると、答えがカードに表示されます")),
             Feature(icon: "arrow.clockwise", title: L("再润", "Rewrite", "別の案"),
                     detail: L("不满意再来一版，上下翻着挑", "Get another version and flip between them",
                               "別の案を出して、上下に切り替えて選べます")),
@@ -264,8 +264,8 @@ struct UnlockHeroCard: View {
             return L("试用结束后每天免费用 \(uses) 次。一次买断，不限次数。", "\(uses) free uses a day. Pay once for unlimited.",
                      "無料体験のあとも 1 日 \(uses) 回まで無料。買い切りで回数無制限。")
         case .trial:
-            return L("接上你自己的模型润色。一次买断，没有订阅。", "Use your own model. Pay once, no subscription.",
-                     "自分のモデルで文章を整えます。買い切りで、サブスクはありません。")
+            return L("接上你自己的模型润色和问答。一次买断，没有订阅。", "Use your own model. Pay once, no subscription.",
+                     "自分のモデルで文章を整えたり、質問したりできます。買い切りで、サブスクはありません。")
         }
     }
 
@@ -281,8 +281,8 @@ struct UnlockHeroCard: View {
                 .kerning(1.5)
                 .foregroundStyle(Color(hex: 0xB9B2FF))
                 .padding(.top, 4)
-            Text(unlocked ? L("AI 润色已解锁", "AI Polish is unlocked", "AI 機能を購入済みです")
-                          : L("解锁 AI 润色", "Unlock AI Polish", "AI 機能のロックを解除"))
+            Text(unlocked ? L("AI 润色和问答已解锁", "AI Polish & Ask unlocked", "AI 機能を購入済みです")
+                          : L("解锁 AI 润色和问答", "Unlock AI Polish & Ask", "AI 機能のロックを解除"))
                 .font(.system(size: 23, weight: .bold))
                 .foregroundStyle(.white)
             Text(subtitle)
