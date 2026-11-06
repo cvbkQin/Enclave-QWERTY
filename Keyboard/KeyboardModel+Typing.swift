@@ -1184,8 +1184,12 @@ extension KeyboardModel {
             // 输入框不认标记文字：拼音只在键盘上显示，不往输入框里写。
         } else if target == .host && isComposing {
             let previous = hasMarkedText ? lastMarkedText : ""
-            // 刚开始组字：记下这时光标前的字（组字中读不到，标记文字在的时候是 nil）。
-            if !hasMarkedText { contextBeforeMarked = proxy?.documentContextBeforeInput ?? "" }
+            if !hasMarkedText {
+                // 上一次上屏还没来得及检查（打得快，0.12 秒内又开始拼了）：先查掉，免得 Flutter 类框里拼音一路留下去。
+                runPendingCommitCheck()
+                // 刚开始组字：记下这时光标前的字（组字中读不到，标记文字在的时候是 nil）。
+                contextBeforeMarked = proxy?.documentContextBeforeInput ?? ""
+            }
             // 九宫格：输入框里只写按了的键（一个键一个字母），不写首选补全出来的字母（按一下 4 显示 g，不是 gao），和系统九宫格一样。
             let marked = showsNineKey ? Self.nineKeyTyped(composition: composition, raw: engine.rawInput,
                                                            from: engine.selections.last?.end ?? 0) : composition
@@ -1269,15 +1273,33 @@ extension KeyboardModel {
     /// 上屏后看一眼输入框：光标前是「…拼音 + 上屏的字」，说明清标记文字没管用（Flutter 类框），拼音当正文留下了。
     /// 删掉这两段、重新上屏，这个框以后改走「把标记区直接换成字」。对方输入框更新有时慢一拍，所以稍等再看。
     func checkPinyinKeptOnCommit(pinyin: String, text: String, before: String) {
+        pendingCommitCheck = (pinyin, text, before)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-            guard let self, !self.markedTextNotClearable, !self.hasMarkedText, self.target == .host,
-                  self.lastHostCommit == text else { return }
-            let context = self.proxy?.documentContextBeforeInput ?? ""
-            guard Self.pinyinKeptOnCommit(context: context, before: before, pinyin: pinyin, text: text) else { return }
-            self.markedTextNotClearable = true
-            for _ in 0..<(pinyin.count + text.count) { self.editProxy?.deleteBackward() }
-            self.editProxy?.insertText(text)
+            // 这期间又开始拼了：组字中读不到光标前的字，等下一次开始组字前那次检查（syncEngine）。
+            guard let self, !self.hasMarkedText else { return }
+            self.runPendingCommitCheck()
         }
+    }
+
+    func runPendingCommitCheck() {
+        guard let check = pendingCommitCheck else { return }
+        pendingCommitCheck = nil
+        guard !markedTextNotClearable, !hasMarkedText, target == .host, lastHostCommit == check.text else { return }
+        let context = proxy?.documentContextBeforeInput ?? ""
+        guard Self.pinyinKeptOnCommit(context: context, before: check.before, pinyin: check.pinyin, text: check.text) else { return }
+        markedTextNotClearable = true
+        for _ in 0..<(check.pinyin.count + check.text.count) { editProxy?.deleteBackward() }
+        editProxy?.insertText(check.text)
+    }
+
+    /// 换到对方另一个输入框（键盘没收起）：上一个框「不认标记文字」「清不掉标记文字」的记号不带过去，
+    /// 不然同一个 App 里一个框认出是 Flutter 类，限字数的框也跟着走绕过检查的那条路。组字中不换，免得拼音一半换了写法。
+    func noteHostDocument(_ id: UUID) {
+        guard id != hostDocumentID, !isComposing else { return }
+        hostDocumentID = id
+        if inlinePinyinOff { inlinePinyinOff = false }
+        markedTextNotClearable = false
+        pendingCommitCheck = nil
     }
 
     /// 上屏后光标前是不是多了没清掉的拼音：以「拼音 + 上屏的字」结尾，而且不是本来就该这样

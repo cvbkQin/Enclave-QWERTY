@@ -264,6 +264,10 @@ final class KeyboardModel: ObservableObject {
     var markedTextNotClearable = false
     /// 开始组字（第一次放标记文字）之前光标前的字，用来判断上屏后多出来的拼音是不是对方没清掉的。
     var contextBeforeMarked = ""
+    /// 上一次带拼音上屏后还没检查的那次（拼音、上屏的字、组字前光标前的字）：稍后检查，或者下一次开始组字前先检查。
+    var pendingCommitCheck: (pinyin: String, text: String, before: String)?
+    /// 现在是对方哪个输入框（documentIdentifier）：换了框就把上面两种「这个框不认」的记号清掉。
+    var hostDocumentID: UUID?
     var lastSpaceTime = Date.distantPast
     var lastPunctuationTap = Date.distantPast
     lazy var haptic = UIImpactFeedbackGenerator(style: .light)
