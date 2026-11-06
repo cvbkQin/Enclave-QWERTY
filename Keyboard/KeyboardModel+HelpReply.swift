@@ -535,6 +535,8 @@ extension KeyboardModel {
             state.index = min(1, state.tags.count - 1)
         }
         if options.contains("running"), let first = state.tags.first { state.running = first.id }
+        // direction：刚按方向点了「↻ 重写这条」，现在这种正在按新方向写。
+        if options.contains("direction"), let tag = state.currentTag, state.current == nil { state.running = tag.id }
         // switching：第 1、2 种写好了，点了第 3 种正在写，已经出了半句。
         if options.contains("switching"), state.tags.count > 2 {
             state.index = 2
