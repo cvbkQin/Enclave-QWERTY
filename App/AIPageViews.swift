@@ -234,15 +234,21 @@ struct PromptKindTabs: View {
     @Binding var kind: AppRouter.PromptKind
     var polishCount: Int
     var answerCount: Int
+    var replyCount: Int = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 0) {
-                tab(.polish, title: L("润色风格", "Polish styles", "整えるスタイル"), count: polishCount)
-                tab(.answer, title: L("问答风格", "Answer styles", "回答スタイル"), count: answerCount)
+                tab(.polish, title: L("润色风格", "Polish", "整える"), count: polishCount)
+                tab(.answer, title: L("问答风格", "Answer", "回答"), count: answerCount)
+                tab(.reply, title: L("帮回风格", "Reply", "返信"), count: replyCount)
             }
             .background(alignment: .bottom) { Rectangle().fill(Color(.separator)).frame(height: 1) }
-            Text(kind == .polish
+            Text(kind == .reply
+                 ? L("点「帮回」时一次写打勾的几种（最多 3 种），数字是卡片里从左到右的顺序；键盘卡片上点「⌄」可以临时用别的。",
+                     "Help Reply writes the checked styles at once (up to 3); the number is their order on the card. Tap ⌄ on the keyboard card to try another.",
+                     "返信アシストはチェックしたスタイル（最大 3 つ）をまとめて作成します。数字はカードでの順番です。キーボードのカードの ⌄ でほかも使えます。")
+                 : kind == .polish
                  ? L("润色时用「默认」那条；在键盘上点润色键的 ⌄ 换一条，默认也跟着换。", "Polishing uses the Default one. Picking another from ⌄ on the polish key makes it the default.", "整えるときは「デフォルト」を使います。キーボードで整えるキーの ⌄ から選ぶと、それがデフォルトになります。")
                  : L("点「问答」时用「默认」那种；在键盘上点「问答」的 ⌄ 换一种，默认也跟着换。", "Tapping Ask uses the Default one. Picking another from ⌄ on Ask makes it the default.", "「質問」では「デフォルト」を使います。キーボードの「質問」の ⌄ から選ぶと、それがデフォルトになります。"))
                 .font(.system(size: 13))
@@ -255,6 +261,8 @@ struct PromptKindTabs: View {
 
     private func tab(_ value: AppRouter.PromptKind, title: String, count: Int) -> some View {
         let selected = kind == value
+        // 帮回风格标签的下划线、数字用绿色（HB16）。
+        let accent = value == .reply ? HelpStyle.title : DashColor.ai
         return Button { kind = value } label: {
             HStack(spacing: 7) {
                 Text(title)
@@ -265,15 +273,15 @@ struct PromptKindTabs: View {
                 Text("\(count)")
                     .font(.system(size: 12.5, weight: .bold))
                     .monospacedDigit()
-                    .foregroundStyle(selected ? DashColor.ai : Color.secondary)
+                    .foregroundStyle(selected ? accent : Color.secondary)
                     .padding(.horizontal, 7)
                     .frame(minWidth: 22, minHeight: 20)
-                    .background(Capsule().fill(selected ? PromptListColor.chip : Color(.systemGray5)))
+                    .background(Capsule().fill(selected ? (value == .reply ? HelpStyle.softFill : PromptListColor.chip) : Color(.systemGray5)))
             }
             .frame(maxWidth: .infinity, minHeight: 48)
             .overlay(alignment: .bottom) {
                 if selected {
-                    RoundedRectangle(cornerRadius: 1.5).fill(DashColor.ai).frame(height: 3).padding(.horizontal, 14)
+                    RoundedRectangle(cornerRadius: 1.5).fill(accent).frame(height: 3).padding(.horizontal, 14)
                 }
             }
             .contentShape(Rectangle())

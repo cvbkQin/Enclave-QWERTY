@@ -212,6 +212,8 @@ struct KeySparkles: View {
     var textWidth: CGFloat
     /// 润色键 1、问答键 2、固定键各自一个，让相邻两颗键闪的位置不一样。
     var seed: Int
+    /// 帮回键（T16）：只闪白色小星，不用金色。
+    var whiteOnly = false
     @State private var start = Date()
 
     static let yellow = Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255)
@@ -288,7 +290,7 @@ struct KeySparkles: View {
             let wave = sin(.pi * f)
             let radius = (1 + Self.hash(i, k + seed) * 1.3) * pow(wave, 1.2)
             return Spark(point: CGPoint(x: x, y: y * ky), radius: CGFloat(radius),
-                         alpha: pow(wave, 1.5) * level, yellow: Self.hash(k, i) < 0.6)
+                         alpha: pow(wave, 1.5) * level, yellow: !whiteOnly && Self.hash(k, i) < 0.6)
         }
     }
 

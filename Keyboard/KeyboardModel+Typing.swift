@@ -149,7 +149,8 @@ extension KeyboardModel {
         switch target {
         case .host: editProxy?.insertText("\n")
         case .instruction:
-            if enterAI != nil { enterAskTapped() } else { commit("\n") }
+            // 帮回卡下面的框写的是回复方向：回车 = 按这个重写。
+            if helpReply != nil { helpRewriteTapped() } else if enterAI != nil { enterAskTapped() } else { commit("\n") }
         case .card:
             commit("\n")
         }
@@ -422,7 +423,8 @@ extension KeyboardModel {
             switchLayer(layer)
         case .digitPunct: typeSymbol(".")
         case .digitsMore: digitsMore.toggle()
-        case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
+        // 有新复制的内容时 ^^ 是「帮回」（T16）：点一下帮回，按住上滑才是颜文字。
+        case .emoticon: isComposing ? clearComposition() : (helpKeyLook != nil ? helpKeyTapped() : openPanel(.kaomoji))
         case .emoji: openPanel(.emoji)
         // 「常用」打字时也在：先把拼音原样上屏，再打开。
         case .quickWords:
@@ -1135,6 +1137,8 @@ extension KeyboardModel {
         recentCorrection = nil
         switch target {
         case .host:
+            // 开始打字：^^ 键从帮回变回来。
+            if clipboardHasNew, !helpDismissed { dismissHelpOffer() }
             lastHostCommit = text
             if hasMarkedText, !text.isEmpty, markedTextNotClearable {
                 // 清不掉标记文字的框（闲鱼等 Flutter）：把标记区直接换成要上屏的字再 unmark。
@@ -1506,6 +1510,9 @@ extension KeyboardModel {
             let directions: [String: CrossPopup.Direction] = ["left": .left, "up": .up, "right": .right, "down": .down]
             if parts.count > 2 { cross?.selected = directions[parts[2]] }
         }
+        // AI 帮回（T16）：help:key / help:hold / help:up / help:running / help:card / help:second / help:inserted /
+        // help:direction / help:menu / help:stopped / help:panel。
+        applyHelpDebug(options.filter { $0.hasPrefix("help:") }.map { String($0.dropFirst("help:".count)) })
         #endif
     }
 }

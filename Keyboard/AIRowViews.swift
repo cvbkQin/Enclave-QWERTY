@@ -613,7 +613,7 @@ struct AskField: View {
             .accessibilityAddTraits(editing ? [.isButton, .isSelected] : .isButton)
             .accessibilityAction { model.focusAsk() }
             // 未激活、空着：右边 12pt「点这里输入」。
-            if !editing, model.instruction.isEmpty {
+            if !editing, model.instruction.isEmpty, model.helpReply == nil {
                 Text(L("点这里输入", "Tap to type", "タップして入力"))
                     .font(.system(size: 12))
                     .foregroundStyle(Brand.askFaint)
@@ -622,10 +622,29 @@ struct AskField: View {
                     .onTapGesture { model.focusAsk() }
                     .accessibilityHidden(true)
             }
-            searchButton
+            if model.helpReply != nil { rewriteButton } else { searchButton }
         }
         .padding(.horizontal, 12)
         .font(.system(size: 15))
+    }
+
+    /// 帮回卡（T16）：框里写了方向，右边出「↻ 按这个重写」，3 条都按这个方向重写。
+    @ViewBuilder
+    private var rewriteButton: some View {
+        if model.helpReply?.running == nil, model.canAsk {
+            Button { model.helpRewriteTapped() } label: {
+                Label(L("按这个重写", "Rewrite", "これで書き直す"), systemImage: "arrow.clockwise")
+                    .font(.system(size: 12.5, weight: .bold))
+                    .lineLimit(1)
+                    .padding(.leading, 8)
+                    .padding(.trailing, 10)
+                    .frame(height: 28)
+                    .foregroundStyle(.white)
+                    .background(Capsule().fill(HelpStyle.gradient))
+                    .fixedSize()
+            }
+            .buttonStyle(KeyPressStyle())
+        }
     }
 
     /// 「使用联网查询」（MG6）：28 高、圆角 14，问答浅蓝底、1pt 天蓝 40% 内描边；联网过的回答换成灰字「已联网 · Kimi」（MG7）。
@@ -655,7 +674,10 @@ struct AskField: View {
     }
 
     private var placeholder: String {
-        L("问个问题，或说说这段话想怎么改", "Ask anything, or say how to change it", "質問するか、どう直すかを書いてください")
+        if model.helpReply != nil {
+            return L("想怎么回？比如「委婉拒绝」（可不填）", "How to reply? e.g. \"say no nicely\" (optional)", "どう返す？例：「やんわり断る」（任意）")
+        }
+        return L("问个问题，或说说这段话想怎么改", "Ask anything, or say how to change it", "質問するか、どう直すかを書いてください")
     }
 
     /// 光标前、正在拼的拼音（紫色下划线）、光标、光标后。全选时整段垫浅紫底。写长了从开头省略，光标那头总露着。

@@ -130,7 +130,11 @@ final class HistoryStore: ObservableObject {
 
 extension AIHistoryEntry {
     var kindTitle: String {
-        kind == .polish ? L("润色", "Polish", "整える") : L("问答", "Q&A", "質問")
+        switch kind {
+        case .polish: return L("润色", "Polish", "整える")
+        case .answer: return L("问答", "Q&A", "質問")
+        case .reply: return L("帮回", "Help Reply", "返信アシスト")
+        }
     }
 
     /// 风格和服务商：用过的那版的，没有就找一版有的。
@@ -202,6 +206,7 @@ struct HistoryListView: View {
                             Text(L("全部", "All", "すべて")).tag(AIHistoryEntry.Kind?.none)
                             Text(L("润色", "Polish", "整える")).tag(AIHistoryEntry.Kind?.some(.polish))
                             Text(L("问答", "Q&A", "質問")).tag(AIHistoryEntry.Kind?.some(.answer))
+                            Text(L("帮回", "Help Reply", "返信アシスト")).tag(AIHistoryEntry.Kind?.some(.reply))
                         }
                         .pickerStyle(.segmented)
                         .frame(height: 34)
@@ -353,7 +358,7 @@ private struct HistoryRow: View {
                 Text(HistoryFormat.time(entry.date)).font(.system(size: 12.5)).foregroundStyle(.secondary).monospacedDigit()
             }
             HStack(spacing: 8) {
-                Text((entry.searched ? "🌐 " : "") + (entry.kind == .answer ? L("问：", "Q: ", "問：") : "") + entry.original)
+                Text((entry.searched ? "🌐 " : "") + prefix + entry.original.replacingOccurrences(of: "\n", with: " "))
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 // 右边这段不截断，空间不够先截原文。
@@ -365,8 +370,27 @@ private struct HistoryRow: View {
         .contentShape(Rectangle())
     }
 
+    /// 第二行开头：问答「问：」，帮回「回：」（对方的名字读不到，不写）。
+    private var prefix: String {
+        switch entry.kind {
+        case .answer: return L("问：", "Q: ", "問：")
+        case .reply: return L("回：", "Re: ", "返信先：")
+        case .polish: return ""
+        }
+    }
+
     /// 「正式 · 3 版 · 已替换」：风格只写润色的，N 版只在多于 1 版时写，已替换 / 已插入绿字。
+    /// 帮回：「客气 · 委婉拒绝 · 已上屏」（语气、方向、上屏了没有）。
     private var metaLine: Text {
+        if entry.kind == .reply {
+            let shown = entry.versions.indices.contains(entry.shownIndex) ? entry.versions[entry.shownIndex] : nil
+            let parts = [shown?.style, shown?.direction].compactMap { $0 }
+            var line = Text(parts.joined(separator: " · "))
+            if entry.usedIndex != nil {
+                line = line + Text(parts.isEmpty ? "" : " · ") + Text(L("已上屏", "Inserted", "入力済み")).foregroundColor(HistoryFormat.green)
+            }
+            return line
+        }
         var parts: [String] = []
         if entry.kind == .polish, let style = entry.meta.style { parts.append(style) }
         if entry.versions.count > 1 { parts.append(L("\(entry.versions.count) 版", "\(entry.versions.count) versions", "\(entry.versions.count) 版")) }
@@ -383,8 +407,8 @@ private struct HistoryKindMark: View {
     let kind: AIHistoryEntry.Kind
 
     var body: some View {
-        let color = kind == .polish ? AppColor.purple : DashColor.input
-        Text(kind == .polish ? L("润", "P", "整") : L("问", "Q", "問"))
+        let color = kind == .polish ? AppColor.purple : (kind == .reply ? HelpStyle.title : DashColor.input)
+        Text(kind == .polish ? L("润", "P", "整") : (kind == .reply ? L("回", "R", "返") : L("问", "Q", "問")))
             .font(.system(size: 11.5, weight: .bold))
             .foregroundStyle(color)
             .frame(width: 20, height: 20)
@@ -495,7 +519,7 @@ struct HistoryDetailView: View {
 
 /// 时间线的一步：圆点 + 标题行（粗标题、灰字说明、右边时间到秒）+ 下面的白卡片（有才画）。
 struct HistoryStep {
-    enum Dot { case gray, purple, blue, green }
+    enum Dot { case gray, purple, blue, green, greenRing }
 
     var dot: Dot
     var title: String
@@ -504,6 +528,9 @@ struct HistoryStep {
     var text: String?
     var secondary = false
     var highlighted = false
+    /// 帮回（T16）：正文前的语气小标签；用了的那条绿框。
+    var tag: String?
+    var greenFrame = false
 }
 
 extension AIHistoryEntry {
@@ -519,6 +546,13 @@ extension AIHistoryEntry {
             parts.append(start)
         }
         if let provider = meta.provider { parts.append(provider) }
+        if kind == .reply {
+            if replyRounds > 0 { parts.append(L("写了 \(replyRounds) 轮", "\(replyRounds) rounds", "\(replyRounds) 回作成")) }
+            if let index = usedIndex, let style = versions[index].style {
+                parts.append(L("用了「\(style)」", "Used \"\(style)\"", "「\(style)」を使用"))
+            }
+            return parts.joined(separator: " · ")
+        }
         let searches = versions.filter { $0.searchedBy != nil }.count
         if kind == .answer, searches > 0 {
             parts.append(L("联网 \(searches) 次", "Web \(searches)×", "ウェブ検索 \(searches) 回"))
@@ -531,6 +565,7 @@ extension AIHistoryEntry {
 
     /// 从上到下按时间排的每一步（HC2、HC3）；旧记录照样排，只是不写时间和来源（HC4）。
     var timeline: [HistoryStep] {
+        if kind == .reply { return replyTimeline }
         var steps: [HistoryStep] = []
         let legacy = isLegacy
         if kind == .polish {
@@ -558,6 +593,37 @@ extension AIHistoryEntry {
             steps.append(HistoryStep(dot: .green,
                                      title: use == .replaced ? L("替换了输入框", "Replaced the text", "入力欄を置き換え") : L("插入到光标处", "Inserted at the cursor", "カーソル位置に挿入"),
                                      note: versions.count > 1 ? L("用的第 \(index + 1) 版", "Version \(index + 1)", "第 \(index + 1) 版") : nil,
+                                     time: versions[index].usedAt))
+        }
+        return steps
+    }
+
+    /// 帮回（HB3 第 3 格）：对方的话（灰点）→ 每一轮（绿圈，重写的一轮写方向）和这一轮的几条（带语气标签，每条能复制）
+    /// → 上屏了哪条（绿实点）。用了的那条绿框。
+    private var replyTimeline: [HistoryStep] {
+        var steps = [HistoryStep(dot: .gray, title: L("对方的话", "Their message", "相手のメッセージ"),
+                                 note: L("从剪贴板", "From the clipboard", "クリップボードから"), time: date, text: original)]
+        var round: Int?
+        for (index, version) in versions.enumerated() {
+            if version.round != round {
+                round = version.round
+                let count = versions.filter { $0.round == version.round }.count
+                let number = version.round ?? 1
+                var title = L("第 \(number) 轮", "Round \(number)", "第 \(number) 回")
+                if let direction = version.direction {
+                    title += " · " + L("方向「\(direction)」", "Aim \"\(direction)\"", "方向「\(direction)」")
+                } else {
+                    title += " · " + L("\(count) 条", "\(count) replies", "\(count) 件")
+                }
+                steps.append(HistoryStep(dot: .greenRing, title: title, time: version.at))
+            }
+            steps.append(HistoryStep(dot: .greenRing, title: "", text: version.text, tag: version.style,
+                                     greenFrame: usedIndex == index))
+        }
+        if let index = usedIndex {
+            let style = versions[index].style ?? ""
+            steps.append(HistoryStep(dot: .green, title: L("上屏了「\(style)」", "Inserted \"\(style)\"", "「\(style)」を入力"),
+                                     note: versions[index].round.map { L("第 \($0) 轮", "Round \($0)", "第 \($0) 回") },
                                      time: versions[index].usedAt))
         }
         return steps
@@ -623,6 +689,7 @@ private struct HistoryStepRow: View {
             }
             .frame(width: 14)
             VStack(alignment: .leading, spacing: 8) {
+                if !step.title.isEmpty || step.text == nil {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(step.title).font(.system(size: 13.5, weight: .bold)).foregroundStyle(.primary).fixedSize()
                     if let note = step.note {
@@ -633,9 +700,10 @@ private struct HistoryStepRow: View {
                         Text(HistoryFormat.seconds(time)).font(.system(size: 12.5)).foregroundStyle(.secondary).monospacedDigit().fixedSize()
                     }
                 }
+                }
                 if let text = step.text {
                     HStack(alignment: .top, spacing: 10) {
-                        Text(text)
+                        (tagText + Text(text))
                             .font(.system(size: step.secondary ? 14.5 : 15.5))
                             .foregroundStyle(step.secondary ? .secondary : .primary)
                             .textSelection(.enabled)
@@ -647,6 +715,8 @@ private struct HistoryStepRow: View {
                     .overlay {
                         if step.highlighted {
                             RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(AppColor.purple, lineWidth: 2)
+                        } else if step.greenFrame {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(HelpStyle.green, lineWidth: 2)
                         }
                     }
                 }
@@ -655,10 +725,18 @@ private struct HistoryStepRow: View {
         }
     }
 
+    /// 帮回的语气标签：绿字，接在正文前。
+    private var tagText: Text {
+        guard let tag = step.tag else { return Text("") }
+        return Text(tag + "  ").font(.system(size: 13, weight: .bold)).foregroundColor(HelpStyle.title)
+    }
+
     @ViewBuilder private var dot: some View {
         switch step.dot {
         case .green:
             Circle().fill(HistoryFormat.green).frame(width: 12, height: 12)
+        case .greenRing:
+            Circle().strokeBorder(HelpStyle.green, lineWidth: 2.5).background(Circle().fill(DashColor.page)).frame(width: 12, height: 12)
         case .gray, .purple, .blue:
             let color: Color = step.dot == .gray ? Color(.systemGray2) : (step.dot == .blue ? DashColor.input : AppColor.purple)
             Circle().strokeBorder(color, lineWidth: 2.5).background(Circle().fill(DashColor.page)).frame(width: 12, height: 12)

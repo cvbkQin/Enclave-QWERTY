@@ -312,7 +312,7 @@ extension KeyboardModel {
 
     /// 回答卡展开、焦点在识意框：回车是识意；正在拼音时还是「确认」，润色、问答都关了是普通回车。
     var enterAI: EnterAI? {
-        guard aiExpanded, target == .instruction, !isComposing else { return nil }
+        guard aiExpanded, target == .instruction, !isComposing, helpReply == nil else { return nil }
         let polish = enterPolishAvailable, ask = enterAskAvailable
         guard polish || ask else { return nil }
         return EnterAI(polish: polish, ask: ask, empty: !canAsk && !isRunning, running: isRunning,

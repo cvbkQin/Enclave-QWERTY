@@ -21,11 +21,18 @@ struct KeyboardView: View {
                 // 自由编辑时左边的键收起，编辑框占满整行、连识意框那块一起用（FE3）。
                 let freeEdit = model.target == .card
                 HStack(spacing: KeyboardMetrics.resultKeyGap) {
-                    if !freeEdit {
-                        ResultKey(model: model)
+                    if model.helpReply != nil {
+                        // AI 帮回（T16）：左边「↵ 上屏」，右边绿色「AI 帮回」卡。
+                        HelpInsertKey(model: model)
                             .frame(width: KeyboardMetrics.resultKeyWidth)
+                        HelpReplyCard(model: model)
+                    } else {
+                        if !freeEdit {
+                            ResultKey(model: model)
+                                .frame(width: KeyboardMetrics.resultKeyWidth)
+                        }
+                        ResultCard(model: model)
                     }
-                    ResultCard(model: model)
                 }
                 .frame(height: freeEdit
                        ? KeyboardMetrics.cardHeight(tall: model.freeEditTall, aiLabel: model.showsAILabel) + KeyboardMetrics.freeEditExtra
@@ -106,7 +113,7 @@ struct KeyboardView: View {
                 // 按住字符键时，第一排的放大气泡会伸到 AI 栏、候选栏上面：这时按键区也要盖在上面，不然气泡里的字母被润色键、候选词挡住。
                 // 单独看 keyPresses（PressedKeysZ），按下松开不让整个键盘重画。
                 .modifier(PressedKeysZ(presses: model.keyPresses,
-                                       base: model.cross != nil || model.enterCross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
+                                       base: model.cross != nil || model.enterCross != nil || model.helpCross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
                                        raises: !model.nineGrid && model.candidateMenu == nil && !model.askHoldShowing && !model.pinyinPopoverOpen))
         }
         // 横屏两边各留 48 给刘海 / 灵动岛。

@@ -64,6 +64,9 @@ struct KeysView: View {
                     if let popup = model.enterCross, let ai = context.returnLook.ai {
                         EnterCrossView(popup: popup, ai: ai)
                     }
+                    if let popup = model.helpCross, let help = context.helpKey {
+                        HelpCrossView(popup: popup, look: help)
+                    }
                     if let menu = model.layoutMenu {
                         LayoutMenuView(menu: menu)
                     }
@@ -115,13 +118,15 @@ struct KeyCapContext: Equatable {
     var trackpadActive: Bool
     var spaceTitle: String
     var returnLook: KeyboardModel.ReturnLook
+    /// ^^ 键变「帮回」（T16）。
+    var helpKey: HelpKeyLook?
 }
 
 extension KeyboardModel {
     var keyCapContext: KeyCapContext {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
-                      spaceTitle: spaceTitle, returnLook: returnLook)
+                      spaceTitle: spaceTitle, returnLook: returnLook, helpKey: helpKeyLook)
     }
 }
 
@@ -165,6 +170,13 @@ struct KeyCapView: View, Equatable {
         if let ai = returnLook?.ai {
             // 回答卡展开、焦点在识意框：三段式识意（第 70 条）。
             EnterAskKey(ai: ai, pressed: pressed)
+                .opacity(context.trackpadActive ? 0 : 1)
+                .padding(.horizontal, key.insetX)
+                .padding(.vertical, key.insetY)
+                .contentShape(Rectangle())
+        } else if key.kind == .emoticon, let help = context.helpKey {
+            // 有新复制的内容：^^ 变绿色两段式「帮回」（T16，HB9）。
+            HelpReplyKey(look: help, pressed: pressed)
                 .opacity(context.trackpadActive ? 0 : 1)
                 .padding(.horizontal, key.insetX)
                 .padding(.vertical, key.insetY)

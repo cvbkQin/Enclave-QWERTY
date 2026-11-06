@@ -43,6 +43,7 @@ struct AIView: View {
     /// 打开这一条的编辑页：「＋ 新建」之后、截图用（-promptsDebug）。
     @State private var debugEditing: UUID?
     @State private var editingAnswerStyle: UUID?
+    @State private var editingReplyStyle: UUID?
 
     private struct ConsentPrompt: Identifiable {
         let endpoint: String
@@ -74,12 +75,23 @@ struct AIView: View {
                     } header: {
                         PromptKindTabs(kind: $router.promptKind,
                                        polishCount: store.settings.styles.count,
-                                       answerCount: store.settings.answerStyles.count)
+                                       answerCount: store.settings.answerStyles.count,
+                                       replyCount: store.settings.replyStyles.count)
                     }
-                    PromptListSections(answer: router.promptKind == .answer, settings: $store.settings) { id in
-                        if router.promptKind == .answer { editingAnswerStyle = id } else { debugEditing = id }
-                    } add: {
-                        addStyle(answer: router.promptKind == .answer)
+                    if router.promptKind == .reply {
+                        ReplyStyleSections(settings: $store.settings) { id in
+                            editingReplyStyle = id
+                        } add: {
+                            let style = StylePreset(name: ReplyStyleEditor.newName, prompt: "")
+                            store.settings.replyStyles.append(style)
+                            editingReplyStyle = style.id
+                        }
+                    } else {
+                        PromptListSections(answer: router.promptKind == .answer, settings: $store.settings) { id in
+                            if router.promptKind == .answer { editingAnswerStyle = id } else { debugEditing = id }
+                        } add: {
+                            addStyle(answer: router.promptKind == .answer)
+                        }
                     }
                 }
             }
@@ -156,6 +168,14 @@ struct AIView: View {
         } })) {
             if let index = store.settings.answerStyles.firstIndex(where: { $0.id == editingAnswerStyle }) {
                 AnswerStyleEditor(style: $store.settings.answerStyles[index], settings: $store.settings)
+            }
+        }
+        .navigationDestination(isPresented: Binding(get: { editingReplyStyle != nil }, set: { if !$0 {
+            ReplyStyleEditor.dropIfBlank(editingReplyStyle, settings: &store.settings)
+            editingReplyStyle = nil
+        } })) {
+            if let index = store.settings.replyStyles.firstIndex(where: { $0.id == editingReplyStyle }) {
+                ReplyStyleEditor(style: $store.settings.replyStyles[index], settings: $store.settings)
             }
         }
     }
@@ -746,6 +766,8 @@ struct PromptOptimizeButton: View {
     let prompt: String
     let name: String
     let answer: Bool
+    /// 帮回风格（T16）：按帮回的要求改，说明和问答一样。
+    var reply = false
     @EnvironmentObject private var store: AppStore
     @AppStorage("answerOptimizeSeen") private var answerOptimizeSeen = false
 
@@ -759,7 +781,7 @@ struct PromptOptimizeButton: View {
                 if optimizer.running {
                     optimizer.cancel()
                 } else {
-                    optimizer.run(name: name, prompt: prompt, answer: answer, settings: store.settings, apiKey: store.apiKey)
+                    optimizer.run(name: name, prompt: prompt, answer: answer, reply: reply, settings: store.settings, apiKey: store.apiKey)
                 }
             } label: {
                 HStack(spacing: 6) {
@@ -768,7 +790,7 @@ struct PromptOptimizeButton: View {
                         Text(L("AI 正在优化…点一下取消", "Optimizing… tap to cancel", "AI が最適化中…タップでキャンセル"))
                     } else {
                         Image(systemName: "sparkles")
-                        Text(answer ? L("AI 优化", "Improve with AI", "AI で改善") : L("AI 优化提示词", "Improve with AI", "AI で改善"))
+                        Text(answer || reply ? L("AI 优化", "Improve with AI", "AI で改善") : L("AI 优化提示词", "Improve with AI", "AI で改善"))
                         if answer && !answerOptimizeSeen {
                             Text(L("新", "New", "新"))
                                 .font(.system(size: 11, weight: .bold))
@@ -786,6 +808,10 @@ struct PromptOptimizeButton: View {
             .buttonStyle(.borderless)
             if empty && !optimizer.running {
                 Text(L("先写几个字，AI 再帮你改清楚", "Write a few words first, then AI can sharpen it", "数文字書いてから AI で整えられます"))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            } else if reply && !optimizer.running && optimizer.error == nil {
+                Text(L("让 AI 把这段要求改得更清楚，和润色、问答一样", "Let AI make these instructions clearer, like polish and answer styles", "整える・回答スタイルと同じく、AI がこの指示をわかりやすくします"))
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             } else if answer && !optimizer.running && optimizer.error == nil {
@@ -863,7 +889,7 @@ final class PromptOptimizer: ObservableObject {
     @Published private(set) var error: String?
     private var task: Task<Void, Never>?
 
-    func run(name: String, prompt: String, answer: Bool = false, settings: EnclaveSettings, apiKey: String) {
+    func run(name: String, prompt: String, answer: Bool = false, reply: Bool = false, settings: EnclaveSettings, apiKey: String) {
         error = nil
         result = nil
         // 没同意隐私政策、没配置接口、到期后今天次数用完，都不发请求。
@@ -882,7 +908,7 @@ final class PromptOptimizer: ObservableObject {
         }
         running = true
         let client = LLMClient(settings: settings, apiKey: apiKey)
-        let messages = Self.messages(name: name, prompt: prompt, answer: answer)
+        let messages = reply ? Self.replyMessages(name: name, prompt: prompt) : Self.messages(name: name, prompt: prompt, answer: answer)
         let start = Date()
         task = Task { [weak self] in
             var raw = ""
@@ -952,6 +978,25 @@ final class PromptOptimizer: ObservableObject {
         - （一条要求）
         """
         return [.system(system), .user("名称：\(name)\n问答风格要求：\(prompt)")]
+    }
+
+    /// 帮回风格（T16）：把「怎么回」改清楚；建议用回消息的（先感谢对方、给个替代方案、带个表情…）。
+    static func replyMessages(name: String, prompt: String) -> [ChatMessage] {
+        let system = """
+        你是提示词编辑助手。用户在输入法里给「AI 帮回」功能写了一种回复风格，用户复制别人发来的消息后，它会和那条消息一起发给模型，规定模型用什么语气、怎么帮用户写回复。
+        帮用户把这段回复风格要求改得更清楚、具体、能照着做：
+        - 保持用户原来的意图和语言（用户写中文就用中文，写英文就用英文），不要加用户没提过的新要求；
+        - 写成给模型的指令，一两句话，不超过 80 字，不用 markdown、不用标题；
+        - 只说怎么回（语气、长短、要不要感谢或给台阶），不要写「请回复下面的消息」这类开头，消息会另外附上。
+        另外给 2 到 4 条用户还可以补充的要求，比如「先感谢对方」「给个替代方案」「长度和对方差不多」，每条 12 个字以内，能直接接在后面。
+        严格按这个格式输出，不要别的内容：
+        【优化后】
+        （优化后的回复风格要求）
+        【建议】
+        - （一条要求）
+        - （一条要求）
+        """
+        return [.system(system), .user("名称：\(name)\n怎么回：\(prompt)")]
     }
 
     /// 取出「【优化后】」和「【建议】」两段；没有「【优化后】」就当失败。

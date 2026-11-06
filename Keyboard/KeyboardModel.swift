@@ -143,6 +143,8 @@ final class KeyboardModel: ObservableObject {
             if aiExpanded != oldValue { markScreen() }
             if aiExpanded { unseenResult = false }
             if aiExpanded != oldValue {
+                // 收起抽屉：这次帮回结束（生成中的取消）。
+                if !aiExpanded, helpReply != nil { endHelpReply() }
                 hostFocused = false
                 askFocusedAt = Date()
                 if aiExpanded { recordHostCaret() } else { hostCaret = nil }
@@ -241,6 +243,17 @@ final class KeyboardModel: ObservableObject {
     @Published var cross: CrossPopup?
     /// 回答卡里按住回车弹出的「上润色、左问答」十字（第 70 条）。
     @Published var enterCross: EnterCrossPopup?
+    /// AI 帮回（T16）：这一次的状态（nil 没在帮回，回答卡是普通的）、^^ 键生成中和刚写好时一直是帮回、
+    /// 这份新复制被打字收掉了、按住帮回键弹出的「^^ 颜文字」格、卡头 ⌄ 的风格列表。
+    @Published var helpReply: HelpReplyState? {
+        didSet { if (helpReply == nil) != (oldValue == nil) { heightMayChange?() } }
+    }
+    @Published var helpKeyHold = false
+    @Published var helpDismissed = false
+    @Published var helpCross: HelpCrossPopup?
+    @Published var helpMenuOpen = false
+    var helpTask: Task<Void, Never>?
+    var helpToken = 0
     /// 长按「中/英」弹出的拼音布局菜单（P11）。
     @Published var layoutMenu: LayoutMenuPopup?
     /// 对方输入框有没有字、回车键是什么类型，决定发送键的颜色和文字。
@@ -378,6 +391,8 @@ final class KeyboardModel: ObservableObject {
     var debugResultKeyPose: String?
     /// 截图用（-keyboardDebug enter:noAsk / enter:noPolish）：回车里当作问答 / 润色关掉了。
     var debugEnterHides: Set<AskMode> = []
+    /// 截图用（-keyboardDebug help:…）：假装有新复制的内容，弹出后不再按真的剪贴板改回去。
+    var debugHelpClipboard = false
 
     /// 截图用：直接显示某张提示卡（quotaUsed：次数用完）。
     func debugShowGate(_ gate: AIGate) { self.gate = gate }
@@ -401,7 +416,7 @@ final class KeyboardModel: ObservableObject {
     var freeEditTall: Bool { !landscape && cardExpanded }
 
     /// 分词面板开着时结果卡固定 2 行，关掉后回到原来的 2 行或 4 行（cardExpanded 不动）。
-    var cardTall: Bool { !landscape && keysPanel != .words && (cardExpanded || aiBlocked || target == .card || failureDetailShown) }
+    var cardTall: Bool { !landscape && keysPanel != .words && (cardExpanded || aiBlocked || target == .card || failureDetailShown || helpReply != nil) }
 
     /// 横屏简版（LS1–LS3）：控制器按屏幕方向设，尺寸见 KeyboardMetrics.landscape。
     @Published private(set) var landscape = false
@@ -854,6 +869,8 @@ final class KeyboardModel: ObservableObject {
             return
         }
         let handOffKey = SettingsStore.answerKey(for: settings)
+        // 帮回卡开着时开始润色 / 问答：回答卡换回普通的。
+        if helpReply != nil { endHelpReply() }
         isRunning = true
         clearFailure()
         lastRun = (messages, pending, ask, runOrigin ?? .polish)
@@ -1525,6 +1542,7 @@ final class KeyboardModel: ObservableObject {
         guard !text.isEmpty else { return }
         markAskUsed()
         UIPasteboard.general.string = text
+        noteOwnCopy()
         keyFeedback(for: .space)
         withAnimation(.easeOut(duration: 0.15)) { copied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
@@ -1553,6 +1571,7 @@ final class KeyboardModel: ObservableObject {
         guard let text = stoppedAnswer ?? (hasResult ? session?.current : nil) else { return }
         markAskUsed()
         UIPasteboard.general.string = text
+        noteOwnCopy()
         keyFeedback(for: .space)
         withAnimation(.easeOut(duration: 0.15)) { copied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
