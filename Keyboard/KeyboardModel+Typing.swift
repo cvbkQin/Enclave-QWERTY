@@ -1136,13 +1136,23 @@ extension KeyboardModel {
         switch target {
         case .host:
             lastHostCommit = text
-            // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
-            // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下（「hao de好的」）；
-            // 非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
-            if hasMarkedText, !text.isEmpty {
+            if hasMarkedText, !text.isEmpty, markedTextNotClearable {
+                // 清不掉标记文字的框（闲鱼等 Flutter）：把标记区直接换成要上屏的字再 unmark。
+                // 非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
+                // 代价：这条路不经过对方的 shouldChangeCharactersIn，限字数的框管不住。
                 editProxy?.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
                 editProxy?.unmarkText()
                 hasMarkedText = false
+                lastMarkedText = ""
+            } else if hasMarkedText, !text.isEmpty {
+                // 先清掉拼音，再 insertText：对方的 shouldChangeCharactersIn 看得到这次插入，限 10 个字的框能拒掉
+                // （直接把标记区换成字再 unmark 不经过它，选「你好」能把 10 个字的框撑到 12 个、之后连删除都被拒）。
+                // Flutter 类框清不掉标记区，拼音会留在前面（「hao de好的」）：稍后看一眼，发现了就删掉重上屏，这个框改走上面那条路。
+                let pinyin = lastMarkedText
+                let before = contextBeforeMarked
+                clearMarkedText()
+                editProxy?.insertText(text)
+                checkPinyinKeptOnCommit(pinyin: pinyin, text: text, before: before)
             } else {
                 clearMarkedText()
                 editProxy?.insertText(text)
@@ -1174,6 +1184,12 @@ extension KeyboardModel {
             // 输入框不认标记文字：拼音只在键盘上显示，不往输入框里写。
         } else if target == .host && isComposing {
             let previous = hasMarkedText ? lastMarkedText : ""
+            if !hasMarkedText {
+                // 上一次上屏还没来得及检查（打得快，0.12 秒内又开始拼了）：先查掉，免得 Flutter 类框里拼音一路留下去。
+                runPendingCommitCheck()
+                // 刚开始组字：记下这时光标前的字（组字中读不到，标记文字在的时候是 nil）。
+                contextBeforeMarked = proxy?.documentContextBeforeInput ?? ""
+            }
             // 九宫格：输入框里只写按了的键（一个键一个字母），不写首选补全出来的字母（按一下 4 显示 g，不是 gao），和系统九宫格一样。
             let marked = showsNineKey ? Self.nineKeyTyped(composition: composition, raw: engine.rawInput,
                                                            from: engine.selections.last?.end ?? 0) : composition
@@ -1252,6 +1268,45 @@ extension KeyboardModel {
         let typedLetters = keys[min(max(from, 0), keys.count)...].filter { $0 != "'" }.count
         let shownLetters = out.filter { $0.isASCII && $0.isLetter }.count
         return shownLetters == typedLetters ? out.trimmingCharacters(in: .whitespaces) : composition
+    }
+
+    /// 上屏后看一眼输入框：光标前是「…拼音 + 上屏的字」，说明清标记文字没管用（Flutter 类框），拼音当正文留下了。
+    /// 删掉这两段、重新上屏，这个框以后改走「把标记区直接换成字」。对方输入框更新有时慢一拍，所以稍等再看。
+    func checkPinyinKeptOnCommit(pinyin: String, text: String, before: String) {
+        pendingCommitCheck = (pinyin, text, before)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            // 这期间又开始拼了：组字中读不到光标前的字，等下一次开始组字前那次检查（syncEngine）。
+            guard let self, !self.hasMarkedText else { return }
+            self.runPendingCommitCheck()
+        }
+    }
+
+    func runPendingCommitCheck() {
+        guard let check = pendingCommitCheck else { return }
+        pendingCommitCheck = nil
+        guard !markedTextNotClearable, !hasMarkedText, target == .host, lastHostCommit == check.text else { return }
+        let context = proxy?.documentContextBeforeInput ?? ""
+        guard Self.pinyinKeptOnCommit(context: context, before: check.before, pinyin: check.pinyin, text: check.text) else { return }
+        markedTextNotClearable = true
+        for _ in 0..<(check.pinyin.count + check.text.count) { editProxy?.deleteBackward() }
+        editProxy?.insertText(check.text)
+    }
+
+    /// 换到对方另一个输入框（键盘没收起）：上一个框「不认标记文字」「清不掉标记文字」的记号不带过去，
+    /// 不然同一个 App 里一个框认出是 Flutter 类，限字数的框也跟着走绕过检查的那条路。组字中不换，免得拼音一半换了写法。
+    func noteHostDocument(_ id: UUID) {
+        guard id != hostDocumentID, !isComposing else { return }
+        hostDocumentID = id
+        if inlinePinyinOff { inlinePinyinOff = false }
+        markedTextNotClearable = false
+        pendingCommitCheck = nil
+    }
+
+    /// 上屏后光标前是不是多了没清掉的拼音：以「拼音 + 上屏的字」结尾，而且不是本来就该这样
+    /// （组字前光标前的字刚好以这段拼音结尾时分不清，按正常处理，不删）。纯函数，单元测试用。
+    static func pinyinKeptOnCommit(context: String, before: String, pinyin: String, text: String) -> Bool {
+        guard !pinyin.isEmpty, !text.isEmpty, context.hasSuffix(pinyin + text) else { return false }
+        return !(before + text).hasSuffix(pinyin + text)
     }
 
     /// 光标前是不是「上一次的拼音 + 现在的拼音」（上一次的没被换掉）。纯函数，单元测试用。

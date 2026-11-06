@@ -142,6 +142,7 @@ final class KeyboardViewController: UIInputViewController {
         super.textDidChange(textInput)
         // 长按空格拖光标时，每移一下对方都会通知；这时不读输入框，松手再补（setTrackpad(false)）。
         if model.trackpadActive { return }
+        model.noteHostDocument(textDocumentProxy.documentIdentifier)
         // 点对方输入框挪光标时，系统有时只通知文字变了、不通知光标变了（iOS 27 模拟器上就是这样），两处都接。
         model.hostSelectionChanged()
         model.fieldDidChange()
@@ -151,6 +152,7 @@ final class KeyboardViewController: UIInputViewController {
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
         if model.trackpadActive { return }
+        model.noteHostDocument(textDocumentProxy.documentIdentifier)
         // 用户点了对方输入框：抽屉开着时打字换回对方输入框。
         model.hostSelectionChanged()
         model.refreshHostState()
@@ -166,6 +168,8 @@ final class KeyboardViewController: UIInputViewController {
         model.dropStaleSessionOnAppear()
         // 换了输入框重新试标记文字（上一个框不认，不代表这个也不认）。
         model.inlinePinyinOff = false
+        model.markedTextNotClearable = false
+        model.hostDocumentID = textDocumentProxy.documentIdentifier
         model.stoppedAnswer = nil
         // 上一个框留下的联想不带到这个框。
         model.dismissPredictions()
