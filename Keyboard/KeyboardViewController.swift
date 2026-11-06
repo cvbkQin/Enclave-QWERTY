@@ -119,6 +119,32 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
+    /// 方向复查：弹出时（viewWillAppear）往往还没进窗口，只能看尺寸类，而键盘进程里留着的旧值可能还是上次横屏的 compact；
+    /// 在横屏 App 里弹过键盘、回到竖屏再弹（比如桌面搜索），转屏是在键盘收起时发生的，不会走 viewWillTransition，
+    /// 键盘就一直卡在横屏的扁高度。进了窗口以后每次布局都按屏幕宽高比再核一次，不对就改；
+    /// 布局途中不直接改高度约束（updateHeight 会让父视图立刻重排），放到下一轮做。
+    private var orientationCheckScheduled = false
+    private func scheduleOrientationCheck() {
+        guard !orientationCheckScheduled, let screen = view.window?.windowScene?.screen.bounds.size,
+              (screen.width > screen.height) != model.landscape else { return }
+        orientationCheckScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.orientationCheckScheduled = false
+            self.updateOrientation()
+            self.updateHeight()
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.verticalSizeClass != traitCollection.verticalSizeClass else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.updateOrientation()
+            self?.updateHeight()
+        }
+    }
+
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         coordinator.animate(alongsideTransition: nil) { [weak self] _ in
@@ -201,6 +227,8 @@ final class KeyboardViewController: UIInputViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.heightLog("settled") }
         #endif
         TypingStats.noteLaunchAppeared()
+        // 弹出前没进窗口时方向是按尺寸类猜的，进了窗口按屏幕再核一次。
+        scheduleOrientationCheck()
         clearStaleMarkedText()
         // 剪贴板换没换过（只看 changeCount、hasStrings，不读内容）：「常用」键上的紫点。
         model.checkClipboard()
@@ -230,6 +258,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
         updateGlobeKey()
+        scheduleOrientationCheck()
     }
 
     #if DEBUG
