@@ -259,6 +259,11 @@ final class KeyboardModel: ObservableObject {
     /// 这个输入框不认标记文字（亚朵 App 的姓名框：每次更新拼音都当正文插进去，越打越长）：
     /// 发现后删掉多出来的字母，之后拼音只在键盘上显示，选好字再上屏。键盘每次弹出时重置。
     @Published var inlinePinyinOff = false
+    /// 这个输入框清不掉标记文字（闲鱼等 Flutter：空的 setMarkedText 不管用，拼音会当正文留下）：
+    /// 发现一次后，这个框里上屏改回「把标记区直接换成字再 unmark」。键盘每次弹出时重置。
+    var markedTextNotClearable = false
+    /// 开始组字（第一次放标记文字）之前光标前的字，用来判断上屏后多出来的拼音是不是对方没清掉的。
+    var contextBeforeMarked = ""
     var lastSpaceTime = Date.distantPast
     var lastPunctuationTap = Date.distantPast
     lazy var haptic = UIImpactFeedbackGenerator(style: .light)
