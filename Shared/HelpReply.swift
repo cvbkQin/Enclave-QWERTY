@@ -32,6 +32,39 @@ enum HelpReply {
         return [.system(system), .user(prompt)]
     }
 
+    /// 一次只写一种（cvbk 11-06）：只写一条，直接输出回复本身，边写边显示。
+    static func messages(message: String, style: StylePreset, direction: String) -> [ChatMessage] {
+        let direction = direction.trimmingCharacters(in: .whitespacesAndNewlines)
+        let system = """
+        你在帮用户回复别人发来的消息。用户复制了对方说的话，请以用户本人的口吻，写一条可以直接发出去的回复。
+        要求：
+        - 只输出回复本身，不解释、不加引号、不写「回复：」之类的前缀，不写编号；不用 Markdown 符号。
+        - 用对方消息的语言回复（风格里要求用英文时用英文）；中文一律用简体。
+        - 像真人在聊天软件里打字，长度和对方的话差不多，不要客套过头，不要编造对方没提到的具体事实（时间、地点、人名可以照对方说的）。
+        """
+        let rule = style.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        var prompt = """
+        <对方的话>
+        \(message)
+        </对方的话>
+
+        风格「\(style.name)」
+        """ + (rule.isEmpty ? "" : "：\(rule)")
+        if !direction.isEmpty {
+            prompt += "\n回复方向：\(direction)"
+        }
+        return [.system(system), .user(prompt)]
+    }
+
+    /// 一种风格的输出：去掉模型偶尔加的「【1】」、引号、「风格「x」：」前缀。写到一半也能用（边写边显示）。
+    static func single(_ raw: String) -> String {
+        var text = raw.replacingOccurrences(of: "\r\n", with: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        if let range = text.range(of: #"^(【\s*\d*\s*】?|\d+[\.、．)）]\s)"#, options: .regularExpression) {
+            text.removeSubrange(range)
+        }
+        return clean(text)
+    }
+
     /// 从模型输出里拆出 count 条。认「【1】」编号；没写编号时退回按「1.」开头的行、再退回按空行分段。
     /// 拆不出来返回空数组；拆出的比要的多只取前 count 条。
     static func parse(_ raw: String, count: Int) -> [String] {

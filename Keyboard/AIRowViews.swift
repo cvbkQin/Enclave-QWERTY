@@ -628,12 +628,12 @@ struct AskField: View {
         .font(.system(size: 15))
     }
 
-    /// 帮回卡（T16）：框里写了方向，右边出「↻ 按这个重写」，3 条都按这个方向重写。
+    /// 帮回卡（T16，HB18 ⑤）：框里写了方向，右边出「↻ 重写这条」，只按这个方向重写现在这种；别的点到时再按新方向写。
     @ViewBuilder
     private var rewriteButton: some View {
-        if model.helpReply?.running == nil, model.canAsk {
+        if model.canAsk {
             Button { model.helpRewriteTapped() } label: {
-                Label(L("按这个重写", "Rewrite", "これで書き直す"), systemImage: "arrow.clockwise")
+                Label(L("重写这条", "Rewrite this", "これを書き直す"), systemImage: "arrow.clockwise")
                     .font(.system(size: 12.5, weight: .bold))
                     .lineLimit(1)
                     .padding(.leading, 8)
