@@ -395,15 +395,19 @@ struct HelpReplyCard: View {
         var body: some View {
             GeometryReader { geo in
                 TimelineView(.animation(minimumInterval: 1 / 30)) { context in
-                    let t = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2) / 1.2
-                    let band = max(geo.size.width * 0.35, 14)
-                    LinearGradient(colors: [.white.opacity(0), .white.opacity(0.45), .white.opacity(0)],
-                                   startPoint: .leading, endPoint: .trailing)
-                        .frame(width: band)
-                        .offset(x: -band + (geo.size.width + band) * CGFloat(t))
+                    shine(width: geo.size.width, time: context.date.timeIntervalSinceReferenceDate)
                 }
             }
             .allowsHitTesting(false)
+        }
+
+        private func shine(width: CGFloat, time: Double) -> some View {
+            let progress = CGFloat(time.truncatingRemainder(dividingBy: 1.2) / 1.2)
+            let band: CGFloat = max(width * 0.35, 14)
+            let colors: [Color] = [.white.opacity(0), .white.opacity(0.45), .white.opacity(0)]
+            return LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+                .frame(width: band)
+                .offset(x: (width + band) * progress - band)
         }
     }
 
@@ -414,18 +418,28 @@ struct HelpReplyCard: View {
 
         var body: some View {
             TimelineView(.animation(minimumInterval: 1 / 20, paused: !moving)) { context in
-                let t = context.date.timeIntervalSinceReferenceDate
-                HStack(spacing: size * 0.6) {
-                    ForEach(0..<3, id: \.self) { i in
-                        let wave = moving ? max(0, sin(2 * .pi * (t / 0.9 - Double(i) * 0.18))) : 0
-                        Circle()
-                            .frame(width: size, height: size)
-                            .opacity(moving ? 0.45 + 0.55 * wave : 1 - Double(i) * 0.3)
-                            .offset(y: -1.5 * CGFloat(wave))
-                    }
-                }
+                dots(time: context.date.timeIntervalSinceReferenceDate)
             }
             .frame(height: size + 2)
+        }
+
+        private func dots(time: Double) -> some View {
+            HStack(spacing: size * 0.6) {
+                ForEach(0..<3, id: \.self) { i in
+                    dot(i, time: time)
+                }
+            }
+        }
+
+        /// 第 i 颗：0.9 秒一轮，后一颗晚 0.18 轮；不动时三颗由深到浅。
+        private func dot(_ i: Int, time: Double) -> some View {
+            let phase: Double = time / 0.9 - Double(i) * 0.18
+            let wave: Double = moving ? max(0, sin(2 * Double.pi * phase)) : 0
+            let opacity: Double = moving ? 0.45 + 0.55 * wave : 1 - Double(i) * 0.3
+            return Circle()
+                .frame(width: size, height: size)
+                .opacity(opacity)
+                .offset(y: CGFloat(-1.5 * wave))
         }
     }
 
