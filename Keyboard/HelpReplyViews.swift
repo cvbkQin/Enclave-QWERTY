@@ -68,7 +68,7 @@ struct HelpReplyKey: View {
                     .padding(-(gap + width))
                     .shadow(color: armed ? HelpStyle.Key.armedGlow : .clear, radius: armed ? 10 : 0)
                 RoundedRectangle(cornerRadius: 8.5 + gap, style: .continuous)
-                    .fill(KeyStyle.keyboardBack)
+                    .fill(Brand.keyboardBack)
                     .padding(-gap)
             }
         }
