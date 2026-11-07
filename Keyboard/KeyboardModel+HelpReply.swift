@@ -93,6 +93,8 @@ struct HelpKeyLook: Equatable {
     var newCopy = false
     /// 识意框里有还没执行的要求：绿描边 + 光晕，点它按这条要求写（RG4）。
     var armed = false
+    /// 帮回卡开着：键外一圈浅绿（K2 #B9D6C7）。
+    var open = false
 }
 
 /// 回哪句话列表的一行（RG2 ③）。
@@ -131,7 +133,8 @@ extension KeyboardModel {
         guard !isComposing, helpReplyAvailable else { return nil }
         return HelpKeyLook(running: helpReply?.running != nil, moving: settings.polishAnimation,
                            successAt: helpKeyHold ? helpReply?.successAt : nil,
-                           newCopy: clipboardHasNew && !helpDismissed, armed: helpAskPending)
+                           newCopy: clipboardHasNew && !helpDismissed, armed: helpAskPending,
+                           open: helpReply != nil && aiExpanded)
     }
 
     /// 键盘出现时：这次的新复制被打字收掉过就不再带红点（同一个 changeCount）。

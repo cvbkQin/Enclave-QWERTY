@@ -38,6 +38,8 @@ struct KeysView: View {
                         KeyCapCell(presses: model.keyPresses, context: context, key: key)
                             .frame(width: key.visual.width, height: key.visual.height)
                             .offset(x: key.visual.minX, y: key.visual.minY)
+                            // 帮回键的外圈画在键外，压在旁边键上面。
+                            .zIndex(key.kind == .emoticon ? 1 : 0)
                     }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)

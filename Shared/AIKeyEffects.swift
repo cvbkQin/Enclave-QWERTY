@@ -214,6 +214,8 @@ struct KeySparkles: View {
     var seed: Int
     /// 帮回键（T16）：只闪白色小星，不用金色。
     var whiteOnly = false
+    /// 白星的颜色：帮回键浅底（K2）上用键上的绿字色，不然看不见。
+    var white: Color = .white
     @State private var start = Date()
 
     static let yellow = Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255)
@@ -300,7 +302,7 @@ struct KeySparkles: View {
             ForEach(list.indices, id: \.self) { index in
                 let spark = list[index]
                 if spark.radius > 0.2 {
-                    let color = spark.yellow ? Self.yellow : Color.white
+                    let color = spark.yellow ? Self.yellow : white
                     FourPointStar()
                         .fill(color)
                         .frame(width: spark.radius * 2, height: spark.radius * 2)

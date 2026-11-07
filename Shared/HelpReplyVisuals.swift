@@ -40,6 +40,31 @@ enum HelpStyle {
     static let dot = hex(0xF43F5E)
     /// 帮回卡上润色键的星星（RG3 B）：和帮回同一个绿，不加白描边。
     static let star = hex(0x34D399)
+    /// 帮回键（K2，11-07）：低饱和浅灰绿纯色底 + 深绿字，只用在键盘上的 ^^ 帮回键；卡片、替换键、标签还是上面那套绿。
+    enum Key {
+        static let fill = dynamic(0xE4EFE9, 0x2E3D36)
+        static let text = dynamic(0x3F6F5A, 0xA9D1BD)
+        static let stripFill = dynamicAlpha((0x3F6F5A, 0.07), (0x000000, 0.18))
+        static let stripLine = dynamicAlpha((0x3F6F5A, 0.14), (0xA9D1BD, 0.15))
+        static let stripText = dynamic(0x6A8F7D, 0x86A897)
+        /// 帮回卡开着：2pt 键盘底色间隔 + 4pt 外圈。
+        static let openRing = hex(0xB9D6C7)
+        /// 亮起来（识意框里有没执行的要求）：2pt 间隔 + 4.5pt 外圈 + 光晕。
+        static let armedRing = hex(0x8CBBA3)
+        static let armedGlow = hex(0x7DB097, 0.7)
+        /// 键上 logo 降饱和：箭头渐变、星星描边。
+        static let logoTop = hex(0x9CCAB2)
+        static let logoBottom = hex(0x6A9E85)
+    }
+
+    static func dynamicAlpha(_ light: (UInt32, CGFloat), _ dark: (UInt32, CGFloat)) -> Color {
+        func color(_ value: (UInt32, CGFloat)) -> UIColor {
+            UIColor(red: CGFloat(value.0 >> 16 & 0xFF) / 255, green: CGFloat(value.0 >> 8 & 0xFF) / 255,
+                    blue: CGFloat(value.0 & 0xFF) / 255, alpha: value.1)
+        }
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
+    }
+
     /// 十字里选中「^^ 颜文字」格。
     static let kaomojiCell = hex(0x5B4BE8)
 }
@@ -51,11 +76,17 @@ struct HelpIcon: View {
     var running = false
     /// 键上（绿底）用：白描边照画，看得出箭头的轮廓。
     var bounce: CGFloat = 1
+    /// 键盘上帮回键（K2）用的降饱和版：渐变 #9CCAB2 → #6A9E85，星星描边 #6A9E85。
+    var soft = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let arrowGradient = LinearGradient(colors: [HelpStyle.hex(0x4BE08A), HelpStyle.hex(0x07C160)],
-                                              startPoint: UnitPoint(x: 2 / 24, y: 4 / 24), endPoint: UnitPoint(x: 21 / 24, y: 20 / 24))
-    private static let starEdge = HelpStyle.hex(0x07C160)
+    static let arrowGradient = gradient(HelpStyle.hex(0x4BE08A), HelpStyle.hex(0x07C160))
+    private static let softGradient = gradient(HelpStyle.Key.logoTop, HelpStyle.Key.logoBottom)
+    private static func gradient(_ top: Color, _ bottom: Color) -> LinearGradient {
+        LinearGradient(colors: [top, bottom], startPoint: UnitPoint(x: 2 / 24, y: 4 / 24), endPoint: UnitPoint(x: 21 / 24, y: 20 / 24))
+    }
+    private var arrowFill: LinearGradient { soft ? Self.softGradient : Self.arrowGradient }
+    private var starEdge: Color { soft ? HelpStyle.Key.logoBottom : HelpStyle.hex(0x07C160) }
 
     var body: some View {
         if running && !reduceMotion {
@@ -81,9 +112,9 @@ struct HelpIcon: View {
             ZStack {
                 Arrow().stroke(Color.white, style: StrokeStyle(lineWidth: 2 * k, lineJoin: .round))
                 Arrow().fill(Color.white)
-                Shaft().fill(Self.arrowGradient)
-                Head().fill(Self.arrowGradient)
-                Head().stroke(Self.arrowGradient, style: StrokeStyle(lineWidth: 0.8 * k, lineJoin: .round))
+                Shaft().fill(arrowFill)
+                Head().fill(arrowFill)
+                Head().stroke(arrowFill, style: StrokeStyle(lineWidth: 0.8 * k, lineJoin: .round))
             }
             .scaleEffect((live ? 1 + 0.05 * w : 1) * bounce, anchor: anchor(12, 11))
             .offset(x: live ? -1.6 * k * w : 0)
@@ -102,7 +133,7 @@ struct HelpIcon: View {
     private func star(cx: CGFloat, cy: CGFloat, r: CGFloat, k: CGFloat, wave: CGFloat, live: Bool) -> some View {
         ZStack {
             Sparkle(cx: cx, cy: cy, r: r).fill(Color.white)
-            Sparkle(cx: cx, cy: cy, r: r).stroke(Self.starEdge, style: StrokeStyle(lineWidth: 0.55 * k, lineJoin: .round))
+            Sparkle(cx: cx, cy: cy, r: r).stroke(starEdge, style: StrokeStyle(lineWidth: 0.55 * k, lineJoin: .round))
         }
         .scaleEffect(live ? 0.6 + 0.6 * wave : 1, anchor: UnitPoint(x: cx / 24, y: cy / 24))
         .opacity(live ? 0.45 + 0.55 * Double(wave) : 1)

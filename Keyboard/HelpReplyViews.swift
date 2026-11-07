@@ -2,9 +2,9 @@ import SwiftUI
 
 // MARK: - ^^ 键变「帮回」（T16，HB9）
 
-/// 九宫格 ^^ 键常驻帮回（HB23）：绿色两段式；有新复制时「回」带红点，识意框有待执行的要求时亮起来。上段 15 高「↑ ^^ 颜文字」（黑 16% 叠色 + 下方 1pt 白 35% 分隔线），
-/// 下段 logo 14pt +「帮回」13.5pt 粗白字，「回」右上角红点。
-/// 生成中「帮回」两个字换成胶囊停止图标、logo 动、周围闪 7 颗白色小星、键下绿色柔投影；写好时白色对勾一笔画出（600ms）。
+/// 九宫格 ^^ 键常驻帮回（HB23）：低饱和浅灰绿两段式（K2）；有新复制时「回」带红点，帮回卡开着时键外一圈浅绿，
+/// 识意框有待执行的要求时外圈加粗带光晕。上段 15 高「↑ ^^ 颜文字」窄条 + 1pt 分隔线，下段降饱和 logo 14pt +「帮回」13.5pt 半粗深绿字。
+/// 生成中「帮回」两个字换成胶囊停止图标、logo 动、周围闪深绿小星；写好时深绿对勾一笔画出（600ms）。
 struct HelpReplyKey: View {
     let look: HelpKeyLook
     var pressed = false
@@ -18,39 +18,34 @@ struct HelpReplyKey: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .top) {
-                shape.fill(HelpStyle.gradient)
+                // K2（11-07）：低饱和浅灰绿纯色底、深绿字，不用渐变。
+                shape.fill(HelpStyle.Key.fill)
                 VStack(spacing: 0) {
                     Text("↑ ^^ " + L("颜文字", "Kaomoji", "顔文字"))
                         .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(HelpStyle.Key.stripText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                         .padding(.horizontal, 3)
                         .frame(maxWidth: .infinity)
                         .frame(height: Self.topHeight)
-                        .background(Color.black.opacity(0.16))
-                    Rectangle().fill(Color.white.opacity(0.35)).frame(height: 1)
+                        .background(HelpStyle.Key.stripFill)
+                    Rectangle().fill(HelpStyle.Key.stripLine).frame(height: 1)
                     lower
+                        .foregroundStyle(HelpStyle.Key.text)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .foregroundStyle(.white)
             }
             .clipShape(shape)
             .overlay {
                 if look.running && motion {
                     KeySparkles(running: true, successAt: nil, textX: geo.size.width * 0.18,
-                                textWidth: geo.size.width * 0.64, seed: 3, whiteOnly: true)
+                                textWidth: geo.size.width * 0.64, seed: 3, whiteOnly: true, white: HelpStyle.Key.text)
                         .padding(.top, Self.topHeight)
                 }
             }
-            // 识意框里有还没执行的要求：绿描边 + 光晕，点它按这条要求写（RG4）。
-            .overlay {
-                if look.armed && !look.running {
-                    shape.strokeBorder(HelpStyle.hex(0x6EE7B7), lineWidth: 2)
-                }
-            }
-            .shadow(color: look.running || look.armed ? HelpStyle.green.opacity(look.armed ? 0.7 : 0.5) : .clear,
-                    radius: look.armed ? 6 : 4, y: look.armed ? 0 : 3)
             .opacity(pressed && !crossShowing ? 0.8 : 1)
+            .background { ring }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(look.running ? L("停止帮回", "Stop Help Reply", "返信アシストを停止") : L("帮回", "Help Reply", "返信アシスト"))
@@ -59,13 +54,33 @@ struct HelpReplyKey: View {
         .accessibilityAddTraits(.isButton)
     }
 
+    /// 外圈画在键外：2pt 键盘底色间隔，再一圈浅绿。亮起来（识意框里有没执行的要求，RG4）粗一点、带光晕；
+    /// 帮回卡开着时细一圈、不发光。
+    @ViewBuilder
+    private var ring: some View {
+        let armed = look.armed && !look.running
+        if armed || look.open {
+            let width: CGFloat = armed ? 4.5 : 4
+            let gap: CGFloat = 2
+            ZStack {
+                RoundedRectangle(cornerRadius: 8.5 + gap + width, style: .continuous)
+                    .fill(armed ? HelpStyle.Key.armedRing : HelpStyle.Key.openRing)
+                    .padding(-(gap + width))
+                    .shadow(color: armed ? HelpStyle.Key.armedGlow : .clear, radius: armed ? 10 : 0)
+                RoundedRectangle(cornerRadius: 8.5 + gap, style: .continuous)
+                    .fill(KeyStyle.keyboardBack)
+                    .padding(-gap)
+            }
+        }
+    }
+
     @ViewBuilder
     private var lower: some View {
         HStack(spacing: 3) {
-            HelpIcon(size: 14, running: look.running && motion)
+            HelpIcon(size: 14, running: look.running && motion, soft: true)
             ZStack {
                 if look.running {
-                    AIStopIcon(running: true, moving: motion, tint: .white)
+                    AIStopIcon(running: true, moving: motion, tint: HelpStyle.Key.text)
                         .transition(.opacity.combined(with: .scale(scale: 0.9)))
                 } else if let success = look.successAt {
                     SuccessDraw(since: success)
@@ -80,7 +95,7 @@ struct HelpReplyKey: View {
 
     private var label: some View {
         Text(L("帮回", "Reply", "返信"))
-            .font(.system(size: 13.5, weight: .bold))
+            .font(.system(size: 13.5, weight: .semibold))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .overlay(alignment: .topTrailing) {
@@ -94,7 +109,7 @@ struct HelpReplyKey: View {
             }
     }
 
-    /// 写好：白色对勾 600ms 一笔画出，停住到 ^^ 淡回。
+    /// 写好：深绿对勾 600ms 一笔画出，停住到 ^^ 淡回。
     private struct SuccessDraw: View {
         let since: Date
 
@@ -103,7 +118,7 @@ struct HelpReplyKey: View {
                 let p = min(max(context.date.timeIntervalSince(since) / 0.6, 0), 1)
                 SuccessCheck()
                     .trim(from: 0, to: CGFloat(KeySuccessFrame.easeInOut(p)))
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
+                    .stroke(HelpStyle.Key.text, style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
                     .frame(width: 18, height: 15)
             }
             .frame(width: 26, height: 17)
