@@ -8,13 +8,18 @@ extension KeyboardModel {
 
     /// 键盘出现、回到前台时查一次。没开完全访问时读不了剪贴板。
     func checkClipboard() {
+        #if DEBUG
+        if debugHelpClipboard { return }
+        #endif
         guard hasFullAccess else {
             if clipboardHasNew { clipboardHasNew = false }
             return
         }
         let board = UIPasteboard.general
-        let new = ClipboardHistory.hasNew(changeCount: board.changeCount, hasStrings: board.hasStrings)
+        let count = board.changeCount
+        let new = ClipboardHistory.hasNew(changeCount: count, hasStrings: board.hasStrings)
         if clipboardHasNew != new { clipboardHasNew = new }
+        refreshHelpOffer(changeCount: count)
     }
 
     /// 打开「常用 / 剪贴板」（对齐清单第 62 条）：左常用语、右剪贴板，比例照上次。
@@ -94,9 +99,8 @@ extension KeyboardModel {
             objectWillChange.send()
         case .copy:
             UIPasteboard.general.string = item.text
-            // 自己写进去的不算「新复制的内容」。
-            ClipboardHistory.lastChangeCount = UIPasteboard.general.changeCount
-            clipboardHasNew = false
+            // 自己写进去的不算「新复制的内容」（^^ 键也不变帮回）。
+            noteOwnCopy()
             showKeysToast(L("已复制", "Copied", "コピーしました"))
         case .delete:
             ClipboardHistory.remove(item.id)

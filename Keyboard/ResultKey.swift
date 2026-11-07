@@ -35,7 +35,17 @@ struct ResultKey: View {
     /// 卡片展开 4 行（键高 100）时图标、字、间距跟着放大。
     private var tall: Bool { model.cardTall }
     /// 生成中、要联网的选择卡、出错卡（含没写完）时 45% 变淡不能点。
-    private var blocked: Bool { model.isRunning || model.searchPrompt != nil || model.errorMessage != nil || model.partialResult != nil || model.stoppedAnswer != nil }
+    private var blocked: Bool {
+        // 帮回（HB28）：这种风格在写、倒计时中变淡不能点。
+        if let help = model.helpReply { return help.currentRunning || help.countdownEnds != nil }
+        return model.isRunning || model.searchPrompt != nil || model.errorMessage != nil || model.partialResult != nil || model.stoppedAnswer != nil
+    }
+
+    /// 还没有可用的结果（灰底）。帮回在写时照样是绿的，只是变淡。
+    private var empty: Bool {
+        if let help = model.helpReply { return help.current == nil && help.running == nil }
+        return !model.hasResult && !model.isRunning
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -265,7 +275,8 @@ struct ResultKey: View {
         action == .replace ? .replaced : .inserted
     }
 
-    private func used(_ action: ResultKeyAction) -> Bool { model.resultUses.contains(use(action)) }
+    /// 帮回没有「已上屏」状态（HB28）：换风格、翻版本后可以再替换、插入。
+    private func used(_ action: ResultKeyAction) -> Bool { model.helpReply == nil && model.resultUses.contains(use(action)) }
 
     /// 用过的：字的右下角一个小绿圈勾；滑动中（手指按着、露出两个功能时）图标也换成同样大小的勾。
     private func face(_ action: ResultKeyAction, color: Color, large: Bool? = nil, swiping: Bool? = nil) -> some View {
@@ -314,19 +325,25 @@ struct ResultKey: View {
         // 完成修改：润色渐变。
         if editing { return AnyShapeStyle(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
                                                          startPoint: .topLeading, endPoint: .bottomTrailing)) }
-        if !model.hasResult && !model.isRunning { return AnyShapeStyle(Brand.disabledFill) }
+        if empty { return AnyShapeStyle(Brand.disabledFill) }
         return AnyShapeStyle(gradient(action))
     }
 
     private func foreground(_ action: ResultKeyAction) -> Color {
         if editing { return .white }
-        if !model.hasResult && !model.isRunning { return Brand.disabledText }
+        if empty { return Brand.disabledText }
         return .white
     }
 
     private func gradient(_ action: ResultKeyAction) -> LinearGradient {
-        LinearGradient(colors: action == .replace ? Brand.resultKeyReplaceColors : Brand.resultKeyInsertColors,
-                       startPoint: .topLeading, endPoint: .bottomTrailing)
+        // 帮回：替换绿、插入深绿（HB28）。
+        if model.helpReply != nil {
+            return LinearGradient(colors: action == .replace ? [HelpStyle.hex(0x10B981), HelpStyle.hex(0x0E9F6E)]
+                                  : [HelpStyle.hex(0x059669), HelpStyle.hex(0x047857)],
+                                  startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+        return LinearGradient(colors: action == .replace ? Brand.resultKeyReplaceColors : Brand.resultKeyInsertColors,
+                              startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
     private var accessibilityLabel: String {

@@ -18,6 +18,13 @@ struct StylePreset: Codable, Identifiable, Hashable {
         case "详细": return L("详细", "Detailed", "詳しく")
         case "列要点": return L("列要点", "Key points", "要点を列挙")
         case "通俗": return L("通俗", "Plain words", "やさしく")
+        // 帮回风格（T16）
+        case "正常": return L("正常", "Natural", "ふつう")
+        case "客气": return L("客气", "Polite", "丁寧に")
+        case "高情商": return L("高情商", "Tactful", "気配り")
+        case "幽默": return L("幽默", "Playful", "ユーモア")
+        case "委婉拒绝": return L("委婉拒绝", "Say no nicely", "やんわり断る")
+        case "英文回复": return L("英文回复", "In English", "英語で")
         default:
             // 名字清空了也要能认出来：键盘面板里不能出现空的标签。
             return name.trimmingCharacters(in: .whitespaces).isEmpty ? L("未命名", "Untitled", "名前なし") : name
@@ -140,6 +147,11 @@ struct EnclaveSettings: Codable, Equatable {
     /// 固定到 AI 栏的风格（AK5）：改写风格或问答风格的 id，按固定的先后排，最多 5 个。
     var pinnedStyleIDs: [UUID] = []
     static let maxPinnedStyles = 5
+    /// 帮回风格（T16，App › AI › 提示词「帮回风格」）：一列名字 + 怎么回。
+    var replyStyles: [StylePreset] = StylePreset.replyDefaults
+    /// 点「帮回」时一起写的几种，按卡片上从左到右的顺序，最多 3 种、至少 1 种。默认正常、客气、简短。
+    var replyCheckedIDs: [UUID] = StylePreset.replyDefaults.prefix(3).map(\.id)
+    static let maxReplyChecked = 3
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -186,7 +198,7 @@ struct EnclaveSettings: Codable, Equatable {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
-        case pinnedStyleIDs
+        case pinnedStyleIDs, replyStyles, replyCheckedIDs
     }
 
     private enum LegacyKeys: String, CodingKey { case webSearch }
@@ -217,6 +229,27 @@ struct EnclaveSettings: Codable, Equatable {
     }
 
     func isPinned(_ id: UUID) -> Bool { pinnedStyles.contains { $0.style.id == id } }
+
+    /// 点帮回时一起写的几种：打勾的、还在的，按顺序；一个都没有时用第一种。
+    var checkedReplyStyles: [StylePreset] {
+        let checked = replyCheckedIDs.compactMap { id in replyStyles.first { $0.id == id } }
+        if !checked.isEmpty { return Array(checked.prefix(Self.maxReplyChecked)) }
+        return replyStyles.first.map { [$0] } ?? []
+    }
+
+    /// 勾上 / 取消一种帮回风格。勾满 3 种不能再勾（返回 false），至少留 1 种（取消最后一种返回 false）。
+    @discardableResult
+    mutating func toggleReplyChecked(_ id: UUID) -> Bool {
+        replyCheckedIDs = checkedReplyStyles.map(\.id)
+        if let index = replyCheckedIDs.firstIndex(of: id) {
+            guard replyCheckedIDs.count > 1 else { return false }
+            replyCheckedIDs.remove(at: index)
+            return true
+        }
+        guard replyCheckedIDs.count < Self.maxReplyChecked else { return false }
+        replyCheckedIDs.append(id)
+        return true
+    }
 
     /// 固定 / 取消固定；满 5 个时不加，返回 false。
     @discardableResult
@@ -285,6 +318,8 @@ extension EnclaveSettings {
         polishEnabled = try c.decodeIfPresent(Bool.self, forKey: .polishEnabled) ?? polishEnabled
         answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
+        replyStyles = (try? c.decodeIfPresent([StylePreset].self, forKey: .replyStyles)) ?? replyStyles
+        replyCheckedIDs = (try? c.decodeIfPresent([UUID].self, forKey: .replyCheckedIDs)) ?? replyCheckedIDs
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
@@ -308,6 +343,17 @@ extension StylePreset {
         StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000002")!, name: "详细", prompt: "先给结论，再用几句话解释原因和要点，必要时举一个例子。"),
         StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000003")!, name: "列要点", prompt: "用「1.」「2.」分点回答，每点一句，最多五点。"),
         StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000004")!, name: "通俗", prompt: "像跟朋友解释一样，用大白话，少用术语，术语要顺带解释。"),
+    ]
+
+    /// 帮回风格的默认 7 种（T16，HB16）。id 固定：App 和键盘各自读出来的默认是同一批，次数统计对得上。
+    static let replyDefaults: [StylePreset] = [
+        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000001")!, name: "正常", prompt: "自然地回，像平时聊天一样。"),
+        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000002")!, name: "客气", prompt: "礼貌、热情，多一句感谢或问候。"),
+        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000003")!, name: "简短", prompt: "一句话，越短越好。"),
+        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000004")!, name: "高情商", prompt: "照顾对方感受，说得让人舒服。"),
+        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000005")!, name: "幽默", prompt: "轻松一点，可以开个小玩笑。"),
+        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000006")!, name: "委婉拒绝", prompt: "不想答应时，客气地推掉，给对方台阶。"),
+        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000007")!, name: "英文回复", prompt: "用自然的英文回复。"),
     ]
 
     /// 以前各版的默认风格，用户没改过时升级成新的默认列表。

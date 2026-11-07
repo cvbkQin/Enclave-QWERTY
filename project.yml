@@ -17,8 +17,11 @@ settings:
     # DEV_LABEL 写「0.95_N」显示在关于页。测好合并进 main 时版本号进一位（0.95_N 合并叫 0.96，构建号 96），DEV_LABEL 清空；
     # 下一轮开发版是 0.96_1、0.96_2…。版本号、构建号统一由版本管理（04）分配和修改，功能线程不自己改。
     MARKETING_VERSION: "0.96"
-    CURRENT_PROJECT_VERSION: "96"
-    DEV_LABEL: ""
+    CURRENT_PROJECT_VERSION: "9605"
+    DEV_LABEL: "0.96_5"
+    # 开发者版装机（04 装到自己手机上）时命令行加 DEV_BUILD=YES：App 设置里出现「AI 购买状态（测试）」，默认已解锁。
+    # TestFlight、公测、正式包都不加；gen-builtin-secrets.py 检查它不和 INTERNAL_BUILD、PUBLIC_BUILD 一起打开。
+    DEV_BUILD: "NO"
     TARGETED_DEVICE_FAMILY: "1"
 targetTemplates:
   # 拼音引擎 librime 的静态库，先运行 scripts/fetch-rime.sh 下载到 Vendor/。
@@ -100,6 +103,7 @@ targets:
         # Key 不放这里，由 scripts/gen-builtin-secrets.py 混淆后编进代码。
         EnclaveInternalBuild: $(INTERNAL_BUILD)
         EnclavePublicBuild: $(PUBLIC_BUILD)
+        EnclaveDevBuild: $(DEV_BUILD)
         EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
         EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
         EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
@@ -179,6 +183,7 @@ targets:
         # Key 不放这里，由 scripts/gen-builtin-secrets.py 混淆后编进代码。
         EnclaveInternalBuild: $(INTERNAL_BUILD)
         EnclavePublicBuild: $(PUBLIC_BUILD)
+        EnclaveDevBuild: $(DEV_BUILD)
         EnclaveBuiltinBaseURL: $(ENCLAVE_BUILTIN_BASE_URL)
         EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
         EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)

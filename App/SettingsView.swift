@@ -173,6 +173,9 @@ struct SettingsView: View {
                         DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.devLabel ?? AboutView.version)
                     }
                 }
+                if AccessTestSection.shows {
+                    AccessTestSection()
+                }
                 if BuiltinAPI.showsTesterTools {
                     Section {
                         NavigationLink(value: AppRouter.SettingsPage.testTools) {

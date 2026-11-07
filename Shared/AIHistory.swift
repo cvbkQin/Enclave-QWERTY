@@ -4,7 +4,8 @@ import Foundation
 /// 存在 App Group 里单独的文件（History/ai-history.json），只在本机，不上传。
 /// 一轮还没结束也先记：会话每存一次（出了新版、手改、替换 / 插入）就把这一条更新成最新的样子，键盘被系统回收也不丢。
 struct AIHistoryEntry: Codable, Identifiable, Equatable {
-    enum Kind: String, Codable { case polish, answer }
+    /// reply：AI 帮回（T16）。0.96 以前的版本读不到这种记录。
+    enum Kind: String, Codable { case polish, answer, reply }
     enum Use: String, Codable { case replaced, inserted }
 
     struct Version: Codable, Equatable {
@@ -24,12 +25,15 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
         var searchAt: Date?
         var searchAuto: Bool?
         var usedAt: Date?
+        /// 帮回（T16）：第几轮（从 1 起，按方向重写、⌄ 多写一条都算新的一轮），这一轮的回复方向。
+        var round: Int?
+        var direction: String?
     }
 
     var id: String
     var kind: Kind
     var date: Date
-    /// 润色：原文；问答：问题（帮我写：第一句要求）。
+    /// 润色：原文；问答：问题（帮我写：第一句要求）；帮回：对方的话。
     var original: String
     /// 问答一起发送的上下文（输入框里光标前的文字），没有就是空。
     var context: String
@@ -57,6 +61,18 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
         guard !query.isEmpty else { return true }
         return ([original, context] + versions.map(\.text)).contains { $0.localizedCaseInsensitiveContains(query) }
     }
+
+    init(id: String, kind: Kind, date: Date, original: String, context: String, versions: [Version]) {
+        self.id = id
+        self.kind = kind
+        self.date = date
+        self.original = original
+        self.context = context
+        self.versions = versions
+    }
+
+    /// 帮回写了几轮。
+    var replyRounds: Int { versions.compactMap(\.round).max() ?? 0 }
 
     /// 由一轮会话生成。没出任何结果的不记（返回 nil）。
     init?(session: EditSession) {
@@ -129,7 +145,13 @@ enum AIHistory {
 
     /// 键盘每存一次会话调一次：同一轮更新原来那条，新的一轮加在最前。关着记录时不写。
     static func record(_ session: EditSession) {
-        guard isEnabled, let entry = AIHistoryEntry(session: session) else { return }
+        guard let entry = AIHistoryEntry(session: session) else { return }
+        record(entry)
+    }
+
+    /// 帮回（T16）直接给一条：同一次帮回更新原来那条。
+    static func record(_ entry: AIHistoryEntry) {
+        guard isEnabled else { return }
         queue.async {
             var entries = read()
             if let index = entries.firstIndex(where: { $0.id == entry.id }) {

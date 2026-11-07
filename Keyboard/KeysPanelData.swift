@@ -141,6 +141,57 @@ struct CrossPopup: Equatable {
     }
 }
 
+/// 回答卡里按住回车弹出的十字（第 70 条，EA2）：中间是回车（识意），正上方「✨ 润色」，左边「问答」。
+/// 两格和普通键一样大（宽同回车那一列、高 46）：上格离回车 7pt，左格离回车 6pt、和回车下半对齐；贴屏幕边时往里收。
+/// 选法和九宫格 ABC 十字一样：离按下的地方 14pt 内是中间，再远按偏得多的方向；滑出十字松手是取消（nil）。
+struct EnterCrossPopup: Equatable {
+    enum Choice: Equatable { case auto, polish, ask }
+
+    let key: KeySpec
+    let containerWidth: CGFloat
+    /// 润色 / 问答关掉或不能用：那一格不弹。
+    let polish: Bool
+    let ask: Bool
+    var origin: CGPoint
+    var selected: Choice? = .auto
+
+    static let cellHeight: CGFloat = 46
+    static let upGap: CGFloat = 7
+    static let leftGap: CGFloat = 6
+
+    /// 按键区离屏幕边 sidePadding，换算成离屏幕边 4pt。
+    private var margin: CGFloat { 4 - KeyboardMetrics.sidePadding }
+    private var cellWidth: CGFloat { min(key.cap.width, 120) }
+
+    var upFrame: CGRect {
+        var x = key.cap.midX - cellWidth / 2
+        x = min(max(x, margin), containerWidth - margin - cellWidth)
+        let y = max(key.cap.minY - Self.upGap - Self.cellHeight, 2 - KeyboardMetrics.topRow)
+        return CGRect(x: x, y: y, width: cellWidth, height: Self.cellHeight)
+    }
+
+    var leftFrame: CGRect {
+        let x = max(key.cap.minX - Self.leftGap - cellWidth, margin)
+        return CGRect(x: x, y: key.cap.maxY - Self.cellHeight, width: cellWidth, height: Self.cellHeight)
+    }
+
+    func choice(at point: CGPoint) -> Choice? {
+        var frames = [key.cap]
+        if polish { frames.append(upFrame) }
+        if ask { frames.append(leftFrame) }
+        // 离十字太远（任何一格外 20pt）：松手取消。
+        guard frames.contains(where: { $0.insetBy(dx: -20, dy: -20).contains(point) }) else { return nil }
+        if polish, upFrame.insetBy(dx: -6, dy: -6).contains(point) { return .polish }
+        if ask, leftFrame.insetBy(dx: -6, dy: -6).contains(point) { return .ask }
+        let dx = point.x - origin.x
+        let dy = point.y - origin.y
+        if hypot(dx, dy) <= 14 { return .auto }
+        if abs(dy) > abs(dx), dy < 0, polish { return .polish }
+        if abs(dx) >= abs(dy), dx < 0, ask { return .ask }
+        return key.cap.contains(point) ? .auto : nil
+    }
+}
+
 /// 表情按 Unicode 区段分组，只取默认就显示成彩色表情的字符，不用自己维护一大张表。
 enum EmojiCatalog {
     struct Category: Identifiable {

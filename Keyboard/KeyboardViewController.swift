@@ -119,6 +119,32 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
+    /// 方向复查：弹出时（viewWillAppear）往往还没进窗口，只能看尺寸类，而键盘进程里留着的旧值可能还是上次横屏的 compact；
+    /// 在横屏 App 里弹过键盘、回到竖屏再弹（比如桌面搜索），转屏是在键盘收起时发生的，不会走 viewWillTransition，
+    /// 键盘就一直卡在横屏的扁高度。进了窗口以后每次布局都按屏幕宽高比再核一次，不对就改；
+    /// 布局途中不直接改高度约束（updateHeight 会让父视图立刻重排），放到下一轮做。
+    private var orientationCheckScheduled = false
+    private func scheduleOrientationCheck() {
+        guard !orientationCheckScheduled, let screen = view.window?.windowScene?.screen.bounds.size,
+              (screen.width > screen.height) != model.landscape else { return }
+        orientationCheckScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.orientationCheckScheduled = false
+            self.updateOrientation()
+            self.updateHeight()
+        }
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        guard previousTraitCollection?.verticalSizeClass != traitCollection.verticalSizeClass else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.updateOrientation()
+            self?.updateHeight()
+        }
+    }
+
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         coordinator.animate(alongsideTransition: nil) { [weak self] _ in
@@ -142,6 +168,7 @@ final class KeyboardViewController: UIInputViewController {
         super.textDidChange(textInput)
         // 长按空格拖光标时，每移一下对方都会通知；这时不读输入框，松手再补（setTrackpad(false)）。
         if model.trackpadActive { return }
+        model.noteHostDocument(textDocumentProxy.documentIdentifier)
         // 点对方输入框挪光标时，系统有时只通知文字变了、不通知光标变了（iOS 27 模拟器上就是这样），两处都接。
         model.hostSelectionChanged()
         model.fieldDidChange()
@@ -151,6 +178,7 @@ final class KeyboardViewController: UIInputViewController {
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
         if model.trackpadActive { return }
+        model.noteHostDocument(textDocumentProxy.documentIdentifier)
         // 用户点了对方输入框：抽屉开着时打字换回对方输入框。
         model.hostSelectionChanged()
         model.refreshHostState()
@@ -166,6 +194,8 @@ final class KeyboardViewController: UIInputViewController {
         model.dropStaleSessionOnAppear()
         // 换了输入框重新试标记文字（上一个框不认，不代表这个也不认）。
         model.inlinePinyinOff = false
+        model.markedTextNotClearable = false
+        model.hostDocumentID = textDocumentProxy.documentIdentifier
         model.stoppedAnswer = nil
         // 上一个框留下的联想不带到这个框。
         model.dismissPredictions()
@@ -197,6 +227,8 @@ final class KeyboardViewController: UIInputViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.heightLog("settled") }
         #endif
         TypingStats.noteLaunchAppeared()
+        // 弹出前没进窗口时方向是按尺寸类猜的，进了窗口按屏幕再核一次。
+        scheduleOrientationCheck()
         clearStaleMarkedText()
         // 剪贴板换没换过（只看 changeCount、hasStrings，不读内容）：「常用」键上的紫点。
         model.checkClipboard()
@@ -226,6 +258,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
         updateGlobeKey()
+        scheduleOrientationCheck()
     }
 
     #if DEBUG

@@ -713,40 +713,71 @@ struct ClipboardList: View {
     }
 
     /// 44 高、浅紫底、1.5pt 主色虚线框、剪贴板图标 + 主色 15 粗。
+    /// 问答能用时右边一颗绿色「帮回」（T16）：点左边粘贴，点「帮回」直接写回复；两种都会把这条存进记录。
     private var promptRow: some View {
-        Button { model.pasteNewClipboard() } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
-                Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
+        HStack(spacing: 6) {
+            Button { model.pasteNewClipboard() } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
+                    Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
+                        .font(.system(size: 15, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(Brand.deepPurple)
+                .padding(.leading, 12)
+                .frame(height: 44)
+                .contentShape(Rectangle())
             }
-            .foregroundStyle(Brand.deepPurple)
-            .padding(.horizontal, 12)
-            .frame(height: 44)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.returnSoftFill))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(Brand.purple, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
-            .contentShape(Rectangle())
+            .buttonStyle(KeyPressStyle())
+            if model.helpReplyAvailable {
+                HelpChip { model.helpFromClipboardPrompt() }
+                    .padding(.trailing, 9)
+            }
         }
-        .buttonStyle(KeyPressStyle())
+        .padding(.trailing, model.helpReplyAvailable ? 0 : 12)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.returnSoftFill))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(Brand.purple, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
     }
 
     private func row(_ item: ClipItem, fresh: Bool) -> some View {
         let menuOpen = model.clipMenu == item.id
-        return HStack(alignment: .top, spacing: 8) {
-            Text(item.text)
-                .font(.system(size: 14.5))
-                .foregroundStyle(Color.primary)
-                .lineLimit(2)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text(ClipboardHistory.age(item.date))
-                .font(.system(size: 11.5))
-                .foregroundStyle(fresh ? Brand.deepPurple : Color.secondary)
-                .padding(.top, 2)
+        return Group {
+            if model.helpReplyAvailable {
+                // 帮回（T16，HB1）：文字下面一行，左边时间、右边「帮回」；单号、链接、纯数字这类不显示「帮回」。
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.text)
+                        .font(.system(size: 14.5))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: 6) {
+                        Text(ClipboardHistory.age(item.date))
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(fresh ? Brand.deepPurple : Color.secondary)
+                        Spacer(minLength: 0)
+                        if HelpReply.suits(item.text) {
+                            HelpChip { model.helpFromClip(item) }
+                        }
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: 8) {
+                    Text(item.text)
+                        .font(.system(size: 14.5))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(ClipboardHistory.age(item.date))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(fresh ? Brand.deepPurple : Color.secondary)
+                        .padding(.top, 2)
+                }
+            }
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 7)

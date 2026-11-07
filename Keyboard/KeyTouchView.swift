@@ -21,6 +21,10 @@ final class KeyTouchView: UIView {
         var slidFromLayer = false
         /// 长按弹出了备选条，松手时打出选中的那个。
         var alternates = false
+        /// 回答卡里按住回车弹出了「上润色、左问答」十字（第 70 条），松手执行选中的那个。
+        var enterCross = false
+        /// ^^ 是帮回时按住弹出了「^^ 颜文字」格（T16），松手在格里打开颜文字、没滑开是帮回。
+        var helpCross = false
         /// 按下的位置，九宫格按住直接往外划用。
         var start: CGPoint = .zero
 
@@ -37,6 +41,9 @@ final class KeyTouchView: UIView {
     /// 原来固定 16pt，打得快时手指往下一个键带一下就超过，打出的是划出来的字母而不是数字。
     private static let flickMinDistance: CGFloat = 24
     private static let flickWidthRatio: CGFloat = 0.4
+    /// 回车弹出十字：按住 0.3 秒，或手指移动超过 16pt（和 ABC 键、逗号键一样，第 70 条）。
+    private static let enterCrossDelay: TimeInterval = 0.3
+    private static let enterCrossDistance: CGFloat = 16
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -159,6 +166,29 @@ final class KeyTouchView: UIView {
                         state.fired = true
                     }
                 }
+            case .returnKey:
+                guard model.enterAI.map({ !$0.running && !$0.empty }) == true else { break }
+                state.timer = Timer.scheduledTimer(withTimeInterval: Self.enterCrossDelay, repeats: false) { [weak self, weak state] _ in
+                    Task { @MainActor in
+                        guard let self, let state, !state.fired,
+                              self.tracking.values.contains(where: { $0 === state }),
+                              self.model?.showEnterCross(for: state.key, containerWidth: self.bounds.width,
+                                                         origin: state.start) == true else { return }
+                        state.enterCross = true
+                        state.fired = true
+                    }
+                }
+            case .emoticon:
+                guard model.helpKeyLook.map({ !$0.running }) == true else { break }
+                state.timer = Timer.scheduledTimer(withTimeInterval: Self.enterCrossDelay, repeats: false) { [weak self, weak state] _ in
+                    Task { @MainActor in
+                        guard let self, let state, !state.fired,
+                              self.tracking.values.contains(where: { $0 === state }),
+                              self.model?.showHelpCross(for: state.key, origin: state.start) == true else { return }
+                        state.helpCross = true
+                        state.fired = true
+                    }
+                }
             default:
                 if key.kind.typesCharacter { scheduleAlternates(state) }
             }
@@ -172,6 +202,32 @@ final class KeyTouchView: UIView {
             let point = touch.location(in: self)
             if state.alternates {
                 model.moveAlternates(to: point)
+                continue
+            }
+            if state.enterCross {
+                model.moveEnterCross(to: point)
+                continue
+            }
+            if state.helpCross {
+                model.moveHelpCross(to: point)
+                continue
+            }
+            if !state.fired, state.key.kind == .emoticon,
+               hypot(point.x - state.start.x, point.y - state.start.y) > Self.enterCrossDistance,
+               model.showHelpCross(for: state.key, origin: state.start) {
+                state.timer?.invalidate()
+                state.helpCross = true
+                state.fired = true
+                model.moveHelpCross(to: point)
+                continue
+            }
+            if !state.fired, state.key.kind == .returnKey,
+               hypot(point.x - state.start.x, point.y - state.start.y) > Self.enterCrossDistance,
+               model.showEnterCross(for: state.key, containerWidth: bounds.width, origin: state.start) {
+                state.timer?.invalidate()
+                state.enterCross = true
+                state.fired = true
+                model.moveEnterCross(to: point)
                 continue
             }
             // 九宫格和原生一样：按住直接往上下左右划，不用等长按，十字马上出来并选中那个方向。
@@ -233,6 +289,10 @@ final class KeyTouchView: UIView {
                 model.controller?.handleInputModeList(from: self, with: event ?? UIEvent())
             } else if state.alternates {
                 model.commitAlternate()
+            } else if state.enterCross {
+                model.commitEnterCross()
+            } else if state.helpCross {
+                model.commitHelpCross()
             } else if state.trackpadX != nil {
                 model.setTrackpad(false)
             } else if !state.fired {
@@ -257,6 +317,8 @@ final class KeyTouchView: UIView {
                 model.cross = nil
                 model.layoutMenu = nil
             }
+            if state.enterCross { model.enterCross = nil }
+            if state.helpCross { model.helpCross = nil }
             model.keyReleased(state.key.id)
         }
     }

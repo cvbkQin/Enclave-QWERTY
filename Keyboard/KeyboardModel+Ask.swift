@@ -65,6 +65,8 @@ extension KeyboardModel {
 
     /// 点识意框：打字回到框里，取消全选；开着的风格一排收回去。
     func focusAsk() {
+        // 帮回倒计时中点了识意框：停下来等你写要求（HB29 ②）。
+        if helpReply?.countdownEnds != nil { cancelHelpCountdown() }
         if target == .card { finishCardEdit() }
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
@@ -125,6 +127,7 @@ extension KeyboardModel {
 
         // 抽屉先不展开：收起时按快速模式开始，判断是问答再展开（askDecided）。
         if !aiExpanded { beginQuickMode(source: readField().text) }
+        askAuto = mode == nil
         start(from: .ask) { run(messages, pending: pending, ask: request) }
         if !isRunning {
             quickSource = nil
@@ -175,7 +178,12 @@ extension KeyboardModel {
     func polishKeyTapped() {
         endCelebration()
         if isRunning { stop(); return }
+        if helpReply?.running != nil { stopHelpReply(); return }
         lastRunPin = nil
+        // 帮回卡上（RG3）：润色这条回复，算帮回的新一版；输入框里是无关的话就照平时润色。
+        if aiExpanded, helpReply != nil, helpPolishTapped() { return }
+        // 识意框换回润色 / 问答那份（帮回那份收起来）。
+        parkHelpReply()
         runPolish()
     }
 
@@ -207,7 +215,6 @@ extension KeyboardModel {
         var extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         // 识意框里是点「问答」时自动填进去的那句（问题本身），不是要求：只改写输入框里的话（v308，FT13）。
         if let auto = askAutoFill, extra == auto { extra = "" }
-        lastRunKey = .rewrite
         start(from: .polish) { execute(extraInstruction: extra) }
     }
 
@@ -218,6 +225,8 @@ extension KeyboardModel {
         endCelebration()
         if isRunning { stop(); return }
         lastRunPin = nil
+        // 帮回卡开着：帮回收起来，识意框换回问答那份（问题还在）。
+        parkHelpReply()
         runAsk()
     }
 
@@ -235,7 +244,6 @@ extension KeyboardModel {
             }
             setInstruction(text)
             askAutoFill = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            lastRunKey = .answer
             coachTapped(.ask)
             askTapped(.answer, contextOverride: "")
             return
@@ -246,7 +254,6 @@ extension KeyboardModel {
                             "下の欄に質問を書いてから「質問」をタップ"))
             return
         }
-        lastRunKey = .answer
         coachTapped(.ask)
         askTapped(.answer)
     }
@@ -258,12 +265,16 @@ extension KeyboardModel {
         if isRunning { stop(); return }
         lastRunPin = style.id
         if answer {
+            parkHelpReply()
             runAnswerStyleOverride = style
             runAsk()
             runAnswerStyleOverride = nil
         } else {
             runStyleOverride = style
-            runPolish()
+            if !(aiExpanded && helpReply != nil && helpPolishTapped()) {
+                parkHelpReply()
+                runPolish()
+            }
             runStyleOverride = nil
         }
     }
@@ -284,9 +295,84 @@ extension KeyboardModel {
         if pinMenu != nil { pinMenu = nil }
     }
 
-    /// 识意框里按回车「执行」：和上次点的那颗键一样（没点过就是问答）。不再有自动判断（AK1）。
-    func runFromAskField() {
-        if lastRunKey == .rewrite { polishKeyTapped() } else { askKeyTapped() }
+    // MARK: - 回车键里的识意（第 70 条）
+
+    /// 回答卡展开、焦点在识意框时回车的样子。polish / ask：上段「↑ ✨ 润色」、下段「← 问答」在不在（功能关掉或不能用就没有）。
+    struct EnterAI: Equatable {
+        var polish: Bool
+        var ask: Bool
+        /// 识意框空着：灰色「识意」，点了不发请求。
+        var empty: Bool
+        var running: Bool
+        /// 停止图标的高光绕圈（关了发光动画就不绕）。
+        var moving: Bool
+    }
+
+    /// 回车键里还能不能润色 / 问答：和 AI 栏上那颗键一样，关掉或不能用就没有（第 68 条）。
+    var enterPolishAvailable: Bool {
+        #if DEBUG
+        if debugEnterHides.contains(.rewrite) { return false }
+        #endif
+        return settings.showsPolishKey || debugUnblocked
+    }
+
+    var enterAskAvailable: Bool {
+        #if DEBUG
+        if debugEnterHides.contains(.answer) { return false }
+        #endif
+        return settings.showsAnswerKey || debugUnblocked
+    }
+
+    /// 回答卡展开、焦点在识意框：回车是识意；正在拼音时还是「确认」，润色、问答都关了是普通回车。
+    var enterAI: EnterAI? {
+        guard aiExpanded, target == .instruction, !isComposing, helpReply == nil else { return nil }
+        let polish = enterPolishAvailable, ask = enterAskAvailable
+        guard polish || ask else { return nil }
+        return EnterAI(polish: polish, ask: ask, empty: !canAsk && !isRunning, running: isRunning,
+                       moving: settings.polishAnimation)
+    }
+
+    /// 点回车（不管点在哪一段）= 识意：识意框的话交给 AI 自己判断改写还是回答。执行中点了是停止（第 67 条）。
+    func enterAskTapped() {
+        endCelebration()
+        if isRunning { stop(); return }
+        guard canAsk else {
+            showKeysToast(L("先在框里写下要求或问题", "Type a request or question in the box first.", "先に欄に依頼か質問を書いてください"))
+            return
+        }
+        lastRunPin = nil
+        if aiRow != nil { aiRow = nil }
+        askTapped(nil)
+    }
+
+    /// 按住回车 0.3 秒或拖动超过 16pt：弹出「上润色、左问答」的十字，先选中中间（识意）。
+    func showEnterCross(for key: KeySpec, containerWidth: CGFloat, origin: CGPoint) -> Bool {
+        guard let ai = enterAI, !ai.running, !ai.empty else { return false }
+        enterCross = EnterCrossPopup(key: key, containerWidth: containerWidth, polish: ai.polish, ask: ai.ask, origin: origin)
+        keyFeedback(for: .space)
+        return true
+    }
+
+    func moveEnterCross(to point: CGPoint) {
+        guard var popup = enterCross else { return }
+        let choice = popup.choice(at: point)
+        guard choice != popup.selected else { return }
+        popup.selected = choice
+        enterCross = popup
+        // 进格时轻震一下（同 ABC 十字）。
+        if choice != nil { keyFeedback(for: .space) }
+    }
+
+    /// 松手执行选中的那个；滑出十字松手是取消。
+    func commitEnterCross() {
+        guard let popup = enterCross else { return }
+        enterCross = nil
+        switch popup.selected {
+        case .polish?: polishKeyTapped()
+        case .ask?: askKeyTapped()
+        case .auto?: enterAskTapped()
+        case nil: break
+        }
     }
 
     /// 识意框右边「使用联网查询」能不能出现（MG6）：正在显示没联网的问答，问答接口能联网，三档不是禁止。
@@ -305,6 +391,7 @@ extension KeyboardModel {
         guard passAnswerConsent(then: { [weak self] in self?.forceWebSearch() }) else { return }
         let request = AskRequest(question: source.question, forced: .answer, fallbackAnswer: true,
                                  context: source.context, search: provider, forceSearch: true)
+        askAuto = false
         start(from: .ask) { run([], pending: session, ask: request) }
     }
 

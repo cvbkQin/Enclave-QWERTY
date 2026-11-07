@@ -39,7 +39,7 @@ struct UnlockView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(L("恢复购买", "Restore Purchases", "購入を復元")) { Task { await unlock.restore() } }
+                Button(L("恢复购买", "Restore", "購入を復元")) { Task { await unlock.restore() } }
                     .disabled(unlock.purchasing)
             }
         }
@@ -173,9 +173,9 @@ struct UnlockView: View {
             Feature(icon: "slider.horizontal.3", title: L("按要求改", "Custom changes", "指示して直す"),
                     detail: L("「委婉一点」「翻成英文」，配合风格一起用", "\"Softer\", \"In English\", together with a style",
                               "「やわらかく」「英語に」など、文体と組み合わせて使えます")),
-            Feature(icon: "pencil.line", title: L("帮我写", "Help me write", "下書きを作成"),
-                    detail: L("输入框空着时，按要求直接写一段", "With an empty field, write a draft from your prompt",
-                              "入力欄が空のとき、指示どおりに文章を書きます")),
+            Feature(icon: "questionmark.bubble", title: L("问答", "Ask", "質問"),
+                    detail: L("在回答卡里问问题，答案直接显示在卡上", "Ask a question and read the answer in the card",
+                              "質問すると、答えがカードに表示されます")),
             Feature(icon: "arrow.clockwise", title: L("再润", "Rewrite", "別の案"),
                     detail: L("不满意再来一版，上下翻着挑", "Get another version and flip between them",
                               "別の案を出して、上下に切り替えて選べます")),
@@ -261,11 +261,11 @@ struct UnlockHeroCard: View {
             return L("谢谢支持。AI 功能一直能用，模型随你换。", "Thanks for your support. AI features are yours to keep, with any model.",
                      "ご購入ありがとうございます。AI 機能はずっと使え、モデルも自由に変えられます。")
         case .expired:
-            return L("试用结束后每天免费用 \(uses) 次。一次买断，不限次数。", "After the trial: \(uses) free uses a day. Pay once for unlimited.",
+            return L("试用结束后每天免费用 \(uses) 次。一次买断，不限次数。", "\(uses) free uses a day. Pay once for unlimited.",
                      "無料体験のあとも 1 日 \(uses) 回まで無料。買い切りで回数無制限。")
         case .trial:
-            return L("接上你自己的模型润色。一次买断，没有订阅。", "Polish with your own model. One-time purchase, no subscription.",
-                     "自分のモデルで文章を整えます。買い切りで、サブスクはありません。")
+            return L("接上你自己的模型润色和问答。一次买断，没有订阅。", "Use your own model. Pay once, no subscription.",
+                     "自分のモデルで文章を整えたり、質問したりできます。買い切りで、サブスクはありません。")
         }
     }
 
@@ -281,8 +281,8 @@ struct UnlockHeroCard: View {
                 .kerning(1.5)
                 .foregroundStyle(Color(hex: 0xB9B2FF))
                 .padding(.top, 4)
-            Text(unlocked ? L("AI 润色已解锁", "AI Polish is unlocked", "AI 機能を購入済みです")
-                          : L("解锁 AI 润色", "Unlock AI Polish", "AI 機能のロックを解除"))
+            Text(unlocked ? L("AI 润色和问答已解锁", "AI Polish & Ask unlocked", "AI 機能を購入済みです")
+                          : L("解锁 AI 润色和问答", "Unlock AI Polish & Ask", "AI 機能のロックを解除"))
                 .font(.system(size: 23, weight: .bold))
                 .foregroundStyle(.white)
             Text(subtitle)
@@ -383,7 +383,7 @@ private struct PurchaseBar: View {
                 .disabled(unlock.purchasing)
             }
             HStack(spacing: 4) {
-                Text(L("通过 Apple ID 付款 · 同一 Apple ID 的设备都能用", "Paid with your Apple Account · Works on all your devices",
+                Text(L("通过 Apple ID 付款 · 同一 Apple ID 的设备都能用", "Paid via your Apple Account · All your devices",
                        "Apple アカウントで支払い・同じアカウントの端末で使えます"))
                 Text("·")
                 Button(L("隐私政策", "Privacy Policy", "プライバシーポリシー")) { AppRouter.shared.settingsPath.append(.privacyPolicy) }
@@ -416,6 +416,7 @@ extension UnlockStore.Message {
         case .pending: return L("等家长批准", "Waiting for approval", "保護者の承認待ち")
         case .notFound: return L("没有找到购买记录", "No purchase found", "購入履歴が見つかりません")
         case .offline: return L("暂时连不上 App Store", "Can't reach the App Store", "App Store に接続できません")
+        case .unavailable: return L("App Store 里暂时买不到", "Not available in the App Store yet", "App Store でまだ購入できません")
         case .failed: return L("没有完成购买", "Purchase not completed", "購入できませんでした")
         }
     }
@@ -427,6 +428,8 @@ extension UnlockStore.Message {
         case .notFound: return L("这个 Apple ID 还没有买过 AI 解锁。", "This Apple Account hasn't unlocked AI.",
                                  "この Apple アカウントでは AI を購入していません。")
         case .offline: return L("没有扣款，稍后再试。", "You weren't charged. Try again later.", "料金は請求されていません。後でもう一度お試しください。")
+        case .unavailable: return L("App Store 没有返回 AI 解锁这个商品，没有扣款。", "The App Store didn't return the AI unlock. You weren't charged.",
+                                    "App Store から AI 購入の商品が返されませんでした。料金は請求されていません。")
         case .failed(let reason): return reason
         }
     }
