@@ -25,6 +25,7 @@ a{color:var(--accent)}
 section.lang{padding-top:8px;border-top:1px solid var(--line);margin-top:40px}
 section.lang:first-of-type{border-top:0;margin-top:0}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:16px 0}
+.notice{border-color:var(--accent);border-width:2px}
 footer{margin-top:56px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
 code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 </style>
@@ -33,6 +34,8 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <header><a class="brand" href="index.html">Enclave keyboard</a>
 <nav class="lang"><a href="#zh">中文</a><a href="#en">English</a><a href="#ja">日本語</a></nav></header>
 <section class="lang" id="zh" lang="zh-Hans"><h1>Enclave keyboard 支持</h1><p class="meta">Enclave 是一款中文拼音输入法，AI 功能使用你自己配置的模型接口。</p>
+<div class="card notice"><strong>请先配置你自己的 API</strong><br>Enclave 不提供 AI 模型，也不附带 API Key。要用 AI 润色，需要先在 App 里填好你自己的模型服务（例如 DeepSeek）和 API Key，否则 AI 功能无法使用。打拼音不需要任何配置。</div>
+<h2>用 DeepSeek 快速开始</h2><ol><li>打开 <a href="https://platform.deepseek.com">platform.deepseek.com</a>，注册并登录。</li><li>在“充值”里充一点余额（几元就能用很久）。</li><li>进入“API Keys”，点“创建 API Key”，复制生成的 Key（只显示一次）。</li><li>打开 Enclave App 的“模型接口”，服务商选 DeepSeek，粘贴 API Key，保存。地址 <code>https://api.deepseek.com/v1</code> 和模型 <code>deepseek-chat</code> 会自动填好。</li></ol>
 <h2>添加键盘</h2><p>打开 iPhone 的“设置 › 通用 › 键盘 › 键盘 › 添加新键盘”，选择 Enclave。打字时长按或轻点地球键切换到 Enclave。</p>
 <h2>为什么要“允许完全访问”</h2><p>不开完全访问也能正常打拼音。只有 AI 润色需要它：用来把你选中的文字发送到你配置的模型接口、按键振动，以及读取和 App 共享的设置。开启方法：设置 › 通用 › 键盘 › 键盘 › Enclave › 允许完全访问。</p>
 <h2>配置模型接口</h2><p>打开 Enclave App，进入“模型接口”，选择服务商或“自定义”，填入 API 地址（一般以 /v1 结尾）、模型名和 API Key。支持 OpenAI 兼容格式的接口，也可以连接你自己运行的 Ollama、vLLM、LM Studio 等。API Key 只保存在本机钥匙串。</p>
@@ -41,6 +44,8 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <h2>润色失败怎么办</h2><p>先确认已开启完全访问、网络正常；再检查 API 地址、模型名和 API Key 是否正确，以及服务商账户是否有余额。连接局域网里的模型时，手机和电脑需要在同一个网络。</p>
 <div class="card"><strong>联系我们</strong><br>有问题或建议，请发邮件到 <a href="mailto:cvbk.qin@gmail.com">cvbk.qin@gmail.com</a><br><a href="privacy.html#zh">隐私政策</a></div></section>
 <section class="lang" id="en" lang="en"><h1>Enclave keyboard Support</h1><p class="meta">Enclave is a Chinese Pinyin keyboard whose AI features use a model API you configure yourself.</p>
+<div class="card notice"><strong>You need your own API first</strong><br>Enclave doesn't include an AI model or an API key. To use AI Polish, add your own model provider (for example DeepSeek) and API key in the app first. Without them, AI features won't work. Pinyin typing needs no setup.</div>
+<h2>Quick start with DeepSeek</h2><ol><li>Sign up and log in at <a href="https://platform.deepseek.com">platform.deepseek.com</a>.</li><li>Add a small amount of credit under Top up.</li><li>Open API Keys, create a key and copy it (it is shown only once).</li><li>In the Enclave app, open Model API, choose DeepSeek, paste the key and save. The URL <code>https://api.deepseek.com/v1</code> and model <code>deepseek-chat</code> are filled in for you.</li></ol>
 <h2>Add the keyboard</h2><p>Open Settings › General › Keyboard › Keyboards › Add New Keyboard and choose Enclave. Use the globe key to switch to it while typing.</p>
 <h2>Why Full Access?</h2><p>Pinyin typing works without Full Access. Only AI Polish needs it: to send your text to the model API you configured, for key haptics, and to read settings shared with the app. To turn it on: Settings › General › Keyboard › Keyboards › Enclave › Allow Full Access.</p>
 <h2>Set up your model API</h2><p>In the Enclave app, open the API tab (Model API), pick a provider or Custom, and enter the API URL (usually ending in /v1), model name and API key. Any OpenAI-compatible API works, as do self-hosted servers such as Ollama, vLLM or LM Studio. Your API key is stored only in the iOS Keychain.</p>
@@ -49,6 +54,8 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <h2>Polish failed?</h2><p>Check that Full Access is on and you are online, then check the API URL, model name and API key, and that your provider account has credit. For a model on your local network, your iPhone and computer must be on the same network.</p>
 <div class="card"><strong>Contact</strong><br>Questions or feedback: <a href="mailto:cvbk.qin@gmail.com">cvbk.qin@gmail.com</a><br><a href="privacy.html#en">Privacy Policy</a></div></section>
 <section class="lang" id="ja" lang="ja"><h1>Enclave keyboard サポート</h1><p class="meta">Enclave は中国語ピンイン入力キーボードです。AI 機能には自分で設定したモデル API を使います。※日本語の入力には対応していません。</p>
+<div class="card notice"><strong>まず自分の API を設定してください</strong><br>Enclave には AI モデルも API キーも含まれていません。AI 機能を使うには、先にアプリで自分のモデルサービス（例：DeepSeek）と API キーを設定する必要があります。設定しないと AI 機能は使えません。ピンイン入力は設定なしで使えます。</div>
+<h2>DeepSeek ですぐに始める</h2><ol><li><a href="https://platform.deepseek.com">platform.deepseek.com</a> に登録してログインします。</li><li>「Top up」で少額をチャージします。</li><li>「API Keys」でキーを作成してコピーします（表示は一度だけ）。</li><li>Enclave アプリの「モデル API」で DeepSeek を選び、キーを貼り付けて保存します。URL <code>https://api.deepseek.com/v1</code> とモデル <code>deepseek-chat</code> は自動で入ります。</li></ol>
 <h2>キーボードを追加する</h2><p>「設定 › 一般 › キーボード › キーボード › 新しいキーボードを追加」で Enclave を選びます。入力中は地球儀キーで切り替えます。</p>
 <h2>フルアクセスが必要な理由</h2><p>フルアクセスがオフでもピンイン入力はできます。必要なのは AI 機能だけで、設定したモデル API への送信、キーの触覚フィードバック、アプリと共有する設定の読み込みに使います。オンにするには「設定 › 一般 › キーボード › キーボード › Enclave › フルアクセスを許可」。</p>
 <h2>モデル API を設定する</h2><p>Enclave アプリの「モデル API」でサービスまたは「カスタム」を選び、API の URL（通常 /v1 で終わる）、モデル名、API キーを入力します。OpenAI 互換 API のほか、Ollama・vLLM・LM Studio などのセルフホストにも対応。API キーは端末のキーチェーンにのみ保存されます。</p>
