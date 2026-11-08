@@ -249,8 +249,13 @@ final class KeyboardModel: ObservableObject {
     /// AI 帮回（T16）：这一次的状态（nil 没在帮回，回答卡是普通的）、^^ 键生成中和刚写好时一直是帮回、
     /// 这份新复制被打字收掉了、按住帮回键弹出的「^^ 颜文字」格、卡头 ⌄ 的风格列表。
     @Published var helpReply: HelpReplyState? {
-        didSet { if (helpReply == nil) != (oldValue == nil) { heightMayChange?() } }
+        didSet {
+            if (helpReply == nil) != (oldValue == nil) { heightMayChange?() }
+            if oldValue == nil, helpReply != nil { helpOpenedAt = Date() }
+        }
     }
+    /// 帮回卡刚弹出的时候：键盘在长高、重新排版（约 0.5 秒），这时手指还在帮回键上，再点一下会落到「回 …」句子行上。
+    var helpOpenedAt = Date.distantPast
     @Published var helpKeyHold = false
     @Published var helpDismissed = false
     @Published var helpCross: HelpCrossPopup?

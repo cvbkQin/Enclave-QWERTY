@@ -453,7 +453,13 @@ extension KeyboardModel {
     }
 
     /// 点开回哪句话列表时读一次 AI 历史（关着记录就不读）。
+    /// 卡刚弹出 0.6 秒内（键盘还在长高、排版没到位）点到句子行、「历史」键：其实是在帮回键上又点了一下。
+    /// 这时在倒计时就当暂停，别的情况不理（不打开列表，也不替他发请求）。
     func toggleHelpList() {
+        if Date().timeIntervalSince(helpOpenedAt) < 0.6 {
+            if helpReply?.countdownEnds != nil { pauseHelpCountdown() }
+            return
+        }
         if !helpListOpen { refreshHelpRecent() }
         helpListOpen.toggle()
     }
