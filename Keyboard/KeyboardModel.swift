@@ -672,11 +672,6 @@ final class KeyboardModel: ObservableObject {
         return false
     }
 
-    #if DEBUG
-    /// 截图用：直接摆出一张提示卡。
-    func debugShowGate(_ value: AIGate) { gate = value }
-    #endif
-
     /// 确认卡上的「同意并润色」：记下这个地址，接着做刚才那一步。卡上写了联网那一行时，联网问答也算同意了。
     func acceptConsent() {
         guard case .consent(let endpoint, _, _) = gate else { return }
