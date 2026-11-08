@@ -29,13 +29,15 @@
 
 您从文件导入的词库（细胞词库 .scel、Rime 词库 .dict.yaml）在您的设备本地读取和转换，不会上传。
 
-### （二）AI 功能（点 ✨ 执行提示词，例如润色、翻译、改写）
+### （二）AI 润色（按您选的风格改写，例如润色、正式、翻译）
 
-**仅在您主动点击 ✨ 或“执行”时**，本应用会将以下信息直接发送至您自行配置的模型服务接口：
+**仅在您主动点击润色时**（键盘 AI 栏上的“润色”键或固定在 AI 栏上的风格键、识意框回车后出现的“润色”，或帮回卡片上的润色键），本应用会将以下信息直接发送至您为润色配置的模型服务接口（即主接口）：
 
-1. 当前输入框中的文字；如您已选中部分文字，则仅发送所选部分；
-2. 您填写的要求；
-3. 您所选提示词的说明文字。
+1. 要润色的文字：当前输入框中的文字，如您已选中部分文字则仅为所选部分；在帮回卡片上润色时，为卡片上的那条回复；
+2. 您在识意框中写的要求（如有）；
+3. 您所选润色风格的说明文字。
+
+您在识意框中写了内容后点“问答”时，如键盘判断这是对输入框文字的修改要求，也会按本项发送至润色接口。
 
 上述信息由您选择的模型服务提供方依据其服务条款和隐私政策处理，不经过我们的服务器，我们无法访问。**在首次发送前，以及您更换接口地址后，本应用会展示信息将发送到的地址，并单独征得您的同意，未经同意不会发送任何内容。**
 
@@ -168,11 +170,13 @@ Dictionaries you import from a file (.scel cell dictionaries or Rime .dict.yaml 
 
 ### AI Polish
 
-Only when you tap Polish or Rewrite, the App sends the following directly to the model service endpoint that you have configured:
+Only when you tap to polish (the Polish key or a style pinned to the AI bar, Polish after pressing Return in the intent box, or the polish key on a Help Reply card), the App sends the following directly to the model service API you configured for Polish (the main API):
 
-- the text in the current input field, or only the selected portion if text is selected;
-- any prompt you have entered;
-- the description of the selected style.
+- the text to polish: the text in the current input field, or only the selected portion if text is selected; when polishing on a Help Reply card, that reply;
+- any instructions you wrote in the intent box;
+- the description of the polish style you chose.
+
+If you write something in the intent box and tap Ask, and the keyboard judges it to be an instruction for changing your text, it is also sent to the Polish API as described here.
 
 This information is processed by the model service provider you have chosen, under that provider's privacy policy. It does not pass through our servers, and we have no access to it.
 
@@ -286,11 +290,13 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 ### AI 機能
 
-お客様が「整える」または「別の案」をタップしたときに限り、本アプリは次の情報を、お客様が設定したモデルサービスの API に直接送信します。
+お客様が整える操作をしたときに限り（AI バーの「整える」キーや固定したスタイルのキー、意図入力欄で改行したあとの「整える」、返信アシストのカード上の整えるキー）、本アプリは次の情報を、「整える」用に設定したモデルサービスの API（メインの API）に直接送信します。
 
-- 現在の入力欄の文章（一部を選択している場合は選択部分のみ）
-- お客様が入力した指示
-- 選択した文体の説明文
+- 整える文章：現在の入力欄の文章（一部を選択している場合は選択部分のみ）。返信アシストのカード上で整える場合は、その返信
+- 意図入力欄に書いた指示（あれば）
+- 選んだスタイルの説明文
+
+意図入力欄に書いてから「質問」をタップした場合でも、キーボードがそれを文章の書き換えの指示と判断したときは、ここで説明したとおり「整える」用の API に送信します。
 
 これらの情報は、お客様が選択したモデルサービスの提供者が、その提供者のプライバシーポリシーに従って処理します。当方のサーバーを経由することはなく、当方が内容にアクセスすることはできません。
 

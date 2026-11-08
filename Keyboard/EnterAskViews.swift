@@ -26,7 +26,7 @@ enum EnterAskStyle {
 
     static var accessibilityHint: String {
         L("点一下识意；上滑润色，左滑问答。", "Tap to let AI decide; swipe up to polish, swipe left to ask.",
-          "タップで AI が判断、上スワイプで推敲、左スワイプで質問。")
+          "タップで AI が判断、上スワイプで整える、左スワイプで質問。")
     }
 }
 
@@ -81,7 +81,7 @@ struct EnterAskKey: View {
             if ai.polish {
                 HStack(spacing: 2) {
                     Text("↑ ✨").font(.system(size: 10.5, weight: .bold))
-                    Text(L("润色", "Polish", "推敲")).font(.system(size: 10.5, weight: .bold))
+                    Text(L("润色", "Polish", "整える")).font(.system(size: 10.5, weight: .bold))
                 }
                 .lineLimit(1).minimumScaleFactor(0.7)
                 .frame(maxWidth: .infinity)
@@ -129,7 +129,7 @@ struct EnterAskKey: View {
     private var compactLabel: some View {
         switch highlight {
         case .polish?:
-            Text("✨ " + L("润色", "Polish", "推敲")).font(.system(size: 15, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+            Text("✨ " + L("润色", "Polish", "整える")).font(.system(size: 15, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
         case .ask?:
             HStack(spacing: 3) {
                 AskIcon(size: 14)
@@ -151,7 +151,7 @@ struct EnterCrossView: View {
         ZStack(alignment: .topLeading) {
             if popup.polish {
                 cell(popup.upFrame, selected: popup.selected == .polish, fill: EnterAskStyle.polishCell) {
-                    Text("✨ " + L("润色", "Polish", "推敲"))
+                    Text("✨ " + L("润色", "Polish", "整える"))
                 }
             }
             if popup.ask {
