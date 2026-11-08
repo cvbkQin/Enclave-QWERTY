@@ -75,6 +75,9 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private var hostInactive = false
+    /// 键盘开着时每秒看一眼 changeCount（不读内容、不弹横幅）：在对方 App 里不收键盘直接复制一句，帮回键红点、紫点也跟着出来。
+    private var clipboardPoll: Timer?
+    private var polledChangeCount = UIPasteboard.general.changeCount
 
     /// 退后台时输入框里还挂着、没清成的拼音，记下的时间。放在实例外面：回前台时系统常新建一个 KeyboardViewController，
     /// 旧实例的 textDocumentProxy 已经断开、随后被释放，只有新实例清得掉（bug #15）。
@@ -232,6 +235,7 @@ final class KeyboardViewController: UIInputViewController {
         clearStaleMarkedText()
         // 剪贴板换没换过（只看 changeCount、hasStrings，不读内容）：「常用」键上的紫点。
         model.checkClipboard()
+        startClipboardPoll()
         // 常用词要读系统文本替换和通讯录、可能重写词库里的短语表，不影响键盘长什么样，放到弹出以后再做，
         // 不占弹出前的那一段主线程。
         model.refreshCommonWords()
@@ -239,6 +243,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        clipboardPoll?.invalidate()
+        clipboardPoll = nil
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
         releaseEngine()
         model.pressedKeys = []
@@ -248,6 +254,21 @@ final class KeyboardViewController: UIInputViewController {
         model.dismissPredictions()
         EnglishPredictor.flush()
         DailyStats.flush()
+    }
+
+    private func startClipboardPoll() {
+        clipboardPoll?.invalidate()
+        polledChangeCount = UIPasteboard.general.changeCount
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let count = UIPasteboard.general.changeCount
+            guard count != self.polledChangeCount else { return }
+            self.polledChangeCount = count
+            self.model.checkClipboard()
+        }
+        timer.tolerance = 0.3
+        RunLoop.main.add(timer, forMode: .common)
+        clipboardPoll = timer
     }
 
     override func didReceiveMemoryWarning() {
