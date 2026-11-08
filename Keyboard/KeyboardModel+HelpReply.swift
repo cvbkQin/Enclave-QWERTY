@@ -269,9 +269,10 @@ extension KeyboardModel {
         beginHelpReply(message: text, fromKey: fromKey)
     }
 
-    /// 和润色一样先过提示卡（完全访问、隐私、没配置、次数）。11-08 起走润色接口，不再过问答的发送同意。
+    /// 和润色一样先过提示卡（完全访问、隐私、没配置、次数）。11-08 起走润色接口，不再过问答的发送同意；
+    /// 第一次发送前的确认卡是帮回自己的那张（RG9）。
     func passHelpGates(then action: @escaping () -> Void) -> Bool {
-        passGate(then: action)
+        passGate(purpose: .help, then: action)
     }
 
     /// 开新的一句：回答卡换成帮回（绿），先倒计时 3 秒，到点按上次用的风格写。不往输入框贴原文。
@@ -921,7 +922,7 @@ extension KeyboardModel {
     /// help:countdown（倒计时）、help:running（正在写、已经出了半句）、help:card（写好第 1 种）、help:second（写好 2 种、看第 2 种）、
     /// help:switching（切到第 3 种正在写）、help:all（3 种都写好）、help:versions（第 1 种有 3 版、看第 3 版）、
     /// help:direction（按要求写的一版，框里绿字）、help:pending（框里有没执行的字，帮回键亮）、help:polished（润色出的一版）、
-    /// help:menu（⌄ 列表）、help:list（回哪句话列表，带一句 AI 历史里的）、help:empty（空卡）、help:emptylist（空卡、剪贴板也空、列表开着）、help:stopped（停了）、help:failed（第 3 种没写出来）、help:panel（剪贴板面板）、
+    /// help:menu（⌄ 列表）、help:list（回哪句话列表，带一句 AI 历史里的）、help:empty（空卡）、help:consent（帮回的确认卡）、help:emptylist（空卡、剪贴板也空、列表开着）、help:stopped（停了）、help:failed（第 3 种没写出来）、help:panel（剪贴板面板）、
     /// help:polish（帮回卡收起来、回到润色卡）。
     func applyHelpDebug(_ options: [String]) {
         guard !options.isEmpty else { return }
@@ -950,6 +951,11 @@ extension KeyboardModel {
             return
         }
         guard options.contains(where: { $0 != "key" }) else { return }
+        // consent：帮回第一次发送前的确认卡（RG9）。
+        if options.contains("consent") {
+            debugShowGate(.consent(endpoint: "api.moonshot.cn", previous: nil, purpose: .help))
+            return
+        }
         // empty：从没用过帮回时的空卡（RG5 ③）；emptylist：空卡 + 剪贴板记录也空、点开列表。
         if options.contains("empty") || options.contains("emptylist") {
             if options.contains("emptylist") { clipItems = [] }

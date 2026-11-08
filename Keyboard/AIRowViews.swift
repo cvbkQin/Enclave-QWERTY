@@ -594,11 +594,6 @@ struct AskField: View {
     var body: some View {
         let editing = model.target == .instruction
         HStack(spacing: 8) {
-            // 帮回（方案 C）：左边「回 这份方案… ⌄」，固定宽度、写要求时也不缩。
-            if model.helpReply != nil {
-                HelpSentenceCapsule(model: model)
-                    .layoutPriority(1)
-            }
             Group {
                 if editing {
                     TimelineView(.periodic(from: .now, by: 0.5)) { context in

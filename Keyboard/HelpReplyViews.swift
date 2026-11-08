@@ -725,44 +725,93 @@ struct HelpStyleMenu: View {
     }
 }
 
-// MARK: - 回哪句话（识意框左边的胶囊，RG2 ③）
+// MARK: - 正在回的那句（拼音行，RG7）和「历史」键（RG8）
 
-/// 「回 这份方案… ⌄」：固定宽度、写要求时也不缩；点开是回哪句话列表。不读、不显示对方的名字。
-struct HelpSentenceCapsule: View {
+/// 帮回卡开着、没打拼音时拼音行放的：「↩ 回」+ 对方原话整句（左边绿竖线，单行省略）+ 时间 + ⌄，点开回哪句话列表。
+/// 空卡：「还没选句子」+「选一句 ⌄」。不读、不显示对方的名字。
+struct HelpPinyinSentence: View {
     @ObservedObject var model: KeyboardModel
 
-    /// 规格「约 118 以内」：SE 上给右边的要求多留点，取 104。
-    static let maxWidth: CGFloat = 104
-
     var body: some View {
-        let message = model.helpReply?.message.replacingOccurrences(of: "\n", with: " ") ?? ""
+        let state = model.helpReply
+        let message = state?.message.replacingOccurrences(of: "\n", with: " ") ?? ""
         Button { model.toggleHelpList() } label: {
-            HStack(spacing: 3) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrowshape.turn.up.left.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(HelpStyle.title)
                 if message.isEmpty {
-                    // 空卡（RG5 ③）：「选一句 ⌄」，点开从剪贴板记录里挑。
+                    Text(L("还没选句子", "No message picked yet", "まだ文を選んでいません"))
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
                     Text(L("选一句", "Pick one", "文を選ぶ"))
                         .font(.system(size: 12.5, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .foregroundStyle(HelpStyle.softText)
                 } else {
                     Text(L("回", "Re", "返"))
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundStyle(HelpStyle.title)
+                    Capsule().fill(HelpStyle.border).frame(width: 2.5, height: 15)
                     Text(message)
-                        .font(.system(size: 12.5, weight: .semibold))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.primary)
                         .lineLimit(1)
                         .truncationMode(.tail)
+                    Spacer(minLength: 6)
+                    if let date = state?.date {
+                        Text(HelpSentenceList.when(date))
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
                 }
                 Image(systemName: model.helpListOpen ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(HelpStyle.softText)
             }
-            .foregroundStyle(HelpStyle.softText)
-            .padding(.horizontal, 7)
-            .frame(width: Self.maxWidth, height: 26, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(HelpStyle.doneFill))
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel(message.isEmpty ? L("选一句", "Pick a message", "文を選ぶ") : L("回复对方：", "Replying to: ", "返信先：") + message)
+        .accessibilityLabel(message.isEmpty ? L("还没选句子", "No message picked yet", "まだ文を選んでいません")
+                            : L("回复对方：", "Replying to: ", "返信先：") + message)
         .accessibilityHint(L("轻点两下换一句", "Double-tap to pick another message", "ダブルタップで別の文を選ぶ"))
+    }
+}
+
+/// 帮回时替换键下面的「历史」键：36×40，和识意框一样高、底边对齐；样子照替换键（帮回绿渐变、圆角 12、白时钟 +「历史」）。
+/// 点开往下展开回哪句话列表（帮回历史），开着时外面一圈绿；再点或点列表外收起。拼音在侧边（F12）时也靠它翻历史。
+struct HelpHistoryKey: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        Button { model.toggleHelpList() } label: {
+            VStack(spacing: 1) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 11.5, weight: .bold))
+                Text(L("历史", "History", "履歴"))
+                    .font(.system(size: 10, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(shape.fill(HelpStyle.gradient))
+            .overlay {
+                if model.helpListOpen {
+                    shape.inset(by: -3).strokeBorder(HelpStyle.green, lineWidth: 2)
+                }
+            }
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(L("帮回历史", "Help Reply history", "返信アシストの履歴"))
+        .accessibilityAddTraits(model.helpListOpen ? .isSelected : [])
     }
 }
 
@@ -774,7 +823,7 @@ struct HelpSentenceList: View {
         let rows = model.helpSentenceRows
         VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Text(L("回哪句话", "Reply to", "返信先")).font(.system(size: 12, weight: .semibold))
+                    Text(L("帮回历史", "Help Reply history", "返信アシストの履歴")).font(.system(size: 12, weight: .semibold))
                     Spacer(minLength: 4)
                     Text(L("点一句就切过去", "Tap one to switch", "タップで切り替え")).font(.system(size: 11.5))
                 }

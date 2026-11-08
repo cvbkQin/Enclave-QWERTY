@@ -78,14 +78,17 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var resultStale = false
     /// 点「润色」「再润」时先要过的一关：没开完全访问出提示卡，还没同意过当前接口地址出确认卡。
     @Published private(set) var gate: AIGate? { didSet { heightMayChange?() } }
+    /// 第一次发送前确认卡是替谁问的（11-08，RG9）：润色、问答（单独的接口）、帮回。
+    enum GatePurpose: Equatable { case polish, answer, help }
+
     enum AIGate: Equatable {
         case fullAccess
         /// 选了「仅使用基础功能」或撤回了隐私政策同意（CP7）：AI 不发请求。
         case privacy
         /// 还没填自己的 API Key（OB9）：引导去 App 首页跟着教程设置。
         case noKey
-        /// previous：上次同意的是另一个地址，确认卡上划掉显示。
-        case consent(endpoint: String, previous: String?)
+        /// previous：上次同意的是另一个地址，确认卡上划掉显示。purpose：谁要发（卡上的标题、说明、按钮跟着换，RG9）。
+        case consent(endpoint: String, previous: String?, purpose: GatePurpose)
         /// 试用已结束，今天的免费次数用完了。
         case quotaUsed
     }
@@ -635,7 +638,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     /// 能不能现在发给模型；不能时弹出对应的提示卡，返回 false。
-    func passGate(then action: @escaping () -> Void) -> Bool {
+    func passGate(purpose: GatePurpose = .polish, then action: @escaping () -> Void) -> Bool {
         if !hasFullAccess && !debugUnblocked {
             gate = .fullAccess
             return false
@@ -654,7 +657,7 @@ final class KeyboardModel: ObservableObject {
         }
         guard settings.isConfigured, let endpoint = ConsentStore.endpoint(of: settings.baseURL),
               !ConsentStore.isConsented(endpoint) else { return true }
-        gate = .consent(endpoint: endpoint, previous: ConsentStore.consented?.endpoint)
+        gate = .consent(endpoint: endpoint, previous: ConsentStore.consented?.endpoint, purpose: purpose)
         afterConsent = action
         return false
     }
@@ -664,14 +667,19 @@ final class KeyboardModel: ObservableObject {
     func passAnswerConsent(then action: @escaping () -> Void) -> Bool {
         guard let endpoint = ConsentStore.endpoint(of: settings.forAnswers.baseURL),
               settings.usesAnswerEndpoint, !ConsentStore.isConsented(endpoint) else { return true }
-        gate = .consent(endpoint: endpoint, previous: nil)
+        gate = .consent(endpoint: endpoint, previous: nil, purpose: .answer)
         afterConsent = action
         return false
     }
 
+    #if DEBUG
+    /// 截图用：直接摆出一张提示卡。
+    func debugShowGate(_ value: AIGate) { gate = value }
+    #endif
+
     /// 确认卡上的「同意并润色」：记下这个地址，接着做刚才那一步。卡上写了联网那一行时，联网问答也算同意了。
     func acceptConsent() {
-        guard case .consent(let endpoint, _) = gate else { return }
+        guard case .consent(let endpoint, _, _) = gate else { return }
         ConsentStore.grant(endpoint)
         let action = afterConsent
         dismissGate()

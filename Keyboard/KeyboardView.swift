@@ -22,7 +22,15 @@ struct KeyboardView: View {
                 let freeEdit = model.target == .card
                 // AI 帮回（T16）也用这一张回答卡和替换键（方案 C）：换成帮回绿，高度一样，切换不跳。
                 HStack(spacing: KeyboardMetrics.resultKeyGap) {
-                    if !freeEdit {
+                    if !freeEdit, model.helpReply != nil {
+                        // 帮回（RG8）：左边分成两颗，上面替换，下面「历史」和识意框一样高、底边对齐。
+                        VStack(spacing: KeyboardMetrics.resultKeyGap) {
+                            ResultKey(model: model)
+                            HelpHistoryKey(model: model)
+                                .frame(height: KeyboardMetrics.askBoxHeight)
+                        }
+                        .frame(width: KeyboardMetrics.resultKeyWidth)
+                    } else if !freeEdit {
                         ResultKey(model: model)
                             .frame(width: KeyboardMetrics.resultKeyWidth)
                     }
@@ -50,7 +58,12 @@ struct KeyboardView: View {
             // 拼音显示在侧边（F12）时没有这一行，拼音在九宫格左列 / 全键盘候选栏左边的拼音键里。
             if !model.pinyinSide {
                 ZStack {
-                    if model.pinyinRowShown { PinyinRow(model: model) }
+                    if model.pinyinRowShown {
+                        PinyinRow(model: model)
+                    } else if model.aiExpanded, model.helpReply != nil, model.gate == nil {
+                        // 帮回卡开着、没打拼音：正在回的那句放这一行（RG7），一打拼音就让给拼音。
+                        HelpPinyinSentence(model: model)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: KeyboardMetrics.pinyinRowHeight)
@@ -459,7 +472,7 @@ struct GateCard: View {
             case .fullAccess: fullAccess
             case .privacy: privacy
             case .noKey: noKey
-            case .consent(let endpoint, let previous): consent(endpoint, previous: previous)
+            case .consent(let endpoint, let previous, let purpose): consent(endpoint, previous: previous, purpose: purpose)
             case .quotaUsed: quotaUsed
             }
         }
@@ -613,11 +626,18 @@ struct GateCard: View {
         return text + Text(L("允许完全访问", "Allow Full Access", "フルアクセスを許可")).fontWeight(.semibold).foregroundColor(Brand.deepPurple)
     }
 
+    /// 第一次发送前确认（RG9）：润色、问答、帮回各一张，标题、说明、按钮跟着换；帮回那张用帮回绿。
     @ViewBuilder
-    private func consent(_ endpoint: String, previous: String?) -> some View {
+    private func consent(_ endpoint: String, previous: String?, purpose: KeyboardModel.GatePurpose) -> some View {
+        let help = purpose == .help
+        let accent = help ? HelpStyle.softText : Brand.deepPurple
         HStack(spacing: 6) {
-            SparkleMark(size: 14, color: Brand.tagSelectedText)
-            Text(previous == nil ? L("润色前确认一下", "Before you polish", "整える前に確認") : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください")).font(.system(size: 14, weight: .semibold))
+            if help {
+                HelpIcon(size: 15)
+            } else {
+                SparkleMark(size: 14, color: Brand.tagSelectedText)
+            }
+            Text(previous == nil ? Self.consentTitle(purpose) : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください")).font(.system(size: 14, weight: .semibold))
         }
         HStack(spacing: 6) {
             Text(L("文字会发送到", "Text will be sent to", "文章の送信先")).font(.system(size: 13)).foregroundStyle(Brand.cardBody)
@@ -625,29 +645,58 @@ struct GateCard: View {
                 Image(systemName: "globe").font(.system(size: 11, weight: .semibold))
                 Text(endpoint).font(.system(size: 12.5, weight: .semibold, design: .monospaced)).lineLimit(1)
             }
-            .foregroundStyle(Brand.deepPurple)
+            .foregroundStyle(accent)
             .padding(.horizontal, 9)
             .frame(height: 26)
-            .background(Capsule().fill(Brand.returnSoftFill))
+            .background(Capsule().fill(help ? HelpStyle.doneFill : Brand.returnSoftFill))
         }
         if let previous {
             (Text(L("原来是 ", "Was ", "以前は ")) + Text(previous).strikethrough())
                 .font(.system(size: 12))
                 .foregroundStyle(Brand.panelLabel.opacity(0.7))
         }
-        Text(L("只在你点「✨」或「执行」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；无第三方中转，飞地输入法不保存你的文字。", "Sent only when you tap ✨ or Run: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. No third-party relay; Enclave doesn't keep your text.", "「✨」か「実行」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。第三者の中継はなく、Enclave は文章を保存しません。"))
+        Text(Self.consentNote(purpose))
             .font(.system(size: 12))
             .foregroundStyle(Brand.cardNote)
             .fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 0)
         HStack(spacing: 8) {
             Button { model.openContainingApp("enclave://privacy-policy") } label: {
-                Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12)).foregroundStyle(Brand.tagSelectedText)
+                Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12))
+                    .foregroundStyle(help ? HelpStyle.softText : Brand.tagSelectedText)
             }
             .buttonStyle(.plain)
             Spacer()
             GateButton(title: L("取消", "Cancel", "キャンセル"), primary: false) { model.dismissGate() }
-            GateButton(title: L("同意并润色", "Agree and Polish", "同意して整える"), primary: true) { model.acceptConsent() }
+            GateButton(title: Self.consentAgree(purpose), primary: true, help: help) { model.acceptConsent() }
+        }
+    }
+
+    private static func consentTitle(_ purpose: KeyboardModel.GatePurpose) -> String {
+        switch purpose {
+        case .polish: return L("润色前确认一下", "Before you polish", "整える前に確認")
+        case .answer: return L("问答前确认一下", "Before you ask", "質問の前に確認")
+        case .help: return L("帮回前确认一下", "Before you use Help Reply", "返信アシストの前に確認")
+        }
+    }
+
+    private static func consentNote(_ purpose: KeyboardModel.GatePurpose) -> String {
+        switch purpose {
+        case .polish:
+            return L("只在你点「✨」或「执行」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；无第三方中转，飞地输入法不保存你的文字。", "Sent only when you tap ✨ or Run: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. No third-party relay; Enclave doesn't keep your text.", "「✨」か「実行」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。第三者の中継はなく、Enclave は文章を保存しません。")
+        case .answer:
+            // 待 05 看过（规格 11.3）。
+            return L("只在你提问时发送：你写的问题和输入框里的文字（选中时只发选中的部分）。由这个接口处理后返回回答；无第三方中转，飞地输入法不保存你的文字。", "Sent only when you ask: your question and the text in the field (just the selection, if any). This API processes it and returns the answer. No third-party relay; Enclave doesn't keep your text.", "質問したときだけ、質問と入力欄の文章（選択時はその部分だけ）を送ります。この API が処理して回答を返します。第三者の中継はなく、Enclave は文章を保存しません。")
+        case .help:
+            return L("只在你点「帮回」时发送：你复制的那句话、帮回风格的提示词和你写的要求，不发对方的名字。无第三方中转，飞地输入法不保存你的文字。润色用的也是这个地址，同意一次两边都不再问。", "Sent only when you tap Reply: the message you copied, the reply style's prompt and your instructions. The other person's name is never sent. No third-party relay; Enclave doesn't keep your text. Polish uses the same address, so agreeing once covers both.", "「返信」をタップしたときだけ、コピーした文、返信スタイルのプロンプト、指示を送ります。相手の名前は送りません。第三者の中継はなく、Enclave は文章を保存しません。「整える」も同じアドレスなので、一度同意すれば両方とも確認しません。")
+        }
+    }
+
+    private static func consentAgree(_ purpose: KeyboardModel.GatePurpose) -> String {
+        switch purpose {
+        case .polish: return L("同意并润色", "Agree and Polish", "同意して整える")
+        case .answer: return L("同意并提问", "Agree and Ask", "同意して質問")
+        case .help: return L("同意并帮回", "Agree and Reply", "同意して返信")
         }
     }
 }
@@ -696,6 +745,8 @@ struct TrialReminderStrip: View {
 struct GateButton: View {
     let title: String
     let primary: Bool
+    /// 帮回那张确认卡（RG9）：主按钮用帮回绿。
+    var help = false
     let action: () -> Void
 
     var body: some View {
@@ -706,7 +757,9 @@ struct GateButton: View {
                 .padding(.horizontal, 14)
                 .frame(height: 30)
                 .background {
-                    if primary {
+                    if primary && help {
+                        Capsule().fill(HelpStyle.gradient)
+                    } else if primary {
                         Capsule().fill(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
                                                       startPoint: .leading, endPoint: .trailing))
                     } else {

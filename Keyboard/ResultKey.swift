@@ -164,6 +164,8 @@ struct ResultKey: View {
                 .foregroundStyle(color)
                 .offset(y: dividerGap + (tall ? 11 : 8))
         }
+        // 帮回时键矮了 46（下面是「历史」键，RG8）：整块往上挪一点，下面的 ⌄ 不出键。
+        .offset(y: model.helpReply != nil ? -6 : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
