@@ -152,6 +152,10 @@ struct EnclaveSettings: Codable, Equatable {
     /// 点「帮回」时一起写的几种，按卡片上从左到右的顺序，最多 3 种、至少 1 种。默认正常、客气、简短。
     var replyCheckedIDs: [UUID] = StylePreset.replyDefaults.prefix(3).map(\.id)
     static let maxReplyChecked = 3
+    /// AI 栏上固定的「帮回」键（11.4，RG10）：全键盘没有 ^^ 键，默认固定；九宫格已经有 ^^ 帮回键，默认不固定。nil 是没改过。
+    /// 不占固定风格「N / 5」的名额。
+    var helpPinnedQwerty: Bool?
+    var helpPinnedNine: Bool?
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -198,7 +202,7 @@ struct EnclaveSettings: Codable, Equatable {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
-        case pinnedStyleIDs, replyStyles, replyCheckedIDs
+        case pinnedStyleIDs, replyStyles, replyCheckedIDs, helpPinnedQwerty, helpPinnedNine
     }
 
     private enum LegacyKeys: String, CodingKey { case webSearch }
@@ -249,6 +253,16 @@ struct EnclaveSettings: Codable, Equatable {
         guard replyCheckedIDs.count < Self.maxReplyChecked else { return false }
         replyCheckedIDs.append(id)
         return true
+    }
+
+    /// 这种布局下 AI 栏上有没有固定的帮回键。
+    func helpPinned(nine: Bool) -> Bool {
+        nine ? (helpPinnedNine ?? false) : (helpPinnedQwerty ?? true)
+    }
+
+    mutating func toggleHelpPin(nine: Bool) {
+        let pinned = !helpPinned(nine: nine)
+        if nine { helpPinnedNine = pinned } else { helpPinnedQwerty = pinned }
     }
 
     /// 固定 / 取消固定；满 5 个时不加，返回 false。
@@ -320,6 +334,8 @@ extension EnclaveSettings {
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
         replyStyles = (try? c.decodeIfPresent([StylePreset].self, forKey: .replyStyles)) ?? replyStyles
         replyCheckedIDs = (try? c.decodeIfPresent([UUID].self, forKey: .replyCheckedIDs)) ?? replyCheckedIDs
+        helpPinnedQwerty = try? c.decodeIfPresent(Bool.self, forKey: .helpPinnedQwerty)
+        helpPinnedNine = try? c.decodeIfPresent(Bool.self, forKey: .helpPinnedNine)
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }

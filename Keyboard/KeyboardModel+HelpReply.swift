@@ -922,13 +922,16 @@ extension KeyboardModel {
     /// help:countdown（倒计时）、help:running（正在写、已经出了半句）、help:card（写好第 1 种）、help:second（写好 2 种、看第 2 种）、
     /// help:switching（切到第 3 种正在写）、help:all（3 种都写好）、help:versions（第 1 种有 3 版、看第 3 版）、
     /// help:direction（按要求写的一版，框里绿字）、help:pending（框里有没执行的字，帮回键亮）、help:polished（润色出的一版）、
-    /// help:menu（⌄ 列表）、help:list（回哪句话列表，带一句 AI 历史里的）、help:empty（空卡）、help:consent（帮回的确认卡）、help:emptylist（空卡、剪贴板也空、列表开着）、help:stopped（停了）、help:failed（第 3 种没写出来）、help:panel（剪贴板面板）、
+    /// help:menu（⌄ 列表）、help:list（回哪句话列表，带一句 AI 历史里的）、help:empty（空卡）、help:consent（帮回的确认卡）、help:qwerty（全键盘，可和别的一起用）、help:dropdown（润色风格框）、help:emptylist（空卡、剪贴板也空、列表开着）、help:stopped（停了）、help:failed（第 3 种没写出来）、help:panel（剪贴板面板）、
     /// help:polish（帮回卡收起来、回到润色卡）。
     func applyHelpDebug(_ options: [String]) {
         guard !options.isEmpty else { return }
         debugUnblocked = true
         debugHelpClipboard = true
-        if settings.keyboardLayout != .nineKey { setLayout(.nineKey) }
+        // qwerty：全键盘（11.4：AI 栏上固定的帮回键）；dropdown：再打开润色 ⌄ 风格框（顶上「帮回」那段）。
+        let wanted: KeyboardLayout = options.contains("qwerty") ? .qwerty : .nineKey
+        if settings.keyboardLayout != wanted { setLayout(wanted) }
+        if options.contains("dropdown") { aiRow = .prompts }
         clipboardHasNew = options.contains("key") || options.contains("countdown")
         helpDismissed = false
         let message = "这份方案明天能交吗？"
@@ -950,7 +953,7 @@ extension KeyboardModel {
             if showHelpCross(for: key, origin: origin), options.contains("up") { helpCross?.selected = .kaomoji }
             return
         }
-        guard options.contains(where: { $0 != "key" }) else { return }
+        guard options.contains(where: { !["key", "qwerty", "dropdown"].contains($0) }) else { return }
         // consent：帮回第一次发送前的确认卡（RG9）。
         if options.contains("consent") {
             debugShowGate(.consent(endpoint: "api.moonshot.cn", previous: nil, purpose: .help))

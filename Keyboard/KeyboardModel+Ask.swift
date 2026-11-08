@@ -279,6 +279,21 @@ extension KeyboardModel {
         }
     }
 
+    /// AI 栏上固定帮回键的那颗「钉子」（长按弹的取消固定用 pinMenu 记它）。
+    static let helpPinID = UUID(uuidString: "00000000-0000-0000-0000-0000000000B1")!
+
+    /// 帮回键在 AI 栏上（11.4）：帮回能用，且这种布局钉上了（全键盘默认钉、九宫格默认不钉）。
+    var helpPinnedOnBar: Bool {
+        helpReplyAvailable && settings.helpPinned(nine: settings.keyboardLayout == .nineKey)
+    }
+
+    /// 润色 ⌄ 风格框顶上「帮回」那段的图钉、长按 AI 栏上帮回键的「取消固定」。
+    func toggleHelpPin() {
+        let nine = settings.keyboardLayout == .nineKey
+        updateSettings { $0.toggleHelpPin(nine: nine) }
+        if pinMenu != nil { pinMenu = nil }
+    }
+
     /// 下拉框里的图钉、长按固定键的「取消固定」：固定 / 取消固定，满 5 个提示。
     func togglePin(_ style: StylePreset) {
         var full = false

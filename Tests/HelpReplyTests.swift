@@ -107,4 +107,17 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertNil(legacy.first?.versions.first?.polish)
         XCTAssertEqual(legacy.first?.versions.first?.style, "客气")
     }
+
+    /// 11.4：AI 栏上的帮回键，全键盘默认固定、九宫格默认不固定；改了能存能读。
+    func testHelpPinDefaultsAndToggle() throws {
+        var settings = EnclaveSettings()
+        XCTAssertTrue(settings.helpPinned(nine: false))
+        XCTAssertFalse(settings.helpPinned(nine: true))
+        settings.toggleHelpPin(nine: false)
+        settings.toggleHelpPin(nine: true)
+        let back = try JSONDecoder().decode(EnclaveSettings.self, from: JSONEncoder().encode(settings))
+        XCTAssertFalse(back.helpPinned(nine: false))
+        XCTAssertTrue(back.helpPinned(nine: true))
+        XCTAssertEqual(back.pinnedStyles.count, settings.pinnedStyles.count)
+    }
 }

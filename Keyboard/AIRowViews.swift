@@ -361,10 +361,11 @@ struct PinFrameKey: PreferenceKey {
 /// 长按固定键弹出的小框：「取消固定」。
 struct UnpinBubble: View {
     @ObservedObject var model: KeyboardModel
-    let style: StylePreset
+    /// nil：AI 栏上的帮回键（11.4）。
+    let style: StylePreset?
 
     var body: some View {
-        Button { model.togglePin(style) } label: {
+        Button { if let style { model.togglePin(style) } else { model.toggleHelpPin() } } label: {
             Label(L("取消固定", "Unpin", "固定を解除"), systemImage: "pin.slash")
                 .font(.system(size: 15))
                 .foregroundStyle(Color.primary)
@@ -458,9 +459,16 @@ struct StyleDropdown: View {
     var body: some View {
         let styles = answer ? model.settings.answerStyles : model.settings.styles
         let selectedID = answer ? model.settings.selectedAnswerStyle?.id : model.settings.selectedStyle?.id
-        let natural = Self.headerHeight + CGFloat(styles.count) * Self.itemHeight + Self.addHeight + Self.footerHeight + 12
+        // 润色风格框顶上一段「帮回」（11.4）：全键盘没有 ^^ 键，在这里把帮回钉到 AI 栏或取消。
+        let helpSection = !answer && model.helpReplyAvailable
+        let helpHeight = helpSection ? Self.headerHeight + Self.itemHeight + 7 : 0
+        let natural = Self.headerHeight + CGFloat(styles.count) * Self.itemHeight + Self.addHeight + Self.footerHeight + 12 + helpHeight
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         VStack(alignment: .leading, spacing: 0) {
+            if helpSection {
+                helpRow
+                Rectangle().fill(DropdownStyle.hint.opacity(0.25)).frame(height: 0.5).padding(.vertical, 3)
+            }
             Text((answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル"))
                  + L(" · 点图钉固定到 AI 栏", " · Tap the pin to add to the AI bar", " · ピンで AI バーに固定"))
                 .font(.system(size: 11.5))
@@ -496,13 +504,51 @@ struct StyleDropdown: View {
                 .frame(maxWidth: .infinity, minHeight: Self.footerHeight, maxHeight: Self.footerHeight, alignment: .leading)
         }
         .padding(6)
-        .frame(width: Self.width, height: max(Self.headerHeight + Self.itemHeight + Self.addHeight + Self.footerHeight + 12, min(natural, maxHeight)), alignment: .top)
+        .frame(width: Self.width, height: max(Self.headerHeight + Self.itemHeight + Self.addHeight + Self.footerHeight + 12 + helpHeight,
+                                              min(natural, maxHeight)), alignment: .top)
         .background(shape.fill(DropdownStyle.fill)
             .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8))
         // 深色下和按键颜色接近：加一圈细边（和拼音键弹框一样）。
         .overlay(shape.strokeBorder(DropdownStyle.stroke, lineWidth: 0.5))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(answer ? L("问答风格", "Answer style", "回答スタイル") : L("润色风格", "Polish style", "整えるスタイル"))
+    }
+
+    /// 「帮回 · 点图钉固定到 AI 栏」+ 一行「↩ 帮回」和图钉（11.4）。点这一行或图钉都是钉上 / 取消，不占 N / 5。
+    private var helpRow: some View {
+        let pinned = model.helpPinnedOnBar
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(L("帮回 · 点图钉固定到 AI 栏", "Help Reply · Tap the pin to add to the AI bar", "返信アシスト · ピンで AI バーに固定"))
+                .font(.system(size: 11.5))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(DropdownStyle.hint)
+                .padding(.horizontal, 10)
+                .frame(height: Self.headerHeight, alignment: .leading)
+            Button { model.toggleHelpPin() } label: {
+                HStack(spacing: 6) {
+                    HelpIcon(size: 15)
+                    Text(L("帮回", "Help Reply", "返信アシスト"))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(HelpStyle.softText)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Image(systemName: pinned ? "pin.fill" : "pin")
+                        .font(.system(size: 13, weight: .semibold))
+                        .rotationEffect(.degrees(45))
+                        .foregroundStyle(pinned ? HelpStyle.softText : DropdownStyle.hint)
+                        .frame(width: 36, height: Self.itemHeight)
+                }
+                .padding(.leading, 10)
+                .frame(height: Self.itemHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(KeyPressStyle())
+            .accessibilityLabel(L("帮回", "Help Reply", "返信アシスト"))
+            .accessibilityValue(pinned ? L("已固定到 AI 栏", "Pinned to AI bar", "AI バーに固定済み") : L("未固定", "Not pinned", "未固定"))
+            .accessibilityHint(pinned ? L("轻点两下取消固定", "Double-tap to unpin", "ダブルタップで固定を解除")
+                               : L("轻点两下固定到 AI 栏", "Double-tap to pin to the AI bar", "ダブルタップで AI バーに固定"))
+        }
     }
 
     /// 最后一行「＋ 添加润色风格 / 问答风格」（v308）：打开 App 里对应的风格列表。

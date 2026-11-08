@@ -147,7 +147,18 @@ struct KeyboardView: View {
         }
         // 长按固定键弹的「取消固定」（AK5）：从那颗键下面弹出，点框外收起。
         .overlay(alignment: .topLeading) {
-            if let id = model.pinMenu, let pin = model.settings.pinnedStyles.first(where: { $0.style.id == id }), let frame = pinFrames[id] {
+            if model.pinMenu == KeyboardModel.helpPinID, let frame = pinFrames[KeyboardModel.helpPinID] {
+                // 长按 AI 栏上的帮回键（11.4）：同样弹「取消固定」。
+                GeometryReader { geo in
+                    ZStack(alignment: .topLeading) {
+                        Color.black.opacity(0.001)
+                            .onTapGesture { model.pinMenu = nil }
+                        UnpinBubble(model: model, style: nil)
+                            .fixedSize()
+                            .offset(x: min(max(frame.minX, 4), geo.size.width - 130), y: frame.maxY + 4)
+                    }
+                }
+            } else if let id = model.pinMenu, let pin = model.settings.pinnedStyles.first(where: { $0.style.id == id }), let frame = pinFrames[id] {
                 GeometryReader { geo in
                     ZStack(alignment: .topLeading) {
                         Color.black.opacity(0.001)
@@ -284,11 +295,13 @@ struct KeyboardView: View {
                     // AI 页关掉了、或配置不能用（没配、测试没通过）：这颗键不显示，后面的往左补位（QE）。
                     if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
                     if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
-                    if !pins.isEmpty {
+                    if !pins.isEmpty || model.helpPinnedOnBar {
                         if model.settings.showsPolishKey || model.settings.showsAnswerKey || model.debugUnblocked {
                             Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
                                 .padding(.horizontal, -1)
                         }
+                        // 固定的帮回键（11.4，RG10）：问答键后面、固定风格键前面。
+                        if model.helpPinnedOnBar { PinnedHelpKey(model: model) }
                         ForEach(pins, id: \.style.id) { pin in
                             PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
                         }

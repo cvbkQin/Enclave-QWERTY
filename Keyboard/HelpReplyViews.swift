@@ -170,6 +170,71 @@ struct HelpReplyKey: View {
     }
 }
 
+// MARK: - AI 栏上固定的帮回键（11.4，RG10）
+
+/// 全键盘没有 ^^ 键：帮回是 AI 栏上一颗能固定的键，照固定风格键（AK5）：高 34、圆角 17、浅绿底绿字、帮回 logo +「帮回」，没有 ⌄。
+/// 点它和 ^^ 帮回键一样（helpKeyTapped）：倒计时中「⏸ 暂停」，在写「■ 停止」；有新复制右上角红点；
+/// 识意框有没执行的要求时亮起来；帮回卡开着时外面一圈绿。长按弹「取消固定」。
+struct PinnedHelpKey: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        let look = model.helpKeyLook ?? HelpKeyLook(running: false, moving: false)
+        let armed = look.armed && !look.running
+        HStack(spacing: 4) {
+            if look.running {
+                Image(systemName: "stop.fill").font(.system(size: 10, weight: .bold))
+                Text(L("停止", "Stop", "停止"))
+            } else if look.countdownEnds != nil {
+                Image(systemName: "pause.fill").font(.system(size: 10, weight: .bold))
+                Text(L("暂停", "Pause", "一時停止"))
+            } else {
+                HelpIcon(size: 15)
+                Text(L("帮回", "Reply", "返信"))
+                    .overlay(alignment: .topTrailing) {
+                        if look.newCopy {
+                            Circle().fill(HelpStyle.dot)
+                                .frame(width: 7, height: 7)
+                                .overlay(Circle().strokeBorder(Color.white, lineWidth: 1))
+                                .offset(x: 6, y: -5)
+                        }
+                    }
+            }
+        }
+        .font(.system(size: 14.5, weight: .semibold))
+        .lineLimit(1)
+        .fixedSize()
+        .foregroundStyle(HelpStyle.softText)
+        .padding(.horizontal, 12)
+        .frame(height: KeyboardMetrics.chipHeight)
+        .background(Capsule().fill(HelpStyle.softFill))
+        .overlay {
+            if armed {
+                Capsule().strokeBorder(HelpStyle.Key.armedRing, lineWidth: 2.5)
+            } else if look.open {
+                Capsule().strokeBorder(HelpStyle.green, lineWidth: 2)
+            }
+        }
+        .shadow(color: armed ? HelpStyle.Key.armedGlow : .clear, radius: armed ? 6 : 0)
+        .contentShape(Capsule())
+        .onTapGesture { model.helpKeyTapped() }
+        .onLongPressGesture(minimumDuration: 0.45) {
+            model.keyFeedback(for: .space)
+            model.pinMenu = KeyboardModel.helpPinID
+        }
+        .background(GeometryReader { geometry in
+            Color.clear.preference(key: PinFrameKey.self, value: [KeyboardModel.helpPinID: geometry.frame(in: .named("keyboard"))])
+        })
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(look.running ? L("停止帮回", "Stop Help Reply", "返信アシストを停止")
+                            : look.countdownEnds != nil ? L("暂停帮回", "Pause Help Reply", "返信アシストを一時停止")
+                            : L("帮回", "Help Reply", "返信アシスト"))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { model.helpKeyTapped() }
+        .accessibilityAction(named: L("取消固定", "Unpin", "固定を解除")) { model.toggleHelpPin() }
+    }
+}
+
 /// 按住帮回键弹出的「^^ 颜文字」格（盖住 ⌫），和普通键一样大；手指进格变 #5B4BE8 + 2pt 白描边 + 放大 1.06。
 /// 帮回键本身盖在原来的键帽上，没滑开时它是选中的那个。
 struct HelpCrossView: View {
