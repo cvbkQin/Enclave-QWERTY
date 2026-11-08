@@ -28,6 +28,9 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
         /// 帮回（T16）：第几轮（从 1 起，按方向重写、⌄ 多写一条都算新的一轮），这一轮的回复方向。
         var round: Int?
         var direction: String?
+        /// 帮回（11-08 起记）：这一版的帮回风格 id、用润色改的那版的润色风格名。旧记录没有，还原时按 style 名字对。
+        var styleID: String?
+        var polish: String?
     }
 
     var id: String

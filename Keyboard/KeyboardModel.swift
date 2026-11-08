@@ -256,6 +256,8 @@ final class KeyboardModel: ObservableObject {
     @Published var helpThreads: [HelpReplyState] = []
     /// 识意框左边「回 …」胶囊点开的回哪句话列表。
     @Published var helpListOpen = false
+    /// App AI 历史里最近回过的几句帮回（点开列表、没复制时点帮回键才读一次，11-08）。
+    var helpRecentReplies: [AIHistoryEntry] = []
     /// 识意框里已经用在正文这一版上的要求（绿字）；再改就变回普通颜色。
     @Published var helpExecutedAsk: String?
     var helpCountdownToken = 0

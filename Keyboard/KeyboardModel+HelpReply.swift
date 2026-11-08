@@ -16,6 +16,10 @@ struct HelpReplyState: Equatable {
         /// 用润色改出来的这一版：润色风格的名字（正文前标「✨ 正式」）。
         var polish: String?
         var at: Date
+        /// 从 AI 历史还原的（11-08）：原来记的接口、用过没有、什么时候用的，再记回历史时照抄。
+        var provider: String?
+        var use: AIHistoryEntry.Use?
+        var usedAt: Date?
     }
 
     /// 卡头的一个标签：打勾的几种，加上次用的（没勾时）、⌄ 里加的。
@@ -58,6 +62,8 @@ struct HelpReplyState: Equatable {
     var askDraft = ""
     var askExecuted: String?
 
+    /// 空卡（11-08，RG5 ③）：从没用过帮回，没复制也打开；还没有要回的那句话。
+    var isEmpty: Bool { message.isEmpty }
     var currentTag: Tag? { tags.indices.contains(index) ? tags[index] : nil }
     func versions(_ id: UUID) -> [Reply] { results[id] ?? [] }
     func page(_ id: UUID) -> Int {
@@ -95,11 +101,14 @@ struct HelpKeyLook: Equatable {
     var armed = false
     /// 帮回卡开着：键外一圈浅绿（K2 #B9D6C7）。
     var open = false
+    /// 倒计时中（11-08，RG6 ①）：键上是「⏸ 暂停」，键里一圈跟着这 3 秒走。
+    var countdownEnds: Date?
 }
 
 /// 回哪句话列表的一行（RG2 ③）。
 struct HelpSentenceRow: Identifiable, Equatable {
-    enum Source: Equatable { case current, thread(String), clip(String) }
+    /// history：App AI 历史里回过的（11-08）；hint：什么都没有时那一行提示。
+    enum Source: Equatable { case current, thread(String), history(String), clip(String), hint }
     var id: String
     var text: String
     var date: Date
@@ -113,9 +122,9 @@ extension KeyboardModel {
     /// 帮回、润色 / 问答各存一份识意框的字：切过去再切回来，问题还在。
     private static var otherAskDraft = ""
 
-    /// 问答接口开着、能用才有帮回（^^ 键不变、面板不显示「帮回」）。
+    /// 润色接口（主接口）能用才有帮回（11-08 改，不再看问答键）；不能用时 ^^ 键不变、面板不显示「帮回」。
     var helpReplyAvailable: Bool {
-        (hasFullAccess || debugUnblocked) && (settings.showsAnswerKey || debugUnblocked)
+        (hasFullAccess || debugUnblocked) && (settings.polishUsable || debugUnblocked)
     }
 
     /// 识意框里有还没执行的要求（普通颜色的字）：帮回键亮起来。
@@ -134,7 +143,7 @@ extension KeyboardModel {
         return HelpKeyLook(running: helpReply?.running != nil, moving: settings.polishAnimation,
                            successAt: helpKeyHold ? helpReply?.successAt : nil,
                            newCopy: clipboardHasNew && !helpDismissed, armed: helpAskPending,
-                           open: helpReply != nil && aiExpanded)
+                           open: helpReply != nil && aiExpanded, countdownEnds: helpReply?.countdownEnds)
     }
 
     /// 键盘出现时：这次的新复制被打字收掉过就不再带红点（同一个 changeCount）。
@@ -161,34 +170,74 @@ extension KeyboardModel {
 
     // MARK: 入口
 
-    /// 点 ^^ 帮回键（HB23、RG4）：
-    /// 生成中是停止；识意框里有没执行的要求就按它写当前风格的新一版；
-    /// 卡开着：有新复制开新的一句，倒计时中马上开始写，否则按当前风格再写一版；
-    /// 卡没开：有新复制开新的一句，没有就原样打开上次的帮回。
+    /// 点 ^^ 帮回键（HB23、RG4，11-08 补）：
+    /// 1. 正在写：停止。2. 倒计时中：暂停。3. 识意框里有没执行的要求：按它写当前这句（空卡上有新复制就开那句直接写）。
+    /// 4. 卡没开：有新复制开新的一句（先倒计时）；没有就原样打开最近一次帮回（这次收起来的，没有就从 AI 历史取），
+    ///    历史里也没有就开空卡。不读剪贴板、不发请求、不算次数。
+    /// 5. 卡开着：有新复制开新的一句；没有就按当前风格再写一版。空卡上没有新复制只提示。
     func helpKeyTapped() {
         if helpReply?.running != nil {
             stopHelpReply()
             return
         }
-        if helpReply != nil {
-            if helpAskPending {
+        if helpReply?.countdownEnds != nil {
+            pauseHelpCountdown()
+            return
+        }
+        if let state = helpReply {
+            if state.isEmpty {
+                if helpHasNewCopy {
+                    startHelpFromPasteboard(fromKey: true)
+                } else {
+                    showKeysToast(L("先复制对方的一句话", "Copy their message first", "まず相手のメッセージをコピーしてください"))
+                }
+            } else if helpAskPending {
                 helpExecuteAsk()
             } else if helpHasNewCopy {
                 startHelpFromPasteboard(fromKey: true)
-            } else if helpReply?.countdownEnds != nil {
-                cancelHelpCountdown()
-                guard passHelpGates(then: { [weak self] in self?.writeCurrentHelp(direction: nil) }) else { return }
-                writeCurrentHelp(direction: nil)
             } else {
                 helpWriteAgain()
             }
             return
         }
-        if helpHasNewCopy || helpThreads.isEmpty {
+        if helpHasNewCopy {
             startHelpFromPasteboard(fromKey: true)
         } else {
-            showHelpThread(helpThreads[0].historyID)
+            openLastHelp()
         }
+    }
+
+    /// 没有新复制时点帮回键：原样打开最近一次帮回。先找这次键盘里收起来的，再找 App 的 AI 历史，都没有就开空卡。
+    private func openLastHelp() {
+        if let first = helpThreads.first {
+            showHelpThread(first.historyID)
+            return
+        }
+        refreshHelpRecent()
+        if let entry = helpRecentReplies.first, let state = helpState(from: entry) {
+            showHelp(state)
+            return
+        }
+        showHelp(emptyHelpState())
+    }
+
+    /// 空卡：标题行放打勾的风格，上次用的那种是待写（浅绿描边）；正文灰字提示复制一句。
+    private func emptyHelpState() -> HelpReplyState {
+        reload()
+        var state = HelpReplyState(historyID: UUID().uuidString, date: Date(), message: "")
+        state.tags = helpTags()
+        state.index = Self.lastHelpStyleID.flatMap { last in state.tags.firstIndex { $0.id == last } } ?? 0
+        return state
+    }
+
+    /// 打勾的几种，加上次用的那种（没勾时放最后）。
+    private func helpTags() -> [HelpReplyState.Tag] {
+        var tags = settings.checkedReplyStyles.map { HelpReplyState.Tag(id: $0.id, name: $0.displayName, style: $0) }
+        let last = Self.lastHelpStyleID.flatMap { id in settings.replyStyles.first { $0.id == id } }
+        if let last, !tags.contains(where: { $0.id == last.id }) {
+            tags.append(HelpReplyState.Tag(id: last.id, name: last.displayName, style: last))
+        }
+        return tags
     }
 
     /// 剪贴板面板顶上「有新复制的内容」那一行的「帮回」。
@@ -220,14 +269,13 @@ extension KeyboardModel {
         beginHelpReply(message: text, fromKey: fromKey)
     }
 
-    /// 和问答一样先过提示卡（完全访问、隐私、没配置、次数、第一次连这个地址）。
+    /// 和润色一样先过提示卡（完全访问、隐私、没配置、次数）。11-08 起走润色接口，不再过问答的发送同意。
     func passHelpGates(then action: @escaping () -> Void) -> Bool {
-        guard passGate(then: action) else { return false }
-        return passAnswerConsent(then: action)
+        passGate(then: action)
     }
 
     /// 开新的一句：回答卡换成帮回（绿），先倒计时 3 秒，到点按上次用的风格写。不往输入框贴原文。
-    /// 回过的同一句直接切回去。
+    /// 回过的同一句直接切回去。空卡上先写好了要求：不倒计时，直接按这条要求写（11-08）。
     private func beginHelpReply(message: String, fromKey: Bool) {
         if let state = helpReply, state.message == message {
             helpKeyHold = fromKey
@@ -238,26 +286,37 @@ extension KeyboardModel {
             showHelpThread(old.historyID)
             return
         }
+        let carried = helpReply?.isEmpty == true && helpAskPending
+            ? instruction.trimmingCharacters(in: .whitespacesAndNewlines) : ""
         reload()
         var state = HelpReplyState(historyID: UUID().uuidString, date: Date(), message: message)
-        let checked = settings.checkedReplyStyles
-        state.tags = checked.map { HelpReplyState.Tag(id: $0.id, name: $0.displayName, style: $0) }
-        let last = Self.lastHelpStyleID.flatMap { id in settings.replyStyles.first { $0.id == id } }
-        if let last, !state.tags.contains(where: { $0.id == last.id }) {
-            state.tags.append(HelpReplyState.Tag(id: last.id, name: last.displayName, style: last))
+        if let empty = helpReply, empty.isEmpty {
+            // 空卡上点过的标签就是要先写的那种。
+            state.tags = empty.tags
+            state.index = empty.index
+        } else {
+            state.tags = helpTags()
+            state.index = Self.lastHelpStyleID.flatMap { last in state.tags.firstIndex { $0.id == last } } ?? 0
         }
-        state.index = last.flatMap { last in state.tags.firstIndex { $0.id == last.id } } ?? 0
         showHelp(state)
         helpKeyHold = fromKey
-        startHelpCountdown()
+        if carried.isEmpty {
+            startHelpCountdown()
+        } else {
+            writeCurrentHelp(direction: carried)
+        }
     }
 
     /// 回哪句话列表里点了一句：回过的切过去，剪贴板里没回过的开新的一句（先倒计时）。
     func helpSentencePicked(_ row: HelpSentenceRow) {
         helpListOpen = false
         switch row.source {
-        case .current: break
+        case .current, .hint: break
         case .thread(let id): showHelpThread(id)
+        case .history(let id):
+            if let entry = helpRecentReplies.first(where: { $0.id == id }), let state = helpState(from: entry) {
+                showHelp(state)
+            }
         case .clip(let text):
             guard passHelpGates(then: { [weak self] in self?.helpSentencePicked(row) }) else { return }
             beginHelpReply(message: text, fromKey: false)
@@ -272,7 +331,9 @@ extension KeyboardModel {
     }
 
     /// 卡片换成这一句：现在卡上的帮回收进列表；从润色 / 问答切过来时记下那边识意框的字，换成这一句的。
+    /// 空卡上先写了要求再挑一句回过的：要求留在框里（普通颜色），帮回键亮起来，点了再按它写。
     private func showHelp(_ state: HelpReplyState) {
+        let carried = helpReply?.isEmpty == true && helpAskPending ? instruction : nil
         endCelebration()
         if isRunning { stop() }
         cancelHelpTask()
@@ -290,7 +351,7 @@ extension KeyboardModel {
         }
         helpReply = state
         helpExecutedAsk = state.askExecuted
-        setInstruction(state.askDraft)
+        setInstruction(carried ?? state.askDraft)
         setAIExpanded(true)
         // 打字还进对方输入框，点下面的框才写要求。
         if askSelected { askSelected = false }
@@ -303,6 +364,11 @@ extension KeyboardModel {
         guard var state = helpReply else { return }
         cancelHelpTask()
         cancelHelpCountdown()
+        // 空卡不进列表。
+        if state.isEmpty {
+            helpReply = nil
+            return
+        }
         state.running = nil
         state.streaming = ""
         state.runningPolish = false
@@ -333,30 +399,134 @@ extension KeyboardModel {
         set { SharedStorage.defaults.set(newValue?.uuidString, forKey: lastStyleKey) }
     }
 
-    /// 回哪句话列表：卡上这句、回过的几句、剪贴板里最近还没回的（单号、链接不算），最多 6 句，新的在前。
+    /// 回哪句话列表（11-08）：卡上这句放第一行，再是这次收起来的几句、AI 历史里最近回过的（最多 10 句）、
+    /// 剪贴板记录里还没回的（单号、链接不算）。同一句只出一次，除了第一行都按时间新的在前，放不下列表里上下滚。
+    /// 什么都没有（空卡、剪贴板记录也空）：只有一行提示。
     var helpSentenceRows: [HelpSentenceRow] {
         var rows: [HelpSentenceRow] = []
         func label(_ state: HelpReplyState) -> String? {
-            state.summary.map { L("\($0.name) \($0.count) 版", "\($0.name) ×\($0.count)", "\($0.name) \($0.count) 件") }
+            state.summary.map { Self.helpSummaryLabel(name: $0.name, count: $0.count) }
         }
-        if let state = helpReply {
+        if let state = helpReply, !state.isEmpty {
             rows.append(HelpSentenceRow(id: state.historyID, text: state.message, date: state.date, source: .current,
                                         summary: label(state)))
         }
-        for state in helpThreads {
+        for state in helpThreads where !state.isEmpty {
             rows.append(HelpSentenceRow(id: state.historyID, text: state.message, date: state.date,
                                         source: .thread(state.historyID), summary: label(state)))
         }
-        let known = Set(rows.map(\.text))
-        for item in clipItems where !known.contains(item.text) && HelpReply.suits(item.text) {
+        for entry in helpRecentReplies where !rows.contains(where: { $0.id == entry.id || $0.text == entry.original }) {
+            rows.append(HelpSentenceRow(id: entry.id, text: entry.original, date: entry.endDate ?? entry.date,
+                                        source: .history(entry.id), summary: Self.helpSummary(entry)))
+        }
+        var known = Set(rows.map(\.text))
+        var clips = 0
+        for item in clipItems where clips < 10 && !known.contains(item.text) && HelpReply.suits(item.text) {
+            known.insert(item.text)
             rows.append(HelpSentenceRow(id: "clip-\(item.date.timeIntervalSince1970)", text: item.text, date: item.date,
                                         source: .clip(item.text), summary: nil))
-            if rows.count >= 6 { break }
+            clips += 1
         }
         let current = rows.first { $0.source == .current }
         var rest = rows.filter { $0.source != .current }.sorted { $0.date > $1.date }
         if let current { rest.insert(current, at: 0) }
-        return Array(rest.prefix(6))
+        if rest.isEmpty {
+            rest.append(HelpSentenceRow(id: "hint", text: L("复制对方的一句话，再点帮回", "Copy their message, then tap Reply",
+                                                            "相手のメッセージをコピーして「返信」をタップ"),
+                                        date: Date(), source: .hint, summary: nil))
+        }
+        return rest
+    }
+
+    /// 「客气 3 版」。
+    static func helpSummaryLabel(name: String, count: Int) -> String {
+        L("\(name) \(count) 版", "\(name) ×\(count)", "\(name) \(count) 件")
+    }
+
+    /// 历史里一句的「客气 3 版」：列表上显示的那版是哪种风格，这种写了几版。
+    static func helpSummary(_ entry: AIHistoryEntry) -> String? {
+        guard entry.versions.indices.contains(entry.shownIndex) else { return nil }
+        let name = helpStyleName(entry.versions[entry.shownIndex]).name
+        let count = entry.versions.filter { helpStyleName($0).name == name }.count
+        return helpSummaryLabel(name: name, count: count)
+    }
+
+    /// 点开回哪句话列表时读一次 AI 历史（关着记录就不读）。
+    func toggleHelpList() {
+        if !helpListOpen { refreshHelpRecent() }
+        helpListOpen.toggle()
+    }
+
+    /// App AI 历史里最近回过的 10 句（新的在前）。
+    func refreshHelpRecent() {
+        guard AIHistory.isEnabled else {
+            helpRecentReplies = []
+            return
+        }
+        helpRecentReplies = Array(AIHistory.load()
+            .filter { $0.kind == .reply && !$0.original.isEmpty && !$0.versions.isEmpty }
+            .sorted { ($0.endDate ?? $0.date) > ($1.endDate ?? $1.date) }
+            .prefix(10))
+    }
+
+    // MARK: 从 AI 历史还原（11-08）
+
+    /// 一版的风格名和润色名：新记录有 styleID / polish；旧记录风格名存成「客气 · ✨正式」，拆开。
+    static func helpStyleName(_ version: AIHistoryEntry.Version) -> (name: String, polish: String?) {
+        let style = version.style ?? ""
+        if let range = style.range(of: " · ✨") {
+            return (String(style[..<range.lowerBound]), version.polish ?? String(style[range.upperBound...]))
+        }
+        return (style, version.polish)
+    }
+
+    /// 用 AI 历史里的一条拼回一句帮回：标签 = 打勾的风格 + 这条里出现过的风格（对不上的当临时标签），
+    /// 显示用过的那版（没用过就最后一版），识意框换成那一版的要求（绿字）。之后再写新版记回同一条。
+    func helpState(from entry: AIHistoryEntry) -> HelpReplyState? {
+        guard entry.kind == .reply, !entry.original.isEmpty, !entry.versions.isEmpty else { return nil }
+        reload()
+        var state = HelpReplyState(historyID: entry.id, date: entry.date, message: entry.original)
+        state.tags = helpTags()
+        var shown: HelpReplyState.Reply?
+        for (offset, version) in entry.versions.enumerated() {
+            let (name, polish) = Self.helpStyleName(version)
+            let style = version.styleID.flatMap(UUID.init(uuidString:)).flatMap { id in settings.replyStyles.first { $0.id == id } }
+                ?? settings.replyStyles.first { $0.displayName == name || $0.name == name }
+            let tag: HelpReplyState.Tag
+            if let style {
+                if let existing = state.tags.first(where: { $0.id == style.id }) {
+                    tag = existing
+                } else {
+                    tag = HelpReplyState.Tag(id: style.id, name: style.displayName, style: style)
+                    state.tags.append(tag)
+                }
+            } else if let existing = state.tags.first(where: { $0.name == name }) {
+                tag = existing
+            } else {
+                // 删掉或改了名的风格：临时标签，提示词空着（照对方的话正常回）。
+                let temp = StylePreset(name: name, prompt: "")
+                tag = HelpReplyState.Tag(id: temp.id, name: temp.displayName, style: temp)
+                state.tags.append(tag)
+            }
+            let reply = HelpReplyState.Reply(styleID: tag.id, name: tag.name, text: version.text, direction: version.direction,
+                                             polish: polish, at: version.at ?? entry.date, provider: version.provider,
+                                             use: version.use, usedAt: version.usedAt)
+            state.results[tag.id, default: []].append(reply)
+            state.history.append(reply)
+            if offset == entry.shownIndex { shown = reply }
+        }
+        guard let shown, let index = state.tags.firstIndex(where: { $0.id == shown.styleID }) else { return nil }
+        state.index = index
+        state.pages[shown.styleID] = state.versions(shown.styleID).firstIndex { $0.id == shown.id }
+        if shown.use != nil {
+            state.insertedID = shown.id
+            state.insertedText = shown.text
+            state.insertedAt = shown.usedAt
+        }
+        let direction = shown.direction ?? ""
+        state.askDraft = direction
+        state.askExecuted = direction.isEmpty ? nil : direction
+        return state
     }
 
     // MARK: 倒计时（HB29，放在识意框里）
@@ -378,11 +548,24 @@ extension KeyboardModel {
         if helpReply?.countdownEnds != nil { helpReply?.countdownEnds = nil }
     }
 
+    /// 倒计时中点帮回键（RG6 ②）：停下来等，和点识意框一样，但打字还进对方输入框。
+    func pauseHelpCountdown() {
+        guard helpReply?.countdownEnds != nil else { return }
+        cancelHelpCountdown()
+        helpKeyHold = false
+        UIAccessibility.post(notification: .announcement, argument: L("已暂停", "Paused", "一時停止しました"))
+    }
+
     // MARK: 卡片上的操作
 
     /// 识意框里的字（还没执行的）按回车或点帮回键：按这条要求写当前风格的新一版。
     func helpExecuteAsk() {
-        guard helpReply != nil else { return }
+        guard let state = helpReply else { return }
+        if state.isEmpty {
+            // 空卡：有新复制就开那句并按要求写，没有就提示。
+            helpKeyTapped()
+            return
+        }
         let direction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         guard passHelpGates(then: { [weak self] in self?.helpExecuteAsk() }) else { return }
         finishComposition()
@@ -392,7 +575,7 @@ extension KeyboardModel {
 
     /// 没有待执行的字时点帮回键：按当前风格再写一版（框里有执行过的要求就照着它）。
     func helpWriteAgain() {
-        guard helpReply != nil else { return }
+        guard let state = helpReply, !state.isEmpty else { return }
         guard passHelpGates(then: { [weak self] in self?.helpWriteAgain() }) else { return }
         let direction = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         writeCurrentHelp(direction: direction.isEmpty ? nil : direction)
@@ -421,6 +604,14 @@ extension KeyboardModel {
     /// 再点现在这个：失败了、停了就重写；倒计时中就马上开始写。
     func helpSelect(_ index: Int) {
         guard var state = helpReply, state.tags.indices.contains(index) else { return }
+        if state.isEmpty {
+            // 空卡：只选定先写哪种，不发请求。
+            state.index = index
+            Self.lastHelpStyleID = state.tags[index].id
+            helpReply = state
+            keyFeedback(for: .space)
+            return
+        }
         let counting = state.countdownEnds != nil
         cancelHelpCountdown()
         state.countdownEnds = nil
@@ -519,19 +710,20 @@ extension KeyboardModel {
 
     // MARK: 请求
 
-    /// 用问答接口写现在这种的新一版（不联网），边写边显示。写完才算一次问答；停止、出错、被换走都不算。
+    /// 用润色接口（主接口，11-08 改）写现在这种的新一版（不思考、不联网，快），边写边显示。
+    /// 内测版算润色次数，正式版没有次数限制。
     func writeCurrentHelp(direction: String?) {
-        guard let state = helpReply, let tag = state.currentTag else { return }
-        let key = SettingsStore.answerKey(for: settings)
-        guard BuiltinAPI.take(.answer, key: key) else {
-            helpReply?.notes[tag.id] = .error(BuiltinAPI.limitMessage(.answer))
+        guard let state = helpReply, !state.isEmpty, let tag = state.currentTag else { return }
+        let key = SettingsStore.apiKey
+        guard BuiltinAPI.take(.polish, key: key) else {
+            helpReply?.notes[tag.id] = .error(BuiltinAPI.limitMessage(.polish))
             return
         }
-        let client = LLMClient(settings: settings.forAnswers, apiKey: key)
+        let client = LLMClient(settings: settings, apiKey: key)
         let messages = HelpReply.messages(message: state.message, style: tag.style, direction: direction ?? "")
         // 点了帮回，识意框里的要求就变成绿字（执行过）。
         helpExecutedAsk = direction
-        streamHelp(tag: tag, client: client, messages: messages, direction: direction, polish: nil, mainAPI: !settings.usesAnswerEndpoint,
+        streamHelp(tag: tag, client: client, messages: messages, direction: direction, polish: nil, mainAPI: true,
                    statName: L("帮回", "Help Reply", "返信アシスト"), styleID: nil) {
             // 提示词页每种帮回风格的本周次数。
             DailyStats.add("reply.style.\(tag.id.uuidString)")
@@ -649,13 +841,17 @@ extension KeyboardModel {
     /// 历史（App › AI 历史「帮回」）：对方的话、每一版、用了哪版。同一句更新同一条。
     func recordHelpHistory() {
         guard let state = helpReply, !state.history.isEmpty else { return }
-        let provider = settings.forAnswers.providerName
+        let provider = settings.providerName
         let versions = state.history.map { reply in
             let used = reply.id == state.insertedID
             let round = (state.versions(reply.styleID).firstIndex { $0.id == reply.id } ?? 0) + 1
-            return AIHistoryEntry.Version(text: reply.text, style: reply.polish.map { "\(reply.name) · ✨\($0)" } ?? reply.name,
-                                          provider: provider, use: used ? .inserted : nil, at: reply.at, source: "reply",
-                                          usedAt: used ? state.insertedAt : nil, round: round, direction: reply.direction)
+            var version = AIHistoryEntry.Version(text: reply.text, style: reply.polish.map { "\(reply.name) · ✨\($0)" } ?? reply.name,
+                                                 provider: reply.provider ?? provider, use: used ? .inserted : reply.use,
+                                                 at: reply.at, source: "reply",
+                                                 usedAt: used ? state.insertedAt : reply.usedAt, round: round, direction: reply.direction)
+            version.styleID = reply.styleID.uuidString
+            version.polish = reply.polish
+            return version
         }
         AIHistory.record(AIHistoryEntry(id: state.historyID, kind: .reply, date: state.date, original: state.message,
                                         context: "", versions: versions))
@@ -725,7 +921,7 @@ extension KeyboardModel {
     /// help:countdown（倒计时）、help:running（正在写、已经出了半句）、help:card（写好第 1 种）、help:second（写好 2 种、看第 2 种）、
     /// help:switching（切到第 3 种正在写）、help:all（3 种都写好）、help:versions（第 1 种有 3 版、看第 3 版）、
     /// help:direction（按要求写的一版，框里绿字）、help:pending（框里有没执行的字，帮回键亮）、help:polished（润色出的一版）、
-    /// help:menu（⌄ 列表）、help:list（回哪句话列表）、help:stopped（停了）、help:failed（第 3 种没写出来）、help:panel（剪贴板面板）、
+    /// help:menu（⌄ 列表）、help:list（回哪句话列表，带一句 AI 历史里的）、help:empty（空卡）、help:emptylist（空卡、剪贴板也空、列表开着）、help:stopped（停了）、help:failed（第 3 种没写出来）、help:panel（剪贴板面板）、
     /// help:polish（帮回卡收起来、回到润色卡）。
     func applyHelpDebug(_ options: [String]) {
         guard !options.isEmpty else { return }
@@ -754,6 +950,22 @@ extension KeyboardModel {
             return
         }
         guard options.contains(where: { $0 != "key" }) else { return }
+        // empty：从没用过帮回时的空卡（RG5 ③）；emptylist：空卡 + 剪贴板记录也空、点开列表。
+        if options.contains("empty") || options.contains("emptylist") {
+            if options.contains("emptylist") { clipItems = [] }
+            helpThreads = []
+            helpRecentReplies = []
+            var empty = HelpReplyState(historyID: UUID().uuidString, date: now, message: "")
+            empty.tags = settings.checkedReplyStyles.map { HelpReplyState.Tag(id: $0.id, name: $0.displayName, style: $0) }
+            helpReply = empty
+            helpExecutedAsk = nil
+            setInstruction("")
+            aiExpanded = true
+            hostFocused = true
+            target = .host
+            if options.contains("emptylist") { helpListOpen = true }
+            return
+        }
         var state = HelpReplyState(historyID: UUID().uuidString, date: now, message: message)
         let styles = settings.checkedReplyStyles
         state.tags = styles.map { HelpReplyState.Tag(id: $0.id, name: $0.displayName, style: $0) }
@@ -825,7 +1037,17 @@ extension KeyboardModel {
         hostFocused = !options.contains("pending")
         target = options.contains("pending") ? .instruction : .host
         if options.contains("menu") { helpMenuOpen = true }
-        if options.contains("list") { helpListOpen = true }
+        if options.contains("list") {
+            // AI 历史里昨天回过的一句（11-08：列表读历史）。
+            let style = styles.first?.displayName ?? "客气"
+            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
+            helpRecentReplies = [AIHistoryEntry(id: UUID().uuidString, kind: .reply, date: yesterday, original: "周末一起去爬山吗？",
+                                                context: "", versions: [
+                                                    AIHistoryEntry.Version(text: "好呀，周六上午出发？", style: style),
+                                                    AIHistoryEntry.Version(text: "可以，我带水。", style: style),
+                                                ])]
+            helpListOpen = true
+        }
         if options.contains("polish") { parkHelpReply() }
     }
 }

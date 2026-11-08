@@ -44,11 +44,15 @@ struct HelpReplyKey: View {
                         .padding(.top, Self.topHeight)
                 }
             }
+            .overlay {
+                // 倒计时中（RG6 ①）：键里一圈深绿跟着这 3 秒走，和识意框的倒计时同步。
+                if let ends = look.countdownEnds, !look.running { CountdownRing(ends: ends, shape: shape) }
+            }
             .opacity(pressed && !crossShowing ? 0.8 : 1)
             .background { ring }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(look.running ? L("停止帮回", "Stop Help Reply", "返信アシストを停止") : L("帮回", "Help Reply", "返信アシスト"))
+        .accessibilityLabel(accessibilityName)
         .accessibilityHint(L("点一下帮你写回复；上滑打开颜文字。", "Tap to draft replies; swipe up for kaomoji.",
                              "タップで返信を作成、上スワイプで顔文字。"))
         .accessibilityAddTraits(.isButton)
@@ -74,23 +78,63 @@ struct HelpReplyKey: View {
         }
     }
 
+    private var accessibilityName: String {
+        if look.running { return L("停止帮回", "Stop Help Reply", "返信アシストを停止") }
+        if look.countdownEnds != nil { return L("暂停帮回", "Pause Help Reply", "返信アシストを一時停止") }
+        return L("帮回", "Help Reply", "返信アシスト")
+    }
+
+    /// 下段：平时 logo +「帮回」；倒计时中「⏸ 暂停」；正在写「■ 停止」（把字写出来，不只放图标，RG6）；写好画对勾。
     @ViewBuilder
     private var lower: some View {
-        HStack(spacing: 3) {
-            HelpIcon(size: 14, running: look.running && motion, soft: true)
-            ZStack {
-                if look.running {
-                    AIStopIcon(running: true, moving: motion, tint: HelpStyle.Key.text)
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                } else if let success = look.successAt {
-                    SuccessDraw(since: success)
-                } else {
-                    label
+        ZStack {
+            if look.running {
+                action("stop.fill", L("停止", "Stop", "停止"))
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            } else if look.countdownEnds != nil {
+                action("pause.fill", L("暂停", "Pause", "一時停止"))
+                    .transition(.opacity)
+            } else {
+                HStack(spacing: 3) {
+                    HelpIcon(size: 14, running: false, soft: true)
+                    if let success = look.successAt {
+                        SuccessDraw(since: success)
+                    } else {
+                        label
+                    }
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: look.running)
         }
+        .animation(.easeOut(duration: 0.2), value: look.running)
+        .animation(.easeOut(duration: 0.2), value: look.countdownEnds)
         .padding(.horizontal, 2)
+    }
+
+    private func action(_ systemImage: String, _ title: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .font(.system(size: 9.5, weight: .bold))
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+    }
+
+    /// 倒计时一圈：从 0 走到满，3 秒。
+    private struct CountdownRing: View {
+        let ends: Date
+        let shape: RoundedRectangle
+
+        var body: some View {
+            TimelineView(.animation(minimumInterval: 1 / 30)) { context in
+                let left = max(0, ends.timeIntervalSince(context.date))
+                shape.inset(by: 1.25)
+                    .trim(from: 0, to: CGFloat(min(1, 1 - left / 3)))
+                    .stroke(HelpStyle.Key.text, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+            }
+            .allowsHitTesting(false)
+        }
     }
 
     private var label: some View {
@@ -244,6 +288,13 @@ struct HelpCardContent: View {
             replyText(reply)
         } else if let note = state.currentNote, let name = state.currentTag?.name {
             retryRow(note, name: name)
+        } else if state.isEmpty {
+            // 空卡（RG5 ③）：灰字提示，不加引用竖线。
+            Text(L("复制对方的一句话，再点帮回", "Copy their message, then tap Reply", "相手のメッセージをコピーして「返信」をタップ"))
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             quote(state.message)
         }
@@ -363,6 +414,9 @@ struct HelpCardContent: View {
                 model.copy()
             }
             .disabled(!model.hasResult)
+            // 空卡上不放复制。
+            .opacity(state.isEmpty ? 0 : 1)
+            .accessibilityHidden(state.isEmpty)
             .accessibilityLabel(model.copied ? L("已复制", "Copied", "コピーしました") : L("复制回复", "Copy reply", "返信をコピー"))
             Spacer(minLength: 0)
             iconButton(model.cardExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
@@ -682,14 +736,22 @@ struct HelpSentenceCapsule: View {
 
     var body: some View {
         let message = model.helpReply?.message.replacingOccurrences(of: "\n", with: " ") ?? ""
-        Button { model.helpListOpen.toggle() } label: {
+        Button { model.toggleHelpList() } label: {
             HStack(spacing: 3) {
-                Text(L("回", "Re", "返"))
-                    .font(.system(size: 12, weight: .bold))
-                Text(message)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                if message.isEmpty {
+                    // 空卡（RG5 ③）：「选一句 ⌄」，点开从剪贴板记录里挑。
+                    Text(L("选一句", "Pick one", "文を選ぶ"))
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                } else {
+                    Text(L("回", "Re", "返"))
+                        .font(.system(size: 12, weight: .bold))
+                    Text(message)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
                 Image(systemName: model.helpListOpen ? "chevron.up" : "chevron.down")
                     .font(.system(size: 9, weight: .bold))
             }
@@ -699,7 +761,7 @@ struct HelpSentenceCapsule: View {
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(HelpStyle.doneFill))
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel(L("回复对方：", "Replying to: ", "返信先：") + message)
+        .accessibilityLabel(message.isEmpty ? L("选一句", "Pick a message", "文を選ぶ") : L("回复对方：", "Replying to: ", "返信先：") + message)
         .accessibilityHint(L("轻点两下换一句", "Double-tap to pick another message", "ダブルタップで別の文を選ぶ"))
     }
 }
@@ -719,10 +781,21 @@ struct HelpSentenceList: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
                 .frame(height: 28)
-                ForEach(rows) { row in
-                    Button { model.helpSentencePicked(row) } label: { line(row) }
-                        .buttonStyle(KeyPressStyle())
+                // 放不下就在列表里上下滚（11-08：多了 AI 历史里的 10 句），最多露 4 行。
+                ScrollView(.vertical, showsIndicators: rows.count > 4) {
+                    VStack(spacing: 0) {
+                        ForEach(rows) { row in
+                            if row.source == .hint {
+                                hintLine(row.text)
+                            } else {
+                                Button { model.helpSentencePicked(row) } label: { line(row) }
+                                    .buttonStyle(KeyPressStyle())
+                            }
+                        }
+                    }
                 }
+                .hidingScrollEdgeEffect()
+                .frame(height: Self.rowHeight * CGFloat(min(rows.count, 4)) + (rows.count > 4 ? Self.rowHeight / 2 : 0))
                 Rectangle().fill(Brand.blockHair).frame(height: 0.5)
                 Text(L("更早的在 App › AI 历史 › 帮回", "Older ones: app › AI History › Help Reply", "それより前は App › AI 履歴 › 返信"))
                     .font(.system(size: 11.5))
@@ -734,6 +807,19 @@ struct HelpSentenceList: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Brand.blockHair, lineWidth: 0.5))
         .shadow(color: .black.opacity(0.2), radius: 12, y: 6)
+    }
+
+    static let rowHeight: CGFloat = 46
+
+    /// 什么都没有：一行灰字提示。
+    private func hintLine(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 14))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: Self.rowHeight)
     }
 
     private func line(_ row: HelpSentenceRow) -> some View {
@@ -759,7 +845,7 @@ struct HelpSentenceList: View {
                 .fixedSize()
         }
         .padding(.horizontal, 12)
-        .frame(height: 46)
+        .frame(height: Self.rowHeight)
         .frame(maxWidth: .infinity)
         .background(row.source == .current ? HelpStyle.doneFill.opacity(0.55) : Color.clear)
         .contentShape(Rectangle())
@@ -770,16 +856,35 @@ struct HelpSentenceList: View {
         return ""
     }
 
-    /// 「刚刚」「12 分钟前」「3 小时前」「昨天」。
-    static func when(_ date: Date) -> String {
-        let seconds = max(0, Date().timeIntervalSince(date))
-        if seconds < 60 { return L("刚刚", "Just now", "たった今") }
-        let minutes = Int(seconds / 60)
-        if minutes < 60 { return L("\(minutes) 分钟前", "\(minutes) min ago", "\(minutes) 分前") }
-        let hours = minutes / 60
-        if hours < 24 { return L("\(hours) 小时前", "\(hours) h ago", "\(hours) 時間前") }
-        return L("\(hours / 24) 天前", "\(hours / 24) d ago", "\(hours / 24) 日前")
+    /// 11-08：今天「刚刚」「12 分钟前」「今天 09:12」；昨天「昨天 21:30」；更早「11-06 16:20」。
+    static func when(_ date: Date, now: Date = Date()) -> String {
+        let seconds = max(0, now.timeIntervalSince(date))
+        let calendar = Calendar.current
+        if calendar.isDate(date, inSameDayAs: now) {
+            if seconds < 60 { return L("刚刚", "Just now", "たった今") }
+            let minutes = Int(seconds / 60)
+            if minutes < 60 { return L("\(minutes) 分钟前", "\(minutes) min ago", "\(minutes) 分前") }
+            return L("今天 ", "Today ", "今日 ") + clock.string(from: date)
+        }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
+            return L("昨天 ", "Yesterday ", "昨日 ") + clock.string(from: date)
+        }
+        return day.string(from: date)
     }
+
+    private static let clock: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    private static let day: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter
+    }()
 }
 
 // MARK: - 识意框里的倒计时（HB29 → 放进识意框）

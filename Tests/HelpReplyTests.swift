@@ -86,4 +86,25 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertEqual(settings.replyStyles.count, 7)
         XCTAssertEqual(settings.replyCheckedIDs.count, 3)
     }
+
+    /// 11-08：帮回的版本多记 styleID、polish；旧记录没有这两个字段也要读得出来。
+    func testReplyVersionKeepsStyleAndReadsOldRecords() throws {
+        var version = AIHistoryEntry.Version(text: "好的", style: "客气 · ✨正式", round: 2, direction: "委婉点")
+        version.styleID = "6F1C1A64-0F0A-4C77-9E5E-0B3C2D1E4F50"
+        version.polish = "正式"
+        let entry = AIHistoryEntry(id: "a", kind: .reply, date: Date(timeIntervalSince1970: 1_700_000_000), original: "能交吗？",
+                                   context: "", versions: [version])
+        let data = try JSONEncoder().encode([entry])
+        let back = try JSONDecoder().decode([AIHistoryEntry].self, from: data)
+        XCTAssertEqual(back.first?.versions.first?.styleID, version.styleID)
+        XCTAssertEqual(back.first?.versions.first?.polish, "正式")
+
+        let old = #"[{"id":"b","kind":"reply","date":1700000000,"original":"能交吗？","context":"","versions":[{"text":"好的","edited":false,"style":"客气","round":1}]}]"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let legacy = try decoder.decode([AIHistoryEntry].self, from: Data(old.utf8))
+        XCTAssertNil(legacy.first?.versions.first?.styleID)
+        XCTAssertNil(legacy.first?.versions.first?.polish)
+        XCTAssertEqual(legacy.first?.versions.first?.style, "客气")
+    }
 }

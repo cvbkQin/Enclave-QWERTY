@@ -210,7 +210,7 @@ struct ReplyStyleEditor: View {
             } header: {
                 Text(L("怎么回", "How to reply", "返し方"))
             } footer: {
-                Text(L("点「帮回」时和对方的话一起发给问答接口，每种风格写一条。", "Sent to the answer API with the copied message; one reply per style.", "コピーした文と一緒に質問用 API に送られ、スタイルごとに 1 件作成します。"))
+                Text(L("点「帮回」时和对方的话一起发给润色接口（主接口），每次写一种风格。", "Sent to the Polish API (main API) with the copied message; one style at a time.", "コピーした文と一緒に整える用 API（メイン API）に送られ、1 回に 1 つのスタイルで作成します。"))
             }
             if let result = optimizer.result {
                 PromptOptimizedSection(optimizer: optimizer, result: result, prompt: $style.prompt)
