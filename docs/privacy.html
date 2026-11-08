@@ -52,7 +52,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <h3>（二）AI 润色（按您选的风格改写，例如润色、正式、翻译）</h3>
 <p><strong>仅在您主动点击润色时</strong>（键盘 AI 栏上的“润色”键或固定在 AI 栏上的风格键、识意框回车后出现的“润色”，或帮回卡片上的润色键），本应用会将以下信息直接发送至您为润色配置的模型服务接口（即主接口）：</p>
 <ol>
-<li>要润色的文字：当前输入框中的文字，如您已选中部分文字则仅为所选部分；在帮回卡片上润色时，为卡片上的那条回复；</li>
+<li>要润色的文字：当前输入框中的文字，如您已选中部分文字则仅为所选部分；在帮回卡片上润色时，为卡片上的那条回复（如已放进输入框并修改过，则为修改后的文字；输入框里是其他文字时，按普通润色发送输入框中的文字）；</li>
 <li>您在识意框中写的要求（如有）；</li>
 <li>您所选润色风格的说明文字。</li>
 </ol>
@@ -138,7 +138,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <h3>AI Polish</h3>
 <p>Only when you tap to polish (the Polish key or a style pinned to the AI bar, Polish after pressing Return in the intent box, or the polish key on a Help Reply card), the App sends the following directly to the model service API you configured for Polish (the main API):</p>
 <ul>
-<li>the text to polish: the text in the current input field, or only the selected portion if text is selected; when polishing on a Help Reply card, that reply;</li>
+<li>the text to polish: the text in the current input field, or only the selected portion if text is selected; when polishing on a Help Reply card, that reply (or your edited version, if you already put it in the field and changed it; if the field holds other text, that text is polished as usual);</li>
 <li>any instructions you wrote in the intent box;</li>
 <li>the description of the polish style you chose.</li>
 </ul>
@@ -210,7 +210,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <h3>AI 機能</h3>
 <p>お客様が整える操作をしたときに限り（AI バーの「整える」キーや固定したスタイルのキー、意図入力欄で改行したあとの「整える」、返信アシストのカード上の整えるキー）、本アプリは次の情報を、「整える」用に設定したモデルサービスの API（メインの API）に直接送信します。</p>
 <ul>
-<li>整える文章：現在の入力欄の文章（一部を選択している場合は選択部分のみ）。返信アシストのカード上で整える場合は、その返信</li>
+<li>整える文章：現在の入力欄の文章（一部を選択している場合は選択部分のみ）。返信アシストのカード上で整える場合は、その返信（入力欄に入れて手直しした場合は手直し後の文章。入力欄に別の文章がある場合は、通常どおり入力欄の文章）</li>
 <li>意図入力欄に書いた指示（あれば）</li>
 <li>選んだスタイルの説明文</li>
 </ul>
