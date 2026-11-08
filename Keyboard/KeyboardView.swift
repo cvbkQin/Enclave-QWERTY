@@ -680,15 +680,15 @@ struct GateCard: View {
         }
     }
 
+    /// 说明文字 05 审过（11-08）：飞地输入法「收不到」你的文字（AI 历史、剪贴板记录存在本机，不能说「不保存」）。
     private static func consentNote(_ purpose: KeyboardModel.GatePurpose) -> String {
         switch purpose {
         case .polish:
-            return L("只在你点「✨」或「执行」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；无第三方中转，飞地输入法不保存你的文字。", "Sent only when you tap ✨ or Run: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. No third-party relay; Enclave doesn't keep your text.", "「✨」か「実行」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。第三者の中継はなく、Enclave は文章を保存しません。")
+            return L("只在你点「润色」或润色风格时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；无第三方中转，飞地输入法收不到你的文字。", "Sent only when you tap Polish or a polish style: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. No third-party relay; Enclave never receives your text.", "「整える」かスタイルをタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。第三者の中継はなく、Enclave が文章を受け取ることはありません。")
         case .answer:
-            // 待 05 看过（规格 11.3）。
-            return L("只在你提问时发送：你写的问题和输入框里的文字（选中时只发选中的部分）。由这个接口处理后返回回答；无第三方中转，飞地输入法不保存你的文字。", "Sent only when you ask: your question and the text in the field (just the selection, if any). This API processes it and returns the answer. No third-party relay; Enclave doesn't keep your text.", "質問したときだけ、質問と入力欄の文章（選択時はその部分だけ）を送ります。この API が処理して回答を返します。第三者の中継はなく、Enclave は文章を保存しません。")
+            return L("只在你提问时发送：你写的问题和输入框里的文字（选中时只发选中的部分）。由这个接口处理后返回回答；无第三方中转，飞地输入法收不到你的文字。联网搜索会另外问你。", "Sent only when you ask: your question and the text in the field (just the selection, if any). This API processes it and returns the answer. No third-party relay; Enclave never receives your text. Web search asks you separately.", "質問したときだけ、質問と入力欄の文章（選択時はその部分だけ）を送ります。この API が処理して回答を返します。第三者の中継はなく、Enclave が文章を受け取ることはありません。ウェブ検索は別に確認します。")
         case .help:
-            return L("只在你点「帮回」时发送：你复制的那句话、帮回风格的提示词和你写的要求，不发对方的名字。无第三方中转，飞地输入法不保存你的文字。润色用的也是这个地址，同意一次两边都不再问。", "Sent only when you tap Reply: the message you copied, the reply style's prompt and your instructions. The other person's name is never sent. No third-party relay; Enclave doesn't keep your text. Polish uses the same address, so agreeing once covers both.", "「返信」をタップしたときだけ、コピーした文、返信スタイルのプロンプト、指示を送ります。相手の名前は送りません。第三者の中継はなく、Enclave は文章を保存しません。「整える」も同じアドレスなので、一度同意すれば両方とも確認しません。")
+            return L("只在你点「帮回」时发送：你复制的那段文字、帮回风格的提示词和你写的要求。无第三方中转，飞地输入法收不到你的文字。润色用的也是这个地址，同意一次两边都不用再问。", "Sent only when you tap Reply: the text you copied, the reply style's prompt and your instructions. No third-party relay; Enclave never receives your text. Polish uses the same address, so agreeing once covers both.", "「返信」をタップしたときだけ、コピーした文章、返信スタイルのプロンプト、指示を送ります。第三者の中継はなく、Enclave が文章を受け取ることはありません。「整える」も同じアドレスなので、一度同意すれば両方とも確認しません。")
         }
     }
 
