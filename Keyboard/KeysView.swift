@@ -38,8 +38,10 @@ struct KeysView: View {
                         KeyCapCell(presses: model.keyPresses, context: context, key: key)
                             .frame(width: key.visual.width, height: key.visual.height)
                             .offset(x: key.visual.minX, y: key.visual.minY)
-                            // 帮回键的外圈画在键外，压在旁边键上面。
+                            // 帮回键的外圈画在键外，压在旁边键上面。zIndex 1 会把它抬到下面的触摸层上面，
+                            // 键帽自己就接住了点按（0.96_5、0.96_6 点帮回没反应），所以这颗键帽不接触摸，点按还交给触摸层。
                             .zIndex(key.kind == .emoticon ? 1 : 0)
+                            .allowsHitTesting(key.kind != .emoticon)
                     }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)
