@@ -862,6 +862,10 @@ final class KeyboardModel: ObservableObject {
         return !isRunning && session?.current != nil
     }
 
+    /// 替换、插入能不能用：帮回卡要这一种写好、不在写；润色 / 问答只看有没有当前这版。
+    /// 不能用 hasResult：快速模式在生成收尾、isRunning 还没清的时候就要替换（0.96_4 起收起时润色不再直接替换，0.96_8 修）。
+    private var resultReady: Bool { helpReply != nil ? hasResult : session?.current != nil }
+
     /// 回答卡上现在显示的那一版：帮回时是帮回这一种风格的当前版本。
     var shownResultText: String? { helpReply != nil ? helpReply?.current?.text : session?.current }
 
@@ -1487,7 +1491,7 @@ final class KeyboardModel: ObservableObject {
     /// 用当前版本替换输入框内容（有选中时只替换选中部分）。
     func replace() {
         endCoach()
-        guard hasResult, let text = shownResultText, let proxy = editProxy else { return }
+        guard resultReady, let text = shownResultText, let proxy = editProxy else { return }
         let field = readField()
         if field.isSelection {
             proxy.insertText(text)
@@ -1508,7 +1512,7 @@ final class KeyboardModel: ObservableObject {
     /// 在光标处插入当前版本。
     func insert() {
         endCoach()
-        guard hasResult, let text = shownResultText, let proxy = editProxy else { return }
+        guard resultReady, let text = shownResultText, let proxy = editProxy else { return }
         proxy.insertText(text)
         recordEdit(inserted: text, original: "", use: .inserted)
     }
