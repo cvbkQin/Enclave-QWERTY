@@ -386,6 +386,9 @@ struct AIKeyStrip<Content: View>: View {
     @ViewBuilder var content: Content
     @State private var offset: CGFloat = 0
     @State private var contentWidth: CGFloat = 0
+    /// 只有手指滑动（内容宽不变、位置变了）时两头渐隐才做 0.15 秒动画。内容宽变了（冷启动读进设置、键变多变少）不动画：
+    /// 冷启动时这次动画期间带动画的遮罩整块不出内容，润色、问答、帮回键会消失约 0.1 秒再出来（0.96_3 起就有）。
+    @State private var animateFade = false
 
     var body: some View {
         GeometryReader { geo in
@@ -416,14 +419,18 @@ struct AIKeyStrip<Content: View>: View {
                 LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .leading, endPoint: .trailing)
                     .frame(width: right ? fade : 0)
             }
-            .animation(.easeOut(duration: 0.15), value: left)
-            .animation(.easeOut(duration: 0.15), value: right))
+            .animation(animateFade ? .easeOut(duration: 0.15) : nil, value: left)
+            .animation(animateFade ? .easeOut(duration: 0.15) : nil, value: right))
         }
     }
 
     private func track(_ frame: CGRect) {
-        if abs(offset + frame.minX) > 0.25 { offset = -frame.minX }
-        if abs(contentWidth - frame.width) > 0.25 { contentWidth = frame.width }
+        let widthChanged = abs(contentWidth - frame.width) > 0.25
+        let moved = abs(offset + frame.minX) > 0.25
+        guard widthChanged || moved else { return }
+        if animateFade == widthChanged { animateFade = !widthChanged }
+        if moved { offset = -frame.minX }
+        if widthChanged { contentWidth = frame.width }
     }
 }
 
