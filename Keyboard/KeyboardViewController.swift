@@ -11,24 +11,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         CrashLog.shared.start(source: "keyboard")
-        let host = UIHostingController(rootView: KeyboardView(model: model))
-        // 底色由 KeyboardView 自己画：拼音行以下不透明（Chrome 从系统键盘切回来时，系统按键会残留在我们下面，
-        // 透明的话从键缝里透出来；不透明也保证键缝能接到触摸），最上面拼音行那截渐变接上系统液态玻璃。
-        host.view.backgroundColor = .clear
-        // 键盘区域不需要安全区留白，否则预览区内容会被额外内边距推开。
-        if #available(iOS 16.4, *) {
-            host.safeAreaRegions = []
-        }
-        host.view.translatesAutoresizingMaskIntoConstraints = false
-        addChild(host)
-        view.addSubview(host.view)
-        NSLayoutConstraint.activate([
-            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            host.view.topAnchor.constraint(equalTo: view.topAnchor),
-            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
-        host.didMove(toParent: self)
+        installHost()
 
         // 键盘高度只由这一条必需约束决定。allowsSelfSizing 让系统按我们的约束算高度，
         // 而不是套用它自己的固定高度——否则展开后系统仍按旧高度摆放，面板顶部和最后一排键会被裁掉。
@@ -201,8 +184,48 @@ final class KeyboardViewController: UIInputViewController {
         if !model.chineseMode { model.updateEnglishSuggestions() }
     }
 
+    /// 键盘整棵 SwiftUI 视图。收起时拆掉、弹出前再装：系统每次弹出都新建一个 KeyboardViewController，
+    /// 旧的那个不释放（UIKit 自己拿着，deinit 不走），连带整棵视图、键帽、显示链都留在内存里，
+    /// 同一进程每弹一次涨约 3.5 MB（0.96_3 就有，之前每次收起都崩所以没显出来），涨到上限就被系统杀掉、又变冷启动。
+    /// 拆掉视图后旧控制器只剩个空壳。
+    private var host: UIHostingController<AnyView>?
+
+    private func installHost() {
+        guard host == nil else { return }
+        let host = UIHostingController(rootView: AnyView(KeyboardView(model: model)))
+        // 底色由 KeyboardView 自己画：拼音行以下不透明（Chrome 从系统键盘切回来时，系统按键会残留在我们下面，
+        // 透明的话从键缝里透出来；不透明也保证键缝能接到触摸），最上面拼音行那截渐变接上系统液态玻璃。
+        host.view.backgroundColor = .clear
+        // 键盘区域不需要安全区留白，否则预览区内容会被额外内边距推开。
+        if #available(iOS 16.4, *) {
+            host.safeAreaRegions = []
+        }
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+        addChild(host)
+        view.addSubview(host.view)
+        NSLayoutConstraint.activate([
+            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            host.view.topAnchor.constraint(equalTo: view.topAnchor),
+            host.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
+        host.didMove(toParent: self)
+        self.host = host
+    }
+
+    private func removeHost() {
+        guard let host else { return }
+        // 先换成空视图：就算宿主视图被 SwiftUI 内部（显示链）多拿一会儿，键盘那棵视图图和 model 的引用也先放掉。
+        host.rootView = AnyView(EmptyView())
+        host.willMove(toParent: nil)
+        host.view.removeFromSuperview()
+        host.removeFromParent()
+        self.host = nil
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        installHost()
         // 先定下有没有地球键，免得键盘滑出来的途中按键再换一次排法。
         updateGlobeKey()
         updateOrientation()
@@ -266,6 +289,7 @@ final class KeyboardViewController: UIInputViewController {
         model.dismissPredictions()
         EnglishPredictor.flush()
         DailyStats.flush()
+        removeHost()
     }
 
     /// 弹出以后才开始，第一次在 1 秒后；没开完全访问时读不了剪贴板，不轮询。
