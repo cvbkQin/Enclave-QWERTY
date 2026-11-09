@@ -76,8 +76,10 @@ final class KeyboardViewController: UIInputViewController {
 
     private var hostInactive = false
     /// 键盘开着时每秒看一眼 changeCount（不读内容、不弹横幅）：在对方 App 里不收键盘直接复制一句，帮回键红点、紫点也跟着出来。
+    /// 不能在这里直接读 UIPasteboard.general：属性初始值在控制器创建时就算，键盘还没弹出，
+    /// 第一次碰剪贴板要连系统的剪贴板服务，会压在弹出前的主线程上（0.96_7 弹出变卡）。第一次轮询时才记。
     private var clipboardPoll: Timer?
-    private var polledChangeCount = UIPasteboard.general.changeCount
+    private var polledChangeCount: Int?
 
     /// 退后台时输入框里还挂着、没清成的拼音，记下的时间。放在实例外面：回前台时系统常新建一个 KeyboardViewController，
     /// 旧实例的 textDocumentProxy 已经断开、随后被释放，只有新实例清得掉（bug #15）。
@@ -256,13 +258,20 @@ final class KeyboardViewController: UIInputViewController {
         DailyStats.flush()
     }
 
+    /// 弹出以后才开始，第一次在 1 秒后；没开完全访问时读不了剪贴板，不轮询。
     private func startClipboardPoll() {
         clipboardPoll?.invalidate()
-        polledChangeCount = UIPasteboard.general.changeCount
+        clipboardPoll = nil
+        guard hasFullAccess else { return }
+        polledChangeCount = nil
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
             let count = UIPasteboard.general.changeCount
-            guard count != self.polledChangeCount else { return }
+            guard let last = self.polledChangeCount else {
+                self.polledChangeCount = count
+                return
+            }
+            guard count != last else { return }
             self.polledChangeCount = count
             self.model.checkClipboard()
         }
