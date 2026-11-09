@@ -202,9 +202,13 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     /// 剪贴板轮询也要停：定时器在 RunLoop 里一直跑、一直被拿着（每个旧控制器多留一个）。
+    /// 光换空视图不够：旧控制器的根视图 UIInputView 被系统留着，宿主视图挂在它下面，已经画好的图层、
+    /// 键帽触摸层、候选条（它们的 SwiftUI 包装拿着 model）都跟着留下，每次还是 +1 MB。把宿主视图从旧根视图上摘掉。
     private static func tearDown(host: UIHostingController<AnyView>?, poll: Timer?) {
         poll?.invalidate()
-        host?.rootView = AnyView(EmptyView())
+        guard let host else { return }
+        host.rootView = AnyView(EmptyView())
+        host.view.removeFromSuperview()
     }
 
     private func installHost() {
