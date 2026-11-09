@@ -184,11 +184,28 @@ final class KeyboardViewController: UIInputViewController {
         if !model.chineseMode { model.updateEnglishSuggestions() }
     }
 
-    /// 键盘整棵 SwiftUI 视图。收起时拆掉、弹出前再装：系统每次弹出都新建一个 KeyboardViewController，
-    /// 旧的那个不释放（UIKit 自己拿着，deinit 不走），连带整棵视图、键帽、显示链都留在内存里，
-    /// 同一进程每弹一次涨约 3.5 MB（0.96_3 就有，之前每次收起都崩所以没显出来），涨到上限就被系统杀掉、又变冷启动。
-    /// 拆掉视图后旧控制器只剩个空壳。
+    /// 键盘整棵 SwiftUI 视图。系统每次弹出都新建一个 KeyboardViewController；下滑收起时只走 viewWillDisappear，
+    /// 不走 viewDidDisappear，约 1 秒后控制器 deinit。但宿主视图被 SwiftUI 内部（显示链）拿着不放，
+    /// 它的 rootView 又拿着 KeyboardModel，于是整棵视图、键帽、model 都留在内存里，同一进程每弹一次涨约 3.5 MB
+    /// （0.96_3 就有，之前每次收起都崩所以没显出来），涨到上限就被系统杀掉、又变冷启动。
+    /// 所以 deinit 和 viewDidDisappear 里都把 rootView 换成空视图，宿主就算还被拿着也只剩个空壳。
     private var host: UIHostingController<AnyView>?
+
+    deinit {
+        let host = host, poll = clipboardPoll
+        if Thread.isMainThread {
+            // 不在这里关 Rime 会话：会话是整个进程共用的，收起后 1 秒内又弹出时新控制器已经开好了，这里一关就打不出候选。
+            MainActor.assumeIsolated { Self.tearDown(host: host, poll: poll) }
+        } else {
+            DispatchQueue.main.async { MainActor.assumeIsolated { Self.tearDown(host: host, poll: poll) } }
+        }
+    }
+
+    /// 剪贴板轮询也要停：定时器在 RunLoop 里一直跑、一直被拿着（每个旧控制器多留一个）。
+    private static func tearDown(host: UIHostingController<AnyView>?, poll: Timer?) {
+        poll?.invalidate()
+        host?.rootView = AnyView(EmptyView())
+    }
 
     private func installHost() {
         guard host == nil else { return }
