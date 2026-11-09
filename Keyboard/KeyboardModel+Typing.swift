@@ -1298,8 +1298,8 @@ extension KeyboardModel {
 
     /// 换到对方另一个输入框（键盘没收起）：上一个框「不认标记文字」「清不掉标记文字」的记号不带过去，
     /// 不然同一个 App 里一个框认出是 Flutter 类，限字数的框也跟着走绕过检查的那条路。组字中不换，免得拼音一半换了写法。
-    func noteHostDocument(_ id: UUID) {
-        guard id != hostDocumentID, !isComposing else { return }
+    func noteHostDocument(_ id: UUID?) {
+        guard let id, id != hostDocumentID, !isComposing else { return }
         hostDocumentID = id
         if inlinePinyinOff { inlinePinyinOff = false }
         markedTextNotClearable = false

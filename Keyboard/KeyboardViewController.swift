@@ -75,9 +75,19 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private var hostInactive = false
+
+    /// 对方输入框的 documentIdentifier。不能直接读 textDocumentProxy.documentIdentifier：Swift 里它是非可选的 UUID，
+    /// 键盘收起时系统还会调一次 textDidChange，这时它是 nil，桥接直接崩（SIGTRAP）。从 0.96_4 起每次收起都崩，
+    /// 下次弹出全是冷启动，「弹出变卡」就是这个。这里绕开桥接，按可选值读。
+    private var hostDocumentID: UUID? {
+        let selector = NSSelectorFromString("documentIdentifier")
+        guard textDocumentProxy.responds(to: selector),
+              let object = textDocumentProxy.perform(selector)?.takeUnretainedValue() else { return nil }
+        return (object as? NSUUID).map { $0 as UUID }
+    }
     /// 键盘开着时每秒看一眼 changeCount（不读内容、不弹横幅）：在对方 App 里不收键盘直接复制一句，帮回键红点、紫点也跟着出来。
     /// 不能在这里直接读 UIPasteboard.general：属性初始值在控制器创建时就算，键盘还没弹出，
-    /// 第一次碰剪贴板要连系统的剪贴板服务，会压在弹出前的主线程上（0.96_7 弹出变卡）。第一次轮询时才记。
+    /// 第一次碰剪贴板要连系统的剪贴板服务，会压在弹出前的主线程上。第一次轮询时才记。
     private var clipboardPoll: Timer?
     private var polledChangeCount: Int?
 
@@ -173,7 +183,7 @@ final class KeyboardViewController: UIInputViewController {
         super.textDidChange(textInput)
         // 长按空格拖光标时，每移一下对方都会通知；这时不读输入框，松手再补（setTrackpad(false)）。
         if model.trackpadActive { return }
-        model.noteHostDocument(textDocumentProxy.documentIdentifier)
+        model.noteHostDocument(hostDocumentID)
         // 点对方输入框挪光标时，系统有时只通知文字变了、不通知光标变了（iOS 27 模拟器上就是这样），两处都接。
         model.hostSelectionChanged()
         model.fieldDidChange()
@@ -183,7 +193,7 @@ final class KeyboardViewController: UIInputViewController {
     override func selectionDidChange(_ textInput: UITextInput?) {
         super.selectionDidChange(textInput)
         if model.trackpadActive { return }
-        model.noteHostDocument(textDocumentProxy.documentIdentifier)
+        model.noteHostDocument(hostDocumentID)
         // 用户点了对方输入框：抽屉开着时打字换回对方输入框。
         model.hostSelectionChanged()
         model.refreshHostState()
@@ -200,7 +210,7 @@ final class KeyboardViewController: UIInputViewController {
         // 换了输入框重新试标记文字（上一个框不认，不代表这个也不认）。
         model.inlinePinyinOff = false
         model.markedTextNotClearable = false
-        model.hostDocumentID = textDocumentProxy.documentIdentifier
+        model.hostDocumentID = hostDocumentID
         model.stoppedAnswer = nil
         // 上一个框留下的联想不带到这个框。
         model.dismissPredictions()
