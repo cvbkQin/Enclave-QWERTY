@@ -124,13 +124,22 @@ struct KeyCapContext: Equatable {
     var returnLook: KeyboardModel.ReturnLook
     /// ^^ 键变「帮回」（T16）。
     var helpKey: HelpKeyLook?
+    /// 双拼时字母键上写韵母小字（SP1）；不写时为 nil。
+    var hintScheme: DoublePinyin? = nil
 }
 
 extension KeyboardModel {
     var keyCapContext: KeyCapContext {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
-                      spaceTitle: spaceTitle, returnLook: returnLook, helpKey: helpKeyLook)
+                      spaceTitle: spaceTitle, returnLook: returnLook, helpKey: helpKeyLook, hintScheme: keyHintScheme)
+    }
+
+    /// 只在全键盘中文、字母页、没按 shift、开了「键上显示韵母」时写（全拼、九宫格、英文都不写）。
+    private var keyHintScheme: DoublePinyin? {
+        guard let doublePinyin, settings.doublePinyinHints, chineseMode, !showsNineKey, layer == .letters, shift == .off
+        else { return nil }
+        return doublePinyin
     }
 }
 
@@ -219,9 +228,13 @@ struct KeyCapView: View, Equatable {
     private var label: some View {
         switch key.kind {
         case .letter(let letter):
-            Text(context.shift == .off ? letter : letter.uppercased())
-                .font(KeyStyle.letterFont)
-                .offset(y: -1)
+            if let lines = context.hintScheme.flatMap({ $0.keyHints[Character(letter)] }), !lines.isEmpty {
+                DoublePinyinKeyLabel(letter: letter, lines: lines)
+            } else {
+                Text(context.shift == .off ? letter : letter.uppercased())
+                    .font(KeyStyle.letterFont)
+                    .offset(y: -1)
+            }
         case .symbol(let symbol):
             if context.layer == .digits {
                 Text(symbol).font(.system(size: 24))
@@ -788,5 +801,32 @@ struct QuickKeyLabel: View {
         .fixedSize()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L("常用和剪贴板", "Phrases and clipboard", "定型文とクリップボード"))
+    }
+}
+
+/// 双拼键上的提示（SP2 样式 A）：韵母小字在键帽上方居中，离顶 3pt，最多两行；zh/ch/sh 主题紫、加粗，排第一行。
+/// 有小字的键字母缩小一点、贴下边，和小字不挤。按下时的气泡只放大字母（KeyPopup 不变）。
+struct DoublePinyinKeyLabel: View {
+    let letter: String
+    let lines: [String]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 0) {
+                ForEach(lines.prefix(2), id: \.self) { line in
+                    let initial = ["zh", "ch", "sh"].contains(line)
+                    Text(line)
+                        .font(.system(size: 8, weight: initial ? .bold : .medium))
+                        .foregroundStyle(initial ? Brand.purpleText : Color.secondary)
+                        .frame(height: 8.6)
+                }
+            }
+            .padding(.top, 3)
+            Spacer(minLength: 0)
+            Text(letter)
+                .font(.system(size: 21))
+                .padding(.bottom, 4)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -1,6 +1,6 @@
 import XCTest
 
-/// 双拼（第 12 条）：三套键位覆盖音节表里每个音节、编码互不冲突；生成的拼写规则、拼写栏规则照 Rime 的方式跑一遍结果对。
+/// 双拼（第 12 条）：小鹤、自然码两套键位覆盖音节表里每个音节、编码互不冲突；生成的拼写规则、拼写栏规则照 Rime 的方式跑一遍结果对。
 final class DoublePinyinTests: XCTestCase {
     private static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
 
@@ -9,13 +9,12 @@ final class DoublePinyinTests: XCTestCase {
             for syllable in PinyinTable.syllables {
                 let code = scheme.code(for: syllable)
                 XCTAssertEqual(code?.count, 2, "\(scheme) \(syllable) → \(code ?? "nil")")
-                let allowed = CharacterSet.lowercaseLetters.union(CharacterSet(charactersIn: scheme.extraKeys))
-                XCTAssertTrue(code.map { $0.unicodeScalars.allSatisfy(allowed.contains) } ?? false, "\(scheme) \(syllable)")
+                XCTAssertTrue(code?.allSatisfy { $0.isASCII && $0.isLowercase } ?? false, "\(scheme) \(syllable)")
             }
         }
     }
 
-    /// 只有 lo 和 luo 共用一个编码（三套都这样，韵母 o 和 uo 在同一个键上）。
+    /// 只有 lo 和 luo 共用一个编码（两套都这样，韵母 o 和 uo 在同一个键上）。
     func testCodesDoNotCollide() {
         for scheme in DoublePinyin.allCases {
             var bySyllable: [String: [String]] = [:]
@@ -33,13 +32,11 @@ final class DoublePinyinTests: XCTestCase {
                                        "jiong": "js", "kuai": "kk", "ying": "yk", "dui": "dv", "gua": "gx", "liu": "lq"]
         let ziranma: [String: String] = ["shuang": "ud", "pin": "pn", "xiang": "xd", "ai": "ai", "ang": "ah", "ying": "yy",
                                          "kuai": "ky", "zou": "zb", "mei": "mz", "lve": "lt", "dun": "dp"]
-        let mspy: [String: String] = ["shuang": "ud", "ling": "l;", "a": "oa", "ang": "oh", "er": "or", "o": "oo", "ou": "ob",
-                                      "lv": "ly", "lve": "lt", "kuai": "ky", "lian": "lm"]
-        for (scheme, table) in [(DoublePinyin.flypy, flypy), (.ziranma, ziranma), (.mspy, mspy)] {
+        for (scheme, table) in [(DoublePinyin.flypy, flypy), (.ziranma, ziranma)] {
             for (syllable, code) in table { XCTAssertEqual(scheme.code(for: syllable), code, "\(scheme) \(syllable)") }
         }
         XCTAssertEqual(DoublePinyin.ziranma.codes.first { $0.syllable == "ai" }?.alternates, ["al"])
-        XCTAssertEqual(DoublePinyin.mspy.codes.first { $0.syllable == "nve" }?.alternates, ["nv"])
+        XCTAssertEqual(DoublePinyin.flypy.codes.first { $0.syllable == "ai" }?.alternates, [])
     }
 
     func testEncodeCommonWordPinyin() {
@@ -56,6 +53,24 @@ final class DoublePinyinTests: XCTestCase {
         // 九宫格照旧。
         XCTAssertEqual(CommonWordStore.phraseTable([(text: "邮箱", code: "youxiang")], nineKey: true, doublePinyin: .flypy),
                        CommonWordStore.phraseTable([(text: "邮箱", code: "youxiang")], nineKey: true))
+    }
+
+    /// 键上提示照 UI 稿（SP1）：zh/ch/sh 排第一行，最多两行，a/e 这种不写。
+    func testKeyHints() {
+        XCTAssertEqual(DoublePinyin.flypy.keyHints["v"], ["zh", "ui"])
+        XCTAssertEqual(DoublePinyin.flypy.keyHints["k"], ["uai", "ing"])
+        XCTAssertEqual(DoublePinyin.ziranma.keyHints["y"], ["ing", "uai"])
+        XCTAssertNil(DoublePinyin.flypy.keyHints["a"])
+        XCTAssertNil(DoublePinyin.flypy.keyHints["e"])
+        for scheme in DoublePinyin.allCases {
+            XCTAssertTrue(scheme.keyHints.values.allSatisfy { (1...2).contains($0.count) })
+            // 提示写的每个韵母都确实在那个键上。
+            for (key, lines) in scheme.keyHints {
+                for final in lines where !["zh", "ch", "sh"].contains(final) {
+                    XCTAssertEqual(scheme.finalKeys[final], key, "\(scheme) \(final)")
+                }
+            }
+        }
     }
 
     func testVersionTag() {
@@ -94,7 +109,7 @@ final class DoublePinyinTests: XCTestCase {
         XCTAssertEqual(Self.format(rules, "lo"), "luo")
         XCTAssertEqual(Self.format(rules, "aa ah"), "a ang")
         XCTAssertEqual(Self.format(DoublePinyin.ziranma.preeditFormat, "al"), "ai")
-        XCTAssertEqual(Self.format(DoublePinyin.mspy.preeditFormat, "l; ly lv"), "ling lv lve")
+        XCTAssertEqual(Self.format(DoublePinyin.ziranma.preeditFormat, "xd hk"), "xiang hao")
     }
 
     func testPatchSchema() throws {
@@ -114,8 +129,6 @@ final class DoublePinyinTests: XCTestCase {
         // 模糊拼音接着打补丁，插在双拼规则前面。
         let both = FuzzyPinyin.patchSchema(patched, groups: [.zh])
         XCTAssertTrue(both.contains("  algebra:\n    # Enclave 模糊拼音\n    - derive/^zh/z/\n    - derive/^z([^h])/zh$1/\n    # Enclave 双拼"))
-        // 微软双拼要把「;」加进字母表。
-        XCTAssertTrue(DoublePinyin.mspy.patchSchema(text).contains("  alphabet: zyxwvutsrqponmlkjihgfedcba;\n"))
         XCTAssertTrue(patched.contains("  alphabet: zyxwvutsrqponmlkjihgfedcba\n"))
     }
 

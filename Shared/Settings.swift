@@ -198,11 +198,13 @@ struct EnclaveSettings: Codable, Equatable {
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     /// 全键盘用的双拼方案，nil 是全拼。和模糊拼音一样改了要重新部署才生效。
     var doublePinyin: DoublePinyin?
+    /// 双拼时全键盘的键上用小字写韵母（SP1），默认开。只是键盘的显示，不用重新部署。
+    var doublePinyinHints = true
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHints, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
         case pinnedStyleIDs, replyStyles, replyCheckedIDs, helpPinnedQwerty, helpPinnedNine
     }
@@ -340,6 +342,7 @@ extension EnclaveSettings {
         helpPinnedNine = try? c.decodeIfPresent(Bool.self, forKey: .helpPinnedNine)
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         doublePinyin = try? c.decodeIfPresent(DoublePinyin.self, forKey: .doublePinyin)
+        doublePinyinHints = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinHints)) ?? doublePinyinHints
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }

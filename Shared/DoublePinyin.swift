@@ -2,27 +2,28 @@ import Foundation
 
 /// 双拼：一个音节打两个键（声母键 + 韵母键）。词库、整句模型、常用词都和全拼共用，
 /// 部署词库时把全键盘方案的拼写规则换成这一套（见 patchSchema），九宫格不动。
+/// 只做小鹤和自然码（用户定的；微软双拼的 ing 在「;」键上，全键盘没有这个键，不做）。
 /// 规则不是照搬别人的方案文件，而是按下面的键位表给音节表里每个音节算出两键编码再生成的，单元测试检查每套都覆盖全部音节、互不冲突。
 enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
     case flypy
     case ziranma
-    case mspy
 
     var id: String { rawValue }
+
+    /// 「双拼 · 小鹤」里的短名字。
+    var shortTitle: String {
+        switch self {
+        case .flypy: return L("小鹤", "Xiaohe", "小鶴")
+        case .ziranma: return L("自然码", "Ziranma", "自然碼")
+        }
+    }
 
     var title: String {
         switch self {
         case .flypy: return L("小鹤双拼", "Xiaohe", "小鶴双拼")
         case .ziranma: return L("自然码", "Ziranma", "自然碼")
-        case .mspy: return L("微软双拼", "Microsoft", "Microsoft 双拼")
         }
     }
-
-    /// 设置里能选的。微软双拼的 ing 在「;」键上，全键盘还没有这个键，等键位定了再放出来。
-    static let available: [DoublePinyin] = [.flypy, .ziranma]
-
-    /// 键位表用的 26 个字母之外的键（微软双拼的 ing）。
-    var extraKeys: String { self == .mspy ? ";" : "" }
 
     // MARK: 键位
 
@@ -48,11 +49,6 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
                      "s": ["ong", "iong"], "d": ["iang", "uang"], "f": ["en"], "g": ["eng"], "h": ["ang"], "j": ["an"],
                      "k": ["ao"], "l": ["ai"], "z": ["ei"], "x": ["ie"], "c": ["iao"], "v": ["ui"], "b": ["ou"],
                      "n": ["in"], "m": ["ian"]]
-        case .mspy:
-            table = ["q": ["iu"], "w": ["ia", "ua"], "r": ["uan", "er"], "t": ["ue", "ve"], "y": ["uai", "v"], "p": ["un"],
-                     "s": ["ong", "iong"], "d": ["iang", "uang"], "f": ["en"], "g": ["eng"], "h": ["ang"], "j": ["an"],
-                     "k": ["ao"], "l": ["ai"], ";": ["ing"], "z": ["ei"], "x": ["ie"], "c": ["iao"], "v": ["ui"],
-                     "b": ["ou"], "n": ["in"], "m": ["ian"]]
         }
         for (key, finals) in table {
             for final in finals { keys[final] = key }
@@ -60,48 +56,42 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
         return keys
     }
 
-    /// 键位图：每个键上除了它自己的字母，还打哪些声母、韵母（ü 写成 ü）。设置页的键位图用，以后键上的韵母提示也用。
-    var keyHints: [Character: [String]] {
-        var hints: [Character: [String]] = [:]
-        for (initial, key) in Self.retroflexKeys { hints[key, default: []].append(initial) }
-        let order = ["iu", "ia", "ua", "er", "uan", "ue", "ve", "un", "uai", "v", "ing", "uo", "ie", "ong", "iong",
-                     "ai", "ei", "ao", "ou", "an", "en", "ang", "eng", "iang", "uang", "ian", "in", "iao", "ui"]
-        let keys = finalKeys
-        for final in order {
-            guard let key = keys[final], final.count > 1 || final == "v" else { continue }
-            // ve 和 ue 在同一个键上时只写一个。
-            if final == "ve", keys["ue"] == key { continue }
-            hints[key, default: []].append(final == "v" ? "ü" : final.replacingOccurrences(of: "v", with: "ü"))
+    /// 键上的提示（UI 稿 SP1/SP3）：每个键除了字母本身还管的 zh/ch/sh（排第一行）和韵母，最多两行。
+    /// 韵母就是字母本身的（a、e、i、u、o）、ü、ve 不写。
+    var keyHints: [Character: [String]] { Self.hintTables[self] ?? [:] }
+
+    private static let hintTables = Dictionary(uniqueKeysWithValues: allCases.map { ($0, $0.makeHints()) })
+
+    private func makeHints() -> [Character: [String]] {
+        let common: [Character: [String]] = ["q": ["iu"], "r": ["uan"], "t": ["ue"], "u": ["sh"], "i": ["ch"], "o": ["uo"],
+                                             "s": ["iong", "ong"], "f": ["en"], "g": ["eng"], "h": ["ang"], "j": ["an"],
+                                             "v": ["zh", "ui"], "m": ["ian"]]
+        let own: [Character: [String]]
+        switch self {
+        case .flypy:
+            own = ["w": ["ei"], "y": ["un"], "p": ["ie"], "d": ["ai"], "k": ["uai", "ing"], "l": ["iang", "uang"],
+                   "z": ["ou"], "x": ["ia", "ua"], "c": ["ao"], "b": ["in"], "n": ["iao"]]
+        case .ziranma:
+            own = ["w": ["ia", "ua"], "y": ["ing", "uai"], "p": ["un"], "d": ["iang", "uang"], "k": ["ao"], "l": ["ai"],
+                   "z": ["ei"], "x": ["ie"], "c": ["iao"], "b": ["ou"], "n": ["in"]]
         }
-        return hints
+        return common.merging(own) { $1 }
     }
 
     /// 零声母音节（a、ai、ang、er……）的两键编码。
     private func zeroInitialCode(_ final: String) -> String? {
-        switch self {
-        case .flypy, .ziranma:
-            // 单韵母双击，两个字母的照打，三个字母的打首字母 + 韵母键。
-            switch final.count {
-            case 1: return final + final
-            case 2: return final
-            default: return finalKeys[final].map { String(final.first!) + String($0) }
-            }
-        case .mspy:
-            // o 当声母键：oa、ol（ai）、oh（ang）、oo（o）。
-            return finalKeys[final].map { "o" + String($0) }
+        // 两套一样：单韵母双击，两个字母的照打，三个字母的打首字母 + 韵母键。
+        switch final.count {
+        case 1: return final + final
+        case 2: return final
+        default: return finalKeys[final].map { String(final.first!) + String($0) }
         }
     }
 
-    /// 同一个音节还能这样打（不进反查拼写栏）。自然码零声母也认「首字母 + 韵母键」（al = ai），微软的 üe 也能打 v。
+    /// 同一个音节还能这样打：自然码零声母也认「首字母 + 韵母键」（al = ai）。
     private func alternateCodes(_ initial: String, _ final: String) -> [String] {
-        switch self {
-        case .ziranma where initial.isEmpty && final.count == 2:
-            return finalKeys[final].map { [String(final.first!) + String($0)] } ?? []
-        case .mspy where final == "ve":
-            return [initial + "v"]
-        default:
-            return []
-        }
+        guard self == .ziranma, initial.isEmpty, final.count == 2 else { return [] }
+        return finalKeys[final].map { [String(final.first!) + String($0)] } ?? []
     }
 
     static func split(_ syllable: String) -> (initial: String, final: String) {
@@ -168,13 +158,11 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
     }
 
     /// translator/preedit_format：拼写栏把编码换回全拼（xl hc → xiang hao）。
-    /// 一样先换成大写再转小写，免得 lv（微软 üe）换成 lve 后又被别的规则改。
+    /// 一样先换成大写再转小写，换出来的全拼不会再被后面的规则改。
     var preeditFormat: [String] {
         var rules = readings.sorted { $0.key < $1.key }.map { pair -> String in
             let (code, syllable) = (pair.key, pair.value)
-            let pattern = NSRegularExpression.escapedPattern(for: code)
-            let tail = code.last?.isLetter == true ? "\\b" : ""
-            return "xform/(^|[ '])\(pattern)\(tail)/$1\(syllable.uppercased())/"
+            return "xform/(^|[ '])\(code)\\b/$1\(syllable.uppercased())/"
         }
         rules.append("xlit/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/")
         return rules
@@ -200,9 +188,6 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
         let algebraEnd = ruleEnd(after: algebraStart)
         lines.replaceSubrange((algebraStart + 1)..<algebraEnd,
                               with: ["    # Enclave 双拼（\(rawValue)）"] + algebra.map { "    - \($0)" })
-        if let alphabet = lines[speller...].firstIndex(where: { $0.hasPrefix("  alphabet:") }), !extraKeys.isEmpty {
-            lines[alphabet] += extraKeys
-        }
         return lines.joined(separator: "\n")
     }
 

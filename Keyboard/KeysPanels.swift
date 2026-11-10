@@ -408,9 +408,51 @@ struct PinyinRow: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
+        if !model.showsNineKey, let scheme = model.doublePinyin {
+            doublePinyinBody(scheme)
+        } else {
+            optionsBody
+        }
+    }
+
+    /// 双拼（SP1）：整串拼音照旧显示全拼（ni hao），旁边灰色等宽小字是按的键（nihc），最右边写方案名。双拼没有别的切法，不能点。
+    private func doublePinyinBody(_ scheme: DoublePinyin) -> some View {
+        HStack(spacing: 10) {
+            Text(model.composition)
+                .font(.system(size: 17))
+                .lineLimit(1)
+            let raw = model.engine.rawInput
+            if !raw.isEmpty {
+                Text(raw)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(KeyStyle.pressedKey.opacity(0.5)))
+            }
+            Spacer(minLength: 8)
+            Text(scheme.title)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottom) { bottomLine }
+    }
+
+    private var bottomLine: some View {
+        Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+            : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) }))
+            .frame(height: 1)
+    }
+
+    private var optionsBody: some View {
         let nine = model.showsNineKey
         let reading = model.correctedReading
-        ScrollView(.horizontal, showsIndicators: false) {
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 // 输入框不认标记文字（NM1）：整串拼音放在最左边，后面一道竖线再接平时的拼音选项。
                 if let pinyin = model.offFieldPinyin {
@@ -439,12 +481,7 @@ struct PinyinRow: View {
             Color.black
             LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 36)
         })
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
-                ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
-                : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) }))
-                .frame(height: 1)
-        }
+        .overlay(alignment: .bottom) { bottomLine }
     }
 }
 
