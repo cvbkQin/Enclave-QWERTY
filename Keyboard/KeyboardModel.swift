@@ -118,6 +118,9 @@ final class KeyboardModel: ObservableObject {
     @Published var responseSlow = false
     @Published var notice: String?
     @Published var hasFullAccess = true
+    /// 全键盘用的词库是双拼（开了完全访问、App 里选了双拼部署的）。键盘弹出时定（见 selectEngine）。
+    /// 是双拼时只认全拼的几层不用：按拼音规律挪热区、拼音换切法。
+    var doublePinyin: DoublePinyin?
     @Published var needsGlobeKey = true
     /// 「识意」框里的话（问题或修改要求），和正文分开存放。
     @Published private(set) var instruction = ""

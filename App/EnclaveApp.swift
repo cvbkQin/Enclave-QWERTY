@@ -193,7 +193,7 @@ final class AppRouter: ObservableObject {
     @Published var openedBackup: URL?
 
     /// 键盘标签里的二级页：模糊拼音、词库、常用词、键盘常用语、按键判定。
-    enum KeyboardPage: String, Hashable { case fuzzy, pinyin, commonWords, keyboardWords, touch }
+    enum KeyboardPage: String, Hashable { case fuzzy, doublePinyin, pinyin, commonWords, keyboardWords, touch }
 
     /// 词库页下面的两行：热门词库、导入的词库（三级页）。
     typealias ExtDictGroupPage = ExtDict.Group

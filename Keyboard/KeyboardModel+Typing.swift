@@ -702,7 +702,8 @@ extension KeyboardModel {
     /// 全键盘：正在拼的拼音有几种切法时并列（xi'an、xian），现在这种在前；只有一种就只显示这一种。
     /// 分段选过词（拼写栏开头是汉字）时不列，免得重输把选过的词冲掉。
     var pinyinSegmentations: [String] {
-        guard !showsNineKey, isComposing, composition.allSatisfy(\.isASCII) else { return [] }
+        // 双拼的按键串没有别的切法。
+        guard !showsNineKey, doublePinyin == nil, isComposing, composition.allSatisfy(\.isASCII) else { return [] }
         let letters = engine.rawInput.filter(\.isLetter).lowercased()
         let current = composition.split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'").lowercased()
         guard !letters.isEmpty, letters.count <= 16 else { return current.isEmpty ? [] : [current] }
@@ -1013,7 +1014,9 @@ extension KeyboardModel {
 
     /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。
     var pinyinContextForTouch: String? {
-        guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared else { return nil }
+        // 双拼的按键串不是全拼，按拼音规律挪热区会挪错；只按手指习惯校准。
+        guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared,
+              showsNineKey || doublePinyin == nil else { return nil }
         return QueuedEngine.shared.expectedRawInput
     }
 
@@ -1035,6 +1038,7 @@ extension KeyboardModel {
         if engine !== queued { queued.reset() }
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
+        doublePinyin = useShared && RimeStore.isDeployed ? DoublePinyin.deployed : nil
         TypingStats.modelInUse = useShared && RimeStore.isDeployed
             && (RimeStore.deployedVersion?.hasSuffix(GrammarModel.versionTag(installed: true)) ?? false)
         engine = chineseMode && pinyinReady ? queued : DirectEngine()
