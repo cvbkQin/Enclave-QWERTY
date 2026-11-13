@@ -475,6 +475,7 @@ struct PinyinRow: View {
             }
             .padding(.leading, 4)
             .padding(.trailing, 36)
+            .background(ImmediateTouches())
         }
         .hidingScrollEdgeEffect()
         .mask(HStack(spacing: 0) {
@@ -494,7 +495,7 @@ extension PinyinRow {
                 .frame(minWidth: 44, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(KeyPressStyle())
+        .buttonStyle(PinyinPressStyle())
     }
 
     /// 改过的字母连成几段，每段主色字、浅紫底（圆角 4，底往两边各出 1，字距不变）。
@@ -524,6 +525,9 @@ extension PinyinRow {
         return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
     }
     static let markedText = dynamic(0x5B4BE8, 0xB4A9FF)
+    /// 按下时字后面的浅色底，和候选栏长按时那块一样（黑 8% / 白 16%）。
+    static let pressedFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 0, alpha: 0.08) })
     static let markedFill = dynamic(0xE4E0FC, 0x2E2766)
     static let dividerColor = dynamic(0xAEAEB2, 0x8E8E93)
 }
@@ -886,5 +890,41 @@ struct ClipMenu: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// 拼音行一项按下：字变淡（和候选栏按下一样 45%），后面一块圆角 6 的浅色底（比字左右各宽 6，上下离行边 4）。
+/// 以前用 KeyPressStyle（只调亮度），浅色模式下黑字调暗看不出来，点了不知道点到没有（11-13 真机录屏）。
+private struct PinyinPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.45 : 1)
+            .background {
+                if configuration.isPressed {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(PinyinRow.pressedFill)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                }
+            }
+    }
+}
+
+/// 把外面那层滚动视图的「按住一会儿才算按下」关掉（和候选栏 CandidateStripView 一样），快点一下也马上显示按下的样子；左右滑照样能滚。
+private struct ImmediateTouches: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView { Probe() }
+    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    final class Probe: UIView {
+        override init(frame: CGRect) { super.init(frame: frame); isUserInteractionEnabled = false }
+        required init?(coder: NSCoder) { fatalError() }
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            var view = superview
+            while let current = view {
+                if let scroll = current as? UIScrollView { scroll.delaysContentTouches = false; return }
+                view = current.superview
+            }
+        }
     }
 }
