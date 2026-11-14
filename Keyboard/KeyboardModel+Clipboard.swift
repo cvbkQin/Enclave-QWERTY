@@ -19,7 +19,7 @@ extension KeyboardModel {
         let count = board.changeCount
         let new = ClipboardHistory.hasNew(changeCount: count, hasStrings: board.hasStrings)
         if clipboardHasNew != new { clipboardHasNew = new }
-        refreshHelpOffer(changeCount: count)
+        refreshHelpCopy()
     }
 
     /// 打开「常用 / 剪贴板」（对齐清单第 62 条）：左常用语、右剪贴板，比例照上次。
@@ -99,7 +99,7 @@ extension KeyboardModel {
             objectWillChange.send()
         case .copy:
             UIPasteboard.general.string = item.text
-            // 自己写进去的不算「新复制的内容」（^^ 键也不变帮回）。
+            // 自己写进去的不算「新复制的内容」，也不是待回的复制。
             noteOwnCopy()
             showKeysToast(L("已复制", "Copied", "コピーしました"))
         case .delete:

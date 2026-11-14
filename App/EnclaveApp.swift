@@ -212,7 +212,7 @@ final class AppRouter: ObservableObject {
     @Published var aiSegment: AISegment = .api
 
     /// 「提示词」下面的「润色风格 | 问答风格」（第 54 条）。不存：冷启动停在「润色风格」，后台切回来保持当时那个。
-    enum PromptKind: Hashable { case polish, answer, reply }
+    enum PromptKind: Hashable { case polish, answer }
     @Published var promptKind: PromptKind = .polish
 
     @Published var tab: Tab = .home { didSet { markScreen() } }

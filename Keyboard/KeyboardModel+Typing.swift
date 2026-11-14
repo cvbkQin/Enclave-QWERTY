@@ -149,8 +149,7 @@ extension KeyboardModel {
         switch target {
         case .host: editProxy?.insertText("\n")
         case .instruction:
-            // 帮回卡下面的框写的是要求：回车 = 按这条要求写当前风格的新一版（和点帮回键一样）。
-            if helpReply != nil { helpAskPending ? helpExecuteAsk() : helpKeyTapped() } else if enterAI != nil { enterAskTapped() } else { commit("\n") }
+            if enterAI != nil { enterAskTapped() } else { commit("\n") }
         case .card:
             commit("\n")
         }
@@ -423,8 +422,7 @@ extension KeyboardModel {
             switchLayer(layer)
         case .digitPunct: typeSymbol(".")
         case .digitsMore: digitsMore.toggle()
-        // 有新复制的内容时 ^^ 是「帮回」（T16）：点一下帮回，按住上滑才是颜文字。
-        case .emoticon: isComposing ? clearComposition() : (helpKeyLook != nil ? helpKeyTapped() : openPanel(.kaomoji))
+        case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
         // 「常用」打字时也在：先把拼音原样上屏，再打开。
         case .quickWords:
@@ -1141,8 +1139,6 @@ extension KeyboardModel {
         recentCorrection = nil
         switch target {
         case .host:
-            // 开始打字：^^ 键从帮回变回来。
-            if clipboardHasNew, !helpDismissed { dismissHelpOffer() }
             lastHostCommit = text
             // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
             // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下、字还会丢（「hao de好的」，
@@ -1468,8 +1464,7 @@ extension KeyboardModel {
             let directions: [String: CrossPopup.Direction] = ["left": .left, "up": .up, "right": .right, "down": .down]
             if parts.count > 2 { cross?.selected = directions[parts[2]] }
         }
-        // AI 帮回（T16）：help:key / help:hold / help:up / help:running / help:card / help:second / help:inserted /
-        // help:direction / help:menu / help:stopped / help:panel。
+        // AI 帮回（帮回并入润色）：help:pending / help:typed / help:expanded / help:result / help:pinned / help:dropdown / help:panel。
         applyHelpDebug(options.filter { $0.hasPrefix("help:") }.map { String($0.dropFirst("help:".count)) })
         #endif
     }

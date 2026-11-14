@@ -147,15 +147,9 @@ struct EnclaveSettings: Codable, Equatable {
     /// 固定到 AI 栏的风格（AK5）：改写风格或问答风格的 id，按固定的先后排，最多 5 个。
     var pinnedStyleIDs: [UUID] = []
     static let maxPinnedStyles = 5
-    /// 帮回风格（T16，App › AI › 提示词「帮回风格」）：一列名字 + 怎么回。
-    var replyStyles: [StylePreset] = StylePreset.replyDefaults
-    /// 点「帮回」时一起写的几种，按卡片上从左到右的顺序，最多 3 种、至少 1 种。默认正常、客气、简短。
-    var replyCheckedIDs: [UUID] = StylePreset.replyDefaults.prefix(3).map(\.id)
-    static let maxReplyChecked = 3
-    /// AI 栏上固定的「帮回」键（11.4，RG10）：全键盘没有 ^^ 键，默认固定；九宫格已经有 ^^ 帮回键，默认不固定。nil 是没改过。
-    /// 不占固定风格「N / 5」的名额。
-    var helpPinnedQwerty: Bool?
-    var helpPinnedNine: Bool?
+    /// AI 栏上固定的「帮回」键（帮回并入润色，方案 D）：全键盘和九宫格同一个设置，默认不固定，不占固定风格「N / 5」的名额。
+    /// 0.96_11 以前全键盘、九宫格各一个（helpPinnedQwerty / helpPinnedNine，全键盘默认固定），不再读。
+    var helpPinned = false
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -206,7 +200,7 @@ struct EnclaveSettings: Codable, Equatable {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHints, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
-        case pinnedStyleIDs, replyStyles, replyCheckedIDs, helpPinnedQwerty, helpPinnedNine
+        case pinnedStyleIDs, helpPinned
     }
 
     private enum LegacyKeys: String, CodingKey { case webSearch }
@@ -237,37 +231,6 @@ struct EnclaveSettings: Codable, Equatable {
     }
 
     func isPinned(_ id: UUID) -> Bool { pinnedStyles.contains { $0.style.id == id } }
-
-    /// 点帮回时一起写的几种：打勾的、还在的，按顺序；一个都没有时用第一种。
-    var checkedReplyStyles: [StylePreset] {
-        let checked = replyCheckedIDs.compactMap { id in replyStyles.first { $0.id == id } }
-        if !checked.isEmpty { return Array(checked.prefix(Self.maxReplyChecked)) }
-        return replyStyles.first.map { [$0] } ?? []
-    }
-
-    /// 勾上 / 取消一种帮回风格。勾满 3 种不能再勾（返回 false），至少留 1 种（取消最后一种返回 false）。
-    @discardableResult
-    mutating func toggleReplyChecked(_ id: UUID) -> Bool {
-        replyCheckedIDs = checkedReplyStyles.map(\.id)
-        if let index = replyCheckedIDs.firstIndex(of: id) {
-            guard replyCheckedIDs.count > 1 else { return false }
-            replyCheckedIDs.remove(at: index)
-            return true
-        }
-        guard replyCheckedIDs.count < Self.maxReplyChecked else { return false }
-        replyCheckedIDs.append(id)
-        return true
-    }
-
-    /// 这种布局下 AI 栏上有没有固定的帮回键。
-    func helpPinned(nine: Bool) -> Bool {
-        nine ? (helpPinnedNine ?? false) : (helpPinnedQwerty ?? true)
-    }
-
-    mutating func toggleHelpPin(nine: Bool) {
-        let pinned = !helpPinned(nine: nine)
-        if nine { helpPinnedNine = pinned } else { helpPinnedQwerty = pinned }
-    }
 
     /// 固定 / 取消固定；满 5 个时不加，返回 false。
     @discardableResult
@@ -336,10 +299,7 @@ extension EnclaveSettings {
         polishEnabled = try c.decodeIfPresent(Bool.self, forKey: .polishEnabled) ?? polishEnabled
         answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
-        replyStyles = (try? c.decodeIfPresent([StylePreset].self, forKey: .replyStyles)) ?? replyStyles
-        replyCheckedIDs = (try? c.decodeIfPresent([UUID].self, forKey: .replyCheckedIDs)) ?? replyCheckedIDs
-        helpPinnedQwerty = try? c.decodeIfPresent(Bool.self, forKey: .helpPinnedQwerty)
-        helpPinnedNine = try? c.decodeIfPresent(Bool.self, forKey: .helpPinnedNine)
+        helpPinned = (try? c.decodeIfPresent(Bool.self, forKey: .helpPinned)) ?? helpPinned
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         doublePinyin = try? c.decodeIfPresent(DoublePinyin.self, forKey: .doublePinyin)
         doublePinyinHints = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinHints)) ?? doublePinyinHints
@@ -365,17 +325,6 @@ extension StylePreset {
         StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000002")!, name: "详细", prompt: "先给结论，再用几句话解释原因和要点，必要时举一个例子。"),
         StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000003")!, name: "列要点", prompt: "用「1.」「2.」分点回答，每点一句，最多五点。"),
         StylePreset(id: UUID(uuidString: "A5C0E001-0000-4000-8000-000000000004")!, name: "通俗", prompt: "像跟朋友解释一样，用大白话，少用术语，术语要顺带解释。"),
-    ]
-
-    /// 帮回风格的默认 7 种（T16，HB16）。id 固定：App 和键盘各自读出来的默认是同一批，次数统计对得上。
-    static let replyDefaults: [StylePreset] = [
-        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000001")!, name: "正常", prompt: "自然地回，像平时聊天一样。"),
-        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000002")!, name: "客气", prompt: "礼貌、热情，多一句感谢或问候。"),
-        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000003")!, name: "简短", prompt: "一句话，越短越好。"),
-        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000004")!, name: "高情商", prompt: "照顾对方感受，说得让人舒服。"),
-        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000005")!, name: "幽默", prompt: "轻松一点，可以开个小玩笑。"),
-        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000006")!, name: "委婉拒绝", prompt: "不想答应时，客气地推掉，给对方台阶。"),
-        StylePreset(id: UUID(uuidString: "B7C0E001-0000-4000-8000-000000000007")!, name: "英文回复", prompt: "用自然的英文回复。"),
     ]
 
     /// 以前各版的默认风格，用户没改过时升级成新的默认列表。

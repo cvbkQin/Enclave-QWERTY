@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// AI 帮回（T16）的颜色：键、卡片、标签、胶囊、App 都用这一套绿。
+/// AI 帮回（T16，帮回并入润色）的颜色：键、按钮、小标、App 历史都用这一套绿。
 enum HelpStyle {
     static func hex(_ value: UInt32, _ alpha: Double = 1) -> Color {
         Color(red: Double(value >> 16 & 0xFF) / 255, green: Double(value >> 8 & 0xFF) / 255,
@@ -15,43 +15,28 @@ enum HelpStyle {
         return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
     }
 
-    /// 键、胶囊、选中的标签：#10B981 → #0E9F6E，135°。
-    static let gradient = LinearGradient(colors: [hex(0x10B981), hex(0x0E9F6E)], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let green = hex(0x10B981)
     /// 卡头「AI 帮回」、标题字。
     static let title = dynamic(0x0E9F6E, 0x34D399)
-    /// 卡片边框 #6EE7B7、外圈 16% 绿光。
-    static let border = dynamic(0x6EE7B7, 0x10B981)
-    static let glow = hex(0x10B981, 0.16)
-    /// 上屏后左键浅绿底深绿字、「方向」小标签。
-    static let softFill = dynamic(0xD1FAE5, 0x064E3B)
+    /// 剪贴板长按菜单「帮回这条」的深绿字。
     static let softText = dynamic(0x047857, 0x6EE7B7)
-    /// 没选中的标签灰底灰字。
-    static let tagFill = dynamic(0xE5E7EB, 0x3A3A3C)
-    static let tagText = dynamic(0x6B7280, 0xA1A1AA)
-    /// 写好没选中的标签底（HB19）：浅色 #D1FAE5，深色 #0B3B2C。
+    /// 润色下拉框里帮回那一行，有待回的复制时的浅绿底：浅色 #D1FAE5，深色 #0B3B2C。
     static let doneFill = dynamic(0xD1FAE5, 0x0B3B2C)
-    /// 写失败的标签：浅红底红字。
-    static let failFill = dynamic(0xFEE2E2, 0x3B1418)
-    static let failText = dynamic(0xDC2626, 0xF87171)
-    /// 生成中正文的三条扫光占位条。
-    static let placeholder = dynamic(0xD1FAE5, 0x14532D)
+    /// 回答卡卡头的「回」小标（帮回并入润色 §7）：底 #D1FAE5、字 #047857；深色底 rgba(16,185,129,.18)、字 #6EE7B7。
+    static let badgeFill = dynamicAlpha((0xD1FAE5, 1), (0x10B981, 0.18))
+    static let badgeText = dynamic(0x047857, 0x6EE7B7)
+    /// 识意框里的帮回按钮：实心 #10B981 白字；输入框有字时浅绿描边版，底 rgba(16,185,129,.12)、1pt #9FDCC4、字 #0E9F6E（深色 #34D399）。
+    static let outlineFill = hex(0x10B981, 0.12)
+    static let outlineStroke = hex(0x9FDCC4)
+    static let outlineText = dynamic(0x0E9F6E, 0x34D399)
     /// 「回」右上角的红点。
     static let dot = hex(0xF43F5E)
-    /// 帮回卡上润色键的星星（RG3 B）：和帮回同一个绿，不加白描边。
-    static let star = hex(0x34D399)
-    /// 帮回键（K2，11-07）：低饱和浅灰绿纯色底 + 深绿字，只用在键盘上的 ^^ 帮回键；卡片、替换键、标签还是上面那套绿。
+    /// 帮回键（K2）：低饱和浅灰绿纯色底 + 深绿字，用在 AI 栏上钉住的帮回键。
     enum Key {
         static let fill = dynamic(0xE4EFE9, 0x2E3D36)
         static let text = dynamic(0x3F6F5A, 0xA9D1BD)
-        static let stripFill = dynamicAlpha((0x3F6F5A, 0.07), (0x000000, 0.18))
-        static let stripLine = dynamicAlpha((0x3F6F5A, 0.14), (0xA9D1BD, 0.15))
-        static let stripText = dynamic(0x6A8F7D, 0x86A897)
-        /// 帮回卡开着：2pt 键盘底色间隔 + 4pt 外圈。
+        /// 润色键整颗变成帮回、下拉框开着：外圈浅灰绿。
         static let openRing = hex(0xB9D6C7)
-        /// 亮起来（识意框里有没执行的要求）：2pt 间隔 + 4.5pt 外圈 + 光晕。
-        static let armedRing = hex(0x8CBBA3)
-        static let armedGlow = hex(0x7DB097, 0.7)
         /// 键上 logo 降饱和：箭头渐变、星星描边。
         static let logoTop = hex(0x9CCAB2)
         static let logoBottom = hex(0x6A9E85)
@@ -64,9 +49,6 @@ enum HelpStyle {
         }
         return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
     }
-
-    /// 十字里选中「^^ 颜文字」格。
-    static let kaomojiCell = hex(0x5B4BE8)
 }
 
 /// 帮回 logo（design/help-reply/help-icon.svg）：绿渐变实心回复箭头 + 2pt 白描边，右上两颗白四角星（细绿边）。
@@ -78,6 +60,8 @@ struct HelpIcon: View {
     var bounce: CGFloat = 1
     /// 键盘上帮回键（K2）用的降饱和版：渐变 #9CCAB2 → #6A9E85，星星描边 #6A9E85。
     var soft = false
+    /// 润色键整颗变成帮回（鼠尾草绿底）用的白色 logo，星星描边鼠尾草绿。
+    var white = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let arrowGradient = gradient(HelpStyle.hex(0x4BE08A), HelpStyle.hex(0x07C160))
@@ -85,8 +69,9 @@ struct HelpIcon: View {
     private static func gradient(_ top: Color, _ bottom: Color) -> LinearGradient {
         LinearGradient(colors: [top, bottom], startPoint: UnitPoint(x: 2 / 24, y: 4 / 24), endPoint: UnitPoint(x: 21 / 24, y: 20 / 24))
     }
-    private var arrowFill: LinearGradient { soft ? Self.softGradient : Self.arrowGradient }
-    private var starEdge: Color { soft ? HelpStyle.Key.logoBottom : HelpStyle.hex(0x07C160) }
+    private static let whiteGradient = gradient(.white, .white)
+    private var arrowFill: LinearGradient { white ? Self.whiteGradient : soft ? Self.softGradient : Self.arrowGradient }
+    private var starEdge: Color { white ? HelpStyle.hex(0x6E9F87) : soft ? HelpStyle.Key.logoBottom : HelpStyle.hex(0x07C160) }
 
     var body: some View {
         if running && !reduceMotion {
@@ -201,19 +186,5 @@ struct HelpIcon: View {
             path.closeSubpath()
             return path
         }
-    }
-}
-
-/// 帮回小方块「回」（App 历史列表左边）。
-struct HelpBadge: View {
-    var size: CGFloat = 22
-
-    var body: some View {
-        Text("回")
-            .font(.system(size: size * 0.55, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(RoundedRectangle(cornerRadius: size * 0.27, style: .continuous).fill(HelpStyle.gradient))
-            .accessibilityHidden(true)
     }
 }

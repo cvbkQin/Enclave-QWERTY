@@ -36,14 +36,11 @@ struct ResultKey: View {
     private var tall: Bool { model.cardTall }
     /// 生成中、要联网的选择卡、出错卡（含没写完）时 45% 变淡不能点。
     private var blocked: Bool {
-        // 帮回（HB28）：这种风格在写、倒计时中变淡不能点。
-        if let help = model.helpReply { return help.currentRunning || help.countdownEnds != nil }
         return model.isRunning || model.searchPrompt != nil || model.errorMessage != nil || model.partialResult != nil || model.stoppedAnswer != nil
     }
 
-    /// 还没有可用的结果（灰底）。帮回在写时照样是绿的，只是变淡。
+    /// 还没有可用的结果（灰底）。
     private var empty: Bool {
-        if let help = model.helpReply { return help.current == nil && help.running == nil }
         return !model.hasResult && !model.isRunning
     }
 
@@ -164,8 +161,6 @@ struct ResultKey: View {
                 .foregroundStyle(color)
                 .offset(y: dividerGap + (tall ? 11 : 8))
         }
-        // 帮回时键矮了 46（下面是「历史」键，RG8）：整块往上挪一点，下面的 ⌄ 不出键。
-        .offset(y: model.helpReply != nil ? -6 : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -277,8 +272,7 @@ struct ResultKey: View {
         action == .replace ? .replaced : .inserted
     }
 
-    /// 帮回没有「已上屏」状态（HB28）：换风格、翻版本后可以再替换、插入。
-    private func used(_ action: ResultKeyAction) -> Bool { model.helpReply == nil && model.resultUses.contains(use(action)) }
+    private func used(_ action: ResultKeyAction) -> Bool { model.resultUses.contains(use(action)) }
 
     /// 用过的：字的右下角一个小绿圈勾；滑动中（手指按着、露出两个功能时）图标也换成同样大小的勾。
     private func face(_ action: ResultKeyAction, color: Color, large: Bool? = nil, swiping: Bool? = nil) -> some View {
@@ -338,12 +332,6 @@ struct ResultKey: View {
     }
 
     private func gradient(_ action: ResultKeyAction) -> LinearGradient {
-        // 帮回：替换绿、插入深绿（HB28）。
-        if model.helpReply != nil {
-            return LinearGradient(colors: action == .replace ? [HelpStyle.hex(0x10B981), HelpStyle.hex(0x0E9F6E)]
-                                  : [HelpStyle.hex(0x059669), HelpStyle.hex(0x047857)],
-                                  startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
         return LinearGradient(colors: action == .replace ? Brand.resultKeyReplaceColors : Brand.resultKeyInsertColors,
                               startPoint: .topLeading, endPoint: .bottomTrailing)
     }

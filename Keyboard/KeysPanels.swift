@@ -730,7 +730,8 @@ struct ClipboardList: View {
                             .onTapGesture { model.clipMenu = nil }
                         ClipMenu(model: model, item: item)
                             .offset(x: min(max(rect.minX + 40, -leadingRoom), geo.size.width + trailingRoom - ClipMenu.width),
-                                    y: Self.menuY(row: rect, listHeight: geo.size.height))
+                                    y: Self.menuY(row: rect, listHeight: geo.size.height,
+                                                  height: ClipMenu.height(help: ClipMenu.showsHelp(model, item))))
                     }
                 }
             }
@@ -745,11 +746,11 @@ struct ClipboardList: View {
         listHeight + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset
     }
 
-    static func menuY(row: CGRect, listHeight: CGFloat) -> CGFloat {
+    static func menuY(row: CGRect, listHeight: CGFloat, height: CGFloat) -> CGFloat {
         let top = menuAreaTop
-        let bottom = menuAreaBottom(listHeight: listHeight) - ClipMenu.height
+        let bottom = menuAreaBottom(listHeight: listHeight) - height
         let below = row.maxY + 6
-        let preferred = below <= bottom ? below : row.minY - ClipMenu.height - 6
+        let preferred = below <= bottom ? below : row.minY - height - 6
         return min(max(preferred, top), max(bottom, top))
     }
 
@@ -772,12 +773,8 @@ struct ClipboardList: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(KeyPressStyle())
-            if model.helpReplyAvailable {
-                HelpChip { model.helpFromClipboardPrompt() }
-                    .padding(.trailing, 9)
-            }
         }
-        .padding(.trailing, model.helpReplyAvailable ? 0 : 12)
+        .padding(.trailing, 12)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.returnSoftFill))
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
             .strokeBorder(Brand.purple, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
@@ -785,40 +782,17 @@ struct ClipboardList: View {
 
     private func row(_ item: ClipItem, fresh: Bool) -> some View {
         let menuOpen = model.clipMenu == item.id
-        return Group {
-            if model.helpReplyAvailable {
-                // 帮回（T16，HB1）：文字下面一行，左边时间、右边「帮回」；单号、链接、纯数字这类不显示「帮回」。
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.text)
-                        .font(.system(size: 14.5))
-                        .foregroundStyle(Color.primary)
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    HStack(spacing: 6) {
-                        Text(ClipboardHistory.age(item.date))
-                            .font(.system(size: 11.5))
-                            .foregroundStyle(fresh ? Brand.deepPurple : Color.secondary)
-                        Spacer(minLength: 0)
-                        if HelpReply.suits(item.text) {
-                            HelpChip { model.helpFromClip(item) }
-                        }
-                    }
-                }
-            } else {
-                HStack(alignment: .top, spacing: 8) {
-                    Text(item.text)
-                        .font(.system(size: 14.5))
-                        .foregroundStyle(Color.primary)
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(ClipboardHistory.age(item.date))
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(fresh ? Brand.deepPurple : Color.secondary)
-                        .padding(.top, 2)
-                }
-            }
+        return HStack(alignment: .top, spacing: 8) {
+            Text(item.text)
+                .font(.system(size: 14.5))
+                .foregroundStyle(Color.primary)
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(ClipboardHistory.age(item.date))
+                .font(.system(size: 11.5))
+                .foregroundStyle(fresh ? Brand.deepPurple : Color.secondary)
+                .padding(.top, 2)
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 7)
@@ -854,10 +828,16 @@ struct ClipboardList: View {
     }
 }
 
-/// 长按剪贴板一条弹出的菜单（CB2）：粘贴 / 加到常用语 ★ / 复制 / 删除（红）。
+/// 长按剪贴板一条弹出的菜单（CB2）：粘贴 / 帮回这条（绿，帮回并入润色）/ 加到常用语 ★ / 复制 / 删除（红）。
 struct ClipMenu: View {
     static let width: CGFloat = 200
-    static let height: CGFloat = 4 * 40 + 9 + 12
+
+    static func height(help: Bool) -> CGFloat { CGFloat(help ? 5 : 4) * 40 + 9 + 12 }
+
+    /// 「帮回这条」：润色接口能用，单号、链接、纯数字、邮箱这类不出。
+    static func showsHelp(_ model: KeyboardModel, _ item: ClipItem) -> Bool {
+        model.helpReplyAvailable && HelpReply.suits(item.text)
+    }
 
     @ObservedObject var model: KeyboardModel
     let item: ClipItem
@@ -865,6 +845,7 @@ struct ClipMenu: View {
     var body: some View {
         VStack(spacing: 0) {
             option(L("粘贴", "Paste", "貼り付け"), action: .paste)
+            if Self.showsHelp(model, item) { helpOption }
             option(L("加到常用语", "Add to phrases", "定型文に追加"), action: .addToPhrases, star: true)
             option(L("复制", "Copy", "コピー"), action: .copy)
             Divider().padding(.vertical, 4).padding(.horizontal, 8)
@@ -874,6 +855,23 @@ struct ClipMenu: View {
         .frame(width: Self.width)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KeyStyle.charKey))
         .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8)
+    }
+
+    /// 用当前润色风格回这条（本机存好的这条，不读剪贴板）。
+    private var helpOption: some View {
+        Button { model.helpFromClip(item) } label: {
+            HStack(spacing: 6) {
+                Text(L("帮回这条", "Help Reply to This", "この内容に返信")).font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                HelpIcon(size: 16)
+            }
+            .foregroundStyle(HelpStyle.softText)
+            .padding(.horizontal, 10)
+            .frame(height: 40)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func option(_ title: String, action: KeyboardModel.ClipAction, star: Bool = false, destructive: Bool = false) -> some View {

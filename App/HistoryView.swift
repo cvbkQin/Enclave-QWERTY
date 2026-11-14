@@ -111,6 +111,21 @@ final class HistoryStore: ObservableObject {
             if let use { session.markCurrentUsed(use, at: date.addingTimeInterval(49)) }
             AIHistory.record(session)
         }
+        // 帮回并入润色：帮回写了一版，又 ✨ 润色了一版，用的润色那版（一条记录里标「回」「润」）。
+        do {
+            let date = at(0, 10, 12)
+            var session = EditSession(mode: .polish, original: "")
+            session.startedAt = date
+            session.append("方案细节我再完善一下，后天上午发给您可以吗？")
+            session.noteCurrent(style: "正式", provider: "DeepSeek", source: EditSession.VersionSource.reply, ms: 1200,
+                                at: date.addingTimeInterval(3))
+            session.markReply(EditSession.ReplySource(message: "这份方案明天能交吗？", request: "说要后天"))
+            session.append("您好，方案细节我想再完善一下，预计后天上午发给您，您看可以吗？")
+            session.noteCurrent(style: "正式", provider: "DeepSeek", source: EditSession.VersionSource.polish, ms: 900,
+                                at: date.addingTimeInterval(20))
+            session.markCurrentUsed("replaced", at: date.addingTimeInterval(31))
+            AIHistory.record(session)
+        }
         answer("冗余怎么读", context: "", "「冗余」读 rǒng yú，意思是多余的、重复的部分。", searched: false, date: at(1, 15, 2))
         polish("收到 晚点整理好发你", ["收到，我晚点把资料整理好发你。"], styles: ["润色"], used: 0, use: "replaced", date: at(1, 17, 40))
         polish("不好意思今天去不了了家里有点事", ["抱歉，今天家里临时有事，去不了了，改天再约。", "不好意思，今天家里有点事去不了，下次再约。"],
@@ -190,7 +205,16 @@ struct HistoryListView: View {
     @State private var confirmsClear = false
 
     private var filtered: [AIHistoryEntry] {
-        store.entries.filter { (filter == nil || $0.kind == filter) && $0.matches(query) }
+        // 「帮回」= 有帮回写的版本的记录（帮回并入润色后，帮回的版本和润色、问答在同一条里）。
+        store.entries.filter { entry in
+            let kindMatches: Bool
+            switch filter {
+            case nil: kindMatches = true
+            case .reply?: kindMatches = entry.hasReply
+            case let kind?: kindMatches = entry.kind == kind
+            }
+            return kindMatches && entry.matches(query)
+        }
     }
 
     var body: some View {
@@ -382,7 +406,7 @@ private struct HistoryRow: View {
     /// 「正式 · 3 版 · 已替换」：风格只写润色的，N 版只在多于 1 版时写，已替换 / 已插入绿字。
     /// 帮回：「客气 · 委婉拒绝 · 已上屏」（语气、方向、上屏了没有）。
     private var metaLine: Text {
-        if entry.kind == .reply {
+        if entry.isLegacyReply {
             let shown = entry.versions.indices.contains(entry.shownIndex) ? entry.versions[entry.shownIndex] : nil
             let parts = [shown?.style, shown?.direction].compactMap { $0 }
             var line = Text(parts.joined(separator: " · "))
@@ -392,7 +416,7 @@ private struct HistoryRow: View {
             return line
         }
         var parts: [String] = []
-        if entry.kind == .polish, let style = entry.meta.style { parts.append(style) }
+        if entry.kind != .answer, let style = entry.meta.style { parts.append(style) }
         if entry.versions.count > 1 { parts.append(L("\(entry.versions.count) 版", "\(entry.versions.count) versions", "\(entry.versions.count) 版")) }
         var line = Text(parts.joined(separator: " · "))
         if let index = entry.usedIndex, let use = entry.versions[index].use {
@@ -405,14 +429,15 @@ private struct HistoryRow: View {
 /// 润色「润」主色浅底，问答「问」蓝色浅底：20×20、圆角 6、字 11.5 粗。
 private struct HistoryKindMark: View {
     let kind: AIHistoryEntry.Kind
+    var size: CGFloat = 20
 
     var body: some View {
         let color = kind == .polish ? AppColor.purple : (kind == .reply ? HelpStyle.title : DashColor.input)
         Text(kind == .polish ? L("润", "P", "整") : (kind == .reply ? L("回", "R", "返") : L("问", "Q", "問")))
-            .font(.system(size: 11.5, weight: .bold))
+            .font(.system(size: size * 0.575, weight: .bold))
             .foregroundStyle(color)
-            .frame(width: 20, height: 20)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(color.opacity(0.12)))
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(color.opacity(0.12)))
     }
 }
 
@@ -531,6 +556,8 @@ struct HistoryStep {
     /// 帮回（T16）：正文前的语气小标签；用了的那条绿框。
     var tag: String?
     var greenFrame = false
+    /// 这一版是润色、问答还是帮回（标题前的小方块）。旧记录没有。
+    var mark: AIHistoryEntry.Kind?
 }
 
 extension AIHistoryEntry {
@@ -546,7 +573,7 @@ extension AIHistoryEntry {
             parts.append(start)
         }
         if let provider = meta.provider { parts.append(provider) }
-        if kind == .reply {
+        if isLegacyReply {
             if replyRounds > 0 { parts.append(L("写了 \(replyRounds) 轮", "\(replyRounds) rounds", "\(replyRounds) 回作成")) }
             if let index = usedIndex, let style = versions[index].style {
                 parts.append(L("用了「\(style)」", "Used \"\(style)\"", "「\(style)」を使用"))
@@ -557,7 +584,7 @@ extension AIHistoryEntry {
         if kind == .answer, searches > 0 {
             parts.append(L("联网 \(searches) 次", "Web \(searches)×", "ウェブ検索 \(searches) 回"))
         }
-        if let index = usedIndex, versions.count > 1 || kind == .polish {
+        if let index = usedIndex, versions.count > 1 || kind != .answer {
             parts.append(L("用了第 \(index + 1) 版", "Used version \(index + 1)", "第 \(index + 1) 版を使用"))
         }
         return parts.joined(separator: " · ")
@@ -565,10 +592,18 @@ extension AIHistoryEntry {
 
     /// 从上到下按时间排的每一步（HC2、HC3）；旧记录照样排，只是不写时间和来源（HC4）。
     var timeline: [HistoryStep] {
-        if kind == .reply { return replyTimeline }
+        if isLegacyReply { return replyTimeline }
         var steps: [HistoryStep] = []
         let legacy = isLegacy
-        if kind == .polish {
+        if kind == .reply {
+            // 帮回并入润色：第一版是帮回写的，开头是对方的话；输入框里自己打的意思接在后面。
+            steps.append(HistoryStep(dot: .gray, title: L("对方的话", "Their message", "相手のメッセージ"),
+                                     note: L("从剪贴板", "From the clipboard", "クリップボードから"), time: date, text: original))
+            if let meaning = versions.first?.meaning {
+                steps.append(HistoryStep(dot: .gray, title: L("你想说的", "What you wanted to say", "伝えたいこと"),
+                                         note: L("输入框里打的", "Typed in the field", "入力欄に入力"), time: date, text: meaning, secondary: true))
+            }
+        } else if kind == .polish {
             steps.append(HistoryStep(dot: .gray, title: L("原文", "Original", "元の文"), note: legacy ? nil : L("你打的", "You typed", "入力した文"),
                                      time: date, text: original))
         } else {
@@ -586,8 +621,11 @@ extension AIHistoryEntry {
                 steps.append(HistoryStep(dot: .blue, title: L("联网搜索", "Web search", "ウェブ検索"),
                                          note: [how, version.searchedBy].compactMap { $0 }.joined(separator: " · "), time: searchAt))
             }
-            steps.append(HistoryStep(dot: .purple, title: versionTitle(index), note: versionNote(index, legacy: legacy),
-                                     time: version.at, text: version.text, highlighted: usedIndex == index))
+            var step = HistoryStep(dot: .purple, title: versionTitle(index), note: versionNote(index, legacy: legacy),
+                                   time: version.at, text: version.text, highlighted: usedIndex == index)
+            // 每版标「润 / 问 / 回」（润色、问答、帮回共用一条时间线）。
+            if !legacy { step.mark = versionKind(index) }
+            steps.append(step)
         }
         if let index = usedIndex, let use = versions[index].use {
             steps.append(HistoryStep(dot: .green,
@@ -631,6 +669,7 @@ extension AIHistoryEntry {
 
     private func versionTitle(_ index: Int) -> String {
         if kind == .answer && versions.count == 1 { return L("回答", "Answer", "回答") }
+        if kind == .reply && versions.count == 1 { return L("回复", "Reply", "返信") }
         return L("第 \(index + 1) 版", "Version \(index + 1)", "第 \(index + 1) 版")
     }
 
@@ -645,6 +684,14 @@ extension AIHistoryEntry {
             return parts.isEmpty ? nil : parts.joined(separator: " · ")
         }
         switch version.source {
+        case EditSession.VersionSource.reply:
+            // 「↩ 帮回 · 正式」；回的不是这条开头那句时写上对方的话，有要求写要求。
+            parts.append("↩ " + L("帮回", "Help Reply", "返信アシスト"))
+            if let style = version.style { parts.append(style) }
+            if let message = version.message, message != original || kind != .reply {
+                parts.append("「" + message.replacingOccurrences(of: "\n", with: " ") + "」")
+            }
+            if let request = version.direction { parts.append(L("要求「\(request)」", "Request \"\(request)\"", "指示「\(request)」")) }
         case EditSession.VersionSource.edit:
             let from = (version.editedFrom ?? max(index - 1, 0)) + 1
             parts.append(L("你手改了第 \(from) 版", "You edited version \(from)", "第 \(from) 版を手で編集"))
@@ -691,6 +738,9 @@ private struct HistoryStepRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 if !step.title.isEmpty || step.text == nil {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if let mark = step.mark {
+                        HistoryKindMark(kind: mark, size: 16)
+                    }
                     Text(step.title).font(.system(size: 13.5, weight: .bold)).foregroundStyle(.primary).fixedSize()
                     if let note = step.note {
                         Text(note).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)

@@ -20,17 +20,9 @@ struct KeyboardView: View {
                 // 替换 / 插入键在结果卡左边，和卡片一样高；弹出方式的另一个按钮浮在下面一行上，所以这一块叠在最上层。
                 // 自由编辑时左边的键收起，编辑框占满整行、连识意框那块一起用（FE3）。
                 let freeEdit = model.target == .card
-                // AI 帮回（T16）也用这一张回答卡和替换键（方案 C）：换成帮回绿，高度一样，切换不跳。
+                // AI 帮回（帮回并入润色）也是这一张回答卡和替换键，卡片照旧是润色紫。
                 HStack(spacing: KeyboardMetrics.resultKeyGap) {
-                    if !freeEdit, model.helpReply != nil {
-                        // 帮回（RG8）：左边分成两颗，上面替换，下面「历史」和识意框一样高、底边对齐。
-                        VStack(spacing: KeyboardMetrics.resultKeyGap) {
-                            ResultKey(model: model)
-                            HelpHistoryKey(model: model)
-                                .frame(height: KeyboardMetrics.askBoxHeight)
-                        }
-                        .frame(width: KeyboardMetrics.resultKeyWidth)
-                    } else if !freeEdit {
+                    if !freeEdit {
                         ResultKey(model: model)
                             .frame(width: KeyboardMetrics.resultKeyWidth)
                     }
@@ -60,9 +52,6 @@ struct KeyboardView: View {
                 ZStack {
                     if model.pinyinRowShown {
                         PinyinRow(model: model)
-                    } else if model.aiExpanded, model.helpReply != nil, model.gate == nil {
-                        // 帮回卡开着、没打拼音：正在回的那句放这一行（RG7），一打拼音就让给拼音。
-                        HelpPinyinSentence(model: model)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -120,7 +109,7 @@ struct KeyboardView: View {
                 // 按住字符键时，第一排的放大气泡会伸到 AI 栏、候选栏上面：这时按键区也要盖在上面，不然气泡里的字母被润色键、候选词挡住。
                 // 单独看 keyPresses（PressedKeysZ），按下松开不让整个键盘重画。
                 .modifier(PressedKeysZ(presses: model.keyPresses,
-                                       base: model.cross != nil || model.enterCross != nil || model.helpCross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
+                                       base: model.cross != nil || model.enterCross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
                                        raises: !model.nineGrid && model.candidateMenu == nil && !model.askHoldShowing && !model.pinyinPopoverOpen))
         }
         // 横屏两边各留 48 给刘海 / 灵动岛。
@@ -300,7 +289,7 @@ struct KeyboardView: View {
                             Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
                                 .padding(.horizontal, -1)
                         }
-                        // 固定的帮回键（11.4，RG10）：问答键后面、固定风格键前面。
+                        // 固定的帮回键：问答键后面、固定风格键前面，不占「N / 5」。
                         if model.helpPinnedOnBar { PinnedHelpKey(model: model) }
                         ForEach(pins, id: \.style.id) { pin in
                             PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
@@ -639,17 +628,12 @@ struct GateCard: View {
         return text + Text(L("允许完全访问", "Allow Full Access", "フルアクセスを許可")).fontWeight(.semibold).foregroundColor(Brand.deepPurple)
     }
 
-    /// 第一次发送前确认（RG9）：润色、问答、帮回各一张，标题、说明、按钮跟着换；帮回那张用帮回绿。
+    /// 第一次发送前确认（RG9）：润色（帮回也用这张）、问答各一张，标题、说明、按钮跟着换。
     @ViewBuilder
     private func consent(_ endpoint: String, previous: String?, purpose: KeyboardModel.GatePurpose) -> some View {
-        let help = purpose == .help
-        let accent = help ? HelpStyle.softText : Brand.deepPurple
+        let accent = Brand.deepPurple
         HStack(spacing: 6) {
-            if help {
-                HelpIcon(size: 15)
-            } else {
-                SparkleMark(size: 14, color: Brand.tagSelectedText)
-            }
+            SparkleMark(size: 14, color: Brand.tagSelectedText)
             Text(previous == nil ? Self.consentTitle(purpose) : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください")).font(.system(size: 14, weight: .semibold))
         }
         HStack(spacing: 6) {
@@ -661,7 +645,7 @@ struct GateCard: View {
             .foregroundStyle(accent)
             .padding(.horizontal, 9)
             .frame(height: 26)
-            .background(Capsule().fill(help ? HelpStyle.doneFill : Brand.returnSoftFill))
+            .background(Capsule().fill(Brand.returnSoftFill))
         }
         if let previous {
             (Text(L("原来是 ", "Was ", "以前は ")) + Text(previous).strikethrough())
@@ -676,12 +660,12 @@ struct GateCard: View {
         HStack(spacing: 8) {
             Button { model.openContainingApp("enclave://privacy-policy") } label: {
                 Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12))
-                    .foregroundStyle(help ? HelpStyle.softText : Brand.tagSelectedText)
+                    .foregroundStyle(Brand.tagSelectedText)
             }
             .buttonStyle(.plain)
             Spacer()
             GateButton(title: L("取消", "Cancel", "キャンセル"), primary: false) { model.dismissGate() }
-            GateButton(title: Self.consentAgree(purpose), primary: true, help: help) { model.acceptConsent() }
+            GateButton(title: Self.consentAgree(purpose), primary: true) { model.acceptConsent() }
         }
     }
 
@@ -689,7 +673,6 @@ struct GateCard: View {
         switch purpose {
         case .polish: return L("润色前确认一下", "Before you polish", "整える前に確認")
         case .answer: return L("问答前确认一下", "Before you ask", "質問の前に確認")
-        case .help: return L("帮回前确认一下", "Before you use Help Reply", "返信アシストの前に確認")
         }
     }
 
@@ -697,11 +680,10 @@ struct GateCard: View {
     private static func consentNote(_ purpose: KeyboardModel.GatePurpose) -> String {
         switch purpose {
         case .polish:
-            return L("只在你点「润色」或润色风格时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；无第三方中转，飞地输入法收不到你的文字。", "Sent only when you tap Polish or a polish style: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. No third-party relay; Enclave never receives your text.", "「整える」かスタイルをタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。第三者の中継はなく、Enclave が文章を受け取ることはありません。")
+            // 帮回并入润色（05 定稿，11-14）：帮回也用这张，说明里写上复制的那段文字。
+            return L("只在你点「润色」、润色风格或「帮回」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求；帮回时还会发送你复制的那段文字。由这个接口处理后返回结果；无第三方中转，飞地输入法收不到你的文字。", "Sent only when you tap Polish, a polish style or Help Reply: the text in the field (just the selection, if any) and your prompt; Help Reply also sends the text you copied. This API processes it and returns the result. No third-party relay; Enclave never receives your text.", "「整える」、スタイル、「返信アシスト」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。返信アシストではコピーした文章も送ります。この API が処理して結果を返します。第三者の中継はなく、Enclave が文章を受け取ることはありません。")
         case .answer:
             return L("只在你提问时发送：你写的问题和输入框里的文字（选中时只发选中的部分）。由这个接口处理后返回回答；无第三方中转，飞地输入法收不到你的文字。联网搜索会另外问你。", "Sent only when you ask: your question and the text in the field (just the selection, if any). This API processes it and returns the answer. No third-party relay; Enclave never receives your text. Web search asks you separately.", "質問したときだけ、質問と入力欄の文章（選択時はその部分だけ）を送ります。この API が処理して回答を返します。第三者の中継はなく、Enclave が文章を受け取ることはありません。ウェブ検索は別に確認します。")
-        case .help:
-            return L("只在你点「帮回」时发送：你复制的那段文字、帮回风格的提示词和你写的要求。无第三方中转，飞地输入法收不到你的文字。润色用的也是这个地址，同意一次两边都不用再问。", "Sent only when you tap Reply: the text you copied, the reply style's prompt and your instructions. No third-party relay; Enclave never receives your text. Polish uses the same address, so agreeing once covers both.", "「返信」をタップしたときだけ、コピーした文章、返信スタイルのプロンプト、指示を送ります。第三者の中継はなく、Enclave が文章を受け取ることはありません。「整える」も同じアドレスなので、一度同意すれば両方とも確認しません。")
         }
     }
 
@@ -709,7 +691,6 @@ struct GateCard: View {
         switch purpose {
         case .polish: return L("同意并润色", "Agree and Polish", "同意して整える")
         case .answer: return L("同意并提问", "Agree and Ask", "同意して質問")
-        case .help: return L("同意并帮回", "Agree and Reply", "同意して返信")
         }
     }
 }
@@ -758,8 +739,6 @@ struct TrialReminderStrip: View {
 struct GateButton: View {
     let title: String
     let primary: Bool
-    /// 帮回那张确认卡（RG9）：主按钮用帮回绿。
-    var help = false
     let action: () -> Void
 
     var body: some View {
@@ -770,9 +749,7 @@ struct GateButton: View {
                 .padding(.horizontal, 14)
                 .frame(height: 30)
                 .background {
-                    if primary && help {
-                        Capsule().fill(HelpStyle.gradient)
-                    } else if primary {
+                    if primary {
                         Capsule().fill(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
                                                       startPoint: .leading, endPoint: .trailing))
                     } else {
@@ -850,15 +827,6 @@ struct ResultCard: View {
     /// 只在生成中播放；App 里关了动画或系统开了「减弱动态效果」就不播。
     private var animating: Bool { model.isRunning && model.searchPrompt == nil && model.settings.polishAnimation && !reduceMotion }
 
-    /// 帮回（方案 C）：卡片换成帮回的内容和绿色。
-    private var help: HelpReplyState? { model.helpReply }
-
-    /// 帮回在写、还没出字：卡片扫光。
-    private var helpAnimating: Bool {
-        guard let help else { return false }
-        return help.running != nil && help.streaming.isEmpty && model.settings.polishAnimation && !reduceMotion
-    }
-
     var body: some View {
         let look = look
         VStack(spacing: 0) {
@@ -867,7 +835,7 @@ struct ResultCard: View {
             if model.target != .card {
                 // 激活（打字进识意框）：顶上 1pt 紫线；未激活：0.5pt 细线，下半格浅灰底（FC1–FC4）。
                 let active = askActive
-                Rectangle().fill(active ? (help != nil ? HelpStyle.green : Brand.askActiveLine) : Brand.blockHair)
+                Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair)
                     .frame(height: active ? 1 : 0.5)
                 lowerHalf.frame(height: KeyboardMetrics.askBoxHeight - (active ? 1 : 0.5))
             }
@@ -882,49 +850,13 @@ struct ResultCard: View {
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .clipShape(shape)
             }
-            if case .error = look, model.failure == nil, help == nil { shape.fill(Color.red.opacity(0.07)) }
+            if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
         }
         .overlay {
-            if animating || helpAnimating { SweepBand().clipShape(shape).allowsHitTesting(false) }
+            if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
         }
         .overlay {
-            Group {
-                if let help { helpBorder(help) } else { border(look) }
-            }
-            .allowsHitTesting(false)
-        }
-        // 帮回：⌄ 全部帮回风格往下盖在卡片上；回哪句话列表从识意框下面往下弹，盖在 AI 栏和按键上。
-        .overlay(alignment: .topLeading) {
-            if model.helpMenuOpen, let help { HelpStyleMenu(model: model, state: help) }
-        }
-        .overlay {
-            // 列表开着时点外面只收起列表。
-            if model.helpListOpen, help != nil {
-                Color.black.opacity(0.001)
-                    .frame(width: 3000, height: 3000)
-                    .onTapGesture { model.helpListOpen = false }
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            // 从识意框下面往下弹（盖在 AI 栏和按键上），和卡片一样宽。
-            if model.helpListOpen, help != nil {
-                GeometryReader { geo in
-                    HelpSentenceList(model: model)
-                        .frame(width: geo.size.width)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .offset(y: geo.size.height + 4)
-                }
-            }
-        }
-    }
-
-    /// 帮回的边框：写的时候绿色流光，平时 1.5pt 绿边。
-    @ViewBuilder
-    private func helpBorder(_ help: HelpReplyState) -> some View {
-        if help.running != nil, model.settings.polishAnimation, !reduceMotion {
-            FlowingBorder(shape: shape, colors: [HelpStyle.hex(0x34D399), HelpStyle.hex(0x0E9F6E)])
-        } else {
-            shape.strokeBorder(HelpStyle.border, lineWidth: 1.5)
+            border(look).allowsHitTesting(false)
         }
     }
 
@@ -938,9 +870,6 @@ struct ResultCard: View {
     /// 上半格：回答卡。
     private func content(_ look: Look) -> some View {
         Group {
-            if help != nil {
-                HelpCardContent(model: model)
-            } else {
             switch look {
             case .checklist: checklist
             case .error(let message): errorView(message)
@@ -949,7 +878,6 @@ struct ResultCard: View {
             case .running, .fresh, .faded: resultView(faded: { if case .faded = look { return true } else { return false } }())
             case .editing: editView
             case .search(let prompt): searchPromptView(prompt)
-            }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -978,7 +906,7 @@ struct ResultCard: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .foregroundStyle(.white)
-                    .background(Capsule().fill(help != nil ? HelpStyle.green : Brand.purple))
+                    .background(Capsule().fill(Brand.purple))
                     .transition(.opacity)
                     .allowsHitTesting(false)
             }
@@ -1005,7 +933,8 @@ struct ResultCard: View {
             } else if !model.isRunning, let session = model.session, session.current != nil {
                 ResultHeader(answer: session.currentIsAnswer,
                              style: session.versionInfo?[String(session.currentIndex)]?.style,
-                             searched: session.currentSearchedBy != nil)
+                             searched: session.currentSearchedBy != nil,
+                             reply: session.currentReplySource?.message)
                     .padding(.leading, textLeading)
                     .padding(.top, 8)
                     .opacity(faded ? 0.6 : 1)
@@ -1155,6 +1084,7 @@ struct ResultCard: View {
     }
 
     private var runningTitle: String {
+        if model.replyRunning { return L("AI 正在帮回…", "AI is writing a reply…", "AI が返信を作成しています…") }
         guard model.askRunning else { return L("AI 正在润色…", "AI is polishing…", "AI が整えています…") }
         if model.askSearching {
             let name = model.settings.answerSearch?.name ?? ""
@@ -1419,6 +1349,13 @@ struct ResultCard: View {
         VStack(alignment: .leading, spacing: 3) {
             if let notice {
                 Text(notice).font(.system(size: 13)).foregroundStyle(Color.primary)
+            } else if model.helpAskButton == .solid {
+                // 刚复制、输入框空（帮回并入润色 UI2 ②）：说说帮回怎么用。
+                Text(L("刚复制了一句话。点「帮回」写回复；想怎么回可以先写在下面，也可以留空",
+                       "You just copied a message. Tap Reply to write a reply; say how to reply below, or leave it blank",
+                       "メッセージをコピーしました。「返信」で返信を作成。どう返すかは下に書いても、空欄でも OK"))
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(Brand.askPlaceholder)
             } else {
                 // 还没结果（MG2）：灰字说明，结果出来后整块高度不变。
                 Text(L("点润色键，按当前风格改输入框里的话；点「问答」，回答下面写的问题。结果出现在这里",
@@ -1736,8 +1673,19 @@ struct ResultHeader: View {
     var style: String?
     var searched: Bool
     var stopped = false
+    /// 帮回写的一版（帮回并入润色 §4）：对方的话。卡头换成「回」小标 +「AI 帮回 · 正式」+ 灰色「原话」，点卡头展开整句。
+    var reply: String? = nil
 
     var body: some View {
+        if let reply {
+            ReplyResultHeader(style: style, message: reply)
+        } else {
+            plain
+        }
+    }
+
+    @ViewBuilder
+    private var plain: some View {
         let color = answer ? Brand.answerText : Brand.purpleText
         let head = answer ? L("AI 回答", "AI answer", "AI の回答") : L("AI 改写", "AI rewrite", "AI 書き換え")
         HStack(spacing: 0) {

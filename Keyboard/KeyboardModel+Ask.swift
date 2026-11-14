@@ -65,8 +65,6 @@ extension KeyboardModel {
 
     /// 点识意框：打字回到框里，取消全选；开着的风格一排收回去。
     func focusAsk() {
-        // 帮回倒计时中点了识意框：停下来等你写要求（HB29 ②）。
-        if helpReply?.countdownEnds != nil { cancelHelpCountdown() }
         if target == .card { finishCardEdit() }
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
@@ -178,12 +176,12 @@ extension KeyboardModel {
     func polishKeyTapped() {
         endCelebration()
         if isRunning { stop(); return }
-        if helpReply?.running != nil { stopHelpReply(); return }
         lastRunPin = nil
-        // 帮回卡上（RG3）：润色这条回复，算帮回的新一版；输入框里是无关的话就照平时润色。
-        if aiExpanded, helpReply != nil, helpPolishTapped() { return }
-        // 识意框换回润色 / 问答那份（帮回那份收起来）。
-        parkHelpReply()
+        // 有待回的复制、输入框空（情况 ①③）：润色键整颗是「帮回」，点了就帮回。
+        if polishKeyIsHelp {
+            startHelpReply()
+            return
+        }
         runPolish()
     }
 
@@ -196,7 +194,8 @@ extension KeyboardModel {
         finishComposition()
         if aiRow != nil { aiRow = nil }
         let parsed = CommandParser.parse(readField().text)
-        if parsed.content.isEmpty, parsed.instruction.isEmpty, session?.currentIsEdited != true {
+        // 卡上是手改过的一版、帮回写的一版（还没放进输入框）：润色它。
+        if parsed.content.isEmpty, parsed.instruction.isEmpty, session?.currentIsEdited != true, session?.currentIsReply != true {
             showKeysToast(L("输入框里没有要改的话，想问问题请点「问答」", "Nothing to edit in the text field. To ask a question, tap Ask.",
                             "入力欄に直す文章がありません。質問するときは「質問」をタップ"))
             return
@@ -225,8 +224,6 @@ extension KeyboardModel {
         endCelebration()
         if isRunning { stop(); return }
         lastRunPin = nil
-        // 帮回卡开着：帮回收起来，识意框换回问答那份（问题还在）。
-        parkHelpReply()
         runAsk()
     }
 
@@ -265,33 +262,14 @@ extension KeyboardModel {
         if isRunning { stop(); return }
         lastRunPin = style.id
         if answer {
-            parkHelpReply()
             runAnswerStyleOverride = style
             runAsk()
             runAnswerStyleOverride = nil
         } else {
             runStyleOverride = style
-            if !(aiExpanded && helpReply != nil && helpPolishTapped()) {
-                parkHelpReply()
-                runPolish()
-            }
+            runPolish()
             runStyleOverride = nil
         }
-    }
-
-    /// AI 栏上固定帮回键的那颗「钉子」（长按弹的取消固定用 pinMenu 记它）。
-    static let helpPinID = UUID(uuidString: "00000000-0000-0000-0000-0000000000B1")!
-
-    /// 帮回键在 AI 栏上（11.4）：帮回能用，且这种布局钉上了（全键盘默认钉、九宫格默认不钉）。
-    var helpPinnedOnBar: Bool {
-        helpReplyAvailable && settings.helpPinned(nine: settings.keyboardLayout == .nineKey)
-    }
-
-    /// 润色 ⌄ 风格框顶上「帮回」那段的图钉、长按 AI 栏上帮回键的「取消固定」。
-    func toggleHelpPin() {
-        let nine = settings.keyboardLayout == .nineKey
-        updateSettings { $0.toggleHelpPin(nine: nine) }
-        if pinMenu != nil { pinMenu = nil }
     }
 
     /// 下拉框里的图钉、长按固定键的「取消固定」：固定 / 取消固定，满 5 个提示。
@@ -340,7 +318,7 @@ extension KeyboardModel {
 
     /// 回答卡展开、焦点在识意框：回车是识意；正在拼音时还是「确认」，润色、问答都关了是普通回车。
     var enterAI: EnterAI? {
-        guard aiExpanded, target == .instruction, !isComposing, helpReply == nil else { return nil }
+        guard aiExpanded, target == .instruction, !isComposing else { return nil }
         let polish = enterPolishAvailable, ask = enterAskAvailable
         guard polish || ask else { return nil }
         return EnterAI(polish: polish, ask: ask, empty: !canAsk && !isRunning, running: isRunning,

@@ -46,6 +46,8 @@ final class KeyboardModel: ObservableObject {
     var askChoiceText = ""
     /// 这次生成是「识意」发起的；askKind 是模型给出的判断，还没判断时为 nil。
     @Published var askRunning = false
+    /// 正在帮回（生成中的小字写「AI 正在帮回…」）。
+    @Published var replyRunning = false
     @Published var askKind: AskMode?
     /// 这次识意是回车发起、让 AI 自己判断的（第 70 条）：生成中那一行写「识意 · 判断中 / 判断为改写」。
     @Published var askAuto = false
@@ -78,8 +80,8 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var resultStale = false
     /// 点「润色」「再润」时先要过的一关：没开完全访问出提示卡，还没同意过当前接口地址出确认卡。
     @Published private(set) var gate: AIGate? { didSet { heightMayChange?() } }
-    /// 第一次发送前确认卡是替谁问的（11-08，RG9）：润色、问答（单独的接口）、帮回。
-    enum GatePurpose: Equatable { case polish, answer, help }
+    /// 第一次发送前确认卡是替谁问的（11-08，RG9）：润色（帮回也是润色的一种，用这张）、问答（单独的接口）。
+    enum GatePurpose: Equatable { case polish, answer }
 
     enum AIGate: Equatable {
         case fullAccess
@@ -113,7 +115,7 @@ final class KeyboardModel: ObservableObject {
     /// 出了一半断了（ER3）：保留已出的字，下面一行橙字「没写完，连接断了」+ 重试。answer 是当时识意判断的方式。
     @Published var partialResult: (text: String, answer: Bool?)?
     /// 重试用：上一次发出去的请求，原样再发一次（结果作为新的一版进翻页）。
-    private var lastRun: (messages: [ChatMessage], pending: EditSession, ask: AskRequest?, origin: RunOrigin)?
+    private var lastRun: (messages: [ChatMessage], pending: EditSession, ask: AskRequest?, reply: ReplyRequest?, origin: RunOrigin)?
     /// 8 秒还没出字：卡片第一行后面加「模型响应较慢」和「取消」（界面等稿）。出字或结束时清掉。
     @Published var responseSlow = false
     @Published var notice: String?
@@ -149,8 +151,6 @@ final class KeyboardModel: ObservableObject {
             if aiExpanded != oldValue { markScreen() }
             if aiExpanded { unseenResult = false }
             if aiExpanded != oldValue {
-                // 收起抽屉：帮回收起来（生成中的取消），点帮回键原样拿回。
-                if !aiExpanded, helpReply != nil { parkHelpReply() }
                 hostFocused = false
                 askFocusedAt = Date()
                 if aiExpanded { recordHostCaret() } else { hostCaret = nil }
@@ -249,31 +249,11 @@ final class KeyboardModel: ObservableObject {
     @Published var cross: CrossPopup?
     /// 回答卡里按住回车弹出的「上润色、左问答」十字（第 70 条）。
     @Published var enterCross: EnterCrossPopup?
-    /// AI 帮回（T16）：这一次的状态（nil 没在帮回，回答卡是普通的）、^^ 键生成中和刚写好时一直是帮回、
-    /// 这份新复制被打字收掉了、按住帮回键弹出的「^^ 颜文字」格、卡头 ⌄ 的风格列表。
-    @Published var helpReply: HelpReplyState? {
-        didSet {
-            if (helpReply == nil) != (oldValue == nil) { heightMayChange?() }
-            if oldValue == nil, helpReply != nil { helpOpenedAt = Date() }
-        }
-    }
-    /// 帮回卡刚弹出的时候：键盘在长高、重新排版（约 0.5 秒），这时手指还在帮回键上，再点一下会落到「回 …」句子行上。
-    var helpOpenedAt = Date.distantPast
-    @Published var helpKeyHold = false
-    @Published var helpDismissed = false
-    @Published var helpCross: HelpCrossPopup?
-    @Published var helpMenuOpen = false
-    /// 收起来的几句帮回（新的在前）：切到润色、问答或换一句时放这里，点帮回键、回哪句话列表拿回来。
-    @Published var helpThreads: [HelpReplyState] = []
-    /// 识意框左边「回 …」胶囊点开的回哪句话列表。
-    @Published var helpListOpen = false
-    /// App AI 历史里最近回过的几句帮回（点开列表、没复制时点帮回键才读一次，11-08）。
-    var helpRecentReplies: [AIHistoryEntry] = []
-    /// 识意框里已经用在正文这一版上的要求（绿字）；再改就变回普通颜色。
-    @Published var helpExecutedAsk: String?
-    var helpCountdownToken = 0
-    var helpTask: Task<Void, Never>?
-    var helpToken = 0
+    /// AI 帮回（帮回并入润色）：有「待回的复制」（剪贴板换了新内容、不是链接或纯数字、10 分钟内、还没帮回过）。
+    /// 润色键变绿 / 换 logo、识意框右边的帮回按钮、下拉框里帮回那一行的红点都看它。
+    @Published var helpPending = false
+    /// 10 分钟到了把 helpPending 收掉。
+    var helpExpiry: DispatchWorkItem?
     /// 长按「中/英」弹出的拼音布局菜单（P11）。
     @Published var layoutMenu: LayoutMenuPopup?
     /// 对方输入框有没有字、回车键是什么类型，决定发送键的颜色和文字。
@@ -404,7 +384,7 @@ final class KeyboardModel: ObservableObject {
     var debugResultKeyPose: String?
     /// 截图用（-keyboardDebug enter:noAsk / enter:noPolish）：回车里当作问答 / 润色关掉了。
     var debugEnterHides: Set<AskMode> = []
-    /// 截图用（-keyboardDebug help:…）：假装有新复制的内容，弹出后不再按真的剪贴板改回去。
+    /// 截图用（-keyboardDebug help:…）：假装有待回的复制，弹出后不再按真的剪贴板改回去。
     var debugHelpClipboard = false
 
     /// 截图用：直接显示某张提示卡（quotaUsed：次数用完）。
@@ -595,6 +575,9 @@ final class KeyboardModel: ObservableObject {
         // 卡片上显示的是手改过的一版：拿它当原文；否则读输入框此刻的内容。
         if let session, session.currentIsEdited, let edited = session.current {
             parsed.content = edited
+        } else if parsed.content.isEmpty, let session, session.currentIsReply, let reply = session.current {
+            // 帮回写的一版还没放进输入框：✨ 润色就润这条回复（新一版接在后面）。
+            parsed.content = reply
         } else {
             dropSession(unlessItBelongsTo: parsed.content)
         }
@@ -775,8 +758,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 进入修改：光标放在给的位置，没给就放到末尾。只在面板展开、有结果时能改。
     func beginCardEdit(caret: Int? = nil) {
-        // 帮回的版本不在会话里，三击手改先不开（改了就润色那条时间线）。
-        guard aiExpanded, helpReply == nil, hasResult, let text = session?.current else { return }
+        guard aiExpanded, hasResult, let text = session?.current else { return }
         if target != .card {
             finishComposition()
             cardDraft = text
@@ -853,17 +835,21 @@ final class KeyboardModel: ObservableObject {
 
     /// 预览区已经有一个结果（不在生成中）。
     var hasResult: Bool {
-        // 帮回卡（方案 C 共用回答卡）：现在这种风格写好了、不在写。
-        if let help = helpReply { return help.current != nil && !help.currentRunning }
         return !isRunning && session?.current != nil
     }
 
-    /// 替换、插入能不能用：帮回卡要这一种写好、不在写；润色 / 问答只看有没有当前这版。
+    /// 替换、插入能不能用：只看有没有当前这版。
     /// 不能用 hasResult：快速模式在生成收尾、isRunning 还没清的时候就要替换（0.96_4 起收起时润色不再直接替换，0.96_8 修）。
-    private var resultReady: Bool { helpReply != nil ? hasResult : session?.current != nil }
+    private var resultReady: Bool { session?.current != nil }
 
-    /// 回答卡上现在显示的那一版：帮回时是帮回这一种风格的当前版本。
-    var shownResultText: String? { helpReply != nil ? helpReply?.current?.text : session?.current }
+    /// 回答卡上现在显示的那一版。
+    var shownResultText: String? { session?.current }
+
+    /// 帮回（帮回并入润色）：回哪句话，和这次读的剪贴板（changeCount，写好后这份复制算用过；从剪贴板记录发起的没有）。
+    struct ReplyRequest {
+        var source: EditSession.ReplySource
+        var changeCount: Int?
+    }
 
     /// 「识意」的这一次：问的话、手动选的方式（nil 自动），模型没写类型时按 fallback 算回答还是改写。
     struct AskRequest {
@@ -878,7 +864,7 @@ final class KeyboardModel: ObservableObject {
         var forceSearch = false
     }
 
-    func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil) {
+    func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil, reply: ReplyRequest? = nil) {
         // 手动选了问答就直接找问答模型；自动时先用润色的快模型判断，判断是问答再换问答模型重问（answerClient）。
         let answerClient = settings.usesAnswerEndpoint
             ? LLMClient(settings: settings.forAnswers, apiKey: SettingsStore.answerKey(for: settings)) : nil
@@ -894,14 +880,13 @@ final class KeyboardModel: ObservableObject {
             return
         }
         let handOffKey = SettingsStore.answerKey(for: settings)
-        // 帮回卡开着时开始润色 / 问答：帮回收起来（不丢），回答卡换回润色 / 问答那条时间线。
-        if helpReply != nil { parkHelpReply() }
         isRunning = true
         clearFailure()
-        lastRun = (messages, pending, ask, runOrigin ?? .polish)
+        lastRun = (messages, pending, ask, reply, runOrigin ?? .polish)
         streamingText = ""
         stoppedAnswer = nil
         askRunning = ask != nil
+        if replyRunning != (reply != nil) { replyRunning = reply != nil }
         if askKind != nil { askKind = nil }
         let started = Date()
         let styleID = (runStyleOverride ?? settings.selectedStyle)?.id
@@ -983,7 +968,8 @@ final class KeyboardModel: ObservableObject {
                             self.streamingText = split.body
                         } else {
                             shownAt = now
-                            self.streamingText = text
+                            // 帮回：去掉模型偶尔加的编号、引号。
+                            self.streamingText = reply == nil ? text : HelpReply.single(text)
                         }
                     }
                     }
@@ -1053,7 +1039,7 @@ final class KeyboardModel: ObservableObject {
                 guard let self else { return }
                 let cleaned = ModelOutput.clean(raw)
                 let split = ask.map { Prompts.splitAsk(cleaned, final: true, fallback: $0.fallbackAnswer || answerLocked) } ?? nil
-                let result = split?.body ?? cleaned
+                let result = reply == nil ? split?.body ?? cleaned : HelpReply.single(cleaned)
                 if let split { self.askDecided(decide(split)) }
                 if result.isEmpty {
                     self.errorMessage = L("模型没有返回内容。", "The model returned nothing.", "モデルから応答がありませんでした。")
@@ -1069,7 +1055,8 @@ final class KeyboardModel: ObservableObject {
                     var updated = pending
                     // 历史时间线：这一版怎么来的。同一句识意已经出过一版、这次又问：结果卡「⇄ 切换」重做。
                     let redo = ask.map { ask in !ask.forceSearch && (pending.askSources?.values.contains { $0.question == ask.question } ?? false) } ?? false
-                    let source = ask == nil ? (pending.mode == .write ? EditSession.VersionSource.write : EditSession.VersionSource.polish)
+                    let source = reply != nil ? EditSession.VersionSource.reply
+                        : ask == nil ? (pending.mode == .write ? EditSession.VersionSource.write : EditSession.VersionSource.polish)
                         : (redo ? EditSession.VersionSource.redo : EditSession.VersionSource.ask)
                     if let ask, ask.forceSearch, let searchedBy {
                         updated.replaceCurrentAnswer(result, searchedBy: searchedBy)
@@ -1078,13 +1065,15 @@ final class KeyboardModel: ObservableObject {
                         if let searchedBy, kind == .answer { updated.markSearched(by: searchedBy) }
                     } else {
                         updated.append(result)
+                        // 帮回写的一版：接在同一条时间线后面，卡头带「回」和对方的话。
+                        if let reply { updated.markReply(reply.source) }
                     }
                     // 历史页每一版写风格和服务商：问答写问答风格，识意改写不写风格。
                     let versionStyle = ask == nil ? styleName : (updated.currentIsAnswer ? answerStyle?.displayName : nil)
                     updated.noteCurrent(style: versionStyle, provider: client.settings.providerName, source: source,
                                         ms: Int(Date().timeIntervalSince(started) * 1000),
                                         searchAt: searchedBy == nil ? nil : searchAt, searchAuto: searchedBy == nil ? nil : searchAuto)
-                    if updated.mode == .write, ask == nil {
+                    if updated.mode == .write, ask == nil, reply == nil {
                         updated.conversation.append(.assistant(result))
                     }
                     self.session = updated
@@ -1092,6 +1081,8 @@ final class KeyboardModel: ObservableObject {
                     self.resultUses = []
                     self.resultStale = false
                     SessionStore.save(updated)
+                    // 帮回过一次，这份复制就算用过：识意框的按钮收起，润色键变回紫色、logo 变回 ✨。
+                    if let count = reply?.changeCount { self.markHelpCopyUsed(count: count) }
                     var replaced = false
                     if let source = self.quickSource {
                         let unchanged = self.readField().text == source
@@ -1135,6 +1126,7 @@ final class KeyboardModel: ObservableObject {
             self.responseSlow = false
             self.runOrigin = nil
             self.askRunning = false
+            if self.replyRunning { self.replyRunning = false }
             if self.askSearching { self.askSearching = false }
             if self.askKind != nil { self.askKind = nil }
         }
@@ -1155,7 +1147,7 @@ final class KeyboardModel: ObservableObject {
         guard let last = lastRun, !isRunning else { return }
         errorMessage = nil
         clearFailure()
-        start(from: last.origin) { run(last.messages, pending: last.pending, ask: last.ask) }
+        start(from: last.origin) { run(last.messages, pending: last.pending, ask: last.ask, reply: last.reply) }
     }
 
     /// 出错卡的「去设置」：打开 App 接口页（问答接口出的错打开问答页）。
@@ -1184,6 +1176,7 @@ final class KeyboardModel: ObservableObject {
         isRunning = false
         runOrigin = nil
         askRunning = false
+        if replyRunning { replyRunning = false }
         if askKind != nil { askKind = nil }
         quickSource = nil
         quickStatus = nil
@@ -1593,7 +1586,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 卡片上的复制图标：复制当前版本。
     func copy() {
-        guard let text = helpReply != nil ? (hasResult ? shownResultText : nil) : stoppedAnswer ?? (hasResult ? session?.current : nil)
+        guard let text = stoppedAnswer ?? (hasResult ? session?.current : nil)
         else { return }
         markAskUsed()
         UIPasteboard.general.string = text
@@ -1606,15 +1599,10 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func recordEdit(inserted: String, original: String, use: ResultUse) {
-        if helpReply != nil {
-            // 帮回：没有「已上屏」状态（HB28），可以接着换风格、翻版本再替换或插入；记下放进去的字、进历史。
-            noteHelpUsed(inserted)
-        } else {
-            markAskUsed()
-            markSessionUsed(use)
-            resultUse = use
-            resultUses.insert(use)
-        }
+        markAskUsed()
+        markSessionUsed(use)
+        resultUse = use
+        resultUses.insert(use)
         resultStale = false
         undoStack.append(FieldEdit(inserted: inserted, original: original, use: use))
         redoStack.removeAll()
