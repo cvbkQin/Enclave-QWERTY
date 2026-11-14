@@ -18,6 +18,13 @@ struct StylePreset: Codable, Identifiable, Hashable {
         case "详细": return L("详细", "Detailed", "詳しく")
         case "列要点": return L("列要点", "Key points", "要点を列挙")
         case "通俗": return L("通俗", "Plain words", "やさしく")
+        // 帮回风格（T16）
+        case "正常": return L("正常", "Natural", "ふつう")
+        case "客气": return L("客气", "Polite", "丁寧に")
+        case "高情商": return L("高情商", "Tactful", "気配り")
+        case "幽默": return L("幽默", "Playful", "ユーモア")
+        case "委婉拒绝": return L("委婉拒绝", "Say no nicely", "やんわり断る")
+        case "英文回复": return L("英文回复", "In English", "英語で")
         default:
             // 名字清空了也要能认出来：键盘面板里不能出现空的标签。
             return name.trimmingCharacters(in: .whitespaces).isEmpty ? L("未命名", "Untitled", "名前なし") : name
@@ -140,6 +147,9 @@ struct EnclaveSettings: Codable, Equatable {
     /// 固定到 AI 栏的风格（AK5）：改写风格或问答风格的 id，按固定的先后排，最多 5 个。
     var pinnedStyleIDs: [UUID] = []
     static let maxPinnedStyles = 5
+    /// AI 栏上固定的「帮回」键（帮回并入润色，方案 D）：全键盘和九宫格同一个设置，默认不固定，不占固定风格「N / 5」的名额。
+    /// 0.96_11 以前全键盘、九宫格各一个（helpPinnedQwerty / helpPinnedNine，全键盘默认固定），不再读。
+    var helpPinned = false
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -180,13 +190,17 @@ struct EnclaveSettings: Codable, Equatable {
     var answerMaxTokens: Int?
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
+    /// 全键盘用的双拼方案，nil 是全拼。和模糊拼音一样改了要重新部署才生效。
+    var doublePinyin: DoublePinyin?
+    /// 双拼时全键盘的键上用小字写韵母（SP1），默认开。只是键盘的显示，不用重新部署。
+    var doublePinyinHints = true
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHints, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
-        case pinnedStyleIDs
+        case pinnedStyleIDs, helpPinned
     }
 
     private enum LegacyKeys: String, CodingKey { case webSearch }
@@ -285,7 +299,10 @@ extension EnclaveSettings {
         polishEnabled = try c.decodeIfPresent(Bool.self, forKey: .polishEnabled) ?? polishEnabled
         answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
+        helpPinned = (try? c.decodeIfPresent(Bool.self, forKey: .helpPinned)) ?? helpPinned
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
+        doublePinyin = try? c.decodeIfPresent(DoublePinyin.self, forKey: .doublePinyin)
+        doublePinyinHints = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinHints)) ?? doublePinyinHints
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }

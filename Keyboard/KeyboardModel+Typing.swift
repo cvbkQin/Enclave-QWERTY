@@ -139,7 +139,7 @@ extension KeyboardModel {
         if layer != .letters && layer != .digits { layer = .letters }
     }
 
-    /// 组字时回车把字母原样上屏；在识意框里回车等于再点一次上次点的润色键或问答键。
+    /// 组字时回车把字母原样上屏；回答卡展开、在识意框里时回车是「识意」（第 70 条）：AI 自己判断改写还是回答，执行中点了是停止。
     func returnKey() {
         if isComposing {
             if let raw = engine.commitComposition() { commit(raw) }
@@ -149,7 +149,7 @@ extension KeyboardModel {
         switch target {
         case .host: editProxy?.insertText("\n")
         case .instruction:
-            runFromAskField()
+            if enterAI != nil { enterAskTapped() } else { commit("\n") }
         case .card:
             commit("\n")
         }
@@ -700,7 +700,8 @@ extension KeyboardModel {
     /// 全键盘：正在拼的拼音有几种切法时并列（xi'an、xian），现在这种在前；只有一种就只显示这一种。
     /// 分段选过词（拼写栏开头是汉字）时不列，免得重输把选过的词冲掉。
     var pinyinSegmentations: [String] {
-        guard !showsNineKey, isComposing, composition.allSatisfy(\.isASCII) else { return [] }
+        // 双拼的按键串没有别的切法。
+        guard !showsNineKey, doublePinyin == nil, isComposing, composition.allSatisfy(\.isASCII) else { return [] }
         let letters = engine.rawInput.filter(\.isLetter).lowercased()
         let current = composition.split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'").lowercased()
         guard !letters.isEmpty, letters.count <= 16 else { return current.isEmpty ? [] : [current] }
@@ -1011,7 +1012,9 @@ extension KeyboardModel {
 
     /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。
     var pinyinContextForTouch: String? {
-        guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared else { return nil }
+        // 双拼的按键串不是全拼，按拼音规律挪热区会挪错；只按手指习惯校准。
+        guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared,
+              showsNineKey || doublePinyin == nil else { return nil }
         return QueuedEngine.shared.expectedRawInput
     }
 
@@ -1033,6 +1036,7 @@ extension KeyboardModel {
         if engine !== queued { queued.reset() }
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
+        doublePinyin = useShared && RimeStore.isDeployed ? DoublePinyin.deployed : nil
         TypingStats.modelInUse = useShared && RimeStore.isDeployed
             && (RimeStore.deployedVersion?.hasSuffix(GrammarModel.versionTag(installed: true)) ?? false)
         engine = chineseMode && pinyinReady ? queued : DirectEngine()
@@ -1137,12 +1141,14 @@ extension KeyboardModel {
         case .host:
             lastHostCommit = text
             // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
-            // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下（「hao de好的」）；
-            // 非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
+            // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下、字还会丢（「hao de好的」，
+            // 11-11 闲鱼录屏：选「你好」后框里只剩「ni」）；非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
+            // 代价：这条路不经过对方的 shouldChangeCharactersIn，用它限字数的框管不住（T9）。7294146 试过先清拼音再 insertText，闲鱼打不了字，已撤回。
             if hasMarkedText, !text.isEmpty {
                 editProxy?.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
                 editProxy?.unmarkText()
                 hasMarkedText = false
+                lastMarkedText = ""
             } else {
                 clearMarkedText()
                 editProxy?.insertText(text)
@@ -1254,6 +1260,13 @@ extension KeyboardModel {
         return shownLetters == typedLetters ? out.trimmingCharacters(in: .whitespaces) : composition
     }
 
+    /// 换到对方另一个输入框（键盘没收起）：上一个框「不认标记文字」的记号不带过去。组字中不换，免得拼音一半换了写法。
+    func noteHostDocument(_ id: UUID?) {
+        guard let id, id != hostDocumentID, !isComposing else { return }
+        hostDocumentID = id
+        if inlinePinyinOff { inlinePinyinOff = false }
+    }
+
     /// 光标前是不是「上一次的拼音 + 现在的拼音」（上一次的没被换掉）。纯函数，单元测试用。
     static func markedTextWasKept(before: String, previous: String, current: String) -> Bool {
         guard !previous.isEmpty, !current.isEmpty, previous != current else { return false }
@@ -1300,11 +1313,14 @@ extension KeyboardModel {
         var title: String?
         var solid: Bool
         var bold = false
+        /// 回答卡展开、焦点在识意框：三段式识意（第 70 条），这时 title / solid 不用。
+        var ai: EnterAI?
     }
 
     var returnLook: ReturnLook {
         if isComposing { return ReturnLook(title: "确认", solid: false) }
-        if target == .instruction { return ReturnLook(title: L("执行", "Go", "実行"), solid: true) }
+        if let ai = enterAI { return ReturnLook(title: nil, solid: true, ai: ai) }
+        if target == .instruction { return ReturnLook(title: nil, solid: false) }
         if target == .card { return ReturnLook(title: nil, solid: false) }
         if let title = sendTitle { return ReturnLook(title: title, solid: hostHasText, bold: true) }
         return ReturnLook(title: nil, solid: false)
@@ -1415,6 +1431,28 @@ extension KeyboardModel {
             if let display = PhraseDisplay(rawValue: value) { phraseDisplay = display }
             if let split = Double(value) { quickSplit = QuickSplit.stored(split) }
         }
+        // 回车里的识意（第 70 条）：enter:ask 识意准备；enter:empty 框空着；enter:running 判断中；
+        // enter:center / enter:up / enter:left 按住回车弹出十字、选中中间 / 润色 / 问答；enter:noAsk / enter:noPolish 当作那个功能关掉。
+        let enterOptions = options.filter { $0.hasPrefix("enter:") }.map { String($0.dropFirst("enter:".count)) }
+        if !enterOptions.isEmpty {
+            loadDebugAsk(enterOptions.contains("empty") ? "askEmpty" : "ask")
+            if enterOptions.contains("noAsk") { debugEnterHides.insert(.answer) }
+            if enterOptions.contains("noPolish") { debugEnterHides.insert(.rewrite) }
+            hostFocused = false
+            target = .instruction
+            if enterOptions.contains("running") {
+                loadDebugAskRunning(nil, auto: true)
+            }
+            let choices: [String: EnterCrossPopup.Choice] = ["center": .auto, "up": .polish, "left": .ask]
+            if let choice = enterOptions.compactMap({ choices[$0] }).first {
+                let width = UIScreen.main.bounds.width - KeyboardMetrics.sidePadding * 2
+                let layout = KeyLayout.build(layoutState, size: CGSize(width: width, height: KeyboardMetrics.keysHeight))
+                if let key = layout.keys.first(where: { $0.kind == .returnKey }),
+                   showEnterCross(for: key, containerWidth: width, origin: CGPoint(x: key.cap.midX, y: key.cap.midY)) {
+                    enterCross?.selected = choice
+                }
+            }
+        }
         // cross:1:right 按住「,｡?!」往右滑；cross:3:up 按住 DEF 往上滑。
         for option in options where option.hasPrefix("cross:") {
             let parts = option.split(separator: ":").map(String.init)
@@ -1426,6 +1464,8 @@ extension KeyboardModel {
             let directions: [String: CrossPopup.Direction] = ["left": .left, "up": .up, "right": .right, "down": .down]
             if parts.count > 2 { cross?.selected = directions[parts[2]] }
         }
+        // AI 帮回（帮回并入润色）：help:pending / help:typed / help:expanded / help:result / help:pinned / help:dropdown / help:panel。
+        applyHelpDebug(options.filter { $0.hasPrefix("help:") }.map { String($0.dropFirst("help:".count)) })
         #endif
     }
 }

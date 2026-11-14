@@ -408,9 +408,51 @@ struct PinyinRow: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
+        if !model.showsNineKey, let scheme = model.doublePinyin {
+            doublePinyinBody(scheme)
+        } else {
+            optionsBody
+        }
+    }
+
+    /// 双拼（SP1）：整串拼音照旧显示全拼（ni hao），旁边灰色等宽小字是按的键（nihc），最右边写方案名。双拼没有别的切法，不能点。
+    private func doublePinyinBody(_ scheme: DoublePinyin) -> some View {
+        HStack(spacing: 10) {
+            Text(model.composition)
+                .font(.system(size: 17))
+                .lineLimit(1)
+            let raw = model.engine.rawInput
+            if !raw.isEmpty {
+                Text(raw)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(KeyStyle.pressedKey.opacity(0.5)))
+            }
+            Spacer(minLength: 8)
+            Text(scheme.title)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottom) { bottomLine }
+    }
+
+    private var bottomLine: some View {
+        Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+            : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) }))
+            .frame(height: 1)
+    }
+
+    private var optionsBody: some View {
         let nine = model.showsNineKey
         let reading = model.correctedReading
-        ScrollView(.horizontal, showsIndicators: false) {
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 // 输入框不认标记文字（NM1）：整串拼音放在最左边，后面一道竖线再接平时的拼音选项。
                 if let pinyin = model.offFieldPinyin {
@@ -433,18 +475,14 @@ struct PinyinRow: View {
             }
             .padding(.leading, 4)
             .padding(.trailing, 36)
+            .background(ImmediateTouches())
         }
         .hidingScrollEdgeEffect()
         .mask(HStack(spacing: 0) {
             Color.black
             LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 36)
         })
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
-                ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
-                : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) }))
-                .frame(height: 1)
-        }
+        .overlay(alignment: .bottom) { bottomLine }
     }
 }
 
@@ -457,7 +495,7 @@ extension PinyinRow {
                 .frame(minWidth: 44, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(KeyPressStyle())
+        .buttonStyle(PinyinPressStyle())
     }
 
     /// 改过的字母连成几段，每段主色字、浅紫底（圆角 4，底往两边各出 1，字距不变）。
@@ -487,6 +525,9 @@ extension PinyinRow {
         return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
     }
     static let markedText = dynamic(0x5B4BE8, 0xB4A9FF)
+    /// 按下时字后面的浅色底，和候选栏长按时那块一样（黑 8% / 白 16%）。
+    static let pressedFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 0, alpha: 0.08) })
     static let markedFill = dynamic(0xE4E0FC, 0x2E2766)
     static let dividerColor = dynamic(0xAEAEB2, 0x8E8E93)
 }
@@ -689,7 +730,8 @@ struct ClipboardList: View {
                             .onTapGesture { model.clipMenu = nil }
                         ClipMenu(model: model, item: item)
                             .offset(x: min(max(rect.minX + 40, -leadingRoom), geo.size.width + trailingRoom - ClipMenu.width),
-                                    y: Self.menuY(row: rect, listHeight: geo.size.height))
+                                    y: Self.menuY(row: rect, listHeight: geo.size.height,
+                                                  height: ClipMenu.height(help: ClipMenu.showsHelp(model, item))))
                     }
                 }
             }
@@ -704,34 +746,38 @@ struct ClipboardList: View {
         listHeight + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset
     }
 
-    static func menuY(row: CGRect, listHeight: CGFloat) -> CGFloat {
+    static func menuY(row: CGRect, listHeight: CGFloat, height: CGFloat) -> CGFloat {
         let top = menuAreaTop
-        let bottom = menuAreaBottom(listHeight: listHeight) - ClipMenu.height
+        let bottom = menuAreaBottom(listHeight: listHeight) - height
         let below = row.maxY + 6
-        let preferred = below <= bottom ? below : row.minY - ClipMenu.height - 6
+        let preferred = below <= bottom ? below : row.minY - height - 6
         return min(max(preferred, top), max(bottom, top))
     }
 
     /// 44 高、浅紫底、1.5pt 主色虚线框、剪贴板图标 + 主色 15 粗。
+    /// 问答能用时右边一颗绿色「帮回」（T16）：点左边粘贴，点「帮回」直接写回复；两种都会把这条存进记录。
     private var promptRow: some View {
-        Button { model.pasteNewClipboard() } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
-                Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
+        HStack(spacing: 6) {
+            Button { model.pasteNewClipboard() } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
+                    Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
+                        .font(.system(size: 15, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(Brand.deepPurple)
+                .padding(.leading, 12)
+                .frame(height: 44)
+                .contentShape(Rectangle())
             }
-            .foregroundStyle(Brand.deepPurple)
-            .padding(.horizontal, 12)
-            .frame(height: 44)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.returnSoftFill))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(Brand.purple, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
-            .contentShape(Rectangle())
+            .buttonStyle(KeyPressStyle())
         }
-        .buttonStyle(KeyPressStyle())
+        .padding(.trailing, 12)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.returnSoftFill))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(Brand.purple, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
     }
 
     private func row(_ item: ClipItem, fresh: Bool) -> some View {
@@ -782,10 +828,16 @@ struct ClipboardList: View {
     }
 }
 
-/// 长按剪贴板一条弹出的菜单（CB2）：粘贴 / 加到常用语 ★ / 复制 / 删除（红）。
+/// 长按剪贴板一条弹出的菜单（CB2）：粘贴 / 帮回这条（绿，帮回并入润色）/ 加到常用语 ★ / 复制 / 删除（红）。
 struct ClipMenu: View {
     static let width: CGFloat = 200
-    static let height: CGFloat = 4 * 40 + 9 + 12
+
+    static func height(help: Bool) -> CGFloat { CGFloat(help ? 5 : 4) * 40 + 9 + 12 }
+
+    /// 「帮回这条」：润色接口能用，单号、链接、纯数字、邮箱这类不出。
+    static func showsHelp(_ model: KeyboardModel, _ item: ClipItem) -> Bool {
+        model.helpReplyAvailable && HelpReply.suits(item.text)
+    }
 
     @ObservedObject var model: KeyboardModel
     let item: ClipItem
@@ -793,6 +845,7 @@ struct ClipMenu: View {
     var body: some View {
         VStack(spacing: 0) {
             option(L("粘贴", "Paste", "貼り付け"), action: .paste)
+            if Self.showsHelp(model, item) { helpOption }
             option(L("加到常用语", "Add to phrases", "定型文に追加"), action: .addToPhrases, star: true)
             option(L("复制", "Copy", "コピー"), action: .copy)
             Divider().padding(.vertical, 4).padding(.horizontal, 8)
@@ -802,6 +855,23 @@ struct ClipMenu: View {
         .frame(width: Self.width)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KeyStyle.charKey))
         .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8)
+    }
+
+    /// 用当前润色风格回这条（本机存好的这条，不读剪贴板）。
+    private var helpOption: some View {
+        Button { model.helpFromClip(item) } label: {
+            HStack(spacing: 6) {
+                Text(L("帮回这条", "Help Reply to This", "この内容に返信")).font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                HelpIcon(size: 16)
+            }
+            .foregroundStyle(HelpStyle.softText)
+            .padding(.horizontal, 10)
+            .frame(height: 40)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func option(_ title: String, action: KeyboardModel.ClipAction, star: Bool = false, destructive: Bool = false) -> some View {
@@ -818,5 +888,41 @@ struct ClipMenu: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// 拼音行一项按下：字变淡（和候选栏按下一样 45%），后面一块圆角 6 的浅色底（比字左右各宽 6，上下离行边 4）。
+/// 以前用 KeyPressStyle（只调亮度），浅色模式下黑字调暗看不出来，点了不知道点到没有（11-13 真机录屏）。
+private struct PinyinPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.45 : 1)
+            .background {
+                if configuration.isPressed {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(PinyinRow.pressedFill)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                }
+            }
+    }
+}
+
+/// 把外面那层滚动视图的「按住一会儿才算按下」关掉（和候选栏 CandidateStripView 一样），快点一下也马上显示按下的样子；左右滑照样能滚。
+private struct ImmediateTouches: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView { Probe() }
+    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    final class Probe: UIView {
+        override init(frame: CGRect) { super.init(frame: frame); isUserInteractionEnabled = false }
+        required init?(coder: NSCoder) { fatalError() }
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            var view = superview
+            while let current = view {
+                if let scroll = current as? UIScrollView { scroll.delaysContentTouches = false; return }
+                view = current.superview
+            }
+        }
     }
 }

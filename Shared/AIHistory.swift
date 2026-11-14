@@ -4,7 +4,8 @@ import Foundation
 /// 存在 App Group 里单独的文件（History/ai-history.json），只在本机，不上传。
 /// 一轮还没结束也先记：会话每存一次（出了新版、手改、替换 / 插入）就把这一条更新成最新的样子，键盘被系统回收也不丢。
 struct AIHistoryEntry: Codable, Identifiable, Equatable {
-    enum Kind: String, Codable { case polish, answer }
+    /// reply：AI 帮回（T16）。0.96 以前的版本读不到这种记录。
+    enum Kind: String, Codable { case polish, answer, reply }
     enum Use: String, Codable { case replaced, inserted }
 
     struct Version: Codable, Equatable {
@@ -24,12 +25,26 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
         var searchAt: Date?
         var searchAuto: Bool?
         var usedAt: Date?
+        /// 帮回（T16）：第几轮（从 1 起，按方向重写、⌄ 多写一条都算新的一轮），这一轮的回复方向。
+        var round: Int?
+        var direction: String?
+        /// 帮回（11-08 起记）：这一版的帮回风格 id、用润色改的那版的润色风格名。旧记录没有，还原时按 style 名字对。
+        var styleID: String?
+        var polish: String?
+        /// 帮回并入润色（0.96_12 起）：这一版回的是哪句话（对方的话）、输入框里自己打的意思。要求记在 direction。
+        var message: String?
+        var meaning: String?
+        /// 这一版是回答（问答、帮我写）。0.96_12 起记；旧记录按整条的种类算。
+        var answer: Bool?
+
+        /// 帮回写的一版（新旧记录都算）。
+        var isReply: Bool { source == EditSession.VersionSource.reply }
     }
 
     var id: String
     var kind: Kind
     var date: Date
-    /// 润色：原文；问答：问题（帮我写：第一句要求）。
+    /// 润色：原文；问答：问题（帮我写：第一句要求）；帮回：对方的话。
     var original: String
     /// 问答一起发送的上下文（输入框里光标前的文字），没有就是空。
     var context: String
@@ -58,26 +73,63 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
         return ([original, context] + versions.map(\.text)).contains { $0.localizedCaseInsensitiveContains(query) }
     }
 
+    init(id: String, kind: Kind, date: Date, original: String, context: String, versions: [Version]) {
+        self.id = id
+        self.kind = kind
+        self.date = date
+        self.original = original
+        self.context = context
+        self.versions = versions
+    }
+
+    /// 有帮回写的版本：App 历史「帮回」筛选。
+    var hasReply: Bool { kind == .reply || versions.contains(where: \.isReply) }
+
+    /// 这一版是润色、问答还是帮回（历史页每版标「润 / 问 / 回」）。
+    func versionKind(_ index: Int) -> Kind {
+        guard versions.indices.contains(index) else { return kind }
+        let version = versions[index]
+        if version.isReply { return .reply }
+        if let answer = version.answer { return answer ? .answer : .polish }
+        return kind
+    }
+
+    /// 0.96_11 以前单独的帮回（一轮写几种帮回风格）记的：按轮显示。
+    var isLegacyReply: Bool { kind == .reply && versions.contains { $0.round != nil } }
+
+    /// 帮回写了几轮。
+    var replyRounds: Int { versions.compactMap(\.round).max() ?? 0 }
+
     /// 由一轮会话生成。没出任何结果的不记（返回 nil）。
     init?(session: EditSession) {
         guard let id = session.historyID, !session.versions.isEmpty else { return nil }
         let answers = session.answerVersions ?? []
         let firstAnswer = answers.min()
         self.id = id
-        kind = session.mode == .write || firstAnswer != nil ? .answer : .polish
+        // 第一版是帮回写的：这条记成帮回，原文是对方的话（帮回并入润色，后面润色、问答的版本接在同一条里）。
+        let firstReply = session.replySources?["0"]
+        kind = firstReply != nil ? .reply : (session.mode == .write || firstAnswer != nil ? .answer : .polish)
         date = session.startedAt ?? Date()
         let source = firstAnswer.flatMap { session.askSources?[String($0)] }
-        original = source?.question ?? session.original
-        context = source?.context ?? ""
-        versions = session.versions.enumerated().map { index, text in
+        original = firstReply?.message ?? source?.question ?? session.original
+        context = firstReply == nil ? source?.context ?? "" : ""
+        versions = session.versions.enumerated().map { index, text -> Version in
             let key = String(index)
             let info = session.versionInfo?[key]
-            return Version(text: text, edited: session.editedVersions?.contains(index) ?? false,
+            let reply = session.replySources?[key]
+            var version = Version(text: text, edited: session.editedVersions?.contains(index) ?? false,
                            style: info?.style, provider: info?.provider,
                            searchedBy: session.searchedVersions?[key],
                            use: session.usedVersions?[key].flatMap(Use.init(rawValue:)),
                            at: info?.at, source: info?.source, ms: info?.ms, editedFrom: info?.editedFrom,
                            searchAt: info?.searchAt, searchAuto: info?.searchAuto, usedAt: session.usedTimes?[key])
+            version.answer = session.mode == .write || (session.answerVersions?.contains(index) ?? false)
+            if let reply {
+                version.message = reply.message
+                version.meaning = reply.meaning
+                version.direction = reply.request
+            }
+            return version
         }
     }
 }
@@ -129,7 +181,13 @@ enum AIHistory {
 
     /// 键盘每存一次会话调一次：同一轮更新原来那条，新的一轮加在最前。关着记录时不写。
     static func record(_ session: EditSession) {
-        guard isEnabled, let entry = AIHistoryEntry(session: session) else { return }
+        guard let entry = AIHistoryEntry(session: session) else { return }
+        record(entry)
+    }
+
+    /// 帮回（T16）直接给一条：同一次帮回更新原来那条。
+    static func record(_ entry: AIHistoryEntry) {
+        guard isEnabled else { return }
         queue.async {
             var entries = read()
             if let index = entries.firstIndex(where: { $0.id == entry.id }) {

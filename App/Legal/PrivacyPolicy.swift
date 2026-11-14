@@ -3,7 +3,7 @@ import Foundation
 /// 隐私政策全文（P07），中英日三份；中文是中国大陆备案版（beian/隐私政策-中国大陆版.md）。网页 docs/privacy.html 和 PRIVACY.md 由 scripts/gen-privacy.py 从这里生成，改完运行一次。
 /// 开发者名称和联系邮箱在 LegalInfo 里改。
 enum PrivacyPolicy {
-    static let effectiveDate = DateComponents(calendar: .current, year: 2026, month: 10, day: 31).date ?? Date()
+    static let effectiveDate = DateComponents(calendar: .current, year: 2026, month: 11, day: 6).date ?? Date()
 
     static func text(_ language: AppLanguage) -> String {
         let raw: String
@@ -37,21 +37,27 @@ enum PrivacyPolicy {
 
 拼音输入、候选词计算、联想预测和输入习惯学习均在您的设备本地完成，不通过网络传输任何内容。
 
-如您在拼音设置中主动选择下载“整句模型”等词库文件，本应用会从文件服务器（中国大陆店面为我们的服务器 enclavekb.cn，其他地区为 GitHub）下载该文件。下载请求不包含您的输入内容；我们的服务器会依法记录访问日志（IP 地址、时间、请求地址、设备标识），保存 6 个月后删除。
+如您主动下载词库文件，本应用会从文件服务器下载：在“键盘 › 词库 › 热门词库”中下载的在线词库（如游戏、网络流行语、百科词库），来自我们的服务器 enclavekb.cn；拼音设置中的“整句模型”，中国大陆店面来自 enclavekb.cn，其他地区来自 GitHub。下载请求不包含您的输入内容；我们的服务器会依法记录访问日志（IP 地址、时间、请求地址、设备标识），保存 6 个月后删除。
 
-### （二）AI 功能（点 ✨ 执行提示词，例如润色、翻译、改写）
+您从文件导入的词库（细胞词库 .scel、Rime 词库 .dict.yaml）在您的设备本地读取和转换，不会上传。
 
-**仅在您主动点击 ✨ 或“执行”时**，本应用会将以下信息直接发送至您自行配置的模型服务接口：
+### （二）AI 润色（按您选的风格改写，例如润色、正式、翻译）
 
-1. 当前输入框中的文字；如您已选中部分文字，则仅发送所选部分；
-2. 您填写的要求；
-3. 您所选提示词的说明文字。
+**仅在您主动点击润色时**（键盘 AI 栏上的“润色”键或固定在 AI 栏上的风格键、识意框回车后出现的“润色”，或在回答卡上对某一版结果点“润色”），本应用会将以下信息直接发送至您为润色配置的模型服务接口（即主接口）：
+
+1. 要润色的文字：当前输入框中的文字，如您已选中部分文字则仅为所选部分；在回答卡上对某一版结果（例如帮回写的回复）再润色时，为那一版结果（如已放进输入框并修改过，则为修改后的文字）；
+2. 您在识意框中写的要求（如有）；
+3. 您所选润色风格的说明文字。
+
+您在识意框中写了内容后点“问答”时，如键盘判断这是对输入框文字的修改要求，也会按本项发送至润色接口。
 
 上述信息由您选择的模型服务提供方依据其服务条款和隐私政策处理，不经过我们的服务器，我们无法访问。**在首次发送前，以及您更换接口地址后，本应用会展示信息将发送到的地址，并单独征得您的同意，未经同意不会发送任何内容。**
 
 **AI 生成内容提示：** AI 功能返回的文字由您配置的大模型生成，本应用会在界面上以“AI 生成”“AI改写”“AI问答”等标签提示。生成内容可能不准确，请您自行核对后使用。我们不会在您的正文中插入任何标记。
 
 本应用预设的模型服务仅为方便填写，您可以自由选择其他服务。我们建议您选择依法完成备案的模型服务。
+
+**AI 帮回：** 帮回是润色的一种：用您当前的润色风格，为您复制的别人的一句话写一条回复。**仅在您点击帮回时**（润色风格下拉框最上面的“帮回”、识意框右边的“帮回”按钮、刚复制内容时变成“帮回”的润色键、固定在 AI 栏上的“帮回”键，或剪贴板记录长按菜单里的“帮回这条”），本应用才读取系统剪贴板（读取时系统会显示“粘贴自…”的提示；从剪贴板记录发起时，使用本机已保存的那条记录），并将以下信息直接发送至您为润色配置的模型服务接口（即上述主接口），生成一条回复：1. 您复制的那段文字；2. 当前润色风格的说明文字；3. 您在识意框中写的要求（如有）；4. 输入框中您自己打的字（如有），作为您想表达的意思。发送前同样适用润色接口地址的发送同意。帮回不使用联网搜索。在您点击之前，键盘只通过系统提供的变更标记和内容类型判断（例如是否为链接或纯数字）来判断是否有可以帮回的新复制内容，不读取内容。读取到的文字会存入剪贴板记录，生成的回复和润色、问答一起存入 AI 历史记录，都只保存在本机。别人发给您的消息里可能含有对方的个人信息，请只对您有权处理的内容使用帮回。
 
 ### （三）识意问答与联网（联网仅在问答接口为千问、Kimi、智谱或腾讯混元时可用）
 
@@ -91,7 +97,7 @@ enum PrivacyPolicy {
 以下信息仅保存在您的设备上：
 
 1. 您填写的模型服务 API 密钥（包括主接口、问答接口及您保存的接口方案），保存在系统钥匙串中；
-2. AI 历史记录（润色和问答），包括原文与生成结果；
+2. AI 历史记录（润色、问答和帮回），包括原文与生成结果；
 3. 剪贴板记录：您在键盘中点开剪贴板时读取到的文字，最多 20 条；
 4. 拼音输入学习记录；
 5. 您的提示词、常用词、键盘、接口及语言设置；
@@ -100,7 +106,7 @@ enum PrivacyPolicy {
 
 AI 历史记录仅保存在本机，不会上传。您可以在“历史”页右上角的 ⋯ 菜单中关闭记录、设置保留时长或清空历史；在“设置 › 隐私”中可以清除 AI 历史记录和拼音输入学习记录。
 
-本应用**只在您点开键盘上的剪贴板时**读取系统剪贴板，读取时系统会显示“飞地输入法粘贴自…”的提示；不会在后台读取或监听剪贴板，判断剪贴板是否有新内容时只查看系统提供的变更标记，不读取内容。剪贴板记录仅保存在本机，最多 20 条，超过 24 小时自动删除，不会上传；您可以在剪贴板面板中删除单条记录，在 App 的“键盘”页清除全部剪贴板记录，或关闭“剪贴板记录”开关（关闭时已有记录一并删除）。
+本应用**只在您点开键盘上的剪贴板或点击“帮回”时**读取系统剪贴板，读取时系统会显示“飞地输入法粘贴自…”的提示；不会在后台读取或监听剪贴板，判断剪贴板是否有新内容时只查看系统提供的变更标记，不读取内容。剪贴板记录仅保存在本机，最多 20 条，超过 24 小时自动删除，不会上传；您可以在剪贴板面板中删除单条记录，在 App 的“键盘”页清除全部剪贴板记录，或关闭“剪贴板记录”开关（关闭时已有记录一并删除）。
 
 **卸载本应用后，上述信息将全部从设备上删除**（购买记录由 App Store 保存，重新安装后可恢复）。
 
@@ -112,7 +118,7 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 **通讯录（可选）：** 用于读取联系人姓名作为候选词。不开启时，候选词中不出现联系人姓名。
 
-**剪贴板：** 键盘读取剪贴板需要开启“允许完全访问”，且只在您点开剪贴板时读取（见第三条）。
+**剪贴板：** 键盘读取剪贴板需要开启“允许完全访问”，且只在您点开剪贴板或点击“帮回”时读取（见第三条）。
 
 本应用不申请定位、相机、麦克风、相册等权限。
 
@@ -165,21 +171,27 @@ The App has no user accounts. Your AI requests go straight from your device to t
 
 Pinyin input, candidate generation and input learning are performed entirely on your device. No content is transmitted over the network.
 
-If you choose to download an optional dictionary file such as the sentence model in the Pinyin settings, the App downloads it from a file server (our server enclavekb.cn for the mainland China storefront, GitHub elsewhere). The download request contains nothing you type; our server keeps access logs (IP address, time, requested address, device identifier) for 6 months as required by law, then deletes them.
+If you choose to download a dictionary file, the App downloads it from a file server. Online dictionaries you download under Keyboard › Dictionaries › Popular dictionaries (such as games, internet slang or the encyclopedia dictionary) come from our server enclavekb.cn. The sentence model in the Pinyin settings comes from enclavekb.cn for the mainland China storefront and from GitHub elsewhere. The download request contains nothing you type; our server keeps access logs (IP address, time, requested address, device identifier) for 6 months as required by law, then deletes them.
+
+Dictionaries you import from a file (.scel cell dictionaries or Rime .dict.yaml files) are read and converted on your device and never uploaded.
 
 ### AI Polish
 
-Only when you tap Polish or Rewrite, the App sends the following directly to the model service endpoint that you have configured:
+Only when you tap to polish (the Polish key or a style pinned to the AI bar, Polish after pressing Return in the intent box, or Polish on a result in the answer card), the App sends the following directly to the model service API you configured for Polish (the main API):
 
-- the text in the current input field, or only the selected portion if text is selected;
-- any prompt you have entered;
-- the description of the selected style.
+- the text to polish: the text in the current input field, or only the selected portion if text is selected; when you polish a result again in the answer card (such as a Help Reply reply), that result (or your edited version, if you already put it in the field and changed it);
+- any instructions you wrote in the intent box;
+- the description of the polish style you chose.
+
+If you write something in the intent box and tap Ask, and the keyboard judges it to be an instruction for changing your text, it is also sent to the Polish API as described here.
 
 This information is processed by the model service provider you have chosen, under that provider's privacy policy. It does not pass through our servers, and we have no access to it.
 
 Before the first transmission, and whenever you change the endpoint address, the App shows you where the text will be sent and asks for your separate consent. Nothing is sent without your consent.
 
 **AI-generated content:** Text returned by AI features is generated by the model you configured, and the App labels it on screen with tags such as "AI-generated", "AI edit" and "AI Q&A". It may be inaccurate, so please check it before use. We never insert any marker into your text.
+
+**AI Help Reply.** Help Reply is a kind of Polish: it writes one reply, in your current polish style, to a message you copied from someone else. **Only when you tap Help Reply** (Help Reply at the top of the polish style menu, the Help Reply button next to the intent box, the Polish key when it turns into Help Reply after you copy something, the Help Reply key pinned to the AI bar, or "Help Reply to This" in the long-press menu of a clipboard item), the App reads the system clipboard (the system shows its "pasted from" banner when it does; when you start from a clipboard item, the item already saved on your device is used) and sends the following directly to the model service API you configured for Polish (the main API above): the text you copied; the description of your current polish style; any instructions you wrote in the intent box; and any text you typed in the input field yourself, as what you want to say. The consent you gave for the Polish API address applies. Help Reply never uses web search. Before you tap, the keyboard only uses the change marker and content type the system provides (for example whether it is a link or just a number) to tell whether there is something new to reply to, without reading the contents. The text read is saved to your clipboard history, and the reply is saved to your AI history along with Polish and Ask, all only on your device. Messages from other people may contain their personal information, so please use Help Reply only on content you are entitled to process.
 
 ### Ask Answers and Web Search (web search only with a Qwen, Kimi, Zhipu or Tencent Hunyuan answers API)
 
@@ -211,7 +223,7 @@ The server forwards it to us by email right away (sent through Tencent QQ Mail) 
 The following is stored only on your device:
 
 - the model service API keys you entered (for the main API, the answers API and any API setups you saved), in the system Keychain;
-- your AI history (Polish and Ask), including the original text and the results;
+- your AI history (Polish, Ask and Help Reply), including the original text and the results;
 - your clipboard history: text read when you open the clipboard in the keyboard, up to 20 items;
 - your pinyin input learning data;
 - your style, keyboard, endpoint and language settings;
@@ -219,7 +231,7 @@ The following is stored only on your device:
 
 Your AI history stays on your device and is never uploaded. From the ⋯ menu at the top right of the History tab you can turn history off, choose how long it is kept, or clear it; under Settings › Privacy you can clear the AI history and the input learning data.
 
-The App reads the system clipboard **only when you open the clipboard in the keyboard**, and the system then shows a "pasted from" banner for the App. It never reads or monitors the clipboard in the background: to tell whether there is something new, it only checks the change marker the system provides, without reading the contents. Clipboard history stays on your device only, is limited to 20 items, is deleted automatically after 24 hours, and is never uploaded. You can delete single items in the clipboard panel, clear all of them on the App's Keyboard page, or turn off Clipboard History there (which also deletes existing items).
+The App reads the system clipboard **only when you open the clipboard in the keyboard or tap Help Reply**, and the system then shows a "pasted from" banner for the App. It never reads or monitors the clipboard in the background: to tell whether there is something new, it only checks the change marker the system provides, without reading the contents. Clipboard history stays on your device only, is limited to 20 items, is deleted automatically after 24 hours, and is never uploaded. You can delete single items in the clipboard panel, clear all of them on the App's Keyboard page, or turn off Clipboard History there (which also deletes existing items).
 
 Deleting the App removes all of this information from your device (your purchase is kept by the App Store and can be restored after reinstalling).
 
@@ -231,7 +243,7 @@ Deleting the App removes all of this information from your device (your purchase
 
 **Contacts (optional).** Only if you turn on "Use names from Contacts", the keyboard reads contact names through the system interface to offer them as candidates. It does not read phone numbers or other details, and nothing is uploaded.
 
-**Clipboard.** Reading the clipboard from the keyboard requires Allow Full Access, and happens only when you open the clipboard (see section 3).
+**Clipboard.** Reading the clipboard from the keyboard requires Allow Full Access, and happens only when you open the clipboard or tap Help Reply (see section 3).
 
 ## 5. Third-Party Services
 
@@ -274,21 +286,27 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 ピンイン入力、候補の生成、入力の学習はすべてお客様の端末上で行われ、内容がネットワークで送信されることはありません。
 
-ピンイン設定で整句モデルなどの辞書ファイルをダウンロードすることを選んだ場合、本アプリはファイルサーバー（中国本土のストアは当方の enclavekb.cn、その他の地域は GitHub）からダウンロードします。リクエストに入力内容は含まれません。当方のサーバーは法令に基づきアクセスログ（IP アドレス、日時、リクエスト先、端末識別情報）を 6 か月保存した後に削除します。
+辞書ファイルをダウンロードすることを選んだ場合、本アプリはファイルサーバーからダウンロードします。「キーボード › 辞書 › 人気の辞書」でダウンロードするオンライン辞書（ゲーム、ネット流行語、百科辞書など）は当方のサーバー enclavekb.cn から、ピンイン設定の整句モデルは中国本土のストアでは enclavekb.cn、その他の地域では GitHub からダウンロードします。リクエストに入力内容は含まれません。当方のサーバーは法令に基づきアクセスログ（IP アドレス、日時、リクエスト先、端末識別情報）を 6 か月保存した後に削除します。
+
+ファイルから読み込んだ辞書（セル辞書 .scel、Rime 辞書 .dict.yaml）は端末内で読み込み・変換され、アップロードされることはありません。
 
 ### AI 機能
 
-お客様が「整える」または「別の案」をタップしたときに限り、本アプリは次の情報を、お客様が設定したモデルサービスの API に直接送信します。
+お客様が整える操作をしたときに限り（AI バーの「整える」キーや固定したスタイルのキー、意図入力欄で改行したあとの「整える」、回答カード上の結果に対する「整える」）、本アプリは次の情報を、「整える」用に設定したモデルサービスの API（メインの API）に直接送信します。
 
-- 現在の入力欄の文章（一部を選択している場合は選択部分のみ）
-- お客様が入力した指示
-- 選択した文体の説明文
+- 整える文章：現在の入力欄の文章（一部を選択している場合は選択部分のみ）。回答カード上の結果（返信アシストが書いた返信など）をもう一度整える場合は、その結果（入力欄に入れて手直しした場合は手直し後の文章）
+- 意図入力欄に書いた指示（あれば）
+- 選んだスタイルの説明文
+
+意図入力欄に書いてから「質問」をタップした場合でも、キーボードがそれを文章の書き換えの指示と判断したときは、ここで説明したとおり「整える」用の API に送信します。
 
 これらの情報は、お客様が選択したモデルサービスの提供者が、その提供者のプライバシーポリシーに従って処理します。当方のサーバーを経由することはなく、当方が内容にアクセスすることはできません。
 
 初回の送信前、および API の URL を変更したときは、送信先を表示したうえで個別に同意をいただきます。同意なく内容を送信することはありません。
 
 **AI 生成コンテンツの表示：** AI 機能が返す文章は、お客様が設定したモデルが生成したもので、本アプリは画面上で「AI 生成」「AI書換」「AI回答」などのラベルで表示します。不正確な場合があるため、ご自身で確認してからお使いください。お客様の文章に目印を入れることはありません。
+
+**AI 返信アシスト：** 返信アシストは「整える」の一種で、コピーした相手のメッセージへの返信を、現在の整えるスタイルで 1 つ作ります。**返信アシストをタップしたときだけ**（スタイルのメニューの一番上の「返信アシスト」、意図入力欄の右の「返信アシスト」ボタン、コピー直後に「返信アシスト」に変わる「整える」キー、AI バーに固定した「返信アシスト」キー、クリップボード履歴の長押しメニューの「この内容に返信」）、本アプリはシステムのクリップボードを読み取り（読み取る際はシステムが「ペースト元」のバナーを表示します。クリップボード履歴から始めた場合は、端末内に保存済みの履歴を使います）、次の情報を「整える」用に設定したモデルサービスの API（上記のメインの API）に直接送信して、返信を 1 つ作ります：コピーした文章、現在の整えるスタイルの説明文、意図入力欄に書いた指示（あれば）、入力欄にお客様が自分で入力した文章（あれば。伝えたい内容として）。「整える」用 API の URL について同意いただいた内容が適用されます。返信アシストではウェブ検索を使いません。タップするまで、キーボードはシステムが提供する変更の目印と内容の種類（リンクや数字だけかどうかなど）だけで返信できる新しいコピーがあるかを判断し、内容は読み取りません。読み取った文章はクリップボード履歴に、作った返信は整える・質問と同じ AI の履歴に保存され、どれも端末内にのみ保存されます。他の人から届いたメッセージにはその人の個人情報が含まれることがあるため、返信アシストはお客様が扱う権限のある内容にのみお使いください。
 
 ### 質問への回答とウェブ検索（ウェブ検索は回答用 API が Qwen・Kimi・Zhipu・Tencent Hunyuan のときのみ）
 
@@ -320,7 +338,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 次の情報はお客様の端末にのみ保存されます。
 
 - お客様が入力したモデルサービスの API キー（メインの API、回答用 API、保存した API の設定を含む。システムのキーチェーンに保存）
-- AI の履歴（整える・質問。元の文章と結果）
+- AI の履歴（整える・質問・返信アシスト。元の文章と結果）
 - クリップボード履歴（キーボードでクリップボードを開いたときに読み取った文字。最大 20 件）
 - ピンイン入力の学習データ
 - 文体、キーボード、API、言語の設定
@@ -328,7 +346,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 AI の履歴は端末内にのみ保存され、送信されることはありません。「履歴」タブ右上の ⋯ メニューで、記録をオフにする、保存期間を選ぶ、履歴を消去することができます。AI の履歴と入力の学習データは「設定 › プライバシー」でも消去できます。
 
-本アプリは、**キーボードでクリップボードを開いたときにのみ**システムのクリップボードを読み取ります。読み取る際はシステムが「ペースト元」のバナーを表示します。バックグラウンドでクリップボードを読み取ったり監視したりすることはなく、新しい内容があるかどうかはシステムが提供する変更の目印だけで判断し、内容は読み取りません。クリップボード履歴は端末内にのみ保存され、最大 20 件、24 時間を過ぎると自動的に削除され、送信されることはありません。クリップボードパネルで 1 件ずつ削除できるほか、本アプリの「キーボード」ページですべて消去したり、「クリップボード履歴」をオフにしたり（既存の履歴も削除されます）できます。
+本アプリは、**キーボードでクリップボードを開いたとき、または「返信アシスト」をタップしたときにのみ**システムのクリップボードを読み取ります。読み取る際はシステムが「ペースト元」のバナーを表示します。バックグラウンドでクリップボードを読み取ったり監視したりすることはなく、新しい内容があるかどうかはシステムが提供する変更の目印だけで判断し、内容は読み取りません。クリップボード履歴は端末内にのみ保存され、最大 20 件、24 時間を過ぎると自動的に削除され、送信されることはありません。クリップボードパネルで 1 件ずつ削除できるほか、本アプリの「キーボード」ページですべて消去したり、「クリップボード履歴」をオフにしたり（既存の履歴も削除されます）できます。
 
 本アプリを削除すると、これらの情報は端末からすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
 
@@ -340,7 +358,7 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 **連絡先（任意）：** 「連絡先の名前を使う」をオンにした場合に限り、キーボードはシステムの仕組みを通じて連絡先の名前を候補として読み込みます。電話番号などの情報は読み取らず、送信もしません。
 
-**クリップボード：** キーボードがクリップボードを読み取るには「フルアクセスを許可」が必要で、読み取るのはクリップボードを開いたときだけです（第 3 節を参照）。
+**クリップボード：** キーボードがクリップボードを読み取るには「フルアクセスを許可」が必要で、読み取るのはクリップボードを開いたときか「返信アシスト」をタップしたときだけです（第 3 節を参照）。
 
 ## 5. 第三者のサービス
 

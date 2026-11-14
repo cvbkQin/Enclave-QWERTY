@@ -73,7 +73,7 @@ enum KeyboardMetrics {
         case .fullAccess: return 188
         case .privacy: return 76
         case .noKey: return 76
-        case .consent(_, let previous): return previous == nil ? 178 : 196
+        case .consent(_, let previous, _): return previous == nil ? 178 : 196
         case .quotaUsed: return 196
         }
     }

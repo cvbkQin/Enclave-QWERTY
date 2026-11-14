@@ -45,6 +45,8 @@ final class RimeEngine: InputEngine {
     private var session: UInt64 = 0
     private var loadedVersion: String?
     private var schema = RimeStore.schemaID
+    /// 加载的词库全键盘是双拼（App 里选了双拼部署的）：纠错层只认全拼，全键盘不纠。
+    private var doublePinyin: DoublePinyin?
 
     /// 每次按键只取够候选栏第一屏的数量，取得越多 Rime 要往后查得越深；滑到头或展开整页时再补到 candidateLimit。
     static let firstPage = 30
@@ -75,10 +77,11 @@ final class RimeEngine: InputEngine {
     /// priority：填了简码的键盘常用语，权重高一点，同一个编码排在常用词前面。
     func updatePhrases(_ entries: [(text: String, code: String)], priority: [(text: String, code: String)] = []) {
         priorityPhrases = Set(priority.map(\.text))
-        guard let (paths, _) = location() else { return }
+        guard let (paths, version) = location() else { return }
         var changed = false
         let files = [
-            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false, priority: priority)),
+            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false, priority: priority,
+                                                           doublePinyin: DoublePinyin(versionString: version))),
             ("enclave_phrase_t9", CommonWordStore.phraseTable(entries, nineKey: true, priority: priority)),
             // 九宫格拼写栏显示常用词的拼音用（enclave_t9_preedit.lua 读）。
             // 同一个词有全拼和简码时只记第一个（全拼）。
@@ -127,6 +130,7 @@ final class RimeEngine: InputEngine {
             if version.hasPrefix("shared:") { GrammarModel.linkBundled() }
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
+            doublePinyin = DoublePinyin(versionString: version)
             source = version
         }
         if !enclave_rime_session_alive(session) {
@@ -336,7 +340,7 @@ final class RimeEngine: InputEngine {
     private func applyCorrection() {
         guard !correcting, selections.isEmpty, let top = candidates.first, !priorityPhrases.contains(top) else { return }
         let nineKey = schema == RimeStore.nineKeySchemaID
-        guard nineKey ? Self.correctsNineKey : Self.correctsQwerty,
+        guard nineKey ? Self.correctsNineKey : (Self.correctsQwerty && doublePinyin == nil),
               let corrector = nineKey ? digitCorrector : letterCorrector else { return }
         let raw = rawInput
         guard !CorrectionMemory.isRejected(raw),

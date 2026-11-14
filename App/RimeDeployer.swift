@@ -29,6 +29,7 @@ final class RimeDeployer: ObservableObject {
     static var targetVersion: String? {
         bundledVersion.map {
             $0 + schemaPatchTag + FuzzyPinyin.versionTag(SettingsStore.load().fuzzyPinyin)
+                + DoublePinyin.versionTag(SettingsStore.load().doublePinyin)
                 + GrammarModel.versionTag(installed: GrammarModel.isActive)
                 + ExtDict.versionTag(ExtDict.active)
         }
@@ -109,13 +110,14 @@ final class RimeDeployer: ObservableObject {
             return
         }
         let fuzzy = SettingsStore.load().fuzzyPinyin
+        let doublePinyin = SettingsStore.load().doublePinyin
         let grammar = GrammarModel.isActive
         let ext = ExtDict.active.map { (id: $0.id, url: $0.url) }
         state = .deploying
         let start = Date()
         startedAt = start
         Task.detached(priority: .userInitiated) {
-            let result = Self.run(source: source, paths: paths, fuzzy: fuzzy, grammar: grammar, ext: ext)
+            let result = Self.run(source: source, paths: paths, fuzzy: fuzzy, doublePinyin: doublePinyin, grammar: grammar, ext: ext)
             await MainActor.run {
                 self.startedAt = nil
                 switch result {
@@ -137,7 +139,8 @@ final class RimeDeployer: ObservableObject {
         let errorDescription: String?
     }
 
-    nonisolated private static func run(source: URL, paths: RimeStore.Paths, fuzzy: Set<FuzzyPinyin>, grammar: Bool,
+    nonisolated private static func run(source: URL, paths: RimeStore.Paths, fuzzy: Set<FuzzyPinyin>,
+                                       doublePinyin: DoublePinyin?, grammar: Bool,
                                        ext: [(id: String, url: URL)]) -> Result<Void, Error> {
         let fm = FileManager.default
         do {
@@ -150,6 +153,12 @@ final class RimeDeployer: ObservableObject {
             let nineKey = paths.shared.appendingPathComponent("\(RimeStore.nineKeySchemaID).schema.yaml")
             let nineKeyText = try String(contentsOf: nineKey, encoding: .utf8)
             try patchNineKeyDelimiter(nineKeyText).write(to: nineKey, atomically: true, encoding: .utf8)
+            // 双拼：全键盘方案的拼写规则整段换掉（九宫格不动）。要在模糊拼音之前：模糊拼音插在规则最前，先派生全拼再换成双拼编码。
+            if let doublePinyin {
+                let url = paths.shared.appendingPathComponent("\(RimeStore.schemaID).schema.yaml")
+                let text = try String(contentsOf: url, encoding: .utf8)
+                try doublePinyin.patchSchema(text).write(to: url, atomically: true, encoding: .utf8)
+            }
             // 模糊拼音写进共享副本里的方案文件，App 自带的那份不动。
             for schema in [RimeStore.schemaID, RimeStore.nineKeySchemaID] where !fuzzy.isEmpty {
                 let url = paths.shared.appendingPathComponent("\(schema).schema.yaml")

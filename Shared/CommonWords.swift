@@ -214,15 +214,21 @@ enum CommonWordStore {
 
     /// 写成 librime 读的短语表（custom_phrase 格式：词、编码、权重）。九宫格用数字编码另写一份。
     /// priority 的条目（填了简码的键盘常用语）权重 101，同一个编码排在常用词（100）前面。
+    /// doublePinyin：全键盘词库是双拼时，全拼编码再加一行双拼编码（youxiang → yzxl），排在前面；简码切不成音节，照原样。
     static func phraseTable(_ entries: [(text: String, code: String)], nineKey: Bool,
-                            priority: [(text: String, code: String)] = []) -> String {
+                            priority: [(text: String, code: String)] = [], doublePinyin: DoublePinyin? = nil) -> String {
         var lines = ["# 由 Enclave 生成，改动会被覆盖。", "# no comment"]
         for (list, weight) in [(priority, 101), (entries, 100)] {
             for entry in list {
-                let code = nineKey ? nineKeyCode(entry.code) : entry.code
                 let text = entry.text.replacingOccurrences(of: "\t", with: " ").replacingOccurrences(of: "\n", with: " ")
-                guard !code.isEmpty, !text.isEmpty else { continue }
-                lines.append("\(text)\t\(code)\t\(weight)")
+                guard !text.isEmpty else { continue }
+                var codes = [nineKey ? nineKeyCode(entry.code) : entry.code]
+                if !nineKey, let double = doublePinyin?.encode(pinyin: entry.code), double != entry.code {
+                    codes.insert(double, at: 0)
+                }
+                for code in codes where !code.isEmpty {
+                    lines.append("\(text)\t\(code)\t\(weight)")
+                }
             }
         }
         return lines.joined(separator: "\n") + "\n"

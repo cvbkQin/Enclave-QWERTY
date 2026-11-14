@@ -35,7 +35,14 @@ struct ResultKey: View {
     /// 卡片展开 4 行（键高 100）时图标、字、间距跟着放大。
     private var tall: Bool { model.cardTall }
     /// 生成中、要联网的选择卡、出错卡（含没写完）时 45% 变淡不能点。
-    private var blocked: Bool { model.isRunning || model.searchPrompt != nil || model.errorMessage != nil || model.partialResult != nil || model.stoppedAnswer != nil }
+    private var blocked: Bool {
+        return model.isRunning || model.searchPrompt != nil || model.errorMessage != nil || model.partialResult != nil || model.stoppedAnswer != nil
+    }
+
+    /// 还没有可用的结果（灰底）。
+    private var empty: Bool {
+        return !model.hasResult && !model.isRunning
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -314,19 +321,19 @@ struct ResultKey: View {
         // 完成修改：润色渐变。
         if editing { return AnyShapeStyle(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
                                                          startPoint: .topLeading, endPoint: .bottomTrailing)) }
-        if !model.hasResult && !model.isRunning { return AnyShapeStyle(Brand.disabledFill) }
+        if empty { return AnyShapeStyle(Brand.disabledFill) }
         return AnyShapeStyle(gradient(action))
     }
 
     private func foreground(_ action: ResultKeyAction) -> Color {
         if editing { return .white }
-        if !model.hasResult && !model.isRunning { return Brand.disabledText }
+        if empty { return Brand.disabledText }
         return .white
     }
 
     private func gradient(_ action: ResultKeyAction) -> LinearGradient {
-        LinearGradient(colors: action == .replace ? Brand.resultKeyReplaceColors : Brand.resultKeyInsertColors,
-                       startPoint: .topLeading, endPoint: .bottomTrailing)
+        return LinearGradient(colors: action == .replace ? Brand.resultKeyReplaceColors : Brand.resultKeyInsertColors,
+                              startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
     private var accessibilityLabel: String {
