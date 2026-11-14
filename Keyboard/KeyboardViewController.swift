@@ -246,6 +246,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        Self.appearCount += 1
+        hiddenCleanupDone = false
         installHost()
         // 先定下有没有地球键，免得键盘滑出来的途中按键再换一次排法。
         updateGlobeKey()
@@ -296,20 +298,61 @@ final class KeyboardViewController: UIInputViewController {
         model.refreshCommonWords()
     }
 
+    /// 每有一个键盘页面要弹出就 +1（整个进程共用）。收起后补做清理前看它变没变：变了说明又弹出来了，会话归新页面用。
+    private static var appearCount = 0
+    private var hiddenCleanupDone = false
+
+    /// 下滑收起、桌面搜索收起时系统只调这里，不调 viewDidDisappear（模拟器实测，见 f9142d5），约 1 秒后控制器直接释放。
+    /// 于是 viewDidDisappear 里那些收尾一直没做：Rime 会话开着、App Group 里用户词库的 LOCK 一直锁着，
+    /// 扩展一被挂起就被系统杀掉（0xDEAD10CC），下次弹出又是冷启动：先空着约 0.75 秒，再整块蹦出来（11-14 录屏）。
+    /// 收起 0.4 秒后还没有新页面弹出来，就把 viewDidDisappear 的收尾补上；控制器已经释放了，至少关掉会话、写掉统计。
+    /// 这 0.4 秒用 performExpiringActivity 向系统要着，免得还没补完就被挂起。
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        let count = Self.appearCount
+        let done = DispatchSemaphore(value: 0)
+        ProcessInfo.processInfo.performExpiringActivity(withReason: "Finish hiding keyboard") { expired in
+            guard !expired else { return }
+            _ = done.wait(timeout: .now() + 2)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            defer { done.signal() }
+            guard Self.appearCount == count else { return }
+            if let self {
+                self.cleanUpAfterHiding()
+            } else {
+                QueuedEngine.shared.closeSession()
+                Self.flushShared()
+            }
+        }
+    }
+
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        cleanUpAfterHiding()
+    }
+
+    /// 键盘收起后的收尾，viewDidDisappear 或收起后补做，只做一次（再弹出时重置）。
+    private func cleanUpAfterHiding() {
+        guard !hiddenCleanupDone else { return }
+        hiddenCleanupDone = true
         clipboardPoll?.invalidate()
         clipboardPoll = nil
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
         releaseEngine()
         model.pressedKeys = []
         model.trackpadActive = false
+        model.dismissPredictions()
+        Self.flushShared()
+        removeHost()
+    }
+
+    /// 攒在内存里的打字统计、触摸校准、英文用词，收起时写进共享存储。
+    private static func flushShared() {
         TypingStats.flush()
         TouchCalibration.flush()
-        model.dismissPredictions()
         EnglishPredictor.flush()
         DailyStats.flush()
-        removeHost()
     }
 
     /// 弹出以后才开始，第一次在 1 秒后；没开完全访问时读不了剪贴板，不轮询。
