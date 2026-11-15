@@ -53,6 +53,8 @@ enum TypingStats {
         let start = info.kp_proc.p_un.__p_starttime
         return Date(timeIntervalSince1970: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000)
     }()
+    /// 给弹出记录（PopupLog）用。
+    static var processStartDate: Date? { processStart }
     private static var launchAppear: Double?
     private static var launchReady: Double?
     private static var launchDone = false

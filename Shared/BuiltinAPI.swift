@@ -22,7 +22,7 @@ enum BuiltinAPI {
         #if DEBUG
         return true
         #else
-        return isInternalBuild || isPublicBuild
+        return isInternalBuild || isPublicBuild || isDevBuild
         #endif
     }
 

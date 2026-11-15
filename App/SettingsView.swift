@@ -248,6 +248,7 @@ struct TestToolsView: View {
     var body: some View {
         DashPage {
             TypingSpeedCard()
+            if PopupLog.enabled { PopupLogCard() }
             StressTestCard()
             #if DEBUG
             // 输入框测试台：只在开发版（内测、公测包里没有）。

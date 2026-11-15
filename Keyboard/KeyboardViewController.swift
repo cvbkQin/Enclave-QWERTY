@@ -10,6 +10,11 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        loadStart = CACurrentMediaTime()
+        if Self.popupsInProcess == 0, let start = TypingStats.processStartDate {
+            loadSinceProcess = Date().timeIntervalSince(start) * 1000
+        }
+        defer { loadMs = (CACurrentMediaTime() - loadStart) * 1000 }
         CrashLog.shared.start(source: "keyboard")
         installHost()
 
@@ -58,6 +63,18 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private var hostInactive = false
+
+    // MARK: 弹出记录（开发版，PopupLog）
+    /// 这个进程里弹出过几次。
+    private static var popupsInProcess = 0
+    /// 控制器建出来的时刻：到 viewDidLoad 之间是系统在准备（热启动时也有）。
+    private let createdAt = CACurrentMediaTime()
+    private var loadStart: CFTimeInterval = 0
+    private var loadSinceProcess: Double?
+    private var loadMs: Double = 0
+    /// 这个控制器第一次弹出时记的一条，viewDidAppear 后补齐再存。
+    private var popupRecord: PopupRecord?
+    private var popupRecorded = false
 
     /// 对方输入框的 documentIdentifier。不能直接读 textDocumentProxy.documentIdentifier：Swift 里它是非可选的 UUID，
     /// 键盘收起时系统还会调一次 textDidChange，这时它是 nil，桥接直接崩（SIGTRAP）。从 0.96_4 起每次收起都崩，
@@ -248,7 +265,9 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         Self.appearCount += 1
         hiddenCleanupDone = false
+        let willStart = CACurrentMediaTime()
         installHost()
+        let hostDone = CACurrentMediaTime()
         // 先定下有没有地球键，免得键盘滑出来的途中按键再换一次排法。
         updateGlobeKey()
         updateOrientation()
@@ -264,7 +283,9 @@ final class KeyboardViewController: UIInputViewController {
         model.hostCaret = nil
         // 每次弹出都按输入框类型重新选一次页（数字框直接出数字键盘）。
         model.hostKeyboardType = nil
+        let reloadStart = CACurrentMediaTime()
         model.reload()
+        let reloadDone = CACurrentMediaTime()
         model.applyInputLanguage()
         model.applyDebugState()
         TouchCalibration.reload()
@@ -273,11 +294,45 @@ final class KeyboardViewController: UIInputViewController {
         if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
         // 高度和内容在滑出来之前就定好：reload 可能改了高度（比如试用提醒条），这里同步改掉，不等下一轮；
         // 再让 SwiftUI 先排一遍，系统做弹出动画时画的就是完整的键盘，AI 栏不会等滑出来以后才冒出来。
+        let layoutStart = CACurrentMediaTime()
         updateHeight()
         view.layoutIfNeeded()
         #if DEBUG
         heightLog("willAppear")
         #endif
+        startPopupRecord(willStart: willStart, hostDone: hostDone, reload: reloadDone - reloadStart, layoutStart: layoutStart)
+    }
+
+    private func startPopupRecord(willStart: CFTimeInterval, hostDone: CFTimeInterval, reload: CFTimeInterval, layoutStart: CFTimeInterval) {
+        guard PopupLog.enabled, !popupRecorded, popupRecord == nil else { return }
+        let now = CACurrentMediaTime()
+        Self.popupsInProcess += 1
+        let hide = PopupLog.lastHide
+        popupRecord = PopupRecord(
+            at: Date(), nth: Self.popupsInProcess,
+            processToLoad: Self.popupsInProcess == 1 ? loadSinceProcess : nil,
+            initToLoad: (loadStart - createdAt) * 1000, load: loadMs, willAppear: (now - willStart) * 1000, willHost: (hostDone - willStart) * 1000,
+            willReload: reload * 1000, willLayout: (now - layoutStart) * 1000,
+            loadToAppear: 0, didClipboard: 0, didCommonWords: 0, engineReady: nil, memoryMB: nil,
+            sinceHide: hide.map { Date().timeIntervalSince($0.at) },
+            sameProcess: hide.map { $0.pid == ProcessInfo.processInfo.processIdentifier },
+            lastCleanup: hide?.cleanup, nineKey: model.showsNineKey)
+    }
+
+    /// viewDidAppear 后补上出现时间、内存；再等 1.5 秒看拼音引擎好了没有，然后存。
+    private func finishPopupRecord(clipboard: Double, commonWords: Double) {
+        guard var finished = popupRecord, !popupRecorded else { return }
+        popupRecorded = true
+        finished.loadToAppear = (CACurrentMediaTime() - loadStart) * 1000
+        finished.didClipboard = clipboard * 1000
+        finished.didCommonWords = commonWords * 1000
+        finished.memoryMB = TypingStats.footprintMB()
+        let loadStart = loadStart, partial = finished
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak model] in
+            var record = partial
+            if let ready = model?.engineReadyAt, ready >= loadStart { record.engineReady = (ready - loadStart) * 1000 }
+            PopupLog.append(record)
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -290,12 +345,16 @@ final class KeyboardViewController: UIInputViewController {
         // 弹出前没进窗口时方向是按尺寸类猜的，进了窗口按屏幕再核一次。
         scheduleOrientationCheck()
         clearStaleMarkedText()
+        let clipboardStart = CACurrentMediaTime()
         // 剪贴板换没换过（只看 changeCount、hasStrings，不读内容）：「常用」键上的紫点。
         model.checkClipboard()
         startClipboardPoll()
+        let wordsStart = CACurrentMediaTime()
         // 常用词要读系统文本替换和通讯录、可能重写词库里的短语表，不影响键盘长什么样，放到弹出以后再做，
         // 不占弹出前的那一段主线程。
         model.refreshCommonWords()
+        let wordsDone = CACurrentMediaTime()
+        finishPopupRecord(clipboard: wordsStart - clipboardStart, commonWords: wordsDone - wordsStart)
     }
 
     /// 每有一个键盘页面要弹出就 +1（整个进程共用）。收起后补做清理前看它变没变：变了说明又弹出来了，会话归新页面用。
@@ -309,6 +368,7 @@ final class KeyboardViewController: UIInputViewController {
     /// 这 0.4 秒用 performExpiringActivity 向系统要着，免得还没补完就被挂起。
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        PopupLog.noteHide(cleanup: "未收尾")
         let count = Self.appearCount
         let done = DispatchSemaphore(value: 0)
         ProcessInfo.processInfo.performExpiringActivity(withReason: "Finish hiding keyboard") { expired in
@@ -319,23 +379,25 @@ final class KeyboardViewController: UIInputViewController {
             defer { done.signal() }
             guard Self.appearCount == count else { return }
             if let self {
-                self.cleanUpAfterHiding()
+                self.cleanUpAfterHiding(how: "补做")
             } else {
                 QueuedEngine.shared.closeSession()
                 Self.flushShared()
+                PopupLog.noteHide(cleanup: "补做(已释放)")
             }
         }
     }
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        cleanUpAfterHiding()
+        cleanUpAfterHiding(how: "didDisappear")
     }
 
     /// 键盘收起后的收尾，viewDidDisappear 或收起后补做，只做一次（再弹出时重置）。
-    private func cleanUpAfterHiding() {
+    private func cleanUpAfterHiding(how: String) {
         guard !hiddenCleanupDone else { return }
         hiddenCleanupDone = true
+        PopupLog.noteHide(cleanup: how)
         clipboardPoll?.invalidate()
         clipboardPoll = nil
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。

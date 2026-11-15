@@ -187,6 +187,8 @@ final class KeyboardModel: ObservableObject {
     /// 联想：上屏后候选栏接着显示的下一个词，按别的键就收起。
     @Published var predictions: [String] = []
     var engine: InputEngine = DirectEngine()
+    /// 拼音引擎最近一次准备好的时刻（CACurrentMediaTime），给开发版的弹出记录用。
+    var engineReadyAt: CFTimeInterval?
     /// 拼音词库是否可用（主 App 部署过，并且打开了完全访问）。
     @Published var pinyinReady = false
     var lastShiftTap = Date.distantPast
