@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """打字出 emoji 候选（0.95 A5）用的词表：从 Unicode CLDR 的中文 emoji 注释生成 Keyboard/Emoji/zh_emoji.tsv。
 每行「词<Tab>emoji 空格分开」，最像的在前。CLDR 数据用 Unicode License v3（可商用，需保留版权声明，见 Licenses/LICENSE-cldr，App 的开源许可页里也有）。
-用法：python3 scripts/build-emoji.py cldr/common/annotations/zh.xml Keyboard/Emoji/zh_emoji.tsv
+用法：python3 scripts/build-emoji.py cldr/common/annotations/zh.xml cldr/common/annotationsDerived/zh.xml emoji-test.txt Keyboard/Emoji/zh_emoji.tsv
+annotationsDerived 里有国旗（「旗: 日本」→ 打「日本」出 🇯🇵）和组合 emoji 的注释；emoji-test.txt（同 build-emoji-panel.py）
+用来把每个 emoji 换成系统键盘上屏的标准写法（⚽ 不加 FE0F、🕸️ 要加），只收 iOS 键盘里有的。
+不收 🇹🇼（中国大陆上架合规，同表情面板）。系统版本显示不出来的，键盘里按 emoji_panel.tsv 藏掉（见 EmojiTable）。
 """
 import re, sys, xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -19,43 +22,62 @@ EXTRA = {
 }
 
 
-def is_emoji(cp):
-    if any(0x1F3FB <= ord(c) <= 0x1F3FF for c in cp) and len(cp) == 1:
-        return False
-    for c in cp:
-        o = ord(c)
-        if 0x1F300 <= o <= 0x1FAFF or 0x2600 <= o <= 0x27BF or o in (0x2B50, 0x2B55, 0x2764, 0x231A, 0x231B, 0x23F0, 0x23F3):
-            return True
-    return False
+TONES = set(range(0x1F3FB, 0x1F400))
+EXCLUDE = {'\U0001F1F9\U0001F1FC'}  # 🇹🇼
+# 国旗的名字太长或带后缀的，补个短的。
+FLAG_ALIAS = {'中国香港特别行政区': '香港', '中国澳门特别行政区': '澳门'}
 
 
-def emoji_style(cp):
-    """☀、✈ 这类默认按文字样式显示的，补上 U+FE0F 让它显示成彩色 emoji。"""
-    out = ''
-    for i, c in enumerate(cp):
-        out += c
-        if 0x2600 <= ord(c) <= 0x27BF and cp[i + 1:i + 2] != '\ufe0f':
-            out += '\ufe0f'
-    return out
+def strip(cp):
+    return cp.replace('\ufe0f', '')
+
+
+def load_qualified(path):
+    """emoji-test.txt 里 fully-qualified 的：去掉 FE0F 后 → 标准写法。不收带肤色的（候选里给原色，同系统键盘）。"""
+    result = {}
+    for line in open(path, encoding='utf-8'):
+        m = re.match(r'^([0-9A-F ]+?)\s*;\s*fully-qualified\s', line)
+        if not m:
+            continue
+        cp = ''.join(chr(int(h, 16)) for h in m.group(1).split())
+        if any(ord(c) in TONES for c in cp) or cp in EXCLUDE:
+            continue
+        result[strip(cp)] = cp
+    return result
 
 
 def cjk(word):
     return 1 <= len(word) <= 4 and all('一' <= c <= '鿿' for c in word)
 
 
-def main(src, dst):
+def is_flag_name(word):
+    return 2 <= len(word) <= 10 and all('一' <= c <= '鿿' for c in word)
+
+
+def main(src, derived, emoji_test, dst):
+    qualified = load_qualified(emoji_test)
     names, keywords, order = {}, defaultdict(list), []
-    for node in ET.parse(src).getroot().iter('annotation'):
-        cp = node.get('cp')
-        if not is_emoji(cp):
-            continue
-        if cp not in order:
-            order.append(cp)
-        words = [w.strip() for w in (node.text or '').split('|')]
-        if node.get('type') == 'tts':
-            names[cp] = words[0]
-        else:
-            keywords[cp] += words
+    flags = defaultdict(list)
+    for path in (src, derived):
+        for node in ET.parse(path).getroot().iter('annotation'):
+            cp = qualified.get(strip(node.get('cp')))
+            if cp is None:
+                continue
+            if cp not in order:
+                order.append(cp)
+            words = [w.strip() for w in (node.text or '').split('|')]
+            if node.get('type') == 'tts':
+                names.setdefault(cp, words[0])
+                # 「旗: 日本」：国家和地区名对上国旗。
+                if words[0].startswith('旗: '):
+                    country = words[0][3:]
+                    for w in (country, FLAG_ALIAS.get(country)):
+                        if w and is_flag_name(w):
+                            flags[w].append(cp)
+                            flags[w + '国旗'].append(cp)
+            elif path == src:
+                # 派生注释的关键词（发型、组合的各个部分）太泛，会把「浪漫」「金发」这类词挤成对上太多个而不出，只用它的名字。
+                keywords[cp] += words
     table = defaultdict(list)
     for cp in order:
         name = names.get(cp, '')
@@ -65,14 +87,16 @@ def main(src, dst):
         for w in keywords[cp]:
             if cjk(w) and w != name and len(w) > 1:
                 table[w].append((1, len(keywords[cp]), order.index(cp), cp))
+    for word, cps in flags.items():
+        for cp in cps:
+            table[word].append((0, 0, order.index(cp), cp))
     lines = []
     for word in sorted(table):
         hits = sorted(set(table[word]))
         if len(hits) > MAX_PER_WORD and not any(h[0] == 0 for h in hits):
             continue
-        seen = [emoji_style(e) for e in EXTRA.get(word, '').split()]
+        seen = [qualified.get(strip(e), e) for e in EXTRA.get(word, '').split()]
         for *_, cp in hits:
-            cp = emoji_style(cp)
             if cp not in seen:
                 seen.append(cp)
         lines.append(f"{word}\t{' '.join(seen[:KEEP])}")
@@ -85,4 +109,4 @@ def main(src, dst):
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:3])
+    main(*sys.argv[1:5])
