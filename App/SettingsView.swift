@@ -1411,8 +1411,8 @@ struct DoublePinyinView: View {
     @ObservedObject private var deployer = RimeDeployer.shared
     /// 切回全拼时记着上次的方案，再切双拼时还是它。
     @State private var lastScheme: DoublePinyin = .flypy
-    /// 底部的一句提示（存好键位图），2 秒后消失。
-    @State private var toast: String?
+    /// 要分享的键位图（临时文件）；有值时弹系统分享面板。
+    @State private var keymap: KeymapFile?
 
     private var doubleOn: Binding<Bool> {
         Binding(get: { store.settings.doublePinyin != nil },
@@ -1498,16 +1498,16 @@ struct DoublePinyinView: View {
                     ZeroInitialCard(scheme: current)
                 }
                 Section {
-                    Button { saveKeymap(current) } label: {
-                        Label(L("保存键位图到相册", "Save layout to Photos", "キー配置を写真に保存"), systemImage: "arrow.down.to.line")
+                    Button { shareKeymap(current) } label: {
+                        Label(L("分享键位图", "Share layout image", "キー配置の画像を共有"), systemImage: "square.and.arrow.up")
                             .font(.body.weight(.medium))
                             .foregroundStyle(AppColor.purple)
                             .frame(maxWidth: .infinity)
                     }
                 } footer: {
-                    Text(L("一张竖图，带整张键位和零声母，方便打印或放在相册里对照。",
-                           "A tall image with the full layout and the no-initial syllables, handy to print or keep in Photos.",
-                           "キー配置と声母のない音節をまとめた縦長の画像です。印刷したり写真に置いて見比べたりできます。"))
+                    Text(L("一张竖图，带整张键位和零声母，可以存到「文件」、打印或发给别人对照。",
+                           "A tall image with the full layout and the no-initial syllables. Save it to Files, print it, or send it.",
+                           "キー配置と声母のない音節をまとめた縦長の画像です。「ファイル」に保存したり、印刷したり、送ったりできます。"))
                 }
                 Section {
                     NavigationLink(value: AppRouter.KeyboardPage.doublePinyinPractice) {
@@ -1542,17 +1542,9 @@ struct DoublePinyinView: View {
                 }
             }
         }
-        .overlay(alignment: .bottom) {
-            if let toast {
-                Label(toast, systemImage: "checkmark")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(Color.black.opacity(0.85)))
-                    .padding(.bottom, 24)
-                    .transition(.opacity)
-            }
+        .sheet(item: $keymap) { file in
+            ActivitySheet(items: [file.url])
+                .presentationDetents([.medium, .large])
         }
         .navigationTitle(L("全键盘拼音", "QWERTY pinyin", "QWERTY のピンイン"))
         .navigationBarTitleDisplayMode(.inline)
@@ -1577,16 +1569,15 @@ struct DoublePinyinView: View {
         }
     }
 
-    /// 存当前方案、当前深浅色的键位图（SP8）到相册：第一次系统会问「允许添加照片」（只写入，不读相册）。
-    private func saveKeymap(_ scheme: DoublePinyin) {
+    /// 当前方案、当前深浅色的键位图（SP8）写成临时 PNG，弹系统分享面板（存到文件、打印、隔空投送）。
+    /// 不直接存相册：那要申请照片权限，分享面板里也去掉了「存储图像」。
+    private func shareKeymap(_ scheme: DoublePinyin) {
         let dark = UITraitCollection.current.userInterfaceStyle == .dark
-        guard let image = DoublePinyinKeymapPoster.render(scheme: scheme, dark: dark) else { return }
-        PhotoSaver.save(image) { ok in
-            let text = ok ? L("键位图已存到相册", "Layout saved to Photos", "キー配置を写真に保存しました")
-                : L("没存上：请在「设置」里允许飞地添加照片", "Couldn't save. Allow Enclave to add photos in Settings.", "保存できませんでした。「設定」で写真の追加を許可してください")
-            withAnimation { toast = text }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { withAnimation { if toast == text { toast = nil } } }
-        }
+        guard let image = DoublePinyinKeymapPoster.render(scheme: scheme, dark: dark), let data = image.pngData() else { return }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(L("\(scheme.title)键位图", "\(scheme.title) layout", "\(scheme.title) キー配置") + ".png")
+        do { try data.write(to: url, options: .atomic) } catch { return }
+        keymap = KeymapFile(url: url)
     }
 
     /// 也能打全拼：和换方案一样要重新部署。

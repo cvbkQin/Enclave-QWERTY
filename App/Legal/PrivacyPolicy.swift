@@ -120,9 +120,7 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 **剪贴板：** 键盘读取剪贴板需要开启“允许完全访问”，且只在您点开剪贴板或点击“帮回”时读取（见第三条）。
 
-**添加到相册（可选）：** 仅在您点击“保存键位图到相册”时，本应用会请求“添加照片”权限，把双拼键位图图片存入您的相册。本应用只往相册里添加这张图片，不读取、不上传相册里的任何内容；不允许时，其他功能不受影响。
-
-本应用不申请定位、相机、麦克风权限，也不申请读取相册的权限。
+本应用不申请定位、相机、麦克风、相册等权限。
 
 ## 五、第三方服务
 
@@ -245,10 +243,6 @@ Deleting the App removes all of this information from your device (your purchase
 
 **Contacts (optional).** Only if you turn on "Use names from Contacts", the keyboard reads contact names through the system interface to offer them as candidates. It does not read phone numbers or other details, and nothing is uploaded.
 
-**Add to Photos (optional).** Only when you tap "Save layout to Photos", the App asks for permission to add photos and saves the Shuangpin layout image to your photo library. The App only adds this one image; it never reads or uploads anything in your photo library. If you don't allow it, everything else works as usual.
-
-The App does not ask for location, camera or microphone access, or for permission to read your photo library.
-
 **Clipboard.** Reading the clipboard from the keyboard requires Allow Full Access, and happens only when you open the clipboard or tap Help Reply (see section 3).
 
 ## 5. Third-Party Services
@@ -363,10 +357,6 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 **フルアクセスを許可：** キーボード拡張はこの権限を、モデルサービスへの接続、触覚フィードバック、本アプリとの設定の同期にのみ使用します。オフでも中国語・英語の入力は通常どおり使え、AI 機能のみ使えなくなります。
 
 **連絡先（任意）：** 「連絡先の名前を使う」をオンにした場合に限り、キーボードはシステムの仕組みを通じて連絡先の名前を候補として読み込みます。電話番号などの情報は読み取らず、送信もしません。
-
-**写真への追加（任意）：** 「キー配置を写真に保存」をタップしたときに限り、本アプリは写真の追加の許可を求め、双拼のキー配置の画像を写真ライブラリに保存します。追加するのはこの画像だけで、写真ライブラリの内容を読み取ったり送信したりすることはありません。許可しなくても、ほかの機能はそのまま使えます。
-
-本アプリは位置情報、カメラ、マイクへのアクセスや、写真ライブラリを読み取る許可を求めません。
 
 **クリップボード：** キーボードがクリップボードを読み取るには「フルアクセスを許可」が必要で、読み取るのはクリップボードを開いたときか「返信アシスト」をタップしたときだけです（第 3 節を参照）。
 
