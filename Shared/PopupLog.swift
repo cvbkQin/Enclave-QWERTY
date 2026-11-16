@@ -38,33 +38,66 @@ struct PopupRecord: Codable, Identifiable {
     var lastCleanup: String?
     var nineKey: Bool
 
-    /// 复制出去的一行。
-    var line: String {
-        func ms(_ v: Double?) -> String { v.map { String(format: "%.0f", $0) } ?? "-" }
-        let time = PopupLog.timeFormatter.string(from: at)
-        var parts = ["\(time) #\(nth)\(nth == 1 ? " 冷" : " 热")"]
-        if let processToLoad { parts.append("进程→load \(ms(processToLoad))") }
-        if let wakeToInit { parts.append("闲 \(String(format: "%.1f", (idleBeforeWake ?? 0) / 1000))s 醒→建 \(ms(wakeToInit))") }
-        parts.append("建→load \(ms(initToLoad))")
-        parts.append("load \(ms(load))")
-        parts.append("will \(ms(willAppear))(宿主\(ms(willHost)) reload\(ms(willReload)) 排版\(ms(willLayout)))")
-        parts.append("load→出现 \(ms(loadToAppear))")
-        parts.append("剪贴板 \(ms(didClipboard)) 常用词 \(ms(didCommonWords))")
-        parts.append("引擎 \(ms(engineReady))")
-        parts.append("内存 \(memoryMB.map { String(format: "%.0f", $0) } ?? "-")MB")
-        if let sinceHide {
-            let process = sameProcess == true ? "同进程" : "换了进程"
-            parts.append("距收起 \(String(format: "%.1f", sinceHide))s \(process) 收尾:\(lastCleanup ?? "-")")
-        }
-        parts.append(nineKey ? "九宫格" : "全键盘")
-        return parts.joined(separator: " · ")
+    var isCold: Bool { nth == 1 }
+
+    /// 我们这边一共用了多久（毫秒）：冷启动从进程启动算，热启动从进程被叫醒算（没记到醒的时刻就从控制器建出来算），到键盘显示出来。
+    var total: Double {
+        if let processToLoad { return processToLoad + loadToAppear }
+        return (wakeToInit ?? 0) + initToLoad + loadToAppear
     }
+
+    /// 明显慢：热启动超过 150 毫秒，冷启动超过 800 毫秒（平时热启动 50–70、冷启动 300–400）。
+    var isSlow: Bool { total >= (isCold ? PopupLog.slowCold : PopupLog.slowWarm) }
+
+    private static func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
+
+    /// 第一行：什么时候、冷 / 热启动、一共多久、慢不慢。
+    var title: String {
+        let time = PopupLog.timeFormatter.string(from: at)
+        let kind = isCold ? "冷启动（键盘进程重新启动）" : "热启动（第 \(nth) 次弹出）"
+        return "\(time) · \(kind) · 共 \(Self.ms(total)) 毫秒\(isSlow ? " · 慢" : "")"
+    }
+
+    /// 下面几行：每一段用了多久，用大白话写。
+    var details: [String] {
+        var lines: [String] = []
+        if let processToLoad {
+            lines.append("系统启动键盘进程到开始建键盘：\(Self.ms(processToLoad)) 毫秒")
+        } else if let wakeToInit {
+            lines.append("键盘被叫醒（之前闲了 \(String(format: "%.1f", (idleBeforeWake ?? 0) / 1000)) 秒）到开始建键盘：\(Self.ms(wakeToInit + initToLoad)) 毫秒")
+        } else {
+            lines.append("开始建键盘前的准备：\(Self.ms(initToLoad)) 毫秒")
+        }
+        lines.append("建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）")
+        lines.append("显示后：剪贴板和帮回检测 \(Self.ms(didClipboard)) 毫秒，拼音能打 \(Self.ms(engineReady)) 毫秒")
+        var last = "内存 \(memoryMB.map { String(format: "%.0f", $0) } ?? "-") MB · \(nineKey ? "九宫格" : "全键盘")"
+        if let sinceHide {
+            last += " · 距上次收起 \(Self.duration(sinceHide))"
+            if sameProcess == false { last += "，期间键盘进程被系统关掉了" }
+        }
+        lines.append(last)
+        return lines
+    }
+
+    private static func duration(_ seconds: Double) -> String {
+        if seconds < 60 { return String(format: "%.1f 秒", seconds) }
+        if seconds < 3600 { return "\(Int(seconds / 60)) 分钟" }
+        return String(format: "%.1f 小时", seconds / 3600)
+    }
+
+    /// 复制出去的一条：标题加缩进的明细。
+    var text: String { ([title] + details.map { "  " + $0 }).joined(separator: "\n") }
 }
 
 enum PopupLog {
     private static let recordsKey = "debug.popupLog"
+    /// 冷启动和明显慢的那几次另存一份，不跟着最近的记录被挤掉。
+    private static let keptKey = "debug.popupLogKept"
     private static let hideKey = "debug.popupLastHide"
     private static let keep = 60
+    private static let keepSpecial = 40
+    static let slowWarm: Double = 150
+    static let slowCold: Double = 800
 
     /// 正式版不记。
     static var enabled: Bool {
@@ -81,20 +114,37 @@ enum PopupLog {
         return formatter
     }()
 
-    static func load() -> [PopupRecord] {
-        guard let data = SharedStorage.defaults.data(forKey: recordsKey),
+    /// 最近的（旧的在前）。
+    static func load() -> [PopupRecord] { read(recordsKey) }
+
+    /// 冷启动和慢的（旧的在前），最多 40 条。
+    static func loadKept() -> [PopupRecord] { read(keptKey) }
+
+    private static func read(_ key: String) -> [PopupRecord] {
+        guard let data = SharedStorage.defaults.data(forKey: key),
               let records = try? JSONDecoder().decode([PopupRecord].self, from: data) else { return [] }
         return records
     }
 
-    static func append(_ record: PopupRecord) {
-        guard enabled else { return }
-        let records = Array((load() + [record]).suffix(keep))
-        if let data = try? JSONEncoder().encode(records) { SharedStorage.defaults.set(data, forKey: recordsKey) }
+    private static func write(_ records: [PopupRecord], _ key: String) {
+        if let data = try? JSONEncoder().encode(records) { SharedStorage.defaults.set(data, forKey: key) }
     }
 
+    static func append(_ record: PopupRecord) {
+        guard enabled else { return }
+        write(Array((load() + [record]).suffix(keep)), recordsKey)
+        if record.isCold || record.isSlow {
+            write(Array((loadKept() + [record]).suffix(keepSpecial)), keptKey)
+        }
+    }
+
+    /// 只清最近的；冷启动和慢的要另外点「清空保留的」。
     static func clear() {
         SharedStorage.defaults.removeObject(forKey: recordsKey)
+    }
+
+    static func clearKept() {
+        SharedStorage.defaults.removeObject(forKey: keptKey)
     }
 
     // MARK: - 上次收起
@@ -116,19 +166,43 @@ enum PopupLog {
         return try? JSONDecoder().decode(Hide.self, from: data)
     }
 
-    /// 复制出去的全文：最近的在前，开头一行汇总。
-    static func report(_ records: [PopupRecord]) -> String {
-        let cold = records.filter { $0.nth == 1 }
-        let warm = records.filter { $0.nth > 1 }
-        func median(_ values: [Double]) -> String {
-            guard !values.isEmpty else { return "-" }
-            let sorted = values.sorted()
-            return String(format: "%.0f", sorted[sorted.count / 2])
-        }
-        let header = "弹出 \(records.count) 次：冷启动 \(cold.count)（load→出现 中位 \(median(cold.map(\.loadToAppear))) ms，"
-            + "进程→load 中位 \(median(cold.compactMap(\.processToLoad))) ms），热启动 \(warm.count)（load→出现 中位 \(median(warm.map(\.loadToAppear))) ms）"
+    static func median(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        return sorted[sorted.count / 2]
+    }
+
+    /// 一句话汇总：热启动、冷启动一般多久，慢的几次。
+    static func summary(_ records: [PopupRecord]) -> String {
+        let cold = records.filter(\.isCold)
+        let warm = records.filter { !$0.isCold }
+        func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
+        var parts = ["最近 \(records.count) 次弹出"]
+        if !warm.isEmpty { parts.append("热启动 \(warm.count) 次，一般 \(ms(median(warm.map(\.total)))) 毫秒") }
+        if !cold.isEmpty { parts.append("冷启动 \(cold.count) 次，一般 \(ms(median(cold.map(\.total)))) 毫秒") }
+        let slow = records.filter(\.isSlow).count
+        parts.append(slow == 0 ? "没有明显慢的" : "明显慢的 \(slow) 次")
+        return parts.joined(separator: "；") + "。"
+    }
+
+    /// 几个词是什么意思，复制出去和卡片上都带着。
+    static let legend = """
+    热启动：键盘进程还在，系统直接叫醒它，一般 50–100 毫秒。
+    冷启动：键盘进程已经被系统关掉，要重新启动，一般 300–400 毫秒。
+    「共 N 毫秒」只算键盘自己用的时间；在这之前系统处理弹出用的时间记不到。
+    明显慢：热启动超过 \(Int(slowWarm)) 毫秒、冷启动超过 \(Int(slowCold)) 毫秒，标「慢」，和冷启动一起另外保留。
+    """
+
+    /// 复制出去的全文：汇总、说明、保留的冷启动和慢的、最近的（新的在前）。
+    static func report(recent: [PopupRecord], kept: [PopupRecord]) -> String {
         let version = (Bundle.main.object(forInfoDictionaryKey: "EnclaveDevLabel") as? String) ?? ""
-        return ([header, "版本 \(version)"] + records.reversed().map(\.line)).joined(separator: "\n")
+        var out = ["飞地输入法 \(version) 弹出记录", summary(recent), "", legend, ""]
+        out.append("== 冷启动和明显慢的（一直保留，\(kept.count) 条）==")
+        out += kept.reversed().map(\.text)
+        out.append("")
+        out.append("== 最近的（\(recent.count) 条）==")
+        out += recent.reversed().map(\.text)
+        return out.joined(separator: "\n")
     }
 }
 
