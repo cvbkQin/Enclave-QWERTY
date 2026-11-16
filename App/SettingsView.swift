@@ -1441,7 +1441,7 @@ struct DoublePinyinView: View {
                 }
             }
             if let current = store.settings.doublePinyin {
-                Section(L("双拼方案", "Scheme", "方式")) {
+                Section {
                     ForEach(DoublePinyin.allCases) { scheme in
                         Button { apply(scheme) } label: {
                             HStack {
@@ -1453,15 +1453,33 @@ struct DoublePinyinView: View {
                             }
                         }
                     }
+                } header: {
+                    Text(L("双拼方案", "Scheme", "方式"))
+                } footer: {
+                    // 键盘没开完全访问时读不到 App 的设置，也读不到双拼词库，照旧打全拼；键盘那边没法知道用户选了双拼，只能在这里说（双拼调研 P1）。
+                    if KeyboardStatus.fullAccess != true {
+                        Text(L("双拼要在键盘开了「允许完全访问」后才生效；没开时键盘照旧打全拼，键上也没有提示。",
+                               "Double pinyin works only after you turn on Allow Full Access for the keyboard. Until then the keyboard types full pinyin with no key hints.",
+                               "双拼はキーボードの「フルアクセスを許可」をオンにすると有効になります。オフのあいだは全拼で入力され、キーのヒントも表示されません。"))
+                    }
                 }
                 Section {
-                    Toggle(L("键上显示韵母", "Show finals on keys", "キーに韻母を表示"), isOn: $store.settings.doublePinyinHints)
+                    Picker(L("键上提示", "Key hints", "キーのヒント"), selection: $store.settings.doublePinyinHintMode) {
+                        ForEach(DoublePinyinHintMode.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
                 } header: {
                     Text(L("提示", "Hints", "ヒント"))
                 } footer: {
-                    Text(L("在字母上方用小字写出这个键的韵母和 zh / ch / sh，熟练以后可以关掉。",
-                           "Small labels above each letter show its finals and zh / ch / sh. Turn them off once you know the layout.",
-                           "文字の上に、そのキーの韻母と zh / ch / sh を小さく表示します。慣れたらオフにできます。"))
+                    Text(hintFooter)
+                }
+                zeroInitialSection(current)
+                Section {
+                    Toggle(L("也能打全拼", "Also accept full pinyin", "全拼も受け付ける"), isOn: mixFull)
+                } footer: {
+                    Text(L("开了以后双拼里直接打全拼也能出字（nihao）。两种打法会互相干扰，候选可能变乱，建议只在过渡期开。改了会重新部署词库。",
+                           "Full pinyin (nihao) also works while in double pinyin. The two can clash and shuffle candidates, so keep it for the transition period. Changing it reinstalls the dictionary.",
+                           "双拼のままでも全拼（nihao）で入力できます。2 つの入力方法が干渉して候補が乱れることがあるので、慣れるまでの間だけの使用をおすすめします。変更すると辞書を再インストールします。"))
                 }
                 Section {
                 } header: {
@@ -1470,7 +1488,7 @@ struct DoublePinyinView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .padding(.leading, 16)
-                        DoublePinyinPreview(scheme: current, hints: store.settings.doublePinyinHints)
+                        DoublePinyinPreview(scheme: current, hints: store.settings.doublePinyinHintMode != .off)
                     }
                     .dashFormCard()
                 } footer: {
@@ -1486,6 +1504,57 @@ struct DoublePinyinView: View {
         .onAppear {
             if let scheme = store.settings.doublePinyin { lastScheme = scheme }
         }
+    }
+
+    private var hintFooter: String {
+        switch store.settings.doublePinyinHintMode {
+        case .off:
+            return L("键上只写字母。拼写栏里拼不成音节的键也不再标红。",
+                     "Keys show only letters, and key pairs that don't form a syllable aren't marked red.",
+                     "キーには文字だけを表示します。音節にならないキーの組も赤く表示しません。")
+        case .fixed:
+            return L("在字母上方用小字写出这个键的韵母和 zh / ch / sh，熟练以后可以关掉。",
+                     "Small labels above each letter show its finals and zh / ch / sh. Turn them off once you know the layout.",
+                     "文字の上に、そのキーの韻母と zh / ch / sh を小さく表示します。慣れたらオフにできます。")
+        case .dynamic:
+            return L("该按声母时只写 zh / ch / sh；按了声母后，每个键写出和它拼成的音节（按了 x，L 键上写 xiang），拼不成的键不写。适合刚开始学。",
+                     "Before an initial, only zh / ch / sh are shown. After an initial, each key shows the syllable it makes (after x, L shows xiang); keys that don't fit stay blank. Good for learning.",
+                     "声母の前は zh / ch / sh だけを表示。声母を押すと、各キーにその声母と組み合わせた音節を表示します（x のあと L に xiang）。組み合わせられないキーは空白。覚え始めにおすすめです。")
+        }
+    }
+
+    /// 零声母（没有声母的字）怎么打：键上提示里没有，单独列一张卡（双拼调研 P1；样式待 02-2 出图，先按表格排）。
+    private func zeroInitialSection(_ scheme: DoublePinyin) -> some View {
+        let examples = scheme.zeroInitialExamples
+        let alternates = examples.flatMap { example in example.alternates.map { "\($0) = \(example.syllable)" } }
+        return Section {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), alignment: .leading, spacing: 10) {
+                ForEach(examples, id: \.syllable) { example in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(example.example) \(example.syllable)").font(.system(size: 13)).foregroundStyle(.secondary)
+                        Text(example.code).font(.system(size: 17, weight: .semibold, design: .monospaced))
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+            .accessibilityElement(children: .combine)
+        } header: {
+            Text(L("零声母（没有声母的字）", "Syllables without an initial", "声母のない音節"))
+        } footer: {
+            Text(L("单个韵母按两下（啊 \(scheme.code(for: "a") ?? "")），两个字母的韵母照打（爱 \(scheme.code(for: "ai") ?? "")），三个字母的打首字母加韵母所在的键（昂 \(scheme.code(for: "ang") ?? "")）。也可以这样打：\(alternates.joined(separator: "、"))。",
+                   "Single vowels are typed twice (a = \(scheme.code(for: "a") ?? "")), two-letter finals as they are (ai = \(scheme.code(for: "ai") ?? "")), longer ones as the first letter plus the final's key (ang = \(scheme.code(for: "ang") ?? "")). These also work: \(alternates.joined(separator: ", ")).",
+                   "単母音は 2 回（a = \(scheme.code(for: "a") ?? "")）、2 文字の韻母はそのまま（ai = \(scheme.code(for: "ai") ?? "")）、3 文字は先頭の文字＋韻母のキー（ang = \(scheme.code(for: "ang") ?? "")）。次の入力でも OK：\(alternates.joined(separator: "、"))。"))
+        }
+    }
+
+    /// 也能打全拼：和换方案一样要重新部署。
+    private var mixFull: Binding<Bool> {
+        Binding(get: { store.settings.doublePinyinMixFull },
+                set: { value in
+                    guard value != store.settings.doublePinyinMixFull else { return }
+                    store.settings.doublePinyinMixFull = value
+                    deployer.deploy()
+                })
     }
 
     private func apply(_ scheme: DoublePinyin?) {

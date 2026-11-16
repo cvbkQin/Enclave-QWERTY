@@ -91,7 +91,7 @@ extension KeyboardModel {
     }
 }
 
-private enum SidePinyinStyle {
+enum SidePinyinStyle {
     static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
         func color(_ hex: UInt32) -> UIColor {
             UIColor(red: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
@@ -193,7 +193,10 @@ struct PinyinKey: View {
         // 输入框不认标记文字（NM2）：去掉灰底，改成次要色 + 下划线的文字；点开照旧选切法。
         let plain = model.offFieldPinyin != nil
         let opens = model.pinyinKeyOpens
-        Button { if opens { model.pinyinPopoverOpen.toggle() } } label: {
+        // 双拼没有别的切法：点一下上屏全拼（双拼调研 P1）。
+        Button {
+            if opens { model.pinyinPopoverOpen.toggle() } else if model.canCommitFullPinyin { model.commitFullPinyin() }
+        } label: {
             HStack(spacing: 3) {
                 if plain && !open {
                     OffFieldPinyinText(text: title, size: 16)

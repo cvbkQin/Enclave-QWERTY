@@ -155,6 +155,33 @@ extension KeyboardModel {
         }
     }
 
+    /// 双拼：点拼写栏（或侧边拼音键）上的全拼，上屏全拼字母（ni hao → nihao），搜人名、填拼音时用；回车照旧上屏按的键（双拼调研 P1）。
+    /// 分段选过的字原样带上。
+    var canCommitFullPinyin: Bool {
+        doublePinyin != nil && !showsNineKey && isComposing && composition.contains(where: { $0.isASCII && $0.isLetter })
+    }
+
+    /// 点了上屏的全拼：拼写去掉空格和分隔符。
+    var fullPinyinText: String { composition.filter { $0 != " " && $0 != "'" } }
+
+    func commitFullPinyin() {
+        guard canCommitFullPinyin else { return }
+        let text = fullPinyinText
+        showsFullPinyinTip = false
+        _ = engine.commitComposition()
+        commit(text)
+        syncEngine()
+    }
+
+    private static let fullPinyinTipKey = "doublePinyin.fullPinyinTipShown"
+
+    /// 双拼下第一次组字：说一次全拼能点（记在键盘自己的存储里，没开完全访问也记得住）。
+    private func noteFullPinyinTip() {
+        guard canCommitFullPinyin, !UserDefaults.standard.bool(forKey: Self.fullPinyinTipKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.fullPinyinTipKey)
+        showsFullPinyinTip = true
+    }
+
     func selectCandidate(_ index: Int) {
         // 选了候选：前面打的拼音键都没按错，算进手指习惯。
         TouchCalibration.confirm()
@@ -1012,11 +1039,14 @@ extension KeyboardModel {
 
     /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。
     var pinyinContextForTouch: String? {
-        // 双拼的按键串不是全拼，按拼音规律挪热区会挪错；只按手指习惯校准。
+        // 双拼按键对来挪（见 touchDoublePinyin）；也认全拼时按键不一定成对，只按手指习惯校准。
         guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared,
-              showsNineKey || doublePinyin == nil else { return nil }
+              showsNineKey || doublePinyin == nil || !doublePinyinMixFull else { return nil }
         return QueuedEngine.shared.expectedRawInput
     }
+
+    /// 动态热区按哪套双拼算（全键盘、双拼词库时）：按了声母键后，能和它拼上的键更容易按中（双拼调研 P2）。
+    var touchDoublePinyin: DoublePinyin? { showsNineKey ? nil : doublePinyin }
 
     /// 九宫格「重输」：清掉正在拼的内容。
     func clearComposition() {
@@ -1037,6 +1067,7 @@ extension KeyboardModel {
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
         doublePinyin = useShared && RimeStore.isDeployed ? DoublePinyin.deployed : nil
+        doublePinyinMixFull = doublePinyin != nil && DoublePinyin.deployedMixesFull
         TypingStats.modelInUse = useShared && RimeStore.isDeployed
             && (RimeStore.deployedVersion?.hasSuffix(GrammarModel.versionTag(installed: true)) ?? false)
         engine = chineseMode && pinyinReady ? queued : DirectEngine()
@@ -1170,7 +1201,10 @@ extension KeyboardModel {
         if compositionChanged { composition = newComposition }
         // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
         let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
-        if row != pinyinRowShown { pinyinRowShown = row }
+        if row != pinyinRowShown {
+            pinyinRowShown = row
+            if row { noteFullPinyinTip() } else if showsFullPinyinTip { showsFullPinyinTip = false }
+        }
         if !row { closePinyinPickers() }
         let newCandidates = engine.candidates
         let candidatesChanged = newCandidates != candidates

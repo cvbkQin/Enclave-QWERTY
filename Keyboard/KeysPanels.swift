@@ -415,15 +415,27 @@ struct PinyinRow: View {
         }
     }
 
-    /// 双拼（SP1）：整串拼音照旧显示全拼（ni hao），旁边灰色等宽小字是按的键（nihc），最右边写方案名。双拼没有别的切法，不能点。
+    /// 双拼（SP1、SP6）：整串拼音照旧显示全拼（ni hao），放在一颗浅键帽里，点了上屏全拼字母（nihao）；旁边灰色等宽小字是按的键（nihc），
+    /// 最右边写方案名。双拼没有别的切法。拼不成音节的两个键在全拼和按键里都标红（键上提示关掉、或也认全拼时不标）（双拼调研 P1）。
     private func doublePinyinBody(_ scheme: DoublePinyin) -> some View {
-        HStack(spacing: 10) {
-            Text(model.composition)
-                .font(.system(size: 17))
+        let raw = model.engine.rawInput
+        let from = model.engine.selections.last?.end ?? 0
+        let groups = DoublePinyin.pairs(in: raw, from: from)
+        let marks = model.settings.doublePinyinHintMode != .off && !model.doublePinyinMixFull
+        let bad = Set(groups.filter { marks && $0.keys.count == 2 && !scheme.isSyllableCode($0.keys) }.flatMap { Array($0.range) })
+        return HStack(spacing: 10) {
+            Button { model.commitFullPinyin() } label: {
+                HStack(spacing: 3) {
+                    fullPinyin(scheme, raw: raw, groups: groups, bad: bad, segmented: from > 0)
+                    Image(systemName: "arrow.up").font(.system(size: 11, weight: .semibold)).foregroundStyle(SidePinyinStyle.hint)
+                }
                 .lineLimit(1)
-            let raw = model.engine.rawInput
+            }
+            .buttonStyle(FullPinyinKeyStyle())
+            .disabled(!model.canCommitFullPinyin)
+            .accessibilityHint(L("上屏全拼", "Insert the full pinyin", "ピンインをそのまま入力"))
             if !raw.isEmpty {
-                Text(raw)
+                marked(Array(raw), bad: bad)
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -432,15 +444,76 @@ struct PinyinRow: View {
                     .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(KeyStyle.pressedKey.opacity(0.5)))
             }
             Spacer(minLength: 8)
-            Text(scheme.title)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            if model.showsFullPinyinTip {
+                // 第一次在双拼下组字时说一次（SP6 ①）。键盘画不到输入框上面，气泡放在这一行右边。
+                Text(L("点拼音，直接上屏字母 \(model.fullPinyinText)", "Tap the pinyin to insert \(model.fullPinyinText)", "ピンインをタップで \(model.fullPinyinText) を入力"))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.black.opacity(0.85)))
+                    .onTapGesture { model.showsFullPinyinTip = false }
+            } else {
+                Text(scheme.title)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .bottom) { bottomLine }
     }
+
+    /// 全拼：平时就是引擎的拼写；有拼不成的键对、又没分段选过时，按键对自己拼（拼得成的换成全拼，拼不成的照写按键标红：ni bz）。
+    @ViewBuilder
+    private func fullPinyin(_ scheme: DoublePinyin, raw: String, groups: [(range: Range<Int>, keys: String)],
+                            bad: Set<Int>, segmented: Bool) -> some View {
+        if bad.isEmpty || segmented {
+            Text(model.composition).font(.system(size: 17))
+        } else {
+            HStack(spacing: 4) {
+                ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                    if bad.contains(group.range.lowerBound) {
+                        marked(Array(group.keys), bad: Set(0..<group.keys.count))
+                    } else {
+                        Text(scheme.readings[group.keys] ?? group.keys)
+                    }
+                }
+            }
+            .font(.system(size: 17))
+        }
+    }
+
+    /// 一串字，bad 里的位置用红字浅红底（SP6 ③）。
+    private func marked(_ chars: [Character], bad: Set<Int>) -> some View {
+        var runs: [(text: String, bad: Bool)] = []
+        for (index, char) in chars.enumerated() {
+            let isBad = bad.contains(index)
+            if let last = runs.last, last.bad == isBad {
+                runs[runs.count - 1].text.append(char)
+            } else {
+                runs.append((String(char), isBad))
+            }
+        }
+        return HStack(spacing: 0) {
+            ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
+                if run.bad {
+                    Text(run.text)
+                        .foregroundStyle(Self.badPairText)
+                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Self.badPairFill))
+                } else {
+                    Text(run.text)
+                }
+            }
+        }
+    }
+
+    static let badPairText = SidePinyinStyle.dynamic(0xE5484D, 0xFF6B6B)
+    static let badPairFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 1, green: 107 / 255, blue: 107 / 255, alpha: 0.16)
+        : UIColor(red: 229 / 255, green: 72 / 255, blue: 77 / 255, alpha: 0.12) })
 
     private var bottomLine: some View {
         Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
@@ -924,5 +997,23 @@ private struct ImmediateTouches: UIViewRepresentable {
                 view = current.superview
             }
         }
+    }
+}
+
+/// 双拼拼写栏里可点的全拼（SP6）：白底圆角 8、高 28 的浅键帽；按下浅紫底、主色字和 1.5 描边。
+struct FullPinyinKeyStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        configuration.label
+            .foregroundStyle(pressed ? SidePinyinStyle.mainText : Color.primary)
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(pressed ? SidePinyinStyle.firstFill : KeyStyle.charKey))
+            .overlay {
+                if pressed {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(SidePinyinStyle.mainText, lineWidth: 1.5)
+                }
+            }
+            .contentShape(Rectangle())
     }
 }

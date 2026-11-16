@@ -36,7 +36,19 @@ final class DoublePinyinTests: XCTestCase {
             for (syllable, code) in table { XCTAssertEqual(scheme.code(for: syllable), code, "\(scheme) \(syllable)") }
         }
         XCTAssertEqual(DoublePinyin.ziranma.codes.first { $0.syllable == "ai" }?.alternates, ["al"])
-        XCTAssertEqual(DoublePinyin.flypy.codes.first { $0.syllable == "ai" }?.alternates, [])
+        // 双拼调研 P1：小鹤零声母也认「首字母 + 韵母键」，j q x y 后面的 ü 也认 v（和 Rime 参考方案一样）。
+        XCTAssertEqual(DoublePinyin.flypy.codes.first { $0.syllable == "ai" }?.alternates, ["ad"])
+        for scheme in DoublePinyin.allCases {
+            let alternates = Dictionary(uniqueKeysWithValues: scheme.codes.map { ($0.syllable, $0.alternates) })
+            for syllable in ["ju", "qu", "xu", "yu"] {
+                XCTAssertEqual(alternates[syllable], [String(syllable.first!) + "v"], "\(scheme) \(syllable)")
+            }
+            XCTAssertEqual(alternates["er"], [], "\(scheme)")
+        }
+        let flypy = DoublePinyin.flypy.readings
+        for (code, syllable) in ["ad": "ai", "aj": "an", "ac": "ao", "ew": "ei", "ef": "en", "oz": "ou", "jv": "ju", "xv": "xu"] {
+            XCTAssertEqual(flypy[code], syllable, code)
+        }
     }
 
     func testEncodeCommonWordPinyin() {
@@ -85,7 +97,7 @@ final class DoublePinyinTests: XCTestCase {
         for scheme in DoublePinyin.allCases {
             var spellings = Set(PinyinTable.syllables)
             spellings.insert("hm") // 音节表外的生僻拼写要删掉
-            let result = Self.run(scheme.algebra, on: spellings)
+            let result = Self.run(scheme.algebra(), on: spellings)
             var expected = Set<String>()
             for entry in scheme.codes {
                 expected.insert(entry.code)
@@ -96,9 +108,80 @@ final class DoublePinyinTests: XCTestCase {
             XCTAssertEqual(result, expected, "\(scheme): 多 \(result.subtracting(expected).sorted()) 少 \(expected.subtracting(result).sorted())")
         }
         // 模糊拼音的规则插在前面：z = zh 时 zi 的编码也能打出 zhi 的字（反过来同理），编码本身都是双拼的。
-        let fuzzy = FuzzyPinyin.zh.rules + DoublePinyin.flypy.algebra
+        let fuzzy = FuzzyPinyin.zh.rules + DoublePinyin.flypy.algebra()
         let result = Self.run(fuzzy, on: ["zi", "zhi"])
         XCTAssertEqual(result, ["zi", "vi", "z", "v"])
+    }
+
+    /// 也认全拼（双拼调研 P3）：全拼拼写留着，双拼编码一样有。
+    func testAlgebraMixFull() {
+        let result = Self.run(DoublePinyin.flypy.algebra(mixFull: true), on: ["xiang", "hao", "ai"])
+        XCTAssertTrue(result.isSuperset(of: ["xiang", "hao", "ai", "xl", "hc", "ad", "x", "h", "a"]), "\(result.sorted())")
+        let url = Self.root.appendingPathComponent("Configs/Rime/enclave.schema.yaml")
+        let text = try! String(contentsOf: url, encoding: .utf8)
+        let patched = DoublePinyin.flypy.patchSchema(text, mixFull: true)
+        // 全拼的规则留着，双拼规则接在后面，不删全拼拼写。
+        XCTAssertTrue(patched.contains("abbrev/^([zcs]h).+$/$1/"))
+        XCTAssertTrue(patched.contains("    # Enclave 双拼（flypy，也能打全拼）\n    - derive/^a$/AA/"))
+        XCTAssertFalse(patched.contains("erase/^.*[a-z].*$/"))
+        XCTAssertEqual(DoublePinyin.versionTag(.flypy, mixFull: true), "+sp:flypy+spmix")
+        XCTAssertEqual(DoublePinyin(versionString: "shared:x+sp:flypy+spmix+grammar"), .flypy)
+        XCTAssertTrue(DoublePinyin.mixesFull(versionString: "shared:x+sp:flypy+spmix"))
+        XCTAssertFalse(DoublePinyin.mixesFull(versionString: "shared:x+sp:flypy+grammar"))
+    }
+
+    /// 按键配对、拼不成的键对、「跟着按键变」的提示（SP6、SP7）。
+    func testPairsAndDynamicHints() {
+        XCTAssertEqual(DoublePinyin.pairs(in: "nibz").map(\.keys), ["ni", "bz"])
+        XCTAssertEqual(DoublePinyin.pairs(in: "nihcx").map(\.keys), ["ni", "hc", "x"])
+        XCTAssertEqual(DoublePinyin.pairs(in: "x'xl").map(\.keys), ["x", "xl"])
+        XCTAssertEqual(DoublePinyin.pairs(in: "nihcxl", from: 4).map(\.range), [4..<6])
+        XCTAssertTrue(DoublePinyin.flypy.isSyllableCode("ni"))
+        XCTAssertTrue(DoublePinyin.flypy.isSyllableCode("jv"))
+        XCTAssertFalse(DoublePinyin.flypy.isSyllableCode("bz"))
+
+        XCTAssertEqual(DoublePinyin.hintPhase(raw: ""), .initial)
+        XCTAssertEqual(DoublePinyin.hintPhase(raw: "x"), .final("x"))
+        XCTAssertEqual(DoublePinyin.hintPhase(raw: "xl"), .initial)
+        XCTAssertEqual(DoublePinyin.hintPhase(raw: "x'"), .initial)
+        XCTAssertEqual(DoublePinyin.hintPhase(raw: "nihcx", from: 4), .final("x"))
+
+        let scheme = DoublePinyin.flypy
+        XCTAssertEqual(scheme.hints(for: .initial), ["u": ["sh"], "i": ["ch"], "v": ["zh"]])
+        let afterX = scheme.hints(for: .final("x"))
+        XCTAssertEqual(afterX["k"], ["ing"])
+        XCTAssertEqual(afterX["l"], ["iang"])
+        XCTAssertEqual(afterX["s"], ["iong"])
+        XCTAssertEqual(afterX["u"], [])   // xu：韵母就是字母本身，不写字
+        XCTAssertNil(afterX["d"])
+        XCTAssertTrue(scheme.keyFits("u", in: .final("x")))
+        XCTAssertTrue(scheme.keyFits("v", in: .final("x")))   // xv = xu
+        XCTAssertFalse(scheme.keyFits("d", in: .final("x")))
+        XCTAssertTrue(scheme.keyFits("d", in: .initial))
+        XCTAssertEqual(scheme.hints(for: .final("v"))["l"], ["uang"])   // zhuang
+        XCTAssertEqual(scheme.hints(for: .final("l"))["o"], ["uo"])     // lo 显示成 luo
+        XCTAssertEqual(scheme.hints(for: .final("a"))["h"], ["ang"])    // 零声母：整个音节
+        XCTAssertEqual(scheme.hints(for: .final("a"))["a"], [])
+        XCTAssertEqual(scheme.hints(for: .all)["k"], scheme.keyHints["k"])
+    }
+
+    func testZeroInitialExamples() {
+        let flypy = DoublePinyin.flypy.zeroInitialExamples
+        XCTAssertEqual(flypy.map(\.code), ["aa", "ai", "an", "ah", "ao", "ee", "ei", "en", "eg", "er", "oo", "ou"])
+        XCTAssertEqual(flypy.first { $0.syllable == "ai" }?.alternates, ["ad"])
+        XCTAssertEqual(DoublePinyin.ziranma.zeroInitialExamples.first { $0.syllable == "ou" }?.alternates, ["ob"])
+    }
+
+    /// 键上提示从开关换成三档：旧设置里的开 / 关读成固定 / 不显示。
+    func testHintModeMigration() throws {
+        func decode(_ json: String) throws -> EnclaveSettings {
+            try JSONDecoder().decode(EnclaveSettings.self, from: Data(json.utf8))
+        }
+        XCTAssertEqual(try decode("{}").doublePinyinHintMode, .fixed)
+        XCTAssertEqual(try decode("{\"doublePinyinHints\": false}").doublePinyinHintMode, .off)
+        XCTAssertEqual(try decode("{\"doublePinyinHints\": true}").doublePinyinHintMode, .fixed)
+        XCTAssertEqual(try decode("{\"doublePinyinHintMode\": \"dynamic\"}").doublePinyinHintMode, .dynamic)
+        XCTAssertFalse(try decode("{}").doublePinyinMixFull)
     }
 
     func testPreeditShowsFullPinyin() {
