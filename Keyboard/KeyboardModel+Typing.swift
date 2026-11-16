@@ -16,6 +16,13 @@ extension KeyboardModel {
     var nineGrid: Bool { showsNineKey && (layer == .letters || layer == .digits) }
 
     func typeLetter(_ letter: String) {
+        // App 里的双拼练习：字母原样上屏，练习页看按的是哪个键（键上提示照常，见 practiceContextPhase）。
+        if practiceActive {
+            if shift == .on { shift = .off }
+            commit(letter.lowercased())
+            objectWillChange.send()
+            return
+        }
         let text = shift == .off ? letter : letter.uppercased()
         if shift == .on { shift = .off }
         // 大写字母不进拼音组字，直接上屏（先把排着的字母处理完，顺序才对）。
@@ -153,6 +160,33 @@ extension KeyboardModel {
         case .card:
             commit("\n")
         }
+    }
+
+    /// 双拼：点拼写栏（或侧边拼音键）上的全拼，上屏全拼字母（ni hao → nihao），搜人名、填拼音时用；回车照旧上屏按的键（双拼调研 P1）。
+    /// 分段选过的字原样带上。
+    var canCommitFullPinyin: Bool {
+        doublePinyin != nil && !showsNineKey && isComposing && composition.contains(where: { $0.isASCII && $0.isLetter })
+    }
+
+    /// 点了上屏的全拼：拼写去掉空格和分隔符。
+    var fullPinyinText: String { composition.filter { $0 != " " && $0 != "'" } }
+
+    func commitFullPinyin() {
+        guard canCommitFullPinyin else { return }
+        let text = fullPinyinText
+        showsFullPinyinTip = false
+        _ = engine.commitComposition()
+        commit(text)
+        syncEngine()
+    }
+
+    private static let fullPinyinTipKey = "doublePinyin.fullPinyinTipShown"
+
+    /// 双拼下第一次组字：说一次全拼能点（记在键盘自己的存储里，没开完全访问也记得住）。
+    private func noteFullPinyinTip() {
+        guard canCommitFullPinyin, !UserDefaults.standard.bool(forKey: Self.fullPinyinTipKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.fullPinyinTipKey)
+        showsFullPinyinTip = true
     }
 
     func selectCandidate(_ index: Int) {
@@ -723,6 +757,10 @@ extension KeyboardModel {
         guard isComposing, let correction = engine.pendingCorrection else { return nil }
         let spelled = correction.reading.lowercased().split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'")
         let letters = spelled.filter { $0 != "'" }
+        // 双拼按的是键对：读法是改过的键对拼出的全拼（ni'hui），改过的键所在的音节整个标出来（SP9）。
+        if !showsNineKey, let scheme = doublePinyin {
+            return doublePinyinCorrectedReading(correction, spelled: spelled, scheme: scheme)
+        }
         let text: String
         if showsNineKey {
             guard !letters.isEmpty, letters.allSatisfy({ $0.isASCII && $0.isLetter }),
@@ -733,13 +771,7 @@ extension KeyboardModel {
         } else {
             text = PinyinSyllables.segmentations(correction.corrected, limit: 1).first ?? correction.corrected
         }
-        // 改过的键：去掉和原样相同的开头、结尾，剩下的就是按反、换掉、补进的字母（多打删掉的没法标）。
-        let typed = Array(correction.typed), fixed = Array(correction.corrected)
-        var head = 0
-        while head < min(typed.count, fixed.count), typed[head] == fixed[head] { head += 1 }
-        var tail = 0
-        while tail < min(typed.count, fixed.count) - head, typed[typed.count - 1 - tail] == fixed[fixed.count - 1 - tail] { tail += 1 }
-        let changed = head..<max(head, fixed.count - tail)
+        let changed = Self.changedKeys(correction)
         var marked = Set<Int>()
         var key = 0
         for (offset, char) in text.enumerated() where char != "'" {
@@ -747,6 +779,50 @@ extension KeyboardModel {
             key += 1
         }
         return CorrectedReading(text: text, marked: marked, place: correction.place)
+    }
+
+    /// 改过的键在改过的串里的位置：去掉和原样相同的开头、结尾，剩下的就是按反、换掉、补进的字母（多打删掉的没法标）。
+    static func changedKeys(_ correction: PendingCorrection) -> Range<Int> {
+        let typed = Array(correction.typed), fixed = Array(correction.corrected)
+        var head = 0
+        while head < min(typed.count, fixed.count), typed[head] == fixed[head] { head += 1 }
+        var tail = 0
+        while tail < min(typed.count, fixed.count) - head, typed[typed.count - 1 - tail] == fixed[fixed.count - 1 - tail] { tail += 1 }
+        return head..<max(head, fixed.count - tail)
+    }
+
+    private func doublePinyinCorrectedReading(_ correction: PendingCorrection, spelled: String, scheme: DoublePinyin) -> CorrectedReading {
+        let groups = DoublePinyin.pairs(in: correction.corrected)
+        var syllables = spelled.split(separator: "'").map(String.init)
+        if syllables.count != groups.count {
+            syllables = groups.map { group in
+                scheme.readings[group.keys] ?? DoublePinyin.retroflexKeys.first { String($0.value) == group.keys }?.key ?? group.keys
+            }
+        }
+        let changed = Self.changedKeys(correction)
+        var marked = Set<Int>()
+        var offset = 0
+        for (index, syllable) in syllables.enumerated() {
+            if index > 0 { offset += 1 }
+            if index < groups.count, groups[index].range.overlaps(changed) || (changed.isEmpty && groups[index].range.contains(changed.lowerBound)) {
+                marked.formUnion(offset..<(offset + syllable.count))
+            }
+            offset += syllable.count
+        }
+        return CorrectedReading(text: syllables.joined(separator: "'"), marked: marked, place: correction.place)
+    }
+
+    /// 双拼拼写栏按键后面的灰字（SP9）：换了一个键写「v 改成 c」，别的照全拼的说法。
+    var doublePinyinCorrectionNote: String? {
+        guard let correction = engine.pendingCorrection else { return nil }
+        let typed = Array(correction.typed), fixed = Array(correction.corrected)
+        if typed.count == fixed.count {
+            let diffs = zip(typed, fixed).filter { $0.0 != $0.1 }
+            if diffs.count == 1, let diff = diffs.first {
+                return L("\(diff.0) 改成 \(diff.1)", "\(diff.0) → \(diff.1)", "\(diff.0) → \(diff.1)")
+            }
+        }
+        return correctionNote
     }
 
     /// 全键盘拼音行的各项：原样的切法，加上纠正读法（拼不成时排第一，拼得成时排第二）。
@@ -760,11 +836,13 @@ extension KeyboardModel {
 
     /// 点了纠正读法：按改过的串重输，候选换成按它出（九宫格记一步，按删除能退回）。
     func chooseCorrectedReading(_ reading: String) {
+        // 双拼列的是全拼读法，重输要用改过的键对。
+        let input = !showsNineKey && doublePinyin != nil ? engine.pendingCorrection?.corrected ?? reading : reading
         // 和点候选一样：轻触震动和按键音（设置里开着才有）。
         keyFeedback(for: .space)
         applyEngineResults(wait: true)
         let before = choiceState
-        engine.replaceInput(reading, keeping: [])
+        engine.replaceInput(input, keeping: [])
         syncEngine()
         recordChoice(from: before)
     }
@@ -1012,11 +1090,14 @@ extension KeyboardModel {
 
     /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。
     var pinyinContextForTouch: String? {
-        // 双拼的按键串不是全拼，按拼音规律挪热区会挪错；只按手指习惯校准。
+        // 双拼按键对来挪（见 touchDoublePinyin）；也认全拼时按键不一定成对，只按手指习惯校准。
         guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared,
-              showsNineKey || doublePinyin == nil else { return nil }
+              showsNineKey || doublePinyin == nil || !doublePinyinMixFull else { return nil }
         return QueuedEngine.shared.expectedRawInput
     }
+
+    /// 动态热区按哪套双拼算（全键盘、双拼词库时）：按了声母键后，能和它拼上的键更容易按中（双拼调研 P2）。
+    var touchDoublePinyin: DoublePinyin? { showsNineKey ? nil : doublePinyin }
 
     /// 九宫格「重输」：清掉正在拼的内容。
     func clearComposition() {
@@ -1037,6 +1118,8 @@ extension KeyboardModel {
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
         doublePinyin = useShared && RimeStore.isDeployed ? DoublePinyin.deployed : nil
+        doublePinyinMixFull = doublePinyin != nil && DoublePinyin.deployedMixesFull
+        doublePinyinWeakUnits = doublePinyin != nil ? DoublePinyinPracticeStore.weakUnits : []
         TypingStats.modelInUse = useShared && RimeStore.isDeployed
             && (RimeStore.deployedVersion?.hasSuffix(GrammarModel.versionTag(installed: true)) ?? false)
         engine = chineseMode && pinyinReady ? queued : DirectEngine()
@@ -1170,7 +1253,10 @@ extension KeyboardModel {
         if compositionChanged { composition = newComposition }
         // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
         let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
-        if row != pinyinRowShown { pinyinRowShown = row }
+        if row != pinyinRowShown {
+            pinyinRowShown = row
+            if row { noteFullPinyinTip() } else if showsFullPinyinTip { showsFullPinyinTip = false }
+        }
         if !row { closePinyinPickers() }
         let newCandidates = engine.candidates
         let candidatesChanged = newCandidates != candidates
@@ -1538,5 +1624,24 @@ private extension StringProtocol {
             start = previous
         }
         return self[start...]
+    }
+}
+
+// MARK: - App 里的双拼练习（双拼调研 P3-11，设计稿 SP10）
+extension KeyboardModel {
+    /// 正在 App 的双拼练习页里打：双拼、全键盘中文、对方是练习页那种输入框（英文键盘类型、回车是「前往」、里面最多两个字母），
+    /// 而且 App 说练习页开着（DoublePinyinPracticeLink）。这时字母不进拼音引擎。
+    var practiceActive: Bool {
+        guard doublePinyin != nil, chineseMode, !showsNineKey, target == .host, !isComposing,
+              let proxy, proxy.keyboardType == .asciiCapable, proxy.returnKeyType == .go,
+              (proxy.documentContextBeforeInput ?? "").count <= 2, (proxy.documentContextAfterInput ?? "").isEmpty
+        else { return false }
+        return DoublePinyinPracticeLink.isActive
+    }
+
+    /// 练习时「跟着按键变」看练习框里已经按对的键：空着该按声母，有一个字母该按韵母。
+    var practiceContextPhase: DoublePinyin.HintPhase {
+        let before = (proxy?.documentContextBeforeInput ?? "").lowercased().filter { $0.isLetter && $0.isASCII }
+        return DoublePinyin.hintPhase(raw: String(before))
     }
 }

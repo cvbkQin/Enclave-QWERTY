@@ -67,7 +67,7 @@ final class KeyTouchView: UIView {
         guard let hit else { return nil }
         let raw = model?.pinyinContextForTouch
         guard raw != nil || TouchCalibration.hasShifts else { return hit }
-        return TouchPrior.resolve(point: point, hit: hit, keys: layout.keys, raw: raw)
+        return TouchPrior.resolve(point: point, hit: hit, keys: layout.keys, raw: raw, doublePinyin: model?.touchDoublePinyin)
     }
 
     /// 打出一个键：字母键记下落点（之后没被删掉才算进手指习惯），删除键撤掉上一个，别的键确认前面的都没打错。

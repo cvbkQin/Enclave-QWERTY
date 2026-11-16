@@ -29,7 +29,7 @@ final class RimeDeployer: ObservableObject {
     static var targetVersion: String? {
         bundledVersion.map {
             $0 + schemaPatchTag + FuzzyPinyin.versionTag(SettingsStore.load().fuzzyPinyin)
-                + DoublePinyin.versionTag(SettingsStore.load().doublePinyin)
+                + DoublePinyin.versionTag(SettingsStore.load().doublePinyin, mixFull: SettingsStore.load().doublePinyinMixFull)
                 + GrammarModel.versionTag(installed: GrammarModel.isActive)
                 + ExtDict.versionTag(ExtDict.active)
         }
@@ -111,13 +111,14 @@ final class RimeDeployer: ObservableObject {
         }
         let fuzzy = SettingsStore.load().fuzzyPinyin
         let doublePinyin = SettingsStore.load().doublePinyin
+        let mixFull = SettingsStore.load().doublePinyinMixFull
         let grammar = GrammarModel.isActive
         let ext = ExtDict.active.map { (id: $0.id, url: $0.url) }
         state = .deploying
         let start = Date()
         startedAt = start
         Task.detached(priority: .userInitiated) {
-            let result = Self.run(source: source, paths: paths, fuzzy: fuzzy, doublePinyin: doublePinyin, grammar: grammar, ext: ext)
+            let result = Self.run(source: source, paths: paths, fuzzy: fuzzy, doublePinyin: doublePinyin, mixFull: mixFull, grammar: grammar, ext: ext)
             await MainActor.run {
                 self.startedAt = nil
                 switch result {
@@ -140,7 +141,7 @@ final class RimeDeployer: ObservableObject {
     }
 
     nonisolated private static func run(source: URL, paths: RimeStore.Paths, fuzzy: Set<FuzzyPinyin>,
-                                       doublePinyin: DoublePinyin?, grammar: Bool,
+                                       doublePinyin: DoublePinyin?, mixFull: Bool, grammar: Bool,
                                        ext: [(id: String, url: URL)]) -> Result<Void, Error> {
         let fm = FileManager.default
         do {
@@ -157,7 +158,7 @@ final class RimeDeployer: ObservableObject {
             if let doublePinyin {
                 let url = paths.shared.appendingPathComponent("\(RimeStore.schemaID).schema.yaml")
                 let text = try String(contentsOf: url, encoding: .utf8)
-                try doublePinyin.patchSchema(text).write(to: url, atomically: true, encoding: .utf8)
+                try doublePinyin.patchSchema(text, mixFull: mixFull).write(to: url, atomically: true, encoding: .utf8)
             }
             // 模糊拼音写进共享副本里的方案文件，App 自带的那份不动。
             for schema in [RimeStore.schemaID, RimeStore.nineKeySchemaID] where !fuzzy.isEmpty {

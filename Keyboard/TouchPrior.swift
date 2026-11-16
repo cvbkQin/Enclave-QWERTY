@@ -17,8 +17,12 @@ enum TouchPrior {
     private static let centerX = 0.25
     private static let centerY = 0.3
 
+    /// 双拼该按第二个键时，和前一个键拼不上的字母的权重。拼不上的也可能是简拼（只打声母），所以不像全拼那样压得很低。
+    private static let doublePinyinMisfitWeight = 0.3
+
     /// 落点 point、原本命中的键 hit；只在字母键之间换。raw：已经打了、还没上屏的拼音，不在打拼音时为空（只按手指习惯校准）。
-    static func resolve(point: CGPoint, hit: KeySpec, keys: [KeySpec], raw: String?) -> KeySpec {
+    /// doublePinyin：全键盘是双拼时按键对算（该按第二个键时偏向能拼上的键；该按声母时每个键都行，不挪）。
+    static func resolve(point: CGPoint, hit: KeySpec, keys: [KeySpec], raw: String?, doublePinyin: DoublePinyin? = nil) -> KeySpec {
         guard let mode = Mode(hit), let hitChar = symbol(of: hit, mode) else { return hit }
         let hitShift = TouchCalibration.shift(for: calibrationKey(hitChar, mode))
         if abs(Double((point.x - hit.frame.midX) / hit.frame.width) - hitShift.dx) < centerX,
@@ -32,7 +36,8 @@ enum TouchPrior {
             return dx < 1.1 && dy < 0.9
         }
         guard neighbors.count > 1 else { return hit }
-        let context = raw.map { Context($0, mode) }
+        let context = doublePinyin == nil ? raw.map { Context($0, mode) } : nil
+        let phase = doublePinyin != nil && mode == .letters ? raw.map { DoublePinyin.hintPhase(raw: $0.lowercased()) } : nil
         var best = hit
         var bestScore = -1.0
         for key in neighbors {
@@ -42,7 +47,9 @@ enum TouchPrior {
             let dx = Double((point.x - key.frame.midX) / key.frame.width) - shift.dx
             let dy = Double((point.y - key.frame.midY) / key.frame.height) - shift.dy
             let spatial = exp(-(dx * dx + dy * dy) / (2 * sigma * sigma))
-            let score = spatial * (context?.weight(of: char) ?? 1)
+            var weight = context?.weight(of: char) ?? 1
+            if let doublePinyin, let phase, !doublePinyin.keyFits(char, in: phase) { weight = doublePinyinMisfitWeight }
+            let score = spatial * weight
             if score > bestScore {
                 bestScore = score
                 best = key

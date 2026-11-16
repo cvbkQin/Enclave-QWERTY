@@ -192,18 +192,21 @@ struct EnclaveSettings: Codable, Equatable {
     var fuzzyPinyin: Set<FuzzyPinyin> = []
     /// 全键盘用的双拼方案，nil 是全拼。和模糊拼音一样改了要重新部署才生效。
     var doublePinyin: DoublePinyin?
-    /// 双拼时全键盘的键上用小字写韵母（SP1），默认开。只是键盘的显示，不用重新部署。
-    var doublePinyinHints = true
+    /// 双拼时全键盘的键上怎么写提示：不写、固定写韵母（SP1，默认）、跟着按键变（双拼调研 P2）。只是键盘的显示，不用重新部署。
+    /// 以前是开关 doublePinyinHints（开 = 固定，关 = 不写），读旧设置时换过来。
+    var doublePinyinHintMode: DoublePinyinHintMode = .fixed
+    /// 双拼时也能打全拼（双拼调研 P3，默认关）。改了要重新部署。
+    var doublePinyinMixFull = false
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHints, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
         case pinnedStyleIDs, helpPinned
     }
 
-    private enum LegacyKeys: String, CodingKey { case webSearch }
+    private enum LegacyKeys: String, CodingKey { case webSearch, doublePinyinHints }
 
     var isConfigured: Bool {
         !baseURL.trimmingCharacters(in: .whitespaces).isEmpty
@@ -302,7 +305,12 @@ extension EnclaveSettings {
         helpPinned = (try? c.decodeIfPresent(Bool.self, forKey: .helpPinned)) ?? helpPinned
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         doublePinyin = try? c.decodeIfPresent(DoublePinyin.self, forKey: .doublePinyin)
-        doublePinyinHints = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinHints)) ?? doublePinyinHints
+        if let mode = try? c.decodeIfPresent(DoublePinyinHintMode.self, forKey: .doublePinyinHintMode) {
+            doublePinyinHintMode = mode
+        } else if let hints = try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .doublePinyinHints) {
+            doublePinyinHintMode = hints ? .fixed : .off
+        }
+        doublePinyinMixFull = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinMixFull)) ?? doublePinyinMixFull
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }

@@ -88,10 +88,15 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// 同一个音节还能这样打：自然码零声母也认「首字母 + 韵母键」（al = ai）。
+    /// 同一个音节还能这样打（和 Rime 参考方案 rime-double-pinyin 一样认，双拼调研 P1）：
+    /// - j q x y 后面的 ü 音节表里写 u（ju），按「ü 打 v」的习惯打 jv 也认；
+    /// - 零声母两个字母的韵母照打（ai）之外，也认「首字母 + 韵母键」（小鹤 ad、自然码 al）。
+    /// 这些编码在两套方案里都不是别的音节（单元测试查）。
     private func alternateCodes(_ initial: String, _ final: String) -> [String] {
-        guard self == .ziranma, initial.isEmpty, final.count == 2 else { return [] }
-        return finalKeys[final].map { [String(final.first!) + String($0)] } ?? []
+        var codes: [String] = []
+        if ["j", "q", "x", "y"].contains(initial), final == "u" { codes.append(initial + "v") }
+        if initial.isEmpty, final.count == 2, let key = finalKeys[final] { codes.append(String(final.first!) + String(key)) }
+        return codes
     }
 
     static func split(_ syllable: String) -> (initial: String, final: String) {
@@ -138,19 +143,120 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
         return result
     }
 
+    // MARK: 键对、提示
+
+    /// 两个键拼不拼得成音节（主编码和别的打法都算）。拼写栏把拼不成的键对标出来（双拼调研 P1）。
+    func isSyllableCode(_ pair: String) -> Bool { Self.codeSets[self]?.contains(pair) ?? false }
+
+    private static let codeSets = Dictionary(uniqueKeysWithValues: allCases.map { ($0, Set($0.readings.keys)) })
+
+    /// 按键串怎么配对：从 from 往后（前面是分段选过的），遇到 ' 重新配；每两个键一对，最后单下的一个键自己一组。
+    /// 返回每组在 raw 里的范围（按字符数）和这组的键。
+    static func pairs(in raw: String, from: Int = 0) -> [(range: Range<Int>, keys: String)] {
+        let chars = Array(raw.lowercased())
+        var result: [(range: Range<Int>, keys: String)] = []
+        var start: Int?
+        var index = min(max(from, 0), chars.count)
+        while index < chars.count {
+            let char = chars[index]
+            if char.isASCII, char.isLetter {
+                if let begin = start {
+                    result.append((begin..<(index + 1), String(chars[begin...index])))
+                    start = nil
+                } else {
+                    start = index
+                }
+            } else if let begin = start {
+                result.append((begin..<(begin + 1), String(chars[begin])))
+                start = nil
+            }
+            index += 1
+        }
+        if let begin = start { result.append((begin..<(begin + 1), String(chars[begin]))) }
+        return result
+    }
+
+    /// 键上提示该写什么（「跟着按键变」档，SP7）：下一个键是声母还是韵母、韵母前面是哪个键。
+    enum HintPhase: Equatable {
+        /// 固定档：每个键写它管的韵母和 zh/ch/sh。
+        case all
+        /// 该按声母：只在 u、i、v 上写 sh / ch / zh。
+        case initial
+        /// 按了声母键（或零声母的首字母），该按第二个键：每个键只写能和它拼上的韵母（一行），拼不上的键变淡。
+        case final(Character)
+    }
+
+    /// 按键串最后该按什么（配对规则和 pairs 一样）。
+    static func hintPhase(raw: String, from: Int = 0) -> HintPhase {
+        guard let last = pairs(in: raw, from: from).last, last.keys.count == 1,
+              last.range.upperBound == raw.count, let key = last.keys.first else { return .initial }
+        return .final(key)
+    }
+
+    /// 某个阶段每个键上写的小字。
+    func hints(for phase: HintPhase) -> [Character: [String]] {
+        switch phase {
+        case .all: return keyHints
+        case .initial: return Self.retroflexHints
+        case .final(let first): return Self.finalHintTables[self]?[first] ?? [:]
+        }
+    }
+
+    /// 「跟着按键变」该按韵母时，这个键能不能和前一个键拼上；拼不上的键变淡（照样能按）。别的阶段都算能。
+    func keyFits(_ key: Character, in phase: HintPhase) -> Bool {
+        guard case .final(let first) = phase else { return true }
+        return Self.fittingKeys[self]?[first]?.contains(key) ?? false
+    }
+
+    private static let retroflexHints: [Character: [String]] = Dictionary(uniqueKeysWithValues: retroflexKeys.map { ($0.value, [$0.key]) })
+
+    /// 第一个键 → 第二个键 → 键上写的韵母（SP7）。只写主编码的（提示教标准打法）；同一编码几个音节时按拼写栏显示的那个（lo → luo 写 uo）。
+    /// 韵母就是字母本身的（x 后面的 u、i）不写字。零声母的韵母是整个音节（a 后面的 h 写 ang）。
+    private static let finalHintTables: [DoublePinyin: [Character: [Character: [String]]]] = Dictionary(uniqueKeysWithValues: allCases.map { scheme -> (DoublePinyin, [Character: [Character: [String]]]) in
+        var table: [Character: [Character: [String]]] = [:]
+        let readings = scheme.readings
+        for entry in scheme.codes {
+            let keys = Array(entry.code)
+            let final = DoublePinyin.split(readings[entry.code] ?? entry.syllable).final
+            table[keys[0], default: [:]][keys[1]] = final == String(keys[1]) ? [] : [final]
+        }
+        return (scheme, table)
+    })
+
+    /// 第一个键 → 能接的第二个键（主编码和别的打法都算：x 后面按 v 是 xu，不变淡）。
+    private static let fittingKeys: [DoublePinyin: [Character: Set<Character>]] = Dictionary(uniqueKeysWithValues: allCases.map { scheme -> (DoublePinyin, [Character: Set<Character>]) in
+        var table: [Character: Set<Character>] = [:]
+        for code in scheme.readings.keys {
+            let keys = Array(code)
+            table[keys[0], default: []].insert(keys[1])
+        }
+        return (scheme, table)
+    })
+
+    /// 零声母音节（没有声母的字）怎么打：「双拼方案」页的说明卡用。例字、全拼、主编码、别的打法。
+    var zeroInitialExamples: [(example: String, syllable: String, code: String, alternates: [String])] {
+        let examples: [(String, String)] = [("啊", "a"), ("爱", "ai"), ("安", "an"), ("昂", "ang"), ("熬", "ao"), ("鹅", "e"),
+                                            ("诶", "ei"), ("恩", "en"), ("鞥", "eng"), ("而", "er"), ("哦", "o"), ("欧", "ou")]
+        let byCode = Dictionary(uniqueKeysWithValues: codes.map { ($0.syllable, $0) })
+        return examples.compactMap { example, syllable in
+            byCode[syllable].map { (example, syllable, $0.code, $0.alternates) }
+        }
+    }
+
     // MARK: 方案
 
     /// speller/algebra：模糊拼音（插在最前）派生出的拼写也是音节表里的音节，一样换成编码。
     /// 先换成大写（换完的编码不会再被后面的规则当成全拼音节），最后统一转回小写；换不了的生僻拼写删掉，免得双拼里还能打全拼。
-    var algebra: [String] {
+    /// mixFull（也能打全拼，双拼调研 P3）：全拼拼写留着（derive 不 xform、不删），接在原来全键盘的规则后面用。
+    func algebra(mixFull: Bool = false) -> [String] {
         var rules: [String] = []
         for entry in codes {
             for alternate in entry.alternates {
                 rules.append("derive/^\(entry.syllable)$/\(alternate.uppercased())/")
             }
-            rules.append("xform/^\(entry.syllable)$/\(entry.code.uppercased())/")
+            rules.append("\(mixFull ? "derive" : "xform")/^\(entry.syllable)$/\(entry.code.uppercased())/")
         }
-        rules.append("erase/^.*[a-z].*$/")
+        if !mixFull { rules.append("erase/^.*[a-z].*$/") }
         rules.append("xlit/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/")
         // 只打声母键也能出字（简拼）。
         rules.append("abbrev/^(.).+$/$1/")
@@ -169,7 +275,8 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
     }
 
     /// 把全键盘方案的拼写规则换成这一套双拼。找不到要换的段落就原样返回。
-    func patchSchema(_ text: String) -> String {
+    /// mixFull：原来的全拼规则（简拼、ü、gn 手误）留着，双拼规则接在后面。
+    func patchSchema(_ text: String, mixFull: Bool = false) -> String {
         var lines = text.components(separatedBy: "\n")
         guard let speller = lines.firstIndex(of: "speller:"),
               let algebraStart = lines[speller...].firstIndex(of: "  algebra:"),
@@ -186,8 +293,12 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
         // 原来的「jv 显示成 ju」接在后面照用。
         lines.insert(contentsOf: preeditLines, at: preedit + 1)
         let algebraEnd = ruleEnd(after: algebraStart)
-        lines.replaceSubrange((algebraStart + 1)..<algebraEnd,
-                              with: ["    # Enclave 双拼（\(rawValue)）"] + algebra.map { "    - \($0)" })
+        let rules = ["    # Enclave 双拼（\(rawValue)\(mixFull ? "，也能打全拼" : "")）"] + algebra(mixFull: mixFull).map { "    - \($0)" }
+        if mixFull {
+            lines.insert(contentsOf: rules, at: algebraEnd)
+        } else {
+            lines.replaceSubrange((algebraStart + 1)..<algebraEnd, with: rules)
+        }
         return lines.joined(separator: "\n")
     }
 
@@ -219,9 +330,16 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
 
     // MARK: 版本
 
-    /// 写进已部署版本号的后缀；键盘看它知道词库是不是双拼、是哪一套。
-    static func versionTag(_ scheme: DoublePinyin?) -> String {
-        scheme.map { "+sp:" + $0.rawValue } ?? ""
+    /// 写进已部署版本号的后缀；键盘看它知道词库是不是双拼、是哪一套、能不能也打全拼。
+    static func versionTag(_ scheme: DoublePinyin?, mixFull: Bool = false) -> String {
+        scheme.map { "+sp:" + $0.rawValue + (mixFull ? mixTag : "") } ?? ""
+    }
+
+    private static let mixTag = "+spmix"
+
+    /// 部署的双拼词库也能打全拼（版本号带 +spmix）。
+    static func mixesFull(versionString: String) -> Bool {
+        DoublePinyin(versionString: versionString) != nil && versionString.contains(mixTag)
     }
 
     /// 从已部署的版本号读出双拼方案；全拼时为 nil。
@@ -234,5 +352,28 @@ enum DoublePinyin: String, Codable, CaseIterable, Identifiable {
     /// 共享目录里部署好的词库是不是双拼。
     static var deployed: DoublePinyin? {
         RimeStore.deployedVersion.flatMap(DoublePinyin.init(versionString:))
+    }
+
+    /// 共享目录里部署好的双拼词库能不能也打全拼。
+    static var deployedMixesFull: Bool {
+        RimeStore.deployedVersion.map(mixesFull(versionString:)) ?? false
+    }
+}
+
+/// 双拼键上的提示（「双拼方案」页）：不写、固定写每个键管的韵母（SP1）、跟着按键变（双拼调研 P2：该按声母时只写 zh/ch/sh，
+/// 按了声母后每个键写和它拼出来的音节，拼不成的键不写）。
+enum DoublePinyinHintMode: String, Codable, CaseIterable, Identifiable {
+    case off
+    case fixed
+    case dynamic
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: return L("关", "Off", "オフ")
+        case .fixed: return L("固定", "Fixed", "固定")
+        case .dynamic: return L("跟着按键变", "Follow typing", "入力に合わせる")
+        }
     }
 }

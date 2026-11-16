@@ -121,20 +121,33 @@ struct KeyCapContext: Equatable {
     var returnLook: KeyboardModel.ReturnLook
     /// 双拼时字母键上写韵母小字（SP1）；不写时为 nil。
     var hintScheme: DoublePinyin? = nil
+    /// 写哪些小字：固定档总是 .all；「跟着按键变」档按已打的键变（只有这一档会随每次按键重画键帽）。
+    var hintPhase: DoublePinyin.HintPhase = .all
+    /// 「跟着按键变」里写深一点、排在前面的（练习里老按错的，SP10）。
+    var hintWeak: Set<String> = []
 }
 
 extension KeyboardModel {
     var keyCapContext: KeyCapContext {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
-                      spaceTitle: spaceTitle, returnLook: returnLook, hintScheme: keyHintScheme)
+                      spaceTitle: spaceTitle, returnLook: returnLook, hintScheme: keyHintScheme, hintPhase: keyHintPhase,
+                      hintWeak: keyHintPhase == .all ? [] : doublePinyinWeakUnits)
     }
 
-    /// 只在全键盘中文、字母页、没按 shift、开了「键上显示韵母」时写（全拼、九宫格、英文都不写）。
+    /// 只在全键盘中文、字母页、没按 shift、键上提示没关时写（全拼、九宫格、英文都不写）。
     private var keyHintScheme: DoublePinyin? {
-        guard let doublePinyin, settings.doublePinyinHints, chineseMode, !showsNineKey, layer == .letters, shift == .off
+        guard let doublePinyin, settings.doublePinyinHintMode != .off, chineseMode, !showsNineKey, layer == .letters, shift == .off
         else { return nil }
         return doublePinyin
+    }
+
+    /// 「跟着按键变」：分段选过的字后面的键两两配对，最后单下一个键就是该按韵母。
+    private var keyHintPhase: DoublePinyin.HintPhase {
+        guard settings.doublePinyinHintMode == .dynamic, keyHintScheme != nil else { return .all }
+        if practiceActive { return practiceContextPhase }
+        guard isComposing else { return .initial }
+        return DoublePinyin.hintPhase(raw: engine.rawInput, from: engine.selections.last?.end ?? 0)
     }
 }
 
@@ -204,7 +217,15 @@ struct KeyCapView: View, Equatable {
             return look.solid ? Brand.purple.opacity(pressed ? 0.75 : 1) : Brand.returnSoftFill.opacity(pressed ? 0.7 : 1)
         }
         let showsPopup = key.kind.typesCharacter && !context.nineGrid
-        return pressed && !showsPopup ? KeyStyle.pressedKey : KeyStyle.charKey
+        if pressed && !showsPopup { return KeyStyle.pressedKey }
+        // 「跟着按键变」拼不上的键：键底往键盘底色压一点（SP7 约 30%）。
+        return dimmed ? KeyStyle.charKey.opacity(0.7) : KeyStyle.charKey
+    }
+
+    /// 双拼「跟着按键变」该按韵母时，和前一个键拼不上的字母键（SP7）。
+    private var dimmed: Bool {
+        guard case .letter(let letter) = key.kind, let scheme = context.hintScheme, let char = letter.first else { return false }
+        return !scheme.keyFits(char, in: context.hintPhase)
     }
 
     private var foreground: Color {
@@ -219,7 +240,8 @@ struct KeyCapView: View, Equatable {
             // 开着双拼提示时所有字母键一个排法（字母贴下边），没有韵母小字的键（小鹤、自然码的 a、e）上面空着，
             // 不再单独居中放大，免得和别的键对不齐（11-16 用户反馈）。
             if let scheme = context.hintScheme {
-                DoublePinyinKeyLabel(letter: letter, lines: scheme.keyHints[Character(letter)] ?? [])
+                DoublePinyinKeyLabel(letter: letter, lines: scheme.hints(for: context.hintPhase)[Character(letter)] ?? [], dimmed: dimmed,
+                                     weak: context.hintWeak)
             } else {
                 Text(context.shift == .off ? letter : letter.uppercased())
                     .font(KeyStyle.letterFont)
@@ -799,15 +821,20 @@ struct QuickKeyLabel: View {
 struct DoublePinyinKeyLabel: View {
     let letter: String
     let lines: [String]
+    /// 「跟着按键变」拼不上的键：字母透明度 28%（SP7）。
+    var dimmed = false
+    /// 练习里老按错的韵母（和 zh / ch / sh）：排在前面、字深一点（SP10）。
+    var weak: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: 0) {
-                ForEach(lines.prefix(2), id: \.self) { line in
+                ForEach(shownLines, id: \.self) { line in
                     let initial = ["zh", "ch", "sh"].contains(line)
+                    let isWeak = weak.contains(line)
                     Text(line)
-                        .font(.system(size: 8, weight: initial ? .bold : .medium))
-                        .foregroundStyle(initial ? Brand.purpleText : Color.secondary)
+                        .font(.system(size: 8, weight: initial || isWeak ? .bold : .medium))
+                        .foregroundStyle(initial ? Brand.purpleText : isWeak ? Color.primary : Color.secondary)
                         .frame(height: 8.6)
                 }
             }
@@ -815,8 +842,14 @@ struct DoublePinyinKeyLabel: View {
             Spacer(minLength: 0)
             Text(letter)
                 .font(.system(size: 21))
+                .opacity(dimmed ? 0.28 : 1)
                 .padding(.bottom, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var shownLines: [String] {
+        guard !weak.isEmpty else { return Array(lines.prefix(2)) }
+        return Array((lines.filter { weak.contains($0) } + lines.filter { !weak.contains($0) }).prefix(2))
     }
 }
