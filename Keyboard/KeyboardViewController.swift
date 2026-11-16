@@ -96,7 +96,22 @@ final class KeyboardViewController: UIInputViewController {
     /// 退后台时输入框里还挂着、没清成的拼音，记下的时间。放在实例外面：回前台时系统常新建一个 KeyboardViewController，
     /// 旧实例的 textDocumentProxy 已经断开、随后被释放，只有新实例清得掉（bug #15）。
     private static var staleMarkedAt: Date?
+    /// 记下时对方输入框的 documentIdentifier（收起时记；退后台时不记）。下次弹出还是这个框才清，换了框不碰。
+    private static var staleMarkedDocument: UUID?
     private var staleClearScheduled = false
+
+    /// 收起键盘时还在打拼音（bug #11）：趁 viewWillDisappear 时和输入框还连着，把组字清掉、输入框里的下划线拼音清掉。
+    /// 原来要等 viewDidDisappear 或收起 0.4 秒后的补做（releaseEngine）才清，那时输入框多半已经断开，清的那一下被丢掉，
+    /// 下次弹出拼音还挂在框里。万一这一下也没清成，记下来，下次在同一个框弹出时再清（clearStaleMarkedText）。
+    private func clearMarkedTextOnHide() {
+        guard !hostInactive, model.isComposing || model.hasMarkedText else { return }
+        if model.hasMarkedText {
+            Self.staleMarkedAt = Date()
+            Self.staleMarkedDocument = hostDocumentID
+        }
+        model.engine.reset()
+        model.syncEngine()
+    }
 
     /// 回前台后清掉退后台时没清成的下划线拼音：没选中字、没在打字时清一次标记区，隔 0.3 秒、1 秒再清两次（宿主刚回前台可能还没接上）。
     /// 光标前的字靠不住（信息不算标记区、空框给 nil），不拿它判断；宿主已经把拼音落成正文的，就只能留着，绝不按长度往回删。
@@ -104,8 +119,15 @@ final class KeyboardViewController: UIInputViewController {
     private func clearStaleMarkedText() {
         // 只给正显示着的实例用：旧实例回前台也会收到 didBecomeActive，但已经不在窗口里，别让它把记录用掉。
         guard let at = Self.staleMarkedAt, !staleClearScheduled, view.window != nil else { return }
+        let document = Self.staleMarkedDocument
         Self.staleMarkedAt = nil
-        guard Date().timeIntervalSince(at) < 60 else { return }
+        Self.staleMarkedDocument = nil
+        if let document {
+            // 收起时记的：只在同一个输入框里清（隔多久都清，拼音一直挂在那儿）；换了框或者认不出是哪个框，不碰。
+            guard hostDocumentID == document else { return }
+        } else {
+            guard Date().timeIntervalSince(at) < 60 else { return }
+        }
         staleClearScheduled = true
         for delay in [0, 0.3, 1.0] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -121,7 +143,10 @@ final class KeyboardViewController: UIInputViewController {
     /// 清掉组字、关掉 Rime 会话：收起和退后台都走这里。下次弹出（selectEngine）或按键时重建。
     private func releaseEngine() {
         // 只在对方退后台时记：正常收起时清得掉；而且下次弹出可能已经换了输入框，那边没拼音可清。
-        if hostInactive, model.hasMarkedText { Self.staleMarkedAt = Date() }
+        if hostInactive, model.hasMarkedText {
+            Self.staleMarkedAt = Date()
+            Self.staleMarkedDocument = nil
+        }
         model.engine.reset()
         QueuedEngine.shared.closeSession()
         model.syncEngine()
@@ -403,6 +428,7 @@ final class KeyboardViewController: UIInputViewController {
         PopupLog.lastTeardownMs = nil
         PopupLog.lastCleanupDone = nil
         PopupLog.lastTeardownDone = nil
+        clearMarkedTextOnHide()
         let count = Self.appearCount
         let done = DispatchSemaphore(value: 0)
         ProcessInfo.processInfo.performExpiringActivity(withReason: "Finish hiding keyboard") { expired in
