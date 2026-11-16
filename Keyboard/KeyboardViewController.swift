@@ -12,6 +12,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewDidLoad()
         loadStart = CACurrentMediaTime()
         MainWake.install()
+        MainStalls.start()
         if Self.popupsInProcess == 0, let start = TypingStats.processStartDate {
             loadSinceProcess = Date().timeIntervalSince(start) * 1000
         }
@@ -227,8 +228,12 @@ final class KeyboardViewController: UIInputViewController {
     private static func tearDown(host: UIHostingController<AnyView>?, poll: Timer?) {
         poll?.invalidate()
         guard let host else { return }
+        let start = CACurrentMediaTime()
         host.rootView = AnyView(EmptyView())
         host.view.removeFromSuperview()
+        let end = CACurrentMediaTime()
+        PopupLog.lastTeardownMs = (end - start) * 1000
+        PopupLog.lastTeardownDone = end
     }
 
     private func installHost() {
@@ -312,12 +317,18 @@ final class KeyboardViewController: UIInputViewController {
         Self.popupsInProcess += 1
         let hide = PopupLog.lastHide
         // 这个控制器建出来之前 5 秒内主线程醒过（闲置 / 挂起后），才算这次弹出叫醒的。
-        let wake = MainWake.lastWake.flatMap { $0 <= createdAt && createdAt - $0 < 5 ? $0 : nil }
+        // 而且要在上次收起之后：收起后主线程没闲下来过（马上又弹出）就量不到，不拿更早的醒来充数。
+        let wake = MainWake.lastWake.flatMap { $0 <= createdAt && createdAt - $0 < 5 && $0 > PopupLog.lastHideMono ? $0 : nil }
+        let stalls = MainStalls.summary(from: createdAt - 2, to: createdAt)
         popupRecord = PopupRecord(
             at: Date(), nth: Self.popupsInProcess,
             processToLoad: Self.popupsInProcess == 1 ? loadSinceProcess : nil,
             initToLoad: (loadStart - createdAt) * 1000,
             idleBeforeWake: wake.map { _ in MainWake.lastIdle * 1000 }, wakeToInit: wake.map { (createdAt - $0) * 1000 },
+            stallLongest: stalls?.longest, stallTotal: stalls?.total,
+            lastCleanupMs: PopupLog.lastCleanupMs, lastTeardownMs: PopupLog.lastTeardownMs,
+            lastCleanupBefore: PopupLog.lastCleanupDone.map { (createdAt - $0) * 1000 },
+            lastTeardownBefore: PopupLog.lastTeardownDone.map { (createdAt - $0) * 1000 },
             load: loadMs, willAppear: (now - willStart) * 1000, willHost: (hostDone - willStart) * 1000,
             willReload: reload * 1000, willLayout: (now - layoutStart) * 1000,
             loadToAppear: 0, didClipboard: 0, didCommonWords: 0, engineReady: nil, memoryMB: nil,
@@ -334,10 +345,21 @@ final class KeyboardViewController: UIInputViewController {
         finished.didClipboard = clipboard * 1000
         finished.didCommonWords = commonWords * 1000
         finished.memoryMB = TypingStats.footprintMB()
-        let loadStart = loadStart, partial = finished
+        let loadStart = loadStart, createdAt = createdAt, partial = finished, hideMono = PopupLog.lastHideMono
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak model] in
             var record = partial
             if let ready = model?.engineReadyAt, ready >= loadStart { record.engineReady = (ready - loadStart) * 1000 }
+            // 旧键盘常常在新的弹出以后才拆（deinit 晚一点），这时补上；期间又收起过就不补（已经是下一次的了）。
+            if PopupLog.lastHideMono == hideMono {
+                if record.lastCleanupMs == nil, let done = PopupLog.lastCleanupDone {
+                    record.lastCleanupMs = PopupLog.lastCleanupMs
+                    record.lastCleanupBefore = (createdAt - done) * 1000
+                }
+                if record.lastTeardownMs == nil, let done = PopupLog.lastTeardownDone {
+                    record.lastTeardownMs = PopupLog.lastTeardownMs
+                    record.lastTeardownBefore = (createdAt - done) * 1000
+                }
+            }
             PopupLog.append(record)
         }
     }
@@ -376,6 +398,11 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         PopupLog.noteHide(cleanup: "未收尾")
+        PopupLog.lastHideMono = CACurrentMediaTime()
+        PopupLog.lastCleanupMs = nil
+        PopupLog.lastTeardownMs = nil
+        PopupLog.lastCleanupDone = nil
+        PopupLog.lastTeardownDone = nil
         let count = Self.appearCount
         let done = DispatchSemaphore(value: 0)
         ProcessInfo.processInfo.performExpiringActivity(withReason: "Finish hiding keyboard") { expired in
@@ -404,6 +431,12 @@ final class KeyboardViewController: UIInputViewController {
     private func cleanUpAfterHiding(how: String) {
         guard !hiddenCleanupDone else { return }
         hiddenCleanupDone = true
+        let start = CACurrentMediaTime()
+        defer {
+            let end = CACurrentMediaTime()
+            PopupLog.lastCleanupMs = (end - start) * 1000
+            PopupLog.lastCleanupDone = end
+        }
         PopupLog.noteHide(cleanup: how)
         clipboardPoll?.invalidate()
         clipboardPoll = nil
