@@ -11,6 +11,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         loadStart = CACurrentMediaTime()
+        MainWake.install()
         if Self.popupsInProcess == 0, let start = TypingStats.processStartDate {
             loadSinceProcess = Date().timeIntervalSince(start) * 1000
         }
@@ -308,10 +309,14 @@ final class KeyboardViewController: UIInputViewController {
         let now = CACurrentMediaTime()
         Self.popupsInProcess += 1
         let hide = PopupLog.lastHide
+        // 这个控制器建出来之前 5 秒内主线程醒过（闲置 / 挂起后），才算这次弹出叫醒的。
+        let wake = MainWake.lastWake.flatMap { $0 <= createdAt && createdAt - $0 < 5 ? $0 : nil }
         popupRecord = PopupRecord(
             at: Date(), nth: Self.popupsInProcess,
             processToLoad: Self.popupsInProcess == 1 ? loadSinceProcess : nil,
-            initToLoad: (loadStart - createdAt) * 1000, load: loadMs, willAppear: (now - willStart) * 1000, willHost: (hostDone - willStart) * 1000,
+            initToLoad: (loadStart - createdAt) * 1000,
+            idleBeforeWake: wake.map { _ in MainWake.lastIdle * 1000 }, wakeToInit: wake.map { (createdAt - $0) * 1000 },
+            load: loadMs, willAppear: (now - willStart) * 1000, willHost: (hostDone - willStart) * 1000,
             willReload: reload * 1000, willLayout: (now - layoutStart) * 1000,
             loadToAppear: 0, didClipboard: 0, didCommonWords: 0, engineReady: nil, memoryMB: nil,
             sinceHide: hide.map { Date().timeIntervalSince($0.at) },

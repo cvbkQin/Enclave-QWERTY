@@ -1,4 +1,5 @@
 import Foundation
+import QuartzCore
 
 /// 键盘每次弹出记一条：是冷启动还是热启动、各段耗时、内存、上次收起后隔了多久。
 /// 只在开发版、内测、公测包里记（正式版不记），App 的「测试工具 › 弹出记录」里看、一键复制。用来查「呼出卡」。
@@ -12,6 +13,10 @@ struct PopupRecord: Codable, Identifiable {
     var processToLoad: Double?
     /// 控制器建出来到 viewDidLoad。
     var initToLoad: Double
+    /// 键盘进程主线程闲了（或被系统挂起）多久后醒来，醒来到系统建出控制器用了多久。
+    /// 醒来→建 很小说明我们这边一醒就开始了，空白的时间花在系统把弹出交给我们之前。
+    var idleBeforeWake: Double?
+    var wakeToInit: Double?
     /// viewDidLoad 里建视图（第一次装 SwiftUI 宿主）。
     var load: Double
     /// viewWillAppear 总共，和其中装宿主、reload（读设置、会话、选引擎）、最后排版三段。
@@ -39,6 +44,7 @@ struct PopupRecord: Codable, Identifiable {
         let time = PopupLog.timeFormatter.string(from: at)
         var parts = ["\(time) #\(nth)\(nth == 1 ? " 冷" : " 热")"]
         if let processToLoad { parts.append("进程→load \(ms(processToLoad))") }
+        if let wakeToInit { parts.append("闲 \(String(format: "%.1f", (idleBeforeWake ?? 0) / 1000))s 醒→建 \(ms(wakeToInit))") }
         parts.append("建→load \(ms(initToLoad))")
         parts.append("load \(ms(load))")
         parts.append("will \(ms(willAppear))(宿主\(ms(willHost)) reload\(ms(willReload)) 排版\(ms(willLayout)))")
@@ -123,5 +129,29 @@ enum PopupLog {
             + "进程→load 中位 \(median(cold.compactMap(\.processToLoad))) ms），热启动 \(warm.count)（load→出现 中位 \(median(warm.map(\.loadToAppear))) ms）"
         let version = (Bundle.main.object(forInfoDictionaryKey: "EnclaveDevLabel") as? String) ?? ""
         return ([header, "版本 \(version)"] + records.reversed().map(\.line)).joined(separator: "\n")
+    }
+}
+
+/// 主线程醒来的时刻：主线程 RunLoop 睡了 0.5 秒以上（闲着或整个进程被系统挂起）再醒，记下醒的时刻和睡了多久。
+/// 键盘弹出时拿控制器建出来的时刻减它，看我们一醒是不是马上就开始建键盘。
+enum MainWake {
+    private(set) static var lastWake: CFTimeInterval?
+    private(set) static var lastIdle: CFTimeInterval = 0
+    private static var sleepStart: CFTimeInterval = 0
+    private static var installed = false
+
+    static func install() {
+        guard PopupLog.enabled, !installed else { return }
+        installed = true
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity([.beforeWaiting, .afterWaiting]).rawValue, true, 0) { _, activity in
+            let now = CACurrentMediaTime()
+            if activity == .beforeWaiting {
+                sleepStart = now
+            } else if sleepStart > 0, now - sleepStart > 0.5 {
+                lastWake = now
+                lastIdle = now - sleepStart
+            }
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
     }
 }
