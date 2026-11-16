@@ -216,8 +216,10 @@ struct KeyCapView: View, Equatable {
     private var label: some View {
         switch key.kind {
         case .letter(let letter):
-            if let lines = context.hintScheme.flatMap({ $0.keyHints[Character(letter)] }), !lines.isEmpty {
-                DoublePinyinKeyLabel(letter: letter, lines: lines)
+            // 开着双拼提示时所有字母键一个排法（字母贴下边），没有韵母小字的键（小鹤、自然码的 a、e）上面空着，
+            // 不再单独居中放大，免得和别的键对不齐（11-16 用户反馈）。
+            if let scheme = context.hintScheme {
+                DoublePinyinKeyLabel(letter: letter, lines: scheme.keyHints[Character(letter)] ?? [])
             } else {
                 Text(context.shift == .off ? letter : letter.uppercased())
                     .font(KeyStyle.letterFont)

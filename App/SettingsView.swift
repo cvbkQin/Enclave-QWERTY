@@ -1554,9 +1554,10 @@ private struct DoublePinyinPreview: View {
     }
 
     private func letterKey(_ letter: Character) -> some View {
-        let lines = hints ? scheme.keyHints[letter] ?? [] : []
+        // 开着提示时每个键都按「小字 + 贴下边的字母」排，没有小字的键（a、e）上面空着，和键盘里一样。
+        let lines = scheme.keyHints[letter] ?? []
         return ZStack {
-            if lines.isEmpty {
+            if !hints {
                 Text(String(letter)).font(.system(size: 19))
             } else {
                 VStack(spacing: 0) {
