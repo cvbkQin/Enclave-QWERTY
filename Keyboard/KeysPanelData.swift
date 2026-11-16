@@ -192,37 +192,87 @@ struct EnterCrossPopup: Equatable {
     }
 }
 
-/// 表情按 Unicode 区段分组，只取默认就显示成彩色表情的字符，不用自己维护一大张表。
+/// 表情面板的全部 emoji，分类和顺序对齐 iOS 系统键盘（含国旗、键帽、❤️ 这类带 FE0F 的、多人组合）。
+/// 数据 Keyboard/Emoji/emoji_panel.tsv 由 scripts/build-emoji-panel.py 从 Unicode emoji-test.txt 生成；
+/// 旗帜里不放 🇹🇼（中国大陆上架合规，同系统键盘在中国大陆的做法）。
+/// 系统版本太旧显示不出来的新 emoji（会变成方框）按 Unicode emoji 版本藏掉。
 enum EmojiCatalog {
+    struct Item: Hashable {
+        let emoji: String
+        /// 肤色变体（浅到深），留给长按选肤色用；系统显示不出来的已去掉。
+        let tones: [String]
+    }
+
     struct Category: Identifiable {
         let id: String
         let symbol: String
-        let emoji: [String]
+        let items: [Item]
+        var emoji: [String] { items.map(\.emoji) }
     }
 
-    private static func collect(_ ranges: [ClosedRange<UInt32>]) -> [String] {
-        ranges.flatMap { $0 }.compactMap(Unicode.Scalar.init).filter(\.properties.isEmojiPresentation)
-            .map { String($0) }
-    }
-
-    static let categories: [Category] = [
-        Category(id: "笑脸", symbol: "face.smiling",
-                 emoji: collect([0x1F600...0x1F64F, 0x1F910...0x1F92F, 0x1F970...0x1F97A, 0x1FAE0...0x1FAE8])),
-        Category(id: "手势", symbol: "hand.raised",
-                 emoji: collect([0x1F446...0x1F450, 0x1F90C...0x1F91F, 0x1F4AA...0x1F4AA, 0x1FAF0...0x1FAF8])),
-        Category(id: "动物", symbol: "pawprint",
-                 emoji: collect([0x1F400...0x1F43F, 0x1F980...0x1F9AE, 0x1F331...0x1F344])),
-        Category(id: "食物", symbol: "fork.knife",
-                 emoji: collect([0x1F345...0x1F37F, 0x1F950...0x1F96F, 0x1F9C0...0x1F9CB])),
-        Category(id: "活动", symbol: "soccerball",
-                 emoji: collect([0x1F380...0x1F3FA])),
-        Category(id: "出行", symbol: "car",
-                 emoji: collect([0x1F680...0x1F6FF, 0x1F300...0x1F320])),
-        Category(id: "物品", symbol: "lightbulb",
-                 emoji: collect([0x1F4A0...0x1F4FF, 0x1F500...0x1F53D])),
-        Category(id: "符号", symbol: "heart",
-                 emoji: collect([0x2600...0x27BF, 0x1F9E1...0x1F9E1, 0x1F90D...0x1F90F, 0x2B50...0x2B55])),
+    /// 分类名 → 底栏图标。
+    private static let symbols: [String: String] = [
+        "笑脸与人物": "face.smiling", "动物与自然": "pawprint", "食物与饮料": "fork.knife", "活动": "soccerball",
+        "旅行与地点": "car", "物品": "lightbulb", "符号": "heart", "旗帜": "flag",
     ]
+
+    static let categories: [Category] = {
+        let bundle = Bundle(for: BundleToken.self)
+        guard let url = bundle.url(forResource: "emoji_panel", withExtension: "tsv"),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        return parse(text, os: ProcessInfo.processInfo.operatingSystemVersion)
+    }()
+
+    /// 「# 分类」一行开一个分类；其余每行「emoji<Tab>版本<Tab>肤色变体（emoji/版本，空格分开）」。
+    static func parse(_ text: String, os: OperatingSystemVersion) -> [Category] {
+        var result: [Category] = []
+        var name: String?
+        var items: [Item] = []
+        func flush() {
+            if let name, !items.isEmpty {
+                result.append(Category(id: name, symbol: symbols[name] ?? "circle", items: items))
+            }
+            items = []
+        }
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            if line.hasPrefix("# ") {
+                flush()
+                name = String(line.dropFirst(2))
+                continue
+            }
+            let parts = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+            guard parts.count >= 2, supported(String(parts[1]), os: os) else { continue }
+            let tones: [String] = parts.count > 2
+                ? parts[2].split(separator: " ").compactMap { tone -> String? in
+                    let pair = tone.split(separator: "/")
+                    guard pair.count == 2, supported(String(pair[1]), os: os) else { return nil }
+                    return String(pair[0])
+                }
+                : []
+            items.append(Item(emoji: String(parts[0]), tones: tones))
+        }
+        flush()
+        return result
+    }
+
+    /// Unicode emoji 版本 → iOS 起码要几版才有字形（iOS 16 起步，14.0 及以前的都有）。
+    static func supported(_ version: String, os: OperatingSystemVersion) -> Bool {
+        let need: (Int, Int)
+        switch version {
+        case "15.0": need = (16, 4)
+        case "15.1": need = (17, 4)
+        case "16.0": need = (18, 4)
+        case "17.0": need = (26, 4)
+        default:
+            guard let major = Double(version) else { return false }
+            if major <= 14.0 { return true }
+            // 比 17.0 还新的：没对过，先不放。
+            return false
+        }
+        return (os.majorVersion, os.minorVersion) >= need
+    }
+
+    private final class BundleToken {}
 }
 
 /// 最近用过的表情，存在共享设置里，最多 30 个。
