@@ -1,7 +1,6 @@
-import Photos
 import SwiftUI
 
-// 「双拼方案」页上的几块（双拼调研 P1–P2，设计稿 SP5、SP8）：零声母卡、键位图、存到相册。
+// 「双拼方案」页上的几块（双拼调研 P1–P2，设计稿 SP5、SP8）：零声母卡、键位图、分享键位图。
 
 /// 小键帽：白底圆角、等宽字母。零声母卡、练习页、键位图都用。
 struct MiniKeycap: View {
@@ -72,7 +71,7 @@ struct ZeroInitialCard: View {
     }
 }
 
-/// 存到相册的键位图（SP8）：竖图，宽 600pt 按 2 倍出图 = 1200 像素，跟着当前方案和深浅色。
+/// 分享出去的键位图（SP8）：竖图，宽 600pt 按 2 倍出图 = 1200 像素，跟着当前方案和深浅色。
 struct DoublePinyinKeymapPoster: View {
     let scheme: DoublePinyin
     let dark: Bool
@@ -211,19 +210,21 @@ struct DoublePinyinKeymapPoster: View {
     }
 }
 
-/// 把图存进相册：只要「添加照片」权限（不读相册）。completion 在主线程回调。
-enum PhotoSaver {
-    static func save(_ image: UIImage, completion: @escaping (Bool) -> Void) {
-        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
-            guard status == .authorized || status == .limited else {
-                DispatchQueue.main.async { completion(false) }
-                return
-            }
-            PHPhotoLibrary.shared().performChanges({
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
-            }, completionHandler: { ok, _ in
-                DispatchQueue.main.async { completion(ok) }
-            })
-        }
+/// 要分享的键位图文件。
+struct KeymapFile: Identifiable {
+    let url: URL
+    var id: String { url.path }
+}
+
+/// 系统分享面板。去掉「存储图像」「指定给联系人」：存进相册要照片权限，App 不申请。
+struct ActivitySheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        controller.excludedActivityTypes = [.saveToCameraRoll, .assignToContact]
+        return controller
     }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
