@@ -32,6 +32,15 @@ final class RimeEngine: InputEngine {
     /// 全键盘、九宫格各一个纠错器（词库自带的表没生成时为 nil，就不纠）。
     private lazy var letterCorrector: Corrector? = Corrector.bundled(nineKey: false)
     private lazy var digitCorrector: Corrector? = Corrector.bundled(nineKey: true)
+    /// 双拼的纠错器：和全拼共用那份表，换方案时重建。
+    private var pairCorrector: (scheme: DoublePinyin, corrector: Corrector?)?
+    private var doublePinyinCorrector: Corrector? {
+        guard let doublePinyin else { return nil }
+        if let pairCorrector, pairCorrector.scheme == doublePinyin { return pairCorrector.corrector }
+        let made = Corrector.bundled(nineKey: false, doublePinyin: doublePinyin)
+        pairCorrector = (doublePinyin, made)
+        return made
+    }
     /// 纠错时用来问「改过的串打出什么」的第二个会话，不动用户正在打的那个。
     private var probe: UInt64 = 0
     private var probeSchema = ""
@@ -45,8 +54,9 @@ final class RimeEngine: InputEngine {
     private var session: UInt64 = 0
     private var loadedVersion: String?
     private var schema = RimeStore.schemaID
-    /// 加载的词库全键盘是双拼（App 里选了双拼部署的）：纠错层只认全拼，全键盘不纠。
+    /// 加载的词库全键盘是双拼（App 里选了双拼部署的）：纠错层按键对纠（Corrector.doublePinyin）；也认全拼时分不清按的是哪种，不纠。
     private var doublePinyin: DoublePinyin?
+    private var doublePinyinMixFull = false
 
     /// 每次按键只取够候选栏第一屏的数量，取得越多 Rime 要往后查得越深；滑到头或展开整页时再补到 candidateLimit。
     static let firstPage = 30
@@ -131,6 +141,7 @@ final class RimeEngine: InputEngine {
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
             doublePinyin = DoublePinyin(versionString: version)
+            doublePinyinMixFull = DoublePinyin.mixesFull(versionString: version)
             source = version
         }
         if !enclave_rime_session_alive(session) {
@@ -340,8 +351,8 @@ final class RimeEngine: InputEngine {
     private func applyCorrection() {
         guard !correcting, selections.isEmpty, let top = candidates.first, !priorityPhrases.contains(top) else { return }
         let nineKey = schema == RimeStore.nineKeySchemaID
-        guard nineKey ? Self.correctsNineKey : (Self.correctsQwerty && doublePinyin == nil),
-              let corrector = nineKey ? digitCorrector : letterCorrector else { return }
+        guard nineKey ? Self.correctsNineKey : (Self.correctsQwerty && !doublePinyinMixFull),
+              let corrector = nineKey ? digitCorrector : doublePinyin != nil ? doublePinyinCorrector : letterCorrector else { return }
         let raw = rawInput
         guard !CorrectionMemory.isRejected(raw),
               let guess = corrector.guess(raw, extraMargin: CorrectionMemory.bias(raw), touches: TouchTrail.offsets(for: raw)) else { return }

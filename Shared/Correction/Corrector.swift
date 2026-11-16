@@ -13,6 +13,9 @@ final class Corrector {
     }
 
     let nineKey: Bool
+    /// 双拼（双拼调研 P3-10，设计稿 SP9）：按的是键对。改法照样在按键上做（换邻键、按反、多打、漏打），
+    /// 拼不拼得成按键对查，像不像话把键对换成全拼再用全拼那份表打分。
+    let doublePinyin: DoublePinyin?
     private let lm: KeyLM
 
     /// 改法的罚分（nats）：九宫格一个数字对应几个字母，手误后的串常常还拼得成，罚得轻一些。
@@ -31,17 +34,18 @@ final class Corrector {
 
     enum Edit { case swap, delete, substitute, insert }
 
-    init(lm: KeyLM, nineKey: Bool) {
+    init(lm: KeyLM, nineKey: Bool, doublePinyin: DoublePinyin? = nil) {
         self.lm = lm
         self.nineKey = nineKey
+        self.doublePinyin = nineKey ? nil : doublePinyin
         penalty = nineKey
             ? [.swap: 1.0, .delete: 2.0, .substitute: 1.0, .insert: 1.0]
             : [.swap: 1.5, .delete: 2.5, .substitute: 1.5, .insert: 1.5]
     }
 
     /// 词库自带的表在不在；不在就不纠（比如还没运行 scripts/fetch-rime.sh 生成）。
-    static func bundled(nineKey: Bool) -> Corrector? {
-        KeyLM.bundled(nineKey: nineKey).map { Corrector(lm: $0, nineKey: nineKey) }
+    static func bundled(nineKey: Bool, doublePinyin: DoublePinyin? = nil) -> Corrector? {
+        KeyLM.bundled(nineKey: nineKey).map { Corrector(lm: $0, nineKey: nineKey, doublePinyin: doublePinyin) }
     }
 
     /// 这个输入要不要纠、纠成什么。带分词符的、全是声母的（简拼）不纠。
@@ -51,8 +55,9 @@ final class Corrector {
         let keys = Array(input.utf8)
         guard !keys.isEmpty, keys.allSatisfy(isKey) else { return nil }
         let touches = touches?.count == keys.count ? touches : nil
-        if !nineKey && keys.allSatisfy({ !Self.vowels.contains($0) }) { return nil }
-        let original = lm.score(keys)
+        // 全是声母的是简拼，不纠；双拼的键对本来就常没有元音（xl＝xiang），不看这条。
+        if !nineKey, doublePinyin == nil, keys.allSatisfy({ !Self.vowels.contains($0) }) { return nil }
+        let original = score(keys)
         let reach = strictPrefix(keys)
         var found: [[UInt8]: Double] = [:]
         let place: Int
@@ -83,8 +88,8 @@ final class Corrector {
         // 按字节序挨个比，分数一样时取先遇到的，和参考实现一致。
         var best: (keys: [UInt8], score: Double)?
         for variant in found.keys.sorted(by: { $0.lexicographicallyPrecedes($1) }) {
-            let score = lm.score(variant) + found[variant]!
-            if best.map({ score < $0.score }) ?? true { best = (variant, score) }
+            let total = score(variant) + found[variant]!
+            if best.map({ total < $0.score }) ?? true { best = (variant, total) }
         }
         guard let best, best.score < original - Self.margin - extraMargin else { return nil }
         return Guess(corrected: String(decoding: best.keys, as: UTF8.self), place: place)
@@ -197,6 +202,38 @@ final class Corrector {
         return -min(max(llr, -Self.touchMaxExtra), Self.touchMaxRelief)
     }
 
+    /// 像不像话：全拼、九宫格直接查表；双拼先把键对换成全拼（最后单下一个键换成声母），换不成的（有拼不成的键对）是 .infinity。
+    private func score(_ keys: [UInt8]) -> Double {
+        guard let doublePinyin else { return lm.score(keys) }
+        guard let spelled = Self.spell(keys, doublePinyin) else { return .infinity }
+        return lm.score(spelled)
+    }
+
+    /// 双拼按键 → 全拼字母（nihc → nihao，xl u → xiangsh）。有拼不成的键对时为 nil。
+    static func spell(_ keys: [UInt8], _ scheme: DoublePinyin) -> [UInt8]? {
+        let readings = Self.readingTables[scheme] ?? [:]
+        var out: [UInt8] = []
+        var index = 0
+        while index + 1 < keys.count {
+            guard let syllable = readings[String(decoding: keys[index...(index + 1)], as: UTF8.self)] else { return nil }
+            out += syllable.utf8
+            index += 2
+        }
+        if index < keys.count {
+            let key = keys[index]
+            guard Self.firstKeys[scheme]?.contains(key) == true else { return nil }
+            let initial = DoublePinyin.retroflexKeys.first { $0.value == Character(UnicodeScalar(key)) }?.key
+            out += initial.map { Array($0.utf8) } ?? [key]
+        }
+        return out
+    }
+
+    private static let readingTables = Dictionary(uniqueKeysWithValues: DoublePinyin.allCases.map { ($0, $0.readings) })
+    /// 键对的第一下能按哪些键。
+    private static let firstKeys = Dictionary(uniqueKeysWithValues: DoublePinyin.allCases.map { scheme in
+        (scheme, Set(scheme.readings.keys.compactMap { $0.utf8.first }))
+    })
+
     // MARK: 拼不拼得成
 
     /// 音节和音节前缀，压成整数（每个键 5 位）放进集合，查得快。
@@ -219,6 +256,7 @@ final class Corrector {
 
     /// 能拼成「整音节 + 最后一个没打完的音节」的最长前缀。不认中间单独的声母；全键盘词中间不认零声母音节（a、o、e 开头）。
     func strictPrefix(_ keys: [UInt8]) -> Int {
+        if let doublePinyin { return Self.pairPrefix(keys, doublePinyin) }
         let (syllables, prefixes) = nineKey ? Self.digitTables : Self.letterTables
         let n = keys.count
         var ok = [Bool](repeating: false, count: n + 1)
@@ -234,6 +272,17 @@ final class Corrector {
             }
         }
         return max(best, ok.lastIndex(of: true) ?? 0)
+    }
+
+    /// 双拼：从头两两配对，都是音节、最后单下一个键能当第一下时整串都算拼得成；
+    /// 卡在某一对时返回到这一对为止（这一对的第一下能当第一下时算上它）。
+    static func pairPrefix(_ keys: [UInt8], _ scheme: DoublePinyin) -> Int {
+        let readings = readingTables[scheme] ?? [:]
+        let first = firstKeys[scheme] ?? []
+        var index = 0
+        while index + 1 < keys.count, readings[String(decoding: keys[index...(index + 1)], as: UTF8.self)] != nil { index += 2 }
+        if index < keys.count, first.contains(keys[index]) { index += 1 }
+        return index
     }
 }
 

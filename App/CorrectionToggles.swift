@@ -7,14 +7,14 @@ struct CorrectionToggles: View {
     @State private var nineKey = CorrectionMemory.isEnabled(nineKey: true)
 
     /// 「拼音」这一组的脚注，两种键盘共用。
-    static var footnote: String { L("按原样拼出的词始终留在候选里，改过的字母在拼音行上标出。改对的词上屏后马上按删除，可恢复成你打的拼音。",
-                            "What you typed always stays among the candidates, and changed letters are marked in the pinyin row. Press delete right after a corrected word to get back the pinyin you typed.",
-                            "入力どおりの語は常に候補に残り、修正した文字はピンイン行で示されます。修正した語の確定直後に削除を押すと、入力したピンインに戻ります。") }
+    static var footnote: String { L("按原样拼出的词始终留在候选里，改过的字母在拼音行上标出。改对的词上屏后马上按删除，可恢复成你打的拼音。双拼时按的是键对，标出的是被换掉的那个键。",
+                            "What you typed always stays among the candidates, and changed letters are marked in the pinyin row. Press delete right after a corrected word to get back the pinyin you typed. In double pinyin, keys go in pairs, and the replaced key is marked.",
+                            "入力どおりの語は常に候補に残り、修正した文字はピンイン行で示されます。修正した語の確定直後に削除を押すと、入力したピンインに戻ります。双拼ではキーは 2 つ 1 組で、置き換えたキーが示されます。") }
 
     var body: some View {
         Toggle(isOn: Binding(get: { qwerty }, set: { qwerty = $0; CorrectionMemory.setEnabled($0, nineKey: false) })) {
             label(L("全键盘自动纠错", "QWERTY autocorrect", "QWERTY の自動修正"),
-                  L("拼音像打错时，候选里给出改对的词", "Suggests a corrected word when the pinyin looks mistyped", "ピンインの打ち間違いらしいとき、修正した語を候補に出します"))
+                  L("拼音像打错时，候选里给出改对的词；双拼也算", "Suggests a corrected word when the pinyin looks mistyped; double pinyin too", "ピンインの打ち間違いらしいとき、修正した語を候補に出します。双拼にも対応"))
         }
         Toggle(isOn: Binding(get: { nineKey }, set: { nineKey = $0; CorrectionMemory.setEnabled($0, nineKey: true) })) {
             label(L("九宫格自动纠错", "9-key autocorrect", "9 キーの自動修正"),

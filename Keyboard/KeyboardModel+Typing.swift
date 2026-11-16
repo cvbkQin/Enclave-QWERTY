@@ -757,6 +757,10 @@ extension KeyboardModel {
         guard isComposing, let correction = engine.pendingCorrection else { return nil }
         let spelled = correction.reading.lowercased().split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'")
         let letters = spelled.filter { $0 != "'" }
+        // 双拼按的是键对：读法是改过的键对拼出的全拼（ni'hui），改过的键所在的音节整个标出来（SP9）。
+        if !showsNineKey, let scheme = doublePinyin {
+            return doublePinyinCorrectedReading(correction, spelled: spelled, scheme: scheme)
+        }
         let text: String
         if showsNineKey {
             guard !letters.isEmpty, letters.allSatisfy({ $0.isASCII && $0.isLetter }),
@@ -767,13 +771,7 @@ extension KeyboardModel {
         } else {
             text = PinyinSyllables.segmentations(correction.corrected, limit: 1).first ?? correction.corrected
         }
-        // 改过的键：去掉和原样相同的开头、结尾，剩下的就是按反、换掉、补进的字母（多打删掉的没法标）。
-        let typed = Array(correction.typed), fixed = Array(correction.corrected)
-        var head = 0
-        while head < min(typed.count, fixed.count), typed[head] == fixed[head] { head += 1 }
-        var tail = 0
-        while tail < min(typed.count, fixed.count) - head, typed[typed.count - 1 - tail] == fixed[fixed.count - 1 - tail] { tail += 1 }
-        let changed = head..<max(head, fixed.count - tail)
+        let changed = Self.changedKeys(correction)
         var marked = Set<Int>()
         var key = 0
         for (offset, char) in text.enumerated() where char != "'" {
@@ -781,6 +779,50 @@ extension KeyboardModel {
             key += 1
         }
         return CorrectedReading(text: text, marked: marked, place: correction.place)
+    }
+
+    /// 改过的键在改过的串里的位置：去掉和原样相同的开头、结尾，剩下的就是按反、换掉、补进的字母（多打删掉的没法标）。
+    static func changedKeys(_ correction: PendingCorrection) -> Range<Int> {
+        let typed = Array(correction.typed), fixed = Array(correction.corrected)
+        var head = 0
+        while head < min(typed.count, fixed.count), typed[head] == fixed[head] { head += 1 }
+        var tail = 0
+        while tail < min(typed.count, fixed.count) - head, typed[typed.count - 1 - tail] == fixed[fixed.count - 1 - tail] { tail += 1 }
+        return head..<max(head, fixed.count - tail)
+    }
+
+    private func doublePinyinCorrectedReading(_ correction: PendingCorrection, spelled: String, scheme: DoublePinyin) -> CorrectedReading {
+        let groups = DoublePinyin.pairs(in: correction.corrected)
+        var syllables = spelled.split(separator: "'").map(String.init)
+        if syllables.count != groups.count {
+            syllables = groups.map { group in
+                scheme.readings[group.keys] ?? DoublePinyin.retroflexKeys.first { String($0.value) == group.keys }?.key ?? group.keys
+            }
+        }
+        let changed = Self.changedKeys(correction)
+        var marked = Set<Int>()
+        var offset = 0
+        for (index, syllable) in syllables.enumerated() {
+            if index > 0 { offset += 1 }
+            if index < groups.count, groups[index].range.overlaps(changed) || (changed.isEmpty && groups[index].range.contains(changed.lowerBound)) {
+                marked.formUnion(offset..<(offset + syllable.count))
+            }
+            offset += syllable.count
+        }
+        return CorrectedReading(text: syllables.joined(separator: "'"), marked: marked, place: correction.place)
+    }
+
+    /// 双拼拼写栏按键后面的灰字（SP9）：换了一个键写「v 改成 c」，别的照全拼的说法。
+    var doublePinyinCorrectionNote: String? {
+        guard let correction = engine.pendingCorrection else { return nil }
+        let typed = Array(correction.typed), fixed = Array(correction.corrected)
+        if typed.count == fixed.count {
+            let diffs = zip(typed, fixed).filter { $0.0 != $0.1 }
+            if diffs.count == 1, let diff = diffs.first {
+                return L("\(diff.0) 改成 \(diff.1)", "\(diff.0) → \(diff.1)", "\(diff.0) → \(diff.1)")
+            }
+        }
+        return correctionNote
     }
 
     /// 全键盘拼音行的各项：原样的切法，加上纠正读法（拼不成时排第一，拼得成时排第二）。
@@ -794,11 +836,13 @@ extension KeyboardModel {
 
     /// 点了纠正读法：按改过的串重输，候选换成按它出（九宫格记一步，按删除能退回）。
     func chooseCorrectedReading(_ reading: String) {
+        // 双拼列的是全拼读法，重输要用改过的键对。
+        let input = !showsNineKey && doublePinyin != nil ? engine.pendingCorrection?.corrected ?? reading : reading
         // 和点候选一样：轻触震动和按键音（设置里开着才有）。
         keyFeedback(for: .space)
         applyEngineResults(wait: true)
         let before = choiceState
-        engine.replaceInput(reading, keeping: [])
+        engine.replaceInput(input, keeping: [])
         syncEngine()
         recordChoice(from: before)
     }

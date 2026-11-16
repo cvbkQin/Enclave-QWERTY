@@ -316,3 +316,21 @@ final class DoublePinyinPracticeTests: XCTestCase {
         XCTAssertEqual(run.cleanItems, ["爱", "去"])
     }
 }
+
+/// 双拼纠错（SP9）：键对换成全拼、拼得成的前缀（不用 KeyLM 的那部分）。
+final class DoublePinyinCorrectionTests: XCTestCase {
+    func testSpell() {
+        XCTAssertEqual(Corrector.spell(Array("nihc".utf8), .flypy).map { String(decoding: $0, as: UTF8.self) }, "nihao")
+        // 最后单下一个键换成声母：u 是 sh。
+        XCTAssertEqual(Corrector.spell(Array("xlu".utf8), .flypy).map { String(decoding: $0, as: UTF8.self) }, "xiangsh")
+        XCTAssertEqual(Corrector.spell(Array("nihv".utf8), .flypy).map { String(decoding: $0, as: UTF8.self) }, "nihui")
+        XCTAssertNil(Corrector.spell(Array("nifk".utf8), .flypy))
+    }
+
+    func testPairPrefix() {
+        XCTAssertEqual(Corrector.pairPrefix(Array("nihc".utf8), .flypy), 4)
+        XCTAssertEqual(Corrector.pairPrefix(Array("nihcm".utf8), .flypy), 5)
+        // fk 拼不成：卡在这一对，f 能当第一下，算到 f。
+        XCTAssertEqual(Corrector.pairPrefix(Array("nifkma".utf8), .flypy), 3)
+    }
+}

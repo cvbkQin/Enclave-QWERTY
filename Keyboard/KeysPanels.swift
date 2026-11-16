@@ -421,12 +421,20 @@ struct PinyinRow: View {
         let raw = model.engine.rawInput
         let from = model.engine.selections.last?.end ?? 0
         let groups = DoublePinyin.pairs(in: raw, from: from)
-        let marks = model.settings.doublePinyinHintMode != .off && !model.doublePinyinMixFull
+        // 首选换成了纠正后的词（SP9）：全拼写纠正后的、改过的音节浅紫底；按键里换掉的键浅紫底，后面灰字「v 改成 c」。不再标红。
+        let correction = from == 0 ? model.engine.pendingCorrection.flatMap { $0.place == 1 && $0.typed == raw ? $0 : nil } : nil
+        let reading = correction != nil ? model.correctedReading : nil
+        let marks = model.settings.doublePinyinHintMode != .off && !model.doublePinyinMixFull && reading == nil
         let bad = Set(groups.filter { marks && $0.keys.count == 2 && !scheme.isSyllableCode($0.keys) }.flatMap { Array($0.range) })
+        let fixedKeys = correction.map(Self.typedChangedKeys) ?? []
         return HStack(spacing: 10) {
             Button { model.commitFullPinyin() } label: {
                 HStack(spacing: 3) {
-                    fullPinyin(scheme, raw: raw, groups: groups, bad: bad, segmented: from > 0)
+                    if let reading {
+                        label(reading.text.replacingOccurrences(of: "'", with: " "), marked: reading.marked)
+                    } else {
+                        fullPinyin(scheme, raw: raw, groups: groups, bad: bad, segmented: from > 0)
+                    }
                     Image(systemName: "arrow.up").font(.system(size: 11, weight: .semibold)).foregroundStyle(SidePinyinStyle.hint)
                 }
                 .lineLimit(1)
@@ -435,13 +443,16 @@ struct PinyinRow: View {
             .disabled(!model.canCommitFullPinyin)
             .accessibilityHint(L("上屏全拼", "Insert the full pinyin", "ピンインをそのまま入力"))
             if !raw.isEmpty {
-                marked(Array(raw), bad: bad)
+                marked(Array(raw), bad: reading == nil ? bad : fixedKeys, fixed: reading != nil)
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(KeyStyle.pressedKey.opacity(0.5)))
+                if reading != nil, let note = model.doublePinyinCorrectionNote {
+                    Text(note).font(.system(size: 12)).foregroundStyle(SidePinyinStyle.hint).lineLimit(1)
+                }
             }
             Spacer(minLength: 8)
             if model.showsFullPinyinTip {
@@ -486,8 +497,16 @@ struct PinyinRow: View {
         }
     }
 
-    /// 一串字，bad 里的位置用红字浅红底（SP6 ③）。
-    private func marked(_ chars: [Character], bad: Set<Int>) -> some View {
+    /// 纠正时原样按的键里被换掉、按反、多按的那几个（SP9）。
+    static func typedChangedKeys(_ correction: PendingCorrection) -> Set<Int> {
+        let typed = correction.typed.count, fixed = correction.corrected.count
+        let range = KeyboardModel.changedKeys(correction)
+        let upper = min(typed, max(range.lowerBound, typed - (fixed - range.upperBound)))
+        return Set(range.lowerBound..<max(range.lowerBound, upper))
+    }
+
+    /// 一串字，bad 里的位置用红字浅红底（SP6 ③）；fixed 时是纠错换过的键，主色字浅紫底（SP9）。
+    private func marked(_ chars: [Character], bad: Set<Int>, fixed: Bool = false) -> some View {
         var runs: [(text: String, bad: Bool)] = []
         for (index, char) in chars.enumerated() {
             let isBad = bad.contains(index)
@@ -501,8 +520,8 @@ struct PinyinRow: View {
             ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
                 if run.bad {
                     Text(run.text)
-                        .foregroundStyle(Self.badPairText)
-                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Self.badPairFill))
+                        .foregroundStyle(fixed ? Self.markedText : Self.badPairText)
+                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(fixed ? Self.markedFill : Self.badPairFill))
                 } else {
                     Text(run.text)
                 }
