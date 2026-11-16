@@ -4,65 +4,41 @@ import SwiftUI
 struct SymbolPanel: View {
     @ObservedObject var model: KeyboardModel
     @State private var category = "最近"
-    /// 正在长按选肤色（见 EmojiSkinPicker）。
-    @State private var skin: SkinPick?
-
-    /// 表情区的坐标系，选肤色的弹层按它摆。
-    static let space = "emojiPanel"
 
     private var isEmoji: Bool { model.keysPanel == .emoji }
-    private var haptics: Bool { model.settings.keyHaptics && model.hasFullAccess }
 
     var body: some View {
         VStack(spacing: 0) {
-            GeometryReader { geo in
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: false) {
-                        if isEmoji { emojiGrid(width: geo.size.width) } else { kaomojiGrid }
-                    }
-                    .hidingScrollEdgeEffect()
-                    // 弹层打开时，面板不跟着手指上下滚。
-                    .scrollDisabled(skin != nil)
-                    .onChange(of: category) { id in
-                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) }
-                    }
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    if isEmoji { emojiGrid } else { kaomojiGrid }
                 }
-                .overlay(alignment: .topLeading) { skinLayer }
+                .hidingScrollEdgeEffect()
+                .onChange(of: category) { id in
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) }
+                }
             }
-            .coordinateSpace(name: Self.space)
             bottomBar
         }
-        .onChange(of: model.keysPanel) { _ in skin = nil }
     }
 
-    private func emojiGrid(width: CGFloat) -> some View {
-        // 「最近」存的是原型，按原型去重（老版本存过带肤色的也对回原型）。
-        var seen = Set<String>()
-        let recent = RecentEmoji.all.filter { seen.insert(EmojiCatalog.lookup[$0]?.emoji ?? $0).inserted }
+    private var emojiGrid: some View {
+        let recent = RecentEmoji.all
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 0)], spacing: 2,
                          pinnedViews: [.sectionHeaders]) {
-            if !recent.isEmpty {
-                section("最近", recent.map { EmojiCatalog.lookup[$0] ?? EmojiCatalog.Item(emoji: $0, tones: []) }, width: width)
-            }
-            ForEach(EmojiCatalog.categories) { section($0.id, $0.items, width: width) }
+            if !recent.isEmpty { section("最近", recent) }
+            ForEach(EmojiCatalog.categories) { section($0.id, $0.emoji) }
         }
         .padding(.horizontal, 4)
     }
 
-    private func section(_ title: String, _ items: [EmojiCatalog.Item], width: CGFloat) -> some View {
+    private func section(_ title: String, _ emoji: [String]) -> some View {
         Section {
-            ForEach(items, id: \.emoji) { item in
-                if item.hasTones {
-                    EmojiCell(emoji: EmojiSkin.shown(item), badge: true, active: skin?.item == item,
-                              tap: { model.pickFromPanel(EmojiSkin.shown(item), recent: item.emoji) },
-                              begin: { beginSkin(item, cell: $0, width: width) },
-                              move: moveSkin, end: endSkin)
-                } else {
-                    Button { model.pickFromPanel(item.emoji) } label: {
-                        Text(item.emoji).font(.system(size: 30)).frame(width: 40, height: 40)
-                    }
-                    .buttonStyle(KeyPressStyle())
+            ForEach(emoji, id: \.self) { item in
+                Button { model.pickFromPanel(item) } label: {
+                    Text(item).font(.system(size: 30)).frame(width: 40, height: 40)
                 }
+                .buttonStyle(KeyPressStyle())
             }
         } header: {
             Text(title)
@@ -72,77 +48,6 @@ struct SymbolPanel: View {
                 .padding(.vertical, 3)
                 .id(title)
         }
-    }
-
-    // MARK: 选肤色
-
-    @ViewBuilder private var skinLayer: some View {
-        if let pick = skin {
-            if pick.item.isPair {
-                ZStack(alignment: .topLeading) {
-                    // 点面板外面：关掉，不上屏，不记。
-                    Color.black.opacity(0.001).frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .onTapGesture { skin = nil }
-                    PairSkinPanel(pick: pick, choose: { left, right in
-                        skin?.left = left
-                        skin?.right = right
-                        if haptics { UISelectionFeedbackGenerator().selectionChanged() }
-                    }, commit: { emoji in
-                        commitSkin(pick.item, emoji)
-                    })
-                    .offset(x: pick.frame.minX, y: pick.frame.minY)
-                }
-            } else {
-                SingleSkinBar(pick: pick)
-                    .offset(x: pick.frame.minX, y: pick.frame.minY)
-                    .allowsHitTesting(false)
-            }
-        }
-    }
-
-    private func beginSkin(_ item: EmojiCatalog.Item, cell: CGRect, width: CGFloat) {
-        guard skin?.item != item else { return }
-        let shown = EmojiSkin.shown(item)
-        if haptics { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-        if item.isPair {
-            // 再长按：两排预选上次的肤色。
-            let code = item.tones.first { $0.emoji == shown }?.code
-            let (frame, above) = SkinPickLayout.place(size: SkinPickLayout.pairSize, cell: cell,
-                                                      centerX: SkinPickLayout.pairSize.width / 2, width: width)
-            skin = SkinPick(item: item, cell: cell, frame: frame, above: above, index: nil,
-                            left: code.flatMap { $0.first?.wholeNumberValue },
-                            right: code.flatMap { $0.last?.wholeNumberValue })
-        } else {
-            // 一开始高亮当前那格，正对手指上方。
-            let index = item.tones.prefix(5).firstIndex { $0.emoji == shown }.map { $0 + 1 } ?? 0
-            let (frame, above) = SkinPickLayout.place(size: SkinPickLayout.singleSize, cell: cell,
-                                                      centerX: SkinPickLayout.singleCenter(index), width: width)
-            skin = SkinPick(item: item, cell: cell, frame: frame, above: above, index: index)
-        }
-    }
-
-    private func moveSkin(_ point: CGPoint) {
-        guard let pick = skin, !pick.item.isPair else { return }
-        let index = SkinPickLayout.singleIndex(at: point, in: pick.frame)
-        guard index != pick.index else { return }
-        skin?.index = index
-        if index != nil, haptics { UISelectionFeedbackGenerator().selectionChanged() }
-    }
-
-    /// 松手：单人上屏高亮那个（滑出去了就只关弹层）；两人面板松手不收。
-    private func endSkin() {
-        guard let pick = skin, !pick.item.isPair else { return }
-        if let index = pick.index, index < pick.choices.count {
-            commitSkin(pick.item, pick.choices[index])
-        } else {
-            skin = nil
-        }
-    }
-
-    private func commitSkin(_ item: EmojiCatalog.Item, _ emoji: String) {
-        EmojiSkin.remember(item, emoji)
-        model.pickFromPanel(emoji, recent: item.emoji)
-        skin = nil
     }
 
     private var kaomojiGrid: some View {

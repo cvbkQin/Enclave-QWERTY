@@ -201,12 +201,8 @@ enum EmojiCatalog {
         let emoji: String
         /// 肤色变体，留给长按选肤色用；系统显示不出来的已去掉。
         let tones: [Tone]
-        /// 能长按选肤色（格子右下角带红点）。
-        var hasTones: Bool { !tones.isEmpty }
-        /// 两人组合（🤝 💏 👫…）且有两人不同肤色的：长按弹两排分别选；只有 5 个同肤色的还用单人那 6 格。
-        var isPair: Bool { tones.count > 5 }
-        /// 两人组合按肤色编号找（"12" 是左边浅、右边中浅）。
-        func tone(_ code: String) -> String? { tones.first { $0.code == code }?.emoji }
+        /// 两人组合（🤝 💏 👫…）：两人可以分别选肤色。
+        var isPair: Bool { tones.contains { $0.code.count == 2 } }
     }
 
     struct Tone: Hashable {
@@ -284,46 +280,7 @@ enum EmojiCatalog {
         return (os.majorVersion, os.minorVersion) >= need
     }
 
-    /// 原型和每个肤色变体 → 那一项：「最近」里存的是原型，老版本存过带肤色的也能对回来。
-    static let lookup: [String: Item] = {
-        var result: [String: Item] = [:]
-        for category in categories {
-            for item in category.items {
-                result[item.emoji] = item
-                for tone in item.tones { result[tone.emoji] = item }
-            }
-        }
-        return result
-    }()
-
     private final class BundleToken {}
-}
-
-/// 长按选过的肤色（ES 稿）：每个表情各记各的，存在共享设置里，和「最近」放一起。选回原色也记。
-enum EmojiSkin {
-    private static let key = "keyboard.emojiSkin"
-    private static var cache: [String: String]?
-
-    private static var all: [String: String] {
-        if let cache { return cache }
-        let loaded = SharedStorage.defaults.dictionary(forKey: key) as? [String: String] ?? [:]
-        cache = loaded
-        return loaded
-    }
-
-    /// 面板和「最近」里显示、单击上屏的那个：选过就是选过的，没选过是原色。
-    static func shown(_ item: EmojiCatalog.Item) -> String {
-        guard let chosen = all[item.emoji], chosen == item.emoji || item.tones.contains(where: { $0.emoji == chosen })
-        else { return item.emoji }
-        return chosen
-    }
-
-    static func remember(_ item: EmojiCatalog.Item, _ emoji: String) {
-        var dict = all
-        dict[item.emoji] = emoji
-        cache = dict
-        SharedStorage.defaults.set(dict, forKey: key)
-    }
 }
 
 /// 最近用过的表情，存在共享设置里，最多 30 个。
