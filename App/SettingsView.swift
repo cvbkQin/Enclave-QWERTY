@@ -1434,7 +1434,11 @@ struct DoublePinyinView: View {
                 .pickerStyle(.segmented)
                 .dashFormCard()
             } footer: {
-                deployStatus
+                VStack(alignment: .leading, spacing: 6) {
+                    deployStatus
+                    // 全拼时下面没有别的设置项：说一句全拼、双拼各是什么，免得整页看着是空的（11-16 用户反馈）。
+                    if store.settings.doublePinyin == nil { fullPinyinNote }
+                }
             }
             if let current = store.settings.doublePinyin {
                 Section(L("双拼方案", "Scheme", "方式")) {
@@ -1489,6 +1493,13 @@ struct DoublePinyinView: View {
         guard scheme != store.settings.doublePinyin else { return }
         store.settings.doublePinyin = scheme
         deployer.deploy()
+    }
+
+    private var fullPinyinNote: some View {
+        let example = ["ni", "hao"].compactMap(lastScheme.code(for:)).joined()
+        return Text(L("现在用全拼：每个字的拼音全部打出来，「你好」打 nihao。双拼每个字只按两个键，\(lastScheme.title)里「你好」打 \(example)；切到双拼后可以选方案、看键位。",
+                      "You're using full pinyin: type each syllable in full, so 你好 is nihao. Double pinyin takes two keys per syllable (\(lastScheme.title): \(example)); switch to Double to pick a scheme and see the layout.",
+                      "全拼を使用中：1 文字ずつピンインをすべて入力します（你好 = nihao）。双拼は 1 文字 2 キーで入力します（\(lastScheme.title)：\(example)）。双拼に切り替えると方式とキー配置を選べます。"))
     }
 
     /// 换了方式要重新部署词库：部署中、失败时在分段控件下面说一句。
