@@ -257,12 +257,12 @@ final class KeyboardModel: ObservableObject {
     @Published var cross: CrossPopup?
     /// 回答卡里按住回车弹出的「上润色、左问答」十字（第 70 条）。
     @Published var enterCross: EnterCrossPopup?
-    /// AI 帮回（帮回并入润色）：有「待回的复制」（剪贴板换了新内容、不是链接或纯数字、复制后 5 分钟内、还没帮回过）。
+    /// AI 帮回（帮回并入润色）：有「待回的复制」（剪贴板换了新内容、不是链接或纯数字、复制后 1 分钟内、还没帮回过）。
     /// 润色键变绿 / 换 logo、识意框右边的帮回按钮、下拉框里帮回那一行的红点都看它。
     @Published var helpPending = false
     /// 这份待回的复制出现后输入框里打过字：润色键不再整颗变绿。
     @Published var helpTyped = false
-    /// 复制后 5 分钟到了把 helpPending 收掉。
+    /// 复制后 1 分钟到了把 helpPending 收掉。
     var helpExpiry: DispatchWorkItem?
     /// 长按「中/英」弹出的拼音布局菜单（P11）。
     @Published var layoutMenu: LayoutMenuPopup?

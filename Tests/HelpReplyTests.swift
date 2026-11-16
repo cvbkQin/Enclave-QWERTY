@@ -45,7 +45,7 @@ final class HelpReplyTests: XCTestCase {
     }
 
     /// 待回的复制：第一次用时原来的内容不算；换了新内容，复制时间按键盘上次看剪贴板的时间算，
-    /// 查完不是链接、纯数字才算，5 分钟后、用过就不算。
+    /// 查完不是链接、纯数字才算，1 分钟后、用过就不算。
     func testHelpCopyPending() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let first = HelpCopy.observe(nil, count: 5, hasStrings: true, now: start, lookedAt: nil)
@@ -55,8 +55,8 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertFalse(copy.used)
         XCTAssertFalse(copy.pending(now: start), "detectPatterns 还没查完")
         copy.suits = true
-        XCTAssertTrue(copy.pending(now: start.addingTimeInterval(290)))
-        XCTAssertFalse(copy.pending(now: start.addingTimeInterval(300)))
+        XCTAssertTrue(copy.pending(now: start.addingTimeInterval(58)))
+        XCTAssertFalse(copy.pending(now: start.addingTimeInterval(59)))
         // 同一份再看一眼：复制时间不变。
         XCTAssertEqual(HelpCopy.observe(copy, count: 6, hasStrings: true, now: start.addingTimeInterval(100), lookedAt: start).seen,
                        start.addingTimeInterval(-1))
@@ -79,7 +79,7 @@ final class HelpReplyTests: XCTestCase {
         var fresh = HelpCopy.observe(old, count: 6, hasStrings: true, now: now, lookedAt: now.addingTimeInterval(-40))
         fresh.suits = true
         XCTAssertTrue(fresh.pending(now: now), "刚收起去复制、回来再弹出：算")
-        XCTAssertFalse(fresh.pending(now: now.addingTimeInterval(270)), "从收起时算 5 分钟")
+        XCTAssertFalse(fresh.pending(now: now.addingTimeInterval(25)), "从收起时算 1 分钟")
         var unknown = HelpCopy.observe(old, count: 6, hasStrings: true, now: now, lookedAt: nil)
         unknown.suits = true
         XCTAssertFalse(unknown.pending(now: now), "不知道键盘上次什么时候看过")
