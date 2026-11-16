@@ -681,9 +681,10 @@ extension KeyboardModel {
     }
 
     /// 表情、颜文字面板里点了一个：直接上屏，记进最近使用。
-    func pickFromPanel(_ text: String) {
+    /// recent：记进「最近」的那个（能选肤色的表情记原型，显示时再换成记住的肤色）。
+    func pickFromPanel(_ text: String, recent: String? = nil) {
         typeSymbol(text)
-        if keysPanel == .emoji { RecentEmoji.add(text) }
+        if keysPanel == .emoji { RecentEmoji.add(recent ?? text) }
     }
 
     /// 「常用 / 剪贴板」左栏里点了一条常用语：上屏，回到九宫格。
