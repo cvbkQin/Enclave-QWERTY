@@ -75,32 +75,37 @@ enum HelpReply {
 }
 
 /// 「待回的复制」（帮回并入润色 §3）：键盘看到剪贴板换了新内容，只看 changeCount / hasStrings，不读内容。
-/// 不是键盘自己复制的、系统判断不是链接或纯数字（detectPatterns，不读内容、不弹横幅）、键盘第一次看到不到 10 分钟、还没帮回过。
+/// 不是键盘自己复制的、系统判断不是链接或纯数字（detectPatterns，不读内容、不弹横幅）、复制后不到 5 分钟、还没帮回过。
+/// 系统不给复制时间：键盘开着时看到换了就是那一刻；键盘没开着时换的，最早只能算到键盘上次看剪贴板的时候，
+/// 就按那时算（宁可少提示，也不让很久以前复制的东西把润色键一直占成帮回）。
 struct HelpCopy: Codable, Equatable {
     var count: Int
-    /// 键盘第一次看到这份复制的时间。
+    /// 最早可能的复制时间（见上）。
     var seen: Date
     /// 帮回过、键盘自己复制的、没有文字的：不再算待回。
     var used: Bool
     /// detectPatterns 的结果：nil 还没查，false 是链接或纯数字。
     var suits: Bool?
+    /// 有了这份复制以后输入框里打过字（自己在回了）：润色键不再整颗变绿，只留 logo 和下拉里的红点。
+    var typed: Bool?
 
-    static let window: TimeInterval = 600
+    static let window: TimeInterval = 300
 
     func pending(now: Date = Date()) -> Bool {
         !used && suits == true && now.timeIntervalSince(seen) >= 0 && now.timeIntervalSince(seen) < Self.window
     }
 
-    /// 什么时候过期（10 分钟）。
+    /// 什么时候过期（复制后 5 分钟）。
     var expires: Date { seen.addingTimeInterval(Self.window) }
 
-    /// 看一眼剪贴板：还是同一份就照旧；换了新内容记下第一次看到的时间。
+    /// 看一眼剪贴板：还是同一份就照旧；换了新内容，复制时间记成键盘上次看剪贴板的时间（lookedAt，没有就当很久以前）。
     /// 第一次用（没有记录）：剪贴板里原来的内容不算新复制。
-    static func observe(_ stored: HelpCopy?, count: Int, hasStrings: Bool, now: Date = Date()) -> HelpCopy {
+    static func observe(_ stored: HelpCopy?, count: Int, hasStrings: Bool, now: Date = Date(), lookedAt: Date?) -> HelpCopy {
         if var stored, stored.count == count {
             if !hasStrings { stored.used = true }
             return stored
         }
-        return HelpCopy(count: count, seen: now, used: stored == nil || !hasStrings, suits: nil)
+        let since = lookedAt.map { min($0, now) } ?? .distantPast
+        return HelpCopy(count: count, seen: since, used: stored == nil || !hasStrings, suits: nil)
     }
 }

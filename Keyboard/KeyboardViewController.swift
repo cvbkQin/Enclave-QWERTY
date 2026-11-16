@@ -432,6 +432,8 @@ final class KeyboardViewController: UIInputViewController {
         polledChangeCount = nil
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
+            // 帮回：记下键盘还看着剪贴板的时间，收起以后剪贴板换了，复制时间最早算到这里。
+            self.model.noteClipboardLook()
             let count = UIPasteboard.general.changeCount
             guard let last = self.polledChangeCount else {
                 self.polledChangeCount = count

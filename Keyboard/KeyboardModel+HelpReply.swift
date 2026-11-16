@@ -8,6 +8,10 @@ import UIKit
 /// 键盘每次弹出只看剪贴板的 changeCount（已有的轮询）和一次 detectPatterns，没有别的帮回状态和视图。
 extension KeyboardModel {
     private static let copyKey = "helpReply.copy.v2"
+    private static let lookKey = "helpReply.lookedAt"
+    /// 这个键盘进程上次看剪贴板的时间，和上次存进共享容器的时间（5 秒存一次）。
+    private static var lastLook: Date?
+    private static var lastLookSaved: Date?
 
     /// 润色接口（主接口）能用才有帮回。
     var helpReplyAvailable: Bool {
@@ -41,12 +45,33 @@ extension KeyboardModel {
         }
         let board = UIPasteboard.general
         let stored = Self.storedCopy
-        let copy = HelpCopy.observe(stored, count: board.changeCount, hasStrings: board.hasStrings)
+        let now = Date()
+        let copy = HelpCopy.observe(stored, count: board.changeCount, hasStrings: board.hasStrings, now: now, lookedAt: Self.previousLook())
+        noteClipboardLook(now: now)
         if copy != stored { Self.storedCopy = copy }
         if copy.suits == nil, !copy.used, Date() < copy.expires {
             detectHelpCopy(count: copy.count)
         }
         applyHelpCopy(copy)
+    }
+
+    /// 键盘开着时剪贴板轮询每秒调一次、弹出查剪贴板时也调：记下键盘还看着剪贴板的时间。
+    /// 键盘没开着时剪贴板换了，复制时间最早只能算到这里。各个 App 里的键盘进程共用，5 秒存一次。
+    func noteClipboardLook(now: Date = Date()) {
+        Self.lastLook = now
+        if let saved = Self.lastLookSaved, now.timeIntervalSince(saved) >= 0, now.timeIntervalSince(saved) < 5 { return }
+        Self.lastLookSaved = now
+        SharedStorage.defaults.set(now.timeIntervalSince1970, forKey: Self.lookKey)
+    }
+
+    /// 键盘上次看剪贴板的时间：这个进程记的和别的 App 里的键盘存的，取晚的那个。都没有就是 nil（分不清，当很久以前）。
+    private static func previousLook() -> Date? {
+        let stored = SharedStorage.defaults.double(forKey: lookKey)
+        let saved = stored > 0 ? Date(timeIntervalSince1970: stored) : nil
+        switch (lastLook, saved) {
+        case let (a?, b?): return max(a, b)
+        case let (a, b): return a ?? b
+        }
     }
 
     /// 系统判断剪贴板里是不是链接、纯数字：不读内容、不弹「粘贴自…」横幅。查不出来就当能帮回。
@@ -69,6 +94,8 @@ extension KeyboardModel {
     private func applyHelpCopy(_ copy: HelpCopy) {
         let pending = copy.pending()
         setHelpPending(pending)
+        let typed = copy.typed == true
+        if helpTyped != typed { helpTyped = typed }
         helpExpiry?.cancel()
         helpExpiry = nil
         guard pending else { return }
@@ -93,6 +120,14 @@ extension KeyboardModel {
         applyHelpCopy(copy)
     }
 
+    /// 有待回的复制时输入框里有了字（refreshHostState 里调）：自己在回了，这份复制不再让润色键整颗变绿。
+    func noteHelpFieldText() {
+        guard helpPending, !helpTyped, var copy = Self.storedCopy, copy.pending() else { return }
+        copy.typed = true
+        Self.storedCopy = copy
+        withAnimation(.easeOut(duration: 0.2)) { helpTyped = true }
+    }
+
     /// 键盘自己写了剪贴板（复制结果、分词复制、复制一条记录）：不算新复制的内容，也不是待回的复制。
     func noteOwnCopy() {
         let count = UIPasteboard.general.changeCount
@@ -107,9 +142,9 @@ extension KeyboardModel {
     /// 输入框里有字（正在拼的拼音也算）。
     private var helpFieldHasText: Bool { hostHasText || (target == .host && isComposing) }
 
-    /// 润色键整颗变成绿色「↩ 帮回 ⌄」（情况 ①③）：有待回的复制、输入框空、帮回没钉到 AI 栏。
+    /// 润色键整颗变成绿色「↩ 帮回 ⌄」（情况 ①③）：有待回的复制、输入框空、之后没在框里打过字、帮回没钉到 AI 栏。
     var polishKeyIsHelp: Bool {
-        helpPending && !settings.helpPinned && !helpFieldHasText && helpReplyAvailable
+        helpPending && !helpTyped && !settings.helpPinned && !helpFieldHasText && helpReplyAvailable
     }
 
     /// 润色键还是紫色「润色」，只把 ✨ 换成降饱和的绿色帮回 logo（情况 ②④、钉住以后）。
@@ -245,6 +280,7 @@ extension KeyboardModel {
         if settings.keyboardLayout != wanted { setLayout(wanted) }
         if options.contains("pinned") != settings.helpPinned { updateSettings { $0.helpPinned = options.contains("pinned") } }
         helpPending = options.contains("pending") || options.contains("typed")
+        helpTyped = false
         let message = "这份方案明天能交吗？"
         let now = Date()
         clipItems = [
