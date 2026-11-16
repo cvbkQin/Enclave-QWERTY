@@ -187,6 +187,8 @@ final class KeyboardViewController: UIInputViewController {
         // 点对方输入框挪光标时，系统有时只通知文字变了、不通知光标变了（iOS 27 模拟器上就是这样），两处都接。
         model.hostSelectionChanged()
         model.fieldDidChange()
+        // 双拼练习页按对、清空练习框后，「跟着按键变」的提示跟着框里的字母换（见 KeyboardModel.practiceContextPhase）。
+        if model.doublePinyin != nil, model.settings.doublePinyinHintMode == .dynamic, model.practiceActive { model.objectWillChange.send() }
     }
 
     /// 换到别的输入框、移动光标时也更新一下发送键（有没有字、回车键类型）。

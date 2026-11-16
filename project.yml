@@ -98,6 +98,8 @@ targets:
         CFBundleLocalizations: [zh-Hans, en, ja]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # 「双拼方案」页「保存键位图到相册」：只写入一张图，不读相册（双拼调研 P2-8）。
+        NSPhotoLibraryAddUsageDescription: 把双拼键位图存到相册，方便对照或打印。
         EnclaveAppGroup: $(APP_GROUP_ID)
         # 内测版自带的接口地址和模型（见 Shared/BuiltinAPI.swift）：只有 INTERNAL_BUILD=YES 时才有值。
         # Key 不放这里，由 scripts/gen-builtin-secrets.py 混淆后编进代码。

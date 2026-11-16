@@ -260,3 +260,59 @@ final class DoublePinyinTests: XCTestCase {
         run(rules, on: [text]).first ?? ""
     }
 }
+
+/// App 里的双拼练习（SP10）：一组怎么挑、按对按错怎么算、记进练习记录。
+final class DoublePinyinPracticeTests: XCTestCase {
+    private let items = DoublePinyinPracticeItem.parse("想\txiang\n小\txiao\n你好\tni hao\n坏行\tbad\n")
+
+    func testParseDropsMismatchedLines() {
+        XCTAssertEqual(items.map(\.text), ["想", "小", "你好"])
+        XCTAssertEqual(items[2].syllables, ["ni", "hao"])
+    }
+
+    func testPickPutsMissedFirstAndStopsAtCount() {
+        let picked = DoublePinyinPracticeItem.pick(from: items, missed: ["你好"], mastered: ["想"], count: 3)
+        XCTAssertEqual(picked.map(\.text), ["你好", "小"])
+        XCTAssertEqual(DoublePinyinPracticeItem.pick(from: items, missed: [], mastered: [], count: 30).count, 3)
+    }
+
+    func testRunRightWrongAndRecord() {
+        var run = DoublePinyinPracticeRun(scheme: .flypy, level: .basic, items: Array(items.prefix(2)), started: Date(timeIntervalSince1970: 0))
+        XCTAssertEqual(run.currentCode, "xl")
+        XCTAssertEqual(run.press("x"), .right)
+        // 小鹤 xk 是 xing：按成了 ing，iang 在 l。
+        XCTAssertEqual(run.press("k"), .wrong(.init(got: "ing", unit: "iang", key: "l")))
+        XCTAssertEqual(run.typed, "x")
+        XCTAssertEqual(run.press("l"), .nextCharacter)
+        XCTAssertEqual(run.doneCharacters, 1)
+        // 第一下按错：u 是 sh。
+        XCTAssertEqual(run.press("u"), .wrong(.init(got: "sh", unit: "x", key: "x")))
+        XCTAssertEqual(run.press("x"), .right)
+        XCTAssertEqual(run.press("n"), .finished)
+        XCTAssertTrue(run.isFinished)
+        XCTAssertEqual(run.keys, 6)
+        XCTAssertEqual(run.wrong, 2)
+        XCTAssertEqual(run.missedItems, ["想", "小"])
+        XCTAssertEqual(run.missedCharacters.map { $0.code }, ["xl", "xn"])
+
+        var state = DoublePinyinPracticeState()
+        run.record(into: &state, now: Date(timeIntervalSince1970: 60))
+        XCTAssertEqual(state.sessions.first?.characters, 2)
+        XCTAssertEqual(state.mistakes["l|iang"], 1)
+        XCTAssertEqual(state.mistakes["x|x"], 1)
+        XCTAssertEqual(state.missed[.basic], ["想", "小"])
+        XCTAssertEqual(state.mastered[.basic] ?? [], [])
+        XCTAssertEqual(DoublePinyinPracticeStore.topMistakes(state).first?.times, 1)
+    }
+
+    func testRunAcceptsAlternates() {
+        var run = DoublePinyinPracticeRun(scheme: .flypy, level: .basic,
+                                          items: DoublePinyinPracticeItem.parse("爱\tai\n去\tqu\n"))
+        XCTAssertEqual(run.press("a"), .right)
+        XCTAssertEqual(run.press("d"), .nextCharacter)
+        XCTAssertEqual(run.press("q"), .right)
+        XCTAssertEqual(run.press("v"), .finished)
+        XCTAssertEqual(run.wrong, 0)
+        XCTAssertEqual(run.cleanItems, ["爱", "去"])
+    }
+}

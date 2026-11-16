@@ -371,7 +371,7 @@ enum DoublePinyinHintMode: String, Codable, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .off: return L("不显示", "Off", "表示しない")
+        case .off: return L("关", "Off", "オフ")
         case .fixed: return L("固定", "Fixed", "固定")
         case .dynamic: return L("跟着按键变", "Follow typing", "入力に合わせる")
         }

@@ -16,6 +16,13 @@ extension KeyboardModel {
     var nineGrid: Bool { showsNineKey && (layer == .letters || layer == .digits) }
 
     func typeLetter(_ letter: String) {
+        // App 里的双拼练习：字母原样上屏，练习页看按的是哪个键（键上提示照常，见 practiceContextPhase）。
+        if practiceActive {
+            if shift == .on { shift = .off }
+            commit(letter.lowercased())
+            objectWillChange.send()
+            return
+        }
         let text = shift == .off ? letter : letter.uppercased()
         if shift == .on { shift = .off }
         // 大写字母不进拼音组字，直接上屏（先把排着的字母处理完，顺序才对）。
@@ -1068,6 +1075,7 @@ extension KeyboardModel {
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
         doublePinyin = useShared && RimeStore.isDeployed ? DoublePinyin.deployed : nil
         doublePinyinMixFull = doublePinyin != nil && DoublePinyin.deployedMixesFull
+        doublePinyinWeakUnits = doublePinyin != nil ? DoublePinyinPracticeStore.weakUnits : []
         TypingStats.modelInUse = useShared && RimeStore.isDeployed
             && (RimeStore.deployedVersion?.hasSuffix(GrammarModel.versionTag(installed: true)) ?? false)
         engine = chineseMode && pinyinReady ? queued : DirectEngine()
@@ -1572,5 +1580,24 @@ private extension StringProtocol {
             start = previous
         }
         return self[start...]
+    }
+}
+
+// MARK: - App 里的双拼练习（双拼调研 P3-11，设计稿 SP10）
+extension KeyboardModel {
+    /// 正在 App 的双拼练习页里打：双拼、全键盘中文、对方是练习页那种输入框（英文键盘类型、回车是「前往」、里面最多两个字母），
+    /// 而且 App 说练习页开着（DoublePinyinPracticeLink）。这时字母不进拼音引擎。
+    var practiceActive: Bool {
+        guard doublePinyin != nil, chineseMode, !showsNineKey, target == .host, !isComposing,
+              let proxy, proxy.keyboardType == .asciiCapable, proxy.returnKeyType == .go,
+              (proxy.documentContextBeforeInput ?? "").count <= 2, (proxy.documentContextAfterInput ?? "").isEmpty
+        else { return false }
+        return DoublePinyinPracticeLink.isActive
+    }
+
+    /// 练习时「跟着按键变」看练习框里已经按对的键：空着该按声母，有一个字母该按韵母。
+    var practiceContextPhase: DoublePinyin.HintPhase {
+        let before = (proxy?.documentContextBeforeInput ?? "").lowercased().filter { $0.isLetter && $0.isASCII }
+        return DoublePinyin.hintPhase(raw: String(before))
     }
 }

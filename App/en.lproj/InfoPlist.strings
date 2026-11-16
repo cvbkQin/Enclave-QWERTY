@@ -1,1 +1,2 @@
 "CFBundleDisplayName" = "Enclave";
+"NSPhotoLibraryAddUsageDescription" = "Saves the double pinyin layout image to Photos so you can refer to it or print it.";

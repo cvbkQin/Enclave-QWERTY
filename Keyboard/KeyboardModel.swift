@@ -125,6 +125,8 @@ final class KeyboardModel: ObservableObject {
     var doublePinyin: DoublePinyin?
     /// 部署的双拼词库也认全拼（「也认全拼」开着）：这时按键不一定两两成对，拼写栏不标红、热区不按双拼挪。
     var doublePinyinMixFull = false
+    /// 双拼练习里老按错的韵母，「跟着按键变」的提示里写深一点（SP10）；换引擎时读一次。
+    var doublePinyinWeakUnits: Set<String> = []
     /// 第一次在双拼下组字时，拼写栏右边说一句「点拼音，直接上屏字母」（SP6 ①），只说一次。
     @Published var showsFullPinyinTip = false
     @Published var needsGlobeKey = true
