@@ -280,6 +280,18 @@ enum EmojiCatalog {
         return (os.majorVersion, os.minorVersion) >= need
     }
 
+    /// 原型和每个肤色变体 → 那一项（只含这台系统能显示的）：打字候选的 emoji 用它跳过显示不出来的（见 EmojiTable）。
+    static let lookup: [String: Item] = {
+        var result: [String: Item] = [:]
+        for category in categories {
+            for item in category.items {
+                result[item.emoji] = item
+                for tone in item.tones { result[tone.emoji] = item }
+            }
+        }
+        return result
+    }()
+
     private final class BundleToken {}
 }
 
