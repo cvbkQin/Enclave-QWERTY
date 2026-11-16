@@ -199,8 +199,16 @@ struct EnterCrossPopup: Equatable {
 enum EmojiCatalog {
     struct Item: Hashable {
         let emoji: String
-        /// 肤色变体（浅到深），留给长按选肤色用；系统显示不出来的已去掉。
-        let tones: [String]
+        /// 肤色变体，留给长按选肤色用；系统显示不出来的已去掉。
+        let tones: [Tone]
+        /// 两人组合（🤝 💏 👫…）：两人可以分别选肤色。
+        var isPair: Bool { tones.contains { $0.code.count == 2 } }
+    }
+
+    struct Tone: Hashable {
+        let emoji: String
+        /// 1–5 浅到深；两人组合两位，第一位是左边那个人（🫱🏻‍🫲🏼 是 "12"）。
+        let code: String
     }
 
     struct Category: Identifiable {
@@ -223,7 +231,7 @@ enum EmojiCatalog {
         return parse(text, os: ProcessInfo.processInfo.operatingSystemVersion)
     }()
 
-    /// 「# 分类」一行开一个分类；其余每行「emoji<Tab>版本<Tab>肤色变体（emoji/版本，空格分开）」。
+    /// 「# 分类」一行开一个分类；其余每行「emoji<Tab>版本<Tab>肤色变体（emoji/版本/肤色，空格分开）」。
     static func parse(_ text: String, os: OperatingSystemVersion) -> [Category] {
         var result: [Category] = []
         var name: String?
@@ -242,11 +250,11 @@ enum EmojiCatalog {
             }
             let parts = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
             guard parts.count >= 2, supported(String(parts[1]), os: os) else { continue }
-            let tones: [String] = parts.count > 2
-                ? parts[2].split(separator: " ").compactMap { tone -> String? in
-                    let pair = tone.split(separator: "/")
-                    guard pair.count == 2, supported(String(pair[1]), os: os) else { return nil }
-                    return String(pair[0])
+            let tones: [Tone] = parts.count > 2
+                ? parts[2].split(separator: " ").compactMap { tone -> Tone? in
+                    let fields = tone.split(separator: "/")
+                    guard fields.count == 3, supported(String(fields[1]), os: os) else { return nil }
+                    return Tone(emoji: String(fields[0]), code: String(fields[2]))
                 }
                 : []
             items.append(Item(emoji: String(parts[0]), tones: tones))
