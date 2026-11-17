@@ -249,6 +249,7 @@ struct TestToolsView: View {
         DashPage {
             TypingSpeedCard()
             if PopupLog.enabled { PopupLogCard() }
+            if CommitStyle.canChoose { CommitStyleCard() }
             StressTestCard()
             #if DEBUG
             // 输入框测试台：只在开发版（内测、公测包里没有）。
@@ -267,6 +268,25 @@ struct TestToolsView: View {
         }
         .navigationTitle(L("测试工具", "Test tools", "テストツール"))
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// 测试工具 › 选词上屏方式（只在开发版）：T9 限字数框和闲鱼要对比两种写法，见 CommitStyle。调试用，没有 UI 稿。
+private struct CommitStyleCard: View {
+    @State private var style = CommitStyle.current
+
+    var body: some View {
+        DashCard {
+            Text("选词上屏方式").font(.system(size: 17, weight: .semibold))
+            Picker("选词上屏方式", selection: $style) {
+                Text("选中拼音再插入（新）").tag(CommitStyle.selectThenInsert)
+                Text("换标记区（原来）").tag(CommitStyle.replaceMarked)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: style) { value in CommitStyle.chosen = value }
+            Text("新的能让限字数的框拒掉超长的词；原来的在闲鱼、标签打印这类框里一直没问题。在闲鱼、标签 App、测试台 7 号里各试一次，哪种不对就切另一种对比。键盘下次上屏就生效。")
+                .font(.footnote).foregroundStyle(.secondary)
+        }
     }
 }
 

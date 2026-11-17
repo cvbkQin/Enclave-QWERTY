@@ -27,7 +27,7 @@ struct HostCompatBench: View {
             bench("5. 不认标记文字（亚朵姓名框）", note: "setMarkedText 直接当插入，拼音每更新一次就多插一遍。") {
                 BenchField(kind: .noMarkedText)
             }
-            bench("6. 空标记不清、插入不替换（闲鱼 Flutter）", note: "setMarkedText(\"\") 不清标记区，标记中 insertText 不替换。") {
+            bench("6. 空标记不清、插入不替换（闲鱼 Flutter）", note: "setMarkedText(\"\") 不清标记区；insertText 只替换选区，不管标记区（照 Flutter 引擎）。") {
                 BenchField(kind: .flutterLike)
             }
             bench("7. 最多 10 个字（shouldChangeCharacters 限长）", note: "超过 10 个字的改动直接拒掉。") {
@@ -150,8 +150,12 @@ private final class FlutterLikeField: UITextField {
         super.setAttributedMarkedText(markedText, selectedRange: selectedRange)
     }
 
+    // Flutter 3.x 引擎（FlutterTextInputPlugin.mm）的 insertText 替换的是当前选区，不管标记区：
+    // 光标在拼音后面时就插在后面（hao de好的）；选区盖住整段拼音时替换的正好是拼音。这里照着做。
     override func insertText(_ text: String) {
+        let selection = selectedTextRange
         if markedTextRange != nil { super.unmarkText() }
+        if let selection { selectedTextRange = selection }
         super.insertText(text)
     }
 }
