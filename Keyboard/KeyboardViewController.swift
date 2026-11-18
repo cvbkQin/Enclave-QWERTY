@@ -168,7 +168,8 @@ final class KeyboardViewController: UIInputViewController {
     private var orientationCheckScheduled = false
     private func scheduleOrientationCheck() {
         guard !orientationCheckScheduled, let screen = view.window?.windowScene?.screen.bounds.size,
-              (screen.width > screen.height) != model.landscape else { return }
+              (screen.width > screen.height) != model.landscape || (screen.width > screen.height) != KeyboardMetrics.landscape
+        else { return }
         orientationCheckScheduled = true
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }

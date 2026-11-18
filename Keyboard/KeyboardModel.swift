@@ -425,8 +425,12 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var landscape = false
 
     func setLandscape(_ value: Bool) {
-        guard value != landscape else { return }
+        // KeyboardMetrics.landscape 是整个键盘进程共用的，model.landscape 是每个页面自己的（新页面从 false 开始）。
+        // 以前只比 model.landscape：横屏弹过一次以后，竖屏新页面 setLandscape(false) 直接返回，进程里的尺寸一直是横屏的，
+        // 之后每次竖屏弹出都是扁按键、AI 栏上面空一大块，恢复不了（T82，11-18 真机）。两个都要对上。
+        let metricsChanged = KeyboardMetrics.landscape != value
         KeyboardMetrics.landscape = value
+        guard metricsChanged || value != landscape else { return }
         landscape = value
         heightMayChange?()
     }

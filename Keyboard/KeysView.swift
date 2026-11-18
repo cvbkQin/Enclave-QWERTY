@@ -826,30 +826,50 @@ struct DoublePinyinKeyLabel: View {
     /// 练习里老按错的韵母（和 zh / ch / sh）：排在前面、字深一点（SP10）。
     var weak: Set<String> = []
 
+    /// 小字和字母都挂在键上（overlay），不撑键的高度：以前是 VStack，两行小字的键（s、k、l、x、v）比键高，
+    /// 竖屏往下伸出来、和别的键对不齐（T18，IMG_2005）；横屏键只有 29 高，撑得更多，整排错位、互相压住（IMG_2006）。
+    /// 按键高 43（横屏 29）排：竖屏两行时小字小一号；横屏只留一行小字、字母小一号。
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                ForEach(shownLines, id: \.self) { line in
-                    let initial = ["zh", "ch", "sh"].contains(line)
-                    let isWeak = weak.contains(line)
-                    Text(line)
-                        .font(.system(size: 8, weight: initial || isWeak ? .bold : .medium))
-                        .foregroundStyle(initial ? Brand.purpleText : isWeak ? Color.primary : Color.secondary)
-                        .frame(height: 8.6)
+        let style = Self.style(lines: shownLines.count, landscape: KeyboardMetrics.landscape)
+        Color.clear
+            .overlay(alignment: .top) {
+                VStack(spacing: 0) {
+                    ForEach(shownLines, id: \.self) { line in
+                        let initial = ["zh", "ch", "sh"].contains(line)
+                        let isWeak = weak.contains(line)
+                        Text(line)
+                            .font(.system(size: style.hintSize, weight: initial || isWeak ? .bold : .medium))
+                            .foregroundStyle(initial ? Brand.purpleText : isWeak ? Color.primary : Color.secondary)
+                            .frame(height: style.hintLine)
+                    }
                 }
+                .padding(.top, style.top)
             }
-            .padding(.top, 3)
-            Spacer(minLength: 0)
-            Text(letter)
-                .font(.system(size: 21))
-                .opacity(dimmed ? 0.28 : 1)
-                .padding(.bottom, 4)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(alignment: .bottom) {
+                Text(letter)
+                    .font(.system(size: style.letterSize))
+                    .opacity(dimmed ? 0.28 : 1)
+                    .padding(.bottom, style.bottom)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private struct Style {
+        var hintSize: CGFloat, hintLine: CGFloat, top: CGFloat, letterSize: CGFloat, bottom: CGFloat
+    }
+
+    /// 字母大小、离底边的距离每个键都一样（同一排对得齐）；只有小字的排法看行数。
+    /// 竖屏键高 43：字母 21 离底 2.5，基线约在 36，l、k 的头顶约 21。一行小字 3 + 8.6；两行小一号 2 + 8×2 = 18，不碰字母。
+    /// 横屏键高 29：字母 17 离底 1，头顶约 12；只留一行小字 1 + 7.5。
+    private static func style(lines: Int, landscape: Bool) -> Style {
+        if landscape { return Style(hintSize: 7, hintLine: 7.5, top: 1, letterSize: 17, bottom: 1) }
+        if lines >= 2 { return Style(hintSize: 7.5, hintLine: 8, top: 2, letterSize: 21, bottom: 2.5) }
+        return Style(hintSize: 8, hintLine: 8.6, top: 3, letterSize: 21, bottom: 2.5)
     }
 
     private var shownLines: [String] {
-        guard !weak.isEmpty else { return Array(lines.prefix(2)) }
-        return Array((lines.filter { weak.contains($0) } + lines.filter { !weak.contains($0) }).prefix(2))
+        let limit = KeyboardMetrics.landscape ? 1 : 2
+        guard !weak.isEmpty else { return Array(lines.prefix(limit)) }
+        return Array((lines.filter { weak.contains($0) } + lines.filter { !weak.contains($0) }).prefix(limit))
     }
 }
