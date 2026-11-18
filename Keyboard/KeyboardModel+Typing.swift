@@ -1230,16 +1230,8 @@ extension KeyboardModel {
             // 11-11 闲鱼录屏：选「你好」后框里只剩「ni」）；非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
             // 代价：这条路不经过对方的 shouldChangeCharactersIn，用它限字数的框管不住（T9）。7294146 试过先清拼音再 insertText，闲鱼打不了字，已撤回。
             if hasMarkedText, !text.isEmpty {
-                let marked = lastMarkedText as NSString
-                if CommitStyle.current == .selectThenInsert, marked.length > 0 {
-                    // 开发版试的新写法（见 CommitStyle）：拼音整段选中再 insertText，限字数的框能拒；Flutter 框里替换的也正好是拼音。
-                    editProxy?.setMarkedText(marked as String, selectedRange: NSRange(location: 0, length: marked.length))
-                    editProxy?.insertText(text)
-                    editProxy?.unmarkText()
-                } else {
-                    editProxy?.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
-                    editProxy?.unmarkText()
-                }
+                editProxy?.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
+                editProxy?.unmarkText()
                 hasMarkedText = false
                 lastMarkedText = ""
             } else {
