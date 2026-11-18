@@ -186,7 +186,8 @@ final class KeyboardModel: ObservableObject {
     /// 打拼音时候选栏上面的拼音行有内容（PY7）。这一行一直占位，键盘高度不变。
     @Published var pinyinRowShown = false
     /// 拼音显示在侧边（F12）：九宫格打字时左列上三格是拼音列，全键盘候选栏最左边一颗拼音键；不留拼音行。
-    var pinyinSide: Bool { settings.pinyinDisplay == .side }
+    /// 横屏固定用侧边（LN1、LN2）：不加拼音行，键盘不变高。
+    var pinyinSide: Bool { settings.pinyinDisplay == .side || landscape }
     /// 侧边模式全键盘点了候选栏左边的拼音键：弹出切法和纠正读法，点一个就收。
     @Published var pinyinPopoverOpen = false
     @Published var candidates: [String] = []
@@ -421,8 +422,12 @@ final class KeyboardModel: ObservableObject {
     /// 分词面板开着时结果卡固定 2 行，关掉后回到原来的 2 行或 4 行（cardExpanded 不动）。
     var cardTall: Bool { !landscape && keysPanel != .words && (cardExpanded || aiBlocked || target == .card || failureDetailShown) }
 
-    /// 横屏简版（LS1–LS3）：控制器按屏幕方向设，尺寸见 KeyboardMetrics.landscape。
+    /// 横屏（LN1、LN2）：控制器按屏幕方向设，尺寸见 KeyboardMetrics.landscape。
     @Published private(set) var landscape = false
+
+    /// 横屏九宫格分左中右（LN1）：AI 栏、候选、结果卡、提示卡都放进按键中间那块，上面不再有 AI 栏、候选栏和回答卡那一块。
+    /// 九宫格的符号页（#@¥）也按这个高度，不显示 AI 栏，切过去键盘不跳。
+    var landscapeSplit: Bool { landscape && showsNineKey }
 
     func setLandscape(_ value: Bool) {
         // KeyboardMetrics.landscape 是整个键盘进程共用的，model.landscape 是每个页面自己的（新页面从 false 开始）。
@@ -454,7 +459,8 @@ final class KeyboardModel: ObservableObject {
     var keyboardHeight: CGFloat {
         KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
-                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide)
+                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide,
+                               split: landscapeSplit)
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。

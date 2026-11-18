@@ -52,6 +52,12 @@ struct KeysView: View {
                     if let column = layout.operatorColumn {
                         OperatorColumn(model: model, frame: column)
                     }
+                    // 横屏九宫格中间那块（LN1）：AI 栏 + 联想 / 候选 / 结果卡。放在长按十字下面，十字伸过来时盖得住。
+                    if let middle = layout.middle {
+                        LandscapeNineMiddle(model: model)
+                            .frame(width: middle.width, height: middle.height)
+                            .offset(x: middle.minX, y: middle.minY)
+                    }
                     // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选时也不显示）。
                     if !model.nineGrid {
                         KeyPopupLayer(presses: model.keyPresses, keys: layout.keys, hiddenKey: model.alternates?.key.id,
@@ -828,7 +834,7 @@ struct DoublePinyinKeyLabel: View {
 
     /// 小字和字母都挂在键上（overlay），不撑键的高度：以前是 VStack，两行小字的键（s、k、l、x、v）比键高，
     /// 竖屏往下伸出来、和别的键对不齐（T18，IMG_2005）；横屏键只有 29 高，撑得更多，整排错位、互相压住（IMG_2006）。
-    /// 按键高 43（横屏 29）排：竖屏两行时小字小一号；横屏只留一行小字、字母小一号。
+    /// 按键高 43（横屏 32）排：竖屏两行时小字小一号；横屏只留一行小字。
     var body: some View {
         let style = Self.style(lines: shownLines.count, landscape: KeyboardMetrics.landscape)
         Color.clear
@@ -860,9 +866,9 @@ struct DoublePinyinKeyLabel: View {
 
     /// 字母大小、离底边的距离每个键都一样（同一排对得齐）；只有小字的排法看行数。
     /// 竖屏键高 43：字母 21 离底 2.5，基线约在 36，l、k 的头顶约 21。一行小字 3 + 8.6；两行小一号 2 + 8×2 = 18，不碰字母。
-    /// 横屏键高 29：字母 17 离底 1，头顶约 12；只留一行小字 1 + 7.5。
+    /// 横屏键高 32（LN2）：照竖屏字母 19 贴下边、离底 1.5，头顶约 12；两行小字放不下，只留一行 1.5 + 7.5。
     private static func style(lines: Int, landscape: Bool) -> Style {
-        if landscape { return Style(hintSize: 7, hintLine: 7.5, top: 1, letterSize: 17, bottom: 1) }
+        if landscape { return Style(hintSize: 7, hintLine: 7.5, top: 1.5, letterSize: 19, bottom: 1.5) }
         if lines >= 2 { return Style(hintSize: 7.5, hintLine: 8, top: 2, letterSize: 21, bottom: 2.5) }
         return Style(hintSize: 8, hintLine: 8.6, top: 3, letterSize: 21, bottom: 2.5)
     }

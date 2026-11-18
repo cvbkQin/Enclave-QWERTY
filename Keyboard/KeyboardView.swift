@@ -10,13 +10,15 @@ struct KeyboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let gate = model.gate {
+            // 横屏九宫格（LN1）：提示卡、回答卡、AI 栏、候选都在按键中间那块里（LandscapeNineMiddle），上面什么都不加。
+            let split = model.landscapeSplit
+            if !split, let gate = model.gate {
                 // 提示卡单独占上方，结果卡片和展开的一行先让开。
                 GateCard(model: model, gate: gate)
                     .frame(height: KeyboardMetrics.gateHeight(gate))
                     .padding(.horizontal, inset)
                     .padding(.top, KeyboardMetrics.panelTop)
-            } else if model.aiExpanded {
+            } else if !split, model.aiExpanded {
                 // 替换 / 插入键在结果卡左边，和卡片一样高；弹出方式的另一个按钮浮在下面一行上，所以这一块叠在最上层。
                 // 自由编辑时左边的键收起，编辑框占满整行、连识意框那块一起用（FE3）。
                 let freeEdit = model.target == .card
@@ -57,42 +59,42 @@ struct KeyboardView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: KeyboardMetrics.pinyinRowHeight)
             }
-            ZStack {
-                // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
-                candidateBar
-                    .opacity(showsCandidateBar ? 1 : 0)
-                    .allowsHitTesting(showsCandidateBar)
-                    .accessibilityHidden(!showsCandidateBar)
-                if !showsCandidateBar {
-                    if model.target == .card {
-                        cardEditHint
-                    } else {
-                        aiBar
+            if !split {
+                ZStack {
+                    // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
+                    candidateBar
+                        .opacity(showsCandidateBar ? 1 : 0)
+                        .allowsHitTesting(showsCandidateBar)
+                        .accessibilityHidden(!showsCandidateBar)
+                    if !showsCandidateBar {
+                        if model.target == .card {
+                            CardEditHint(model: model, inset: inset)
+                        } else {
+                            AIBar(model: model, inset: inset)
+                        }
                     }
                 }
-            }
-            .frame(height: KeyboardMetrics.topRow)
-            // 长按候选的小气泡朝下，盖在按键上（键盘画不到候选栏上面）。
-            .overlay(alignment: .topLeading) {
-                if let menu = model.candidateMenu {
-                    GeometryReader { geo in
-                        CandidateMenuBubble(model: model, menu: menu, barWidth: geo.size.width)
+                .frame(height: KeyboardMetrics.topRow)
+                // 长按候选的小气泡朝下，盖在按键上（键盘画不到候选栏上面）。
+                .overlay(alignment: .topLeading) {
+                    if let menu = model.candidateMenu {
+                        GeometryReader { geo in
+                            CandidateMenuBubble(model: model, menu: menu, barWidth: geo.size.width)
+                        }
                     }
                 }
-            }
-            // 拼音键的弹框（F12）：往下盖在按键上（键盘收着时上面没有地方可画），选完或点框外收起。
-            .overlay(alignment: .topLeading) {
-                if model.pinyinPopoverOpen, model.pinyinKeyTitle != nil {
-                    PinyinKeyPopover(model: model)
-                        .padding(.leading, 4)
-                        .offset(y: KeyboardMetrics.topRow + 4)
+                // 拼音键的弹框（F12）：往下盖在按键上（键盘收着时上面没有地方可画），选完或点框外收起。
+                .overlay(alignment: .topLeading) {
+                    if model.pinyinPopoverOpen, model.pinyinKeyTitle != nil {
+                        PinyinKeyPopover(model: model)
+                            .padding(.leading, 4)
+                            .offset(y: KeyboardMetrics.topRow + 4)
+                    }
                 }
+                // 按住 ✨ 弹出的「问答」盖在按键上面；弹出时「改写」还要盖在回答卡（zIndex 2）上面。
+                .zIndex(model.askHoldShowing || model.pinyinPopoverOpen ? 3 : 1)
             }
-            // 按住 ✨ 弹出的「问答」盖在按键上面；弹出时「改写」还要盖在回答卡（zIndex 2）上面。
-            .zIndex(model.askHoldShowing || model.pinyinPopoverOpen ? 3 : 1)
             KeysView(model: model)
-                // 横屏九宫格居中 420 宽，不拉宽。
-                .frame(maxWidth: model.landscape && model.nineGrid ? KeyboardMetrics.landscapeNineWidth : .infinity)
                 .padding(.horizontal, KeyboardMetrics.sidePadding)
                 .layoutPriority(1)
                 // 气泡开着时点按键区别处只关气泡，不打字。
@@ -112,8 +114,10 @@ struct KeyboardView: View {
                                        base: model.cross != nil || model.enterCross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
                                        raises: !model.nineGrid && model.candidateMenu == nil && !model.askHoldShowing && !model.pinyinPopoverOpen))
         }
-        // 横屏两边各留 48 给刘海 / 灵动岛。
-        .padding(.horizontal, model.landscape ? KeyboardMetrics.landscapeSideMargin : 0)
+        // 横屏第一行离键盘上边 7（LN1、LN2）。左右不再另外留：系统横屏给键盘的宽已经让开了地球、话筒那两块。
+        .padding(.top, KeyboardMetrics.boardTop)
+        // 横屏九宫格和全键盘高度不一样（九宫格不带 AI 栏那一行）：中 / 英、换布局时跟着改高度。
+        .onChange(of: model.landscapeSplit) { _ in model.heightMayChange?() }
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .background(boardBackground)
@@ -228,81 +232,6 @@ struct KeyboardView: View {
 
     // MARK: - AI 栏
 
-    /// 在卡片里改结果时 AI 栏换成提示。
-    /// 自由编辑中（FE3）：左边「✎ 正在修改 AI 结果」，右边「取消修改」「✓ 完成修改」，完成在最右。
-    private var cardEditHint: some View {
-        HStack(spacing: 8) {
-            Label(L("正在修改 AI 结果", "Editing AI result", "AI の結果を編集中"), systemImage: "pencil")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Brand.modeRewriteText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .padding(.horizontal, 10)
-                .frame(height: 30)
-                .background(Capsule().fill(Brand.modeRewriteFill))
-            Spacer(minLength: 0)
-            Button { model.cancelCardEdit() } label: {
-                Text(L("取消修改", "Cancel", "キャンセル"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .foregroundStyle(Color.primary)
-                    .frame(width: 84, height: KeyboardMetrics.chipHeight)
-                    .background(Capsule().fill(KeyStyle.charKey))
-            }
-            .buttonStyle(KeyPressStyle())
-            Button { model.finishCardEdit() } label: {
-                Label(L("完成修改", "Done", "完了"), systemImage: "checkmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .foregroundStyle(.white)
-                    .frame(width: 104, height: KeyboardMetrics.chipHeight)
-                    .background(Capsule().fill(LinearGradient(colors: Brand.insertGradient, startPoint: .leading, endPoint: .trailing)))
-            }
-            .buttonStyle(KeyPressStyle())
-        }
-        .padding(.horizontal, inset)
-    }
-
-    /// 收起和展开同一排（AK4、AK5）：▭ 抽屉（固定）｜ 中间滑动区：润色键、问答键、1×20 竖线、固定的风格键 ｜ 撤销 / 重做（固定）。
-    /// 放不下就左右滑，哪边还有被遮住的内容哪边渐隐（AIKeyStrip）。没固定任何风格时不显示竖线。
-    /// 方案 A（v309）：间距 5、▭ 宽 36、撤销重做小胶囊约 64，402 宽的屏上至少完整露出一颗两字固定键。
-    /// 滑动区自带左右 5 的内边（给亮边留地方），所以它和 ▭、撤销重做之间不再加间距，看上去也是 5。
-    private var aiBar: some View {
-        // 功能关掉或不能用时，它固定的风格键也不显示（QE）。
-        let pins = model.settings.pinnedStyles.filter {
-            model.debugUnblocked || ($0.answer ? model.settings.showsAnswerKey : model.settings.showsPolishKey)
-        }
-        return HStack(spacing: 0) {
-            PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) {
-                model.endCoach()
-                model.setAIExpanded(!model.aiExpanded)
-            }
-            AIKeyStrip {
-                HStack(spacing: 5) {
-                    // AI 页关掉了、或配置不能用（没配、测试没通过）：这颗键不显示，后面的往左补位（QE）。
-                    if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
-                    if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
-                    if !pins.isEmpty || model.helpPinnedOnBar {
-                        if model.settings.showsPolishKey || model.settings.showsAnswerKey || model.debugUnblocked {
-                            Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
-                                .padding(.horizontal, -1)
-                        }
-                        // 固定的帮回键：问答键后面、固定风格键前面，不占「N / 5」。
-                        if model.helpPinnedOnBar { PinnedHelpKey(model: model) }
-                        ForEach(pins, id: \.style.id) { pin in
-                            PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
-                        }
-                    }
-                }
-            }
-            .frame(height: KeyboardMetrics.topRow)
-            UndoRedoPair(model: model)
-        }
-        .padding(.horizontal, inset)
-    }
-
     /// 打拼音、或者上屏后有联想时显示候选栏。
     private var showsCandidateBar: Bool { model.isComposing || model.showsPredictions }
 
@@ -382,6 +311,94 @@ struct KeyboardView: View {
             }
             .buttonStyle(KeyPressStyle())
         }
+    }
+}
+
+/// 在卡片里改结果时 AI 栏换成提示。
+/// 自由编辑中（FE3）：左边「✎ 正在修改 AI 结果」，右边「取消修改」「✓ 完成修改」，完成在最右。
+/// 横屏九宫格放在按键中间那块的第一行（LN1），inset 传 0。
+struct CardEditHint: View {
+    @ObservedObject var model: KeyboardModel
+    var inset: CGFloat
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Label(L("正在修改 AI 结果", "Editing AI result", "AI の結果を編集中"), systemImage: "pencil")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Brand.modeRewriteText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(Capsule().fill(Brand.modeRewriteFill))
+            Spacer(minLength: 0)
+            Button { model.cancelCardEdit() } label: {
+                Text(L("取消修改", "Cancel", "キャンセル"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(Color.primary)
+                    .frame(width: 84, height: KeyboardMetrics.chipHeight)
+                    .background(Capsule().fill(KeyStyle.charKey))
+            }
+            .buttonStyle(KeyPressStyle())
+            Button { model.finishCardEdit() } label: {
+                Label(L("完成修改", "Done", "完了"), systemImage: "checkmark")
+                    .font(.system(size: 14, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(.white)
+                    .frame(width: 104, height: KeyboardMetrics.chipHeight)
+                    .background(Capsule().fill(LinearGradient(colors: Brand.insertGradient, startPoint: .leading, endPoint: .trailing)))
+            }
+            .buttonStyle(KeyPressStyle())
+        }
+        .padding(.horizontal, inset)
+    }
+
+}
+
+/// 收起和展开同一排（AK4、AK5）：▭ 抽屉（固定）｜ 中间滑动区：润色键、问答键、1×20 竖线、固定的风格键 ｜ 撤销 / 重做（固定）。
+/// 放不下就左右滑，哪边还有被遮住的内容哪边渐隐（AIKeyStrip）。没固定任何风格时不显示竖线。
+/// 方案 A（v309）：间距 5、▭ 宽 36、撤销重做小胶囊约 64，402 宽的屏上至少完整露出一颗两字固定键。
+/// 滑动区自带左右 5 的内边（给亮边留地方），所以它和 ▭、撤销重做之间不再加间距，看上去也是 5。
+/// 横屏九宫格放在按键中间那块的第一行（LN1），inset 传 0。
+struct AIBar: View {
+    @ObservedObject var model: KeyboardModel
+    var inset: CGFloat
+
+    var body: some View {
+        // 功能关掉或不能用时，它固定的风格键也不显示（QE）。
+        let pins = model.settings.pinnedStyles.filter {
+            model.debugUnblocked || ($0.answer ? model.settings.showsAnswerKey : model.settings.showsPolishKey)
+        }
+        return HStack(spacing: 0) {
+            PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) {
+                model.endCoach()
+                model.setAIExpanded(!model.aiExpanded)
+            }
+            AIKeyStrip {
+                HStack(spacing: 5) {
+                    // AI 页关掉了、或配置不能用（没配、测试没通过）：这颗键不显示，后面的往左补位（QE）。
+                    if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
+                    if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
+                    if !pins.isEmpty || model.helpPinnedOnBar {
+                        if model.settings.showsPolishKey || model.settings.showsAnswerKey || model.debugUnblocked {
+                            Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
+                                .padding(.horizontal, -1)
+                        }
+                        // 固定的帮回键：问答键后面、固定风格键前面，不占「N / 5」。
+                        if model.helpPinnedOnBar { PinnedHelpKey(model: model) }
+                        ForEach(pins, id: \.style.id) { pin in
+                            PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
+                        }
+                    }
+                }
+            }
+            .frame(height: KeyboardMetrics.topRow)
+            UndoRedoPair(model: model)
+        }
+        .padding(.horizontal, inset)
     }
 }
 

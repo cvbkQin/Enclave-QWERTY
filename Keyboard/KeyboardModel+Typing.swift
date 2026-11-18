@@ -407,7 +407,7 @@ extension KeyboardModel {
     var layoutState: KeyLayout.State {
         KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
                         englishOnly: settings.inputLanguage == .englishOnly,
-                        composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide)
+                        composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape)
     }
 
     func perform(_ kind: KeyKind) {
