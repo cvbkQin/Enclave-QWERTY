@@ -336,6 +336,29 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(other.fuzzyPinyin, fuzzy, "模糊音不跟着同步")
     }
 
+    /// 帮回「自动判断」跟着风格同步；旧版本设备传上来的记录没有这一项：解得开、写回时不改本机的值，
+    /// 比较时当开（那些版本就是开着），升级后不会被当成本机改过、抢在别的设备前面。
+    func testStyleProfileHelpAuto() throws {
+        var settings = EnclaveSettings()
+        settings.helpAuto = false
+        let profile = SyncMerge.StyleProfile(settings: settings)
+        var other = EnclaveSettings()
+        profile.apply(to: &other)
+        XCTAssertFalse(other.helpAuto)
+
+        // 旧格式：去掉 helpAuto 这一项。
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(SyncMerge.StyleProfile(settings: EnclaveSettings()))) as? [String: Any])
+        object["helpAuto"] = nil
+        let legacy = try JSONDecoder().decode(SyncMerge.StyleProfile.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertNil(legacy.helpAuto)
+        var local = EnclaveSettings()
+        local.helpAuto = false
+        legacy.apply(to: &local)
+        XCTAssertFalse(local.helpAuto, "旧记录不改本机的值")
+        XCTAssertEqual(legacy, SyncMerge.StyleProfile(settings: EnclaveSettings()), "nil 当开，和开着的一样")
+        XCTAssertNotEqual(legacy, SyncMerge.StyleProfile(settings: local), "本机关掉了：算改过")
+    }
+
     /// 04 三审第 1 条：那台没单独设问答接口时，它留着没用的问答地址不传过来，这台的问答地址（配的是这台的问答 Key）不动。
     func testEndpointProfileLeavesUnusedAnswerEndpoint() {
         var peer = EnclaveSettings()

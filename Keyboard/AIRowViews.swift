@@ -545,7 +545,7 @@ struct StyleDropdown: View {
     /// 图钉把帮回钉到 AI 栏 / 取消，框不收，不占 N / 5。有待回的复制时行底浅绿、「帮回」后面红点。
     private var helpRow: some View {
         let pinned = model.helpPinnedOnBar
-        let pending = model.helpPending
+        let pending = model.helpShowsPending
         let styleName = model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
         return HStack(spacing: 0) {
             Button { model.helpRowTapped() } label: {

@@ -280,6 +280,9 @@ extension SyncMerge {
         var searchTendency: Int?
         var pinnedStyleIDs: [UUID]
         var helpPinned: Bool
+        /// 帮回「自动判断」（帮回开关方案第 5 节）：0.97_1 以前的设备传上来的记录没有这一项，解出来是 nil，
+        /// 写回时不改本机的值；比较时 nil 当开（那些版本没有开关，就是开着），升级后不会因为多了这一项被当成本机改过。
+        var helpAuto: Bool?
 
         init(settings: EnclaveSettings) {
             polishEnabled = settings.polishEnabled
@@ -291,6 +294,7 @@ extension SyncMerge {
             searchTendency = settings.searchTendency
             pinnedStyleIDs = settings.pinnedStyleIDs
             helpPinned = settings.helpPinned
+            helpAuto = settings.helpAuto
         }
 
         /// 写回设置：只改上面这些，别的不动。
@@ -304,6 +308,15 @@ extension SyncMerge {
             settings.searchTendency = searchTendency
             settings.pinnedStyleIDs = pinnedStyleIDs
             settings.helpPinned = helpPinned
+            if let helpAuto { settings.helpAuto = helpAuto }
+        }
+
+        static func == (a: StyleProfile, b: StyleProfile) -> Bool {
+            a.polishEnabled == b.polishEnabled && a.answerEnabled == b.answerEnabled && a.styles == b.styles
+                && a.selectedStyleID == b.selectedStyleID && a.answerStyles == b.answerStyles
+                && a.selectedAnswerStyleID == b.selectedAnswerStyleID && a.searchTendency == b.searchTendency
+                && a.pinnedStyleIDs == b.pinnedStyleIDs && a.helpPinned == b.helpPinned
+                && (a.helpAuto ?? true) == (b.helpAuto ?? true)
         }
     }
 

@@ -147,4 +147,55 @@ final class HelpReplyTests: XCTestCase {
         let old = Data(#"{"baseURL":"https://api.deepseek.com/v1","model":"deepseek-flash","helpPinnedQwerty":true,"replyStyles":[]}"#.utf8)
         XCTAssertFalse(try JSONDecoder().decode(EnclaveSettings.self, from: old).helpPinned)
     }
+
+    // MARK: 自动判断（帮回开关方案第 2 版）
+
+    /// 新装开；0.97 以前的设置没有这一项，读出来也是开；关掉能存下来。
+    func testHelpAutoDefaultsAndUpgrade() throws {
+        var settings = EnclaveSettings()
+        XCTAssertTrue(settings.helpAuto, "新装默认开")
+        let old = Data(#"{"baseURL":"https://api.deepseek.com/v1","model":"deepseek-flash","helpPinned":true}"#.utf8)
+        let upgraded = try JSONDecoder().decode(EnclaveSettings.self, from: old)
+        XCTAssertTrue(upgraded.helpAuto, "升级读不到就当开（0.97 相当于开着）")
+        XCTAssertTrue(upgraded.helpPinned)
+        settings.helpAuto = false
+        XCTAssertFalse(try JSONDecoder().decode(EnclaveSettings.self, from: JSONEncoder().encode(settings)).helpAuto)
+    }
+
+    /// 润色关了，帮回整个没有（bug #34），也不做自动判断；自动判断关着只停判断，帮回照样能用。
+    func testHelpUsableFollowsPolishSwitchAndAuto() {
+        var settings = EnclaveSettings()
+        settings.baseURL = "https://help-auto-test.example/v1"
+        settings.model = "help-auto-model"
+        XCTAssertTrue(settings.helpReplyUsable)
+        XCTAssertTrue(settings.helpAutoDetects)
+
+        settings.helpAuto = false
+        XCTAssertTrue(settings.helpReplyUsable, "关着自动判断：⌄ 那一行、钉住的键、「帮回这条」照样在")
+        XCTAssertFalse(settings.helpAutoDetects)
+
+        settings.helpAuto = true
+        settings.polishEnabled = false
+        XCTAssertTrue(settings.polishUsable, "接口本身还能用")
+        XCTAssertFalse(settings.helpReplyUsable, "润色关了帮回也没有")
+        XCTAssertFalse(settings.helpAutoDetects, "润色关了也不看剪贴板")
+
+        settings.polishEnabled = true
+        settings.model = ""
+        XCTAssertFalse(settings.helpReplyUsable, "润色接口没配好")
+    }
+
+    /// 关着自动判断时键盘不记「上次看剪贴板」的时间：关着那段时间里复制的，再打开时按很久以前算，不会突然变绿（方案第 9 节）。
+    func testReenablingAutoDoesNotFlagOldCopy() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        // 关掉以前最后一次看剪贴板是 10 分钟前；关着时复制了，现在打开、键盘弹出。
+        let before = HelpCopy(count: 5, seen: now.addingTimeInterval(-900), used: true, suits: nil)
+        var copy = HelpCopy.observe(before, count: 6, hasStrings: true, now: now, lookedAt: now.addingTimeInterval(-600))
+        copy.suits = true
+        XCTAssertFalse(copy.pending(now: now))
+        // 打开以后再复制（键盘开着、1 秒前看过）：照常算刚复制。
+        var next = HelpCopy.observe(copy, count: 7, hasStrings: true, now: now.addingTimeInterval(30), lookedAt: now.addingTimeInterval(29))
+        next.suits = true
+        XCTAssertTrue(next.pending(now: now.addingTimeInterval(30)))
+    }
 }

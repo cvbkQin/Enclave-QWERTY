@@ -13,10 +13,18 @@ extension KeyboardModel {
     private static var lastLook: Date?
     private static var lastLookSaved: Date?
 
-    /// 润色接口（主接口）能用才有帮回。
+    /// 润色开着、能用才有帮回（帮回走润色接口）。只看能不能用（polishUsable）不够：App 里关掉润色以后，
+    /// 钉住的帮回键、「帮回这条」、剪贴板判断都还在（bug #34），和钉住的润色风格键（这时藏起来）不一致。
     var helpReplyAvailable: Bool {
-        (hasFullAccess || debugUnblocked) && (settings.polishUsable || debugUnblocked)
+        (hasFullAccess || debugUnblocked) && (settings.helpReplyUsable || debugUnblocked)
     }
+
+    /// 帮回「自动判断」开着：键盘自己看剪贴板有没有可以帮回的新复制。关着时润色键不变绿、识意框没有帮回按钮、没有红点，
+    /// 也不调 detectPatterns、不写 lookedAt、不起 1 分钟定时器；帮回照样从 ⌄ 最上面一行、钉住的键、「帮回这条」点。
+    var helpAutoOn: Bool { helpReplyAvailable && settings.helpAuto }
+
+    /// 有待回的复制，并且开着自动判断（⌄ 那一行的浅绿底和红点、钉住的帮回键上的红点）。
+    var helpShowsPending: Bool { helpPending && helpAutoOn }
 
     // MARK: 待回的复制
 
@@ -39,8 +47,11 @@ extension KeyboardModel {
         #if DEBUG
         if debugHelpClipboard { return }
         #endif
-        guard hasFullAccess, helpReplyAvailable else {
+        guard hasFullAccess, helpAutoOn else {
             setHelpPending(false)
+            if helpTyped { helpTyped = false }
+            helpExpiry?.cancel()
+            helpExpiry = nil
             return
         }
         let board = UIPasteboard.general
@@ -57,7 +68,9 @@ extension KeyboardModel {
 
     /// 键盘开着时剪贴板轮询每秒调一次、弹出查剪贴板时也调：记下键盘还看着剪贴板的时间。
     /// 键盘没开着时剪贴板换了，复制时间最早只能算到这里。各个 App 里的键盘进程共用，5 秒存一次。
+    /// 关着自动判断时不记：再打开时，关着那段时间里换的剪贴板复制时间按很久以前算，不会突然变绿（方案第 9 节）。
     func noteClipboardLook(now: Date = Date()) {
+        guard helpAutoOn else { return }
         Self.lastLook = now
         if let saved = Self.lastLookSaved, now.timeIntervalSince(saved) >= 0, now.timeIntervalSince(saved) < 5 { return }
         Self.lastLookSaved = now
@@ -144,17 +157,17 @@ extension KeyboardModel {
 
     /// 润色键整颗变成绿色「↩ 帮回 ⌄」（情况 ①③）：有待回的复制、输入框空、之后没在框里打过字、帮回没钉到 AI 栏。
     var polishKeyIsHelp: Bool {
-        helpPending && !helpTyped && !settings.helpPinned && !helpFieldHasText && helpReplyAvailable
+        helpPending && !helpTyped && !settings.helpPinned && !helpFieldHasText && helpAutoOn
     }
 
     /// 润色键还是紫色「润色」，只把 ✨ 换成降饱和的绿色帮回 logo（情况 ②④、钉住以后）。
-    var polishKeyHelpLogo: Bool { helpPending && !polishKeyIsHelp && helpReplyAvailable }
+    var polishKeyHelpLogo: Bool { helpPending && !polishKeyIsHelp && helpAutoOn }
 
     enum HelpAskButtonLook { case solid, outline }
 
     /// 识意框右边的帮回按钮（回答卡展开、有待回的复制）：输入框空是绿色实心，有字是浅绿描边。生成中不出。
     var helpAskButton: HelpAskButtonLook? {
-        guard aiExpanded, helpPending, helpReplyAvailable, !isRunning, target != .card else { return nil }
+        guard aiExpanded, helpPending, helpAutoOn, !isRunning, target != .card else { return nil }
         return helpFieldHasText ? .outline : .solid
     }
 

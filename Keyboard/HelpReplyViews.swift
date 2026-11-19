@@ -24,7 +24,7 @@ struct PinnedHelpKey: View {
             face(running: running, glowing: glowing, fx: fx, failed: failed)
         }
         .overlay(alignment: .topTrailing) {
-            if model.helpPending, !running {
+            if model.helpShowsPending, !running {
                 Circle().fill(HelpStyle.dot)
                     .frame(width: 8, height: 8)
                     .overlay(Circle().strokeBorder(Color.white, lineWidth: 1.2))
@@ -46,7 +46,7 @@ struct PinnedHelpKey: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(running ? L("停止帮回", "Stop Help Reply", "返信アシストを停止")
                             : L("帮回", "Help Reply", "返信アシスト") + (failed ? L("，失败，轻点重试", ". Failed, tap to retry", "、失敗・タップで再試行") : ""))
-        .accessibilityValue(model.helpPending ? L("有刚复制的内容", "New copy to reply to", "新しいコピーあり") : "")
+        .accessibilityValue(model.helpShowsPending ? L("有刚复制的内容", "New copy to reply to", "新しいコピーあり") : "")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.pinnedHelpTapped() }
         .accessibilityAction(named: L("取消固定", "Unpin", "固定を解除")) { model.toggleHelpPin() }
