@@ -1051,11 +1051,7 @@ extension KeyboardModel {
     /// 模拟器测内存（debug 选项 memtest）：打一组整句，记下首选、耗时和内存，
     /// 结果写到共享目录 Library/Diagnostics/memtest-gram.json（有整句模型）或 memtest-plain.json。
     func runMemoryTest() {
-        let sentences = [
-            "woxiangqugongsishangban", "jintiantianqizhenhao", "womenyiqiquchifanba", "zhegewentiwomenmingtianzaitaolun",
-            "tazuotianwanshangmeiyouhuijia", "qingbangwochayixiahuochepiao", "zhejianshiqingbiwoxiangdeyaofuza",
-            "nikanjianwodeshoujilema", "xiawusandianzaihuiyishikaihui", "zhegexiangmudejindubijiaoman",
-        ]
+        let sentences = Self.benchSentences
         let engine = QueuedEngine.shared
         guard self.engine === engine else { return }
         var report: [String: Any] = ["model": TypingStats.modelInUse, "startMB": TypingStats.footprintMB() ?? -1]
@@ -1492,6 +1488,8 @@ extension KeyboardModel {
             case "quickWords": openQuickPanel()
             case "undo": loadDebugUndo()
             case "memtest": runMemoryTest()
+            // 打字性能基准（scripts/bench/run-bench.sh 拉起）：每个进程只跑一次，结果写系统日志和 bench.json。
+            case "bench": startBenchmark()
             // 小手指引导：quick / quickrun 是快速模式（收起），其余展开。
             case "coach:quick": debugCoach([.sparkle], expanded: false, menuOpen: false)
             case "coach:quickrun": debugCoach([.run], expanded: false, menuOpen: true)
