@@ -522,11 +522,14 @@ enum LearnedWords {
     /// 而且查完一 close 就把部署拿着的锁放掉，键盘能趁机打开同一份库。加锁顺序和别处一样：先 lock，再引擎锁。
     /// 别在 withAppEngine 里面调（NSLock 不可重入）。
     private static var busyLocked: Bool {
+        RimeStore.withAppEngine { busyInEngine }
+    }
+
+    /// 已经在 withAppEngine 里面时用这个。
+    private static var busyInEngine: Bool {
         guard let paths else { return false }
         let lockFile = userdb(paths).appendingPathComponent("LOCK")
-        return RimeStore.withAppEngine {
-            FileManager.default.fileExists(atPath: lockFile.path) && enclave_userdb_locked(lockFile.path)
-        }
+        return FileManager.default.fileExists(atPath: lockFile.path) && enclave_userdb_locked(lockFile.path)
     }
 
     // MARK: 副本做法（bug #29）
@@ -584,14 +587,23 @@ enum LearnedWords {
                 try fm.copyItem(at: installation, to: user.appendingPathComponent("installation.yaml"))
             }
             let source = userdb(paths)
-            let before = fingerprint(source)
-            if includeExisting, fm.fileExists(atPath: source.path) {
-                try fm.copyItem(at: source, to: user.appendingPathComponent(source.lastPathComponent, isDirectory: true))
-                // 副本里别带着键盘的锁文件状态：LOCK 是空文件，留着无妨；复制途中键盘开了库，副本可能不完整，放弃。
-                guard fingerprint(source) == before, !busyLocked else {
-                    try? fm.removeItem(at: root)
-                    return nil
+            // 复制放在引擎锁里：App 自己部署时 librime 开着正式库，别在它写的时候复制。
+            // 一个个文件复制、跳过 LOCK：复制 LOCK 会在本进程里开关它，fcntl 锁按进程算，一 close 就把部署拿着的锁放掉。
+            // 副本里没有 LOCK 无妨，librime 打开副本时会自己建。复制途中键盘开了库，副本可能不完整，放弃。
+            let copied: [String: String]? = try RimeStore.withAppEngine {
+                let stamp = fingerprint(source)
+                guard includeExisting, fm.fileExists(atPath: source.path) else { return stamp }
+                let copy = user.appendingPathComponent(source.lastPathComponent, isDirectory: true)
+                try fm.createDirectory(at: copy, withIntermediateDirectories: true)
+                for name in try fm.contentsOfDirectory(atPath: source.path) where name != "LOCK" {
+                    try fm.copyItem(at: source.appendingPathComponent(name), to: copy.appendingPathComponent(name))
                 }
+                guard fingerprint(source) == stamp, !busyInEngine else { return nil }
+                return stamp
+            }
+            guard let before = copied else {
+                try? fm.removeItem(at: root)
+                return nil
             }
             // 替换时用不到原来的内容，换上前不用比原库变没变（键盘这期间开关过一次库也照样换）。
             return Work(user: user, before: includeExisting ? before : nil)
@@ -737,9 +749,9 @@ extension RimeStore {
     /// App 里用拼音引擎（部署、备份时导出导入学到的词）一次只做一件：librime 在一个进程里只有一份。
     private static let appEngineLock = NSLock()
 
-    static func withAppEngine<T>(_ body: () -> T) -> T {
+    static func withAppEngine<T>(_ body: () throws -> T) rethrows -> T {
         appEngineLock.lock()
         defer { appEngineLock.unlock() }
-        return body()
+        return try body()
     }
 }
