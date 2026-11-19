@@ -384,6 +384,7 @@ actor ICloudSyncEngine {
         } catch let error as CKError where error.code == .notAuthenticated {
             return ICloudSyncStatus(result: .noAccount, at: Date(), detail: nil)
         } catch {
+            NSLog("ICloudSync: sync failed: %@", String(describing: error))
             return ICloudSyncStatus(result: .failed, at: Date(), detail: String(describing: error))
         }
     }

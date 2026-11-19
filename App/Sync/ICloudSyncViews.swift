@@ -169,6 +169,13 @@ struct ICloudSyncSections: View {
         var date: Date
     }
 
+    /// ⑧ 正文最后一句：Key 同步关着时接口不同步，只有风格要选（02，说明.md「实现时补的」）。
+    private var joinChoice: String {
+        Keychain.syncsToICloud
+            ? L("AI 接口和风格只能留一份：", "AI settings and styles can only keep one copy:", "AI の設定とスタイルはどちらか一方だけ残せます：")
+            : L("润色和问答风格只能留一份：", "Polish and answer styles can only keep one copy:", "整えるスタイルと回答スタイルはどちらか一方だけ残せます：")
+    }
+
     private var showsDetail: Bool { (model.switchOn || model.probing) && model.accountOK }
 
     var body: some View {
@@ -185,9 +192,10 @@ struct ICloudSyncSections: View {
                     }
                     Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
                 } message: { join in
-                    Text(L("来自「\(join.name)」，\(Loc.monthDay(join.date))。学到的词和常用词两边都会留着，自动合并。AI 接口和风格只能留一份：",
-                           "From “\(join.name)”, \(Loc.monthDay(join.date)). Learned words and your words are kept on both sides and merged. AI settings and styles can only keep one copy:",
-                           "「\(join.name)」から（\(Loc.monthDay(join.date))）。学習した語とユーザ辞書は両方残して自動で統合します。AI の設定とスタイルはどちらか一方だけ残せます："))
+                    Text(L("来自「\(join.name)」，\(Loc.monthDay(join.date))。学到的词和常用词两边都会留着，自动合并。",
+                           "From “\(join.name)”, \(Loc.monthDay(join.date)). Learned words and your words are kept on both sides and merged. ",
+                           "「\(join.name)」から（\(Loc.monthDay(join.date))）。学習した語とユーザ辞書は両方残して自動で統合します。")
+                         + joinChoice)
                 }
                 .confirmationDialog(L("关闭 iCloud 同步", "Turn Off iCloud Sync", "iCloud 同期をオフにする"), isPresented: $confirmOff, titleVisibility: .visible) {
                     Button(L("关闭，保留 iCloud 里的", "Turn Off, Keep iCloud Data", "オフにして iCloud のデータを残す")) { model.disable() }
@@ -223,7 +231,10 @@ struct ICloudSyncSections: View {
                 SyncedItemRow(title: L("常用词 · 键盘常用语", "Your words · Phrases", "ユーザ辞書 · 定型文"), detail: nil,
                               value: "\(words.formatted()) · \(phrases.formatted())")
                 if !BuiltinAPI.available {
-                    SyncedItemRow(title: L("AI 接口和风格", "AI settings and styles", "AI の設定とスタイル"), detail: aiDetail, value: nil)
+                    SyncedItemRow(title: model.keysOn
+                                  ? L("AI 接口和风格", "AI settings and styles", "AI の設定とスタイル")
+                                  : L("润色和问答风格", "Polish and answer styles", "整えるスタイルと回答スタイル"),
+                                  detail: aiDetail, value: nil)
                 }
             } header: {
                 Text(L("同步的内容", "What syncs", "同期する内容"))
@@ -382,6 +393,9 @@ struct ICloudSyncSections: View {
             return L("有设备装了更新版本的飞地，它的内容这次没合并；把这台也更新到最新版就好。",
                      "A device has a newer version of Enclave, so its data wasn't merged. Update this device to the latest version.",
                      "新しいバージョンの Enclave を使っているデバイスがあり、その内容は統合しませんでした。このデバイスも最新版に更新してください。")
+        case .failed:
+            return L("检查网络后点「立即同步」再试一次。", "Check your connection, then tap Sync Now to try again.",
+                     "ネットワークを確認してから「今すぐ同期」をタップして、もう一度お試しください。")
         case .quotaExceeded:
             return L("iPhone 设置 › Apple 账户 › iCloud 里清出一些空间，或者升级 iCloud+。",
                      "Free up some space in Settings › Apple Account › iCloud, or upgrade to iCloud+.",
@@ -439,9 +453,9 @@ struct ICloudSyncSections: View {
             .keyboardShortcut(.defaultAction)
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
         } message: {
-            Text(L("Key 会通过 iCloud 钥匙串同步到登录同一 Apple 账户的设备，端到端加密。开着时，在任何一台上删掉一个接口方案，其他设备上它的 Key 也会一起删掉。要先在 iPhone 设置里打开「密码」的 iCloud 同步。",
-                   "Keys sync through iCloud Keychain to devices signed in to the same Apple Account, end-to-end encrypted. While on, deleting an API setup on any device also deletes its key on the others. Turn on iCloud sync for Passwords in Settings first.",
-                   "キーは iCloud キーチェーンで同じ Apple アカウントのデバイスに同期され、エンドツーエンドで暗号化されます。オンの間は、どれかのデバイスで API の設定を削除すると、ほかのデバイスのキーも削除されます。先に設定で「パスワード」の iCloud 同期をオンにしてください。"))
+            Text(L("打开后，接口方案也会一起同步。Key 会通过 iCloud 钥匙串同步到登录同一 Apple 账户的设备，端到端加密。开着时，在任何一台上删掉一个接口方案，其他设备上它的 Key 也会一起删掉。要先在 iPhone 设置里打开「密码」的 iCloud 同步。",
+                   "API setups sync too once this is on. Keys sync through iCloud Keychain to devices signed in to the same Apple Account, end-to-end encrypted. While on, deleting an API setup on any device also deletes its key on the others. Turn on iCloud sync for Passwords in Settings first.",
+                   "オンにすると、API の設定も一緒に同期します。キーは iCloud キーチェーンで同じ Apple アカウントのデバイスに同期され、エンドツーエンドで暗号化されます。オンの間は、どれかのデバイスで API の設定を削除すると、ほかのデバイスのキーも削除されます。先に設定で「パスワード」の iCloud 同期をオンにしてください。"))
         }
         .confirmationDialog(L("关闭接口 Key 同步", "Turn Off API Key Sync", "API キーの同期をオフにする"), isPresented: $confirmKeysOff, titleVisibility: .visible) {
             Button(L("只在这台关闭", "Turn Off on This Device", "このデバイスだけオフにする")) { keysOff(removeFromICloud: false) }
@@ -479,9 +493,11 @@ struct ICloudSyncSections: View {
             do {
                 try await model.disableAndDelete()
             } catch {
-                failure = L("同步已经关了，iCloud 里的数据没删掉：\(error.localizedDescription)。联网后打开再关闭一次，可以再删。",
-                            "Sync is off, but the data in iCloud wasn't deleted: \(error.localizedDescription). Turn sync on and off again when online to retry.",
-                            "同期はオフになりましたが、iCloud のデータは削除できませんでした：\(error.localizedDescription)。オンラインのときにもう一度オンにしてからオフにすると、削除をやり直せます。")
+                // 错误原文只进系统日志（连 Mac 的「控制台」能看到），不放进给用户看的句子里。
+                NSLog("ICloudSync: deleteAll failed: %@", String(describing: error))
+                failure = L("同步已经关了，但 iCloud 里的数据没删掉（网络不通或 iCloud 出错）。联网后打开同步再关一次，选「关闭并删除 iCloud 里的数据」。",
+                            "Sync is off, but the data in iCloud wasn't deleted (no connection or an iCloud error). When you're online, turn sync on and off again and choose “Turn Off and Delete iCloud Data”.",
+                            "同期はオフになりましたが、iCloud のデータは削除できませんでした（ネットワークまたは iCloud のエラー）。オンラインのときに同期をもう一度オンにしてからオフにし、「オフにして iCloud のデータを削除」を選んでください。")
             }
         }
     }
@@ -589,8 +605,9 @@ struct ICloudDevicesView: View {
             do {
                 try await model.removeDevice(device)
             } catch {
-                failure = L("联网后再试一次。（\(error.localizedDescription)）", "Try again when you're online. (\(error.localizedDescription))",
-                            "オンラインのときにもう一度お試しください。（\(error.localizedDescription)）")
+                NSLog("ICloudSync: removeDevice failed: %@", String(describing: error))
+                failure = L("网络不通或 iCloud 出错，联网后再试一次。", "No connection or an iCloud error. Try again when you're online.",
+                            "ネットワークまたは iCloud のエラーです。オンラインのときにもう一度お試しください。")
             }
         }
     }
