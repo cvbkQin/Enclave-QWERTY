@@ -101,7 +101,7 @@ struct PopupRecord: Codable, Identifiable {
             }
             lines.append("上次收起后的收尾 \(Self.ms(lastCleanupMs)) 毫秒\(when(lastCleanupBefore))，拆掉旧键盘 \(Self.ms(lastTeardownMs)) 毫秒\(when(lastTeardownBefore))")
         }
-        var appear = "建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）"
+        var appear = "建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中建视图 \(Self.ms(load))、弹出前准备 \(Self.ms(willAppear))：读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）"
         if let paused { appear += "，途中键盘进程被系统挂起 \(String(format: "%.1f", paused / 1000)) 秒" }
         lines.append(appear)
         var engine = "显示后：剪贴板和帮回检测 \(Self.ms(didClipboard)) 毫秒，拼音能打 \(Self.ms(engineReady)) 毫秒"

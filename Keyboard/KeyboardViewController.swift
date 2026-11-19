@@ -18,7 +18,6 @@ final class KeyboardViewController: UIInputViewController {
             loadSinceProcess = Date().timeIntervalSince(start) * 1000
         }
         defer { loadMs = (CACurrentMediaTime() - loadStart) * 1000 }
-        CrashLog.shared.start(source: "keyboard")
         installHost()
 
         // 键盘高度只由这一条必需约束决定。allowsSelfSizing 让系统按我们的约束算高度，
@@ -325,10 +324,6 @@ final class KeyboardViewController: UIInputViewController {
         let reloadDone = CACurrentMediaTime()
         model.applyInputLanguage()
         model.applyDebugState()
-        TouchCalibration.reload()
-        // 震动发生器提前建好、预热：不然第一次按键时才创建，第一个键会顿一下。
-        if model.settings.keyHaptics && model.hasFullAccess { model.haptic.prepare() }
-        if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
         // 高度和内容在滑出来之前就定好：reload 可能改了高度（比如试用提醒条），这里同步改掉，不等下一轮；
         // 再让 SwiftUI 先排一遍，系统做弹出动画时画的就是完整的键盘，AI 栏不会等滑出来以后才冒出来。
         let layoutStart = CACurrentMediaTime()
@@ -411,6 +406,8 @@ final class KeyboardViewController: UIInputViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.heightLog("settled") }
         #endif
         TypingStats.noteLaunchAppeared()
+        // 先弹出、后载入：键盘长什么样用不到的准备，都等它显示出来以后的下一轮再做，不压在弹出前的主线程上。
+        DispatchQueue.main.async { [weak self] in self?.prepareAfterAppear() }
         // 弹出前没进窗口时方向是按尺寸类猜的，进了窗口按屏幕再核一次。
         scheduleOrientationCheck()
         clearStaleMarkedText()
@@ -424,6 +421,16 @@ final class KeyboardViewController: UIInputViewController {
         model.refreshCommonWords()
         let wordsDone = CACurrentMediaTime()
         finishPopupRecord(clipboard: wordsStart - clipboardStart, commonWords: wordsDone - wordsStart)
+    }
+
+    /// 弹出后再做的准备：崩溃记录订阅（冷启动时要读一遍以前的诊断包）、按键落点校准、震动预热、英文补全词表。
+    /// 都在第一个按键之前就做完了（显示出来以后的下一轮），只是不再挡在键盘显示出来之前。
+    private func prepareAfterAppear() {
+        CrashLog.shared.start(source: "keyboard")
+        TouchCalibration.reload()
+        // 震动发生器提前建好、预热：不然第一次按键时才创建，第一个键会顿一下。
+        if model.settings.keyHaptics && model.hasFullAccess { model.haptic.prepare() }
+        if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
     }
 
     /// 每有一个键盘页面要弹出就 +1（整个进程共用）。收起后补做清理前看它变没变：变了说明又弹出来了，会话归新页面用。
