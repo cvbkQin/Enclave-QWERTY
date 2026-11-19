@@ -185,7 +185,8 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertFalse(settings.helpReplyUsable, "润色接口没配好")
     }
 
-    /// 关着自动判断时键盘不记「上次看剪贴板」的时间：关着那段时间里复制的，再打开时按很久以前算，不会突然变绿（方案第 9 节）。
+    /// 方案第 9 节依赖的前提：关着自动判断时键盘不写「上次看剪贴板」的时间（noteClipboardLook，KeyboardModel 不在测试目标里，
+    /// 那一处只能在模拟器上看），lookedAt 就停在关掉以前；这时关着那段时间里复制的，再打开后按很久以前算，不会突然变绿。
     func testReenablingAutoDoesNotFlagOldCopy() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         // 关掉以前最后一次看剪贴板是 10 分钟前；关着时复制了，现在打开、键盘弹出。

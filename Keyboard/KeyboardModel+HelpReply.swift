@@ -21,7 +21,10 @@ extension KeyboardModel {
 
     /// 帮回「自动判断」开着：键盘自己看剪贴板有没有可以帮回的新复制。关着时润色键不变绿、识意框没有帮回按钮、没有红点，
     /// 也不调 detectPatterns、不写 lookedAt、不起 1 分钟定时器；帮回照样从 ⌄ 最上面一行、钉住的键、「帮回这条」点。
-    var helpAutoOn: Bool { helpReplyAvailable && settings.helpAuto }
+    /// 规则在 EnclaveSettings.helpAutoDetects（有单测），这里再加上完全访问；截图调试时不看接口能不能用。
+    var helpAutoOn: Bool {
+        (hasFullAccess || debugUnblocked) && (debugUnblocked ? settings.helpAuto : settings.helpAutoDetects)
+    }
 
     /// 有待回的复制，并且开着自动判断（⌄ 那一行的浅绿底和红点、钉住的帮回键上的红点）。
     var helpShowsPending: Bool { helpPending && helpAutoOn }
@@ -70,7 +73,8 @@ extension KeyboardModel {
     /// 键盘没开着时剪贴板换了，复制时间最早只能算到这里。各个 App 里的键盘进程共用，5 秒存一次。
     /// 关着自动判断时不记：再打开时，关着那段时间里换的剪贴板复制时间按很久以前算，不会突然变绿（方案第 9 节）。
     func noteClipboardLook(now: Date = Date()) {
-        guard helpAutoOn else { return }
+        // 键盘开着时每秒调一次：先看开关本身，关着就不往下算（04 审查 #80 可选 4）。
+        guard settings.helpAuto, helpAutoOn else { return }
         Self.lastLook = now
         if let saved = Self.lastLookSaved, now.timeIntervalSince(saved) >= 0, now.timeIntervalSince(saved) < 5 { return }
         Self.lastLookSaved = now
