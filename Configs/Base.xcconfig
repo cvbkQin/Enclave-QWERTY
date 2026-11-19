@@ -16,7 +16,16 @@ INTERNAL_ANSWER_BASE_URL =
 INTERNAL_ANSWER_MODEL =
 INTERNAL_ANSWER_API_KEY =
 
+// iCloud 同步（App/Sync，方案 specs/icloud-sync/iCloud同步方案.md）：主 App 要有 iCloud（CloudKit）和推送能力，
+// 容器是 iCloud.$(BUNDLE_ID_PREFIX).enclave。免费 Apple ID（Personal Team）签名拿不到这两项，在 Local.xcconfig 里写 ICLOUD_SYNC = NO：
+// 主 App 改用不带 iCloud 的权限文件，App 里也不出现同步。键盘扩展不管哪种都不带 iCloud。
+ICLOUD_SYNC = YES
+
 #include? "Local.xcconfig"
+
+APP_ENTITLEMENTS_YES = App/Enclave-iCloud.entitlements
+APP_ENTITLEMENTS_NO = App/Enclave.entitlements
+APP_ENTITLEMENTS = $(APP_ENTITLEMENTS_$(ICLOUD_SYNC))
 
 ENCLAVE_BUILTIN_BASE_URL_YES = $(INTERNAL_BASE_URL)
 ENCLAVE_BUILTIN_MODEL_YES = $(INTERNAL_MODEL)

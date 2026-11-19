@@ -168,6 +168,8 @@ extension RimeStore {
         for url in items where url.lastPathComponent.contains(".userdb") {
             try? fm.removeItem(at: url)
         }
+        // 开着 iCloud 同步时，所有设备一起清，iCloud 里的快照也删掉（同步方案 1.5）。
+        ICloudSync.noteLearningCleared()
     }
 }
 

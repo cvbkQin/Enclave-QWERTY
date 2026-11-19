@@ -3,6 +3,8 @@ import SwiftUI
 
 @main
 struct EnclaveApp: App {
+    /// 只为 iCloud 同步的后台任务注册和静默推送（App/Sync/ICloudSyncScheduler.swift）。
+    @UIApplicationDelegateAdaptor(EnclaveAppDelegate.self) private var appDelegate
     @StateObject private var router = AppRouter.shared
     @StateObject private var store = AppStore()
 
@@ -71,6 +73,11 @@ struct EnclaveApp: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
                     Task { await UnlockStore.shared.refresh() }
+                    // iCloud 同步（关着时什么都不做）：打开 App、回到前台时同步一次，一分钟内回来多次只算一次。
+                    Task { await ICloudSync.syncNow(minimumInterval: 60) }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                    ICloudSyncScheduler.schedule()
                 }
                 .onOpenURL { url in
                     // 点开 .enclave 备份文件：到设置 › 备份与恢复，弹恢复面板。
@@ -111,6 +118,10 @@ struct EnclaveApp: App {
                     case "history":
                         router.historyPath = NavigationPath()
                         router.tab = .history
+                    // 测试 iCloud 同步用（界面等 02 的稿子，做好后删掉）：enclave://icloud-sync/on、/off、/now、/keys-on、/keys-off。
+                    // 只在开发者版、测试包里认，正式版不认：打开同步要经过用户在界面上确认。
+                    case "icloud-sync" where BuiltinAPI.showsTesterTools:
+                        ICloudSyncDebug.handle(url.path)
                     default: break
                     }
                 }
@@ -465,6 +476,21 @@ final class AppStore: ObservableObject {
 
     /// 已存方案（接口页「保存」）。
     @Published private(set) var savedAPIs = SavedAPIStore.all
+
+    private var syncObserver: NSObjectProtocol?
+
+    init() {
+        // iCloud 同步写进了别的设备改的接口和风格：重新读，不然这里手里的旧设置下次保存时会把它们冲掉。
+        syncObserver = NotificationCenter.default.addObserver(forName: .enclaveSyncDidApply, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            self.reload()
+            self.savedAPIs = SavedAPIStore.all
+        }
+    }
+
+    deinit {
+        if let syncObserver { NotificationCenter.default.removeObserver(syncObserver) }
+    }
 
     /// 把这一页现在填的地址、模型、Key 存成预设。answer：问答页。三样都和已有某条一样时不新增（.duplicate）。
     @discardableResult

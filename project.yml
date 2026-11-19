@@ -84,7 +84,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        CODE_SIGN_ENTITLEMENTS: App/Enclave.entitlements
+        # 默认带 iCloud（CloudKit）和推送；免费 Apple ID 在 Local.xcconfig 里写 ICLOUD_SYNC = NO，换成不带的（见 Configs/Base.xcconfig）。
+        CODE_SIGN_ENTITLEMENTS: $(APP_ENTITLEMENTS)
     info:
       path: App/Info.plist
       properties:
@@ -108,6 +109,14 @@ targets:
         EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
         EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
         EnclaveBuiltinAnswerModel: $(ENCLAVE_BUILTIN_ANSWER_MODEL)
+        # iCloud 同步（App/Sync）：这个包有没有 iCloud 能力、用哪个 CloudKit 容器。没有能力时代码不碰 CKContainer。
+        EnclaveICloudSync: $(ICLOUD_SYNC)
+        EnclaveCloudContainer: iCloud.$(BUNDLE_ID_PREFIX).enclave
+        # 后台同步：后台刷新、充电时的后台任务、CloudKit 静默推送（App/Sync/ICloudSyncScheduler.swift）。
+        UIBackgroundModes: [fetch, processing, remote-notification]
+        BGTaskSchedulerPermittedIdentifiers:
+          - $(PRODUCT_BUNDLE_IDENTIFIER).sync.refresh
+          - $(PRODUCT_BUNDLE_IDENTIFIER).sync.processing
         CFBundleURLTypes:
           - CFBundleURLName: enclave
             CFBundleURLSchemes: [enclave]
@@ -213,6 +222,7 @@ targets:
       - path: App/Backup/BackupArchive.swift
       - path: App/Backup/BackupCrypto.swift
       - path: App/Backup/BackupMerge.swift
+      - path: App/Sync/SyncMerge.swift
       - path: Generated/EnclaveTests/BuiltinSecrets.swift
         optional: true
     preBuildScripts:

@@ -3,6 +3,8 @@
 BUNDLE_ID_PREFIX = com.yourname
 // Xcode › Settings › Accounts 里能看到 Team ID（免费 Apple ID 是 Personal Team）
 DEVELOPMENT_TEAM = XXXXXXXXXX
+// 免费 Apple ID 拿不到 iCloud 和推送能力：取消下一行的注释，不带 iCloud 同步。
+// ICLOUD_SYNC = NO
 
 // 内测版自带的接口（可选）。只在打内测包（版本后缀 .0）时用：xcodebuild ... INTERNAL_BUILD=YES。
 // 网址里的 // 在 xcconfig 里会被当成注释，要写成 https:/$()/ 这样。
