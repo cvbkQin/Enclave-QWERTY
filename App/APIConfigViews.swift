@@ -247,6 +247,12 @@ struct ConfigEditor: View {
     @State private var probe: Probe
     @State private var needsPrivacy = false
     @State private var confirmDelete = false
+    /// 开着 Key 同步时删方案：系统确认框（B11），其他设备上的方案和 Key 也会删。
+    @State private var confirmSyncedDelete = false
+    /// 开着 Key 同步、这条的 Key 还在从 iCloud 钥匙串同步过来（别的设备刚改过）：从什么时候开始等的（02 复审第二轮）。
+    @State private var keyPendingSince: Date?
+    /// 最后改这条的是哪台设备（脚注里说「从『iPad Air』同步来的」）。
+    @State private var keySource: String?
     @FocusState private var modelFocused: Bool
     @FocusState private var keyFocused: Bool
 
@@ -330,7 +336,9 @@ struct ConfigEditor: View {
             generationSection
             if existing != nil {
                 Section {
-                    Button(role: .destructive) { confirmDelete = true } label: {
+                    Button(role: .destructive) {
+                        if Keychain.syncsToICloud { confirmSyncedDelete = true } else { confirmDelete = true }
+                    } label: {
                         Text(L("删除这个配置", "Delete this setup", "この設定を削除")).frame(maxWidth: .infinity)
                     }
                 }
@@ -362,12 +370,61 @@ struct ConfigEditor: View {
             Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
         }
         .confirmationDialog(L("删除「\(name)」？", "Delete “\(name)”?", "「\(name)」を削除しますか？"), isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button(L("删除", "Delete", "削除"), role: .destructive) {
-                if let existing { store.deleteSavedAPI(existing.id) }
-                onClose()
-            }
+            Button(L("删除", "Delete", "削除"), role: .destructive) { deleteExisting() }
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
         }
+        // 开着 Key 同步：其他设备上的方案和 Key 也会删（B11，02 复审第二轮）。
+        .alert(SyncedDeleteText.title(name), isPresented: $confirmSyncedDelete) {
+            Button(L("删除", "Delete", "削除"), role: .destructive) { deleteExisting() }
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+        } message: {
+            Text(SyncedDeleteText.message)
+        }
+        .task {
+            // 等同步的时间在这里读（读钥匙串），不放进 init：SwiftUI 会多次调 init（04 四审可选 10）。
+            guard let existing, Keychain.syncsToICloud, let since = existing.keyPendingSince else { return }
+            keyPendingSince = since
+            keySource = await ICloudSync.apiSource(existing.id)
+        }
+    }
+
+    private func deleteExisting() {
+        if let existing { store.deleteSavedAPI(existing.id) }
+        onClose()
+    }
+
+    /// Key 栏空着、Key 在等 iCloud 钥匙串同步过来。
+    private var keyWaiting: Bool { apiKey.isEmpty && keyPendingSince != nil }
+    /// 等了 24 小时还没到：提示换成去查系统设置。
+    private var keyOverdue: Bool { keyPendingSince.map { Date().timeIntervalSince($0) > 86400 } ?? false }
+
+    /// Key 栏的灰色占位字：等同步时是「正在从 iCloud 钥匙串同步…」，左边一个小时钟（02 复审第二轮）。
+    private var keyPrompt: Text {
+        if keyWaiting && !keyOverdue {
+            return Text("\(Image(systemName: "clock")) ") + Text(L("正在从 iCloud 钥匙串同步…", "Syncing from iCloud Keychain…", "iCloud キーチェーンから同期中…"))
+        }
+        return Text(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"))
+    }
+
+    /// 连接那一组脚注最前面：Key 还没同步过来时说一句。
+    private var keyNote: String? {
+        guard keyWaiting else { return nil }
+        if keyOverdue {
+            return L("Key 没同步过来。看看 iPhone 设置 › Apple 账户 › iCloud › 密码 有没有打开，或者在这里直接填。",
+                     "The key didn't sync. Check that Passwords is on in Settings › Apple Account › iCloud, or enter it here.",
+                     "キーが同期されませんでした。設定 › Apple アカウント › iCloud › パスワード がオンか確認するか、ここに直接入力してください。")
+        }
+        let source = keySource ?? L("另一台设备", "another device", "別のデバイス")
+        return L("这个接口方案是从「\(source)」同步来的，Key 还没到。iCloud 钥匙串一般几分钟内同步好；等不及可以在这里直接填。",
+                 "This API setup was synced from “\(source)” and its key hasn't arrived yet. iCloud Keychain usually syncs within a few minutes; you can also enter the key here.",
+                 "この API の設定は「\(source)」から同期されましたが、キーはまだ届いていません。iCloud キーチェーンは通常数分で同期されます。待てない場合はここに直接入力できます。")
+    }
+
+    /// 脚注里说 Key 存在哪：开着 Key 同步时在 iCloud 钥匙串里。
+    private var keyStorageNote: String {
+        Keychain.syncsToICloud
+            ? L("API Key 存在 iCloud 钥匙串里，端到端加密。", " The API key is stored in iCloud Keychain, end-to-end encrypted.", "API キーは iCloud キーチェーンに保存され、エンドツーエンドで暗号化されます。")
+            : L("API Key 只存在本机钥匙串里。", " The API key stays in this iPhone's keychain.", "API キーはこの iPhone のキーチェーンにだけ保存されます。")
     }
 
     /// 地址或模型改了：连接结果作废，联网结果换成这一组记下的（没测过就是未测试）。
@@ -423,7 +480,7 @@ struct ConfigEditor: View {
                 // 不用 SecureField：系统会把地址 + 密码框当成登录表单，保存时弹「保存密码？」。
                 // 改成普通输入框，没在编辑时盖上只露头尾的「sk-••••••3f9a」（CF3）。
                 ZStack(alignment: .trailing) {
-                    TextField(L("自建服务可以留空", "Optional for self-hosted", "セルフホストなら空欄で可"), text: $apiKey)
+                    TextField(text: $apiKey, prompt: keyPrompt) { Text("API Key") }
                         .multilineTextAlignment(.trailing)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -456,10 +513,13 @@ struct ConfigEditor: View {
         } header: {
             Text(L("连接", "Connection", "接続"))
         } footer: {
-            Text(custom
-                 ? L("Ollama 这类自己电脑上的模型：把地址里的 IP 换成运行它的电脑的局域网地址，地址填到 /v1。", "For a model on your own computer, such as Ollama, replace the IP with that computer's local address. The URL ends with /v1.", "Ollama など自分のパソコンのモデルは、IP をそのパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
-                 : L("地址和模型是\(template.title)的推荐值，可以直接改，不影响别的配置。", "The URL and model are \(template.title)'s recommended values. Edit them freely; other setups aren't affected.", "URL とモデルは \(template.title) のおすすめ値です。自由に変えられ、ほかの設定には影響しません。"))
-                + Text(L("API Key 只存在本机钥匙串里。", " The API key stays in this iPhone's keychain.", "API キーはこの iPhone のキーチェーンにだけ保存されます。"))
+            VStack(alignment: .leading, spacing: 6) {
+                if let keyNote { Text(keyNote) }
+                Text(custom
+                     ? L("Ollama 这类自己电脑上的模型：把地址里的 IP 换成运行它的电脑的局域网地址，地址填到 /v1。", "For a model on your own computer, such as Ollama, replace the IP with that computer's local address. The URL ends with /v1.", "Ollama など自分のパソコンのモデルは、IP をそのパソコンのローカルアドレスに置き換えます。URL は /v1 までです。")
+                     : L("地址和模型是\(template.title)的推荐值，可以直接改，不影响别的配置。", "The URL and model are \(template.title)'s recommended values. Edit them freely; other setups aren't affected.", "URL とモデルは \(template.title) のおすすめ値です。自由に変えられ、ほかの設定には影響しません。"))
+                    + Text(keyStorageNote)
+            }
         }
     }
 
@@ -705,5 +765,17 @@ struct ConfigEditor: View {
             store.updateConfig(item, apiKey: key)
         }
         onClose()
+    }
+}
+
+/// 开着 Key 同步时删接口方案的确认框（B11，02 复审第二轮）：左滑删除和编辑页的「删除」共用。
+enum SyncedDeleteText {
+    static func title(_ name: String) -> String {
+        L("删除接口方案「\(name)」？", "Delete API setup “\(name)”?", "API の設定「\(name)」を削除しますか？")
+    }
+
+    static var message: String {
+        L("开着 Key 同步：其他设备上这个方案和它的 Key 也会一起删掉。", "Key sync is on: this setup and its key are also deleted on your other devices.",
+          "キーの同期がオンです：ほかのデバイスでもこの設定とキーが削除されます。")
     }
 }

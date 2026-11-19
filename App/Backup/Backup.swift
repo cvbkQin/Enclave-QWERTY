@@ -404,7 +404,7 @@ enum BackupService {
             if let saved = settingsObject["savedAPIs"],
                let list = try? decoder.decode([SavedAPI].self, from: JSONSerialization.data(withJSONObject: saved)) {
                 let kept = Set(list.map(\.id))
-                for old in SavedAPIStore.all where !kept.contains(old.id) { old.apiKey = nil }
+                for old in SavedAPIStore.all where !kept.contains(old.id) { old.deleteKey() }
                 SavedAPIStore.replaceAll(list)
             }
             report.rows.append(.init(title: BackupItem.settings.title, value: L("已更新", "Updated", "更新しました")))
@@ -742,6 +742,76 @@ enum LearnedWords {
         guard let merged = ownSnapshot(work.user, skip: "backup") else { return nil }
         if BackupMerge.learnedCount(merged) == 0, BackupMerge.learnedCount(text) > 0 || existingCount > 0 { return nil }
         return install(work, paths) ? merged : nil
+    }
+
+    // MARK: iCloud 同步（specs/icloud-sync/iCloud同步方案.md 3.3）
+
+    enum SyncOutcome: Equatable {
+        /// 合并好了（没有别的设备时不动正式词库），附本机合并后的快照（没打过字是空字符串）。
+        case merged(snapshot: String)
+        /// 键盘开着、或者原库中途变了：正式词库没动，下次再来。
+        case busy
+        case failed
+    }
+
+    /// 把其他设备的快照（设备编号 → *.userdb.txt 的文本）合并进来，导出本机合并后的快照。和备份一样在副本上做，
+    /// 正式词库只在最后原子交换时碰一下。同步目录里只放别的设备的快照，不放本机上次传的：留着的话删掉的词会被合并回来。
+    static func sync(peers: [String: String]) -> SyncOutcome {
+        guard let paths else { return .failed }
+        lock.lock()
+        defer { lock.unlock() }
+        defer { cleanUp() }
+        guard let work = prepareWork(paths, includeExisting: true) else { return .busy }
+        let fm = FileManager.default
+        let sync = work.user.appendingPathComponent("sync", isDirectory: true)
+        let snapshotName = "\(dictName).userdb.txt"
+        do {
+            for (device, text) in peers where !text.isEmpty {
+                // 加前缀，和 librime 自己导出本机快照的文件夹（installation_id）分开。
+                let folder = sync.appendingPathComponent("peer-\(device)", isDirectory: true)
+                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                try text.write(to: folder.appendingPathComponent(snapshotName), atomically: true, encoding: .utf8)
+            }
+        } catch {
+            return .failed
+        }
+        let merging = peers.values.contains { !$0.isEmpty }
+        let hadUserdb = fm.fileExists(atPath: work.user.appendingPathComponent("\(dictName).userdb").path)
+        // 没打过字的新设备：librime 只同步已经有的用户词库，先用方案建一个空的。
+        let ensure = merging && !hadUserdb ? RimeStore.schemaID : nil
+        guard RimeStore.withAppEngine({
+            enclave_rime_sync_user_data(paths.shared.path, work.user.path, nil, ensure)
+        }) else { return .failed }
+        let own = ((try? fm.contentsOfDirectory(at: sync, includingPropertiesForKeys: nil)) ?? [])
+            .filter { !$0.lastPathComponent.hasPrefix("peer-") }
+            .map { $0.appendingPathComponent(snapshotName) }
+            .first { fm.fileExists(atPath: $0.path) }
+        let snapshot: String
+        if let own {
+            guard let text = try? String(contentsOf: own, encoding: .utf8) else { return .failed }
+            snapshot = text
+        } else {
+            // 没有用户词库是空的；有词库却没导出来，说明没打开。
+            guard !hadUserdb && !merging else { return .failed }
+            snapshot = ""
+        }
+        if merging {
+            guard install(work, paths) else { return .busy }
+        }
+        return .merged(snapshot: snapshot)
+    }
+
+    /// 别的设备清除过学到的词（清除代数变大了）：本机也换上一个空词库。键盘开着时返回 false，下次再来。
+    static func clearForSync() -> Bool {
+        guard let paths else { return false }
+        lock.lock()
+        defer { lock.unlock() }
+        defer { cleanUp() }
+        guard let work = prepareWork(paths, includeExisting: false) else { return false }
+        guard RimeStore.withAppEngine({
+            enclave_rime_sync_user_data(paths.shared.path, work.user.path, nil, RimeStore.schemaID)
+        }) else { return false }
+        return install(work, paths)
     }
 }
 

@@ -301,6 +301,8 @@ struct ModelSettingsView: View {
     @State private var needsPrivacy = false
     @State private var importResult: Bool?
     @State private var sheet: ConfigSheet?
+    /// 开着 Key 同步时左滑删方案：先确认（B11），其他设备上的方案和 Key 也会删。
+    @State private var deleting: SavedAPI?
     /// 「添加配置」里点了教程：弹层收起后再打开教程。
     @State private var pendingTutorial: Provider?
 
@@ -370,6 +372,13 @@ struct ModelSettingsView: View {
             Button(L("阅读并同意", "Read and Agree", "読んで同意する")) { router.showsPrivacyWelcome = true }
         } message: {
             Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
+        }
+        .alert(SyncedDeleteText.title(deleting?.name ?? ""), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+               presenting: deleting) { item in
+            Button(L("删除", "Delete", "削除"), role: .destructive) { store.deleteSavedAPI(item.id) }
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+        } message: { _ in
+            Text(SyncedDeleteText.message)
         }
         .sheet(item: $sheet, onDismiss: {
             if let provider = pendingTutorial {
@@ -526,7 +535,9 @@ struct ModelSettingsView: View {
                 .lockedRow(locked)
                 .swipeActions(edge: .trailing, allowsFullSwipe: !locked) {
                     if !locked {
-                        Button(role: .destructive) { store.deleteSavedAPI(item.id) } label: {
+                        Button(role: .destructive) {
+                            if Keychain.syncsToICloud { deleting = item } else { store.deleteSavedAPI(item.id) }
+                        } label: {
                             Text(L("删除", "Delete", "削除"))
                         }
                     }

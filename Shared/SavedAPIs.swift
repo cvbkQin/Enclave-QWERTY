@@ -42,7 +42,15 @@ struct SavedAPI: Codable, Identifiable, Equatable {
         return model.isEmpty ? host : "\(host) · \(model)"
     }
 
-    fileprivate func deleteKey() { Keychain.set(nil, for: keyAccount) }
+    /// 开着 Key 同步时，别的设备改了这条的 Key、新的配置还没同步过来：现在读到的 Key 是空，但不能当成没有 Key 用
+    /// （04 复审 A1）。
+    var keyPending: Bool { Keychain.isPending(keyAccount) }
+
+    /// 从什么时候开始等（接口页的提示）；不在等是 nil。
+    var keyPendingSince: Date? { Keychain.pendingSince(keyAccount) }
+
+    /// 用户明确删掉这条（删方案、恢复备份时去掉备份里没有的）：Key 一起删，等同步时也删。
+    func deleteKey() { Keychain.remove(keyAccount) }
 }
 
 enum SavedAPIStore {

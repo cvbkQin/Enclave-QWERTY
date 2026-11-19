@@ -3,9 +3,13 @@ import UIKit
 import UniformTypeIdentifiers
 
 // 设置 › 数据 › 备份与恢复（B3 第一步，设计 design/backup/v2/BV0、BV2、BV3、BV4，design/backup/BK7）。
+// 最上面的 iCloud 同步在 App/Sync/ICloudSyncViews.swift（design/icloud-sync/）。
 
-/// 设置主页「数据」分区里的那一行（BK1）。
+/// 设置主页「数据」分区里的那一行（BK1）。开着 iCloud 同步时小字写「iCloud 同步 · 已开」（IC 说明）。
 struct BackupSettingsRow: View {
+    /// 同步开始、结束、关掉时刷新小字。
+    @ObservedObject private var monitor = ICloudSyncMonitor.shared
+
     var body: some View {
         HStack(spacing: 12) {
             TintIcon(systemName: "archivebox", color: BackupView.green)
@@ -14,7 +18,11 @@ struct BackupSettingsRow: View {
                     Text(L("备份与恢复", "Backup & Restore", "バックアップと復元"))
                     NewBadge()
                 }
-                Text(L("换手机时带走设置、风格和词", "Take settings, styles and words to a new iPhone", "機種変更で設定・スタイル・語を引き継ぐ"))
+                Text(ICloudSync.isSwitchOn
+                     ? (ICloudSync.isPaused
+                        ? L("iCloud 同步 · 已暂停", "iCloud Sync · Paused", "iCloud 同期 · 一時停止中")
+                        : L("iCloud 同步 · 已开", "iCloud Sync · On", "iCloud 同期 · オン"))
+                     : L("换手机时带走设置、风格和词", "Take settings, styles and words to a new iPhone", "機種変更で設定・スタイル・語を引き継ぐ"))
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
@@ -31,7 +39,12 @@ struct BackupView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
     @ObservedObject private var deployer = RimeDeployer.shared
+    @ObservedObject private var monitor = ICloudSyncMonitor.shared
+    @StateObject private var sync = ICloudSyncModel()
     @Environment(\.scenePhase) private var scenePhase
+    /// 「同步的内容」里的常用词（不算系统文本替换、通讯录）和键盘常用语个数。
+    @State private var syncedWords = 0
+    @State private var syncedPhrases = 0
 
     @State private var items = BackupPrefs.items
     @State private var counts = BackupCounts.current()
@@ -46,13 +59,24 @@ struct BackupView: View {
 
     var body: some View {
         List {
+            if ICloudSync.isAvailable {
+                ICloudSyncSections(model: sync, learned: countText(.learnedWords) ?? "…", words: syncedWords, phrases: syncedPhrases)
+            }
             Section {
                 fileCard
             } footer: {
-                Text(L("换手机：旧手机「导出」存到 iCloud 云盘，新手机装好后点「恢复」选这个文件。",
-                       "New iPhone: Export on the old one and save to iCloud Drive, then tap Restore on the new one and pick that file.",
-                       "機種変更：古い iPhone で「書き出す」を iCloud Drive に保存し、新しい iPhone で「復元」からそのファイルを選びます。"))
+                if syncOn {
+                    Text(L("开着同步也能导出文件，留一份不会被同步改掉的备份。",
+                           "You can still export a file while syncing, to keep a backup that sync won't change.",
+                           "同期中でもファイルに書き出せます。同期で変わらないバックアップを残しておけます。"))
+                } else {
+                    Text(L("换手机：旧手机「导出」存到 iCloud 云盘，新手机装好后点「恢复」选这个文件。",
+                           "New iPhone: Export on the old one and save to iCloud Drive, then tap Restore on the new one and pick that file.",
+                           "機種変更：古い iPhone で「書き出す」を iCloud Drive に保存し、新しい iPhone で「復元」からそのファイルを選びます。"))
+                }
             }
+            // 开着同步时不显示，导出时照旧按上次的选择（IC 说明）。
+            if !syncOn {
             Section {
                 ForEach(BackupItem.allCases) { item in
                     Toggle(isOn: binding(item)) {
@@ -79,13 +103,30 @@ struct BackupView: View {
                            "API キーとクリップボード履歴は自動では含まれません。書き出すときにパスワード付きでキーを含められます。"))
                 }
             }
+            }
         }
         .navigationTitle(L("备份与恢复", "Backup & Restore", "バックアップと復元"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await refreshLearned() }
-        // 从别的 App（键盘刚收起）切回来时再读一次。
+        // 没有 iCloud 能力的包不查账户：会碰 CKContainer 闪退（04 复审 B1）。
+        .task { if ICloudSync.isAvailable { await sync.checkAccount() } }
+        .onAppear {
+            sync.refresh()
+            refreshSyncedCounts()
+        }
+        // 从别的 App（键盘刚收起、系统设置里登录了 iCloud）切回来时再读一次。
         .onChange(of: scenePhase) { phase in
-            if phase == .active { Task { await refreshLearned() } }
+            guard phase == .active else { return }
+            Task { await refreshLearned() }
+            sync.refresh()
+            if ICloudSync.isAvailable { Task { await sync.checkAccount() } }
+        }
+        // 同步完一轮：学到的词、常用词可能合并进来了。
+        .onChange(of: monitor.status) { _ in
+            sync.refresh()
+            refreshSyncedCounts()
+            counts.commonWords = BackupCounts.current().commonWords
+            Task { await refreshLearned() }
         }
         .onAppear { counts.polishStyles = store.settings.styles.count; counts.answerStyles = store.settings.answerStyles.count }
         .onChange(of: router.openedBackup) { _ in openPending() }
@@ -112,6 +153,13 @@ struct BackupView: View {
     }
 
     private var busy: Bool { deployer.state == .deploying }
+
+    private var syncOn: Bool { ICloudSync.isAvailable && sync.switchOn }
+
+    private func refreshSyncedCounts() {
+        syncedWords = CommonWordStore.load().filter { !$0.isReadOnly }.count
+        syncedPhrases = CommonWordStore.keyboardPhrases.count
+    }
 
     private var fileCard: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -458,6 +506,8 @@ struct BackupRestoreSheet: View {
     @State private var wrongPassword = false
     @State private var mode: BackupMerge.Mode = .merge
     @State private var confirmReplace = false
+    /// 开着 iCloud 同步时用「替换现有的」（IC4 ⑭）：先提醒别的设备的词还会合并回来。
+    @State private var confirmSyncRestore = false
     @State private var working = false
     @State private var failure: String?
     @State private var report: BackupReport?
@@ -555,7 +605,14 @@ struct BackupRestoreSheet: View {
             }
             Section {
                 Button {
-                    if mode == .replace { confirmReplace = true } else { restore() }
+                    // 开着同步时合并、替换都先弹 ⑭（02 三审改文案：合并一样会改到所有设备）。
+                    if ICloudSync.isEnabled {
+                        confirmSyncRestore = true
+                    } else if mode == .replace {
+                        confirmReplace = true
+                    } else {
+                        restore()
+                    }
                 } label: {
                     if working {
                         HStack(spacing: 8) { ProgressView().tint(.white); Text(L("正在恢复…", "Restoring…", "復元しています…")) }
@@ -583,6 +640,65 @@ struct BackupRestoreSheet: View {
         } message: {
             Text(L("选中的几项会先清空，再用备份里的。", "The selected items will be cleared, then filled from the backup.", "選んだ項目を消してから、バックアップの内容にします。"))
         }
+        // ⑭ 开着同步时恢复（合并、替换都弹）：会改到所有设备（02 三审改文案）。
+        .alert(L("恢复会同步到所有设备", "Restoring syncs to all devices", "復元はすべてのデバイスに同期されます"), isPresented: $confirmSyncRestore) {
+            Button(L("恢复并同步到所有设备", "Restore and Sync to All Devices", "復元してすべてのデバイスに同期"), role: .destructive) { restore() }
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+        } message: {
+            Text(syncRestoreMessage)
+        }
+    }
+
+    /// ⑭ 正文（02 四审改文案）：只列这次勾了、会同步出去的几项；开着 Key 同步时再说接口方案和 Key。
+    /// 接口方案只在勾了「设置」时换（恢复设置时备份里没有的方案会删 Key，04 三审第 2 条）。
+    private var syncRestoreMessage: String {
+        let sep = L("、", ", ", "、")
+        var body: String
+        if mode == .merge {
+            var parts: [String] = []
+            var added: [String] = []
+            if selected.contains(.learnedWords) { added.append(L("学到的词", "learned words", "学習した語")) }
+            if selected.contains(.commonWords) { added.append(L("常用词、键盘常用语", "your words and keyboard phrases", "ユーザ辞書と定型文")) }
+            if !added.isEmpty {
+                parts.append(added.joined(separator: sep) + L("加到每台设备上", " are added on every device", "は各デバイスに追加されます"))
+            }
+            if selected.contains(.styles) {
+                parts.append(L("润色和问答风格加进来，同名的换成备份里的", "Polish and Answer styles are added, and ones with the same name are replaced by the backup's",
+                               "整えるスタイルと回答スタイルは追加され、同じ名前のものはバックアップのものに置き換わります"))
+            }
+            body = parts.isEmpty
+                ? L("开着 iCloud 同步，恢复的内容会同步到所有设备。", "With iCloud Sync on, what you restore syncs to all devices.", "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。")
+                : L("开着 iCloud 同步，恢复的这几项会同步到所有设备：", "With iCloud Sync on, these restored items sync to all devices: ", "iCloud 同期がオンなので、復元するこれらの項目はすべてのデバイスに同期されます：")
+                    + parts.joined(separator: L("；", "; ", "。")) + L("。", ".", "。")
+        } else {
+            var replaced: [String] = []
+            if selected.contains(.commonWords) { replaced.append(L("常用词、键盘常用语", "your words, keyboard phrases", "ユーザ辞書、定型文")) }
+            if selected.contains(.styles) { replaced.append(L("润色和问答风格", "Polish and Answer styles", "整えるスタイルと回答スタイル")) }
+            let learned = selected.contains(.learnedWords)
+            if replaced.isEmpty && !learned {
+                body = L("开着 iCloud 同步，恢复的内容会同步到所有设备。", "With iCloud Sync on, what you restore syncs to all devices.", "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。")
+            } else {
+                body = L("开着 iCloud 同步，恢复的这几项会同步到所有设备：", "With iCloud Sync on, these restored items sync to all devices: ", "iCloud 同期がオンなので、復元するこれらの項目はすべてのデバイスに同期されます：")
+                if !replaced.isEmpty {
+                    body += replaced.joined(separator: sep) + L("都换成备份里的。", " are all replaced with the backup's.", "はすべてバックアップのものに置き換わります。")
+                }
+                if learned {
+                    body += L("学到的词是这台先清空再恢复，下次同步时，其他设备学到的词还会合并回来。",
+                              (replaced.isEmpty ? "" : " ") + "Learned words on this device are cleared and then restored, and words learned on your other devices merge back at the next sync.",
+                              "学習した語はこのデバイスで消してから復元し、次の同期でほかのデバイスの学習した語が統合されて戻ります。")
+                }
+            }
+        }
+        guard Keychain.syncsToICloud else { return body }
+        if selected.contains(.settings) {
+            body += L("接口方案也换成备份里的，备份里没有的方案，所有设备上它的 Key 都会删掉。",
+                      " API setups are replaced with the backup's too, and for setups not in the backup, their keys are deleted on all devices.",
+                      "API の設定もバックアップのものに置き換わり、バックアップにない設定は、すべてのデバイスでそのキーが削除されます。")
+        }
+        if withKeys {
+            body += L("所有设备上的 Key 都会换成备份里的。", " Keys on all devices are replaced with the backup's.", "すべてのデバイスのキーがバックアップのものに置き換わります。")
+        }
+        return body
     }
 
     private func binding(_ item: BackupItem) -> Binding<Bool> {
@@ -625,8 +741,7 @@ struct BackupRestoreSheet: View {
             if router.language != Loc.setting { router.language = Loc.setting }
         }
         if state.keysChanged {
-            store.apiKey = SettingsStore.apiKey ?? ""
-            store.answerApiKey = SettingsStore.answerApiKey ?? ""
+            store.reloadKeys()
         }
         RimeDeployer.shared.deployIfNeeded()
     }

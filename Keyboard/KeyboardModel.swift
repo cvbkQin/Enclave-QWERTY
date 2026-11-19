@@ -89,6 +89,9 @@ final class KeyboardModel: ObservableObject {
         case privacy
         /// 还没填自己的 API Key（OB9）：引导去 App 首页跟着教程设置。
         case noKey
+        /// 开着 Key 的 iCloud 同步、要用的 Key 还在从 iCloud 钥匙串同步过来（别的设备刚换了 Key，02 复审第二轮）：
+        /// 不发没有 Key 的请求，卡片和 noKey 一样，换一句话。
+        case keyPending
         /// previous：上次同意的是另一个地址，确认卡上划掉显示。purpose：谁要发（卡上的标题、说明、按钮跟着换，RG9）。
         case consent(endpoint: String, previous: String?, purpose: GatePurpose)
         /// 试用已结束，今天的免费次数用完了。
@@ -641,8 +644,25 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
+    /// 这一步要用哪一路的 Key（只用来看是不是还在等 iCloud 钥匙串，04 四审可选 1）。
+    /// either：识意让模型自己判断改写还是问答，两路都可能用到。
+    enum KeyUse { case polish, answer, either }
+
+    /// 这一次要用的 Key 是不是还在等 iCloud 钥匙串（只在点 AI 时查；没开 Key 同步时只读一个开关）。
+    /// 问答没单独设接口时用的是润色的 Key。
+    private static func keyPending(_ settings: EnclaveSettings, uses: KeyUse) -> Bool {
+        guard Keychain.syncsToICloud else { return false }
+        let polish = { Keychain.isPending("apiKey") }
+        let answer = { settings.usesAnswerEndpoint ? Keychain.isPending("apiKey.answer") : polish() }
+        switch uses {
+        case .polish: return polish()
+        case .answer: return answer()
+        case .either: return polish() || (settings.usesAnswerEndpoint && Keychain.isPending("apiKey.answer"))
+        }
+    }
+
     /// 能不能现在发给模型；不能时弹出对应的提示卡，返回 false。
-    func passGate(purpose: GatePurpose = .polish, then action: @escaping () -> Void) -> Bool {
+    func passGate(purpose: GatePurpose = .polish, keys: KeyUse = .polish, then action: @escaping () -> Void) -> Bool {
         if !hasFullAccess && !debugUnblocked {
             gate = .fullAccess
             return false
@@ -653,6 +673,10 @@ final class KeyboardModel: ObservableObject {
         }
         if !settings.isConfigured && !debugUnblocked {
             gate = .noKey
+            return false
+        }
+        if !debugUnblocked && Self.keyPending(settings, uses: keys) {
+            gate = .keyPending
             return false
         }
         if !debugUnblocked && !AIAccess.current.allowsAI {
@@ -885,21 +909,32 @@ final class KeyboardModel: ObservableObject {
     }
 
     func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil, reply: ReplyRequest? = nil) {
+        // 开着 Key 的 iCloud 同步时，别的设备换的接口可能在键盘开着时同步进来了，手上的设置还是旧地址：
+        // 先换成存着的最新地址再取 Key（Key 按最新地址配对，见 Keychain），不拿新 Key 请求旧地址。没开同步时不读。
+        if Keychain.syncsToICloud {
+            let stored = SettingsStore.load()
+            if !settings.sameEndpoint(as: stored) { settings.adoptEndpoint(from: stored) }
+        }
+        // 这一次从头到尾用这一份地址和 Key（04 复审 A 可选 4）：后面联网再问时不再重新读，免得 App 在后台换了接口和配对，
+        // 拿新 Key 请求这一份的旧地址。
+        let runSettings = settings
+        let polishKey = SettingsStore.apiKey
+        let answerKey = SettingsStore.answerKey(for: runSettings)
         // 手动选了问答就直接找问答模型；自动时先用润色的快模型判断，判断是问答再换问答模型重问（answerClient）。
-        let answerClient = settings.usesAnswerEndpoint
-            ? LLMClient(settings: settings.forAnswers, apiKey: SettingsStore.answerKey(for: settings)) : nil
-        var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: settings, apiKey: SettingsStore.apiKey))
-            : LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
+        let answerClient = runSettings.usesAnswerEndpoint
+            ? LLMClient(settings: runSettings.forAnswers, apiKey: answerKey) : nil
+        var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: runSettings, apiKey: polishKey))
+            : LLMClient(settings: runSettings, apiKey: polishKey)
         var mayHandOff = answerClient != nil && ask != nil && ask?.forced != .answer
         // 内测版用自带的 Key：润色每天 100 次、问答 50 次，到了就不调。
         let firstKind: BuiltinAPI.Kind = ask?.forced == .answer ? .answer : .polish
-        let firstKey = firstKind == .answer && settings.usesAnswerEndpoint ? SettingsStore.answerApiKey : SettingsStore.apiKey
+        let firstKey = firstKind == .answer ? answerKey : polishKey
         guard BuiltinAPI.take(firstKind, key: firstKey) else {
             errorMessage = BuiltinAPI.limitMessage(firstKind)
             if quickStatus == .running { endQuickMode(.failed) }
             return
         }
-        let handOffKey = SettingsStore.answerKey(for: settings)
+        let handOffKey = answerKey
         isRunning = true
         clearFailure()
         lastRun = (messages, pending, ask, reply, runOrigin ?? .polish)
@@ -1030,14 +1065,14 @@ final class KeyboardModel: ObservableObject {
                     if provider.builtin {
                         // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。搜索在服务商那边，出字前流光小字写「正在用 … 联网搜索…」。
                         self.askSearching = true
-                        client = LLMClient(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings), webSearch: true)
+                        client = LLMClient(settings: runSettings.forAnswers, apiKey: answerKey, webSearch: true)
                         messages = Prompts.ask(ask.question, context: "", forceAnswer: true, builtinSearch: true,
                                                answerStyle: answerStyle)
                         continue
                     }
                     // Kimi：流光小字写「正在联网搜索…」，键盘拿问题原文去搜。
                     self.askSearching = true
-                    let search = WebSearch(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings))
+                    let search = WebSearch(settings: runSettings.forAnswers, apiKey: answerKey)
                     let results: String
                     let searchStarted = Date()
                     do {
@@ -1423,9 +1458,14 @@ final class KeyboardModel: ObservableObject {
         aiRow = nil
     }
 
+    /// 键盘里改一项设置（选风格、钉住、换布局）：从存着的最新一份改起，只改这一项再存回去（04 审查 #75 第 10 条）。
+    /// 键盘开着时 App 或 iCloud 同步可能改了别的（风格、接口），用手上的旧副本整份存回会把它们冲掉，
+    /// 冲掉的部分下次同步会被当成本机改的，盖到所有设备上。只在用户点选时跑，不在按键路径上。
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {
-        change(&settings)
-        SettingsStore.save(settings)
+        var updated = SettingsStore.load()
+        change(&updated)
+        settings = updated
+        SettingsStore.save(updated)
     }
 
     // MARK: - 要求栏

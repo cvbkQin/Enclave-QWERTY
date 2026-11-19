@@ -2,8 +2,8 @@
 
 # 飞地输入法隐私政策
 
-生效日期：2026 年 11 月 6 日  
-版本：5
+生效日期：2026 年 11 月 19 日  
+版本：6
 
 ## 引言
 
@@ -117,6 +117,7 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 3. 如您开启识意问答联网，联网搜索由您选择的问答服务商（千问、Kimi、智谱或腾讯混元）完成，适用该服务商的服务条款和隐私政策。
 4. 购买由 Apple 的 App Store 处理，适用 Apple 的隐私政策。
 5. 您提交的反馈通过腾讯 QQ 邮箱的发信服务转发给我们，适用腾讯的隐私政策。
+6. 如您把备份文件存到 iCloud 云盘，相关数据存储在您自己的 iCloud 账户中，适用 Apple 的隐私政策；使用中国大陆 Apple 账户的，iCloud 由云上贵州大数据产业发展有限公司运营，适用《iCloud（云上贵州运营）条款与条件》。
 
 ## 六、您的权利
 
@@ -147,8 +148,8 @@ ICP 备案号：皖ICP备2026038401号-1A
 
 # Enclave Privacy Policy
 
-Effective date: November 6, 2026  
-Version 5
+Effective date: November 19, 2026  
+Version 6
 
 ## Introduction
 
@@ -240,7 +241,7 @@ Deleting the App removes all of this information from your device (your purchase
 
 ## 5. Third-Party Services
 
-The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi, Zhipu or Tencent Hunyuan) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy. Feedback you send is forwarded to us through Tencent QQ Mail under Tencent's privacy policy.
+The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi, Zhipu or Tencent Hunyuan) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy. Feedback you send is forwarded to us through Tencent QQ Mail under Tencent's privacy policy. If you save a backup file to iCloud Drive, that data is stored in your own iCloud account under Apple's privacy policy; for Apple Accounts in mainland China, iCloud is operated by GCBD under the iCloud (operated by GCBD) Terms and Conditions.
 
 ## 6. Your Rights
 
@@ -267,8 +268,8 @@ We will respond within 15 business days.
 
 # Enclave プライバシーポリシー
 
-施行日：2026 年 11 月 6 日  
-バージョン：5
+施行日：2026 年 11 月 19 日  
+バージョン：6
 
 ## はじめに
 
@@ -360,7 +361,7 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 ## 5. 第三者のサービス
 
-本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu・Tencent Hunyuan）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。送信されたフィードバックは Tencent QQ メールの送信サービスを通じて当方へ転送され、Tencent のプライバシーポリシーが適用されます。
+本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu・Tencent Hunyuan）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。送信されたフィードバックは Tencent QQ メールの送信サービスを通じて当方へ転送され、Tencent のプライバシーポリシーが適用されます。バックアップファイルを iCloud Drive に保存した場合、そのデータはお客様ご自身の iCloud アカウントに保存され、Apple のプライバシーポリシーが適用されます。中国本土の Apple アカウントの場合、iCloud は GCBD が運営し、iCloud（GCBD 運営）利用規約が適用されます。
 
 ## 6. お客様の権利
 
