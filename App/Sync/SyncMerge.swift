@@ -115,6 +115,8 @@ enum SyncMerge {
     /// 本机的不参加，直接用已经在用的那份（新设备上的默认值不盖过别的设备设好的，1.8）；
     /// prefersLocal（打开同步时选了「用这台的」）时反过来，本机的记成比别的设备都晚，所有设备换成这台的。
     /// accept 不通过（接口配的 Key 还没同步过来）时本机先不改、记本机原来的，下次同步再试。
+    /// 第一次加入就不通过：本机的照样记下、上传，时间记成比那台早一点（04 复审 A2）。这样下次不再算第一次加入
+    /// （本机之后的改动照常算数），又不会盖过那台；那台的 Key 到了，下次同步就换成那台的。
     static func resolve<V: Codable & Equatable>(local: V, previous: Entry<V>?, peers: [String: Entry<V>], myID: String, now: Date,
                                                 prefersLocal: Bool = false,
                                                 accept: (V) -> Bool = { _ in true }) -> (record: Entry<V>?, apply: V?) {
@@ -130,7 +132,9 @@ enum SyncMerge {
         let ordered = all.sorted { $0.key < $1.key }.map { $0.value }
         guard let winner = latest(ordered), let value = winner.value else { return (all[myID], nil) }
         if value == local { return (winner, nil) }
-        guard accept(value) else { return (all[myID], nil) }
+        guard accept(value) else {
+            return (all[myID] ?? Entry(value: local, time: winner.time.addingTimeInterval(-0.001)), nil)
+        }
         return (winner, value)
     }
 
@@ -149,6 +153,43 @@ enum SyncMerge {
     /// 清除学到的词的代数（1.5）：取所有设备里最大的；只有代数等于它的设备的快照参与合并。
     static func generation(local: Int, peers: [Int]) -> Int {
         max(local, peers.max() ?? 0)
+    }
+
+    /// 这一轮对拼音词库要做什么（1.5，04 审查 #75 第 1、4 条）。
+    enum ClearAction: Equatable {
+        /// 什么都不做。
+        case keep
+        /// 只跟上代数，不清本机：第一次同步时，那是这台加入以前别的设备清的。
+        case follow(Int)
+        /// 清掉本机，代数换成这个：本机刚清过（比所有设备大一），或者别的设备清过（跟上它）。
+        case clear(Int)
+    }
+
+    /// pendingClear：本机清除了学习记录、还没告诉别的设备。关同步、暂停、重新加入时这个标记会清掉（04 复审 B2），
+    /// 所以这里为 true 一定是开着同步时清的，第一次同步也照清。
+    static func clearAction(pendingClear: Bool, firstSync: Bool, local: Int, peers: [Int]) -> ClearAction {
+        let top = generation(local: local, peers: peers)
+        if pendingClear { return .clear(top + 1) }
+        guard top > local else { return .keep }
+        return firstSync ? .follow(top) : .clear(top)
+    }
+
+    /// 这次要合并哪些设备的快照：代数和本机一样、校验和上次合并的不一样的（04 审查 #75 第 3 条）。
+    /// unchanged 是没变、不用再合并的（设备编号 → 校验），合并完要原样记下。
+    static func snapshotsToMerge(peers: [String: (generation: Int, hash: String)], generation: Int,
+                                 merged: [String: String]?) -> (fetch: [String], unchanged: [String: String]) {
+        var fetch: [String] = []
+        var unchanged: [String: String] = [:]
+        for (id, peer) in peers where peer.generation == generation {
+            if merged?[id] == peer.hash { unchanged[id] = peer.hash } else { fetch.append(id) }
+        }
+        return (fetch.sorted(), unchanged)
+    }
+
+    /// 设备记录要不要传：内容（除上传时间）变了，或者离上次传过了 heartbeat（别的设备的设备页看「上次同步」）。
+    static func shouldUpload(digest: String, uploadedDigest: String?, uploadedAt: Date?, now: Date, heartbeat: TimeInterval) -> Bool {
+        guard digest == uploadedDigest, let uploadedAt else { return true }
+        return now.timeIntervalSince(uploadedAt) > heartbeat
     }
 
     /// 快照压缩、分块（CloudKit 一条记录最多 1 MB），校验是压缩后整份的 SHA-256。空快照是 0 块、空校验。
@@ -269,7 +310,11 @@ extension SyncMerge {
     /// 润色、问答正在用的接口（地址、模型、参数，不含 Key）。只在两台设备都开着「Key 也同步」时同步：
     /// 地址和 Key 要一起到，不然一台会拿自己的 Key 去请求另一台设的地址，Key 就发给了别家（04 审查 #75 第 2 条）。
     struct EndpointProfile: Codable, Equatable {
-        static let accounts = ["apiKey", "apiKey.answer"]
+        /// 这份设置真正用到的 Key（04 复审 A2）：润色总要；问答只在单独设了问答接口时要。
+        /// 没用到的不放进 keys，不然一台没设问答 Key、另一台设了，接口就永远对不上、永远不同步。
+        static func accounts(for settings: EnclaveSettings) -> [String] {
+            settings.usesAnswerEndpoint ? Keychain.endpointAccounts : [Keychain.endpointAccounts[0]]
+        }
 
         var baseURL: String
         var model: String
@@ -326,8 +371,13 @@ extension SyncMerge {
 
     /// 别的设备的配置能不能用到本机：它配的每个 Key，本机钥匙串里现在的那个都要对得上。
     /// iCloud 钥匙串和 CloudKit 各自同步，谁先到不一定：地址先到、Key 还没到时先不用，等下次同步。
+    /// 那台没配 Key（自建服务）的不用等：本机配上「没有」，也不会拿本机的 Key 去请求那个地址。
     static func keysMatch(_ keys: [String: String], current: (String) -> String) -> Bool {
-        keys.allSatisfy { current($0.key) == $0.value }
+        keys.allSatisfy { keyMatches($0.value, current: current($0.key)) }
+    }
+
+    static func keyMatches(_ expected: String, current: String) -> Bool {
+        expected.isEmpty || current == expected
     }
 
     /// 一台设备在 iCloud 里的全部内容（除了拼音快照的分块），整份放在 CloudKit 的加密字段里。

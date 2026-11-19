@@ -433,7 +433,10 @@ final class AppStore: ObservableObject {
     @Published var settings = SettingsStore.load() {
         didSet {
             guard settings != oldValue else { return }
-            SettingsStore.save(settings)
+            if !loading {
+                SettingsStore.save(settings)
+                if Self.syncedPartsDiffer(settings, oldValue) { scheduleSync() }
+            }
             if settings.answerBaseURL != oldValue.answerBaseURL || settings.answerModel != oldValue.answerModel {
                 answerTest = .idle
                 answerMissingModel = nil
@@ -444,10 +447,16 @@ final class AppStore: ObservableObject {
             }
         }
     }
+    /// 从存着的地方重新读（reload）时为 true：只更新界面，不写回（04 复审 A1：开着 Key 同步时 Key 可能在等同步，
+    /// 读到的是空，写回去会把 iCloud 钥匙串里的删掉，所有设备一起没了）。
+    private var loading = false
     @Published var apiKey = SettingsStore.apiKey ?? "" {
         didSet {
             guard apiKey != oldValue else { return }
-            SettingsStore.apiKey = apiKey
+            if !loading {
+                SettingsStore.apiKey = apiKey
+                scheduleSync()
+            }
             test = .idle
             missingModel = nil
         }
@@ -456,10 +465,33 @@ final class AppStore: ObservableObject {
     @Published var answerApiKey = SettingsStore.answerApiKey ?? "" {
         didSet {
             guard answerApiKey != oldValue else { return }
-            SettingsStore.answerApiKey = answerApiKey
+            if !loading {
+                SettingsStore.answerApiKey = answerApiKey
+                scheduleSync()
+            }
             answerTest = .idle
             answerMissingModel = nil
         }
+    }
+
+    private var syncTask: Task<Void, Never>?
+
+    /// 改了会同步的东西（风格、接口、Key、接口方案）：开着 iCloud 同步时等 3 秒同步一次，别的设备不用等这台下次打开 App
+    /// （04 复审 A2）。连着改（打字、拖滑块）只算最后一次。同步本身另起一个任务，后面再改不会把正在跑的同步取消掉。
+    private func scheduleSync() {
+        guard ICloudSync.isEnabled else { return }
+        syncTask?.cancel()
+        syncTask = Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            Task { await ICloudSync.syncNow() }
+        }
+    }
+
+    /// 同步的那部分设置（风格；开着 Key 同步时还有接口）变了没有。
+    private static func syncedPartsDiffer(_ a: EnclaveSettings, _ b: EnclaveSettings) -> Bool {
+        SyncMerge.StyleProfile(settings: a) != SyncMerge.StyleProfile(settings: b)
+            || SyncMerge.EndpointProfile(settings: a, keys: [:]) != SyncMerge.EndpointProfile(settings: b, keys: [:])
     }
     @Published private(set) var test: TestState = .idle
     /// 测试成功后顺便取一次模型列表，当前模型不在里面时记下它的名字（ML5「可能已下线」）。取列表失败不算。
@@ -511,6 +543,16 @@ final class AppStore: ObservableObject {
 
     /// 点预设：只换这一页的地址、模型和 Key（问答页顺便关掉「和改写用同一个接口」），然后状态卡重新测一次。
     func applySavedAPI(_ saved: SavedAPI, answer: Bool) {
+        // 开着 Key 同步、这条的 Key 在等同步（别的设备刚改过它）：读到的是空，照用会把这一页的 Key 清掉、删到所有设备上
+        // （04 复审 A1）。先同步一次，新的 Key 和配置到了再用；还没到就不动。
+        if saved.keyPending {
+            Task {
+                await ICloudSync.syncNow()
+                guard let fresh = SavedAPIStore.all.first(where: { $0.id == saved.id }), !fresh.keyPending else { return }
+                applySavedAPI(fresh, answer: answer)
+            }
+            return
+        }
         let key = saved.apiKey ?? ""
         if answer {
             settings.separateAnswer = true
@@ -552,6 +594,7 @@ final class AppStore: ObservableObject {
             || (answer ? settings.usesAnswerEndpoint : settings.isConfigured)
         let saved = SavedAPIStore.add(item, apiKey: key)
         savedAPIs = SavedAPIStore.all
+        scheduleSync()
         if !hadCurrent { applySavedAPI(saved, answer: answer) }
         return saved
     }
@@ -562,6 +605,7 @@ final class AppStore: ObservableObject {
         let answerUses = settings.separateAnswer && currentSavedAPI(answer: true)?.id == item.id
         SavedAPIStore.update(item, apiKey: key)
         savedAPIs = SavedAPIStore.all
+        scheduleSync()
         guard let saved = savedAPIs.first(where: { $0.id == item.id }) else { return }
         if polishUses { applySavedAPI(saved, answer: false) }
         if answerUses { applySavedAPI(saved, answer: true) }
@@ -570,19 +614,31 @@ final class AppStore: ObservableObject {
     func renameSavedAPI(_ id: UUID, to name: String) {
         SavedAPIStore.rename(id, to: name)
         savedAPIs = SavedAPIStore.all
+        scheduleSync()
     }
 
     func deleteSavedAPI(_ id: UUID) {
         SavedAPIStore.delete(id)
         savedAPIs = SavedAPIStore.all
+        scheduleSync()
     }
 
-    /// 从剪贴板导入后重新读一遍。
+    /// 从剪贴板导入、同步写进了别的设备的改动之后重新读一遍：只更新界面，不写回、不再触发同步。
     func reload() {
+        loading = true
+        defer { loading = false }
         settings = SettingsStore.load()
         apiKey = SettingsStore.apiKey ?? ""
         answerApiKey = SettingsStore.answerApiKey ?? ""
         test = .idle
+    }
+
+    /// 恢复备份后重新读 Key（同 reload，不写回）。
+    func reloadKeys() {
+        loading = true
+        defer { loading = false }
+        apiKey = SettingsStore.apiKey ?? ""
+        answerApiKey = SettingsStore.answerApiKey ?? ""
     }
 
     /// 上次测试这个地址和模型的结果，首页「接口」卡片显示连接状态用。

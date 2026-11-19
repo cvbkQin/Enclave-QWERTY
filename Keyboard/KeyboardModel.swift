@@ -891,21 +891,26 @@ final class KeyboardModel: ObservableObject {
             let stored = SettingsStore.load()
             if !settings.sameEndpoint(as: stored) { settings.adoptEndpoint(from: stored) }
         }
+        // 这一次从头到尾用这一份地址和 Key（04 复审 A 可选 4）：后面联网再问时不再重新读，免得 App 在后台换了接口和配对，
+        // 拿新 Key 请求这一份的旧地址。
+        let runSettings = settings
+        let polishKey = SettingsStore.apiKey
+        let answerKey = SettingsStore.answerKey(for: runSettings)
         // 手动选了问答就直接找问答模型；自动时先用润色的快模型判断，判断是问答再换问答模型重问（answerClient）。
-        let answerClient = settings.usesAnswerEndpoint
-            ? LLMClient(settings: settings.forAnswers, apiKey: SettingsStore.answerKey(for: settings)) : nil
-        var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: settings, apiKey: SettingsStore.apiKey))
-            : LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
+        let answerClient = runSettings.usesAnswerEndpoint
+            ? LLMClient(settings: runSettings.forAnswers, apiKey: answerKey) : nil
+        var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: runSettings, apiKey: polishKey))
+            : LLMClient(settings: runSettings, apiKey: polishKey)
         var mayHandOff = answerClient != nil && ask != nil && ask?.forced != .answer
         // 内测版用自带的 Key：润色每天 100 次、问答 50 次，到了就不调。
         let firstKind: BuiltinAPI.Kind = ask?.forced == .answer ? .answer : .polish
-        let firstKey = firstKind == .answer && settings.usesAnswerEndpoint ? SettingsStore.answerApiKey : SettingsStore.apiKey
+        let firstKey = firstKind == .answer ? answerKey : polishKey
         guard BuiltinAPI.take(firstKind, key: firstKey) else {
             errorMessage = BuiltinAPI.limitMessage(firstKind)
             if quickStatus == .running { endQuickMode(.failed) }
             return
         }
-        let handOffKey = SettingsStore.answerKey(for: settings)
+        let handOffKey = answerKey
         isRunning = true
         clearFailure()
         lastRun = (messages, pending, ask, reply, runOrigin ?? .polish)
@@ -1036,14 +1041,14 @@ final class KeyboardModel: ObservableObject {
                     if provider.builtin {
                         // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。搜索在服务商那边，出字前流光小字写「正在用 … 联网搜索…」。
                         self.askSearching = true
-                        client = LLMClient(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings), webSearch: true)
+                        client = LLMClient(settings: runSettings.forAnswers, apiKey: answerKey, webSearch: true)
                         messages = Prompts.ask(ask.question, context: "", forceAnswer: true, builtinSearch: true,
                                                answerStyle: answerStyle)
                         continue
                     }
                     // Kimi：流光小字写「正在联网搜索…」，键盘拿问题原文去搜。
                     self.askSearching = true
-                    let search = WebSearch(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings))
+                    let search = WebSearch(settings: runSettings.forAnswers, apiKey: answerKey)
                     let results: String
                     let searchStarted = Date()
                     do {
@@ -1429,11 +1434,11 @@ final class KeyboardModel: ObservableObject {
         aiRow = nil
     }
 
+    /// 键盘里改一项设置（选风格、钉住、换布局）：从存着的最新一份改起，只改这一项再存回去（04 审查 #75 第 10 条）。
+    /// 键盘开着时 App 或 iCloud 同步可能改了别的（风格、接口），用手上的旧副本整份存回会把它们冲掉，
+    /// 冲掉的部分下次同步会被当成本机改的，盖到所有设备上。只在用户点选时跑，不在按键路径上。
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {
-        var updated = settings
-        // 开着 Key 的 iCloud 同步时，接口可能在键盘开着时被同步换了。键盘自己不改接口：存之前换成存着的，
-        // 不把旧地址写回去（不然旧地址会配上同步来的新 Key，04 审查 #75 第 2、10 条）。没开同步时不读。
-        if Keychain.syncsToICloud { updated.adoptEndpoint(from: SettingsStore.load()) }
+        var updated = SettingsStore.load()
         change(&updated)
         settings = updated
         SettingsStore.save(updated)

@@ -75,7 +75,7 @@ enum Keychain {
     }
 
     /// 关着同步时只读本机版。开着时读和本机配的指纹对得上的那份（见上面「配对」）：先看同步版，再看本机版；
-    /// 都对不上（别的设备换了 Key、新地址还没同步过来）就当没有。
+    /// 都对不上（别的设备换了 Key、新地址还没同步过来）就当没有。要分清「没有」和「等同步」用 isPending。
     static func get(_ account: String) -> String? {
         guard syncsToICloud else { return read(account, synced: false) }
         let bound = binding(account)
@@ -84,18 +84,23 @@ enum Keychain {
         return nil
     }
 
+    /// 等同步：开着同步，iCloud 钥匙串里有这个账户的 Key，但和本机配的对不上（别的设备换了 Key、新地址还没同步过来）。
+    /// 这时 get 读到的是 nil，界面上是空的，但不是「没有 Key」：不能把空的写回去，不然同步版会被删掉，
+    /// 所有设备上的 Key 一起没了（04 复审 A1）。
+    static func isPending(_ account: String) -> Bool {
+        guard syncsToICloud, get(account) == nil else { return false }
+        return read(account, synced: true) != nil
+    }
+
     /// 存一个 Key；nil 或空字符串是删掉。开着同步时写同步版、删本机版（以后不用它了）；删除时两份都删，
-    /// 同步版一删，其他设备上的也没了（删接口配置时就是要这样）。关着同步时只动本机版。
-    /// 开着同步时同时记下本机配的是这个 Key。
+    /// 同步版一删，其他设备上的也没了。关着同步时只动本机版。开着同步时同时记下本机配的是这个 Key。
+    /// 等同步（isPending）时传空的什么都不做：界面上读到的空不是用户清空的，用户明确要删用 remove。
     @discardableResult
     static func set(_ value: String?, for account: String) -> Bool {
         let synced = syncsToICloud
         guard let value, !value.isEmpty else {
-            delete(account, synced: false)
-            if synced {
-                delete(account, synced: true)
-                bind([account: fingerprint(nil)])
-            }
+            if synced && isPending(account) { return true }
+            remove(account)
             return true
         }
         guard write(value, account: account, synced: synced) else { return false }
@@ -106,7 +111,21 @@ enum Keychain {
         return true
     }
 
+    /// 用户明确删掉一个 Key（删接口方案、恢复备份时去掉备份里没有的方案）：等同步时也删。
+    /// 开着同步时两份都删，同步版一删，其他设备上的也没了；关着同步时只删本机版。
+    static func remove(_ account: String) {
+        delete(account, synced: false)
+        if syncsToICloud {
+            delete(account, synced: true)
+            bind([account: fingerprint(nil)])
+        }
+    }
+
     // MARK: 配对
+
+    /// 跟着接口配置走的 Key（润色、问答）：两台设备用的是同一个账户名，打开同步时要决定用哪台的。
+    /// 接口方案（apiKey.saved.<编号>）每条编号不同，不会撞。
+    static let endpointAccounts = ["apiKey", "apiKey.answer"]
 
     /// Key 的指纹：SHA-256 的前 16 位十六进制，只用来比对是不是同一个 Key，推不回 Key。没有 Key 是空字符串。
     static func fingerprint(_ value: String?) -> String {
@@ -127,6 +146,13 @@ enum Keychain {
         SharedStorage.defaults.set(all, forKey: bindingsKey)
     }
 
+    /// 从 8118b83 升级上来的测试机（04 复审 A 可选 7）：那时开着同步但还没有配对表，升级后所有 Key 都读成没有。
+    /// App 启动时补一次：开着同步、一条配对都没有时，配上钥匙串里现在的那份。
+    static func migrateBindingsIfNeeded(accounts: [String]) {
+        guard syncsToICloud, SharedStorage.defaults.object(forKey: bindingsKey) == nil else { return }
+        bind(Dictionary(uniqueKeysWithValues: accounts.map { ($0, currentFingerprint($0)) }))
+    }
+
     /// 钥匙串里现在实际是哪个 Key（不看配对）：同步时判断别的设备的配置能不能用到本机。
     static func currentFingerprint(_ account: String) -> String {
         if syncsToICloud, let value = read(account, synced: true) { return fingerprint(value) }
@@ -144,14 +170,25 @@ enum Keychain {
 
     /// 打开同步：本机有、同步版还没有的 Key 写一份同步版，读回来对得上再删本机版。
     /// 同步版已经有了（别的设备先开的）：本机版留着不动、本机继续用它，等同步把那台的接口配置写进本机时改用同步版。
+    /// 润色、问答的 Key（endpointAccounts）两台设备是同一个账户名，按设置页选的（⑪、⑪b）：
+    /// - iCloudWins（「用 iCloud 里的」）：本机的不往 iCloud 钥匙串写（那台的 Key 可能还没到，写了会把它盖掉），
+    ///   本机版留着、继续配它，等同步把那台的接口配置连同 Key 带过来。
+    /// - 否则（iCloud 里没有别的设备的接口方案，或者选了「用这台的」）：本机有就写成同步版，盖掉 iCloud 钥匙串里原来的，
+    ///   这台的接口方案配着它同步到其他设备。
     /// 有一个没写成就返回 false，开关不打开。
-    static func enableSync(accounts: [String]) -> Bool {
+    static func enableSync(accounts: [String], iCloudWins: Bool) -> Bool {
         guard !BuiltinAPI.available else { return false }
         var bindings: [String: String] = [:]
         for account in accounts {
             let synced = lookup(account, synced: true)
             guard synced.readable, lookup(account, synced: false).readable else { return false }
-            if synced.value != nil {
+            if endpointAccounts.contains(account) {
+                let local = read(account, synced: false)
+                if iCloudWins || local == nil {
+                    bindings[account] = fingerprint(local)
+                    continue
+                }
+            } else if synced.value != nil {
                 // 别的设备先开了，同步版是那台的 Key：本机现在的地址还配本机原来的 Key（可能没有），
                 // 所以同步版先不能用，等同步把那台的地址写进本机时再配上，免得拿那台的 Key 请求本机的地址。
                 bindings[account] = fingerprint(read(account, synced: false))

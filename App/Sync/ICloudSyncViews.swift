@@ -26,17 +26,32 @@ final class ICloudSyncModel: ObservableObject {
     @Published var accountOK = true
     /// 打开开关后正在看 iCloud 里有没有别的设备的数据。
     @Published private(set) var probing = false
+    /// 打开 Key 同步前正在同步、看 iCloud 里有没有别的设备的接口方案（⑪b）。
+    @Published private(set) var keyProbing = false
     @Published private(set) var devices: [ICloudSync.Device] = []
+    private var refreshNumber = 0
 
+    /// 开关马上读（只是共享设置）；Key 个数、设备列表要读钥匙串、状态文件和每台设备的记录，放到后台（04 复审 B13）。
     func refresh() {
         switchOn = ICloudSync.isSwitchOn
         paused = ICloudSync.isPaused
         keysOn = Keychain.syncsToICloud
-        keyCount = Keychain.syncedCount(accounts: BackupService.keyAccounts())
-        devices = ICloudSync.devices()
+        refreshNumber += 1
+        let number = refreshNumber
+        Task {
+            let devices = await ICloudSync.devices()
+            let count = await Task.detached(priority: .userInitiated) {
+                Keychain.syncedCount(accounts: BackupService.keyAccounts())
+            }.value
+            guard number == refreshNumber else { return }
+            self.devices = devices
+            keyCount = count
+        }
     }
 
+    /// 没有 iCloud 能力的包不查（会碰 CKContainer 闪退，04 复审 B1）。
     func checkAccount() async {
+        guard ICloudSync.isAvailable else { return }
         accountOK = await ICloudSync.accountAvailable()
     }
 
@@ -60,7 +75,11 @@ final class ICloudSyncModel: ObservableObject {
         UIApplication.shared.registerForRemoteNotifications()
         ICloudSyncScheduler.schedule()
         refresh()
-        syncNow()
+        // 关了马上又开时，上一轮可能还在跑：等它跑完再跑一轮，重新加入在新的这一轮里做（04 复审 B9）。
+        Task {
+            _ = await ICloudSyncEngine.shared.run(again: true)
+            refresh()
+        }
     }
 
     func syncNow() {
@@ -77,15 +96,38 @@ final class ICloudSyncModel: ObservableObject {
         refresh()
     }
 
-    func disableAndDelete() async throws {
+    struct KeychainLocked: Error {}
+
+    /// 关闭并删除 iCloud 里的数据（⑩）。removeKeys（「连 Key 一起删除」）：本机配的 Key 先复制回本机版，再从 iCloud 钥匙串
+    /// 删掉，其他设备上的也会没有；钥匙串这会儿读不了时什么都不做，抛 KeychainLocked。
+    func disableAndDelete(removeKeys: Bool) async throws {
+        if removeKeys {
+            guard Keychain.disableSync(accounts: BackupService.keyAccounts(), removeFromICloud: true) else { throw KeychainLocked() }
+        }
         disable()
         try await ICloudSyncEngine.shared.deleteAll()
         refresh()
     }
 
+    /// 打开 Key 同步之前：先同步一次（一分钟内同步过就不再跑），再看 iCloud 里有没有别的设备的接口方案（⑪b）。
+    func endpointOwner() async -> (name: String, date: Date)? {
+        keyProbing = true
+        defer { keyProbing = false }
+        await ICloudSync.syncNow(minimumInterval: 60)
+        return await ICloudSyncEngine.shared.endpointOwner()
+    }
+
+    /// 打开 Key 同步。useICloud：iCloud 里已经有别的设备的接口方案、选了「用 iCloud 里的」（⑪b）：本机的 Key 不往 iCloud 钥匙串写，
+    /// 接口等那台的 Key 到了再换成那台的。否则（⑪，或 ⑪b 选了「用这台的」）这台的 Key 写进 iCloud 钥匙串，接口用这台的。
     /// 钥匙串这会儿读不了（开机后还没解锁过）时返回 false，开关不动。
-    func enableKeys() -> Bool {
-        let ok = Keychain.enableSync(accounts: BackupService.keyAccounts())
+    /// 暂停（换了 Apple 账户）或同步关着时不开，免得 Key 写进新账户的 iCloud 钥匙串（04 复审 B3）。
+    func enableKeys(useICloud: Bool) -> Bool {
+        guard ICloudSync.isEnabled else {
+            refresh()
+            return true
+        }
+        let ok = Keychain.enableSync(accounts: BackupService.keyAccounts(), iCloudWins: useICloud)
+        if ok { ICloudSync.prefersLocalEndpoint = !useICloud }
         refresh()
         if ok { syncNow() }
         return ok
@@ -93,6 +135,7 @@ final class ICloudSyncModel: ObservableObject {
 
     func disableKeys(removeFromICloud: Bool) -> Bool {
         let ok = Keychain.disableSync(accounts: BackupService.keyAccounts(), removeFromICloud: removeFromICloud)
+        if ok { ICloudSync.prefersLocalEndpoint = false }
         refresh()
         // 接口不再跟着同步：下一次同步把本机这份从 iCloud 的设备记录里去掉。
         if ok { syncNow() }
@@ -161,6 +204,7 @@ struct ICloudSyncSections: View {
     @State private var confirmOff = false
     @State private var confirmDelete = false
     @State private var confirmKeysOn = false
+    @State private var keyJoin: JoinPrompt?
     @State private var confirmKeysOff = false
     @State private var failure: String?
 
@@ -169,14 +213,13 @@ struct ICloudSyncSections: View {
         var date: Date
     }
 
-    /// ⑧ 正文最后一句：Key 同步关着时接口不同步，只有风格要选（02，说明.md「实现时补的」）。
-    private var joinChoice: String {
-        Keychain.syncsToICloud
-            ? L("AI 接口和风格只能留一份：", "AI settings and styles can only keep one copy:", "AI の設定とスタイルはどちらか一方だけ残せます：")
-            : L("润色和问答风格只能留一份：", "Polish and answer styles can only keep one copy:", "整えるスタイルと回答スタイルはどちらか一方だけ残せます：")
-    }
+    /// 暂停（换了 Apple 账户）时只留卡片：同步的内容、Key 开关、设备都不显示，免得在新账户里开 Key 同步（04 复审 B3）。
+    private var showsDetail: Bool { (model.switchOn || model.probing) && model.accountOK && !model.paused }
 
-    private var showsDetail: Bool { (model.switchOn || model.probing) && model.accountOK }
+    private var keychainLocked: String {
+        L("钥匙串这会儿读不了。解锁 \(SyncText.model) 后再试一次。", "The keychain can't be read right now. Unlock your \(SyncText.model) and try again.",
+          "今はキーチェーンを読み込めません。\(SyncText.model) のロックを解除してからもう一度お試しください。")
+    }
 
     var body: some View {
         Section {
@@ -192,30 +235,42 @@ struct ICloudSyncSections: View {
                     }
                     Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
                 } message: { join in
-                    Text(L("来自「\(join.name)」，\(Loc.monthDay(join.date))。学到的词和常用词两边都会留着，自动合并。",
-                           "From “\(join.name)”, \(Loc.monthDay(join.date)). Learned words and your words are kept on both sides and merged. ",
-                           "「\(join.name)」から（\(Loc.monthDay(join.date))）。学習した語とユーザ辞書は両方残して自動で統合します。")
-                         + joinChoice)
+                    // 加入时 Key 同步一定关着，接口方案不参与，只问风格（02 复审第 4 条；接口在 ⑪b 问）。
+                    Text(L("来自「\(join.name)」，\(Loc.monthDay(join.date))。学到的词和常用词两边都会留着，自动合并。润色和问答风格只能留一份：",
+                           "From “\(join.name)”, \(Loc.monthDay(join.date)). Learned words and your words are kept on both sides and merged. Polish and answer styles can only keep one copy:",
+                           "「\(join.name)」から（\(Loc.monthDay(join.date))）。学習した語とユーザ辞書は両方残して自動で統合します。整えるスタイルと回答スタイルはどちらか一方だけ残せます："))
                 }
                 .confirmationDialog(L("关闭 iCloud 同步", "Turn Off iCloud Sync", "iCloud 同期をオフにする"), isPresented: $confirmOff, titleVisibility: .visible) {
                     Button(L("关闭，保留 iCloud 里的", "Turn Off, Keep iCloud Data", "オフにして iCloud のデータを残す")) { model.disable() }
-                    Button(L("关闭并删除 iCloud 里的数据", "Turn Off and Delete iCloud Data", "オフにして iCloud のデータを削除"), role: .destructive) {
-                        // 操作表收起后再弹确认，不然系统会忽略这次弹出。
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { confirmDelete = true }
+                    // 暂停时（换了 Apple 账户）不给删：删的会是新账户里的数据（04 复审 B8）。
+                    if !model.paused {
+                        Button(L("关闭并删除 iCloud 里的数据", "Turn Off and Delete iCloud Data", "オフにして iCloud のデータを削除"), role: .destructive) {
+                            // 操作表收起后再弹确认，不然系统会忽略这次弹出。
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { confirmDelete = true }
+                        }
                     }
                     Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
                 } message: {
-                    Text(L("这台 \(SyncText.model) 上的词和设置都留着，只是不再同步。iCloud 里的数据要一起删掉吗？",
-                           "Words and settings on this \(SyncText.model) stay; they just stop syncing. Delete the data in iCloud too?",
-                           "この \(SyncText.model) の語と設定はそのまま残り、同期だけ止まります。iCloud のデータも削除しますか？"))
+                    Text(offMessage)
                 }
                 .alert(L("删除 iCloud 里飞地的数据？", "Delete Enclave's data in iCloud?", "iCloud の Enclave のデータを削除しますか？"), isPresented: $confirmDelete) {
-                    Button(L("删除", "Delete", "削除"), role: .destructive) { deleteAll() }
+                    if model.keysOn {
+                        // Key 同步开着：Key 在 iCloud 钥匙串里，问要不要一起删（02 复审第 6 条）。
+                        Button(L("删除数据，保留 Key", "Delete Data, Keep Keys", "データを削除してキーは残す")) { deleteAll(removeKeys: false) }
+                        Button(L("连 Key 一起删除", "Delete Data and Keys", "キーも一緒に削除"), role: .destructive) { deleteAll(removeKeys: true) }
+                    } else {
+                        Button(L("删除", "Delete", "削除"), role: .destructive) { deleteAll(removeKeys: false) }
+                    }
                     Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
                 } message: {
                     Text(L("其他设备也同步不到这些数据了；如果它们还开着同步，会把自己的那份重新传上去。每台设备本机的词和设置都不受影响。",
                            "Other devices can't get this data anymore. If they still have sync on, they'll upload their own copy again. Words and settings on each device aren't affected.",
-                           "ほかのデバイスもこのデータを同期できなくなります。同期をオンにしたままのデバイスは自分の分をもう一度アップロードします。各デバイスの語と設定には影響しません。"))
+                           "ほかのデバイスもこのデータを同期できなくなります。同期をオンにしたままのデバイスは自分の分をもう一度アップロードします。各デバイスの語と設定には影響しません。")
+                         + (model.keysOn
+                            ? L("接口 Key 存在 iCloud 钥匙串里，要不要一起删？一起删的话，其他设备上的 Key 也会没有。",
+                                " API keys are in iCloud Keychain. Delete them too? If you do, the keys on your other devices will be gone as well.",
+                                "API キーは iCloud キーチェーンにあります。一緒に削除しますか？削除すると、ほかのデバイスのキーもなくなります。")
+                            : ""))
                 }
                 .alert(L("没能完成", "Couldn't finish", "完了できませんでした"),
                        isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })) {
@@ -284,7 +339,11 @@ struct ICloudSyncSections: View {
                         .tint(DashColor.ok)
                         .disabled(model.probing)
                 } else {
-                    Toggle("", isOn: .constant(false)).labelsHidden().disabled(true)
+                    // 没登录或受限：没开着就不能开；开着的照样能关（04 复审 B10）。
+                    Toggle("", isOn: Binding(get: { model.switchOn }, set: { on in if !on { confirmOff = true } }))
+                        .labelsHidden()
+                        .tint(DashColor.ok)
+                        .disabled(!model.switchOn)
                 }
             }
             if !model.accountOK {
@@ -323,7 +382,21 @@ struct ICloudSyncSections: View {
         .padding(.vertical, 6)
     }
 
-    private var syncing: Bool { monitor.running || model.probing }
+    private var syncing: Bool { monitor.running || model.probing || model.keyProbing }
+
+    /// ⑨ 的说明：Key 同步开着时加一句（02 复审第 6 条）；暂停时不问删不删（只给「关闭」）。
+    private var offMessage: String {
+        var text = L("这台 \(SyncText.model) 上的词和设置都留着，只是不再同步。", "Words and settings on this \(SyncText.model) stay; they just stop syncing.",
+                     "この \(SyncText.model) の語と設定はそのまま残り、同期だけ止まります。")
+        if model.keysOn && !model.paused {
+            text += L("接口 Key 也会停止同步，这台留一份本机的。", " API keys stop syncing too; this device keeps its own copy.",
+                      "API キーの同期も止まり、このデバイスにはキーのコピーが残ります。")
+        }
+        if !model.paused {
+            text += L("iCloud 里的数据要一起删掉吗？", " Delete the data in iCloud too?", "iCloud のデータも削除しますか？")
+        }
+        return text
+    }
 
     @ViewBuilder private var statusLine: some View {
         if !model.accountOK {
@@ -428,34 +501,40 @@ struct ICloudSyncSections: View {
     // MARK: 同步接口 Key（IC1 ④、IC3 ⑪、IC4 ⑫）
 
     private var keyRow: some View {
-        Toggle(isOn: Binding(get: { model.keysOn }, set: { on in
-            if on { confirmKeysOn = true } else { confirmKeysOff = true }
+        Toggle(isOn: Binding(get: { model.keysOn || model.keyProbing }, set: { on in
+            if on { keysOnTapped() } else { confirmKeysOff = true }
         })) {
             HStack(spacing: 12) {
                 TintIcon(systemName: "key", color: SyncColor.orange)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L("同步接口 Key", "Sync API Keys", "API キーを同期"))
-                    Text(model.keysOn && model.keyCount > 0
-                         ? L("\(model.keyCount) 个 Key 通过 iCloud 钥匙串同步", "\(model.keyCount) keys sync with iCloud Keychain", "\(model.keyCount) 個のキーを iCloud キーチェーンで同期")
-                         : L("通过 iCloud 钥匙串，端到端加密", "Through iCloud Keychain, end-to-end encrypted", "iCloud キーチェーンで、エンドツーエンド暗号化"))
-                        .font(.caption).foregroundStyle(.secondary)
+                    Text(keyCaption).font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
         .tint(DashColor.ok)
+        .disabled(model.keyProbing)
+        // ⑪：iCloud 里没有别的设备的接口方案（02 复审第 4 条）。
         .alert(L("同步接口 Key？", "Sync API keys?", "API キーを同期しますか？"), isPresented: $confirmKeysOn) {
-            Button(L("同步", "Sync", "同期")) {
-                if !model.enableKeys() {
-                    failure = L("钥匙串这会儿读不了。解锁 \(SyncText.model) 后再试一次。", "The keychain can't be read right now. Unlock your \(SyncText.model) and try again.",
-                                "今はキーチェーンを読み込めません。\(SyncText.model) のロックを解除してからもう一度お試しください。")
-                }
-            }
-            .keyboardShortcut(.defaultAction)
+            Button(L("同步", "Sync", "同期")) { enableKeys(useICloud: false) }
+                .keyboardShortcut(.defaultAction)
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
         } message: {
-            Text(L("打开后，接口方案也会一起同步。Key 会通过 iCloud 钥匙串同步到登录同一 Apple 账户的设备，端到端加密。开着时，在任何一台上删掉一个接口方案，其他设备上它的 Key 也会一起删掉。要先在 iPhone 设置里打开「密码」的 iCloud 同步。",
-                   "API setups sync too once this is on. Keys sync through iCloud Keychain to devices signed in to the same Apple Account, end-to-end encrypted. While on, deleting an API setup on any device also deletes its key on the others. Turn on iCloud sync for Passwords in Settings first.",
-                   "オンにすると、API の設定も一緒に同期します。キーは iCloud キーチェーンで同じ Apple アカウントのデバイスに同期され、エンドツーエンドで暗号化されます。オンの間は、どれかのデバイスで API の設定を削除すると、ほかのデバイスのキーも削除されます。先に設定で「パスワード」の iCloud 同期をオンにしてください。"))
+            Text(L("打开后，接口方案和 Key 会通过 iCloud 钥匙串同步到登录同一 Apple 账户的设备，端到端加密。开着时，在任何一台上删掉一个接口方案，其他设备上它的 Key 也会一起删掉。要先在 iPhone 设置里打开「密码」的 iCloud 同步。",
+                   "API setups and keys sync through iCloud Keychain to devices signed in to the same Apple Account, end-to-end encrypted. While on, deleting an API setup on any device also deletes its key on the others. Turn on iCloud sync for Passwords in Settings first.",
+                   "オンにすると、API の設定とキーが iCloud キーチェーンで同じ Apple アカウントのデバイスに同期され、エンドツーエンドで暗号化されます。オンの間は、どれかのデバイスで API の設定を削除すると、ほかのデバイスのキーも削除されます。先に設定で「パスワード」の iCloud 同期をオンにしてください。"))
+        }
+        // ⑪b：iCloud 里已经有别的设备的接口方案，这时才是接口第一次加入，问用哪边（02 复审第 4 条）。
+        .alert(L("同步接口 Key 和接口方案？", "Sync API keys and setups?", "API キーと API の設定を同期しますか？"),
+               isPresented: Binding(get: { keyJoin != nil }, set: { if !$0 { keyJoin = nil } }), presenting: keyJoin) { _ in
+            Button(L("用 iCloud 里的（推荐）", "Use iCloud's (Recommended)", "iCloud のものを使う（おすすめ）")) { enableKeys(useICloud: true) }
+                .keyboardShortcut(.defaultAction)
+            Button(L("用这台 \(SyncText.model) 的", "Use This \(SyncText.model)'s", "この \(SyncText.model) のものを使う")) { enableKeys(useICloud: false) }
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+        } message: { owner in
+            Text(L("打开后，接口方案和 Key 会通过 iCloud 钥匙串同步，端到端加密。iCloud 里已经有「\(owner.name)」的接口方案（\(Loc.monthDay(owner.date))），两边只能留一份：",
+                   "API setups and keys sync through iCloud Keychain, end-to-end encrypted. iCloud already has API setups from “\(owner.name)” (\(Loc.monthDay(owner.date))). Only one copy can be kept:",
+                   "オンにすると、API の設定とキーが iCloud キーチェーンで同期され、エンドツーエンドで暗号化されます。iCloud にはすでに「\(owner.name)」の API の設定があります（\(Loc.monthDay(owner.date))）。どちらか一方だけ残せます："))
         }
         .confirmationDialog(L("关闭接口 Key 同步", "Turn Off API Key Sync", "API キーの同期をオフにする"), isPresented: $confirmKeysOff, titleVisibility: .visible) {
             Button(L("只在这台关闭", "Turn Off on This Device", "このデバイスだけオフにする")) { keysOff(removeFromICloud: false) }
@@ -468,11 +547,35 @@ struct ICloudSyncSections: View {
         }
     }
 
-    private func keysOff(removeFromICloud: Bool) {
-        if !model.disableKeys(removeFromICloud: removeFromICloud) {
-            failure = L("钥匙串这会儿读不了。解锁 \(SyncText.model) 后再试一次。", "The keychain can't be read right now. Unlock your \(SyncText.model) and try again.",
-                        "今はキーチェーンを読み込めません。\(SyncText.model) のロックを解除してからもう一度お試しください。")
+    /// Key 那一行的小字（IC1 ④）；开着时加删方案连带删 Key 的提醒（02 复审第 4 条：⑪b 里没写，放在这里）。
+    private var keyCaption: String {
+        guard model.keysOn else {
+            return L("通过 iCloud 钥匙串，端到端加密", "Through iCloud Keychain, end-to-end encrypted", "iCloud キーチェーンで、エンドツーエンド暗号化")
         }
+        let count = model.keyCount > 0
+            ? L("\(model.keyCount) 个 Key 通过 iCloud 钥匙串同步", "\(model.keyCount) keys sync with iCloud Keychain", "\(model.keyCount) 個のキーを iCloud キーチェーンで同期")
+            : L("通过 iCloud 钥匙串，端到端加密", "Through iCloud Keychain, end-to-end encrypted", "iCloud キーチェーンで、エンドツーエンド暗号化")
+        return count + "\n" + L("开着时删掉一个接口方案，其他设备上它的 Key 也会删掉", "Deleting an API setup while this is on also deletes its key on your other devices",
+                                 "オンの間に API の設定を削除すると、ほかのデバイスのキーも削除されます")
+    }
+
+    /// 打开 Key 同步：先同步一次看 iCloud 里有没有别的设备的接口方案，有就问用哪边（⑪b），没有就 ⑪。
+    private func keysOnTapped() {
+        Task {
+            if let owner = await model.endpointOwner() {
+                keyJoin = JoinPrompt(name: owner.name, date: owner.date)
+            } else {
+                confirmKeysOn = true
+            }
+        }
+    }
+
+    private func enableKeys(useICloud: Bool) {
+        if !model.enableKeys(useICloud: useICloud) { failure = keychainLocked }
+    }
+
+    private func keysOff(removeFromICloud: Bool) {
+        if !model.disableKeys(removeFromICloud: removeFromICloud) { failure = keychainLocked }
     }
 
     // MARK: 打开、关闭
@@ -488,10 +591,13 @@ struct ICloudSyncSections: View {
         }
     }
 
-    private func deleteAll() {
+    private func deleteAll(removeKeys: Bool) {
         Task {
             do {
-                try await model.disableAndDelete()
+                try await model.disableAndDelete(removeKeys: removeKeys)
+            } catch is ICloudSyncModel.KeychainLocked {
+                // 钥匙串读不了：什么都没动，同步还开着。
+                failure = keychainLocked
             } catch {
                 // 错误原文只进系统日志（连 Mac 的「控制台」能看到），不放进给用户看的句子里。
                 NSLog("ICloudSync: deleteAll failed: %@", String(describing: error))

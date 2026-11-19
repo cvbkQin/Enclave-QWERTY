@@ -239,10 +239,39 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(result.record, mine)
         XCTAssertNil(result.apply)
 
-        let joining = SyncMerge.resolve(local: "x", previous: nil, peers: ["B": Entry(value: "y", time: t2)], myID: "A", now: t3,
-                                        accept: { _ in false })
-        XCTAssertNil(joining.record, "还没加入：这次不参加，下次还当第一次")
+    }
+
+    /// 第一次加入就不通过（那台的 Key 还没到）：本机的照样记下、上传，时间比那台早一点（04 复审 A2）。
+    /// 下次不再算第一次加入；不会盖过那台；Key 到了就换成那台的；本机之后改了照常算数。
+    func testResolveRejectedJoinRecordsMineBehindPeer() {
+        let peer = Entry(value: "y", time: t2)
+        let joining = SyncMerge.resolve(local: "x", previous: nil, peers: ["B": peer], myID: "A", now: t3, accept: { _ in false })
+        XCTAssertEqual(joining.record?.value, "x", "本机这份照样上传")
+        XCTAssertLessThan(joining.record?.time ?? t3, t2, "比那台早，不会盖过它")
         XCTAssertNil(joining.apply)
+
+        // 那台看到本机这份：还是用它自己的。
+        let onB = SyncMerge.resolve(local: "y", previous: peer, peers: ["A": joining.record!], myID: "B", now: t3)
+        XCTAssertEqual(onB.record, peer)
+        XCTAssertNil(onB.apply)
+
+        // 下一轮 Key 到了：换成那台的。
+        let next = SyncMerge.resolve(local: "x", previous: joining.record, peers: ["B": peer], myID: "A", now: t3)
+        XCTAssertEqual(next.record, peer)
+        XCTAssertEqual(next.apply, "y")
+
+        // 还没到、本机先改了：本机的改动算数，比那台新。
+        let edited = SyncMerge.resolve(local: "z", previous: joining.record, peers: ["B": peer], myID: "A", now: t3, accept: { _ in false })
+        XCTAssertEqual(edited.record, Entry(value: "z", time: t3))
+        XCTAssertNil(edited.apply)
+    }
+
+    /// 别的设备时间都是 initialTime（第一次同步就没改过）、编号比本机大：被拒的本机这份也排在它后面。
+    func testResolveRejectedJoinBehindInitialTime() {
+        let peer = Entry(value: "y", time: t0)
+        let joining = SyncMerge.resolve(local: "x", previous: nil, peers: ["B": peer], myID: "A", now: t3, accept: { _ in false })
+        let onB = SyncMerge.resolve(local: "y", previous: peer, peers: ["A": joining.record!], myID: "B", now: t3, accept: { _ in true })
+        XCTAssertNil(onB.apply, "编号小也不会因为时间一样赢")
     }
 
     func testAcceptingKeepsMineForRejected() {
@@ -355,6 +384,134 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertTrue(SyncMerge.keysMatch(keys) { ["apiKey": "f1"][$0] ?? "" })
         XCTAssertFalse(SyncMerge.keysMatch(keys) { _ in "" }, "Key 还没同步过来")
         XCTAssertFalse(SyncMerge.keysMatch(keys) { ["apiKey": "f2"][$0] ?? "" }, "本机是另一个 Key")
+        // 那台没配 Key 的账户不用等：本机有没有都行（04 复审 A2）。
+        XCTAssertTrue(SyncMerge.keysMatch(keys) { ["apiKey": "f1", "apiKey.answer": "f9"][$0] ?? "" })
+        XCTAssertTrue(SyncMerge.keyMatches("", current: "f9"))
+        XCTAssertFalse(SyncMerge.keyMatches("f1", current: ""))
+    }
+
+    /// 接口只带真正用到的 Key（04 复审 A2）：没单独设问答接口时不带问答 Key，两台问答 Key 不一样也能同步接口。
+    func testEndpointAccountsOnlyUsedKeys() {
+        var settings = EnclaveSettings()
+        settings.separateAnswer = false
+        XCTAssertEqual(SyncMerge.EndpointProfile.accounts(for: settings), ["apiKey"])
+        settings.separateAnswer = true
+        settings.answerBaseURL = "https://answer.example/v1"
+        settings.answerModel = "m"
+        XCTAssertEqual(SyncMerge.EndpointProfile.accounts(for: settings), ["apiKey", "apiKey.answer"])
+        settings.answerModel = ""
+        XCTAssertEqual(SyncMerge.EndpointProfile.accounts(for: settings), ["apiKey"], "问答接口没填全：问答用润色的")
+    }
+
+    // MARK: - 清除学习记录、快照合并、上传（04 复审 B2、A8、B15）
+
+    func testClearActionLocalClear() {
+        XCTAssertEqual(SyncMerge.clearAction(pendingClear: true, firstSync: false, local: 2, peers: [3, 1]), .clear(4),
+                       "本机清了：比所有设备大一")
+        XCTAssertEqual(SyncMerge.clearAction(pendingClear: true, firstSync: true, local: 0, peers: [3]), .clear(4),
+                       "开着同步时清的，第一次同步也照清（关同步、暂停、重新加入时标记已经清掉）")
+    }
+
+    func testClearActionFollowsPeers() {
+        XCTAssertEqual(SyncMerge.clearAction(pendingClear: false, firstSync: false, local: 2, peers: [3]), .clear(3), "别的设备清过：跟着清")
+        XCTAssertEqual(SyncMerge.clearAction(pendingClear: false, firstSync: true, local: 0, peers: [3]), .follow(3),
+                       "第一次同步：那是加入以前清的，本机不清，只跟上代数")
+        XCTAssertEqual(SyncMerge.clearAction(pendingClear: false, firstSync: false, local: 3, peers: [3, 1]), .keep)
+        XCTAssertEqual(SyncMerge.clearAction(pendingClear: false, firstSync: false, local: 0, peers: []), .keep)
+    }
+
+    func testSnapshotsToMergeSkipsUnchanged() {
+        let peers: [String: (generation: Int, hash: String)] = [
+            "same": (2, "h1"), "changed": (2, "h2-new"), "new": (2, "h3"), "old": (1, "h4"),
+        ]
+        let plan = SyncMerge.snapshotsToMerge(peers: peers, generation: 2, merged: ["same": "h1", "changed": "h2", "gone": "h5"])
+        XCTAssertEqual(plan.fetch, ["changed", "new"])
+        XCTAssertEqual(plan.unchanged, ["same": "h1"], "代数不同的、已经不在的都不记")
+
+        let first = SyncMerge.snapshotsToMerge(peers: peers, generation: 2, merged: nil)
+        XCTAssertEqual(first.fetch, ["changed", "new", "same"], "没合并过：代数一样的都合并")
+        XCTAssertTrue(first.unchanged.isEmpty)
+    }
+
+    func testShouldUploadOnChangeOrHeartbeat() {
+        let hour: TimeInterval = 3600
+        XCTAssertTrue(SyncMerge.shouldUpload(digest: "a", uploadedDigest: nil, uploadedAt: nil, now: t3, heartbeat: 20 * hour), "没传过")
+        XCTAssertTrue(SyncMerge.shouldUpload(digest: "b", uploadedDigest: "a", uploadedAt: t3, now: t3, heartbeat: 20 * hour), "内容变了")
+        XCTAssertFalse(SyncMerge.shouldUpload(digest: "a", uploadedDigest: "a", uploadedAt: t3, now: t3.addingTimeInterval(hour), heartbeat: 20 * hour),
+                       "没变、一小时前刚传过：不传，两台设备不会互相推送停不下来")
+        XCTAssertTrue(SyncMerge.shouldUpload(digest: "a", uploadedDigest: "a", uploadedAt: t3, now: t3.addingTimeInterval(21 * hour), heartbeat: 20 * hour),
+                      "隔了一天：照样传一次，别的设备的设备页知道这台还在")
+        XCTAssertTrue(SyncMerge.shouldUpload(digest: "a", uploadedDigest: "a", uploadedAt: nil, now: t3, heartbeat: 20 * hour))
+    }
+
+    // MARK: - 本机同步状态（ICloudSyncState）
+
+    private func syncedState() -> ICloudSyncState {
+        var state = ICloudSyncState(vendorID: "v")
+        state.generation = 3
+        state.words = ["飞地": SyncMerge.Entry(value: SyncMerge.Word(CommonWord(text: "飞地", pinyin: "fei di")), time: t1)]
+        state.phrases = [:]
+        state.styles = SyncMerge.Entry(value: SyncMerge.StyleProfile(settings: EnclaveSettings()), time: t1)
+        state.endpoint = SyncMerge.Entry(value: SyncMerge.EndpointProfile(settings: EnclaveSettings(), keys: ["apiKey": "f1"]), time: t1)
+        state.apis = [:]
+        state.snapshotChunks = 2
+        state.snapshotHash = "h"
+        state.snapshotGeneration = 3
+        state.changeToken = Data([1])
+        state.zoneReady = true
+        state.subscribed = true
+        state.exchangedAt = t2
+        state.mergedSnapshots = ["B": "hb"]
+        state.uploadedDigest = "d"
+        state.uploadedAt = t2
+        return state
+    }
+
+    /// 重新打开同步：当第一次加入，表都清掉、设备记录重传；设备编号、代数、快照、令牌留着。
+    func testStateRejoined() {
+        let state = syncedState()
+        let rejoined = state.rejoined()
+        XCTAssertNil(rejoined.exchangedAt)
+        XCTAssertNil(rejoined.words)
+        XCTAssertNil(rejoined.phrases)
+        XCTAssertNil(rejoined.styles)
+        XCTAssertNil(rejoined.endpoint)
+        XCTAssertNil(rejoined.apis)
+        XCTAssertNil(rejoined.uploadedDigest)
+        XCTAssertEqual(rejoined.deviceID, state.deviceID)
+        XCTAssertEqual(rejoined.generation, 3)
+        XCTAssertEqual(rejoined.snapshotHash, "h")
+        XCTAssertEqual(rejoined.changeToken, state.changeToken)
+        XCTAssertEqual(rejoined.mergedSnapshots, ["B": "hb"])
+        // 重新加入后第一次同步：别的设备代数更大也不清本机。
+        XCTAssertEqual(SyncMerge.clearAction(pendingClear: false, firstSync: rejoined.exchangedAt == nil, local: rejoined.generation, peers: [5]),
+                       .follow(5))
+    }
+
+    /// iCloud 里的区被删了：从头拉，本机全部重传，别的设备的快照重新合并（04 复审 A3）。
+    func testStateResetForMissingZone() {
+        let reset = syncedState().resetForMissingZone()
+        XCTAssertNil(reset.changeToken)
+        XCTAssertFalse(reset.zoneReady)
+        XCTAssertEqual(reset.snapshotHash, "")
+        XCTAssertEqual(reset.snapshotChunks, 0)
+        XCTAssertNil(reset.uploadedDigest)
+        XCTAssertNil(reset.mergedSnapshots)
+        XCTAssertNotNil(reset.exchangedAt, "不是重新加入：表留着")
+        XCTAssertTrue(SyncMerge.shouldUpload(digest: "d", uploadedDigest: reset.uploadedDigest, uploadedAt: reset.uploadedAt, now: t2,
+                                             heartbeat: 20 * 3600))
+    }
+
+    /// 自己的记录被别处删了（别的设备在设备页删了这台）：设备记录、快照重传；自己删的多余旧块不算。
+    func testStateNoticingDeletion() {
+        let state = syncedState()
+        let id = state.deviceID
+        XCTAssertNil(state.noticingDeletion(of: "device-\(id)").uploadedDigest)
+        XCTAssertEqual(state.noticingDeletion(of: "snapshot-\(id)-1").snapshotHash, "", "现有的块被删：重传快照")
+        XCTAssertEqual(state.noticingDeletion(of: "snapshot-\(id)-2").snapshotHash, "h", "多出来的旧块是自己删的")
+        let other = state.noticingDeletion(of: "device-OTHER")
+        XCTAssertEqual(other.uploadedDigest, "d")
+        XCTAssertEqual(other.snapshotHash, "h")
     }
 
     func testKeyFingerprint() {

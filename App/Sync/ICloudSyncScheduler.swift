@@ -84,6 +84,8 @@ final class EnclaveAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         ICloudSyncScheduler.register()
+        // 从 8118b83 升级上来、开着 Key 同步却没有配对表的测试机：配上现在的 Key（04 复审 A 可选 7）。
+        if ICloudSync.isAvailable { Keychain.migrateBindingsIfNeeded(accounts: BackupService.keyAccounts()) }
         if ICloudSync.isEnabled {
             application.registerForRemoteNotifications()
         } else {

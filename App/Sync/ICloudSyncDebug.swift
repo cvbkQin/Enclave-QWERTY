@@ -1,6 +1,6 @@
 import UIKit
 
-/// 测试 iCloud 同步用的开关（界面等 02 的稿子，做好后删掉这个文件和 EnclaveApp 里的 enclave://icloud-sync）。
+/// 测试 iCloud 同步用的开关（模拟器和两台真机来回测时比点界面快；正式发版前可以删掉这个文件和 EnclaveApp 里的 enclave://icloud-sync）。
 /// 只在 Debug 和开发者版装机（DEV_BUILD=YES）里认：TestFlight、公测、正式包都不认，别的 App 打开这个链接也开不了同步
 /// （04 审查 #75 第 5 条）。
 /// - enclave://icloud-sync/on：打开同步并马上同步一次
@@ -32,7 +32,10 @@ enum ICloudSyncDebug {
         case "keys-on":
             // Key 要配上同步过来的接口配置才有用（方案 4.2）：词库同步没开时不开。
             guard ICloudSync.isEnabled else { return }
-            if Keychain.enableSync(accounts: BackupService.keyAccounts()) { Task { await ICloudSync.syncNow() } }
+            if Keychain.enableSync(accounts: BackupService.keyAccounts(), iCloudWins: false) {
+                ICloudSync.prefersLocalEndpoint = true
+                Task { await ICloudSync.syncNow() }
+            }
         case "keys-off":
             Keychain.disableSync(accounts: BackupService.keyAccounts(), removeFromICloud: false)
         default:

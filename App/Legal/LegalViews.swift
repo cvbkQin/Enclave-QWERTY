@@ -11,6 +11,7 @@ struct PrivacyView: View {
     @State private var confirm: ClearTarget?
     @State private var cleared: Set<ClearTarget> = []
     @State private var confirmsRevoke = false
+    @State private var syncDevices: [ICloudSync.Device] = []
 
     private enum ClearTarget: Identifiable {
         case history, learning, stats, clipboard
@@ -97,6 +98,8 @@ struct PrivacyView: View {
         .navigationTitle(L("隐私", "Privacy", "プライバシー"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { consent = ConsentStore.consented }
+        // 清除弹窗里列的设备：读状态文件和每台设备的记录，放到后台先读好（04 复审 B13）。
+        .task { if ICloudSync.isEnabled { syncDevices = await ICloudSync.devices() } }
         .alert(L("撤回同意？", "Withdraw consent?", "同意を撤回しますか？"), isPresented: $confirmsRevoke) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
             Button(L("撤回同意", "Withdraw Consent", "同意を撤回"), role: .destructive) { router.revokePrivacy() }
@@ -127,7 +130,7 @@ struct PrivacyView: View {
     private var clearsAllDevices: Bool { confirm == .learning && ICloudSync.isEnabled }
 
     private var allDevicesMessage: String {
-        let others = ICloudSync.devices().filter { !$0.isThis }
+        let others = syncDevices.filter { !$0.isThis }
         let after = L("iCloud 里的副本也删除。\n候选会回到默认顺序。", " The copy in iCloud is deleted too. Candidates go back to the default order.",
                       "iCloud のコピーも削除します。\n候補は初期の順番に戻ります。")
         guard let first = others.first else {

@@ -404,7 +404,7 @@ enum BackupService {
             if let saved = settingsObject["savedAPIs"],
                let list = try? decoder.decode([SavedAPI].self, from: JSONSerialization.data(withJSONObject: saved)) {
                 let kept = Set(list.map(\.id))
-                for old in SavedAPIStore.all where !kept.contains(old.id) { old.apiKey = nil }
+                for old in SavedAPIStore.all where !kept.contains(old.id) { old.deleteKey() }
                 SavedAPIStore.replaceAll(list)
             }
             report.rows.append(.init(title: BackupItem.settings.title, value: L("已更新", "Updated", "更新しました")))

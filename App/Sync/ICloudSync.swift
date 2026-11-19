@@ -57,6 +57,8 @@ enum ICloudSync {
     private static let syncedAtKey = "sync.lastSyncedAt"
     private static let pendingClearKey = "sync.pendingClear"
     private static let preferLocalKey = "sync.preferLocal"
+    private static let preferLocalEndpointKey = "sync.preferLocalEndpoint"
+    private static let rejoinKey = "sync.rejoin"
     private static let deviceNameKey = "sync.deviceName"
 
     /// 现在同步不同步：开关开着、没有暂停。
@@ -71,12 +73,17 @@ enum ICloudSync {
     static var isPaused: Bool { SharedStorage.defaults.bool(forKey: pausedKey) }
 
     /// 打开同步（设置页、测试链接调）。Key 的同步另开（Keychain.enableSync），要先开这个。
-    /// preferLocal：iCloud 里已经有别的设备的数据时，风格和接口第一次同步用这台的（设置页「用这台 iPhone 的」）；
-    /// 不然用 iCloud 里已有的（1.8）。
+    /// preferLocal：iCloud 里已经有别的设备的数据时，风格第一次同步用这台的（设置页 ⑧「用这台 iPhone 的」）；
+    /// 不然用 iCloud 里已有的（1.8）。接口方案不在这里选：加入时 Key 同步一定关着，接口要等打开 Key 同步时再问（⑪b）。
+    /// 重新加入（本机同步状态里的表清掉）记成一个标记，下一轮同步在同步引擎里做（04 复审 B9：关了马上又开时，
+    /// 还在跑的那一轮存状态会把这里的重置盖掉）。
     static func enable(preferLocal: Bool = false) {
         guard isAvailable else { return }
-        ICloudSyncEngine.prepareRejoin()
+        UserDefaults.standard.set(true, forKey: rejoinKey)
         prefersLocalOnJoin = preferLocal
+        prefersLocalEndpoint = false
+        // 关着时点过「清除学习记录」也不带进来：那时本机文件已经删了，重新加入不该让所有设备跟着清（04 复审 B2）。
+        pendingClear = false
         SharedStorage.defaults.set(false, forKey: pausedKey)
         SharedStorage.defaults.set(true, forKey: enabledKey)
     }
@@ -87,14 +94,25 @@ enum ICloudSync {
         SharedStorage.defaults.set(false, forKey: enabledKey)
         SharedStorage.defaults.set(false, forKey: pausedKey)
         prefersLocalOnJoin = false
+        prefersLocalEndpoint = false
+        pendingClear = false
         lastStatus = nil
         stopKeySync()
     }
 
-    /// 换了 Apple ID：暂停，Key 的同步一起关，新账户里不写任何东西。
+    /// 换了 Apple ID：暂停，Key 的同步一起关，新账户里不写任何东西。还没告诉别的设备的清除不带到新账户（04 复审 B2）。
     static func pause() {
         SharedStorage.defaults.set(true, forKey: pausedKey)
+        prefersLocalEndpoint = false
+        pendingClear = false
         stopKeySync()
+    }
+
+    /// 同步引擎在一轮开始时调：enable 之后第一次，要当这台重新加入。
+    static func takeRejoin() -> Bool {
+        guard UserDefaults.standard.bool(forKey: rejoinKey) else { return false }
+        UserDefaults.standard.removeObject(forKey: rejoinKey)
+        return true
     }
 
     /// 「在这个账户继续同步」：本机的同步状态在暂停时已经清掉，下一次同步当这台第一次加入这个账户。
@@ -102,19 +120,32 @@ enum ICloudSync {
         SharedStorage.defaults.set(false, forKey: pausedKey)
     }
 
-    /// 第一次同步时风格和接口用这台的（见 enable）。第一次同步做完就清掉。
+    /// 第一次同步时风格用这台的（见 enable）。第一次同步做完就清掉。
     static var prefersLocalOnJoin: Bool {
         get { UserDefaults.standard.bool(forKey: preferLocalKey) }
         set { UserDefaults.standard.set(newValue, forKey: preferLocalKey) }
     }
 
+    /// 打开 Key 同步时选了「用这台 iPhone 的」（⑪b），或者 iCloud 里没有别的设备的接口方案（⑪）：接口第一次同步时用这台的
+    /// （04 复审 B4）。第一次带接口的同步做完就清掉；关 Key 同步、关同步、暂停时也清掉。
+    static var prefersLocalEndpoint: Bool {
+        get { UserDefaults.standard.bool(forKey: preferLocalEndpointKey) }
+        set { UserDefaults.standard.set(newValue, forKey: preferLocalEndpointKey) }
+    }
+
     /// 这台设备在设备列表里的名字（设备页可以改，跟着设备记录传上去）。没改过用系统的设备名。
+    /// 按 identifierForVendor 分开存（04 复审 B14）：设置会跟着整机备份到新手机，新手机的 identifierForVendor 不一样，
+    /// 读不到旧手机改的名字，设备列表里不会出现两台同名。
     @MainActor static var deviceName: String {
         get {
-            let name = UserDefaults.standard.string(forKey: deviceNameKey)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let name = UserDefaults.standard.string(forKey: deviceNameStorageKey)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             return name.isEmpty ? UIDevice.current.name : name
         }
-        set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: deviceNameKey) }
+        set { UserDefaults.standard.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: deviceNameStorageKey) }
+    }
+
+    @MainActor private static var deviceNameStorageKey: String {
+        deviceNameKey + "." + (UIDevice.current.identifierForVendor?.uuidString ?? "")
     }
 
     /// 上次同步成功（包括键盘正在用、跳过了更新版本的设备）的时间：设备页「这台」的时间。
@@ -134,21 +165,26 @@ enum ICloudSync {
     }
 
     /// 参与同步的设备：这台在最前，别的按上次同步从近到远（上次同步拉下来的缓存，不联网）。
-    @MainActor static func devices() -> [Device] {
-        let own = (try? ICloudSyncEngine.loadState())?.deviceID
-        let this = Device(id: own ?? "", name: deviceName, isPad: UIDevice.current.userInterfaceIdiom == .pad,
-                          syncedAt: lastSyncedAt, appVersion: ICloudSyncEngine.appVersion, isThis: true)
-        guard let own else { return [this] }
-        let peers = PeerCache.payloads(excluding: own).map { id, payload in
-            Device(id: id, name: payload.deviceName, isPad: payload.deviceModel == "iPad", syncedAt: payload.updatedAt,
-                   appVersion: payload.appVersion, isThis: false)
-        }
-        return [this] + peers.sorted { ($0.syncedAt ?? .distantPast) > ($1.syncedAt ?? .distantPast) }
+    /// 读状态文件和每台设备的记录放到后台线程（04 复审 B13），主线程只取这台的名字和型号。
+    @MainActor static func devices() async -> [Device] {
+        let name = deviceName, isPad = UIDevice.current.userInterfaceIdiom == .pad, syncedAt = lastSyncedAt
+        return await Task.detached(priority: .userInitiated) { () -> [Device] in
+            let own = (try? ICloudSyncEngine.loadState())?.deviceID
+            let this = Device(id: own ?? "", name: name, isPad: isPad, syncedAt: syncedAt,
+                              appVersion: ICloudSyncEngine.appVersion, isThis: true)
+            guard let own else { return [this] }
+            let peers = PeerCache.payloads(excluding: own).map { id, payload in
+                Device(id: id, name: payload.deviceName, isPad: payload.deviceModel == "iPad", syncedAt: payload.updatedAt,
+                       appVersion: payload.appVersion, isThis: false)
+            }
+            return [this] + peers.sorted { ($0.syncedAt ?? .distantPast) > ($1.syncedAt ?? .distantPast) }
+        }.value
     }
 
     /// 这台的 iCloud 账户能不能用（设置页「没有登录 iCloud」）。查不出来（没联网等）时当能用，不挡着。
+    /// 没有 iCloud 能力的包不能碰 CKContainer（会闪退，04 复审 B1）。
     static func accountAvailable() async -> Bool {
-        guard let containerID else { return false }
+        guard isAvailable, let containerID else { return false }
         switch try? await CKContainer(identifier: containerID).accountStatus() {
         case .noAccount, .restricted: return false
         default: return true
@@ -202,43 +238,6 @@ enum ICloudSync {
     }
 }
 
-/// 本机的同步状态：设备编号、上次同步完的表、上传过的快照、CloudKit 的变化令牌。
-/// 存在 Application Support/ICloudSync/，不进整机备份：从备份恢复的新手机从头来，不会和旧手机用同一个设备编号（1.2）。
-struct ICloudSyncState: Codable {
-    var deviceID: String
-    /// identifierForVendor：不跟着备份走；和存的对不上就是换了设备（「快速开始」迁移等），重新生成设备编号。
-    var vendorID: String?
-    /// iCloud 账户（CloudKit 的用户记录名）：变了就是换了 Apple ID。
-    var userRecordName: String?
-    var generation = 0
-    var words: SyncMerge.Table<SyncMerge.Word>?
-    var phrases: SyncMerge.Table<KeyboardPhrase>?
-    var styles: SyncMerge.Entry<SyncMerge.StyleProfile>?
-    /// 接口、接口配置：只在开着 Key 同步时有；关了就清掉，再打开时当第一次。
-    var endpoint: SyncMerge.Entry<SyncMerge.EndpointProfile>?
-    var apis: SyncMerge.Table<SyncMerge.SyncedAPI>?
-    /// 已经上传的拼音快照：块数、校验、属于哪个清除代数。代数对不上的快照不再出现在设备记录里。
-    var snapshotChunks = 0
-    var snapshotHash = ""
-    var snapshotGeneration = 0
-    var changeToken: Data?
-    var zoneReady = false
-    var subscribed = false
-    /// 上次做完一整轮的时间；nil 是还没同步过（第一次同步时不跟着别的设备以前的清除清空本机，04 审查 #75 第 1 条）。
-    var exchangedAt: Date?
-    /// 已经合并进本机词库的别的设备的快照（设备编号 → 校验）：没变就不再合并、不再换正式词库（第 3 条）。
-    var mergedSnapshots: [String: String]?
-    /// 上次上传的设备记录（除上传时间）的校验：没变就不传，免得两台设备互相推送停不下来（第 3 条）。
-    var uploadedDigest: String?
-    /// 上次上传设备记录的时间：内容没变也隔一天传一次，别的设备的设备页才知道这台还在同步。
-    var uploadedAt: Date?
-
-    init(vendorID: String?) {
-        deviceID = UUID().uuidString
-        self.vendorID = vendorID
-    }
-}
-
 actor ICloudSyncEngine {
     static let shared = ICloudSyncEngine()
 
@@ -262,29 +261,34 @@ actor ICloudSyncEngine {
             return await running.value
         }
         let task = Task { () -> ICloudSyncStatus in
-            var status = await self.perform()
             var rounds = 0
-            while await self.takeRunAgain(), rounds < 2, !Task.isCancelled {
-                status = await self.perform()
+            while true {
+                let status = await self.perform()
+                if await self.finishRound(rounds) { return status }
                 rounds += 1
             }
-            return status
         }
         running = task
         runCount += 1
         let number = runCount
         await MainActor.run { ICloudSyncMonitor.shared.begin(number) }
         let status = await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
-        running = nil
         ICloudSync.lastStatus = status
         if [.ok, .keyboardBusy, .newerFormat].contains(status.result) { ICloudSync.lastSyncedAt = status.at }
         await MainActor.run { ICloudSyncMonitor.shared.end(number, status) }
         return status
     }
 
-    private func takeRunAgain() -> Bool {
-        defer { runAgain = false }
-        return runAgain
+    /// 一轮跑完：要再跑（清除学习记录、写回时本机刚被改过）就返回 false；不跑了就在同一步里把 running 清掉，返回 true。
+    /// 中间没有 await，之后进来的调用要么赶上再跑一轮，要么自己开一次新的，不会拿到这次的旧结果、也不会把 again 记丢（04 复审 A6）。
+    private func finishRound(_ rounds: Int) -> Bool {
+        if runAgain, rounds < 2, !Task.isCancelled {
+            runAgain = false
+            return false
+        }
+        runAgain = false
+        running = nil
+        return true
     }
 
     // MARK: 本机状态的文件
@@ -321,24 +325,6 @@ actor ICloudSyncEngine {
         try? data.write(to: url, options: .atomic)
     }
 
-    /// 重新打开同步：当这台第一次加入（1.8，风格和接口按设置页选的用哪份），设备编号不变（iCloud 里那条设备记录接着用）。
-    /// 关着的这段时间本机改的、删的，不会被当成比别的设备新的改动盖过去。
-    static func prepareRejoin() {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        guard let url = stateURL, let data = try? Data(contentsOf: url),
-              var state = try? JSONDecoder().decode(ICloudSyncState.self, from: data) else { return }
-        state.exchangedAt = nil
-        state.words = nil
-        state.phrases = nil
-        state.styles = nil
-        state.endpoint = nil
-        state.apis = nil
-        state.uploadedDigest = nil
-        guard let encoded = try? JSONEncoder().encode(state) else { return }
-        try? encoded.write(to: url, options: .atomic)
-    }
-
     static func removeState() {
         stateLock.lock()
         defer { stateLock.unlock() }
@@ -366,11 +352,7 @@ actor ICloudSyncEngine {
                 try await fetchChanges(database, &working)
             } catch let error as CKError where error.code == .changeTokenExpired || error.code == .zoneNotFound || error.code == .userDeletedZone {
                 // 令牌过期、或者用户在系统设置里删过 iCloud 里的数据：从头再拉一次。
-                working.changeToken = nil
-                working.zoneReady = false
-                working.snapshotHash = ""
-                working.snapshotChunks = 0
-                working.uploadedDigest = nil
+                working = working.resetForMissingZone()
                 PeerCache.clear()
                 try await ensureZone(database, &working)
                 try await fetchChanges(database, &working)
@@ -397,6 +379,8 @@ actor ICloudSyncEngine {
             state = ICloudSyncState(vendorID: vendor)
             PeerCache.clear()
         }
+        // 刚重新打开同步（ICloudSync.enable）：在这里、在同步引擎里重置，不会被还在跑的上一轮盖掉（04 复审 B9）。
+        if ICloudSync.takeRejoin() { state = state.rejoined() }
         let user = try await container.userRecordID().recordName
         if let old = state.userRecordName, old != user {
             // 换了 Apple ID：同步暂停、Key 的同步关掉，新账户里不写任何东西，要用户确认后再继续（1.12）。
@@ -440,15 +424,8 @@ actor ICloudSyncEngine {
                 PeerCache.store(modification.record, own: state.deviceID)
             }
             for deletion in changes.deletions {
-                // 这台自己的记录被别处删了（别的设备在设备页删了这台）：下次照样传上去，开着同步就自己加回来。
-                // 自己删的多余的块不算（序号不小于现在的块数）。
-                let name = deletion.recordID.recordName
-                let chunkPrefix = "snapshot-\(state.deviceID)-"
-                if name == "device-\(state.deviceID)" {
-                    state.uploadedDigest = nil
-                } else if name.hasPrefix(chunkPrefix), let index = Int(name.dropFirst(chunkPrefix.count)), index < state.snapshotChunks {
-                    state.snapshotHash = ""
-                }
+                // 这台自己的记录被别处删了：下次照样传上去（见 ICloudSyncState.noticingDeletion）。
+                state = state.noticingDeletion(of: deletion.recordID.recordName)
                 PeerCache.remove(deletion.recordID, own: state.deviceID)
             }
             token = changes.changeToken
@@ -474,26 +451,23 @@ actor ICloudSyncEngine {
         // 1. 拼音词库：先看要不要清除，再合并。
         var keyboardBusy = false
         var snapshot: String?
-        let maxGeneration = SyncMerge.generation(local: state.generation, peers: peers.values.map(\.generation))
-        if ICloudSync.pendingClear {
-            // 本机在隐私页清除了学习记录：在锁里换上空词库（文件已经删了，这里确认一下），代数加一，所有设备一起清。
-            if await Self.blocking({ LearnedWords.clearForSync() }) {
-                state.generation = maxGeneration + 1
-                state.mergedSnapshots = [:]
-                ICloudSync.pendingClear = false
-            } else {
-                keyboardBusy = true
-            }
+        let clearing = ICloudSync.pendingClear
+        switch SyncMerge.clearAction(pendingClear: clearing, firstSync: firstSync, local: state.generation,
+                                     peers: peers.values.map(\.generation)) {
+        case .keep:
+            break
+        case .follow(let generation):
+            // 第一次同步（新设备，或重新加入）：那是这台加入以前别的设备清的，本机的词不清，直接跟上代数（04 审查 #75 第 1 条）。
+            state.generation = generation
+            state.mergedSnapshots = [:]
             Self.saveState(state)
-        } else if maxGeneration > state.generation {
-            if firstSync {
-                // 第一次同步（新设备，或本机同步状态重置过）：那是这台加入以前别的设备清的，本机的词不清，直接跟上代数
-                // （04 审查 #75 第 1 条）。
-                state.generation = maxGeneration
+        case .clear(let generation):
+            // 本机在隐私页清除了学习记录（代数加一，所有设备一起清），或者别的设备清过（跟着清）：
+            // 在锁里换上空词库（本机清的那次文件已经删了，这里确认一下）。
+            if await Self.blocking({ LearnedWords.clearForSync() }) {
+                state.generation = generation
                 state.mergedSnapshots = [:]
-            } else if await Self.blocking({ LearnedWords.clearForSync() }) {
-                state.generation = maxGeneration
-                state.mergedSnapshots = [:]
+                if clearing { ICloudSync.pendingClear = false }
             } else {
                 keyboardBusy = true
             }
@@ -501,12 +475,13 @@ actor ICloudSyncEngine {
         }
         if !keyboardBusy {
             // 只合并上次以后变了的快照：合并会原子换一次正式词库，都没变就只导出本机的（第 3 条）。
+            let plan = SyncMerge.snapshotsToMerge(peers: peers.mapValues { (generation: $0.generation, hash: $0.snapshotHash) },
+                                                  generation: state.generation, merged: state.mergedSnapshots)
             var texts: [String: String] = [:]
-            var merged: [String: String] = [:]
-            for (id, payload) in peers where payload.generation == state.generation {
-                if state.mergedSnapshots?[id] == payload.snapshotHash {
-                    merged[id] = payload.snapshotHash
-                } else if let text = PeerCache.snapshot(id: id, payload: payload) {
+            var merged = plan.unchanged
+            for id in plan.fetch {
+                guard let payload = peers[id] else { continue }
+                if let text = PeerCache.snapshot(id: id, payload: payload) {
                     texts[id] = text
                     merged[id] = payload.snapshotHash
                 } else if let old = state.mergedSnapshots?[id] {
@@ -564,10 +539,13 @@ actor ICloudSyncEngine {
         var apisRecord: SyncMerge.Table<SyncMerge.SyncedAPI>?
         var newAPIs: [SavedAPI]?
         var newBindings: [String: String] = [:]
+        // 接口第一次加入（Key 同步刚打开）时用哪边，看打开 Key 同步时选的（⑪、⑪b），和加入同步时选的风格无关（04 复审 B4）。
+        let endpointJoining = syncsEndpoints && state.endpoint == nil
         if syncsEndpoints {
             let resolved = SyncMerge.resolve(local: local.endpoint, previous: state.endpoint,
                                              peers: peers.compactMapValues { $0.endpoint }, myID: state.deviceID, now: now,
-                                             prefersLocal: prefersLocal, accept: { SyncMerge.keysMatch($0.keys, current: Keychain.currentFingerprint) })
+                                             prefersLocal: ICloudSync.prefersLocalEndpoint,
+                                             accept: { SyncMerge.keysMatch($0.keys, current: Keychain.currentFingerprint) })
             endpointRecord = resolved.record
             if let value = resolved.apply {
                 newEndpoint = value
@@ -580,7 +558,7 @@ actor ICloudSyncEngine {
             for id in order { apiTables.append(id == state.deviceID ? myAPIs : peers[id]?.apis ?? [:]) }
             let mergedAPIs = SyncMerge.accepting(SyncMerge.pruned(SyncMerge.merge(apiTables), now: now), mine: myAPIs) { entry in
                 guard let value = entry.value else { return true }
-                return Keychain.currentFingerprint(SyncMerge.SyncedAPI.account(value.api.id.uuidString)) == value.key
+                return SyncMerge.keyMatches(value.key, current: Keychain.currentFingerprint(SyncMerge.SyncedAPI.account(value.api.id.uuidString)))
             }
             apisRecord = mergedAPIs
             let list = SyncMerge.apply(mergedAPIs, to: apiItems).map { $0.value }
@@ -628,7 +606,9 @@ actor ICloudSyncEngine {
         state.apis = apisRecord
         state.exchangedAt = now
         Self.saveState(state)
-        ICloudSync.prefersLocalOnJoin = false
+        // 只清这一轮用掉的：这一轮不是第一次时，标记可能是刚重新打开同步时设的，留给下一轮（重新加入那轮）用。
+        if firstSync { ICloudSync.prefersLocalOnJoin = false }
+        if endpointJoining { ICloudSync.prefersLocalEndpoint = false }
 
         // 3. 上传本机这份：先传快照的块，再传设备记录，最后删掉多出来的旧块。内容都没变就不传（第 3 条）。
         let oldChunks = state.snapshotChunks
@@ -664,8 +644,8 @@ actor ICloudSyncEngine {
             snapshotChunks: currentSnapshot ? state.snapshotChunks : 0,
             snapshotHash: currentSnapshot ? state.snapshotHash : "")
         let digest = payload.contentDigest
-        let heartbeatDue = state.uploadedAt.map { now.timeIntervalSince($0) > Self.heartbeat } ?? true
-        if digest != state.uploadedDigest || heartbeatDue {
+        if SyncMerge.shouldUpload(digest: digest, uploadedDigest: state.uploadedDigest, uploadedAt: state.uploadedAt,
+                                  now: now, heartbeat: Self.heartbeat) {
             let device = CKRecord(recordType: Self.deviceType, recordID: Self.deviceID(state.deviceID))
             device.encryptedValues["payload"] = try JSONEncoder().encode(payload)
             try await Self.save([device], in: database)
@@ -699,7 +679,7 @@ actor ICloudSyncEngine {
 
     /// 只拉设备记录（不拉快照的块）。区还没有、网络不通都当没有：照常打开，第一次同步默认用 iCloud 里的（1.8）。
     func probe() async -> Probe {
-        guard let containerID = ICloudSync.containerID else { return .empty }
+        guard ICloudSync.isAvailable, let containerID = ICloudSync.containerID else { return .empty }
         let container = CKContainer(identifier: containerID)
         switch try? await container.accountStatus() {
         case .noAccount, .restricted: return .noAccount
@@ -733,9 +713,25 @@ actor ICloudSyncEngine {
         return .existing(name: latest.name, date: latest.date)
     }
 
+    /// 打开 Key 同步之前（⑪、⑪b）：别的设备有没有在同步接口方案。有就是接口最新那台的名字和上次同步的时间。
+    /// 看上次同步拉下来的缓存（调之前先同步一次）。
+    func endpointOwner() -> (name: String, date: Date)? {
+        let own = (try? Self.loadState())?.deviceID ?? ""
+        let candidates = PeerCache.payloads(excluding: own).filter { $0.value.endpoint?.value != nil }
+            .sorted { $0.key < $1.key }
+        var best: (time: Date, payload: SyncMerge.DevicePayload)?
+        for (_, payload) in candidates {
+            guard let time = payload.endpoint?.time else { continue }
+            if let current = best, time <= current.time { continue }
+            best = (time, payload)
+        }
+        guard let best else { return nil }
+        return (best.payload.deviceName, best.payload.updatedAt)
+    }
+
     /// 设备页删一台旧设备：删掉它在 iCloud 里的记录和本机的缓存。它要是还开着同步，下次同步会自己传回来。
     func removeDevice(_ id: String) async throws {
-        guard let containerID = ICloudSync.containerID else { return }
+        guard ICloudSync.isAvailable, let containerID = ICloudSync.containerID else { return }
         let database = CKContainer(identifier: containerID).privateCloudDatabase
         let chunks = max(PeerCache.payloads(excluding: "")[id]?.snapshotChunks ?? 0, PeerCache.chunkCount(id))
         let ids = [Self.deviceID(id)] + (0..<chunks).map { Self.chunkID(id, $0) }
@@ -750,7 +746,7 @@ actor ICloudSyncEngine {
     /// 调之前先关掉同步。别的设备还开着同步时，会发现区没了，重建后把自己那份传上去。
     func deleteAll() async throws {
         if let running { _ = await running.value }
-        guard let containerID = ICloudSync.containerID else { return }
+        guard ICloudSync.isAvailable, let containerID = ICloudSync.containerID else { return }
         let database = CKContainer(identifier: containerID).privateCloudDatabase
         do {
             let (_, deleted) = try await database.modifyRecordZones(saving: [], deleting: [Self.zoneID])
@@ -809,7 +805,7 @@ private struct LocalData: Equatable {
 
     static func read() -> LocalData {
         let settings = SettingsStore.load()
-        let keys = Dictionary(uniqueKeysWithValues: SyncMerge.EndpointProfile.accounts.map { ($0, Keychain.binding($0)) })
+        let keys = Dictionary(uniqueKeysWithValues: SyncMerge.EndpointProfile.accounts(for: settings).map { ($0, Keychain.binding($0)) })
         return LocalData(words: CommonWordStore.load(), phrases: CommonWordStore.keyboardPhrases,
                          styles: SyncMerge.StyleProfile(settings: settings),
                          endpoint: SyncMerge.EndpointProfile(settings: settings, keys: keys),

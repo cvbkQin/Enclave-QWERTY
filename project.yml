@@ -226,6 +226,7 @@ targets:
       - path: App/Backup/BackupCrypto.swift
       - path: App/Backup/BackupMerge.swift
       - path: App/Sync/SyncMerge.swift
+      - path: App/Sync/ICloudSyncState.swift
       - path: Generated/EnclaveTests/BuiltinSecrets.swift
         optional: true
     preBuildScripts:
