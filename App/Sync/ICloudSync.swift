@@ -37,7 +37,7 @@ struct ICloudSyncStatus: Codable, Equatable {
 }
 
 enum ICloudSync {
-    /// 这个包有没有 iCloud 能力。免费 Apple ID 签名拿不到 iCloud，Local.xcconfig 里写 ICLOUD_SYNC = NO，这时是 false。
+    /// 这个包有没有 iCloud 能力：ICLOUD_SYNC = YES（默认 NO，见 Configs/Base.xcconfig）的包才是 true，这时 Info.plist 里也才有后台模式。
     /// 没有能力时不能碰 CKContainer（会闪退），也不显示同步的入口。
     static var isAvailable: Bool {
         (Bundle.main.object(forInfoDictionaryKey: "EnclaveICloudSync") as? String) == "YES" && containerID != nil
@@ -51,11 +51,30 @@ enum ICloudSync {
 
     private static let enabledKey = "sync.enabled"
     private static let statusKey = "sync.status"
+    private static let pendingClearKey = "sync.pendingClear"
 
-    /// 同步开关（每台设备自己的，不跟着同步走）。默认关。
+    /// 同步开关（每台设备自己的，不跟着同步走）。默认关。开关只走 enable() / disable()。
     static var isEnabled: Bool {
-        get { isAvailable && SharedStorage.defaults.bool(forKey: enabledKey) }
-        set { SharedStorage.defaults.set(newValue, forKey: enabledKey) }
+        isAvailable && SharedStorage.defaults.bool(forKey: enabledKey)
+    }
+
+    /// 打开同步（以后的设置页、测试链接调）。Key 的同步另开（Keychain.enableSync），要先开这个。
+    static func enable() {
+        guard isAvailable else { return }
+        SharedStorage.defaults.set(true, forKey: enabledKey)
+    }
+
+    /// 关掉同步：Key 的同步一起关（同步版复制回本机版，iCloud 里的不删），免得以后存的 Key 还往 iCloud 钥匙串里写
+    /// （04 审查 #75 第 6 条）。iCloud 里的其他数据不动。
+    static func disable() {
+        SharedStorage.defaults.set(false, forKey: enabledKey)
+        stopKeySync()
+    }
+
+    /// Key 的同步跟着总开关：总开关关着、Key 的同步还开着（上次关的时候钥匙串没写成），App 启动时再关一次。
+    static func stopKeySync() {
+        guard SharedStorage.defaults.bool(forKey: Keychain.syncDefaultsKey) else { return }
+        Keychain.disableSync(accounts: BackupService.keyAccounts(), removeFromICloud: false)
     }
 
     static var lastStatus: ICloudSyncStatus? {
@@ -72,24 +91,30 @@ enum ICloudSync {
         }
     }
 
+    /// 本机清除了学习记录、还没告诉别的设备（下一次同步先清、再把代数加一）。存在 App 自己的设置里，App 被杀了也不丢。
+    static var pendingClear: Bool {
+        get { UserDefaults.standard.bool(forKey: pendingClearKey) }
+        set { UserDefaults.standard.set(newValue, forKey: pendingClearKey) }
+    }
+
     /// 同步一次。打开 App、回到前台、后台任务、收到变化推送、点「立即同步」时调。同时只跑一次，后来的等前面那次的结果。
-    /// minimumInterval：离上次成功同步不到这么久就不跑（回到前台很频繁）；「立即同步」传 0。
+    /// minimumInterval：离上次同步完（成功或键盘正在用）不到这么久就不跑（回到前台很频繁）；「立即同步」传 0。
     @discardableResult
     static func syncNow(minimumInterval: TimeInterval = 0) async -> ICloudSyncStatus? {
         guard isEnabled else { return nil }
-        if minimumInterval > 0, let last = lastStatus, last.result == .ok,
+        if minimumInterval > 0, let last = lastStatus, last.result == .ok || last.result == .keyboardBusy,
            Date().timeIntervalSince(last.at) < minimumInterval {
             return last
         }
         return await ICloudSyncEngine.shared.run()
     }
 
-    /// 隐私页「清除学习记录」之后调（1.5）：开着同步时就是所有设备一起清。清除代数加一，本机的旧快照不再上传，
-    /// 下一次同步时删掉 iCloud 里本机的快照，别的设备看到更大的代数也清掉自己的。
+    /// 隐私页「清除学习记录」之后调（1.5）：开着同步时就是所有设备一起清。先记下来，再同步：
+    /// 同步引擎在锁里换上空词库、清除代数加一，别的设备看到更大的代数也清掉自己的。正在同步时，等它跑完再跑一次。
     static func noteLearningCleared() {
         guard isEnabled else { return }
-        ICloudSyncEngine.bumpGeneration()
-        Task { await syncNow() }
+        pendingClear = true
+        Task { await ICloudSyncEngine.shared.run(again: true) }
     }
 }
 
@@ -104,7 +129,10 @@ struct ICloudSyncState: Codable {
     var generation = 0
     var words: SyncMerge.Table<SyncMerge.Word>?
     var phrases: SyncMerge.Table<KeyboardPhrase>?
-    var ai: SyncMerge.Entry<SyncMerge.AIProfile>?
+    var styles: SyncMerge.Entry<SyncMerge.StyleProfile>?
+    /// 接口、接口配置：只在开着 Key 同步时有；关了就清掉，再打开时当第一次。
+    var endpoint: SyncMerge.Entry<SyncMerge.EndpointProfile>?
+    var apis: SyncMerge.Table<SyncMerge.SyncedAPI>?
     /// 已经上传的拼音快照：块数、校验、属于哪个清除代数。代数对不上的快照不再出现在设备记录里。
     var snapshotChunks = 0
     var snapshotHash = ""
@@ -112,6 +140,12 @@ struct ICloudSyncState: Codable {
     var changeToken: Data?
     var zoneReady = false
     var subscribed = false
+    /// 上次做完一整轮的时间；nil 是还没同步过（第一次同步时不跟着别的设备以前的清除清空本机，04 审查 #75 第 1 条）。
+    var exchangedAt: Date?
+    /// 已经合并进本机词库的别的设备的快照（设备编号 → 校验）：没变就不再合并、不再换正式词库（第 3 条）。
+    var mergedSnapshots: [String: String]?
+    /// 上次上传的设备记录（除上传时间）的校验：没变就不传，免得两台设备互相推送停不下来（第 3 条）。
+    var uploadedDigest: String?
 
     init(vendorID: String?) {
         deviceID = UUID().uuidString
@@ -129,15 +163,34 @@ actor ICloudSyncEngine {
     private static let chunkSize = 700_000
 
     private var running: Task<ICloudSyncStatus, Never>?
+    private var runAgain = false
 
-    func run() async -> ICloudSyncStatus {
-        if let running { return await running.value }
-        let task = Task { await self.perform() }
+    /// 跑一次同步。正在跑时等它的结果；again 时（清除学习记录）等它跑完再跑一次，免得用的还是清除前的状态。
+    /// 调用方的任务被取消（后台任务时间到）时取消这次同步：CloudKit 的请求会停下，本机状态停在上一步存好的地方。
+    func run(again: Bool = false) async -> ICloudSyncStatus {
+        if let running {
+            if again { runAgain = true }
+            return await running.value
+        }
+        let task = Task { () -> ICloudSyncStatus in
+            var status = await self.perform()
+            var rounds = 0
+            while await self.takeRunAgain(), rounds < 2, !Task.isCancelled {
+                status = await self.perform()
+                rounds += 1
+            }
+            return status
+        }
         running = task
-        let status = await task.value
+        let status = await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
         running = nil
         ICloudSync.lastStatus = status
         return status
+    }
+
+    private func takeRunAgain() -> Bool {
+        defer { runAgain = false }
+        return runAgain
     }
 
     // MARK: 本机状态的文件
@@ -152,10 +205,14 @@ actor ICloudSyncEngine {
 
     private static let stateLock = NSLock()
 
-    static func loadState() -> ICloudSyncState? {
+    /// 状态文件在、却读不出来（开机后还没解锁过，文件被数据保护锁着）：这次不同步，不然会当成新设备重新开始。
+    struct StateUnavailable: Error {}
+
+    static func loadState() throws -> ICloudSyncState? {
         stateLock.lock()
         defer { stateLock.unlock() }
-        guard let url = stateURL, let data = try? Data(contentsOf: url) else { return nil }
+        guard let url = stateURL, FileManager.default.fileExists(atPath: url.path) else { return nil }
+        guard let data = try? Data(contentsOf: url) else { throw StateUnavailable() }
         return try? JSONDecoder().decode(ICloudSyncState.self, from: data)
     }
 
@@ -168,14 +225,6 @@ actor ICloudSyncEngine {
         values.isExcludedFromBackup = true
         try? dir.setResourceValues(values)
         try? data.write(to: url, options: .atomic)
-    }
-
-    /// 清除学习记录时：代数取见过的最大值加一（别的设备的代数在下次同步时还会再比一次）。
-    static func bumpGeneration() {
-        guard var state = loadState() else { return }
-        let peers = PeerCache.payloads(excluding: state.deviceID).values.map(\.generation)
-        state.generation = SyncMerge.generation(local: state.generation, peers: peers) + 1
-        saveState(state)
     }
 
     // MARK: 一次同步
@@ -209,6 +258,8 @@ actor ICloudSyncEngine {
             }
             Self.saveState(working)
             return try await exchange(database, &working)
+        } catch is StateUnavailable {
+            return ICloudSyncStatus(result: .failed, at: Date(), detail: "locked")
         } catch {
             return ICloudSyncStatus(result: .failed, at: Date(), detail: String(describing: error))
         }
@@ -217,14 +268,15 @@ actor ICloudSyncEngine {
     /// 读本机状态，核对设备和账户。换了 Apple ID 时关掉同步、清掉本机状态，返回 nil。
     private func prepareState(_ container: CKContainer) async throws -> ICloudSyncState? {
         let vendor = await MainActor.run { UIDevice.current.identifierForVendor?.uuidString }
-        var state = Self.loadState() ?? ICloudSyncState(vendorID: vendor)
+        var state = try Self.loadState() ?? ICloudSyncState(vendorID: vendor)
         if state.vendorID != vendor {
             state = ICloudSyncState(vendorID: vendor)
             PeerCache.clear()
         }
         let user = try await container.userRecordID().recordName
         if let old = state.userRecordName, old != user {
-            ICloudSync.isEnabled = false
+            // 换了 Apple ID：同步和 Key 的同步一起关，新账户里不写任何东西，要用户重新打开（1.12）。
+            await MainActor.run { ICloudSync.disable() }
             PeerCache.clear()
             if let url = Self.stateURL { try? FileManager.default.removeItem(at: url) }
             return nil
@@ -283,47 +335,77 @@ actor ICloudSyncEngine {
             peers[id] = nil
             skippedNewer = true
         }
+        let firstSync = state.exchangedAt == nil
 
-        // 1. 拼音词库：先看要不要跟着别的设备清除，再合并。
+        // 1. 拼音词库：先看要不要清除，再合并。
         var keyboardBusy = false
         var snapshot: String?
         let maxGeneration = SyncMerge.generation(local: state.generation, peers: peers.values.map(\.generation))
-        if maxGeneration > state.generation {
+        if ICloudSync.pendingClear {
+            // 本机在隐私页清除了学习记录：在锁里换上空词库（文件已经删了，这里确认一下），代数加一，所有设备一起清。
             if await Self.blocking({ LearnedWords.clearForSync() }) {
+                state.generation = maxGeneration + 1
+                state.mergedSnapshots = [:]
+                ICloudSync.pendingClear = false
+            } else {
+                keyboardBusy = true
+            }
+            Self.saveState(state)
+        } else if maxGeneration > state.generation {
+            if firstSync {
+                // 第一次同步（新设备，或本机同步状态重置过）：那是这台加入以前别的设备清的，本机的词不清，直接跟上代数
+                // （04 审查 #75 第 1 条）。
                 state.generation = maxGeneration
+                state.mergedSnapshots = [:]
+            } else if await Self.blocking({ LearnedWords.clearForSync() }) {
+                state.generation = maxGeneration
+                state.mergedSnapshots = [:]
             } else {
                 keyboardBusy = true
             }
             Self.saveState(state)
         }
         if !keyboardBusy {
+            // 只合并上次以后变了的快照：合并会原子换一次正式词库，都没变就只导出本机的（第 3 条）。
             var texts: [String: String] = [:]
+            var merged: [String: String] = [:]
             for (id, payload) in peers where payload.generation == state.generation {
-                if let text = PeerCache.snapshot(id: id, payload: payload) { texts[id] = text }
+                if state.mergedSnapshots?[id] == payload.snapshotHash {
+                    merged[id] = payload.snapshotHash
+                } else if let text = PeerCache.snapshot(id: id, payload: payload) {
+                    texts[id] = text
+                    merged[id] = payload.snapshotHash
+                } else if let old = state.mergedSnapshots?[id] {
+                    // 块还没收齐（那台正传到一半）：下次再合并。
+                    merged[id] = old
+                }
             }
             let peerTexts = texts
             switch await Self.blocking({ LearnedWords.sync(peers: peerTexts) }) {
-            case .merged(let text): snapshot = text
+            case .merged(let text):
+                snapshot = text
+                state.mergedSnapshots = merged
             case .busy: keyboardBusy = true
             case .failed: break
             }
+            // 合并途中用户清除了学习记录：这份快照可能带着清掉的词，不传；清除已经排在下一轮。
+            if ICloudSync.pendingClear { snapshot = nil }
         }
 
-        // 2. 常用词、常用语、AI 接口和风格。
+        // 2. 常用词、常用语、风格；开着 Key 同步时还有接口和接口配置。
         let syncsAI = !BuiltinAPI.available
+        let syncsEndpoints = syncsAI && Keychain.syncsToICloud
         let local = await MainActor.run { LocalData.read() }
-        let sortedPeers = peers.sorted { $0.key < $1.key }
-
         // 合并时按设备编号排好序（本机也在里面），每台设备算出来的结果一样。
-        let order = ([state.deviceID] + sortedPeers.map { $0.key }).sorted()
+        let order = ([state.deviceID] + peers.keys).sorted()
 
         let wordItems = SyncMerge.wordItems(local.words)
         let myWords = SyncMerge.observe(current: wordItems, previous: state.words, now: now)
         var wordTables: [SyncMerge.Table<SyncMerge.Word>] = []
         for id in order { wordTables.append(id == state.deviceID ? myWords : peers[id]?.words ?? [:]) }
         let mergedWords = SyncMerge.pruned(SyncMerge.merge(wordTables), now: now)
-        let mergedWordItems = SyncMerge.apply(mergedWords, to: wordItems)
-        let newWords = SyncMerge.words(mergedWordItems, current: local.words) + local.words.filter { $0.isReadOnly }
+        let newWords = SyncMerge.words(SyncMerge.apply(mergedWords, to: wordItems), current: local.words)
+            + local.words.filter { $0.isReadOnly }
 
         let phraseItems = SyncMerge.phraseItems(local.phrases)
         let myPhrases = SyncMerge.observe(current: phraseItems, previous: state.phrases, now: now)
@@ -332,39 +414,83 @@ actor ICloudSyncEngine {
         let mergedPhrases = SyncMerge.pruned(SyncMerge.merge(phraseTables), now: now)
         let newPhrases = SyncMerge.apply(mergedPhrases, to: phraseItems).map { $0.value }
 
-        var aiEntry: SyncMerge.Entry<SyncMerge.AIProfile>?
-        var newAI: SyncMerge.AIProfile?
+        var stylesRecord: SyncMerge.Entry<SyncMerge.StyleProfile>?
+        var newStyles: SyncMerge.StyleProfile?
         if syncsAI {
-            let profile = SyncMerge.AIProfile(settings: local.settings, savedAPIs: local.savedAPIs)
-            let mine = SyncMerge.observeValue(profile, previous: state.ai, now: now)
-            let winner = SyncMerge.latest([mine] + sortedPeers.compactMap { $0.value.ai }) ?? mine
-            aiEntry = winner
-            if let value = winner.value, value != profile { newAI = value }
+            let resolved = SyncMerge.resolve(local: local.styles, previous: state.styles,
+                                             peers: peers.compactMapValues { $0.styles }, myID: state.deviceID, now: now)
+            stylesRecord = resolved.record
+            newStyles = resolved.apply
+        }
+
+        // 接口和接口配置：别的设备的只在它配的 Key 已经同步到本机钥匙串时才用（第 2 条）。
+        var endpointRecord: SyncMerge.Entry<SyncMerge.EndpointProfile>?
+        var newEndpoint: SyncMerge.EndpointProfile?
+        var apisRecord: SyncMerge.Table<SyncMerge.SyncedAPI>?
+        var newAPIs: [SavedAPI]?
+        var newBindings: [String: String] = [:]
+        if syncsEndpoints {
+            let resolved = SyncMerge.resolve(local: local.endpoint, previous: state.endpoint,
+                                             peers: peers.compactMapValues { $0.endpoint }, myID: state.deviceID, now: now,
+                                             accept: { SyncMerge.keysMatch($0.keys, current: Keychain.currentFingerprint) })
+            endpointRecord = resolved.record
+            if let value = resolved.apply {
+                newEndpoint = value
+                newBindings.merge(value.keys) { _, new in new }
+            }
+
+            let apiItems = SyncMerge.apiItems(local.savedAPIs, keys: Keychain.binding)
+            let myAPIs = SyncMerge.observe(current: apiItems, previous: state.apis, now: now)
+            var apiTables: [SyncMerge.Table<SyncMerge.SyncedAPI>] = []
+            for id in order { apiTables.append(id == state.deviceID ? myAPIs : peers[id]?.apis ?? [:]) }
+            let mergedAPIs = SyncMerge.accepting(SyncMerge.pruned(SyncMerge.merge(apiTables), now: now), mine: myAPIs) { entry in
+                guard let value = entry.value else { return true }
+                return Keychain.currentFingerprint(SyncMerge.SyncedAPI.account(value.api.id.uuidString)) == value.key
+            }
+            apisRecord = mergedAPIs
+            let list = SyncMerge.apply(mergedAPIs, to: apiItems).map { $0.value }
+            if list.map(\.api) != local.savedAPIs { newAPIs = list.map(\.api) }
+            for item in list where Keychain.binding(SyncMerge.SyncedAPI.account(item.api.id.uuidString)) != item.key {
+                newBindings[SyncMerge.SyncedAPI.account(item.api.id.uuidString)] = item.key
+            }
         }
 
         let wordsChanged = newWords != local.words
         let phrasesChanged = newPhrases != local.phrases
-        let aiToApply = newAI
-        if wordsChanged || phrasesChanged || aiToApply != nil {
-            await MainActor.run {
+        let stylesToApply = newStyles
+        let endpointToApply = newEndpoint
+        let apisToApply = newAPIs
+        let bindings = newBindings
+        if wordsChanged || phrasesChanged || stylesToApply != nil || endpointToApply != nil || apisToApply != nil || !bindings.isEmpty {
+            let applied = await MainActor.run { () -> Bool in
+                // 读本机和写回之间用户在 App 里改过：这次不写，下次同步再来（04 审查 #75 第 10 条）。
+                guard LocalData.read() == local else { return false }
                 if wordsChanged { CommonWordStore.save(newWords) }
                 if phrasesChanged { CommonWordStore.keyboardPhrases = newPhrases }
-                if let aiToApply {
+                if stylesToApply != nil || endpointToApply != nil {
                     var settings = SettingsStore.load()
-                    aiToApply.apply(to: &settings)
+                    stylesToApply?.apply(to: &settings)
+                    endpointToApply?.apply(to: &settings)
                     SettingsStore.save(settings)
-                    SavedAPIStore.replaceAll(aiToApply.savedAPIs)
                 }
+                if let apisToApply { SavedAPIStore.replaceAll(apisToApply) }
+                // 先写地址、再配 Key：键盘在两步之间读到的是「新地址、旧配对」，Key 对不上就不用，不会拿新 Key 请求旧地址。
+                if !bindings.isEmpty { Keychain.bind(bindings) }
                 NotificationCenter.default.post(name: .enclaveSyncDidApply, object: nil)
+                return true
             }
+            guard applied else { return ICloudSyncStatus(result: .failed, at: now, detail: "localChanged") }
         }
         // 写回本机后马上记下来：上传失败时，下次也不会把刚合并进来的当成本机的新改动。
         state.words = mergedWords
         state.phrases = mergedPhrases
-        state.ai = aiEntry
+        state.styles = stylesRecord
+        state.endpoint = endpointRecord
+        state.apis = apisRecord
+        state.exchangedAt = now
         Self.saveState(state)
 
-        // 3. 上传本机这份：先传快照的块，再传设备记录，最后删掉多出来的旧块。
+        // 3. 上传本机这份：先传快照的块，再传设备记录，最后删掉多出来的旧块。内容都没变就不传（第 3 条）。
         let oldChunks = state.snapshotChunks
         if let snapshot {
             let packed = try SyncMerge.packSnapshot(snapshot, chunkSize: Self.chunkSize)
@@ -377,6 +503,7 @@ actor ICloudSyncEngine {
                 state.snapshotChunks = packed.chunks.count
                 state.snapshotHash = packed.hash
                 state.snapshotGeneration = state.generation
+                Self.saveState(state)
             }
         }
         // 快照不是当前代数的（刚清除过、还没传新的）：设备记录里不带快照，别的设备就不会合并清除前的词。
@@ -390,12 +517,18 @@ actor ICloudSyncEngine {
             generation: state.generation,
             words: mergedWords,
             phrases: mergedPhrases,
-            ai: aiEntry,
+            styles: stylesRecord,
+            endpoint: endpointRecord,
+            apis: apisRecord,
             snapshotChunks: currentSnapshot ? state.snapshotChunks : 0,
             snapshotHash: currentSnapshot ? state.snapshotHash : "")
-        let device = CKRecord(recordType: Self.deviceType, recordID: Self.deviceID(state.deviceID))
-        device.encryptedValues["payload"] = try JSONEncoder().encode(payload)
-        try await Self.save([device], in: database)
+        let digest = payload.contentDigest
+        if digest != state.uploadedDigest {
+            let device = CKRecord(recordType: Self.deviceType, recordID: Self.deviceID(state.deviceID))
+            device.encryptedValues["payload"] = try JSONEncoder().encode(payload)
+            try await Self.save([device], in: database)
+            state.uploadedDigest = digest
+        }
         let keep = currentSnapshot ? state.snapshotChunks : 0
         if oldChunks > keep {
             let stale = (keep..<oldChunks).map { Self.chunkID(state.deviceID, $0) }
@@ -444,16 +577,23 @@ actor ICloudSyncEngine {
     }
 }
 
-/// 本机这边要同步的数据（在主线程读）。
-private struct LocalData {
+/// 本机这边要同步的数据（在主线程读）。写回前再读一次比一比，中间被改过就不写。
+private struct LocalData: Equatable {
     var words: [CommonWord]
     var phrases: [KeyboardPhrase]
-    var settings: EnclaveSettings
+    var styles: SyncMerge.StyleProfile
+    /// 接口带着本机配的 Key 的指纹（Keychain.binding），不是钥匙串里现在的：别的设备换了 Key、地址还没到时，
+    /// 本机的配置没变，不能当成本机改了。
+    var endpoint: SyncMerge.EndpointProfile
     var savedAPIs: [SavedAPI]
 
     static func read() -> LocalData {
-        LocalData(words: CommonWordStore.load(), phrases: CommonWordStore.keyboardPhrases,
-                  settings: SettingsStore.load(), savedAPIs: SavedAPIStore.all)
+        let settings = SettingsStore.load()
+        let keys = Dictionary(uniqueKeysWithValues: SyncMerge.EndpointProfile.accounts.map { ($0, Keychain.binding($0)) })
+        return LocalData(words: CommonWordStore.load(), phrases: CommonWordStore.keyboardPhrases,
+                         styles: SyncMerge.StyleProfile(settings: settings),
+                         endpoint: SyncMerge.EndpointProfile(settings: settings, keys: keys),
+                         savedAPIs: SavedAPIStore.all)
     }
 }
 

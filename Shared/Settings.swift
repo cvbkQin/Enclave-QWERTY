@@ -514,6 +514,26 @@ extension EnclaveSettings {
     /// 识意问答联网用哪一家：问答走的接口能联网就有（三档里选了禁止也有，要联网时提示去开启）。
     var answerSearch: SearchProvider? { forAnswers.searchProvider }
 
+    /// 接口那几项（地址、模型、参数）和另一份一样。iCloud 同步换了接口时，键盘发请求前对一下（Keychain 的「配对」）。
+    func sameEndpoint(as other: EnclaveSettings) -> Bool {
+        baseURL == other.baseURL && model == other.model && temperature == other.temperature && maxTokens == other.maxTokens
+            && separateAnswer == other.separateAnswer && answerBaseURL == other.answerBaseURL && answerModel == other.answerModel
+            && answerTemperature == other.answerTemperature && answerMaxTokens == other.answerMaxTokens
+    }
+
+    /// 换成另一份的接口那几项，别的不动。
+    mutating func adoptEndpoint(from other: EnclaveSettings) {
+        baseURL = other.baseURL
+        model = other.model
+        temperature = other.temperature
+        maxTokens = other.maxTokens
+        separateAnswer = other.separateAnswer
+        answerBaseURL = other.answerBaseURL
+        answerModel = other.answerModel
+        answerTemperature = other.answerTemperature
+        answerMaxTokens = other.answerMaxTokens
+    }
+
     /// 问答真的走另一个接口：开着、地址和模型都填了。
     var usesAnswerEndpoint: Bool {
         separateAnswer && !answerBaseURL.trimmingCharacters(in: .whitespaces).isEmpty

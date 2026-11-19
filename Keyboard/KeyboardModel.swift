@@ -885,6 +885,12 @@ final class KeyboardModel: ObservableObject {
     }
 
     func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil, reply: ReplyRequest? = nil) {
+        // 开着 Key 的 iCloud 同步时，别的设备换的接口可能在键盘开着时同步进来了，手上的设置还是旧地址：
+        // 先换成存着的最新地址再取 Key（Key 按最新地址配对，见 Keychain），不拿新 Key 请求旧地址。没开同步时不读。
+        if Keychain.syncsToICloud {
+            let stored = SettingsStore.load()
+            if !settings.sameEndpoint(as: stored) { settings.adoptEndpoint(from: stored) }
+        }
         // 手动选了问答就直接找问答模型；自动时先用润色的快模型判断，判断是问答再换问答模型重问（answerClient）。
         let answerClient = settings.usesAnswerEndpoint
             ? LLMClient(settings: settings.forAnswers, apiKey: SettingsStore.answerKey(for: settings)) : nil
@@ -1424,8 +1430,13 @@ final class KeyboardModel: ObservableObject {
     }
 
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {
-        change(&settings)
-        SettingsStore.save(settings)
+        var updated = settings
+        // 开着 Key 的 iCloud 同步时，接口可能在键盘开着时被同步换了。键盘自己不改接口：存之前换成存着的，
+        // 不把旧地址写回去（不然旧地址会配上同步来的新 Key，04 审查 #75 第 2、10 条）。没开同步时不读。
+        if Keychain.syncsToICloud { updated.adoptEndpoint(from: SettingsStore.load()) }
+        change(&updated)
+        settings = updated
+        SettingsStore.save(updated)
     }
 
     // MARK: - 要求栏

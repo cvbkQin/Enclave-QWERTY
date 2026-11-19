@@ -119,8 +119,8 @@ struct EnclaveApp: App {
                         router.historyPath = NavigationPath()
                         router.tab = .history
                     // 测试 iCloud 同步用（界面等 02 的稿子，做好后删掉）：enclave://icloud-sync/on、/off、/now、/keys-on、/keys-off。
-                    // 只在开发者版、测试包里认，正式版不认：打开同步要经过用户在界面上确认。
-                    case "icloud-sync" where BuiltinAPI.showsTesterTools:
+                    // 只在 Debug 和开发者版装机里认，TestFlight 和正式版不认：打开同步要经过用户在界面上确认。
+                    case "icloud-sync" where ICloudSyncDebug.isAllowed:
                         ICloudSyncDebug.handle(url.path)
                     default: break
                     }

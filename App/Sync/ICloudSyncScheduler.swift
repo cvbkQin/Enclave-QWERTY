@@ -84,7 +84,12 @@ final class EnclaveAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         ICloudSyncScheduler.register()
-        if ICloudSync.isEnabled { application.registerForRemoteNotifications() }
+        if ICloudSync.isEnabled {
+            application.registerForRemoteNotifications()
+        } else {
+            // 总开关关着、Key 的同步还开着（上次关的时候钥匙串读写没成）：再关一次。
+            ICloudSync.stopKeySync()
+        }
         return true
     }
 

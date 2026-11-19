@@ -23,18 +23,24 @@ enum SyncMerge {
 
     // MARK: - 逐条合并的表（常用词、常用语）
 
+    /// 本机改动记的时间：一般是 now；上次那条的时间比 now 还晚（别的设备时钟快）时取它加 1 毫秒，本机的改动才不会输给它。
+    static func stamp(now: Date, after old: Date?) -> Date {
+        guard let old else { return now }
+        return max(now, old.addingTimeInterval(0.001))
+    }
+
     /// 本机现在的列表和上次同步完的表比：新出现的、内容变了的记成 now 时「在」，不见了的记成 now 时「删了」。
     /// previous 为 nil（这台设备第一次同步）时，现有的都记成 initialTime。列表里同一个 key 出现两次时只认第一个。
     static func observe<V: Codable & Equatable>(current: [(key: String, value: V)], previous: Table<V>?, now: Date) -> Table<V> {
         var result = previous ?? [:]
-        let stamp = previous == nil ? initialTime : now
         var seen = Set<String>()
         for item in current where seen.insert(item.key).inserted {
-            if let old = result[item.key], old.value == item.value { continue }
-            result[item.key] = Entry(value: item.value, time: stamp)
+            let old = result[item.key]
+            if let old, old.value == item.value { continue }
+            result[item.key] = Entry(value: item.value, time: previous == nil ? initialTime : stamp(now: now, after: old?.time))
         }
         let removed = Array(result.filter { $0.value.value != nil && !seen.contains($0.key) }.keys)
-        for key in removed { result[key] = Entry(value: nil, time: now) }
+        for key in removed { result[key] = Entry(value: nil, time: stamp(now: now, after: result[key]?.time)) }
         return result
     }
 
@@ -58,15 +64,18 @@ enum SyncMerge {
 
     /// 按合并结果改本机列表：本机原有的保持原来的顺序，合并后删了的去掉、内容换成合并后的；
     /// 本机没有的接在后面（按时间先后）。合并结果里查不到的条目原样留着，不会因为表不全就删本机的东西。
+    /// 本机列表里同一个 key 出现两次（手动加了两条同字的常用词）：第一条按合并结果改，后面的原样留着，只有合并后删了才一起去掉。
     static func apply<V: Codable & Equatable>(_ merged: Table<V>, to current: [(key: String, value: V)]) -> [(key: String, value: V)] {
         var result: [(key: String, value: V)] = []
         var used = Set<String>()
-        for item in current where used.insert(item.key).inserted {
-            if let entry = merged[item.key] {
-                if let value = entry.value { result.append((key: item.key, value: value)) }
-            } else {
+        for item in current {
+            guard let entry = merged[item.key] else {
                 result.append(item)
+                used.insert(item.key)
+                continue
             }
+            guard let value = entry.value else { continue }
+            result.append(used.insert(item.key).inserted ? (key: item.key, value: value) : item)
         }
         let incoming = merged.filter { !used.contains($0.key) && $0.value.value != nil }
             .sorted { ($0.value.time, $0.key) < ($1.value.time, $1.key) }
@@ -86,10 +95,38 @@ enum SyncMerge {
     /// 和上次同步完的比：没变就还是原来那条（时间不动），变了记成 now。第一次同步记成 initialTime。
     static func observeValue<V: Codable & Equatable>(_ current: V, previous: Entry<V>?, now: Date) -> Entry<V> {
         guard let previous else { return Entry(value: current, time: initialTime) }
-        return previous.value == current ? previous : Entry(value: current, time: now)
+        return previous.value == current ? previous : Entry(value: current, time: stamp(now: now, after: previous.time))
     }
 
-    /// 取时间最新的一条；时间一样取先传进来的（调用方把本机的放在最前面）。
+    /// 合并结果里有些条目这次还不能用到本机（接口配置配的 Key 还没同步过来）：这些条目记成本机原来的样子，
+    /// 下次同步再试。不能直接记合并结果：那样本机还是旧的，下次就会被当成本机改回去了。
+    static func accepting<V: Codable & Equatable>(_ merged: Table<V>, mine: Table<V>, where accept: (Entry<V>) -> Bool) -> Table<V> {
+        var result = merged
+        for (key, entry) in merged where entry != mine[key] && !accept(entry) {
+            result[key] = mine[key]
+        }
+        return result
+    }
+
+    /// 整份以最后修改为准的一项，这次该怎么办。
+    /// - record：记进本机同步状态、上传的那条；nil 是这次不参加。
+    /// - apply：要写进本机的值；nil 是本机不用改。
+    /// 按设备编号排好序取最新的（时间一样取编号小的，每台设备算出来一样）。第一次同步（previous 为 nil）时别的设备已经有了，
+    /// 本机的不参加，直接用已经在用的那份（新设备上的默认值不盖过别的设备设好的，1.8）。
+    /// accept 不通过（接口配的 Key 还没同步过来）时本机先不改、记本机原来的，下次同步再试。
+    static func resolve<V: Codable & Equatable>(local: V, previous: Entry<V>?, peers: [String: Entry<V>], myID: String, now: Date,
+                                                accept: (V) -> Bool = { _ in true }) -> (record: Entry<V>?, apply: V?) {
+        let joining = previous == nil && peers.values.contains { $0.value != nil }
+        var all = peers
+        all[myID] = joining ? nil : observeValue(local, previous: previous, now: now)
+        let ordered = all.sorted { $0.key < $1.key }.map { $0.value }
+        guard let winner = latest(ordered), let value = winner.value else { return (all[myID], nil) }
+        if value == local { return (winner, nil) }
+        guard accept(value) else { return (all[myID], nil) }
+        return (winner, value)
+    }
+
+    /// 取时间最新的一条；时间一样取先传进来的（调用方按设备编号排好序）。
     static func latest<V: Codable & Equatable>(_ entries: [Entry<V>]) -> Entry<V>? {
         var best: Entry<V>?
         for entry in entries where entry.value != nil {
@@ -164,10 +201,18 @@ extension SyncMerge {
         words.filter { !$0.isReadOnly && !$0.text.isEmpty }.map { (key: $0.text, value: Word($0)) }
     }
 
-    /// 合并后的词换回常用词列表（保留本机原有的 id）。
+    /// 合并后的词换回常用词列表（保留本机原有的 id；同字的几条按先后各用各的 id）。
     static func words(_ items: [(key: String, value: Word)], current: [CommonWord]) -> [CommonWord] {
-        let ids = Dictionary(current.map { ($0.text, $0.id) }, uniquingKeysWith: { first, _ in first })
-        return items.map { $0.value.commonWord(keeping: ids[$0.key]) }
+        var ids: [String: [UUID]] = [:]
+        for word in current where !word.isReadOnly { ids[word.text, default: []].append(word.id) }
+        return items.map { item in
+            var id: UUID?
+            if var list = ids[item.key], !list.isEmpty {
+                id = list.removeFirst()
+                ids[item.key] = list
+            }
+            return item.value.commonWord(keeping: id)
+        }
     }
 
     /// 键盘常用语：内容是这一条的身份（KeyboardPhrase.id 就是内容）。
@@ -175,17 +220,8 @@ extension SyncMerge {
         phrases.filter { !$0.text.isEmpty }.map { (key: $0.text, value: $0) }
     }
 
-    /// AI 接口（不含 Key）和润色、问答风格（3.1）。模糊音、双拼、键盘布局、声音振动、外观、联网方式都不在这里（1.6）。
-    struct AIProfile: Codable, Equatable {
-        var baseURL: String
-        var model: String
-        var temperature: Double
-        var maxTokens: Int
-        var separateAnswer: Bool
-        var answerBaseURL: String
-        var answerModel: String
-        var answerTemperature: Double?
-        var answerMaxTokens: Int?
+    /// 润色、问答风格（3.1）：开着同步就同步。模糊音、双拼、键盘布局、声音振动、外观、联网方式都不同步（1.6）。
+    struct StyleProfile: Codable, Equatable {
         var polishEnabled: Bool
         var answerEnabled: Bool
         var styles: [StylePreset]
@@ -195,18 +231,8 @@ extension SyncMerge {
         var searchTendency: Int?
         var pinnedStyleIDs: [UUID]
         var helpPinned: Bool
-        var savedAPIs: [SavedAPI]
 
-        init(settings: EnclaveSettings, savedAPIs: [SavedAPI]) {
-            baseURL = settings.baseURL
-            model = settings.model
-            temperature = settings.temperature
-            maxTokens = settings.maxTokens
-            separateAnswer = settings.separateAnswer
-            answerBaseURL = settings.answerBaseURL
-            answerModel = settings.answerModel
-            answerTemperature = settings.answerTemperature
-            answerMaxTokens = settings.answerMaxTokens
+        init(settings: EnclaveSettings) {
             polishEnabled = settings.polishEnabled
             answerEnabled = settings.answerEnabled
             styles = settings.styles
@@ -216,20 +242,10 @@ extension SyncMerge {
             searchTendency = settings.searchTendency
             pinnedStyleIDs = settings.pinnedStyleIDs
             helpPinned = settings.helpPinned
-            self.savedAPIs = savedAPIs
         }
 
-        /// 写回设置：只改上面这些，别的（键盘、词库部署相关的）不动。接口配置列表由调用方另存。
+        /// 写回设置：只改上面这些，别的不动。
         func apply(to settings: inout EnclaveSettings) {
-            settings.baseURL = baseURL
-            settings.model = model
-            settings.temperature = temperature
-            settings.maxTokens = maxTokens
-            settings.separateAnswer = separateAnswer
-            settings.answerBaseURL = answerBaseURL
-            settings.answerModel = answerModel
-            settings.answerTemperature = answerTemperature
-            settings.answerMaxTokens = answerMaxTokens
             settings.polishEnabled = polishEnabled
             settings.answerEnabled = answerEnabled
             settings.styles = styles
@@ -242,23 +258,100 @@ extension SyncMerge {
         }
     }
 
+    /// 润色、问答正在用的接口（地址、模型、参数，不含 Key）。只在两台设备都开着「Key 也同步」时同步：
+    /// 地址和 Key 要一起到，不然一台会拿自己的 Key 去请求另一台设的地址，Key 就发给了别家（04 审查 #75 第 2 条）。
+    struct EndpointProfile: Codable, Equatable {
+        static let accounts = ["apiKey", "apiKey.answer"]
+
+        var baseURL: String
+        var model: String
+        var temperature: Double
+        var maxTokens: Int
+        var separateAnswer: Bool
+        var answerBaseURL: String
+        var answerModel: String
+        var answerTemperature: Double?
+        var answerMaxTokens: Int?
+        /// 这份配置配的 Key：账户名 → Key 的指纹（Keychain.fingerprint，没有 Key 是空字符串）。
+        var keys: [String: String]
+
+        init(settings: EnclaveSettings, keys: [String: String]) {
+            baseURL = settings.baseURL
+            model = settings.model
+            temperature = settings.temperature
+            maxTokens = settings.maxTokens
+            separateAnswer = settings.separateAnswer
+            answerBaseURL = settings.answerBaseURL
+            answerModel = settings.answerModel
+            answerTemperature = settings.answerTemperature
+            answerMaxTokens = settings.answerMaxTokens
+            self.keys = keys
+        }
+
+        func apply(to settings: inout EnclaveSettings) {
+            settings.baseURL = baseURL
+            settings.model = model
+            settings.temperature = temperature
+            settings.maxTokens = maxTokens
+            settings.separateAnswer = separateAnswer
+            settings.answerBaseURL = answerBaseURL
+            settings.answerModel = answerModel
+            settings.answerTemperature = answerTemperature
+            settings.answerMaxTokens = answerMaxTokens
+        }
+    }
+
+    /// 一条接口配置（「我的预设」）和它配的 Key 的指纹。逐条合并（按 id），和接口一样只在 Key 也同步时同步。
+    struct SyncedAPI: Codable, Equatable {
+        var api: SavedAPI
+        var key: String
+
+        static func account(_ id: String) -> String { "apiKey.saved.\(id)" }
+    }
+
+    static func apiItems(_ apis: [SavedAPI], keys: (String) -> String) -> [(key: String, value: SyncedAPI)] {
+        apis.map { api in
+            let id = api.id.uuidString
+            return (key: id, value: SyncedAPI(api: api, key: keys(SyncedAPI.account(id))))
+        }
+    }
+
+    /// 别的设备的配置能不能用到本机：它配的每个 Key，本机钥匙串里现在的那个都要对得上。
+    /// iCloud 钥匙串和 CloudKit 各自同步，谁先到不一定：地址先到、Key 还没到时先不用，等下次同步。
+    static func keysMatch(_ keys: [String: String], current: (String) -> String) -> Bool {
+        keys.allSatisfy { current($0.key) == $0.value }
+    }
+
     /// 一台设备在 iCloud 里的全部内容（除了拼音快照的分块），整份放在 CloudKit 的加密字段里。
     struct DevicePayload: Codable, Equatable {
-        /// 格式版本：看到比自己新的就跳过这台设备，不报错（1.12）。
-        static let currentFormat = 1
+        /// 格式版本：看到比自己新的就跳过这台设备，不报错（1.12）。2：风格、接口、接口配置分开。
+        static let currentFormat = 2
 
         var format: Int
         var deviceName: String
         var appVersion: String
+        /// 上传时间，只给人看；内容没变时不重传（04 审查 #75 第 3 条），所以它也不变。
         var updatedAt: Date
         /// 清除学到的词的代数（1.5）。
         var generation: Int
         var words: Table<Word>
         var phrases: Table<KeyboardPhrase>
-        /// 带内置 Key 的包不同步 AI 接口，是 nil。
-        var ai: Entry<AIProfile>?
+        /// 带内置 Key 的包不同步这三项，是 nil；接口和接口配置只在这台开着「Key 也同步」时才有。
+        var styles: Entry<StyleProfile>?
+        var endpoint: Entry<EndpointProfile>?
+        var apis: Table<SyncedAPI>?
         /// 拼音快照：压缩后分几块、压缩后整份的 SHA-256。没有学到的词时 0 块。
         var snapshotChunks: Int
         var snapshotHash: String
+
+        /// 除了上传时间以外的内容：和上次传的一样就不传。
+        var contentDigest: String {
+            var copy = self
+            copy.updatedAt = initialTime
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            guard let data = try? encoder.encode(copy) else { return UUID().uuidString }
+            return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        }
     }
 }

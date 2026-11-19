@@ -48,6 +48,29 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(table["a"]?.value, "1")
     }
 
+    func testStampNeverGoesBack() {
+        XCTAssertEqual(SyncMerge.stamp(now: t2, after: nil), t2)
+        XCTAssertEqual(SyncMerge.stamp(now: t2, after: t1), t2)
+        XCTAssertEqual(SyncMerge.stamp(now: t2, after: t3), t3.addingTimeInterval(0.001), "上次的时间比现在还晚：取它加 1 毫秒")
+    }
+
+    /// 别的设备时钟快：它改的那条时间比本机的现在还晚，本机接着改也要赢（04 审查 #75 第 8 条）。
+    func testLocalEditBeatsPeerWithFastClock() {
+        let peer: SyncMerge.Table<String> = ["w": Entry(value: "peer", time: t3)]
+        let previous = SyncMerge.merge([peer])
+        let mine = SyncMerge.observe(current: items([("w", "mine"), ("x", "new")]), previous: previous, now: t2)
+        XCTAssertGreaterThan(mine["w"]!.time, t3)
+        XCTAssertEqual(mine["x"], Entry(value: "new", time: t2), "以前没有的条目照常记 now")
+        XCTAssertEqual(SyncMerge.merge([peer, mine])["w"]?.value, "mine")
+        let deleted = SyncMerge.observe(current: [], previous: previous, now: t2)
+        XCTAssertNil(SyncMerge.merge([peer, deleted])["w"]?.value, "删除也一样")
+    }
+
+    func testObserveValueAfterFastClock() {
+        let previous = Entry(value: "peer", time: t3)
+        XCTAssertGreaterThan(SyncMerge.observeValue("mine", previous: previous, now: t2).time, t3)
+    }
+
     // MARK: - 合并
 
     func testMergeTakesLatest() {
@@ -115,6 +138,21 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(keys(result), ["a"])
     }
 
+    /// 手动加了两条同字的常用词：第一条按合并结果改，第二条留着，不在第一次同步时丢掉（04 审查 #75 第 9 条）。
+    func testApplyKeepsDuplicateLocalItems() {
+        let local = items([("a", "1"), ("b", "B"), ("a", "2")])
+        let merged = SyncMerge.observe(current: local, previous: nil, now: t2)
+        let same = SyncMerge.apply(merged, to: local)
+        XCTAssertEqual(keys(same), ["a", "b", "a"])
+        XCTAssertEqual(same.map { $0.value }, ["1", "B", "2"])
+
+        let edited = SyncMerge.apply(["a": Entry(value: "x", time: t2)], to: local)
+        XCTAssertEqual(edited.map { $0.value }, ["x", "B", "2"], "后面那条原样留着，也不再接到末尾")
+
+        let deleted = SyncMerge.apply(["a": Entry(value: nil, time: t2)], to: local)
+        XCTAssertEqual(keys(deleted), ["b"], "删了就两条一起去掉")
+    }
+
     func testPruneDropsOldDeletesOnly() {
         let now = Date(timeIntervalSince1970: 400 * 86400)
         let table: SyncMerge.Table<String> = [
@@ -144,6 +182,73 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(SyncMerge.latest([Entry(value: nil, time: t3), mine]), mine)
     }
 
+    /// 新设备（本机没有上次同步的记录）加入：别的设备已经设好了，本机的默认值不参加，直接用那份。
+    func testResolveJoiningAdoptsPeers() {
+        let peer = Entry(value: "peer", time: t1)
+        let joined = SyncMerge.resolve(local: "default", previous: nil, peers: ["B": peer], myID: "A", now: t3)
+        XCTAssertEqual(joined.record, peer)
+        XCTAssertEqual(joined.apply, "peer")
+
+        let alone = SyncMerge.resolve(local: "mine", previous: nil, peers: [:], myID: "A", now: t3)
+        XCTAssertEqual(alone.record, Entry(value: "mine", time: t0), "只有自己：第一次记成 initialTime")
+        XCTAssertNil(alone.apply)
+    }
+
+    func testResolveLocalChangeWins() {
+        let result = SyncMerge.resolve(local: "new", previous: Entry(value: "old", time: t1),
+                                       peers: ["B": Entry(value: "peer", time: t1)], myID: "A", now: t2)
+        XCTAssertEqual(result.record, Entry(value: "new", time: t2))
+        XCTAssertNil(result.apply)
+    }
+
+    func testResolvePeerChangeApplies() {
+        let peer = Entry(value: "peer", time: t2)
+        let result = SyncMerge.resolve(local: "x", previous: Entry(value: "x", time: t1), peers: ["B": peer], myID: "A", now: t3)
+        XCTAssertEqual(result.record, peer)
+        XCTAssertEqual(result.apply, "peer")
+    }
+
+    /// 时间一样：两台设备都按设备编号取编号小的那台，算出来一样，不会各自留自己的。
+    func testResolveTieUsesDeviceOrder() {
+        let a = Entry(value: "a", time: t1)
+        let b = Entry(value: "b", time: t1)
+        let onA = SyncMerge.resolve(local: "a", previous: a, peers: ["B": b], myID: "A", now: t2)
+        let onB = SyncMerge.resolve(local: "b", previous: b, peers: ["A": a], myID: "B", now: t2)
+        XCTAssertEqual(onA.record, a)
+        XCTAssertNil(onA.apply)
+        XCTAssertEqual(onB.record, a)
+        XCTAssertEqual(onB.apply, "a")
+    }
+
+    /// 别的设备的接口配的 Key 还没同步过来：本机先不改、记本机原来的，下次再试。
+    func testResolveRejectedKeepsMine() {
+        let mine = Entry(value: "x", time: t1)
+        let result = SyncMerge.resolve(local: "x", previous: mine, peers: ["B": Entry(value: "y", time: t2)], myID: "A", now: t3,
+                                       accept: { _ in false })
+        XCTAssertEqual(result.record, mine)
+        XCTAssertNil(result.apply)
+
+        let joining = SyncMerge.resolve(local: "x", previous: nil, peers: ["B": Entry(value: "y", time: t2)], myID: "A", now: t3,
+                                        accept: { _ in false })
+        XCTAssertNil(joining.record, "还没加入：这次不参加，下次还当第一次")
+        XCTAssertNil(joining.apply)
+    }
+
+    func testAcceptingKeepsMineForRejected() {
+        let mine: SyncMerge.Table<String> = ["a": Entry(value: "mine", time: t1), "same": Entry(value: "s", time: t1)]
+        let merged: SyncMerge.Table<String> = [
+            "a": Entry(value: "peer", time: t2),
+            "same": Entry(value: "s", time: t1),
+            "new": Entry(value: "n", time: t2),
+            "ok": Entry(value: "fine", time: t2),
+        ]
+        let result = SyncMerge.accepting(merged, mine: mine) { $0.value == "fine" }
+        XCTAssertEqual(result["a"], mine["a"], "不能用的记本机原来的")
+        XCTAssertEqual(result["same"], mine["same"])
+        XCTAssertNil(result["new"], "本机原来没有的：不记")
+        XCTAssertEqual(result["ok"], merged["ok"])
+    }
+
     // MARK: - 同步的内容
 
     func testWordsKeepLocalIDsAndSkipSystemWords() {
@@ -160,36 +265,138 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(words.last?.text, "新词")
     }
 
-    func testAIProfileOnlyTouchesAIFields() {
+    func testWordsKeepIDsForDuplicateTexts() {
+        let first = CommonWord(text: "飞地", pinyin: "fei di")
+        let second = CommonWord(text: "飞地", pinyin: "fei di", shortcut: "fd")
+        let items = SyncMerge.wordItems([first, second])
+        XCTAssertEqual(items.count, 2)
+        let words = SyncMerge.words(items, current: [first, second])
+        XCTAssertEqual(words.map { $0.id }, [first.id, second.id], "同字的两条各用各的 id")
+    }
+
+    func testStyleProfileOnlyTouchesStyleFields() {
         var settings = EnclaveSettings()
+        settings.polishEnabled = false
+        settings.styles = Array(StylePreset.defaults.prefix(1))
+        settings.helpPinned = true
         settings.baseURL = "https://a.example/v1"
-        settings.keyboardLayout = .nineKey
-        settings.doublePinyin = nil
-        let profile = SyncMerge.AIProfile(settings: settings, savedAPIs: [])
+        let profile = SyncMerge.StyleProfile(settings: settings)
 
         var other = EnclaveSettings()
-        other.keyboardLayout = .qwerty
+        other.baseURL = "https://b.example/v1"
+        other.keyboardLayout = .nineKey
         let fuzzy = Set(FuzzyPinyin.allCases.prefix(1))
         other.fuzzyPinyin = fuzzy
+        profile.apply(to: &other)
+        XCTAssertFalse(other.polishEnabled)
+        XCTAssertEqual(other.styles, settings.styles)
+        XCTAssertTrue(other.helpPinned)
+        XCTAssertEqual(other.baseURL, "https://b.example/v1", "接口不跟着风格同步")
+        XCTAssertEqual(other.keyboardLayout, .nineKey, "键盘布局不跟着同步")
+        XCTAssertEqual(other.fuzzyPinyin, fuzzy, "模糊音不跟着同步")
+    }
+
+    func testEndpointProfileOnlyTouchesEndpointFields() {
+        var settings = EnclaveSettings()
+        settings.baseURL = "https://a.example/v1"
+        settings.model = "m1"
+        settings.separateAnswer = true
+        settings.answerModel = "m2"
+        settings.answerMaxTokens = 2048
+        settings.helpPinned = true
+        let profile = SyncMerge.EndpointProfile(settings: settings, keys: ["apiKey": "f1"])
+
+        var other = EnclaveSettings()
+        other.keyboardLayout = .nineKey
         let scheme = DoublePinyin.allCases.first
         other.doublePinyin = scheme
+        XCTAssertFalse(other.sameEndpoint(as: settings))
         profile.apply(to: &other)
-        XCTAssertEqual(other.baseURL, "https://a.example/v1")
-        XCTAssertEqual(other.keyboardLayout, .qwerty, "键盘布局不跟着同步")
-        XCTAssertEqual(other.fuzzyPinyin, fuzzy, "模糊音不跟着同步")
+        XCTAssertTrue(other.sameEndpoint(as: settings))
+        XCTAssertFalse(other.helpPinned, "风格不跟着接口同步")
+        XCTAssertEqual(other.keyboardLayout, .nineKey)
         XCTAssertEqual(other.doublePinyin, scheme, "双拼不跟着同步")
     }
 
-    func testPayloadRoundTrip() throws {
-        let payload = SyncMerge.DevicePayload(
+    /// 键盘发请求前用的：只换接口那几项。
+    func testAdoptEndpoint() {
+        var stored = EnclaveSettings()
+        stored.baseURL = "https://a.example/v1"
+        stored.answerTemperature = 0.9
+        var keyboard = EnclaveSettings()
+        keyboard.helpPinned = true
+        keyboard.keyboardLayout = .nineKey
+        keyboard.adoptEndpoint(from: stored)
+        XCTAssertTrue(keyboard.sameEndpoint(as: stored))
+        XCTAssertTrue(keyboard.helpPinned)
+        XCTAssertEqual(keyboard.keyboardLayout, .nineKey)
+    }
+
+    func testAPIItemsAndKeysMatch() {
+        let api = SavedAPI(name: "A", baseURL: "https://a.example/v1", model: "m")
+        let account = SyncMerge.SyncedAPI.account(api.id.uuidString)
+        XCTAssertEqual(account, "apiKey.saved.\(api.id.uuidString)")
+        let items = SyncMerge.apiItems([api]) { $0 == account ? "f1" : "" }
+        XCTAssertEqual(items.first?.key, api.id.uuidString)
+        XCTAssertEqual(items.first?.value, SyncMerge.SyncedAPI(api: api, key: "f1"))
+
+        let keys = ["apiKey": "f1", "apiKey.answer": ""]
+        XCTAssertTrue(SyncMerge.keysMatch(keys) { ["apiKey": "f1"][$0] ?? "" })
+        XCTAssertFalse(SyncMerge.keysMatch(keys) { _ in "" }, "Key 还没同步过来")
+        XCTAssertFalse(SyncMerge.keysMatch(keys) { ["apiKey": "f2"][$0] ?? "" }, "本机是另一个 Key")
+    }
+
+    func testKeyFingerprint() {
+        XCTAssertEqual(Keychain.fingerprint(nil), "")
+        XCTAssertEqual(Keychain.fingerprint(""), "")
+        let one = Keychain.fingerprint("sk-one")
+        XCTAssertEqual(one.count, 16)
+        XCTAssertEqual(one, Keychain.fingerprint("sk-one"))
+        XCTAssertNotEqual(one, Keychain.fingerprint("sk-two"))
+    }
+
+    private func samplePayload() -> SyncMerge.DevicePayload {
+        let api = SavedAPI(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, name: "A",
+                           baseURL: "https://a.example/v1", model: "m", savedAt: t1)
+        return SyncMerge.DevicePayload(
             format: SyncMerge.DevicePayload.currentFormat, deviceName: "iPhone", appVersion: "0.97_1", updatedAt: t2,
             generation: 2,
             words: ["飞地": SyncMerge.Entry(value: SyncMerge.Word(CommonWord(text: "飞地", pinyin: "fei di")), time: t1)],
             phrases: ["地址": SyncMerge.Entry(value: nil, time: t2)],
-            ai: SyncMerge.Entry(value: SyncMerge.AIProfile(settings: EnclaveSettings(), savedAPIs: []), time: t1),
+            styles: SyncMerge.Entry(value: SyncMerge.StyleProfile(settings: EnclaveSettings()), time: t1),
+            endpoint: SyncMerge.Entry(value: SyncMerge.EndpointProfile(settings: EnclaveSettings(), keys: ["apiKey": "f1"]), time: t1),
+            apis: [api.id.uuidString: SyncMerge.Entry(value: SyncMerge.SyncedAPI(api: api, key: "f1"), time: t1)],
             snapshotChunks: 2, snapshotHash: "abc")
+    }
+
+    func testPayloadRoundTrip() throws {
+        let payload = samplePayload()
         let data = try JSONEncoder().encode(payload)
         XCTAssertEqual(try JSONDecoder().decode(SyncMerge.DevicePayload.self, from: data), payload)
+
+        var bare = payload
+        bare.styles = nil
+        bare.endpoint = nil
+        bare.apis = nil
+        let bareData = try JSONEncoder().encode(bare)
+        XCTAssertEqual(try JSONDecoder().decode(SyncMerge.DevicePayload.self, from: bareData), bare, "带内置 Key 的包不带这三项")
+    }
+
+    /// 内容没变就不重传（04 审查 #75 第 3 条）：上传时间不算内容。
+    func testContentDigestIgnoresUpdatedAt() throws {
+        let payload = samplePayload()
+        var later = payload
+        later.updatedAt = t3
+        XCTAssertEqual(payload.contentDigest, later.contentDigest)
+        XCTAssertEqual(payload.contentDigest, samplePayload().contentDigest, "每次算出来一样")
+        let decoded = try JSONDecoder().decode(SyncMerge.DevicePayload.self, from: JSONEncoder().encode(payload))
+        XCTAssertEqual(decoded.contentDigest, payload.contentDigest, "下载回来再算也一样（字典顺序不影响）")
+        var cleared = payload
+        cleared.generation += 1
+        XCTAssertNotEqual(payload.contentDigest, cleared.contentDigest)
+        var edited = payload
+        edited.phrases["地址"] = SyncMerge.Entry(value: KeyboardPhrase(text: "地址"), time: t3)
+        XCTAssertNotEqual(payload.contentDigest, edited.contentDigest)
     }
 
     // MARK: - 拼音快照
