@@ -194,6 +194,31 @@ enum SyncText {
                           "キーの同期はオフのままで、このデバイスのキーはそのままです。")
     }
 
+    /// 关同步时没删掉 iCloud 里的数据（⑩）：前半句固定，后半句按原因换（02 四审改文案）。
+    @MainActor static func deleteFailed(_ failure: ICloudSyncFailure) -> String {
+        let head = L("同步已经关了，但 iCloud 里的数据没删掉", "Sync is off, but the data in iCloud wasn't deleted", "同期はオフになりましたが、iCloud のデータは削除できませんでした")
+        let tail: String
+        switch failure {
+        case .network:
+            tail = L("：网络不通。联网后打开同步再关一次，选「关闭并删除 iCloud 里的数据」。",
+                     ": no connection. When you're online, turn sync on and off again and choose “Turn Off and Delete iCloud Data”.",
+                     "：ネットワークにつながりません。オンラインのときに同期をもう一度オンにしてからオフにし、「オフにして iCloud のデータを削除」を選んでください。")
+        case .locked:
+            tail = L("：\(model) 还没解锁过。解锁后打开同步再关一次，选「关闭并删除 iCloud 里的数据」。",
+                     ": your \(model) hasn't been unlocked yet. After unlocking, turn sync on and off again and choose “Turn Off and Delete iCloud Data”.",
+                     "：\(model) のロックがまだ解除されていません。ロックを解除してから同期をもう一度オンにしてからオフにし、「オフにして iCloud のデータを削除」を選んでください。")
+        case .accountChanged:
+            tail = L("：现在登录的是另一个账户。换回原来的账户后，打开同步再关一次，选「关闭并删除 iCloud 里的数据」。",
+                     ": a different account is signed in now. Switch back to the original account, then turn sync on and off again and choose “Turn Off and Delete iCloud Data”.",
+                     "：今は別のアカウントでサインインしています。元のアカウントに戻してから同期をもう一度オンにしてからオフにし、「オフにして iCloud のデータを削除」を選んでください。")
+        case .other:
+            tail = L("：iCloud 暂时出错。稍后打开同步再关一次，选「关闭并删除 iCloud 里的数据」。",
+                     ": iCloud had a temporary error. Later, turn sync on and off again and choose “Turn Off and Delete iCloud Data”.",
+                     "：iCloud で一時的なエラーが起きました。しばらくしてから同期をもう一度オンにしてからオフにし、「オフにして iCloud のデータを削除」を選んでください。")
+        }
+        return head + tail
+    }
+
     /// 状态行和设备页的时间：一分钟内「刚刚」，一天内「N 分钟前」「N 小时前」，再早写日期和时间。
     static func time(_ date: Date, now: Date = Date()) -> String {
         let seconds = now.timeIntervalSince(date)
@@ -510,8 +535,18 @@ struct ICloudSyncSections: View {
                      "A device has a newer version of Enclave, so its data wasn't merged. Update this device to the latest version.",
                      "新しいバージョンの Enclave を使っているデバイスがあり、その内容は統合しませんでした。このデバイスも最新版に更新してください。")
         case .failed:
-            return L("检查网络后点「立即同步」再试一次。", "Check your connection, then tap Sync Now to try again.",
-                     "ネットワークを確認してから「今すぐ同期」をタップして、もう一度お試しください。")
+            // 按原因换（02 四审改文案）：网络不通、还没解锁过、其他 iCloud 错误。换了账户走「已暂停」。
+            switch status.detail ?? "" {
+            case ICloudSyncFailure.networkDetail:
+                return L("检查网络后点「立即同步」再试一次。", "Check your connection, then tap Sync Now to try again.",
+                         "ネットワークを確認してから「今すぐ同期」をタップして、もう一度お試しください。")
+            case "locked":
+                return L("\(SyncText.model) 解锁后会自动再同步。", "Sync will try again after you unlock your \(SyncText.model).",
+                         "\(SyncText.model) のロックを解除すると、自動でもう一度同期します。")
+            default:
+                return L("iCloud 暂时出错，稍后点「立即同步」再试。", "iCloud had a temporary error. Tap Sync Now again later.",
+                         "iCloud で一時的なエラーが起きました。しばらくしてから「今すぐ同期」をタップしてください。")
+            }
         case .quotaExceeded:
             return L("iPhone 设置 › Apple 账户 › iCloud 里清出一些空间，或者升级 iCloud+。",
                      "Free up some space in Settings › Apple Account › iCloud, or upgrade to iCloud+.",
@@ -645,9 +680,7 @@ struct ICloudSyncSections: View {
             } catch {
                 // 错误原文只进系统日志（连 Mac 的「控制台」能看到），不放进给用户看的句子里。
                 NSLog("ICloudSync: deleteAll failed: %@", String(describing: error))
-                failure = L("同步已经关了，但 iCloud 里的数据没删掉（网络不通或 iCloud 出错）。联网后打开同步再关一次，选「关闭并删除 iCloud 里的数据」。",
-                            "Sync is off, but the data in iCloud wasn't deleted (no connection or an iCloud error). When you're online, turn sync on and off again and choose “Turn Off and Delete iCloud Data”.",
-                            "同期はオフになりましたが、iCloud のデータは削除できませんでした（ネットワークまたは iCloud のエラー）。オンラインのときに同期をもう一度オンにしてからオフにし、「オフにして iCloud のデータを削除」を選んでください。")
+                failure = SyncText.deleteFailed(ICloudSyncFailure.of(error))
             }
         }
     }

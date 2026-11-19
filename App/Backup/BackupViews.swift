@@ -649,19 +649,56 @@ struct BackupRestoreSheet: View {
         }
     }
 
-    /// ⑭ 正文（02 三审改文案）：合并、替换都会改到所有设备，开着 Key 同步时再说接口方案和 Key。
+    /// ⑭ 正文（02 四审改文案）：只列这次勾了、会同步出去的几项；开着 Key 同步时再说接口方案和 Key。
+    /// 接口方案只在勾了「设置」时换（恢复设置时备份里没有的方案会删 Key，04 三审第 2 条）。
     private var syncRestoreMessage: String {
-        let body = mode == .merge
-            ? L("开着 iCloud 同步，恢复的内容会同步到所有设备：设置换成备份里的，备份里的常用词、键盘常用语、润色和问答风格加到每台设备上。",
-                "With iCloud Sync on, what you restore syncs to all devices: settings are replaced with the backup's, and the backup's words, keyboard phrases, and polish and answer styles are added on every device.",
-                "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。設定はバックアップのものに置き換わり、バックアップのユーザ辞書、定型文、整えるスタイルと回答スタイルが各デバイスに追加されます。")
-            : L("开着 iCloud 同步，恢复的内容会同步到所有设备：设置、常用词、键盘常用语、润色和问答风格都换成备份里的。学到的词是这台先清空再恢复，下次同步时，其他设备学到的词还会合并回来。",
-                "With iCloud Sync on, what you restore syncs to all devices: settings, words, keyboard phrases, and polish and answer styles are all replaced with the backup's. Learned words on this device are cleared and then restored, and words learned on your other devices merge back at the next sync.",
-                "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。設定、ユーザ辞書、定型文、整えるスタイルと回答スタイルがすべてバックアップのものに置き換わります。学習した語はこのデバイスで消してから復元し、次の同期でほかのデバイスの学習した語が統合されて戻ります。")
+        let sep = L("、", ", ", "、")
+        var body: String
+        if mode == .merge {
+            var parts: [String] = []
+            var added: [String] = []
+            if selected.contains(.learnedWords) { added.append(L("学到的词", "learned words", "学習した語")) }
+            if selected.contains(.commonWords) { added.append(L("常用词、键盘常用语", "your words and keyboard phrases", "ユーザ辞書と定型文")) }
+            if !added.isEmpty {
+                parts.append(added.joined(separator: sep) + L("加到每台设备上", " are added on every device", "は各デバイスに追加されます"))
+            }
+            if selected.contains(.styles) {
+                parts.append(L("润色和问答风格加进来，同名的换成备份里的", "Polish and Answer styles are added, and ones with the same name are replaced by the backup's",
+                               "整えるスタイルと回答スタイルは追加され、同じ名前のものはバックアップのものに置き換わります"))
+            }
+            body = parts.isEmpty
+                ? L("开着 iCloud 同步，恢复的内容会同步到所有设备。", "With iCloud Sync on, what you restore syncs to all devices.", "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。")
+                : L("开着 iCloud 同步，恢复的这几项会同步到所有设备：", "With iCloud Sync on, these restored items sync to all devices: ", "iCloud 同期がオンなので、復元するこれらの項目はすべてのデバイスに同期されます：")
+                    + parts.joined(separator: L("；", "; ", "。")) + L("。", ".", "。")
+        } else {
+            var replaced: [String] = []
+            if selected.contains(.commonWords) { replaced.append(L("常用词、键盘常用语", "your words, keyboard phrases", "ユーザ辞書、定型文")) }
+            if selected.contains(.styles) { replaced.append(L("润色和问答风格", "Polish and Answer styles", "整えるスタイルと回答スタイル")) }
+            let learned = selected.contains(.learnedWords)
+            if replaced.isEmpty && !learned {
+                body = L("开着 iCloud 同步，恢复的内容会同步到所有设备。", "With iCloud Sync on, what you restore syncs to all devices.", "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。")
+            } else {
+                body = L("开着 iCloud 同步，恢复的这几项会同步到所有设备：", "With iCloud Sync on, these restored items sync to all devices: ", "iCloud 同期がオンなので、復元するこれらの項目はすべてのデバイスに同期されます：")
+                if !replaced.isEmpty {
+                    body += replaced.joined(separator: sep) + L("都换成备份里的。", " are all replaced with the backup's.", "はすべてバックアップのものに置き換わります。")
+                }
+                if learned {
+                    body += L("学到的词是这台先清空再恢复，下次同步时，其他设备学到的词还会合并回来。",
+                              (replaced.isEmpty ? "" : " ") + "Learned words on this device are cleared and then restored, and words learned on your other devices merge back at the next sync.",
+                              "学習した語はこのデバイスで消してから復元し、次の同期でほかのデバイスの学習した語が統合されて戻ります。")
+                }
+            }
+        }
         guard Keychain.syncsToICloud else { return body }
-        return body + L("接口方案也换成备份里的，备份里没有的方案，所有设备上它的 Key 都会删掉。",
-                        " API setups are replaced with the backup's too, and for setups not in the backup, their keys are deleted on all devices.",
-                        "API の設定もバックアップのものに置き換わり、バックアップにない設定は、すべてのデバイスでそのキーが削除されます。")
+        if selected.contains(.settings) {
+            body += L("接口方案也换成备份里的，备份里没有的方案，所有设备上它的 Key 都会删掉。",
+                      " API setups are replaced with the backup's too, and for setups not in the backup, their keys are deleted on all devices.",
+                      "API の設定もバックアップのものに置き換わり、バックアップにない設定は、すべてのデバイスでそのキーが削除されます。")
+        }
+        if withKeys {
+            body += L("所有设备上的 Key 都会换成备份里的。", " Keys on all devices are replaced with the backup's.", "すべてのデバイスのキーがバックアップのものに置き換わります。")
+        }
+        return body
     }
 
     private func binding(_ item: BackupItem) -> Binding<Bool> {

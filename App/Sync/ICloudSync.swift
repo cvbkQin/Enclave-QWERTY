@@ -38,6 +38,29 @@ struct ICloudSyncStatus: Codable, Equatable {
     var detail: String?
 }
 
+/// 同步、删除失败的原因：卡片里的说明、删除失败的提示按这个换说法（02 四审改文案）。
+enum ICloudSyncFailure: Equatable {
+    case network, locked, accountChanged, other
+
+    /// 网络不通时 ICloudSyncStatus.detail 记这个。
+    static let networkDetail = "network"
+
+    static func of(_ error: Error) -> ICloudSyncFailure {
+        if error is ICloudSyncEngine.StateUnavailable { return .locked }
+        if error is ICloudSyncEngine.AccountChanged { return .accountChanged }
+        if let error = error as? CKError {
+            if [.networkUnavailable, .networkFailure].contains(error.code) { return .network }
+            if error.code == .partialFailure, let partial = error.partialErrorsByItemID?.values,
+               partial.contains(where: { of($0) == .network }) { return .network }
+        }
+        if let error = error as? URLError,
+           [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost, .cannotConnectToHost].contains(error.code) {
+            return .network
+        }
+        return .other
+    }
+}
+
 enum ICloudSync {
     /// 这个包有没有 iCloud 能力：ICLOUD_SYNC = YES（默认 NO，见 Configs/Base.xcconfig）的包才是 true，这时 Info.plist 里也才有后台模式。
     /// 没有能力时不能碰 CKContainer（会闪退），也不显示同步的入口。
@@ -323,6 +346,8 @@ actor ICloudSyncEngine {
 
     /// 状态文件在、却读不出来（开机后还没解锁过，文件被数据保护锁着）：这次不同步，不然会当成新设备重新开始。
     struct StateUnavailable: Error {}
+    /// 删 iCloud 里的数据时发现现在登录的是另一个 Apple 账户（还没同步过、没暂停）：不删，删的会是那个账户的数据。
+    struct AccountChanged: Error {}
 
     static func loadState() throws -> ICloudSyncState? {
         stateLock.lock()
@@ -392,7 +417,9 @@ actor ICloudSyncEngine {
             return ICloudSyncStatus(result: .noAccount, at: Date(), detail: nil)
         } catch {
             NSLog("ICloudSync: sync failed: %@", String(describing: error))
-            return ICloudSyncStatus(result: .failed, at: Date(), detail: String(describing: error))
+            // 网络不通单独记一个词，卡片里的说明按原因换（02 四审改文案）；别的照旧记错误原文（只进日志和状态）。
+            let detail = ICloudSyncFailure.of(error) == .network ? ICloudSyncFailure.networkDetail : String(describing: error)
+            return ICloudSyncStatus(result: .failed, at: Date(), detail: detail)
         }
     }
 
@@ -784,7 +811,13 @@ actor ICloudSyncEngine {
     func deleteAll() async throws {
         if let running { _ = await running.value }
         guard ICloudSync.isAvailable, let containerID = ICloudSync.containerID else { return }
-        let database = CKContainer(identifier: containerID).privateCloudDatabase
+        let container = CKContainer(identifier: containerID)
+        // 换了账户还没发现（换完还没同步过）：先对一下账户，对不上就不删（02 四审改文案「现在登录的是另一个账户」）。
+        if let old = try Self.loadState()?.userRecordName {
+            let user = try await container.userRecordID().recordName
+            guard user == old else { throw AccountChanged() }
+        }
+        let database = container.privateCloudDatabase
         do {
             let (_, deleted) = try await database.modifyRecordZones(saving: [], deleting: [Self.zoneID])
             if case .failure(let error) = deleted[Self.zoneID] { throw error }
