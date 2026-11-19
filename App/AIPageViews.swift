@@ -238,12 +238,13 @@ struct PromptKindTabs: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 0) {
-                tab(.polish, title: L("润色风格", "Polish styles", "整えるスタイル"), count: polishCount)
-                tab(.answer, title: L("问答风格", "Answer styles", "回答スタイル"), count: answerCount)
+                tab(.polish, title: L("润色风格", "Polish", "整える"), count: polishCount)
+                tab(.answer, title: L("问答风格", "Answer", "回答"), count: answerCount)
             }
             .background(alignment: .bottom) { Rectangle().fill(Color(.separator)).frame(height: 1) }
             Text(kind == .polish
-                 ? L("润色时用「默认」那条；在键盘上点润色键的 ⌄ 换一条，默认也跟着换。", "Polishing uses the Default one. Picking another from ⌄ on the polish key makes it the default.", "整えるときは「デフォルト」を使います。キーボードで整えるキーの ⌄ から選ぶと、それがデフォルトになります。")
+                 // 帮回并入润色：帮回也用这里的润色风格（只取语气、用词、长度的要求）。
+                 ? L("润色时用「默认」那条；在键盘上点润色键的 ⌄ 换一条，默认也跟着换。帮回也用这条风格写回复。", "Polishing uses the Default one. Picking another from ⌄ on the polish key makes it the default. Help Reply writes in this style too.", "整えるときは「デフォルト」を使います。キーボードで整えるキーの ⌄ から選ぶと、それがデフォルトになります。返信アシストもこのスタイルで返信を作ります。")
                  : L("点「问答」时用「默认」那种；在键盘上点「问答」的 ⌄ 换一种，默认也跟着换。", "Tapping Ask uses the Default one. Picking another from ⌄ on Ask makes it the default.", "「質問」では「デフォルト」を使います。キーボードの「質問」の ⌄ から選ぶと、それがデフォルトになります。"))
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
@@ -255,6 +256,7 @@ struct PromptKindTabs: View {
 
     private func tab(_ value: AppRouter.PromptKind, title: String, count: Int) -> some View {
         let selected = kind == value
+        let accent = DashColor.ai
         return Button { kind = value } label: {
             HStack(spacing: 7) {
                 Text(title)
@@ -265,7 +267,7 @@ struct PromptKindTabs: View {
                 Text("\(count)")
                     .font(.system(size: 12.5, weight: .bold))
                     .monospacedDigit()
-                    .foregroundStyle(selected ? DashColor.ai : Color.secondary)
+                    .foregroundStyle(selected ? accent : Color.secondary)
                     .padding(.horizontal, 7)
                     .frame(minWidth: 22, minHeight: 20)
                     .background(Capsule().fill(selected ? PromptListColor.chip : Color(.systemGray5)))
@@ -273,7 +275,7 @@ struct PromptKindTabs: View {
             .frame(maxWidth: .infinity, minHeight: 48)
             .overlay(alignment: .bottom) {
                 if selected {
-                    RoundedRectangle(cornerRadius: 1.5).fill(DashColor.ai).frame(height: 3).padding(.horizontal, 14)
+                    RoundedRectangle(cornerRadius: 1.5).fill(accent).frame(height: 3).padding(.horizontal, 14)
                 }
             }
             .contentShape(Rectangle())

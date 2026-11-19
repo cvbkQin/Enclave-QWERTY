@@ -38,6 +38,10 @@ struct KeysView: View {
                         KeyCapCell(presses: model.keyPresses, context: context, key: key)
                             .frame(width: key.visual.width, height: key.visual.height)
                             .offset(x: key.visual.minX, y: key.visual.minY)
+                            // 帮回键的外圈画在键外，压在旁边键上面。zIndex 1 会把它抬到下面的触摸层上面，
+                            // 键帽自己就接住了点按（0.96_5、0.96_6 点帮回没反应），所以这颗键帽不接触摸，点按还交给触摸层。
+                            .zIndex(key.kind == .emoticon ? 1 : 0)
+                            .allowsHitTesting(key.kind != .emoticon)
                     }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)
@@ -47,6 +51,12 @@ struct KeysView: View {
                     }
                     if let column = layout.operatorColumn {
                         OperatorColumn(model: model, frame: column)
+                    }
+                    // 横屏九宫格中间那块（LN1）：AI 栏 + 联想 / 候选 / 结果卡。放在长按十字下面，十字伸过来时盖得住。
+                    if let middle = layout.middle {
+                        LandscapeNineMiddle(model: model)
+                            .frame(width: middle.width, height: middle.height)
+                            .offset(x: middle.minX, y: middle.minY)
                     }
                     // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选时也不显示）。
                     if !model.nineGrid {
@@ -60,6 +70,9 @@ struct KeysView: View {
                     }
                     if let popup = model.cross {
                         CrossView(model: model, popup: popup)
+                    }
+                    if let popup = model.enterCross, let ai = context.returnLook.ai {
+                        EnterCrossView(popup: popup, ai: ai)
                     }
                     if let menu = model.layoutMenu {
                         LayoutMenuView(menu: menu)
@@ -112,13 +125,35 @@ struct KeyCapContext: Equatable {
     var trackpadActive: Bool
     var spaceTitle: String
     var returnLook: KeyboardModel.ReturnLook
+    /// 双拼时字母键上写韵母小字（SP1）；不写时为 nil。
+    var hintScheme: DoublePinyin? = nil
+    /// 写哪些小字：固定档总是 .all；「跟着按键变」档按已打的键变（只有这一档会随每次按键重画键帽）。
+    var hintPhase: DoublePinyin.HintPhase = .all
+    /// 「跟着按键变」里写深一点、排在前面的（练习里老按错的，SP10）。
+    var hintWeak: Set<String> = []
 }
 
 extension KeyboardModel {
     var keyCapContext: KeyCapContext {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
-                      spaceTitle: spaceTitle, returnLook: returnLook)
+                      spaceTitle: spaceTitle, returnLook: returnLook, hintScheme: keyHintScheme, hintPhase: keyHintPhase,
+                      hintWeak: keyHintPhase == .all ? [] : doublePinyinWeakUnits)
+    }
+
+    /// 只在全键盘中文、字母页、没按 shift、键上提示没关时写（全拼、九宫格、英文都不写）。
+    private var keyHintScheme: DoublePinyin? {
+        guard let doublePinyin, settings.doublePinyinHintMode != .off, chineseMode, !showsNineKey, layer == .letters, shift == .off
+        else { return nil }
+        return doublePinyin
+    }
+
+    /// 「跟着按键变」：分段选过的字后面的键两两配对，最后单下一个键就是该按韵母。
+    private var keyHintPhase: DoublePinyin.HintPhase {
+        guard settings.doublePinyinHintMode == .dynamic, keyHintScheme != nil else { return .all }
+        if practiceActive { return practiceContextPhase }
+        guard isComposing else { return .initial }
+        return DoublePinyin.hintPhase(raw: engine.rawInput, from: engine.selections.last?.end ?? 0)
     }
 }
 
@@ -159,10 +194,19 @@ struct KeyCapView: View, Equatable {
     let pressed: Bool
 
     var body: some View {
-        KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY) {
-            label
-                .foregroundStyle(foreground)
+        if let ai = returnLook?.ai {
+            // 回答卡展开、焦点在识意框：三段式识意（第 70 条）。
+            EnterAskKey(ai: ai, pressed: pressed)
                 .opacity(context.trackpadActive ? 0 : 1)
+                .padding(.horizontal, key.insetX)
+                .padding(.vertical, key.insetY)
+                .contentShape(Rectangle())
+        } else {
+            KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY) {
+                label
+                    .foregroundStyle(foreground)
+                    .opacity(context.trackpadActive ? 0 : 1)
+            }
         }
     }
 
@@ -179,7 +223,15 @@ struct KeyCapView: View, Equatable {
             return look.solid ? Brand.purple.opacity(pressed ? 0.75 : 1) : Brand.returnSoftFill.opacity(pressed ? 0.7 : 1)
         }
         let showsPopup = key.kind.typesCharacter && !context.nineGrid
-        return pressed && !showsPopup ? KeyStyle.pressedKey : KeyStyle.charKey
+        if pressed && !showsPopup { return KeyStyle.pressedKey }
+        // 「跟着按键变」拼不上的键：键底往键盘底色压一点（SP7 约 30%）。
+        return dimmed ? KeyStyle.charKey.opacity(0.7) : KeyStyle.charKey
+    }
+
+    /// 双拼「跟着按键变」该按韵母时，和前一个键拼不上的字母键（SP7）。
+    private var dimmed: Bool {
+        guard case .letter(let letter) = key.kind, let scheme = context.hintScheme, let char = letter.first else { return false }
+        return !scheme.keyFits(char, in: context.hintPhase)
     }
 
     private var foreground: Color {
@@ -191,9 +243,16 @@ struct KeyCapView: View, Equatable {
     private var label: some View {
         switch key.kind {
         case .letter(let letter):
-            Text(context.shift == .off ? letter : letter.uppercased())
-                .font(KeyStyle.letterFont)
-                .offset(y: -1)
+            // 开着双拼提示时所有字母键一个排法（字母贴下边），没有韵母小字的键（小鹤、自然码的 a、e）上面空着，
+            // 不再单独居中放大，免得和别的键对不齐（11-16 用户反馈）。
+            if let scheme = context.hintScheme {
+                DoublePinyinKeyLabel(letter: letter, lines: scheme.hints(for: context.hintPhase)[Character(letter)] ?? [], dimmed: dimmed,
+                                     weak: context.hintWeak)
+            } else {
+                Text(context.shift == .off ? letter : letter.uppercased())
+                    .font(KeyStyle.letterFont)
+                    .offset(y: -1)
+            }
         case .symbol(let symbol):
             if context.layer == .digits {
                 Text(symbol).font(.system(size: 24))
@@ -760,5 +819,63 @@ struct QuickKeyLabel: View {
         .fixedSize()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L("常用和剪贴板", "Phrases and clipboard", "定型文とクリップボード"))
+    }
+}
+
+/// 双拼键上的提示（SP2 样式 A）：韵母小字在键帽上方居中，离顶 3pt，最多两行；zh/ch/sh 主题紫、加粗，排第一行。
+/// 有小字的键字母缩小一点、贴下边，和小字不挤。按下时的气泡只放大字母（KeyPopup 不变）。
+struct DoublePinyinKeyLabel: View {
+    let letter: String
+    let lines: [String]
+    /// 「跟着按键变」拼不上的键：字母透明度 28%（SP7）。
+    var dimmed = false
+    /// 练习里老按错的韵母（和 zh / ch / sh）：排在前面、字深一点（SP10）。
+    var weak: Set<String> = []
+
+    /// 小字和字母都挂在键上（overlay），不撑键的高度：以前是 VStack，两行小字的键（s、k、l、x、v）比键高，
+    /// 竖屏往下伸出来、和别的键对不齐（T18，IMG_2005）；横屏键只有 29 高，撑得更多，整排错位、互相压住（IMG_2006）。
+    /// 按键高 43（横屏 32）排：竖屏两行时小字小一号；横屏只留一行小字。
+    var body: some View {
+        let style = Self.style(lines: shownLines.count, landscape: KeyboardMetrics.landscape)
+        Color.clear
+            .overlay(alignment: .top) {
+                VStack(spacing: 0) {
+                    ForEach(shownLines, id: \.self) { line in
+                        let initial = ["zh", "ch", "sh"].contains(line)
+                        let isWeak = weak.contains(line)
+                        Text(line)
+                            .font(.system(size: style.hintSize, weight: initial || isWeak ? .bold : .medium))
+                            .foregroundStyle(initial ? Brand.purpleText : isWeak ? Color.primary : Color.secondary)
+                            .frame(height: style.hintLine)
+                    }
+                }
+                .padding(.top, style.top)
+            }
+            .overlay(alignment: .bottom) {
+                Text(letter)
+                    .font(.system(size: style.letterSize))
+                    .opacity(dimmed ? 0.28 : 1)
+                    .padding(.bottom, style.bottom)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private struct Style {
+        var hintSize: CGFloat, hintLine: CGFloat, top: CGFloat, letterSize: CGFloat, bottom: CGFloat
+    }
+
+    /// 字母大小、离底边的距离每个键都一样（同一排对得齐）；只有小字的排法看行数。
+    /// 竖屏键高 43：字母 21 离底 2.5，基线约在 36，l、k 的头顶约 21。一行小字 3 + 8.6；两行小一号 2 + 8×2 = 18，不碰字母。
+    /// 横屏键高 32（LN2）：照竖屏字母 19 贴下边、离底 1.5，头顶约 12；两行小字放不下，只留一行 1.5 + 7.5。
+    private static func style(lines: Int, landscape: Bool) -> Style {
+        if landscape { return Style(hintSize: 7, hintLine: 7.5, top: 1.5, letterSize: 19, bottom: 1.5) }
+        if lines >= 2 { return Style(hintSize: 7.5, hintLine: 8, top: 2, letterSize: 21, bottom: 2.5) }
+        return Style(hintSize: 8, hintLine: 8.6, top: 3, letterSize: 21, bottom: 2.5)
+    }
+
+    private var shownLines: [String] {
+        let limit = KeyboardMetrics.landscape ? 1 : 2
+        guard !weak.isEmpty else { return Array(lines.prefix(limit)) }
+        return Array((lines.filter { weak.contains($0) } + lines.filter { !weak.contains($0) }).prefix(limit))
     }
 }

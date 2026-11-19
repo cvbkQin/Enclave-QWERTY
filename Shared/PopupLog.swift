@@ -1,0 +1,325 @@
+import Foundation
+import QuartzCore
+
+/// 键盘每次弹出记一条：是冷启动还是热启动、各段耗时、内存、上次收起后隔了多久。
+/// 只在开发版、内测、公测包里记（正式版不记），App 的「测试工具 › 弹出记录」里看、一键复制。用来查「呼出卡」。
+/// 存在共享存储里，键盘要开了完全访问才写得进去。
+struct PopupRecord: Codable, Identifiable {
+    var id = UUID()
+    var at: Date
+    /// 这次是这个键盘进程的第几次弹出（1 = 冷启动）。
+    var nth: Int
+    /// 冷启动：从进程启动到 viewDidLoad 开始（系统拉起扩展、加载代码的时间）。热启动为 nil。
+    var processToLoad: Double?
+    /// 控制器建出来到 viewDidLoad。
+    var initToLoad: Double
+    /// 键盘进程主线程闲了（或被系统挂起）多久后醒来，醒来到系统建出控制器用了多久。
+    /// 醒来→建 很小说明我们这边一醒就开始了，空白的时间花在系统把弹出交给我们之前。
+    var idleBeforeWake: Double?
+    var wakeToInit: Double?
+    /// 控制器建出来之前 2 秒里，键盘主线程卡住（一次超过 50 毫秒没空）最长的一次和合计。nil 是没开监测（旧记录）。
+    var stallLongest: Double?
+    var stallTotal: Double?
+    /// 上次收起后我们在主线程上做的收尾（关词库、写统计、拆视图）和拆旧键盘各用了多久、离这次弹出多久。
+    var lastCleanupMs: Double?
+    var lastTeardownMs: Double?
+    /// 收尾、拆旧键盘做完时离这次控制器建出来还有多少毫秒（负数是建出来以后才做完）。
+    var lastCleanupBefore: Double?
+    var lastTeardownBefore: Double?
+    /// viewDidLoad 里建视图（第一次装 SwiftUI 宿主）。
+    var load: Double
+    /// viewWillAppear 总共，和其中装宿主、reload（读设置、会话、选引擎）、最后排版三段。
+    var willAppear: Double
+    var willHost: Double
+    var willReload: Double
+    var willLayout: Double
+    /// 从 viewDidLoad 开始到 viewDidAppear（含系统的弹出动画，约 250–350 毫秒）。
+    var loadToAppear: Double
+    /// viewDidAppear 里同步做的事：剪贴板 / 帮回检测、常用词。
+    var didClipboard: Double
+    var didCommonWords: Double
+    /// 拼音引擎这次弹出后多久准备好（从 viewDidLoad 开始算；冷启动才有意义，热启动通常很快）。
+    var engineReady: Double?
+    var memoryMB: Double?
+    /// 上次收起到这次弹出隔了几秒；上次收起时的进程和这次是不是同一个；上次收起是怎么收尾的。
+    var sinceHide: Double?
+    var sameProcess: Bool?
+    var lastCleanup: String?
+    var nineKey: Bool
+
+    var isCold: Bool { nth == 1 }
+
+    /// 我们这边一共用了多久（毫秒）：冷启动从进程启动算，热启动从进程被叫醒算（没记到醒的时刻就从控制器建出来算），到键盘显示出来。
+    var total: Double {
+        if let processToLoad { return processToLoad + loadToAppear }
+        return (wakeToInit ?? 0) + initToLoad + loadToAppear
+    }
+
+    /// 明显慢：热启动超过 150 毫秒，冷启动超过 800 毫秒（平时热启动 50–70、冷启动 300–400）。
+    var isSlow: Bool { total >= (isCold ? PopupLog.slowCold : PopupLog.slowWarm) }
+
+    private static func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
+
+    /// 第一行：什么时候、冷 / 热启动、一共多久、慢不慢。
+    var title: String {
+        let time = PopupLog.timeFormatter.string(from: at)
+        let kind = isCold ? "冷启动（键盘进程重新启动）" : "热启动（第 \(nth) 次弹出）"
+        return "\(time) · \(kind) · 共 \(Self.ms(total)) 毫秒\(isSlow ? " · 慢" : "")"
+    }
+
+    /// 下面几行：每一段用了多久，用大白话写。
+    var details: [String] {
+        var lines: [String] = []
+        if let processToLoad {
+            lines.append("系统启动键盘进程到开始建键盘：\(Self.ms(processToLoad)) 毫秒")
+        } else if let wakeToInit {
+            lines.append("键盘被叫醒（之前闲了 \(String(format: "%.1f", (idleBeforeWake ?? 0) / 1000)) 秒）到开始建键盘：\(Self.ms(wakeToInit + initToLoad)) 毫秒")
+        } else {
+            lines.append("开始建键盘前的准备：\(Self.ms(initToLoad)) 毫秒（上次收起后键盘没闲下来过，量不到被叫醒的时刻）")
+        }
+        if let stallLongest {
+            lines.append(stallLongest < 50 ? "弹出前 2 秒里键盘主线程没卡住过"
+                         : "弹出前 2 秒里键盘主线程卡住过：最长 \(Self.ms(stallLongest)) 毫秒，合计 \(Self.ms(stallTotal)) 毫秒")
+        }
+        if lastCleanupMs != nil || lastTeardownMs != nil {
+            func when(_ before: Double?) -> String {
+                guard let before else { return "" }
+                return before >= 0 ? "（弹出前 \(Self.ms(before)) 毫秒做完）" : "（弹出后 \(Self.ms(-before)) 毫秒才做完）"
+            }
+            lines.append("上次收起后的收尾 \(Self.ms(lastCleanupMs)) 毫秒\(when(lastCleanupBefore))，拆掉旧键盘 \(Self.ms(lastTeardownMs)) 毫秒\(when(lastTeardownBefore))")
+        }
+        lines.append("建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）")
+        lines.append("显示后：剪贴板和帮回检测 \(Self.ms(didClipboard)) 毫秒，拼音能打 \(Self.ms(engineReady)) 毫秒")
+        var last = "内存 \(memoryMB.map { String(format: "%.0f", $0) } ?? "-") MB · \(nineKey ? "九宫格" : "全键盘")"
+        if let sinceHide {
+            last += " · 距上次收起 \(Self.duration(sinceHide))"
+            if sameProcess == false { last += "，期间键盘进程被系统关掉了" }
+        }
+        lines.append(last)
+        return lines
+    }
+
+    private static func duration(_ seconds: Double) -> String {
+        if seconds < 60 { return String(format: "%.1f 秒", seconds) }
+        if seconds < 3600 { return "\(Int(seconds / 60)) 分钟" }
+        return String(format: "%.1f 小时", seconds / 3600)
+    }
+
+    /// 复制出去的一条：标题加缩进的明细。
+    var text: String { ([title] + details.map { "  " + $0 }).joined(separator: "\n") }
+}
+
+enum PopupLog {
+    private static let recordsKey = "debug.popupLog"
+    /// 冷启动和明显慢的那几次另存一份，不跟着最近的记录被挤掉。
+    private static let keptKey = "debug.popupLogKept"
+    private static let keptClearedKey = "debug.popupLogKeptCleared"
+    private static let hideKey = "debug.popupLastHide"
+    private static let keep = 60
+    private static let keepSpecial = 40
+    static let slowWarm: Double = 150
+    static let slowCold: Double = 800
+
+    /// 正式版不记。
+    static var enabled: Bool {
+        #if DEBUG
+        return true
+        #else
+        return BuiltinAPI.isDevBuild || BuiltinAPI.isInternalBuild || BuiltinAPI.isPublicBuild
+        #endif
+    }
+
+    static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm:ss"
+        return formatter
+    }()
+
+    /// 最近的（旧的在前）。
+    static func load() -> [PopupRecord] { read(recordsKey) }
+
+    /// 冷启动和慢的（旧的在前），最多 40 条。
+    /// 「最近」里的冷启动和慢的也并进来（按 id 去重）：这个保留区是后来加的，之前记的那些也要算上；
+    /// 只并上次「清空保留的」之后的。
+    static func loadKept() -> [PopupRecord] {
+        let kept = read(keptKey)
+        let ids = Set(kept.map(\.id))
+        let cleared = SharedStorage.defaults.object(forKey: keptClearedKey) as? Date ?? .distantPast
+        let missing = load().filter { ($0.isCold || $0.isSlow) && $0.at > cleared && !ids.contains($0.id) }
+        guard !missing.isEmpty else { return kept }
+        return Array((kept + missing).sorted { $0.at < $1.at }.suffix(keepSpecial))
+    }
+
+    private static func read(_ key: String) -> [PopupRecord] {
+        guard let data = SharedStorage.defaults.data(forKey: key),
+              let records = try? JSONDecoder().decode([PopupRecord].self, from: data) else { return [] }
+        return records
+    }
+
+    private static func write(_ records: [PopupRecord], _ key: String) {
+        if let data = try? JSONEncoder().encode(records) { SharedStorage.defaults.set(data, forKey: key) }
+    }
+
+    static func append(_ record: PopupRecord) {
+        guard enabled else { return }
+        write(Array((load() + [record]).suffix(keep)), recordsKey)
+        if record.isCold || record.isSlow {
+            write(Array((loadKept().filter { $0.id != record.id } + [record]).suffix(keepSpecial)), keptKey)
+        }
+    }
+
+    /// 只清最近的；冷启动和慢的要另外点「清空保留的」。
+    static func clear() {
+        SharedStorage.defaults.removeObject(forKey: recordsKey)
+    }
+
+    static func clearKept() {
+        SharedStorage.defaults.removeObject(forKey: keptKey)
+        SharedStorage.defaults.set(Date(), forKey: keptClearedKey)
+    }
+
+    // MARK: - 上次收起
+
+    struct Hide: Codable {
+        var at: Date
+        var pid: Int32
+        var cleanup: String
+    }
+
+    /// 上次收起（viewWillDisappear）的时刻（CACurrentMediaTime），只在这个进程里有。
+    static var lastHideMono: CFTimeInterval = 0
+    /// 上次收起后的收尾、拆旧键盘各用了多少毫秒（只在这个进程里有）。
+    static var lastCleanupMs: Double?
+    static var lastTeardownMs: Double?
+    static var lastCleanupDone: CFTimeInterval?
+    static var lastTeardownDone: CFTimeInterval?
+
+    static func noteHide(cleanup: String) {
+        guard enabled else { return }
+        let hide = Hide(at: Date(), pid: ProcessInfo.processInfo.processIdentifier, cleanup: cleanup)
+        if let data = try? JSONEncoder().encode(hide) { SharedStorage.defaults.set(data, forKey: hideKey) }
+    }
+
+    static var lastHide: Hide? {
+        guard let data = SharedStorage.defaults.data(forKey: hideKey) else { return nil }
+        return try? JSONDecoder().decode(Hide.self, from: data)
+    }
+
+    static func median(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        return sorted[sorted.count / 2]
+    }
+
+    /// 一句话汇总：热启动、冷启动一般多久，慢的几次。
+    static func summary(_ records: [PopupRecord]) -> String {
+        let cold = records.filter(\.isCold)
+        let warm = records.filter { !$0.isCold }
+        func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
+        var parts = ["最近 \(records.count) 次弹出"]
+        if !warm.isEmpty { parts.append("热启动 \(warm.count) 次，一般 \(ms(median(warm.map(\.total)))) 毫秒") }
+        if !cold.isEmpty { parts.append("冷启动 \(cold.count) 次，一般 \(ms(median(cold.map(\.total)))) 毫秒") }
+        let slow = records.filter(\.isSlow).count
+        parts.append(slow == 0 ? "没有明显慢的" : "明显慢的 \(slow) 次")
+        return parts.joined(separator: "；") + "。"
+    }
+
+    /// 几个词是什么意思，复制出去和卡片上都带着。
+    static let legend = """
+    热启动：键盘进程还在，系统直接叫醒它，一般 50–100 毫秒。
+    冷启动：键盘进程已经被系统关掉，要重新启动，一般 300–400 毫秒。
+    「共 N 毫秒」只算键盘自己用的时间；在这之前系统处理弹出用的时间记不到。
+    「主线程卡住」：键盘自己的主线程忙着别的、接不了系统的弹出请求；没卡住却还慢，时间就花在系统那边。
+    明显慢：热启动超过 \(Int(slowWarm)) 毫秒、冷启动超过 \(Int(slowCold)) 毫秒，标「慢」，和冷启动一起另外保留。
+    """
+
+    /// 复制出去的全文：汇总、说明、保留的冷启动和慢的、最近的（新的在前）。
+    static func report(recent: [PopupRecord], kept: [PopupRecord]) -> String {
+        let version = (Bundle.main.object(forInfoDictionaryKey: "EnclaveDevLabel") as? String) ?? ""
+        var out = ["飞地输入法 \(version) 弹出记录", summary(recent), "", legend, ""]
+        out.append("== 冷启动和明显慢的（一直保留，\(kept.count) 条）==")
+        out += kept.reversed().map(\.text)
+        out.append("")
+        out.append("== 最近的（\(recent.count) 条）==")
+        out += recent.reversed().map(\.text)
+        return out.joined(separator: "\n")
+    }
+}
+
+/// 主线程醒来的时刻：主线程 RunLoop 睡了 0.5 秒以上（闲着或整个进程被系统挂起）再醒，记下醒的时刻和睡了多久。
+/// 键盘弹出时拿控制器建出来的时刻减它，看我们一醒是不是马上就开始建键盘。
+enum MainWake {
+    private(set) static var lastWake: CFTimeInterval?
+    private(set) static var lastIdle: CFTimeInterval = 0
+    /// 主线程最近一次睡下（RunLoop beforeWaiting）的时刻。
+    private(set) static var sleepStart: CFTimeInterval = 0
+    /// 主线程最近一次醒来（RunLoop afterWaiting）的时刻：从这以后它一直醒着。
+    private(set) static var awakeSince: CFTimeInterval = 0
+    private static var installed = false
+
+    static func install() {
+        guard PopupLog.enabled, !installed else { return }
+        installed = true
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity([.beforeWaiting, .afterWaiting]).rawValue, true, 0) { _, activity in
+            let now = CACurrentMediaTime()
+            if activity == .beforeWaiting {
+                sleepStart = now
+                return
+            }
+            awakeSince = now
+            if sleepStart > 0, now - sleepStart > 0.5 {
+                lastWake = now
+                lastIdle = now - sleepStart
+            }
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+    }
+}
+
+/// 键盘主线程有没有卡住：后台每 50 毫秒往主线程派一个空活，主线程隔了多久才做到，就是这段时间没空。
+/// 超过 50 毫秒的记下来（最多 40 条）。主线程睡着（闲着或进程被系统挂起）的时间不算，只算醒着却没空的。只在开发版、内测、公测开。
+enum MainStalls {
+    private struct Stall { var at: CFTimeInterval; var ms: Double }
+    private static let lock = NSLock()
+    private static var stalls: [Stall] = []
+    private static var pingSentAt: CFTimeInterval?
+    private static var timer: DispatchSourceTimer?
+
+    static func start() {
+        guard PopupLog.enabled, timer == nil else { return }
+        let source = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "app.enclave.mainstalls", qos: .utility))
+        source.schedule(deadline: .now(), repeating: .milliseconds(50), leeway: .milliseconds(10))
+        source.setEventHandler {
+            let sent = CACurrentMediaTime()
+            lock.lock()
+            let waiting = pingSentAt != nil
+            if !waiting { pingSentAt = sent }
+            lock.unlock()
+            guard !waiting else { return }
+            DispatchQueue.main.async {
+                let now = CACurrentMediaTime()
+                // 派出以后主线程要是睡过（闲着或被挂起），睡着那段不算卡，只算醒来以后到做到这个活之间忙的时间。
+                let busySince = max(sent, MainWake.awakeSince)
+                lock.lock()
+                let ms = (now - busySince) * 1000
+                if ms > 50, ms < 2000 {
+                    stalls.append(Stall(at: busySince, ms: ms))
+                    if stalls.count > 40 { stalls.removeFirst() }
+                }
+                pingSentAt = nil
+                lock.unlock()
+            }
+        }
+        source.resume()
+        timer = source
+    }
+
+    /// from 到 to 之间卡住的：最长一次、合计（毫秒）。没开监测时为 nil。
+    static func summary(from: CFTimeInterval, to: CFTimeInterval) -> (longest: Double, total: Double)? {
+        guard timer != nil else { return nil }
+        lock.lock()
+        let hits = stalls.filter { $0.at + $0.ms / 1000 > from && $0.at < to }
+        lock.unlock()
+        return (hits.map(\.ms).max() ?? 0, hits.map(\.ms).reduce(0, +))
+    }
+}

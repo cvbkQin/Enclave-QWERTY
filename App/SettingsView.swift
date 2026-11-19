@@ -173,6 +173,9 @@ struct SettingsView: View {
                         DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.devLabel ?? AboutView.version)
                     }
                 }
+                if AccessTestSection.shows {
+                    AccessTestSection()
+                }
                 if BuiltinAPI.showsTesterTools {
                     Section {
                         NavigationLink(value: AppRouter.SettingsPage.testTools) {
@@ -245,6 +248,7 @@ struct TestToolsView: View {
     var body: some View {
         DashPage {
             TypingSpeedCard()
+            if PopupLog.enabled { PopupLogCard() }
             StressTestCard()
             #if DEBUG
             // 输入框测试台：只在开发版（内测、公测包里没有）。
@@ -727,6 +731,8 @@ struct KeyboardTab: View {
                 .navigationDestination(for: AppRouter.KeyboardPage.self) { page in
                     switch page {
                     case .fuzzy: FuzzyPinyinView()
+                    case .doublePinyin: DoublePinyinView()
+                    case .doublePinyinPractice: DoublePinyinPracticeView()
                     case .pinyin: PinyinView()
                     case .commonWords: CommonWordsView()
                     case .keyboardWords: KeyboardPhrasesView()
@@ -800,7 +806,8 @@ struct KeyboardSettingsView: View {
                             .padding(.leading, 16)
                         HStack(spacing: 12) {
                             ForEach([KeyboardLayout.nineKey, .qwerty]) { layout in
-                                LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout) {
+                                LayoutCard(layout: layout, selected: store.settings.keyboardLayout == layout,
+                                           detail: layoutDetail(layout)) {
                                     store.settings.keyboardLayout = layout
                                 }
                             }
@@ -808,19 +815,49 @@ struct KeyboardSettingsView: View {
                     }
                     .dashFormCard()
                 } footer: {
-                    Text(L("英文总是用全键盘。", "English always uses QWERTY.", "英語は常に QWERTY です。"))
+                    // 选全键盘时下面紧接着「打法」，不写脚注（KS2）。
+                    if store.settings.keyboardLayout == .nineKey {
+                        Text(L("英文总是用全键盘。全拼 / 双拼在选全键盘后出现。", "English always uses QWERTY. Full / double pinyin appears once you choose QWERTY.",
+                               "英語は常に QWERTY です。全拼 / 双拼は QWERTY を選ぶと表示されます。"))
+                    }
                 }
-                // 拼音显示（F12）：上方一行（默认，同 iOS 原生）/ 侧边。键盘上长按「中/英」也能切。
+                // 打法（KS2）：全拼 / 双拼只对全键盘生效，选全键盘才出现；选双拼再多一行进「双拼方案」。
+                if store.settings.keyboardLayout == .qwerty {
+                    Section {
+                        HStack {
+                            Text(L("打法", "Typing", "入力方式"))
+                            Spacer(minLength: 12)
+                            Picker(L("打法", "Typing", "入力方式"), selection: doubleOn) {
+                                Text(L("全拼", "Full", "全拼")).tag(false)
+                                Text(L("双拼", "Double", "双拼")).tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            .fixedSize()
+                        }
+                        if let scheme = store.settings.doublePinyin {
+                            NavigationLink(value: AppRouter.KeyboardPage.doublePinyin) {
+                                HStack {
+                                    Text(L("双拼方案", "Double pinyin scheme", "双拼の方式"))
+                                    Spacer()
+                                    Text(scheme.shortTitle).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    } footer: {
+                        VStack(alignment: .leading, spacing: 6) {
+                            DictionaryDeployStatus()
+                            Text(typingFooter)
+                        }
+                    }
+                }
+                // 拼音组最上面是拼音显示（F12，KS1 ②）：上方一行（默认，同 iOS 原生）/ 侧边。键盘上长按「中/英」也能切。
                 Section {
                 } header: {
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 6) {
-                            Text(L("拼音显示", "Pinyin display", "ピンインの表示"))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                            NewBadge()
-                        }
-                        .padding(.leading, 16)
+                        Text(L("拼音", "Pinyin", "ピンイン"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 16)
                         HStack(spacing: 12) {
                             ForEach(PinyinDisplay.allCases) { display in
                                 PinyinDisplayCard(display: display, selected: store.settings.pinyinDisplay == display) {
@@ -831,9 +868,9 @@ struct KeyboardSettingsView: View {
                     }
                     .dashFormCard()
                 } footer: {
-                    Text(L("受 iOS 系统限制，选「上方一行」时拼音那一行和上面系统留的边加起来会显得比较宽，介意的话建议选「侧边」：没有拼音那一行，键盘矮一点，展开回答卡时也不留空白。在键盘上长按「中/英」也能切换。",
-                           "Due to an iOS limitation, Row above adds a pinyin row on top of the system's own margin, so it can look wide. If that bothers you, choose Side: there's no pinyin row, the keyboard is shorter and the answer card has no gap. You can also long-press 中/英 on the keyboard to switch.",
-                           "iOS の制限により、「上の行」ではピンインの行とシステムの余白が重なって幅広く見えることがあります。気になる場合は「横」をおすすめします。ピンインの行がなく、キーボードが少し低くなり、回答カードを開いても隙間がありません。キーボードの「中/英」を長押ししても切り替えられます。"))
+                    Text(L("拼音显示：受 iOS 系统限制，选「上方一行」时拼音那一行和上面系统留的边加起来会显得比较宽，介意的话建议选「侧边」：没有拼音那一行，键盘矮一点，展开回答卡时也不留空白。在键盘上长按「中/英」也能切换。",
+                           "Pinyin display: due to an iOS limitation, Row above adds a pinyin row on top of the system's own margin, so it can look wide. If that bothers you, choose Side: there's no pinyin row, the keyboard is shorter and the answer card has no gap. You can also long-press 中/英 on the keyboard to switch.",
+                           "ピンインの表示：iOS の制限により、「上の行」ではピンインの行とシステムの余白が重なって幅広く見えることがあります。気になる場合は「横」をおすすめします。ピンインの行がなく、キーボードが少し低くなり、回答カードを開いても隙間がありません。キーボードの「中/英」を長押ししても切り替えられます。"))
                 }
                 Section {
                     NavigationLink(value: AppRouter.KeyboardPage.fuzzy) {
@@ -847,15 +884,6 @@ struct KeyboardSettingsView: View {
                     CorrectionToggles()
                     PredictionToggle()
                     EmojiToggle()
-                    // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
-                    Toggle(isOn: $store.settings.keyboardGlass) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L("毛玻璃背景（测试）", "Frosted background (test)", "すりガラス背景（テスト）"))
-                            Text(L("键盘底色透出后面的颜色，和系统那截玻璃接上", "The keyboard lets the colors behind it show through and blends with the system glass",
-                                   "キーボードの背景に後ろの色が透け、システムのガラス部分となじみます"))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
                     // B5：拼音组最后一行（TC1），默认关，第一个版本带「新」。
                     Toggle(isOn: $store.settings.traditionalOutput) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -868,8 +896,6 @@ struct KeyboardSettingsView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                } header: {
-                    Text(L("拼音", "Pinyin", "ピンイン"))
                 } footer: {
                     Text(CorrectionToggles.footnote + "\n\n" + L("繁体输出：还是用拼音打，模糊拼音、纠错、联想都照常；常用词和学到的词也会显示成繁体。只转换你打出的字，AI 润色和回答的结果不转换。",
                                                               "Traditional output: you still type pinyin, and fuzzy pinyin, autocorrect and predictions work as usual. Your words and learned words show in Traditional too. Only what you type is converted; AI polish and answers are not.",
@@ -886,7 +912,7 @@ struct KeyboardSettingsView: View {
                     }
                 }
             }
-            Section(L("按键", "Keys", "キー")) {
+            Section(L("按键和外观", "Keys & appearance", "キーと外観")) {
                 NavigationLink(value: AppRouter.KeyboardPage.touch) {
                     HStack {
                         Text(L("按键判定", "Key detection", "キーの判定"))
@@ -901,6 +927,15 @@ struct KeyboardSettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("按键声音", "Sounds", "サウンド"))
                         Text(L("手机静音时不响", "Silent when the iPhone is muted", "消音モードでは鳴りません")).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                // #19 测试：键盘底色用系统毛玻璃。真机在 Chrome 里切回时看有没有系统按键残影，有的话关掉。
+                Toggle(isOn: $store.settings.keyboardGlass) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("毛玻璃背景（测试）", "Frosted background (test)", "すりガラス背景（テスト）"))
+                        Text(L("键盘底色透出后面的颜色，和系统那截玻璃接上", "The keyboard lets the colors behind it show through and blends with the system glass",
+                               "キーボードの背景に後ろの色が透け、システムのガラス部分となじみます"))
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -940,7 +975,44 @@ struct KeyboardSettingsView: View {
     /// 标题上的灰字：「九宫格 · 中文」（布局 · 主要语言）。
     private var caption: String {
         let layout = store.settings.inputLanguage == .englishOnly ? KeyboardLayout.qwerty : store.settings.keyboardLayout
-        return "\(layout.shortTitle) · \(store.settings.inputLanguage.title)"
+        let double = layout == .qwerty && store.settings.inputLanguage != .englishOnly && store.settings.doublePinyin != nil
+        return ([layout.shortTitle] + (double ? [L("双拼", "Double pinyin", "双拼")] : []) + [store.settings.inputLanguage.title]).joined(separator: " · ")
+    }
+
+    /// 选全键盘时卡片下面的小字；九宫格那张放一行空白，两张一样高。选九宫格时都不写（KS2）。
+    private func layoutDetail(_ layout: KeyboardLayout) -> Text? {
+        guard store.settings.keyboardLayout == .qwerty else { return nil }
+        return layout == .qwerty ? qwertyDetail : Text(" ")
+    }
+
+    /// 全键盘卡片下面的小字：「全拼」或「双拼 · 小鹤」（方案名紫色）。
+    private var qwertyDetail: Text {
+        guard let scheme = store.settings.doublePinyin else { return Text(L("全拼", "Full pinyin", "全拼")) }
+        return Text(L("双拼 · ", "Double · ", "双拼・")) + Text(scheme.shortTitle).foregroundColor(AppColor.purple)
+    }
+
+    /// 打法：全拼 / 双拼。换了要重新部署词库（几秒）；切回全拼时记着方案，再切双拼还是它。
+    private var doubleOn: Binding<Bool> {
+        Binding(get: { store.settings.doublePinyin != nil },
+                set: { on in
+                    let scheme = on ? DoublePinyin.lastChosen : nil
+                    guard scheme != store.settings.doublePinyin else { return }
+                    if let current = store.settings.doublePinyin { DoublePinyin.lastChosen = current }
+                    store.settings.doublePinyin = scheme
+                    deployer.deploy()
+                })
+    }
+
+    private var typingFooter: String {
+        if store.settings.doublePinyin != nil {
+            return L("双拼只对全键盘生效，九宫格照旧打全拼。方案、键上提示、预览都在「双拼方案」里。",
+                     "Double pinyin only applies to QWERTY; 9-key still uses full pinyin. Scheme, key hints and preview are under Double pinyin scheme.",
+                     "双拼は QWERTY だけに適用され、10キーは全拼のままです。方式・キーのヒント・プレビューは「双拼の方式」にあります。")
+        }
+        let example = ["ni", "hao"].compactMap(DoublePinyin.lastChosen.code(for:)).joined()
+        return L("全拼「你好」打 nihao。双拼每个字只按两个键（\(DoublePinyin.lastChosen.title)里打 \(example)），选双拼后可以挑方案。九宫格照旧打全拼。",
+                 "Full pinyin types 你好 as nihao. Double pinyin takes two keys per character (\(example) in \(DoublePinyin.lastChosen.title)); pick a scheme after choosing Double. 9-key still uses full pinyin.",
+                 "全拼では「你好」を nihao と入力します。双拼は 1 文字 2 キー（\(DoublePinyin.lastChosen.title)では \(example)）で、双拼を選ぶと方式を選べます。10キーは全拼のままです。")
     }
 
     /// 词库那行：已就绪绿点、需要重新部署橙点、部署中灰点。
@@ -1086,6 +1158,8 @@ struct ResultKeySettingsView: View {
 private struct LayoutCard: View {
     var layout: KeyboardLayout
     var selected: Bool
+    /// 名称下面的小字（全键盘：「全拼」或「双拼 · 小鹤」，KS2）。
+    var detail: Text? = nil
     var action: () -> Void
 
     var body: some View {
@@ -1096,7 +1170,10 @@ private struct LayoutCard: View {
                     .frame(height: 76)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
                 HStack {
-                    Text(layout.shortTitle).font(.subheadline.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(layout.shortTitle).font(.subheadline.weight(.semibold))
+                        if let detail { detail.font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                    }
                     Spacer()
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                         .foregroundStyle(selected ? AppColor.purple : Color.secondary)
@@ -1379,6 +1456,282 @@ struct FuzzyPinyinView: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+}
+
+// MARK: - 双拼
+
+/// 双拼方案（KS2 ③，原「全键盘拼音」页）：只有「打法」选了双拼才进得来。全拼 / 双拼的切换在上一页。
+/// 换方案马上重新部署词库（几秒），不用再点按钮；键上提示只是键盘的显示，不用部署。
+struct DoublePinyinView: View {
+    @EnvironmentObject private var store: AppStore
+    @ObservedObject private var deployer = RimeDeployer.shared
+    /// 要分享的键位图（临时文件）；有值时弹系统分享面板。
+    @State private var keymap: KeymapFile?
+
+    var body: some View {
+        Form {
+            if KeyboardStatus.fullAccess == false {
+                Section {
+                } header: {
+                    NotSyncedBanner()
+                        .dashFormCard()
+                }
+            }
+            if let current = store.settings.doublePinyin {
+                // SP5：方案 → 键上提示 → 键盘预览 → 零声母 → 保存键位图 → 练习 → 输入。
+                Section {
+                    ForEach(DoublePinyin.allCases) { scheme in
+                        Button { apply(scheme) } label: {
+                            HStack {
+                                Text(scheme.title).foregroundStyle(Color.primary)
+                                Spacer()
+                                if scheme == current {
+                                    Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(AppColor.purple)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text(L("方案", "Scheme", "方式"))
+                } footer: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(L("换方案会重新部署词库，几秒钟。", "Changing the scheme reinstalls the dictionary, which takes a few seconds.",
+                               "方式を変えると辞書を再インストールします（数秒）。"))
+                        DictionaryDeployStatus()
+                        // 键盘没开完全访问时读不到 App 的设置，也读不到双拼词库，照旧打全拼；键盘那边没法知道用户选了双拼，只能在这里说（双拼调研 P1）。
+                        if KeyboardStatus.fullAccess != true {
+                            Text(L("双拼要在键盘开了「允许完全访问」后才生效；没开时键盘照旧打全拼，键上也没有提示。",
+                                   "Double pinyin works only after you turn on Allow Full Access for the keyboard. Until then the keyboard types full pinyin with no key hints.",
+                                   "双拼はキーボードの「フルアクセスを許可」をオンにすると有効になります。オフのあいだは全拼で入力され、キーのヒントも表示されません。"))
+                        }
+                    }
+                }
+                Section {
+                } header: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L("键上提示", "Key hints", "キーのヒント"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 16)
+                        Picker(L("键上提示", "Key hints", "キーのヒント"), selection: $store.settings.doublePinyinHintMode) {
+                            ForEach(DoublePinyinHintMode.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .dashFormCard()
+                } footer: {
+                    Text(hintFooter)
+                }
+                Section {
+                } header: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L("键盘里看起来", "On the keyboard", "キーボードでの表示"))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 16)
+                        DoublePinyinPreview(scheme: current, mode: store.settings.doublePinyinHintMode)
+                    }
+                    .dashFormCard()
+                } footer: {
+                    Text(L("拼写栏照旧显示完整拼音（ni hao），旁边灰色小字是你按的键。不想用双拼：回上一页把「打法」换回全拼。",
+                           "The pinyin row still shows the full pinyin (ni hao), with the keys you pressed in small gray text. To stop using double pinyin, go back and set Typing to Full.",
+                           "ピンイン行には完全なピンイン（ni hao）が表示され、横に押したキーが小さな灰色で出ます。双拼をやめるには、前のページで「入力方式」を全拼に戻します。"))
+                }
+                Section {
+                    ZeroInitialCard(scheme: current)
+                }
+                Section {
+                    Button { shareKeymap(current) } label: {
+                        Label(L("分享键位图", "Share layout image", "キー配置の画像を共有"), systemImage: "square.and.arrow.up")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(AppColor.purple)
+                            .frame(maxWidth: .infinity)
+                    }
+                } footer: {
+                    Text(L("一张竖图，带整张键位和零声母，可以存到「文件」、打印或发给别人对照。",
+                           "A tall image with the full layout and the no-initial syllables. Save it to Files, print it, or send it.",
+                           "キー配置と声母のない音節をまとめた縦長の画像です。「ファイル」に保存したり、印刷したり、送ったりできます。"))
+                }
+                Section {
+                    NavigationLink(value: AppRouter.KeyboardPage.doublePinyinPractice) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L("双拼练习", "Practice", "双拼の練習"))
+                                Text(L("基础 · 词组 · 短句，按错马上提示", "Basics · words · sentences, with instant feedback", "基礎・単語・短文、間違えるとすぐ表示"))
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(DoublePinyinPracticeStore.summary)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text(L("练习", "Practice", "練習"))
+                }
+                Section {
+                    Toggle(isOn: mixFull) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("也认全拼", "Also accept full pinyin", "全拼も受け付ける"))
+                            Text(L("双拼时打 zhangsan 这样的全拼也能出字", "Full pinyin like zhangsan also works in double pinyin", "双拼でも zhangsan のような全拼で入力できます"))
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text(L("输入", "Input", "入力"))
+                } footer: {
+                    Text(L("默认关。三个字母以上的全拼常和双拼撞车（比如 shi 会被当成「sang + i」），开了以后候选可能变乱。只是偶尔想打全拼，点拼写栏里的全拼就能上屏字母。",
+                           "Off by default. Full pinyin of three or more letters often clashes with double pinyin (shi reads as sang + i), so candidates may get messy. To type pinyin letters once in a while, tap the pinyin in the pinyin row.",
+                           "初期設定はオフ。3 文字以上の全拼は双拼とぶつかりやすく（shi が「sang + i」と読まれるなど）、オンにすると候補が乱れることがあります。たまに全拼を入れたいだけなら、ピンイン行のピンインをタップすると文字のまま入力できます。"))
+                }
+            }
+        }
+        .sheet(item: $keymap) { file in
+            ActivitySheet(items: [file.url])
+                .presentationDetents([.medium, .large])
+        }
+        .navigationTitle(L("双拼方案", "Double pinyin scheme", "双拼の方式"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 键上提示的脚注随档位变（SP5）。
+    private var hintFooter: String {
+        switch store.settings.doublePinyinHintMode {
+        case .off:
+            return L("键上不写字，和全拼一样。", "Keys show only letters, like full pinyin.", "キーには文字だけを表示します（全拼と同じ）。")
+        case .fixed:
+            return L("每个键上一直写着它的韵母和 zh / ch / sh，熟练以后可以关掉。",
+                     "Each key always shows its finals and zh / ch / sh. Turn them off once you know the layout.",
+                     "各キーに韻母と zh / ch / sh を常に表示します。慣れたらオフにできます。")
+        case .dynamic:
+            return L("该按声母时只写 zh / ch / sh；按完声母，每个键只写能和它拼上的韵母，拼不上的键变淡。",
+                     "Before an initial, only zh / ch / sh are shown. After an initial, each key shows only the final that fits, and keys that don't fit fade.",
+                     "声母の前は zh / ch / sh だけを表示。声母を押すと、各キーには組み合わせられる韻母だけを表示し、合わないキーは薄くなります。")
+        }
+    }
+
+    /// 当前方案、当前深浅色的键位图（SP8）写成临时 PNG，弹系统分享面板（存到文件、打印、隔空投送）。
+    /// 不直接存相册：那要申请照片权限，分享面板里也去掉了「存储图像」。
+    private func shareKeymap(_ scheme: DoublePinyin) {
+        let dark = UITraitCollection.current.userInterfaceStyle == .dark
+        guard let image = DoublePinyinKeymapPoster.render(scheme: scheme, dark: dark), let data = image.pngData() else { return }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(L("\(scheme.title)键位图", "\(scheme.title) layout", "\(scheme.title) キー配置") + ".png")
+        do { try data.write(to: url, options: .atomic) } catch { return }
+        keymap = KeymapFile(url: url)
+    }
+
+    /// 也能打全拼：和换方案一样要重新部署。
+    private var mixFull: Binding<Bool> {
+        Binding(get: { store.settings.doublePinyinMixFull },
+                set: { value in
+                    guard value != store.settings.doublePinyinMixFull else { return }
+                    store.settings.doublePinyinMixFull = value
+                    deployer.deploy()
+                })
+    }
+
+    private func apply(_ scheme: DoublePinyin) {
+        DoublePinyin.lastChosen = scheme
+        guard scheme != store.settings.doublePinyin else { return }
+        store.settings.doublePinyin = scheme
+        deployer.deploy()
+    }
+}
+
+extension DoublePinyin {
+    /// 最近选的双拼方案：「打法」切回全拼再切双拼时还是它（App 自己的 UserDefaults）。
+    static var lastChosen: DoublePinyin {
+        get { UserDefaults.standard.string(forKey: "doublePinyin.lastScheme").flatMap(DoublePinyin.init(rawValue:)) ?? .flypy }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "doublePinyin.lastScheme") }
+    }
+}
+
+/// 换了打法或双拼方案要重新部署词库：部署中、失败时在脚注里说一句；需要重新部署时给个按钮。
+struct DictionaryDeployStatus: View {
+    @ObservedObject private var deployer = RimeDeployer.shared
+
+    var body: some View {
+        switch deployer.state {
+        case .deploying:
+            Text(L("正在重新部署词库，\(RimeDeployer.durationText)…", "Reinstalling the dictionary, \(RimeDeployer.durationText)…", "辞書を再インストールしています（\(RimeDeployer.durationText)）…"))
+        case .failed(let message):
+            Text(message).foregroundStyle(.red)
+        default:
+            if deployer.needsDeploy {
+                Button(L("重新部署词库", "Reinstall dictionary", "辞書を再インストール")) { deployer.deploy() }
+                    .font(.footnote)
+            }
+        }
+    }
+}
+
+/// 设置页里的键盘预览：和键盘里一样的提示样式（SP2 A：韵母小字在字母上方居中，zh/ch/sh 紫色在第一行）。
+/// 跟着档位变（SP5）：关时只有字母，跟着按键变时是「该按声母」的样子（只有 zh / ch / sh）。
+private struct DoublePinyinPreview: View {
+    let scheme: DoublePinyin
+    let mode: DoublePinyinHintMode
+    private var hints: Bool { mode != .off }
+    private static let rows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"]
+
+    var body: some View {
+        VStack(spacing: 7) {
+            ForEach(Self.rows, id: \.self) { row in
+                HStack(spacing: 5) {
+                    if row.count == 7 { key(Image(systemName: "shift")).frame(width: 34) }
+                    ForEach(Array(row), id: \.self) { letter in
+                        letterKey(letter).frame(maxWidth: .infinity)
+                    }
+                    if row.count == 7 { key(Image(systemName: "delete.left")).frame(width: 34) }
+                }
+                .padding(.horizontal, row.count == 9 ? 14 : 0)
+            }
+            HStack(spacing: 5) {
+                key(Text("123")).frame(width: 40)
+                key(Text("中/英")).frame(width: 40)
+                key(Text(L("空格", "space", "空白"))).frame(maxWidth: .infinity)
+                key(Text(L("执行", "go", "実行")).foregroundStyle(.white), fill: AppColor.purple).frame(width: 80)
+            }
+            .font(.system(size: 14))
+        }
+        .frame(height: 196)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.systemGray4)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("\(scheme.title)键盘预览", "\(scheme.title) keyboard preview", "\(scheme.title) のキーボードのプレビュー"))
+    }
+
+    private func letterKey(_ letter: Character) -> some View {
+        // 开着提示时每个键都按「小字 + 贴下边的字母」排，没有小字的键（a、e）上面空着，和键盘里一样。
+        let lines = scheme.hints(for: mode == .dynamic ? .initial : .all)[letter] ?? []
+        return ZStack {
+            if !hints {
+                Text(String(letter)).font(.system(size: 19))
+            } else {
+                VStack(spacing: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(lines, id: \.self) { line in
+                            let initial = ["zh", "ch", "sh"].contains(line)
+                            Text(line)
+                                .font(.system(size: 7, weight: initial ? .bold : .medium))
+                                .foregroundStyle(initial ? AppColor.purple : Color.secondary)
+                        }
+                    }
+                    .padding(.top, 2)
+                    Spacer(minLength: 0)
+                    Text(String(letter)).font(.system(size: 17)).padding(.bottom, 3)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color(.systemBackground)))
+    }
+
+    private func key(_ content: some View, fill: Color = Color(.systemBackground)) -> some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(fill))
     }
 }
 

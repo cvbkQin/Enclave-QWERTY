@@ -19,6 +19,8 @@ struct EditSession: Codable, Equatable {
     var answerVersions: [Int]?
     /// 「识意」每一版是哪句话、带着什么原文问的（按版本序号存），结果卡左边「⇄ 切换」换方式重做时用。旧数据里没有。
     var askSources: [String: AskSource]?
+    /// 帮回写的版本（版本序号 → 对方的话、要求、想表达的意思）：卡头「回」小标和原话，历史页标「回」。0.96_12 起记。
+    var replySources: [String: ReplySource]?
     /// 联网回答过的版本序号 → 服务商名字（「🌐 已联网 · Kimi」）。旧数据里没有。
     var searchedVersions: [String: String]?
     /// 历史记录（AIHistory）里这一轮的编号和开始时间。新开一轮时生成；旧数据里没有，就不进历史。
@@ -60,6 +62,24 @@ struct EditSession: Codable, Equatable {
         static let redo = "redo"
         /// 在卡片里手改。
         static let edit = "edit"
+        /// 帮回：回复复制的那句话（用当前润色风格）。
+        static let reply = "reply"
+    }
+
+    /// 帮回的一版回的是哪句话。request：识意框里的要求；meaning：输入框里自己打的字（想表达的意思）。
+    struct ReplySource: Codable, Equatable {
+        var message: String
+        var request: String?
+        var meaning: String?
+    }
+
+    /// 正在显示的这一版是帮回写的：回的那句话。
+    var currentReplySource: ReplySource? { replySources?[String(currentIndex)] }
+    var currentIsReply: Bool { currentReplySource != nil }
+
+    /// 刚出的这一版是帮回写的。
+    mutating func markReply(_ source: ReplySource) {
+        replySources = (replySources ?? [:]).merging([String(currentIndex): source]) { $1 }
     }
 
     /// 刚出的这一版是用哪个风格、哪家服务商生成的，怎么来的、用了多久。
@@ -95,6 +115,7 @@ struct EditSession: Codable, Equatable {
         versions[currentIndex] = version
         editedVersions?.removeAll { $0 == currentIndex }
         searchedVersions = (searchedVersions ?? [:]).merging([String(currentIndex): provider]) { $1 }
+        replySources?[String(currentIndex)] = nil
     }
 
     mutating func markSearched(by provider: String) {
@@ -133,6 +154,7 @@ struct EditSession: Codable, Equatable {
             editedVersions?.removeAll { $0 == last }
             answerVersions?.removeAll { $0 == last }
             searchedVersions?[String(last)] = nil
+            replySources?[String(last)] = nil
             currentIndex = last
         } else {
             versions.append(version)

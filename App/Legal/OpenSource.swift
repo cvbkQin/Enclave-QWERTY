@@ -135,7 +135,7 @@ enum OpenSource {
                   url: "https://www.lua.org"),
         Component(name: "OpenCC", copyright: "Copyright (c) 2010-2020 Carbo Kuo and contributors", license: .apache2,
                   url: "https://github.com/BYVoid/OpenCC"),
-        // emoji 候选的中文关键词（scripts/build-emoji.py 生成 zh_emoji.tsv）。
+        // emoji 候选的中文关键词（scripts/build-emoji.py 生成 zh_emoji.tsv）；表情面板的 emoji 表来自同一许可的 Unicode emoji-test.txt（scripts/build-emoji-panel.py）。
         Component(name: "Unicode CLDR", copyright: "Copyright © 2004-2024 Unicode, Inc.", license: .unicode3,
                   url: "https://github.com/unicode-org/cldr"),
         Component(name: "Boost", copyright: "Copyright (c) Boost contributors", license: .boost,

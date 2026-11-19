@@ -319,49 +319,6 @@ private struct GridCard: View {
     }
 }
 
-/// 拼音词库部署进度。编译没有真实进度，按上次实际用的时间估一条进度条（没部署过按一分钟）。
-struct DeployCard: View {
-    @ObservedObject private var deployer = RimeDeployer.shared
-
-    var body: some View {
-        HStack(spacing: 12) {
-            RowIcon(systemName: "character.book.closed", color: .orange)
-            switch deployer.state {
-            case .deploying:
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(L("正在部署拼音词库…", "Installing the pinyin dictionary…", "ピンイン辞書をインストール中…")).font(.subheadline)
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        let elapsed = context.date.timeIntervalSince(deployer.startedAt ?? context.date)
-                        let expected = RimeDeployer.expectedSeconds
-                        HStack {
-                            ProgressView(value: min(elapsed / expected, 0.95)).tint(.orange)
-                            Text(elapsed < expected - 5 ? L("还要", "", "残り") + RimeDeployer.durationText(expected - elapsed) : L("快好了", "Almost done", "まもなく完了"))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            case .failed(let message):
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(L("拼音词库部署失败", "Couldn't install the pinyin dictionary", "ピンイン辞書をインストールできませんでした")).font(.subheadline)
-                    Text(message).font(.caption).foregroundStyle(.red)
-                }
-                Spacer()
-                Button(L("重试", "Retry", "再試行")) { deployer.deploy() }.font(.subheadline.weight(.semibold))
-            default:
-                Text(deployer.needsDeploy ? L("拼音词库还没部署", "Pinyin dictionary not installed", "ピンイン辞書は未インストール") : L("拼音词库已就绪", "Pinyin dictionary ready", "ピンイン辞書の準備ができました")).font(.subheadline)
-                Spacer()
-                if deployer.needsDeploy {
-                    Button(L("部署", "Install", "インストール")) { deployer.deploy() }.font(.subheadline.weight(.semibold))
-                } else {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                }
-            }
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color(.secondarySystemGroupedBackground)))
-    }
-}
-
 /// 跳过引导后首页最上面的深紫卡（OB8）：「跟着教程设置」从选服务商开始，「已有 Key」进接口设置页。
 struct AISetupCard: View {
     @EnvironmentObject private var router: AppRouter

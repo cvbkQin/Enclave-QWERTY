@@ -32,6 +32,15 @@ final class RimeEngine: InputEngine {
     /// 全键盘、九宫格各一个纠错器（词库自带的表没生成时为 nil，就不纠）。
     private lazy var letterCorrector: Corrector? = Corrector.bundled(nineKey: false)
     private lazy var digitCorrector: Corrector? = Corrector.bundled(nineKey: true)
+    /// 双拼的纠错器：和全拼共用那份表，换方案时重建。
+    private var pairCorrector: (scheme: DoublePinyin, corrector: Corrector?)?
+    private var doublePinyinCorrector: Corrector? {
+        guard let doublePinyin else { return nil }
+        if let pairCorrector, pairCorrector.scheme == doublePinyin { return pairCorrector.corrector }
+        let made = Corrector.bundled(nineKey: false, doublePinyin: doublePinyin)
+        pairCorrector = (doublePinyin, made)
+        return made
+    }
     /// 纠错时用来问「改过的串打出什么」的第二个会话，不动用户正在打的那个。
     private var probe: UInt64 = 0
     private var probeSchema = ""
@@ -45,6 +54,9 @@ final class RimeEngine: InputEngine {
     private var session: UInt64 = 0
     private var loadedVersion: String?
     private var schema = RimeStore.schemaID
+    /// 加载的词库全键盘是双拼（App 里选了双拼部署的）：纠错层按键对纠（Corrector.doublePinyin）；也认全拼时分不清按的是哪种，不纠。
+    private var doublePinyin: DoublePinyin?
+    private var doublePinyinMixFull = false
 
     /// 每次按键只取够候选栏第一屏的数量，取得越多 Rime 要往后查得越深；滑到头或展开整页时再补到 candidateLimit。
     static let firstPage = 30
@@ -75,10 +87,11 @@ final class RimeEngine: InputEngine {
     /// priority：填了简码的键盘常用语，权重高一点，同一个编码排在常用词前面。
     func updatePhrases(_ entries: [(text: String, code: String)], priority: [(text: String, code: String)] = []) {
         priorityPhrases = Set(priority.map(\.text))
-        guard let (paths, _) = location() else { return }
+        guard let (paths, version) = location() else { return }
         var changed = false
         let files = [
-            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false, priority: priority)),
+            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false, priority: priority,
+                                                           doublePinyin: DoublePinyin(versionString: version))),
             ("enclave_phrase_t9", CommonWordStore.phraseTable(entries, nineKey: true, priority: priority)),
             // 九宫格拼写栏显示常用词的拼音用（enclave_t9_preedit.lua 读）。
             // 同一个词有全拼和简码时只记第一个（全拼）。
@@ -127,6 +140,8 @@ final class RimeEngine: InputEngine {
             if version.hasPrefix("shared:") { GrammarModel.linkBundled() }
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
+            doublePinyin = DoublePinyin(versionString: version)
+            doublePinyinMixFull = DoublePinyin.mixesFull(versionString: version)
             source = version
         }
         if !enclave_rime_session_alive(session) {
@@ -336,8 +351,8 @@ final class RimeEngine: InputEngine {
     private func applyCorrection() {
         guard !correcting, selections.isEmpty, let top = candidates.first, !priorityPhrases.contains(top) else { return }
         let nineKey = schema == RimeStore.nineKeySchemaID
-        guard nineKey ? Self.correctsNineKey : Self.correctsQwerty,
-              let corrector = nineKey ? digitCorrector : letterCorrector else { return }
+        guard nineKey ? Self.correctsNineKey : (Self.correctsQwerty && !doublePinyinMixFull),
+              let corrector = nineKey ? digitCorrector : doublePinyin != nil ? doublePinyinCorrector : letterCorrector else { return }
         let raw = rawInput
         guard !CorrectionMemory.isRejected(raw),
               let guess = corrector.guess(raw, extraMargin: CorrectionMemory.bias(raw), touches: TouchTrail.offsets(for: raw)) else { return }

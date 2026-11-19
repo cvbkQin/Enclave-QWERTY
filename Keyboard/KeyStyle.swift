@@ -4,14 +4,14 @@ import UIKit
 
 /// 键盘尺寸，按 iOS 26 自带简体拼音键盘在 402pt 宽的 iPhone 上量出来的。键盘高度也从这里算。
 enum KeyboardMetrics {
-    /// 横屏简版（LS1–LS3）：按键高 29、行距 6，AI 栏 34，两边各留 48 给刘海 / 灵动岛；九宫格居中 420 宽；
-    /// 结果卡固定 2 行。控制器按屏幕方向设，竖屏一点不动。
+    /// 横屏（LN1、LN2，11-18 定稿，照 iOS 原生）：按键高 32、行距 6，AI 栏的键也高 32；按键区铺满键盘宽（系统横屏给键盘的宽
+    /// 已经让开了两边画地球、话筒的地方，约 724，按键外沿 714）。全键盘不分左右，AI 栏在最上面；
+    /// 九宫格分左列、中间、右边四列（KeyLayout.LandscapeNine），中间上面是 AI 栏、下面是联想 / 候选 / 结果卡，键盘不变高。
+    /// 控制器按屏幕方向设，竖屏一点不动。
     static var landscape = false
-    static let landscapeSideMargin: CGFloat = 48
-    static let landscapeNineWidth: CGFloat = 420
 
-    /// 一个按键格子的高度（含上下间隙）：行距 54，按键本身 43；横屏 35（键 29 + 缝 6）。
-    static var slotHeight: CGFloat { landscape ? 35 : 54 }
+    /// 一个按键格子的高度（含上下间隙）：行距 54，按键本身 43；横屏 38（键 32 + 缝 6）。
+    static var slotHeight: CGFloat { landscape ? 38 : 54 }
     static let keyInsetX: CGFloat = 3.1
     static var keyInsetY: CGFloat { landscape ? 3 : 5.5 }
     static var keysHeight: CGFloat { slotHeight * 4 }
@@ -23,7 +23,7 @@ enum KeyboardMetrics {
     static let shiftKeyWidth: CGFloat = 45
     /// 九宫格对齐原生：键高 46、行距 7（每行 53），列距 6、两边各 7，五列等宽。
     /// 四行 212pt，比按键区少 4pt，上下各留 2pt，键盘总高不变。
-    static var nineKeyHeight: CGFloat { landscape ? 29 : 46 }
+    static var nineKeyHeight: CGFloat { landscape ? 32 : 46 }
     static var nineRowGap: CGFloat { landscape ? 6 : 7 }
     static let nineColumnGap: CGFloat = 6
     static let nineSideMargin: CGFloat = 7
@@ -31,17 +31,20 @@ enum KeyboardMetrics {
     static var nineTopOffset: CGFloat { (keysHeight - nineRowPitch * 4) / 2 }
     static let nineKeyInsetX: CGFloat = nineColumnGap / 2
     static var nineKeyInsetY: CGFloat { nineRowGap / 2 }
-    /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝（横屏 25.6）。
-    static var pinyinCellHeight: CGFloat { landscape ? (nineKeyHeight * 3 + nineRowGap * 2) / 4 : 38 }
+    /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝；横屏每格 36（LN1 ②，三格露 3 项）。
+    static var pinyinCellHeight: CGFloat { landscape ? 36 : 38 }
 
     /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 36 高（横屏 28，和原生差不多），平时空着，键盘总高不随打字变化。
     /// 竖屏收着时总高 36 + 44 + 216 = 296。
     static var pinyinRowHeight: CGFloat { landscape ? 28 : 36 }
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
-    static var topRow: CGFloat { landscape ? 34 : 44 }
-    /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 30）。
-    static var chipHeight: CGFloat { landscape ? 30 : 34 }
+    /// 横屏 38：键 32 居中，上面再加 boardTop 4，键盘上边到 AI 栏 7、AI 栏到第一行键 6（LN2）。
+    static var topRow: CGFloat { landscape ? 38 : 44 }
+    /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 32）。
+    static var chipHeight: CGFloat { landscape ? 32 : 34 }
+    /// 横屏键盘最上面多留的一截：加上按键自己的上缝 3，第一行离键盘上边 7。竖屏 0。
+    static var boardTop: CGFloat { landscape ? 4 : 0 }
     /// AI 栏的键上下各剩多少（滑动区会裁掉伸出去的投影）。
     static var chipRoom: CGFloat { (topRow - chipHeight) / 2 }
     static let polishButtonWidth: CGFloat = 58
@@ -73,7 +76,7 @@ enum KeyboardMetrics {
         case .fullAccess: return 188
         case .privacy: return 76
         case .noKey: return 76
-        case .consent(_, let previous): return previous == nil ? 178 : 196
+        case .consent(_, let previous, _): return previous == nil ? 178 : 196
         case .quotaUsed: return 196
         }
     }
@@ -90,9 +93,11 @@ enum KeyboardMetrics {
 
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
                        reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false,
-                       pinyinRow: Bool = true) -> CGFloat {
+                       pinyinRow: Bool = true, split: Bool = false) -> CGFloat {
+        // 横屏九宫格（LN1）：AI 栏、候选、结果卡、提示卡都在按键中间那块里，键盘一直是按键这么高。
+        if split { return boardTop + keysHeight + (reminder ? panelTop + trialReminderHeight : 0) }
         // 拼音显示在侧边（F12）时不留拼音行。
-        var height = (pinyinRow ? pinyinRowHeight : 0) + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
+        var height = boardTop + (pinyinRow ? pinyinRowHeight : 0) + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
@@ -326,6 +331,8 @@ enum Brand {
     static let answerBorder = dynamic(0x38BDF8, 0x7DD3FC)
     /// 结果卡左边模式控件（SW4）：改写 底 #ECEAFD 字 #4A3BD6（深色 #4E4875 / #E4DFFF），问答 底 #E0F2FE 字 #0369A1（深色 #0C4A6E / #BAE6FD）。
     static let modeRewriteFill = dynamic(0xECEAFD, 0x4E4875)
+    /// 表情 / 颜文字面板底栏选中的分类（EP1、EP2）：浅紫底 #E4E0FC，深色 #2E2766。
+    static let panelTabFill = dynamic(0xE4E0FC, 0x2E2766)
     static let modeRewriteText = dynamic(0x4A3BD6, 0xE4DFFF)
     static let modeAnswerFill = dynamic(0xE0F2FE, 0x0C4A6E)
     static let modeAnswerText = dynamic(0x0369A1, 0xBAE6FD)

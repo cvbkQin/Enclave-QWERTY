@@ -31,6 +31,8 @@ enum AIAccess: Equatable {
     private static let unlockedKey = "aiAccess.unlocked"
     private static let purchaseDateKey = "aiAccess.purchaseDate"
     private static let debugKey = "aiAccess.debug"
+    private static let devDefaultedKey = "aiAccess.devDefaulted"
+    private static let storeEnvironmentKey = "aiAccess.storeEnvironment"
 
     /// 试用开始日：App 用 AppTransaction 的首次下载日写入；还没写过时用第一次看到的日子，之后不再变。
     static var trialStart: Date {
@@ -56,7 +58,7 @@ enum AIAccess: Equatable {
     static var current: AIAccess { current(now: Date()) }
 
     static func current(now: Date) -> AIAccess {
-        if let debug = SharedStorage.defaults.string(forKey: debugKey), let state = debugState(debug, now: now) {
+        if debugAllowed, let debug = SharedStorage.defaults.string(forKey: debugKey), let state = debugState(debug, now: now) {
             return state
         }
         if SharedStorage.defaults.bool(forKey: unlockedKey) {
@@ -76,6 +78,35 @@ enum AIAccess: Equatable {
     /// 截图和测试用：-aiAccess expired / unlocked / days:2。
     static func setDebug(_ value: String?) {
         SharedStorage.defaults.set(value, forKey: debugKey)
+    }
+
+    /// 测试用的购买状态什么时候算数：模拟器 Debug 截图；开发者版装机（DEV_BUILD=YES）且不是 App Store 正式环境。
+    /// 别的包（TestFlight、公测、正式）一律按真实购买走，以前留下的测试状态不管写的是什么都不生效。
+    static var debugAllowed: Bool {
+        #if DEBUG
+        return true
+        #else
+        return BuiltinAPI.isDevBuild && storeEnvironment != "production"
+        #endif
+    }
+
+    /// App 读 AppTransaction 时记下的环境（production / sandbox / xcode），键盘没法自己读，从 App Group 拿。
+    static var storeEnvironment: String? { SharedStorage.defaults.string(forKey: storeEnvironmentKey) }
+
+    static func recordStoreEnvironment(_ value: String) {
+        SharedStorage.defaults.set(value, forKey: storeEnvironmentKey)
+    }
+
+    /// 开发者版第一次启动、还没在设置里选过：默认已解锁，和用户手上一直用的一样。之后选「跟随真实」也不会再改回去。
+    static func applyDevDefault() {
+        guard BuiltinAPI.isDevBuild, !SharedStorage.defaults.bool(forKey: devDefaultedKey) else { return }
+        SharedStorage.defaults.set(true, forKey: devDefaultedKey)
+        if debugValue == nil { setDebug("unlocked") }
+    }
+
+    /// 测试用：今天已用的次数清零。
+    static func resetUsesToday() {
+        SharedStorage.defaults.removeObject(forKey: usesCountKey)
     }
 
     static var debugValue: String? { SharedStorage.defaults.string(forKey: debugKey) }

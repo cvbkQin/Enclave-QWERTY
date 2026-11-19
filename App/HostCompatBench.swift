@@ -128,6 +128,12 @@ private final class NoMarkedTextField: UITextField {
         insertText(markedText)
     }
 
+    // 键盘扩展发来的标记文字走的是这个（iOS 27 上 setMarkedText 不会被调到），两个都要接住才像真的。
+    override func setAttributedMarkedText(_ markedText: NSAttributedString?, selectedRange: NSRange) {
+        guard let markedText, markedText.length > 0 else { return }
+        insertText(markedText.string)
+    }
+
     override func unmarkText() {}
 }
 
@@ -136,6 +142,12 @@ private final class FlutterLikeField: UITextField {
     override func setMarkedText(_ markedText: String?, selectedRange: NSRange) {
         guard let markedText, !markedText.isEmpty else { return }
         super.setMarkedText(markedText, selectedRange: selectedRange)
+    }
+
+    // 键盘扩展发来的标记文字走的是这个（iOS 27 上 setMarkedText 不会被调到）：空的同样不管。
+    override func setAttributedMarkedText(_ markedText: NSAttributedString?, selectedRange: NSRange) {
+        guard let markedText, markedText.length > 0 else { return }
+        super.setAttributedMarkedText(markedText, selectedRange: selectedRange)
     }
 
     override func insertText(_ text: String) {

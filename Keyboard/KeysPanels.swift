@@ -1,98 +1,214 @@
 import SwiftUI
 
 /// 表情和颜文字面板，铺满按键区；底栏切换两者、返回键盘、删除。
+/// 底栏（EP1、EP2）：高 50，左右 4、间距 6；返回 60×40 ｜ 分类条（放不下横滑，两边 22 渐隐）｜ 表情 / 颜文字切换 44×40 ｜ 删除 60×40。
+/// 点分类：面板滚到那一类（0.2 秒），选中马上换；上下滑面板：顶上露出哪一类就选中哪一类，分类条跟着滚到看得见。
 struct SymbolPanel: View {
     @ObservedObject var model: KeyboardModel
-    @State private var category = "最近"
+    /// 底栏选中的分类；nil 是第一个。
+    @State private var selected: String?
+    /// 各组小标题现在在面板里的位置（不触发重画，选中变了才改 selected）。
+    @State private var tracker = SectionTracker()
+    /// 点了分类、面板正在滚过去：这期间不按滚动位置改选中。
+    @State private var jumping = false
 
     private var isEmoji: Bool { model.keysPanel == .emoji }
 
+    private struct Tab: Identifiable {
+        let id: String
+        let title: String
+        var symbol: String?
+    }
+
+    final class SectionTracker {
+        var tops: [String: CGFloat] = [:]
+    }
+
+    private static let space = "symbolPanel"
+
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
+        let emojiSections = isEmoji ? EmojiPanelSection.all : []
+        let kaomojiGroups = isEmoji ? [] : Self.kaomojiGroups
+        let tabs: [Tab] = isEmoji
+            ? emojiSections.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol) }
+            : kaomojiGroups.map { Tab(id: $0.id, title: Kaomoji.title($0.id)) }
+        let order = tabs.map(\.id)
+        let current = selected.flatMap { order.contains($0) ? $0 : nil } ?? order.first
+        return ScrollViewReader { proxy in
+            VStack(spacing: 0) {
                 ScrollView(.vertical, showsIndicators: false) {
-                    if isEmoji { emojiGrid } else { kaomojiGrid }
+                    if isEmoji { emojiGrid(emojiSections, order: order) } else { kaomojiGrid(kaomojiGroups, order: order) }
                 }
                 .hidingScrollEdgeEffect()
-                .onChange(of: category) { id in
+                .coordinateSpace(name: Self.space)
+                bottomBar(tabs: tabs, current: current) { id in
+                    selected = id
+                    jumping = true
                     withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { jumping = false }
                 }
             }
-            bottomBar
+            // 表情和颜文字互相切换：选中回到第一组，面板回到顶上。
+            .onChange(of: model.keysPanel) { _ in
+                selected = nil
+                tracker.tops = [:]
+                if let first = order.first { proxy.scrollTo(first, anchor: .top) }
+            }
         }
     }
 
-    private var emojiGrid: some View {
-        let recent = RecentEmoji.all
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 0)], spacing: 2,
-                         pinnedViews: [.sectionHeaders]) {
-            if !recent.isEmpty { section("最近", recent) }
-            ForEach(EmojiCatalog.categories) { section($0.id, $0.emoji) }
+    // MARK: 表情
+
+    private func emojiGrid(_ sections: [EmojiPanelSection], order: [String]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 0)], spacing: 2,
+                  pinnedViews: [.sectionHeaders]) {
+            ForEach(sections) { section in
+                Section {
+                    ForEach(section.emoji, id: \.self) { item in
+                        Button { model.pickFromPanel(item) } label: {
+                            Text(item).font(.system(size: 30)).frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(KeyPressStyle())
+                    }
+                } header: {
+                    header(section.id, title: section.title, order: order)
+                }
+            }
         }
         .padding(.horizontal, 4)
     }
 
-    private func section(_ title: String, _ emoji: [String]) -> some View {
-        Section {
-            ForEach(emoji, id: \.self) { item in
-                Button { model.pickFromPanel(item) } label: {
-                    Text(item).font(.system(size: 30)).frame(width: 40, height: 40)
-                }
-                .buttonStyle(KeyPressStyle())
-            }
-        } header: {
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 3)
-                .id(title)
-        }
+    // MARK: 颜文字
+
+    /// 有用过的颜文字时前面加「最近」（最多 8 个）。
+    private static var kaomojiGroups: [Kaomoji.Mood] {
+        let recent = RecentKaomoji.all
+        return (recent.isEmpty ? [] : [Kaomoji.Mood(id: "最近", items: recent)]) + Kaomoji.groups
     }
 
-    private var kaomojiGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 6)], spacing: 6) {
-            ForEach(Kaomoji.all, id: \.self) { item in
-                Button { model.pickFromPanel(item) } label: {
-                    KeyCap(fill: KeyStyle.charKey, insetX: 0, insetY: 0) {
-                        Text(item).font(.system(size: 15)).lineLimit(1).minimumScaleFactor(0.6)
-                            .foregroundStyle(Color.primary).padding(.horizontal, 4)
+    /// 一行 4 个，每组上面一行小标题（同表情）。太长的缩小字号放进一格，不换行。
+    private func kaomojiGrid(_ groups: [Kaomoji.Mood], order: [String]) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6,
+                  pinnedViews: [.sectionHeaders]) {
+            ForEach(groups) { group in
+                Section {
+                    ForEach(group.items, id: \.self) { item in
+                        Button { model.pickFromPanel(item) } label: {
+                            KeyCap(fill: KeyStyle.charKey, insetX: 0, insetY: 0) {
+                                Text(item).font(.system(size: 15)).lineLimit(1).minimumScaleFactor(0.6)
+                                    .foregroundStyle(Color.primary).padding(.horizontal, 4)
+                            }
+                            .frame(height: 38)
+                        }
+                        .buttonStyle(KeyPressStyle())
                     }
-                    .frame(height: 38)
+                } header: {
+                    header(group.id, title: Kaomoji.title(group.id), order: order)
                 }
-                .buttonStyle(KeyPressStyle())
             }
         }
         .padding(.horizontal, KeyboardMetrics.keyInsetX)
-        .padding(.top, 4)
     }
 
-    private var bottomBar: some View {
-        HStack(spacing: 0) {
-            FunctionKey(title: model.chineseMode ? "返回" : "ABC") { model.closePanel() }
-                .frame(width: 52)
-            if isEmoji {
-                HStack(spacing: 0) {
-                    ForEach(["最近"] + EmojiCatalog.categories.map(\.id), id: \.self) { id in
-                        Button { category = id } label: {
-                            Image(systemName: EmojiCatalog.categories.first { $0.id == id }?.symbol ?? "clock")
-                                .font(.system(size: 14))
-                                .foregroundStyle(category == id ? Color.primary : Color.secondary)
-                                .frame(maxWidth: .infinity, minHeight: 40)
+    // MARK: 小标题、跟着滑动选中
+
+    private func header(_ id: String, title: String, order: [String]) -> some View {
+        Text(title)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(Color.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 3)
+            .background(GeometryReader { geo in
+                let top = geo.frame(in: .named(Self.space)).minY
+                Color.clear
+                    .onAppear { note(id, top: top, order: order) }
+                    .onChange(of: top) { note(id, top: $0, order: order) }
+                    .onDisappear { tracker.tops[id] = nil }
+            })
+            .id(id)
+    }
+
+    /// 顶上露出的是哪一组：已经滑到顶（离顶不到 4）的小标题里最靠下的那个；一个都没到顶就是第一组。
+    private func note(_ id: String, top: CGFloat, order: [String]) {
+        tracker.tops[id] = top
+        guard !jumping else { return }
+        let reached = tracker.tops.filter { $0.value <= 4 }
+        let now = reached.max { a, b in
+            a.value != b.value ? a.value < b.value : (order.firstIndex(of: a.key) ?? 0) < (order.firstIndex(of: b.key) ?? 0)
+        }?.key ?? order.first
+        if let now, now != (selected ?? order.first) { selected = now }
+    }
+
+    // MARK: 底栏
+
+    private func bottomBar(tabs: [Tab], current: String?, jump: @escaping (String) -> Void) -> some View {
+        HStack(spacing: 6) {
+            panelKey(width: 60, label: model.chineseMode ? L("返回", "Back", "戻る") : "ABC", action: { model.closePanel() }) {
+                Text(model.chineseMode ? "返回" : "ABC").font(.system(size: 17))
+            }
+            ScrollViewReader { bar in
+                AIKeyStrip(fadeWidth: 22) {
+                    HStack(spacing: 2) {
+                        ForEach(tabs) { tab in
+                            Button { jump(tab.id) } label: { tabLabel(tab, on: tab.id == current) }
+                                .buttonStyle(KeyPressStyle())
+                                .accessibilityLabel(tab.title)
+                                .accessibilityAddTraits(tab.id == current ? .isSelected : [])
+                                .id("tab-" + tab.id)
                         }
                     }
                 }
-            } else {
-                Spacer(minLength: 0)
+                // 选中换了（点的、滑出来的）：分类条滚到能看全这一格。
+                .onChange(of: current) { id in
+                    guard let id else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { bar.scrollTo("tab-" + id) }
+                }
             }
-            Button { model.keysPanel = isEmoji ? .kaomoji : .emoji } label: {
-                Text(isEmoji ? "^^" : "😀").font(.system(size: 17)).foregroundStyle(Color.primary)
-                    .frame(width: 40, height: 40)
+            .frame(maxWidth: .infinity)
+            panelKey(width: 44, label: isEmoji ? L("颜文字", "Kaomoji", "顔文字") : L("表情", "Emoji", "絵文字"),
+                     action: { model.keysPanel = isEmoji ? .kaomoji : .emoji }) {
+                Text(isEmoji ? "^^" : "😀").font(.system(size: 17))
             }
-            RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                .frame(width: 52)
+            // 按住连删，同原来。
+            RepeatingKey(systemImage: "delete.left", insetX: 0, insetY: 0) { model.deleteKey() }
+                .frame(width: 60, height: 40)
         }
-        .frame(height: 46)
+        .padding(.horizontal, 4)
+        .frame(height: 50)
+    }
+
+    /// 返回、切换：功能键底色，按下和别的功能键一样变深（KeyPressStyle）。
+    private func panelKey<Label: View>(width: CGFloat, label: String, action: @escaping () -> Void,
+                                       @ViewBuilder content: () -> Label) -> some View {
+        Button(action: action) {
+            KeyCap(fill: KeyStyle.functionKey, insetX: 0, insetY: 0) {
+                content().foregroundStyle(Color.primary)
+            }
+            .frame(width: width, height: 40)
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(label)
+    }
+
+    /// 表情：40×34、图标 20pt；颜文字：文字 15、左右 12、高 32。没选中灰色，选中浅紫底、主色（颜文字 600 粗），圆角 9。
+    private func tabLabel(_ tab: Tab, on: Bool) -> some View {
+        Group {
+            if let symbol = tab.symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 20))
+                    .frame(width: 40, height: 34)
+            } else {
+                Text(tab.title)
+                    .font(.system(size: 15, weight: on ? .semibold : .regular))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+            }
+        }
+        .foregroundStyle(on ? Brand.purpleText : Color.secondary)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(on ? Brand.panelTabFill : Color.clear))
+        .contentShape(Rectangle())
     }
 }
 
@@ -408,9 +524,143 @@ struct PinyinRow: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
+        if !model.showsNineKey, let scheme = model.doublePinyin {
+            doublePinyinBody(scheme)
+        } else {
+            optionsBody
+        }
+    }
+
+    /// 双拼（SP1、SP6）：整串拼音照旧显示全拼（ni hao），放在一颗浅键帽里，点了上屏全拼字母（nihao）；旁边灰色等宽小字是按的键（nihc），
+    /// 最右边写方案名。双拼没有别的切法。拼不成音节的两个键在全拼和按键里都标红（键上提示关掉、或也认全拼时不标）（双拼调研 P1）。
+    private func doublePinyinBody(_ scheme: DoublePinyin) -> some View {
+        let raw = model.engine.rawInput
+        let from = model.engine.selections.last?.end ?? 0
+        let groups = DoublePinyin.pairs(in: raw, from: from)
+        // 首选换成了纠正后的词（SP9）：全拼写纠正后的、改过的音节浅紫底；按键里换掉的键浅紫底，后面灰字「v 改成 c」。不再标红。
+        let correction = from == 0 ? model.engine.pendingCorrection.flatMap { $0.place == 1 && $0.typed == raw ? $0 : nil } : nil
+        let reading = correction != nil ? model.correctedReading : nil
+        let marks = model.settings.doublePinyinHintMode != .off && !model.doublePinyinMixFull && reading == nil
+        let bad = Set(groups.filter { marks && $0.keys.count == 2 && !scheme.isSyllableCode($0.keys) }.flatMap { Array($0.range) })
+        let fixedKeys = correction.map(Self.typedChangedKeys) ?? []
+        return HStack(spacing: 10) {
+            Button { model.commitFullPinyin() } label: {
+                HStack(spacing: 3) {
+                    if let reading {
+                        label(reading.text.replacingOccurrences(of: "'", with: " "), marked: reading.marked)
+                    } else {
+                        fullPinyin(scheme, raw: raw, groups: groups, bad: bad, segmented: from > 0)
+                    }
+                    Image(systemName: "arrow.up").font(.system(size: 11, weight: .semibold)).foregroundStyle(SidePinyinStyle.hint)
+                }
+                .lineLimit(1)
+            }
+            .buttonStyle(FullPinyinKeyStyle())
+            .disabled(!model.canCommitFullPinyin)
+            .accessibilityHint(L("上屏全拼", "Insert the full pinyin", "ピンインをそのまま入力"))
+            if !raw.isEmpty {
+                marked(Array(raw), bad: reading == nil ? bad : fixedKeys, fixed: reading != nil)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(KeyStyle.pressedKey.opacity(0.5)))
+                if reading != nil, let note = model.doublePinyinCorrectionNote {
+                    Text(note).font(.system(size: 12)).foregroundStyle(SidePinyinStyle.hint).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            if model.showsFullPinyinTip {
+                // 第一次在双拼下组字时说一次（SP6 ①）。键盘画不到输入框上面，气泡放在这一行右边。
+                Text(L("点拼音，直接上屏字母 \(model.fullPinyinText)", "Tap the pinyin to insert \(model.fullPinyinText)", "ピンインをタップで \(model.fullPinyinText) を入力"))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(Color.black.opacity(0.85)))
+                    .onTapGesture { model.showsFullPinyinTip = false }
+            } else {
+                Text(scheme.title)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottom) { bottomLine }
+    }
+
+    /// 全拼：平时就是引擎的拼写；有拼不成的键对、又没分段选过时，按键对自己拼（拼得成的换成全拼，拼不成的照写按键标红：ni bz）。
+    @ViewBuilder
+    private func fullPinyin(_ scheme: DoublePinyin, raw: String, groups: [(range: Range<Int>, keys: String)],
+                            bad: Set<Int>, segmented: Bool) -> some View {
+        if bad.isEmpty || segmented {
+            Text(model.composition).font(.system(size: 17))
+        } else {
+            HStack(spacing: 4) {
+                ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                    if bad.contains(group.range.lowerBound) {
+                        marked(Array(group.keys), bad: Set(0..<group.keys.count))
+                    } else {
+                        Text(scheme.readings[group.keys] ?? group.keys)
+                    }
+                }
+            }
+            .font(.system(size: 17))
+        }
+    }
+
+    /// 纠正时原样按的键里被换掉、按反、多按的那几个（SP9）。
+    static func typedChangedKeys(_ correction: PendingCorrection) -> Set<Int> {
+        let typed = correction.typed.count, fixed = correction.corrected.count
+        let range = KeyboardModel.changedKeys(correction)
+        let upper = min(typed, max(range.lowerBound, typed - (fixed - range.upperBound)))
+        return Set(range.lowerBound..<max(range.lowerBound, upper))
+    }
+
+    /// 一串字，bad 里的位置用红字浅红底（SP6 ③）；fixed 时是纠错换过的键，主色字浅紫底（SP9）。
+    private func marked(_ chars: [Character], bad: Set<Int>, fixed: Bool = false) -> some View {
+        var runs: [(text: String, bad: Bool)] = []
+        for (index, char) in chars.enumerated() {
+            let isBad = bad.contains(index)
+            if let last = runs.last, last.bad == isBad {
+                runs[runs.count - 1].text.append(char)
+            } else {
+                runs.append((String(char), isBad))
+            }
+        }
+        return HStack(spacing: 0) {
+            ForEach(Array(runs.enumerated()), id: \.offset) { _, run in
+                if run.bad {
+                    Text(run.text)
+                        .foregroundStyle(fixed ? Self.markedText : Self.badPairText)
+                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(fixed ? Self.markedFill : Self.badPairFill))
+                } else {
+                    Text(run.text)
+                }
+            }
+        }
+    }
+
+    static let badPairText = SidePinyinStyle.dynamic(0xE5484D, 0xFF6B6B)
+    static let badPairFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 1, green: 107 / 255, blue: 107 / 255, alpha: 0.16)
+        : UIColor(red: 229 / 255, green: 72 / 255, blue: 77 / 255, alpha: 0.12) })
+
+    private var bottomLine: some View {
+        Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
+            ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+            : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) }))
+            .frame(height: 1)
+    }
+
+    private var optionsBody: some View {
         let nine = model.showsNineKey
         let reading = model.correctedReading
-        ScrollView(.horizontal, showsIndicators: false) {
+        return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 // 输入框不认标记文字（NM1）：整串拼音放在最左边，后面一道竖线再接平时的拼音选项。
                 if let pinyin = model.offFieldPinyin {
@@ -433,18 +683,14 @@ struct PinyinRow: View {
             }
             .padding(.leading, 4)
             .padding(.trailing, 36)
+            .background(ImmediateTouches())
         }
         .hidingScrollEdgeEffect()
         .mask(HStack(spacing: 0) {
             Color.black
             LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 36)
         })
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color(UIColor { $0.userInterfaceStyle == .dark
-                ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
-                : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) }))
-                .frame(height: 1)
-        }
+        .overlay(alignment: .bottom) { bottomLine }
     }
 }
 
@@ -457,7 +703,7 @@ extension PinyinRow {
                 .frame(minWidth: 44, maxHeight: .infinity)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(KeyPressStyle())
+        .buttonStyle(PinyinPressStyle())
     }
 
     /// 改过的字母连成几段，每段主色字、浅紫底（圆角 4，底往两边各出 1，字距不变）。
@@ -487,6 +733,9 @@ extension PinyinRow {
         return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
     }
     static let markedText = dynamic(0x5B4BE8, 0xB4A9FF)
+    /// 按下时字后面的浅色底，和候选栏长按时那块一样（黑 8% / 白 16%）。
+    static let pressedFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(white: 1, alpha: 0.16) : UIColor(white: 0, alpha: 0.08) })
     static let markedFill = dynamic(0xE4E0FC, 0x2E2766)
     static let dividerColor = dynamic(0xAEAEB2, 0x8E8E93)
 }
@@ -689,7 +938,8 @@ struct ClipboardList: View {
                             .onTapGesture { model.clipMenu = nil }
                         ClipMenu(model: model, item: item)
                             .offset(x: min(max(rect.minX + 40, -leadingRoom), geo.size.width + trailingRoom - ClipMenu.width),
-                                    y: Self.menuY(row: rect, listHeight: geo.size.height))
+                                    y: Self.menuY(row: rect, listHeight: geo.size.height,
+                                                  height: ClipMenu.height(help: ClipMenu.showsHelp(model, item))))
                     }
                 }
             }
@@ -704,34 +954,38 @@ struct ClipboardList: View {
         listHeight + KeyboardMetrics.nineRowPitch + KeyboardMetrics.nineTopOffset
     }
 
-    static func menuY(row: CGRect, listHeight: CGFloat) -> CGFloat {
+    static func menuY(row: CGRect, listHeight: CGFloat, height: CGFloat) -> CGFloat {
         let top = menuAreaTop
-        let bottom = menuAreaBottom(listHeight: listHeight) - ClipMenu.height
+        let bottom = menuAreaBottom(listHeight: listHeight) - height
         let below = row.maxY + 6
-        let preferred = below <= bottom ? below : row.minY - ClipMenu.height - 6
+        let preferred = below <= bottom ? below : row.minY - height - 6
         return min(max(preferred, top), max(bottom, top))
     }
 
     /// 44 高、浅紫底、1.5pt 主色虚线框、剪贴板图标 + 主色 15 粗。
+    /// 问答能用时右边一颗绿色「帮回」（T16）：点左边粘贴，点「帮回」直接写回复；两种都会把这条存进记录。
     private var promptRow: some View {
-        Button { model.pasteNewClipboard() } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
-                Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
+        HStack(spacing: 6) {
+            Button { model.pasteNewClipboard() } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
+                    Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
+                        .font(.system(size: 15, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(Brand.deepPurple)
+                .padding(.leading, 12)
+                .frame(height: 44)
+                .contentShape(Rectangle())
             }
-            .foregroundStyle(Brand.deepPurple)
-            .padding(.horizontal, 12)
-            .frame(height: 44)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.returnSoftFill))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(Brand.purple, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
-            .contentShape(Rectangle())
+            .buttonStyle(KeyPressStyle())
         }
-        .buttonStyle(KeyPressStyle())
+        .padding(.trailing, 12)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Brand.returnSoftFill))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(Brand.purple, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])))
     }
 
     private func row(_ item: ClipItem, fresh: Bool) -> some View {
@@ -782,10 +1036,16 @@ struct ClipboardList: View {
     }
 }
 
-/// 长按剪贴板一条弹出的菜单（CB2）：粘贴 / 加到常用语 ★ / 复制 / 删除（红）。
+/// 长按剪贴板一条弹出的菜单（CB2）：粘贴 / 帮回这条（绿，帮回并入润色）/ 加到常用语 ★ / 复制 / 删除（红）。
 struct ClipMenu: View {
     static let width: CGFloat = 200
-    static let height: CGFloat = 4 * 40 + 9 + 12
+
+    static func height(help: Bool) -> CGFloat { CGFloat(help ? 5 : 4) * 40 + 9 + 12 }
+
+    /// 「帮回这条」：润色接口能用，单号、链接、纯数字、邮箱这类不出。
+    static func showsHelp(_ model: KeyboardModel, _ item: ClipItem) -> Bool {
+        model.helpReplyAvailable && HelpReply.suits(item.text)
+    }
 
     @ObservedObject var model: KeyboardModel
     let item: ClipItem
@@ -793,6 +1053,7 @@ struct ClipMenu: View {
     var body: some View {
         VStack(spacing: 0) {
             option(L("粘贴", "Paste", "貼り付け"), action: .paste)
+            if Self.showsHelp(model, item) { helpOption }
             option(L("加到常用语", "Add to phrases", "定型文に追加"), action: .addToPhrases, star: true)
             option(L("复制", "Copy", "コピー"), action: .copy)
             Divider().padding(.vertical, 4).padding(.horizontal, 8)
@@ -802,6 +1063,23 @@ struct ClipMenu: View {
         .frame(width: Self.width)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KeyStyle.charKey))
         .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8)
+    }
+
+    /// 用当前润色风格回这条（本机存好的这条，不读剪贴板）。
+    private var helpOption: some View {
+        Button { model.helpFromClip(item) } label: {
+            HStack(spacing: 6) {
+                Text(L("帮回这条", "Help Reply to This", "この内容に返信")).font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                HelpIcon(size: 16)
+            }
+            .foregroundStyle(HelpStyle.softText)
+            .padding(.horizontal, 10)
+            .frame(height: 40)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func option(_ title: String, action: KeyboardModel.ClipAction, star: Bool = false, destructive: Bool = false) -> some View {
@@ -818,5 +1096,59 @@ struct ClipMenu: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// 拼音行一项按下：字变淡（和候选栏按下一样 45%），后面一块圆角 6 的浅色底（比字左右各宽 6，上下离行边 4）。
+/// 以前用 KeyPressStyle（只调亮度），浅色模式下黑字调暗看不出来，点了不知道点到没有（11-13 真机录屏）。
+private struct PinyinPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.45 : 1)
+            .background {
+                if configuration.isPressed {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(PinyinRow.pressedFill)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                }
+            }
+    }
+}
+
+/// 把外面那层滚动视图的「按住一会儿才算按下」关掉（和候选栏 CandidateStripView 一样），快点一下也马上显示按下的样子；左右滑照样能滚。
+private struct ImmediateTouches: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView { Probe() }
+    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    final class Probe: UIView {
+        override init(frame: CGRect) { super.init(frame: frame); isUserInteractionEnabled = false }
+        required init?(coder: NSCoder) { fatalError() }
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            var view = superview
+            while let current = view {
+                if let scroll = current as? UIScrollView { scroll.delaysContentTouches = false; return }
+                view = current.superview
+            }
+        }
+    }
+}
+
+/// 双拼拼写栏里可点的全拼（SP6）：白底圆角 8、高 28 的浅键帽；按下浅紫底、主色字和 1.5 描边。
+struct FullPinyinKeyStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        configuration.label
+            .foregroundStyle(pressed ? SidePinyinStyle.mainText : Color.primary)
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(pressed ? SidePinyinStyle.firstFill : KeyStyle.charKey))
+            .overlay {
+                if pressed {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(SidePinyinStyle.mainText, lineWidth: 1.5)
+                }
+            }
+            .contentShape(Rectangle())
     }
 }

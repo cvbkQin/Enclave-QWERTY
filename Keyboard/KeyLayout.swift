@@ -65,6 +65,8 @@ struct KeyLayoutResult: Equatable {
     var pinyinColumn: CGRect?
     /// 九宫格数字键盘点了「更多」：左列上三格换成运算符列表，同样不归触摸层管。
     var operatorColumn: CGRect?
+    /// 横屏九宫格（LN1）中间那块：上面 AI 栏、下面联想 / 候选 / 结果卡（LandscapeNineMiddle），不归触摸层管。
+    var middle: CGRect?
 }
 
 /// 按当前状态算出所有按键的位置，参照 iOS 自带键盘的比例。
@@ -80,6 +82,34 @@ enum KeyLayout {
         var digitsMore = false
         /// 拼音显示在侧边（F12）：九宫格打字时左列上三格让给拼音列。
         var pinyinSide = false
+        /// 横屏（LN1、LN2）：九宫格分左中右，全键盘底排照系统横屏的宽度。
+        var landscape = false
+    }
+
+    /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。
+    /// 左列 68 ｜ 8 ｜ 中间 340 ｜ 8 ｜ 右边四列各 68、列距 6。九宫格的五列里第 0 列放左边，第 1–4 列放右边。
+    enum LandscapeNine {
+        static let designWidth: CGFloat = 714
+        /// 键帽离按键区边上多远：和竖屏九宫格一样，离屏幕边 7。
+        static var capEdge: CGFloat { KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding }
+
+        static func scale(_ width: CGFloat) -> CGFloat { max(width - capEdge * 2, 1) / designWidth }
+
+        /// 第 col 列起、占 cols 列的键帽左边和宽度。
+        static func cap(col: Int, cols: Int = 1, width: CGFloat) -> (x: CGFloat, width: CGFloat) {
+            let s = scale(width)
+            if col == 0 { return (capEdge, 68 * s) }
+            let x = 424 + 74 * CGFloat(col - 1)
+            return (capEdge + x * s, (68 * CGFloat(cols) + 6 * CGFloat(cols - 1)) * s)
+        }
+
+        /// 中间那块（键帽那么高：四行键加三条缝）。
+        static func middle(width: CGFloat) -> CGRect {
+            let s = scale(width)
+            let inset = KeyboardMetrics.nineKeyInsetY
+            return CGRect(x: capEdge + 76 * s, y: KeyboardMetrics.nineTopOffset + inset,
+                          width: 340 * s, height: KeyboardMetrics.nineRowPitch * 4 - inset * 2)
+        }
     }
 
     static let letterRows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map { $0.map(String.init) }
@@ -146,8 +176,9 @@ enum KeyLayout {
                 visualX: size.width - wideKey, visualWidth: wideKey)
         }
 
-        let returnWidth = unit * 2.5
-        let toggle = KeyboardMetrics.toggleKeyWidth + KeyboardMetrics.keyInsetX * 2
+        // 横屏（LN2）照系统：123、表情、中/英各 1.25 格，回车 2 格，空格占剩下的。
+        let returnWidth = unit * (state.landscape ? 2 : 2.5)
+        let toggle = state.landscape ? unit * 1.25 : KeyboardMetrics.toggleKeyWidth + KeyboardMetrics.keyInsetX * 2
         // 中文的数字和符号页：底栏是「拼音」、中/英、空格、换行，不放表情。
         // 留着中/英，才能从中文符号直接切到英文符号。
         if state.layer != .letters && (state.chineseMode || state.nineKey) {
@@ -200,9 +231,10 @@ enum KeyLayout {
         let column = (size.width - edge * 2) / 5
         var keys: [KeySpec] = []
         func add(_ id: String, _ kind: KeyKind, col: Int, row: Int, cols: Int = 1, rows: Int = 1) {
+            let (x, width) = columnSpan(state, col: col, cols: cols, edge: edge, column: column, width: size.width)
             var key = KeySpec(id: id, kind: kind,
-                              frame: CGRect(x: edge + CGFloat(col) * column, y: top + CGFloat(row) * slot,
-                                            width: column * CGFloat(cols), height: slot * CGFloat(rows)))
+                              frame: CGRect(x: x, y: top + CGFloat(row) * slot,
+                                            width: width, height: slot * CGFloat(rows)))
             key.insetX = KeyboardMetrics.nineKeyInsetX
             key.insetY = KeyboardMetrics.nineKeyInsetY
             keys.append(key)
@@ -217,7 +249,8 @@ enum KeyLayout {
         // 拼音在上方一行时左列照平时留着（PY1）；在侧边（F12）时打字中左列上三格换成拼音列。
         var pinyinColumn: CGRect?
         if state.composing && state.pinyinSide {
-            pinyinColumn = CGRect(x: edge, y: top, width: column, height: slot * 3)
+            let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
+            pinyinColumn = CGRect(x: x, y: top, width: width, height: slot * 3)
         } else {
             add("layer", .layer(.digits), col: 0, row: 0)
             add("symbols", .layer(.numbers), col: 0, row: 1)
@@ -229,7 +262,17 @@ enum KeyLayout {
         add("delete", .delete, col: 4, row: 0)
         add("emoticon", .emoticon, col: 4, row: 1)
         add("return", .returnKey, col: 4, row: 2, rows: 2)
-        return KeyLayoutResult(keys: keys, pinyinColumn: pinyinColumn)
+        return KeyLayoutResult(keys: keys, pinyinColumn: pinyinColumn,
+                               middle: state.landscape ? LandscapeNine.middle(width: size.width) : nil)
+    }
+
+    /// 九宫格第 col 列起、占 cols 列的触摸范围（左边、宽）。竖屏五列等宽；横屏照 LandscapeNine 分左右，
+    /// 触摸范围是键帽左右各加半条缝。
+    private static func columnSpan(_ state: State, col: Int, cols: Int, edge: CGFloat, column: CGFloat, width: CGFloat) -> (CGFloat, CGFloat) {
+        guard state.landscape else { return (edge + CGFloat(col) * column, column * CGFloat(cols)) }
+        let cap = LandscapeNine.cap(col: col, cols: cols, width: width)
+        let inset = KeyboardMetrics.nineKeyInsetX
+        return (cap.x - inset, cap.width + inset * 2)
     }
 
     /// 九宫格数字键盘，照 iOS 26：
@@ -245,9 +288,10 @@ enum KeyLayout {
         let column = (size.width - edge * 2) / 5
         var keys: [KeySpec] = []
         func add(_ id: String, _ kind: KeyKind, col: Int, row: Int, rows: Int = 1) {
+            let (x, width) = columnSpan(state, col: col, cols: 1, edge: edge, column: column, width: size.width)
             var key = KeySpec(id: id, kind: kind,
-                              frame: CGRect(x: edge + CGFloat(col) * column, y: top + CGFloat(row) * slot,
-                                            width: column, height: slot * CGFloat(rows)))
+                              frame: CGRect(x: x, y: top + CGFloat(row) * slot,
+                                            width: width, height: slot * CGFloat(rows)))
             key.insetX = KeyboardMetrics.nineKeyInsetX
             key.insetY = KeyboardMetrics.nineKeyInsetY
             keys.append(key)
@@ -260,7 +304,8 @@ enum KeyLayout {
         }
         var operatorColumn: CGRect?
         if state.digitsMore {
-            operatorColumn = CGRect(x: edge, y: top, width: column, height: slot * 3)
+            let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
+            operatorColumn = CGRect(x: x, y: top, width: width, height: slot * 3)
         } else {
             add("layer", .layer(.letters), col: 0, row: 0)
             add("symbols", .layer(.numbers), col: 0, row: 1)
@@ -273,7 +318,8 @@ enum KeyLayout {
         add("delete", .delete, col: 4, row: 0)
         add("more", .digitsMore, col: 4, row: 1)
         add("return", .returnKey, col: 4, row: 2, rows: 2)
-        return KeyLayoutResult(keys: keys, operatorColumn: operatorColumn)
+        return KeyLayoutResult(keys: keys, operatorColumn: operatorColumn,
+                               middle: state.landscape ? LandscapeNine.middle(width: size.width) : nil)
     }
 
     /// 数字键盘「更多」里的运算符。
