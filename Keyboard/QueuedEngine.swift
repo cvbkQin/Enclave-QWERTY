@@ -117,11 +117,23 @@ final class QueuedEngine: InputEngine {
 
     /// 启动 Rime、切方案、预热都在后台做，键盘先弹出来；完成后在主线程回调（能不能用、词库来源）。
     /// 之后交给队列的按键会排在它后面。
+    /// 最近一次 prepare：在队列上排了多久、做了多久（毫秒）、做了什么，什么时候做完。弹出记录用，只在主线程读写。
+    struct PrepareTiming { var wait: Double; var run: Double; var work: String; var done: CFTimeInterval }
+    private(set) var lastPrepare: PrepareTiming?
+
     func prepare(schema: String, useShared: Bool, completion: @escaping (Bool, String?) -> Void) {
+        let queued = CACurrentMediaTime()
         queue.async { [inner] in
+            let started = CACurrentMediaTime()
             let ok = inner.prepare(schema: schema, useShared: useShared)
+            let finished = CACurrentMediaTime()
             let source = inner.source
-            DispatchQueue.main.async { completion(ok, source) }
+            let work = inner.lastPrepareWork
+            DispatchQueue.main.async { [weak self] in
+                self?.lastPrepare = PrepareTiming(wait: (started - queued) * 1000, run: (finished - started) * 1000,
+                                                  work: work, done: finished)
+                completion(ok, source)
+            }
         }
     }
 
