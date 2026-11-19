@@ -3,6 +3,10 @@
 
 App 里的三语全文是唯一来源；改了政策后运行：python3 scripts/gen-privacy.py
 加 --check 只检查生成结果和仓库里的是否一致（不一致时退出码 1）。
+
+iCloud 同步的段落在 Swift 里用 [[iCloud:有同步时的文字||没有同步时的文字]] 标出（「||」和后半段可以省略，表示没有同步时整段去掉），
+App 里按 ICloudSync.isAvailable 取前半或后半（PrivacyPolicy.text）。网页和 PRIVACY.md 跟着 Configs/Base.xcconfig 里的
+ICLOUD_SYNC 默认值走：正式包带同步（YES）才写进去，免得网页写了正式包里没有的功能。加 --icloud / --no-icloud 可以临时指定。
 """
 import html
 import re
@@ -14,6 +18,17 @@ SWIFT = ROOT / "App/Legal/PrivacyPolicy.swift"
 CONSENT = ROOT / "Shared/PrivacyConsent.swift"
 HTML_OUT = ROOT / "docs/privacy.html"
 MD_OUT = ROOT / "PRIVACY.md"
+XCCONFIG = ROOT / "Configs/Base.xcconfig"
+ICLOUD_MARK = re.compile(r"\[\[iCloud:(.*?)(?:\|\|(.*?))?\]\]", re.S)
+
+
+def icloud_default():
+    m = re.search(r"^ICLOUD_SYNC\s*=\s*(\w+)", XCCONFIG.read_text(encoding="utf-8"), re.M)
+    return bool(m) and m.group(1) == "YES"
+
+
+def icloud_filter(text, on):
+    return ICLOUD_MARK.sub(lambda m: m.group(1) if on else (m.group(2) or ""), text)
 
 LANGS = [
     # 代码里的名字, 页面锚点, html lang, 标题, 生效日期格式, 版本格式, 切换按钮
@@ -32,7 +47,10 @@ def read_source():
         m = re.search(r'private static let %s = """\n(.*?)\n"""' % key, src, re.S)
         if not m:
             sys.exit(f"找不到 PrivacyPolicy.{key}")
-        texts[key] = m.group(1)
+        on = "--icloud" in sys.argv or ("--no-icloud" not in sys.argv and icloud_default())
+        texts[key] = icloud_filter(m.group(1), on)
+        if "[[iCloud:" in texts[key] or "]]" in texts[key]:
+            sys.exit(f"PrivacyPolicy.{key} 里的 [[iCloud:…]] 标记没有配对")
 
     def legal(name):
         m = re.search(r'static let %s = "([^"]*)"' % name, src)
@@ -49,18 +67,7 @@ def read_source():
     return texts, legal("developer"), legal("developerZh"), legal("email"), date, version
 
 
-def with_icloud(text):
-    """网页版按带 iCloud 同步的包生成：去掉 [[no-icloud]]…[[/no-icloud]]，留下 [[icloud]]…[[/icloud]] 里的字。
-    规则和 App/Legal/PolicyFilter.swift 一样（从行首包到行尾的连换行一起去掉，多出的空行合成一个）。"""
-    block = r"\[\[no-icloud\]\](?:(?!\[\[/no-icloud\]\])[\s\S])*\[\[/no-icloud\]\]"
-    text = re.sub(r"(?m)^" + block + r"\n", "", text)
-    text = re.sub(block, "", text)
-    text = re.sub(r"\[\[/?icloud\]\]", "", text)
-    return re.sub(r"\n{3,}", "\n\n", text)
-
-
 def fill(text, lang, developer, developer_zh, email):
-    text = with_icloud(text)
     return text.replace("{developer}", developer_zh if lang == "zh" else developer).replace("{email}", email)
 
 
