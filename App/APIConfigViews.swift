@@ -367,6 +367,11 @@ struct ConfigEditor: View {
                 onClose()
             }
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+        } message: {
+            // 开着 Key 的 iCloud 同步：删了方案，它的 Key 在别的设备上也没了（IC 说明「别处要跟着改的」）。
+            if Keychain.syncsToICloud {
+                Text(L("其他设备上这个方案的 Key 也会一起删掉。", "Its key is also deleted on your other devices.", "ほかのデバイスでもこの設定のキーが削除されます。"))
+            }
         }
     }
 

@@ -82,7 +82,8 @@ struct PrivacyView: View {
             Section {
                 clearRow(L("清除使用统计", "Clear Usage Stats", "利用統計を消去"), target: .stats)
                 clearRow(L("清除 AI 历史", "Clear AI History", "AI の履歴を消去"), target: .history)
-                clearRow(L("清除拼音学习记录", "Clear Pinyin Learning", "ピンインの学習データを消去"), target: .learning)
+                clearRow(L("清除拼音学习记录", "Clear Pinyin Learning", "ピンインの学習データを消去"), target: .learning,
+                         detail: ICloudSync.isEnabled ? L("开着 iCloud 同步：所有设备一起清", "iCloud Sync is on: clears on all devices", "iCloud 同期オン：すべてのデバイスで消去") : nil)
                 // B1：和 App › 键盘 › 剪贴板 里的「清除剪贴板记录」是同一个操作。
                 clearRow(L("清除剪贴板记录", "Clear Clipboard History", "クリップボード履歴を消去"), target: .clipboard)
             } header: {
@@ -104,7 +105,7 @@ struct PrivacyView: View {
         }
         .alert(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
-            Button(L("清除", "Clear", "消去"), role: .destructive) {
+            Button(clearsAllDevices ? L("全部清除", "Clear All", "すべて消去") : L("清除", "Clear", "消去"), role: .destructive) {
                 guard let target = confirm else { return }
                 switch target {
                 case .history:
@@ -117,7 +118,30 @@ struct PrivacyView: View {
                 }
                 cleared.insert(target)
             }
+        } message: {
+            if clearsAllDevices { Text(allDevicesMessage) }
         }
+    }
+
+    /// 开着 iCloud 同步时清除拼音学习记录：所有设备一起清（IC4 ⑬）。
+    private var clearsAllDevices: Bool { confirm == .learning && ICloudSync.isEnabled }
+
+    private var allDevicesMessage: String {
+        let others = ICloudSync.devices().filter { !$0.isThis }
+        let after = L("iCloud 里的副本也删除。\n候选会回到默认顺序。", " The copy in iCloud is deleted too. Candidates go back to the default order.",
+                      "iCloud のコピーも削除します。\n候補は初期の順番に戻ります。")
+        guard let first = others.first else {
+            return L("开着 iCloud 同步，学到的词会在所有同步的设备上一起清掉，", "With iCloud Sync on, learned words are cleared on all syncing devices.",
+                     "iCloud 同期がオンなので、学習した語は同期しているすべてのデバイスで消去されます。") + after
+        }
+        if others.count == 1 {
+            return L("开着 iCloud 同步，学到的词会在这台和 \(first.name) 上一起清掉，", "With iCloud Sync on, learned words are cleared on this device and \(first.name).",
+                     "iCloud 同期がオンなので、学習した語はこのデバイスと \(first.name) で消去されます。") + after
+        }
+        let count = others.count + 1
+        return L("开着 iCloud 同步，学到的词会在这台、\(first.name) 等 \(count) 台设备上一起清掉，",
+                 "With iCloud Sync on, learned words are cleared on this device, \(first.name) and the others (\(count) devices).",
+                 "iCloud 同期がオンなので、学習した語はこのデバイス、\(first.name) など \(count) 台のデバイスで消去されます。") + after
     }
 
     /// 「第 1 版 · 10月26日」。
@@ -131,8 +155,12 @@ struct PrivacyView: View {
         switch confirm {
         case .history: return L("清除 AI 历史？历史页的记录和键盘里正在用的这一轮都会删除。", "Clear AI history? Records on the History tab and the round in use on the keyboard will be deleted.",
                                 "AI の履歴を消去しますか？履歴タブの記録とキーボードで使用中の回が削除されます。")
-        case .learning: return L("清除拼音学习记录？候选会回到默认的顺序。", "Clear pinyin learning? Candidates go back to the default order.",
-                                 "ピンインの学習データを消去しますか？候補は初期の順番に戻ります。")
+        case .learning:
+            if ICloudSync.isEnabled {
+                return L("清除所有设备的拼音学习记录？", "Clear pinyin learning on all devices?", "すべてのデバイスのピンイン学習データを消去しますか？")
+            }
+            return L("清除拼音学习记录？候选会回到默认的顺序。", "Clear pinyin learning? Candidates go back to the default order.",
+                     "ピンインの学習データを消去しますか？候補は初期の順番に戻ります。")
         case .stats: return L("清除使用统计？首页的次数和图表会从零开始。", "Clear usage stats? The counts and charts on Home start over.",
                               "利用統計を消去しますか？ホームの回数とグラフはゼロからになります。")
         case .clipboard: return L("清除剪贴板记录？键盘「常用 › 剪贴板」里的记录会全部删除。", "Clear clipboard history? Everything under Phrases › Clipboard on the keyboard will be deleted.",
@@ -142,10 +170,13 @@ struct PrivacyView: View {
     }
 
     /// 红字整行按钮（CP4），清除后换成灰色「已清除」。
-    private func clearRow(_ title: String, target: ClearTarget) -> some View {
+    private func clearRow(_ title: String, target: ClearTarget, detail: String? = nil) -> some View {
         Button { confirm = target } label: {
             HStack {
-                Text(title).foregroundStyle(cleared.contains(target) ? Color.secondary : Color(hex: 0xFF3B30))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).foregroundStyle(cleared.contains(target) ? Color.secondary : Color(hex: 0xFF3B30))
+                    if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                }
                 Spacer()
                 if cleared.contains(target) {
                     Label(L("已清除", "Cleared", "消去しました"), systemImage: "checkmark")

@@ -194,6 +194,17 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertNil(alone.apply)
     }
 
+    /// 打开同步时选了「用这台的」：本机的记成比别的设备都晚，别的设备下次同步换成这台的。
+    func testResolvePrefersLocal() {
+        let peer = Entry(value: "peer", time: t3)
+        let result = SyncMerge.resolve(local: "mine", previous: nil, peers: ["B": peer], myID: "A", now: t2, prefersLocal: true)
+        XCTAssertEqual(result.record?.value, "mine")
+        XCTAssertGreaterThan(result.record?.time ?? t0, t3)
+        XCTAssertNil(result.apply)
+        let onB = SyncMerge.resolve(local: "peer", previous: peer, peers: ["A": result.record!], myID: "B", now: t3)
+        XCTAssertEqual(onB.apply, "mine")
+    }
+
     func testResolveLocalChangeWins() {
         let result = SyncMerge.resolve(local: "new", previous: Entry(value: "old", time: t1),
                                        peers: ["B": Entry(value: "peer", time: t1)], myID: "A", now: t2)
@@ -359,7 +370,7 @@ final class SyncMergeTests: XCTestCase {
         let api = SavedAPI(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, name: "A",
                            baseURL: "https://a.example/v1", model: "m", savedAt: t1)
         return SyncMerge.DevicePayload(
-            format: SyncMerge.DevicePayload.currentFormat, deviceName: "iPhone", appVersion: "0.97_1", updatedAt: t2,
+            format: SyncMerge.DevicePayload.currentFormat, deviceName: "我的 iPhone", deviceModel: "iPhone", appVersion: "0.97_1", updatedAt: t2,
             generation: 2,
             words: ["飞地": SyncMerge.Entry(value: SyncMerge.Word(CommonWord(text: "飞地", pinyin: "fei di")), time: t1)],
             phrases: ["地址": SyncMerge.Entry(value: nil, time: t2)],
@@ -375,6 +386,7 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(SyncMerge.DevicePayload.self, from: data), payload)
 
         var bare = payload
+        bare.deviceModel = nil
         bare.styles = nil
         bare.endpoint = nil
         bare.apis = nil

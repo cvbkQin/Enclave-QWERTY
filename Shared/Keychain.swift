@@ -133,6 +133,15 @@ enum Keychain {
         return fingerprint(read(account, synced: false))
     }
 
+    /// 设置页「N 个 Key 通过 iCloud 钥匙串同步」：本机在用的 Key 里，有几个是同步版。
+    static func syncedCount(accounts: [String]) -> Int {
+        guard syncsToICloud else { return 0 }
+        return accounts.filter { account in
+            guard let value = read(account, synced: true) else { return false }
+            return fingerprint(value) == binding(account)
+        }.count
+    }
+
     /// 打开同步：本机有、同步版还没有的 Key 写一份同步版，读回来对得上再删本机版。
     /// 同步版已经有了（别的设备先开的）：本机版留着不动、本机继续用它，等同步把那台的接口配置写进本机时改用同步版。
     /// 有一个没写成就返回 false，开关不打开。

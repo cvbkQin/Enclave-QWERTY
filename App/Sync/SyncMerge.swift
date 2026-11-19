@@ -112,13 +112,21 @@ enum SyncMerge {
     /// - record：记进本机同步状态、上传的那条；nil 是这次不参加。
     /// - apply：要写进本机的值；nil 是本机不用改。
     /// 按设备编号排好序取最新的（时间一样取编号小的，每台设备算出来一样）。第一次同步（previous 为 nil）时别的设备已经有了，
-    /// 本机的不参加，直接用已经在用的那份（新设备上的默认值不盖过别的设备设好的，1.8）。
+    /// 本机的不参加，直接用已经在用的那份（新设备上的默认值不盖过别的设备设好的，1.8）；
+    /// prefersLocal（打开同步时选了「用这台的」）时反过来，本机的记成比别的设备都晚，所有设备换成这台的。
     /// accept 不通过（接口配的 Key 还没同步过来）时本机先不改、记本机原来的，下次同步再试。
     static func resolve<V: Codable & Equatable>(local: V, previous: Entry<V>?, peers: [String: Entry<V>], myID: String, now: Date,
+                                                prefersLocal: Bool = false,
                                                 accept: (V) -> Bool = { _ in true }) -> (record: Entry<V>?, apply: V?) {
-        let joining = previous == nil && peers.values.contains { $0.value != nil }
+        let joining = previous == nil && !prefersLocal && peers.values.contains { $0.value != nil }
         var all = peers
-        all[myID] = joining ? nil : observeValue(local, previous: previous, now: now)
+        if joining {
+            all[myID] = nil
+        } else if previous == nil && prefersLocal {
+            all[myID] = Entry(value: local, time: stamp(now: now, after: peers.values.map(\.time).max()))
+        } else {
+            all[myID] = observeValue(local, previous: previous, now: now)
+        }
         let ordered = all.sorted { $0.key < $1.key }.map { $0.value }
         guard let winner = latest(ordered), let value = winner.value else { return (all[myID], nil) }
         if value == local { return (winner, nil) }
@@ -328,9 +336,11 @@ extension SyncMerge {
         static let currentFormat = 2
 
         var format: Int
+        /// 设备页上的名字（用户可以改）和型号（UIDevice.model：iPhone、iPad），型号决定图标。旧记录没有型号。
         var deviceName: String
+        var deviceModel: String?
         var appVersion: String
-        /// 上传时间，只给人看；内容没变时不重传（04 审查 #75 第 3 条），所以它也不变。
+        /// 上传时间：别的设备的设备页当「上次同步」。内容没变时不重传（04 审查 #75 第 3 条），但至少一天传一次。
         var updatedAt: Date
         /// 清除学到的词的代数（1.5）。
         var generation: Int
