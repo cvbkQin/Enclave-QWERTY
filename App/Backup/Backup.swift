@@ -518,10 +518,15 @@ enum LearnedWords {
         return busyLocked
     }
 
+    /// 也要拿引擎锁：App 自己部署时 librime 开着正式库、拿着 LOCK，同一进程里的 fcntl 锁不算冲突，这时查会判成「不忙」，
+    /// 而且查完一 close 就把部署拿着的锁放掉，键盘能趁机打开同一份库。加锁顺序和别处一样：先 lock，再引擎锁。
+    /// 别在 withAppEngine 里面调（NSLock 不可重入）。
     private static var busyLocked: Bool {
         guard let paths else { return false }
         let lockFile = userdb(paths).appendingPathComponent("LOCK")
-        return FileManager.default.fileExists(atPath: lockFile.path) && enclave_userdb_locked(lockFile.path)
+        return RimeStore.withAppEngine {
+            FileManager.default.fileExists(atPath: lockFile.path) && enclave_userdb_locked(lockFile.path)
+        }
     }
 
     // MARK: 副本做法（bug #29）
