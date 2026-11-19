@@ -12,6 +12,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewDidLoad()
         loadStart = CACurrentMediaTime()
         loadBusy = MainWake.busySinceWake(now: loadStart)
+        wakeTracked = MainWake.isInstalled
         MainWake.install()
         MainStalls.start()
         if Self.popupsInProcess == 0, let start = TypingStats.processStartDate {
@@ -73,6 +74,8 @@ final class KeyboardViewController: UIInputViewController {
     private let createdAt = CACurrentMediaTime()
     /// viewDidLoad 开始时，主线程从上次醒来起醒着干活的合计（毫秒）：和「叫醒到开始建键盘」那一行同一段。
     private var loadBusy: Double = 0
+    /// viewDidLoad 之前主线程醒睡就已经在量了（冷启动第一次是在 viewDidLoad 里才装上观察器，那一圈量不全）。
+    private var wakeTracked = false
     private var loadStart: CFTimeInterval = 0
     private var loadSinceProcess: Double?
     private var loadMs: Double = 0
@@ -338,6 +341,9 @@ final class KeyboardViewController: UIInputViewController {
     private func startPopupRecord(willStart: CFTimeInterval, hostDone: CFTimeInterval, reload: CFTimeInterval, layoutStart: CFTimeInterval) {
         guard PopupLog.enabled, !popupRecorded, popupRecord == nil else { return }
         let now = CACurrentMediaTime()
+        // 这一圈主线程睡下时，Core Animation 已经把第一帧提交了：记下来，看系统那边空底板等的是不是我们。
+        let load = loadStart
+        MainWake.onNextSleep = { PopupLog.firstFrame = (load, CACurrentMediaTime()) }
         Self.popupsInProcess += 1
         let hide = PopupLog.lastHide
         // 这个控制器建出来之前 5 秒内主线程醒过（闲置 / 挂起后），才算这次弹出叫醒的。
@@ -369,12 +375,15 @@ final class KeyboardViewController: UIInputViewController {
         finished.loadToAppear = (CACurrentMediaTime() - loadStart) * 1000
         // 控制器建出来以后主线程睡过半秒以上：主线程每 50 毫秒就被 MainStalls 叫醒一次，睡这么久只能是进程被系统挂起了。
         if let wake = MainWake.lastWake, wake > createdAt { finished.paused = MainWake.lastIdle * 1000 }
+        // 建键盘到显示出来这段主线程干了多少活：没被挂起、建键盘之前就在量，才算得准。
+        if wakeTracked, finished.paused == nil { finished.appearBusy = max(0, MainWake.busySinceWake() - loadBusy) }
         finished.didClipboard = clipboard * 1000
         finished.didCommonWords = commonWords * 1000
         finished.memoryMB = TypingStats.footprintMB()
         let loadStart = loadStart, createdAt = createdAt, partial = finished, hideMono = PopupLog.lastHideMono
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak model] in
             var record = partial
+            if let frame = PopupLog.firstFrame, frame.load == loadStart { record.firstFrame = (frame.at - loadStart) * 1000 }
             if let ready = model?.engineReadyAt, ready >= loadStart { record.engineReady = (ready - loadStart) * 1000 }
             // 这次弹出以后的每一次准备：排队取第一次的，准备时间加起来，做了什么按先后列出。
             let prepares = QueuedEngine.shared.recentPrepares.filter { $0.queued >= loadStart }

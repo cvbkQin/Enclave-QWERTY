@@ -37,8 +37,13 @@ struct PopupRecord: Codable, Identifiable {
     var willHost: Double
     var willReload: Double
     var willLayout: Double
-    /// 从 viewDidLoad 开始到 viewDidAppear（含系统的弹出动画，约 250–350 毫秒）。
+    /// 从 viewDidLoad 开始到 viewDidAppear。热启动一般 50–70 毫秒，比弹出动画（约 330 毫秒）短：不含整段动画。
     var loadToAppear: Double
+    /// 从 viewDidLoad 开始到第一帧交给系统：弹出前准备做完以后主线程第一次睡下，这时这一圈的 Core Animation 提交已经做完。
+    /// 在这之前系统那边只有一块空的键盘底板。
+    var firstFrame: Double?
+    /// viewDidLoad 到 viewDidAppear 这段里键盘主线程醒着干活的合计（毫秒）；其余时间主线程睡着，在等系统。
+    var appearBusy: Double?
     /// viewDidAppear 里同步做的事：剪贴板 / 帮回检测、常用词。
     var didClipboard: Double
     var didCommonWords: Double
@@ -104,6 +109,12 @@ struct PopupRecord: Codable, Identifiable {
         var appear = "建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中建视图 \(Self.ms(load))、弹出前准备 \(Self.ms(willAppear))：读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）"
         if let paused { appear += "，途中键盘进程被系统挂起 \(String(format: "%.1f", paused / 1000)) 秒" }
         lines.append(appear)
+        var frame: [String] = []
+        if let firstFrame { frame.append("建键盘后第 \(Self.ms(firstFrame)) 毫秒把第一帧交给系统") }
+        if let appearBusy {
+            frame.append("建键盘到显示出来这段，键盘主线程干活 \(Self.ms(appearBusy)) 毫秒，其余 \(Self.ms(max(0, loadToAppear - appearBusy))) 毫秒在等系统")
+        }
+        if !frame.isEmpty { lines.append(frame.joined(separator: "；")) }
         var engine = "显示后：剪贴板和帮回检测 \(Self.ms(didClipboard)) 毫秒，拼音能打 \(Self.ms(engineReady)) 毫秒"
         if engineWait != nil || engineRun != nil {
             engine += "（引擎排队 \(Self.ms(engineWait))、准备 \(Self.ms(engineRun))\(engineWork.map { "：" + $0 } ?? "")）"
@@ -212,6 +223,8 @@ enum PopupLog {
     static var lastTeardownMs: Double?
     static var lastCleanupDone: CFTimeInterval?
     static var lastTeardownDone: CFTimeInterval?
+    /// 最近一次弹出把第一帧交给系统的时刻（load 是那次的 viewDidLoad 开始时刻，用来对上是哪一次）。
+    static var firstFrame: (load: CFTimeInterval, at: CFTimeInterval)?
 
     static func noteHide(cleanup: String) {
         guard enabled else { return }
@@ -253,6 +266,7 @@ enum PopupLog {
     「共 N 毫秒」只算键盘自己用的时间；在这之前系统处理弹出用的时间记不到。
     「主线程卡住」：键盘自己的主线程忙着别的、接不了系统的弹出请求；没卡住却还慢，时间就花在系统那边。
     「在等系统」：键盘进程醒了，主线程却睡着，等系统把弹出请求交过来；这段不是键盘慢。
+    「第一帧」：键盘第一次把画好的样子交给系统；在这之前系统那边只有一块空的键盘底板，交晚了就会看到底板先往上滑、键后冒出来。
     「中途被挂起」：键盘建到一半，系统把键盘进程挂起了（比如弹出时切走或锁屏），那次的耗时不算数，也不标慢。
     明显慢：热启动超过 \(Int(slowWarm)) 毫秒、冷启动超过 \(Int(slowCold)) 毫秒，标「慢」，和冷启动一起另外保留。
     """
@@ -283,6 +297,9 @@ enum MainWake {
     private static var awakeTotal: CFTimeInterval = 0
     private static var awake = false
     private static var installed = false
+    static var isInstalled: Bool { installed }
+    /// 主线程下一次睡下时调一次（这时这一圈的 Core Animation 提交已经做完）：拿来量第一帧什么时候交给系统。
+    static var onNextSleep: (() -> Void)?
 
     /// lastWake 到现在主线程醒着干活的合计（毫秒）。在主线程调。
     static func busySinceWake(now: CFTimeInterval = CACurrentMediaTime()) -> Double {
@@ -299,6 +316,10 @@ enum MainWake {
             if awake { awakeTotal += now - awakeSince }
             awake = false
             sleepStart = now
+            if let action = onNextSleep {
+                onNextSleep = nil
+                action()
+            }
         }
         CFRunLoopAddObserver(CFRunLoopGetMain(), sleeping, .commonModes)
         let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue, true, CFIndex.min) { _, _ in
