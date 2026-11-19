@@ -44,6 +44,10 @@ struct PopupRecord: Codable, Identifiable {
     var firstFrame: Double?
     /// viewDidLoad 到 viewDidAppear 这段里键盘主线程醒着干活的合计（毫秒）；其余时间主线程睡着，在等系统。
     var appearBusy: Double?
+    /// 「先显示截图」开着时：第几毫秒（从 viewDidLoad 算）真键盘换下了截图；没用上截图时写为什么；这次截图用了多久。
+    var snapshotSwap: Double?
+    var snapshotMiss: String?
+    var snapshotCapture: Double?
     /// viewDidAppear 里同步做的事：剪贴板 / 帮回检测、常用词。
     var didClipboard: Double
     var didCommonWords: Double
@@ -115,6 +119,11 @@ struct PopupRecord: Codable, Identifiable {
             frame.append("建键盘到显示出来这段，键盘主线程干活 \(Self.ms(appearBusy)) 毫秒，其余 \(Self.ms(max(0, loadToAppear - appearBusy))) 毫秒在等系统")
         }
         if !frame.isEmpty { lines.append(frame.joined(separator: "；")) }
+        var shot: [String] = []
+        if let snapshotSwap { shot.append("先显示上次的截图，第 \(Self.ms(snapshotSwap)) 毫秒换成真键盘") }
+        if let snapshotMiss { shot.append("截图开关开着，这次没用截图：\(snapshotMiss)") }
+        if let snapshotCapture { shot.append("这次截了一张图留给下次，用了 \(Self.ms(snapshotCapture)) 毫秒") }
+        if !shot.isEmpty { lines.append(shot.joined(separator: "；")) }
         var engine = "显示后：剪贴板和帮回检测 \(Self.ms(didClipboard)) 毫秒，拼音能打 \(Self.ms(engineReady)) 毫秒"
         if engineWait != nil || engineRun != nil {
             engine += "（引擎排队 \(Self.ms(engineWait))、准备 \(Self.ms(engineRun))\(engineWork.map { "：" + $0 } ?? "")）"
@@ -225,6 +234,16 @@ enum PopupLog {
     static var lastTeardownDone: CFTimeInterval?
     /// 最近一次弹出把第一帧交给系统的时刻（load 是那次的 viewDidLoad 开始时刻，用来对上是哪一次）。
     static var firstFrame: (load: CFTimeInterval, at: CFTimeInterval)?
+    /// 「先显示截图」：真键盘换下截图的时刻、截一张图用了多少毫秒（load 同上，对上是哪一次）。
+    static var snapshotSwap: (load: CFTimeInterval, at: CFTimeInterval)?
+    static var snapshotCapture: (load: CFTimeInterval, ms: Double)?
+
+    /// 测试工具 › 弹出记录里的开关「弹出时先显示截图」（试验，默认关）。只在记弹出记录的包里有用。
+    static let snapshotEnabledKey = "debug.popupSnapshot"
+    static var snapshotEnabled: Bool {
+        get { enabled && SharedStorage.defaults.bool(forKey: snapshotEnabledKey) }
+        set { SharedStorage.defaults.set(newValue, forKey: snapshotEnabledKey) }
+    }
 
     static func noteHide(cleanup: String) {
         guard enabled else { return }
@@ -267,6 +286,7 @@ enum PopupLog {
     「主线程卡住」：键盘自己的主线程忙着别的、接不了系统的弹出请求；没卡住却还慢，时间就花在系统那边。
     「在等系统」：键盘进程醒了，主线程却睡着，等系统把弹出请求交过来；这段不是键盘慢。
     「第一帧」：键盘第一次把画好的样子交给系统；在这之前系统那边只有一块空的键盘底板，交晚了就会看到底板先往上滑、键后冒出来。
+    「先显示截图」：测试工具里的试验开关。开着时，样子和上次一样就先放一张上次截的图，第一帧马上交出去，真键盘随后换上。
     「中途被挂起」：键盘建到一半，系统把键盘进程挂起了（比如弹出时切走或锁屏），那次的耗时不算数，也不标慢。
     明显慢：热启动超过 \(Int(slowWarm)) 毫秒、冷启动超过 \(Int(slowCold)) 毫秒，标「慢」，和冷启动一起另外保留。
     """
