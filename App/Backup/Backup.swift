@@ -386,7 +386,7 @@ enum BackupService {
                                      value: L("+\(max(0, delta)) 个", "+\(max(0, delta))", "+\(max(0, delta)) 語")))
             if LearnedWords.swapIssue != nil {
                 report.rows.append(.init(title: BackupItem.learnedWords.title,
-                                         value: L("已换上，但刚才几秒里键盘学到的词可能没带上", "Restored; words learned in the last few seconds may be missing", "復元済み。直前の数秒に学習した語は含まれない場合があります")))
+                                         value: L("已换上，但换的时候键盘刚好碰了词库。学到的词不对的话再恢复一次", "Restored, but the keyboard touched the dictionary during the swap. Restore again if learned words look wrong", "復元しましたが、入れ替え中にキーボードが辞書に触れました。学習語がおかしい場合はもう一度復元してください")))
             }
         }
 
@@ -510,7 +510,15 @@ enum LearnedWords {
     }
 
     /// 键盘正开着会话、拿着用户词库的锁。这时 librime 打不开库，同步还是返回成功，只是导出空的、合并不进去，所以先查。
+    /// 要拿 lock：查的时候会在本进程里开关正式库的 LOCK，fcntl 锁按进程算，一 close 就会把 install 拿着的锁放掉。
+    /// 会等正在做的导出、恢复做完，只在后台线程调。已经拿着 lock 的地方用 busyLocked。
     static var isBusy: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return busyLocked
+    }
+
+    private static var busyLocked: Bool {
         guard let paths else { return false }
         let lockFile = userdb(paths).appendingPathComponent("LOCK")
         return FileManager.default.fileExists(atPath: lockFile.path) && enclave_userdb_locked(lockFile.path)
@@ -548,14 +556,14 @@ enum LearnedWords {
 
     private struct Work {
         let user: URL
-        /// 复制时原库的指纹：写回前要还是这样。
-        let before: [String: String]
+        /// 复制时原库的指纹：写回前要还是这样。替换时为 nil，不比。
+        let before: [String: String]?
     }
 
     /// 建副本的用户目录：编译好的词库（build）和整句模型链接过去（只读），设备号复制一份，
     /// includeExisting 时把现在的词库复制进来（「替换」恢复时不带）。键盘开着、或者复制途中原库变了，返回 nil。
     private static func prepareWork(_ paths: RimeStore.Paths, includeExisting: Bool) -> Work? {
-        guard !isBusy, let root = workRoot else { return nil }
+        guard !busyLocked, let root = workRoot else { return nil }
         let fm = FileManager.default
         try? fm.removeItem(at: root)
         let user = root.appendingPathComponent("user", isDirectory: true)
@@ -575,12 +583,13 @@ enum LearnedWords {
             if includeExisting, fm.fileExists(atPath: source.path) {
                 try fm.copyItem(at: source, to: user.appendingPathComponent(source.lastPathComponent, isDirectory: true))
                 // 副本里别带着键盘的锁文件状态：LOCK 是空文件，留着无妨；复制途中键盘开了库，副本可能不完整，放弃。
-                guard fingerprint(source) == before, !isBusy else {
+                guard fingerprint(source) == before, !busyLocked else {
                     try? fm.removeItem(at: root)
                     return nil
                 }
             }
-            return Work(user: user, before: before)
+            // 替换时用不到原来的内容，换上前不用比原库变没变（键盘这期间开关过一次库也照样换）。
+            return Work(user: user, before: includeExisting ? before : nil)
         } catch {
             try? fm.removeItem(at: root)
             return nil
@@ -605,15 +614,16 @@ enum LearnedWords {
         }
     }
 
-    /// 最近一次换上新词库时，换下来的旧库在交换前后被改过（本该被锁挡住）。nil 是正常。
+    /// 最近一次换上新词库时，新旧两边在交换前后被别人动过。nil 是正常。
     private(set) static var swapIssue: String?
     static let swapIssueKey = "debug.learnedWordsSwapIssue"
 
-    /// 把副本里合并好的词库换成正式的。先复制到共享目录里的暂存名（同一个卷，才能原子交换），
-    /// 再拿住正式库的 LOCK（和 leveldb 同一把锁）、确认原库从复制以后没变过，然后 renamex_np 交换，换完放开。
-    /// 锁拿不到（键盘开着）就不换。拿着锁的这零点几毫秒里键盘要是正好弹出，它这一次打不开词库，
-    /// librime 会排一次修复（RepairDB），修的是刚换上、没人开着的完好词库，不丢词；不拿锁的话，键盘可能在检查和交换之间
-    /// 打开旧库，拿着旧目录往新目录写文件，把词库写坏。没有原库时直接改名（RENAME_EXCL，键盘刚好建了库就不换）。
+    /// 把副本里合并好的词库换成正式的。先复制到共享目录里的暂存名（同一个卷，才能原子交换），确认原库从复制以后没变过，
+    /// 再拿住正式库的 LOCK（和 leveldb 同一把锁）、renamex_np 交换、马上放开：锁只包住交换这一下。
+    /// 锁拿不到（键盘开着）就不换。不拿锁的话，键盘可能在检查和交换之间打开旧库，拿着旧目录往新目录写文件，把词库写坏。
+    /// 拿锁的这一瞬间键盘要是正好弹出，它这一次打不开词库，librime 会在键盘进程里排一次修复（RepairDB，不拿锁）；
+    /// 修复正常是在交换之后跑，修的是换上的完好词库，不丢词。交换后再查一次新旧两边，变了就记下来、在恢复结果里报出来。
+    /// 没有原库时直接改名（RENAME_EXCL，键盘刚好建了库就不换）。调用方要拿着 lock。
     private static func install(_ work: Work, _ paths: RimeStore.Paths) -> Bool {
         let fm = FileManager.default
         let merged = work.user.appendingPathComponent("\(dictName).userdb", isDirectory: true)
@@ -628,34 +638,36 @@ enum LearnedWords {
             try? fm.removeItem(at: staging)
             return false
         }
+        // 交换成功时暂存名下是换下来的旧库；失败时是没用上的副本。都删掉。
         defer { try? fm.removeItem(at: staging) }
-        let exists = fm.fileExists(atPath: target.path)
-        // 拿着锁的时候不能调 isBusy：它在本进程里开关同一个 LOCK 文件，一 close 锁就没了。
-        let lockFD = exists ? enclave_userdb_lock(target.appendingPathComponent("LOCK").path) : -1
-        if exists && lockFD < 0 { return false }
-        guard fingerprint(target) == work.before else {
-            enclave_userdb_unlock(lockFD)
-            return false
-        }
-        let swapped: Bool
-        if exists {
-            // RENAME_SWAP（0x2）：两个路径互换，正式词库这个名字一直有东西。
-            swapped = renamex_np(staging.path, target.path, 0x2) == 0
-        } else {
+        let incoming = fingerprint(staging)
+        // App 自己的 librime（部署时 user_dict_upgrade 会开正式库）也别在这时开关 LOCK：一 close 锁就没了。
+        let swapped: Bool = RimeStore.withAppEngine {
+            if let before = work.before, fingerprint(target) != before { return false }
+            if fm.fileExists(atPath: target.path) {
+                let lockFD = enclave_userdb_lock(target.appendingPathComponent("LOCK").path)
+                guard lockFD >= 0 else { return false }
+                // RENAME_SWAP（0x2）：两个路径互换，正式词库这个名字一直有东西。
+                let ok = renamex_np(staging.path, target.path, 0x2) == 0
+                enclave_userdb_unlock(lockFD)
+                return ok
+            }
             // RENAME_EXCL（0x4）：目标已经有了就失败，不覆盖。
-            swapped = renamex_np(staging.path, target.path, 0x4) == 0
+            return renamex_np(staging.path, target.path, 0x4) == 0
         }
-        enclave_userdb_unlock(lockFD)
-        // 交换后暂存名下是换下来的旧库：它从复制起应该一点没变。变了说明有人绕过锁写过（比如修复任务），
-        // 新库已经换上、是完好的，只是那段时间里学到的词没带上。记下来，恢复结果里报出来。
-        if swapped, exists, fingerprint(staging) != work.before {
-            let issue = "old userdb changed during swap"
+        guard swapped else { return false }
+        // 换下来的旧库从复制起应该没变：变了说明拿锁前那一下键盘开关过库，那几秒学到的词没带上。
+        // 换上的新库应该和暂存时一样：变了说明交换前后有人（比如键盘的修复任务，或者刚好弹出的键盘）动过它。
+        var issues: [String] = []
+        if let before = work.before, fingerprint(staging) != before { issues.append("old userdb changed before swap") }
+        if fingerprint(target) != incoming { issues.append("new userdb changed right after swap") }
+        if !issues.isEmpty {
+            let issue = issues.joined(separator: "; ")
             swapIssue = issue
             SharedStorage.defaults.set("\(Date()) \(issue)", forKey: swapIssueKey)
             NSLog("LearnedWords: %@", issue)
         }
-        // 交换成功时暂存名下是旧库；失败时是没用上的副本。defer 里都删掉。
-        return swapped
+        return true
     }
 
     /// 副本同步完以后，librime 导出的本机快照（sync/<installation_id>/enclave.userdb.txt）；放进去合并的 skip 文件夹不算。
