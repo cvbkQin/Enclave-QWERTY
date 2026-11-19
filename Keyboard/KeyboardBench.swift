@@ -18,6 +18,8 @@ extension KeyboardModel {
     private static var benchStarted = false
     private static var bench: BenchRun?
     private static var benchWatchdog: DispatchWorkItem?
+    /// 开始前不是全键盘：跑完切回这个布局。
+    private static var benchRestoreLayout: KeyboardLayout?
     private static let benchLog = Logger(subsystem: "app.enclave.keyboard", category: "Bench")
 
     static let benchSentences = [
@@ -27,14 +29,24 @@ extension KeyboardModel {
     ]
     private static let benchRounds = 3
 
-    /// 每个进程只跑一次；等拼音引擎准备好再开始（冷启动时 Rime 在后台加载），最多等 60 秒。
+    /// 每个进程只跑一次。键盘不是全键盘时先切过去，跑完（或出错）再切回原来的布局。
+    /// 等 Rime 真正启动完（engineReadyAt，不只是词库文件在）再开始，冷启动的加载时间不算进第一句；最多等 60 秒。
     func startBenchmark(waited: Int = 0) {
         guard !Self.benchStarted else { return }
-        guard pinyinReady, engine === QueuedEngine.shared, chineseMode, !showsNineKey, layer == .letters else {
-            if waited >= 120 { return benchFailed("engine not ready") }
+        if waited == 0, settings.keyboardLayout != .qwerty {
+            Self.benchRestoreLayout = settings.keyboardLayout
+            // 换布局会重新准备引擎：等这一次准备完。
+            engineReadyAt = nil
+            setLayout(.qwerty)
+        }
+        let ready = pinyinReady && engineReadyAt != nil && engine === QueuedEngine.shared
+        guard ready, chineseMode, !showsNineKey, layer == .letters else {
+            if waited >= 120 { return benchFailed(ready ? "not chinese qwerty letters" : "engine not ready") }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.startBenchmark(waited: waited + 1) }
             return
         }
+        // 句子是全拼：装了双拼方案时打出来的不是这些字，数字没法比，直接报错。
+        guard doublePinyin == nil else { return benchFailed("double pinyin deployed") }
         Self.benchStarted = true
         Self.bench = BenchRun(startMB: TypingStats.footprintMB() ?? -1)
         TypingStats.benchObserver = { [weak self] total, engine in self?.benchKeyShown(totalMs: total, engineMs: engine) }
@@ -50,10 +62,14 @@ extension KeyboardModel {
         if run.letter == 0 { run.sentenceStart = CACurrentMediaTime() }
         Self.bench = run
         if shift != .off { shift = .off }
-        // 3 秒还没等到这个键的结果：多半引擎卡住或键盘被收起了，报错收尾，不让脚本干等。
-        let watchdog = DispatchWorkItem { [weak self] in self?.benchFailed("key timeout") }
+        // 等不到这个键的结果：多半引擎卡住或键盘被收起了，报错收尾，不让脚本干等。
+        // 第一个键多给一些时间（引擎刚启动，预热可能还没做完）。
+        let watchdog = DispatchWorkItem { [weak self] in
+            if let self { self.benchFailed("key timeout") } else { Self.benchLog.notice("ENCLAVE_BENCH_RESULT {\"error\":\"keyboard released\"}") }
+        }
         Self.benchWatchdog = watchdog
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: watchdog)
+        let first = run.round == 0 && run.sentence == 0 && run.letter == 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + (first ? 15 : 3), execute: watchdog)
         keyEventTime = CACurrentMediaTime()
         perform(.letter(String(sentence[run.letter])))
     }
@@ -85,18 +101,27 @@ extension KeyboardModel {
         DispatchQueue.main.async { [weak self] in self?.benchNextKey() }
     }
 
+    /// 出错收尾：先写日志（引擎卡住时下面的 reset 会一直等，日志得先出去），再清拼音、切回原来的布局。
     private func benchFailed(_ reason: String) {
+        Self.benchLog.notice("ENCLAVE_BENCH_RESULT {\"error\":\"\(reason, privacy: .public)\"}")
         Self.benchStarted = true
         Self.bench = nil
         TypingStats.benchObserver = nil
         QueuedEngine.shared.reset()
         syncEngine()
-        Self.benchLog.notice("ENCLAVE_BENCH_RESULT {\"error\":\"\(reason, privacy: .public)\"}")
+        restoreBenchLayout()
+    }
+
+    private func restoreBenchLayout() {
+        guard let layout = Self.benchRestoreLayout else { return }
+        Self.benchRestoreLayout = nil
+        setLayout(layout)
     }
 
     private func finishBenchmark(_ run: BenchRun) {
         Self.bench = nil
         TypingStats.benchObserver = nil
+        defer { restoreBenchLayout() }
         let keys = run.keyMs.sorted(), engines = run.engineMs.sorted()
         let info = Bundle.main.infoDictionary ?? [:]
         let report: [String: Any] = [

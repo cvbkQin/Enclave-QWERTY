@@ -7,11 +7,12 @@ scripts/bench/run-bench.sh            # 编开发版、装到「iPhone SE 0911b�
 scripts/bench/run-bench.sh --no-build # 刚编过就不再编
 ```
 
-退出码 0：没有变慢；1：有一项超过门槛（先再跑一次排除偶然，还在就别装机，报给 01）；2：没有基线，什么都没比。
+退出码 0：没有变慢；1：有一项超过门槛（先再跑一次排除偶然，还在就别装机，报给 01）；2：没有基线或基线缺字段，什么都没比；64：参数写错。
 
 ## 跑的是什么
 
-App 带 `-keyboardDebug "qwerty,bench" -playground` 启动，打开「试一试」弹出键盘。键盘等拼音引擎加载好后，
+App 带 `-keyboardDebug bench -playground` 启动，打开「试一试」弹出键盘。键盘不是全键盘时先切过去（跑完、出错都切回原来的布局），
+等 Rime 真正启动完（不只是词库文件在）后，
 自己把 10 句常用拼音（和 memtest 同一组）一个字母一个字母地打 3 遍。每个键走和手指按键同一条路：
 `perform(.letter)` → `feedEngine` → 后台引擎 `inputLater` → `applyEngineResults`（上屏、纠错、候选菜单、刷新候选）
 → 下一轮主循环界面画完时 `TypingStats.record`，耗时取的就是 record 收到的那个数（App「拼音词库」页统计的也是它）。
@@ -49,12 +50,20 @@ TestFlight 和正式包里没有；没改按键本身的代码。
 
 ## 基线
 
-`bench/baseline.json` 存的是 0.97 第一轮开发分支在「iPhone SE 0911b」上跑的数（`--save-baseline` 存的，文件里有版本、构建号、日期）。
-正式版合进 main 后，04 确认数字没问题，可以用 `--save-baseline` 换成新版本的基线并提交。
+**现在还没有基线**（`bench/baseline.json` 没提交过；计时口径在 PR #78 换成了走真实按键路径，之前本地跑出的数也不能拿来比）。
+基准合进开发分支后，04 第一次装机前先跑：
+
+```bash
+scripts/bench/run-bench.sh --save-baseline
+```
+
+确认数字正常后提交 `bench/baseline.json`。之后每个正式版合进 main，04 觉得合适时再用 `--save-baseline` 换新基线并提交。
 
 ## 前提
 
 - 模拟器里已经添加飞地键盘（设置 › 通用 › 键盘 › 键盘 › 添加新键盘），并且上次用的是飞地键盘。
 - 模拟器菜单 I/O › Keyboard 里关掉「Connect Hardware Keyboard」，否则软键盘不弹。
-- 只编开发版（`INTERNAL_BUILD=NO PUBLIC_BUILD=NO`），产物在 `build/bench/`，不读 `Configs/Local.xcconfig`。
-- 跑完（包括中途出错、Ctrl-C）都会不带调试选项再启动一次 App，把 `bench` 选项清掉，模拟器上留下的是一个普通开发版。
+- 没部署双拼方案（句子是全拼；装了双拼时键盘报 `double pinyin deployed`，不出数）。
+- 只编开发版（`INTERNAL_BUILD=NO PUBLIC_BUILD=NO`，Key 不会编进去），产物在 `build/bench/`。
+  Bundle ID 跟着 Base.xcconfig：有 `Configs/Local.xcconfig` 时用里面的前缀，没有时是 `com.example`；脚本自己不读它。
+- 跑完（包括中途出错、Ctrl-C）都会不带调试选项再启动一次 App，把 `bench` 选项清掉；键盘布局由基准自己切回原来的。

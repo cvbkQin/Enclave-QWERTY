@@ -11,7 +11,9 @@
 #
 # 前提：模拟器里已经添加飞地键盘（设置 › 通用 › 键盘），并关掉「连接硬件键盘」（I/O › Keyboard），
 # 否则软键盘不弹，等 3 分钟后报「没拿到结果」。
-# 只编开发版（INTERNAL_BUILD、PUBLIC_BUILD 都是 NO），不读 Configs/Local.xcconfig。跑完（包括中途出错）都会把调试选项清掉。
+# 只编开发版（INTERNAL_BUILD、PUBLIC_BUILD 都是 NO，Key 不会编进去）。Bundle ID 跟着 Base.xcconfig：有 Configs/Local.xcconfig 时
+# 用里面的前缀（装到模拟器上的就是平时那个开发版），没有时是 com.example。脚本自己不读 Local.xcconfig。
+# 键盘不是全键盘时基准自己切过去、跑完切回；跑完（包括中途出错）都会把调试选项清掉。
 # 测的是 Debug 编译（bench 选项只在 Debug 里有，-Onone），绝对数比手机上的正式包大，只拿来和基线前后比。
 set -euo pipefail
 
@@ -29,7 +31,7 @@ while [[ $# -gt 0 ]]; do
     --no-build) BUILD=0; shift ;;
     --baseline) BASELINE="$2"; shift 2 ;;
     --save-baseline) SAVE_BASELINE=1; shift ;;
-    *) echo "不认识的参数：$1" >&2; exit 2 ;;
+    *) echo "不认识的参数：$1" >&2; exit 64 ;;
   esac
 done
 
@@ -90,7 +92,7 @@ for i in $(seq 1 "$RUNS"); do
     --predicate 'subsystem == "app.enclave.keyboard" AND category == "Bench"' > "$LOG" 2>&1 &
   STREAM=$!
   sleep 2
-  xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" -keyboardDebug "qwerty,bench" -playground >/dev/null
+  xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" -keyboardDebug bench -playground >/dev/null
   LINE=""
   for _ in $(seq 1 180); do
     LINE="$(grep -o 'ENCLAVE_BENCH_RESULT .*' "$LOG" | head -n 1 || true)"
