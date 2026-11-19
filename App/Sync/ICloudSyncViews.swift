@@ -435,6 +435,14 @@ struct ICloudSyncSections: View {
                 .font(.footnote).foregroundStyle(.secondary)
             } else {
                 if let note { noteBox(note) }
+                // 开发者版装机和 Debug：没能同步时把哪一步、错误原文显示出来（可以长按复制），正式包不显示。
+                if ICloudSyncDebug.isAllowed, !syncing, let status = monitor.status, status.result == .failed, let detail = status.detail {
+                    Text(detail)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 if model.paused {
                     Button(L("在这个账户继续同步", "Keep Syncing with This Account", "このアカウントで同期を続ける")) { model.resume() }
                         .buttonStyle(PrimaryButtonStyle())
