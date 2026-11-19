@@ -279,7 +279,6 @@ struct ConfigEditor: View {
             _baseURL = State(initialValue: existing.baseURL)
             _model = State(initialValue: existing.model)
             _apiKey = State(initialValue: existing.apiKey ?? "")
-            _keyPendingSince = State(initialValue: existing.keyPendingSince)
             _temperature = State(initialValue: existing.temperature ?? defaults.temperature)
             _maxTokens = State(initialValue: existing.maxTokens ?? template.maxTokens)
         } else {
@@ -382,7 +381,9 @@ struct ConfigEditor: View {
             Text(SyncedDeleteText.message)
         }
         .task {
-            guard keyPendingSince != nil, let existing else { return }
+            // 等同步的时间在这里读（读钥匙串），不放进 init：SwiftUI 会多次调 init（04 四审可选 10）。
+            guard let existing, Keychain.syncsToICloud, let since = existing.keyPendingSince else { return }
+            keyPendingSince = since
             keySource = await ICloudSync.apiSource(existing.id)
         }
     }

@@ -244,6 +244,8 @@ enum Keychain {
             copied.append(account)
         }
         SharedStorage.defaults.set(false, forKey: syncDefaultsKey)
+        // 开始等同步的时间一起清：重开 Key 同步后从头算，不会马上显示「过了 24 小时」（04 四审可选 6）。
+        SharedStorage.defaults.removeObject(forKey: pendingSinceKey)
         if removeFromICloud {
             for account in copied { delete(account, synced: true) }
         }

@@ -655,4 +655,29 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(SyncMerge.unpackSnapshot([], hash: ""), "")
         XCTAssertNil(SyncMerge.unpackSnapshot([], hash: "abc"))
     }
+
+    // MARK: 重新加入的标记（04 三审第 4 条、四审可选 9）
+
+    func testRejoinFlagStaysUntilFinished() {
+        let defaults = UserDefaults(suiteName: "RejoinFlagTests")!
+        defaults.removePersistentDomain(forName: "RejoinFlagTests")
+        XCTAssertNil(RejoinFlag.pending(in: defaults))
+        RejoinFlag.start(in: defaults)
+        let token = RejoinFlag.pending(in: defaults)
+        XCTAssertNotNil(token)
+        XCTAssertEqual(RejoinFlag.pending(in: defaults), token, "看一眼不删：这一轮没存下状态时下一轮还要重新加入")
+        RejoinFlag.finish(token!, in: defaults)
+        XCTAssertNil(RejoinFlag.pending(in: defaults))
+    }
+
+    func testRejoinFlagKeepsNewerEnable() {
+        let defaults = UserDefaults(suiteName: "RejoinFlagTests2")!
+        defaults.removePersistentDomain(forName: "RejoinFlagTests2")
+        RejoinFlag.start(in: defaults)
+        let first = RejoinFlag.pending(in: defaults)!
+        RejoinFlag.start(in: defaults)
+        RejoinFlag.finish(first, in: defaults)
+        XCTAssertNotNil(RejoinFlag.pending(in: defaults), "期间又打开了一次：新的标记留着，下一轮再做")
+        XCTAssertNotEqual(RejoinFlag.pending(in: defaults), first)
+    }
 }

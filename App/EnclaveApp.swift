@@ -447,8 +447,9 @@ final class AppStore: ObservableObject {
             }
         }
     }
-    /// 第几次点接口方案（等同步的那条同步完时，期间又点过别的就不用它）。
-    private var applyRequest = 0
+    /// 润色页、问答页各自第几次点接口方案（等同步的那条同步完时，这一页期间又点过别的就不用它）。
+    /// 分开记：改一条两页都在用的方案时连着换两页，不会把前一页的丢掉（04 四审可选 5）。
+    private var applyRequests: [Bool: Int] = [:]
     /// 从存着的地方重新读（reload）时为 true：只更新界面，不写回（04 复审 A1：开着 Key 同步时 Key 可能在等同步，
     /// 读到的是空，写回去会把 iCloud 钥匙串里的删掉，所有设备一起没了）。
     private var loading = false
@@ -545,14 +546,14 @@ final class AppStore: ObservableObject {
 
     /// 点预设：只换这一页的地址、模型和 Key（问答页顺便关掉「和改写用同一个接口」），然后状态卡重新测一次。
     func applySavedAPI(_ saved: SavedAPI, answer: Bool) {
-        applyRequest += 1
-        let request = applyRequest
+        let request = (applyRequests[answer] ?? 0) + 1
+        applyRequests[answer] = request
         // 开着 Key 同步、这条的 Key 在等同步（别的设备刚改过它）：读到的是空，照用会把这一页的 Key 清掉、删到所有设备上
         // （04 复审 A1）。先同步一次，新的 Key 和配置到了再用；还没到就不动。同步期间又点了别的就不用这条（04 三审可选 7）。
         if saved.keyPending {
             Task {
                 await ICloudSync.syncNow()
-                guard request == applyRequest,
+                guard request == applyRequests[answer],
                       let fresh = SavedAPIStore.all.first(where: { $0.id == saved.id }), !fresh.keyPending else { return }
                 applySavedAPI(fresh, answer: answer)
             }

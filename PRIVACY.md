@@ -3,7 +3,7 @@
 # 飞地输入法隐私政策
 
 生效日期：2026 年 11 月 19 日  
-版本：5
+版本：6
 
 ## 引言
 
@@ -149,7 +149,7 @@ ICP 备案号：皖ICP备2026038401号-1A
 # Enclave Privacy Policy
 
 Effective date: November 19, 2026  
-Version 5
+Version 6
 
 ## Introduction
 
@@ -269,7 +269,7 @@ We will respond within 15 business days.
 # Enclave プライバシーポリシー
 
 施行日：2026 年 11 月 19 日  
-バージョン：5
+バージョン：6
 
 ## はじめに
 

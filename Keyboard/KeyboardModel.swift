@@ -644,15 +644,25 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
+    /// 这一步要用哪一路的 Key（只用来看是不是还在等 iCloud 钥匙串，04 四审可选 1）。
+    /// either：识意让模型自己判断改写还是问答，两路都可能用到。
+    enum KeyUse { case polish, answer, either }
+
     /// 这一次要用的 Key 是不是还在等 iCloud 钥匙串（只在点 AI 时查；没开 Key 同步时只读一个开关）。
-    private static func keyPending(_ settings: EnclaveSettings, purpose: GatePurpose) -> Bool {
+    /// 问答没单独设接口时用的是润色的 Key。
+    private static func keyPending(_ settings: EnclaveSettings, uses: KeyUse) -> Bool {
         guard Keychain.syncsToICloud else { return false }
-        if purpose == .answer && settings.usesAnswerEndpoint { return Keychain.isPending("apiKey.answer") }
-        return Keychain.isPending("apiKey")
+        let polish = { Keychain.isPending("apiKey") }
+        let answer = { settings.usesAnswerEndpoint ? Keychain.isPending("apiKey.answer") : polish() }
+        switch uses {
+        case .polish: return polish()
+        case .answer: return answer()
+        case .either: return polish() || (settings.usesAnswerEndpoint && Keychain.isPending("apiKey.answer"))
+        }
     }
 
     /// 能不能现在发给模型；不能时弹出对应的提示卡，返回 false。
-    func passGate(purpose: GatePurpose = .polish, then action: @escaping () -> Void) -> Bool {
+    func passGate(purpose: GatePurpose = .polish, keys: KeyUse = .polish, then action: @escaping () -> Void) -> Bool {
         if !hasFullAccess && !debugUnblocked {
             gate = .fullAccess
             return false
@@ -665,7 +675,7 @@ final class KeyboardModel: ObservableObject {
             gate = .noKey
             return false
         }
-        if !debugUnblocked && Self.keyPending(settings, purpose: purpose) {
+        if !debugUnblocked && Self.keyPending(settings, uses: keys) {
             gate = .keyPending
             return false
         }

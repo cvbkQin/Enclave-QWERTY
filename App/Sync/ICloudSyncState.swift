@@ -78,3 +78,22 @@ struct ICloudSyncState: Codable {
         return state
     }
 }
+
+/// 重新打开同步的标记（04 复审 B9、三审第 4 条）：每次打开记一个新编号，同步引擎把重置后的状态存好了才删，
+/// 删的时候只删自己读到的那个。期间又点了一次打开（编号变了）就留着，下一轮再做一次。
+enum RejoinFlag {
+    static let key = "sync.rejoin"
+
+    static func start(in defaults: UserDefaults) {
+        defaults.set(UUID().uuidString, forKey: key)
+    }
+
+    static func pending(in defaults: UserDefaults) -> String? {
+        defaults.string(forKey: key)
+    }
+
+    static func finish(_ token: String, in defaults: UserDefaults) {
+        guard defaults.string(forKey: key) == token else { return }
+        defaults.removeObject(forKey: key)
+    }
+}

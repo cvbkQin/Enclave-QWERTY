@@ -58,7 +58,6 @@ enum ICloudSync {
     private static let pendingClearKey = "sync.pendingClear"
     private static let preferLocalKey = "sync.preferLocal"
     private static let preferLocalEndpointKey = "sync.preferLocalEndpoint"
-    private static let rejoinKey = "sync.rejoin"
     private static let deviceNameKey = "sync.deviceName"
 
     /// 现在同步不同步：开关开着、没有暂停。
@@ -80,7 +79,7 @@ enum ICloudSync {
     static func enable(preferLocal: Bool = false) {
         guard isAvailable else { return }
         // 每次打开记一个新编号：同步引擎存好重置后的状态才删，删的时候只删自己读到的那个（04 三审第 4 条）。
-        UserDefaults.standard.set(UUID().uuidString, forKey: rejoinKey)
+        RejoinFlag.start(in: .standard)
         prefersLocalOnJoin = preferLocal
         prefersLocalEndpoint = false
         // 关着时点过「清除学习记录」也不带进来：那时本机文件已经删了，重新加入不该让所有设备跟着清（04 复审 B2）。
@@ -111,14 +110,13 @@ enum ICloudSync {
 
     /// 同步引擎在一轮开始时看：enable 之后还没做过重新加入，返回这次打开的编号。
     static func pendingRejoin() -> String? {
-        UserDefaults.standard.string(forKey: rejoinKey)
+        RejoinFlag.pending(in: .standard)
     }
 
     /// 重置后的状态存好了才删标记（04 三审第 4 条：之前一开始就删，取 userRecordID 时没网抛出，重置没存下、标记也没了，
     /// 下一轮不当重新加入）。期间又点了一次打开（编号变了）就留着，下一轮再做一次。
     static func finishRejoin(_ token: String) {
-        guard UserDefaults.standard.string(forKey: rejoinKey) == token else { return }
-        UserDefaults.standard.removeObject(forKey: rejoinKey)
+        RejoinFlag.finish(token, in: .standard)
     }
 
     /// 「在这个账户继续同步」：本机的同步状态在暂停时已经清掉，下一次同步当这台第一次加入这个账户。
