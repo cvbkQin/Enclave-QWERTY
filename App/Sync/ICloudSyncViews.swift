@@ -120,11 +120,11 @@ final class ICloudSyncModel: ObservableObject {
     /// 选了「用这台的」，这台的 Key 和接口盖到所有设备。每次都真跑一轮（有一轮在跑就等它跑完再来一轮）：
     /// 这一轮 Key 同步还关着，会清掉上次的接口记录，刚关了 Key 同步马上又开时 ⑪b 的选择也算数（三审可选 6）。
     func keyJoin() async -> KeyJoin {
-        guard ICloudSync.isEnabled else { return .failed(SyncText.syncFailed(nil)) }
+        guard ICloudSync.isEnabled else { return .failed(SyncText.keysOnFailed(nil)) }
         keyProbing = true
         defer { keyProbing = false }
         let status = await ICloudSyncEngine.shared.run(again: true)
-        guard status.result == .ok || status.result == .keyboardBusy else { return .failed(SyncText.syncFailed(status.result)) }
+        guard status.result == .ok || status.result == .keyboardBusy else { return .failed(SyncText.keysOnFailed(status.result)) }
         if let owner = await ICloudSyncEngine.shared.endpointOwner() { return .owner(name: owner.name, date: owner.date) }
         return .empty
     }
@@ -171,23 +171,27 @@ enum SyncText {
     /// 「iPhone」「iPad」：弹窗里说「这台 iPhone」。
     @MainActor static var model: String { UIDevice.current.model }
 
-    /// 打开 Key 同步前那次同步没成（04 三审第 3 条）：「没能完成」弹窗里的说明，沿用卡片和设备页已有的说法。
-    @MainActor static func syncFailed(_ result: ICloudSyncStatus.Result?) -> String {
+    /// 打开 Key 同步前那次同步没成（04 三审第 3 条）：「没能打开 Key 同步」弹窗的正文，第一句写原因，第二句固定（02 说明「打开 Key 同步失败」）。
+    @MainActor static func keysOnFailed(_ result: ICloudSyncStatus.Result?) -> String {
+        let reason: String
         switch result {
         case .newerFormat:
-            return L("有设备装了更新版本的飞地，它的内容这次没合并；把这台也更新到最新版就好。",
-                     "A device has a newer version of Enclave, so its data wasn't merged. Update this device to the latest version.",
-                     "新しいバージョンの Enclave を使っているデバイスがあり、その内容は統合しませんでした。このデバイスも最新版に更新してください。")
+            reason = L("有设备装了更新版本的飞地，先把这台也更新到最新版再打开。",
+                       "A device has a newer version of Enclave. Update this device to the latest version first, then turn this on.",
+                       "新しいバージョンの Enclave を使っているデバイスがあります。このデバイスも最新版に更新してからオンにしてください。")
         case .quotaExceeded:
-            return L("iPhone 设置 › Apple 账户 › iCloud 里清出一些空间，或者升级 iCloud+。",
-                     "Free up some space in Settings › Apple Account › iCloud, or upgrade to iCloud+.",
-                     "設定 › Apple アカウント › iCloud で空き容量を増やすか、iCloud+ にアップグレードしてください。")
+            reason = L("iCloud 空间不够。去 iPhone 设置 › Apple 账户 › iCloud 清出一些空间，或者升级 iCloud+。",
+                       "Not enough iCloud storage. Free up some space in Settings › Apple Account › iCloud, or upgrade to iCloud+.",
+                       "iCloud の容量が足りません。設定 › Apple アカウント › iCloud で空き容量を増やすか、iCloud+ にアップグレードしてください。")
         case .noAccount:
-            return L("这台 \(model) 没有登录 iCloud", "This \(model) isn't signed in to iCloud", "この \(model) は iCloud にサインインしていません")
+            reason = L("这台 \(model) 没有登录 iCloud。", "This \(model) isn't signed in to iCloud.", "この \(model) は iCloud にサインインしていません。")
         default:
-            return L("网络不通或 iCloud 出错，联网后再试一次。", "No connection or an iCloud error. Try again when you're online.",
-                     "ネットワークまたは iCloud のエラーです。オンラインのときにもう一度お試しください。")
+            reason = L("网络不通，没能确认 iCloud 里有没有别的设备的接口方案。联网后再打开一次。",
+                       "No connection, so we couldn't check whether iCloud has API setups from your other devices. Try again when you're online.",
+                       "ネットワークにつながらず、iCloud にほかのデバイスの API の設定があるか確認できませんでした。オンラインのときにもう一度オンにしてください。")
         }
+        return reason + L("Key 同步还是关着，这台的 Key 不受影响。", " Key sync is still off, and this device's keys aren't affected.",
+                          "キーの同期はオフのままで、このデバイスのキーはそのままです。")
     }
 
     /// 状态行和设备页的时间：一分钟内「刚刚」，一天内「N 分钟前」「N 小时前」，再早写日期和时间。
@@ -238,6 +242,8 @@ struct ICloudSyncSections: View {
     @State private var keyJoin: JoinPrompt?
     @State private var confirmKeysOff = false
     @State private var failure: String?
+    /// 打开 Key 同步前那次同步没成（04 三审第 3 条）。
+    @State private var keysOnFailure: String?
 
     private struct JoinPrompt: Equatable {
         var name: String
@@ -308,6 +314,12 @@ struct ICloudSyncSections: View {
                     Button(L("好", "OK", "OK"), role: .cancel) {}
                 } message: {
                     Text(failure ?? "")
+                }
+                .alert(L("没能打开 Key 同步", "Couldn't Turn On Key Sync", "キーの同期をオンにできませんでした"),
+                       isPresented: Binding(get: { keysOnFailure != nil }, set: { if !$0 { keysOnFailure = nil } })) {
+                    Button(L("好", "OK", "OK"), role: .cancel) {}
+                } message: {
+                    Text(keysOnFailure ?? "")
                 }
         }
         if showsDetail {
@@ -597,7 +609,7 @@ struct ICloudSyncSections: View {
             switch await model.keyJoin() {
             case .owner(let name, let date): keyJoin = JoinPrompt(name: name, date: date)
             case .empty: confirmKeysOn = true
-            case .failed(let message): failure = message
+            case .failed(let message): keysOnFailure = message
             }
         }
     }
