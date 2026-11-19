@@ -39,6 +39,17 @@ struct LandscapeNineMiddle: View {
         }
     }
 
+    /// 识意框（横屏和卡片同一个位置）：左边模式列写「识意」，「切换」回到卡片。
+    private var askCard: some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        return HStack(spacing: 0) {
+            LandscapeModeColumn(model: model, ask: true)
+            AskField(model: model)
+        }
+        .background(shape.fill(KeyStyle.charKey))
+        .overlay(shape.strokeBorder(Brand.askActiveLine, lineWidth: 1))
+    }
+
     /// 下面三行那么高的一块（108）。
     @ViewBuilder
     private var lower: some View {
@@ -50,18 +61,61 @@ struct LandscapeNineMiddle: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         } else if model.aiExpanded {
-            // ④ 回答卡：左边替换键 52 宽；自由编辑时卡片占满。
+            // ④ 回答卡：左边替换键 52 宽；卡片 108 高、不带下半格的识意框，放不下在卡里滑；自由编辑时卡片占满。
+            // 识意框和卡片在同一个位置：点卡里左边模式列的「切换」换过去，在识意框里打字时一直显示识意框。
             HStack(spacing: KeyboardMetrics.resultKeyGap) {
                 if model.target != .card {
                     ResultKey(model: model)
                         .frame(width: 52)
                 }
-                ResultCard(model: model)
+                if model.target == .instruction {
+                    askCard
+                } else {
+                    ResultCard(model: model, compact: true)
+                }
             }
         } else {
             // ① 平时放联想，点一个上屏；③ 刚弹出、还没打字时没有联想，面板空着。
             LandscapeWordPanel(model: model, words: model.showsPredictions ? model.displayWords(model.predictions) : [], composing: false)
         }
+    }
+}
+
+/// 横屏结果卡最左边 34 宽的模式列（LN1 ④）：上面写现在是什么（AI 改写 / AI 回答 / 识意），下面「⇄ 切换」在卡片和识意框之间换。
+struct LandscapeModeColumn: View {
+    @ObservedObject var model: KeyboardModel
+    /// 现在显示的是识意框。
+    let ask: Bool
+
+    var body: some View {
+        let answer = !ask && model.session?.currentIsAnswer == true
+        let tag = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        VStack(spacing: 3) {
+            Text(ask ? L("识意", "Ask", "たずねる") : answer ? L("AI回答", "Answer", "回答") : L("AI改写", "Rewrite", "書換え"))
+                .font(.system(size: 9.5, weight: .semibold))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(answer ? Brand.modeAnswerText : Brand.modeRewriteText)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(tag.fill(answer ? Brand.modeAnswerFill : Brand.modeRewriteFill))
+            Button {
+                if ask { model.focusHostAfterResult() } else { model.focusAsk() }
+            } label: {
+                VStack(spacing: 1) {
+                    Image(systemName: "arrow.left.arrow.right").font(.system(size: 10, weight: .semibold))
+                    Text(L("切换", "Switch", "切替")).font(.system(size: 9.5))
+                }
+                .foregroundStyle(Brand.purpleText)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(tag.fill(Brand.askInactiveFill))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(KeyPressStyle())
+            .accessibilityLabel(ask ? L("回到结果", "Back to result", "結果に戻る") : L("换成识意框", "Switch to Ask", "たずねる欄に切り替え"))
+        }
+        .padding(4)
+        .frame(width: 34)
     }
 }
 

@@ -820,6 +820,9 @@ struct ResultCard: View {
     @ObservedObject var model: KeyboardModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    /// 横屏九宫格（LN1 ④）：卡片放在按键中间那块，不带下半格的识意框，左边一条 34 宽的模式列（LandscapeModeColumn），
+    /// 点里面的「切换」换成识意框。
+    var compact = false
     /// 文字区宽度，点文字时换算成第几个字。
     @State private var textWidth: CGFloat = 200
 
@@ -847,9 +850,16 @@ struct ResultCard: View {
     var body: some View {
         let look = look
         VStack(spacing: 0) {
-            content(look)
+            if compact, model.target != .card {
+                HStack(spacing: 0) {
+                    LandscapeModeColumn(model: model, ask: false)
+                    content(look)
+                }
+            } else {
+                content(look)
+            }
             // 下半格是识意框（MG3）；自由编辑时整块变成编辑框。
-            if model.target != .card {
+            if model.target != .card, !compact {
                 // 激活（打字进识意框）：顶上 1pt 紫线；未激活：0.5pt 细线，下半格浅灰底（FC1–FC4）。
                 let active = askActive
                 Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair)
@@ -861,7 +871,7 @@ struct ResultCard: View {
             // 修改中：外面一圈 4pt 淡紫光。
             if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
             shape.fill(KeyStyle.charKey)
-            if model.target != .card, !askActive {
+            if model.target != .card, !askActive, !compact {
                 Brand.askInactiveFill
                     .frame(height: KeyboardMetrics.askBoxHeight)
                     .frame(maxHeight: .infinity, alignment: .bottom)
