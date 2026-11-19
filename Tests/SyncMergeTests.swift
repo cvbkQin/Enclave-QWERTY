@@ -336,6 +336,103 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(other.fuzzyPinyin, fuzzy, "模糊音不跟着同步")
     }
 
+    /// 帮回「自动判断」跟着风格同步；没有这个开关的版本传上来的记录里没有这一项：解得开，写回时不改本机的值。
+    func testStyleProfileHelpAuto() throws {
+        var settings = EnclaveSettings()
+        settings.helpAuto = false
+        let profile = SyncMerge.StyleProfile(settings: settings)
+        var other = EnclaveSettings()
+        profile.apply(to: &other)
+        XCTAssertFalse(other.helpAuto)
+
+        // 旧格式：去掉 helpAuto 这一项。
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(SyncMerge.StyleProfile(settings: EnclaveSettings()))) as? [String: Any])
+        object["helpAuto"] = nil
+        let legacy = try JSONDecoder().decode(SyncMerge.StyleProfile.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertNil(legacy.helpAuto)
+        var local = EnclaveSettings()
+        local.helpAuto = false
+        legacy.apply(to: &local)
+        XCTAssertFalse(local.helpAuto, "旧记录不改本机的值")
+    }
+
+    /// 合并前补 helpAuto：别的设备的 nil 填成本机的值，本机同步状态里旧的 nil 当开，有值的不动。
+    func testFillingHelpAuto() {
+        var off = EnclaveSettings()
+        off.helpAuto = false
+        let local = SyncMerge.StyleProfile(settings: off)
+        var legacy = local
+        legacy.helpAuto = nil
+        var on = local
+        on.helpAuto = true
+        let t = Date(timeIntervalSince1970: 1_700_000_000)
+        let filled = SyncMerge.fillingHelpAuto(local: local, previous: SyncMerge.Entry(value: legacy, time: t),
+                                               peers: ["old": SyncMerge.Entry(value: legacy, time: t),
+                                                       "new": SyncMerge.Entry(value: on, time: t),
+                                                       "gone": SyncMerge.Entry(value: nil, time: t)])
+        XCTAssertEqual(filled.previous?.value?.helpAuto, true, "升级前存的当开")
+        XCTAssertEqual(filled.previous?.time, t)
+        XCTAssertEqual(filled.peers["old"]?.value?.helpAuto, false, "没有开关的设备不改这台")
+        XCTAssertEqual(filled.peers["old"]?.time, t, "时间不动")
+        XCTAssertEqual(filled.peers["new"]?.value?.helpAuto, true, "有值的照用")
+        XCTAssertNil(filled.peers["gone"]?.value)
+        XCTAssertNil(SyncMerge.fillingHelpAuto(local: local, previous: nil, peers: [:]).previous)
+    }
+
+    /// 跑一轮风格合并（和 ICloudSync 里一样：先补 helpAuto 再 resolve）。
+    private func resolveStyles(local: SyncMerge.StyleProfile, previous: SyncMerge.Entry<SyncMerge.StyleProfile>?,
+                               peers: [String: SyncMerge.Entry<SyncMerge.StyleProfile>], myID: String, now: Date)
+        -> (record: SyncMerge.Entry<SyncMerge.StyleProfile>?, apply: SyncMerge.StyleProfile?) {
+        let filled = SyncMerge.fillingHelpAuto(local: local, previous: previous, peers: peers)
+        return SyncMerge.resolve(local: local, previous: filled.previous, peers: filled.peers, myID: myID, now: now)
+    }
+
+    /// 04 审查 #80 第 1 条：这台关了自动判断，另一台是没有这个开关的版本，把这台的记录存回去（丢了 helpAuto、时间不变），
+    /// 编号又排在前面。这台每一轮都不算本机改过，不按现在的时间重传。
+    func testOldDeviceEchoIsNotALocalChange() {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        var settings = EnclaveSettings()
+        settings.helpAuto = false
+        settings.searchTendency = 1
+        let local = SyncMerge.StyleProfile(settings: settings)
+        var echo = local
+        echo.helpAuto = nil
+        let peers = ["a-old": SyncMerge.Entry(value: echo, time: t0)]
+        var previous: SyncMerge.Entry<SyncMerge.StyleProfile>? = SyncMerge.Entry(value: local, time: t0)
+        for round in 1...5 {
+            let resolved = resolveStyles(local: local, previous: previous, peers: peers, myID: "b-new",
+                                         now: t0.addingTimeInterval(Double(round) * 60))
+            XCTAssertNil(resolved.apply, "第 \(round) 轮：本机不用改")
+            XCTAssertEqual(resolved.record?.time, t0, "第 \(round) 轮：不按现在的时间重记、重传")
+            XCTAssertEqual(resolved.record?.value?.helpAuto, false)
+            previous = resolved.record
+        }
+    }
+
+    /// 04 审查 #80 第 1 条：没有这个开关的那台连着改两次风格，两次都到这台，这台关着的自动判断不变。
+    func testOldDeviceEditsBothArrive() {
+        let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        var settings = EnclaveSettings()
+        settings.helpAuto = false
+        settings.searchTendency = 0
+        var local = SyncMerge.StyleProfile(settings: settings)
+        var previous: SyncMerge.Entry<SyncMerge.StyleProfile>? = SyncMerge.Entry(value: local, time: t0)
+        for (index, tendency) in [1, 2].enumerated() {
+            var edit = local
+            edit.searchTendency = tendency
+            edit.helpAuto = nil
+            let time = t0.addingTimeInterval(Double(index + 1) * 100)
+            let resolved = resolveStyles(local: local, previous: previous, peers: ["b-old": SyncMerge.Entry(value: edit, time: time)],
+                                         myID: "a-new", now: time.addingTimeInterval(10))
+            XCTAssertEqual(resolved.apply?.searchTendency, tendency, "第 \(index + 1) 次修改到了")
+            XCTAssertEqual(resolved.record?.time, time, "用那台的时间，不是这台重记的")
+            resolved.apply?.apply(to: &settings)
+            XCTAssertFalse(settings.helpAuto, "那台没有这个开关，不改这台的")
+            local = SyncMerge.StyleProfile(settings: settings)
+            previous = resolved.record
+        }
+    }
+
     /// 04 三审第 1 条：那台没单独设问答接口时，它留着没用的问答地址不传过来，这台的问答地址（配的是这台的问答 Key）不动。
     func testEndpointProfileLeavesUnusedAnswerEndpoint() {
         var peer = EnclaveSettings()

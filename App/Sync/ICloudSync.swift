@@ -579,8 +579,10 @@ actor ICloudSyncEngine {
         var stylesRecord: SyncMerge.Entry<SyncMerge.StyleProfile>?
         var newStyles: SyncMerge.StyleProfile?
         if syncsAI {
-            let resolved = SyncMerge.resolve(local: local.styles, previous: state.styles,
-                                             peers: peers.compactMapValues { $0.styles }, myID: state.deviceID, now: now,
+            let styles = SyncMerge.fillingHelpAuto(local: local.styles, previous: state.styles,
+                                                   peers: peers.compactMapValues { $0.styles })
+            let resolved = SyncMerge.resolve(local: local.styles, previous: styles.previous,
+                                             peers: styles.peers, myID: state.deviceID, now: now,
                                              prefersLocal: prefersLocal)
             stylesRecord = resolved.record
             newStyles = resolved.apply

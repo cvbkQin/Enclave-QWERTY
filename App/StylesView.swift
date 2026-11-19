@@ -304,6 +304,10 @@ struct AIView: View {
                     if !locked, let missing {
                         missingModelTip(missing) { router.aiPath.append(AppRouter.AIPage.api(answer: ownAnswer)) }
                     }
+                    if !answer {
+                        Rectangle().fill(Color(.separator)).frame(height: 0.5)
+                        helpAutoRow
+                    }
                 }
                 // 抽屉：往上收进卡片头，先淡出、内容上移 16。
                 .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: -16)),
@@ -362,12 +366,43 @@ struct AIView: View {
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.tertiarySystemFill).opacity(0.6)))
     }
 
+    /// 润色卡最下面「帮回 · 自动判断」（HA1，11-19 定稿）：左边 26pt 浅灰绿小方块里彩色帮回 logo，标题 15pt 中粗，
+    /// 说明 12pt 灰字（开、关一样），右边小一号的开关。润色关掉时和配置块一起收进卡片头。
+    private var helpAutoRow: some View {
+        HStack(alignment: .center, spacing: 10) {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(HelpStyle.Key.fill)
+                .frame(width: 26, height: 26)
+                .overlay(HelpIcon(size: 17))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("帮回 · 自动判断", "Help Reply · Auto Detect", "返信アシスト・自動判断"))
+                    .font(.system(size: 15, weight: .semibold))
+                Text(L("刚复制一句话时，润色键变成帮回。关掉后从润色 ⌄ 最上面点帮回",
+                       "When you've just copied a message, the Polish key turns into Help Reply. When off, tap Help Reply at the top of the Polish ⌄ menu",
+                       "メッセージをコピーした直後は、整えるキーが返信アシストに変わります。オフにすると、整える ⌄ のいちばん上から返信アシストを使えます"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Toggle("", isOn: $store.settings.helpAuto)
+                .labelsHidden()
+                .tint(Color(hex: 0x34C759))
+                .scaleEffect(0.86)
+                .accessibilityLabel(L("帮回自动判断", "Help Reply auto detect", "返信アシストの自動判断"))
+        }
+    }
+
     /// 卡片头的状态行。
     private func cardStatus(answer: Bool, ownAnswer: Bool, configured: Bool, enabled: Bool) -> (text: String, color: Color, dot: Color?) {
         let gray = Color.secondary, green = DashColor.ok, orange = Color(hex: 0xEA580C)
         guard enabled else {
-            return (L("已关闭 · 键盘上不显示\(answer ? "问答键" : "润色键")", "Off · \(answer ? "Ask" : "Polish") key hidden on the keyboard",
-                      "オフ・キーボードに\(answer ? "質問" : "整える")キーを表示しません"), gray, nil)
+            // 润色关了帮回也一起没有（帮回开关方案第 7 节）。
+            return answer
+                ? (L("已关闭 · 键盘上不显示问答键", "Off · Ask key hidden on the keyboard", "オフ・キーボードに質問キーを表示しません"), gray, nil)
+                : (L("已关闭 · 键盘上不显示润色键和帮回", "Off · Polish key and Help Reply hidden on the keyboard",
+                     "オフ・キーボードに整えるキーと返信アシストを表示しません"), gray, nil)
         }
         if !configured {
             return (L("还没有配置", "Not set up", "未設定"), orange, orange)

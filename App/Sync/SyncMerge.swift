@@ -280,6 +280,9 @@ extension SyncMerge {
         var searchTendency: Int?
         var pinnedStyleIDs: [UUID]
         var helpPinned: Bool
+        /// 帮回「自动判断」（帮回开关方案第 5 节）：没有这个开关的版本传上来的记录里没有这一项，解出来是 nil，
+        /// 写回时不改本机的值。参加合并前先用 fillingHelpAuto 补上，见那里。
+        var helpAuto: Bool?
 
         init(settings: EnclaveSettings) {
             polishEnabled = settings.polishEnabled
@@ -291,6 +294,7 @@ extension SyncMerge {
             searchTendency = settings.searchTendency
             pinnedStyleIDs = settings.pinnedStyleIDs
             helpPinned = settings.helpPinned
+            helpAuto = settings.helpAuto
         }
 
         /// 写回设置：只改上面这些，别的不动。
@@ -304,7 +308,22 @@ extension SyncMerge {
             settings.searchTendency = searchTendency
             settings.pinnedStyleIDs = pinnedStyleIDs
             settings.helpPinned = helpPinned
+            if let helpAuto { settings.helpAuto = helpAuto }
         }
+    }
+
+    /// 风格参加合并（resolve）前补上 helpAuto（04 审查 #80 第 1 条）：
+    /// - 别的设备传来的 nil 填成本机的值：那台没有这个开关，不该改这台的；不填的话，采用它那份以后记下的是 nil，
+    ///   下一轮和本机的值对不上，会被当成本机改过、按现在的时间重传，盖掉那台后来改的风格。
+    /// - 本机同步状态里旧的 nil（升级前存的）当开：那些版本就是开着，升级后不算本机改过；升级后关掉了照常算改过。
+    static func fillingHelpAuto(local: StyleProfile, previous: Entry<StyleProfile>?, peers: [String: Entry<StyleProfile>])
+        -> (previous: Entry<StyleProfile>?, peers: [String: Entry<StyleProfile>]) {
+        func filled(_ entry: Entry<StyleProfile>, with value: Bool?) -> Entry<StyleProfile> {
+            guard var profile = entry.value, profile.helpAuto == nil else { return entry }
+            profile.helpAuto = value
+            return Entry(value: profile, time: entry.time)
+        }
+        return (previous.map { filled($0, with: true) }, peers.mapValues { filled($0, with: local.helpAuto) })
     }
 
     /// 润色、问答正在用的接口（地址、模型、参数，不含 Key）。只在两台设备都开着「Key 也同步」时同步：
