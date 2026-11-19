@@ -61,7 +61,11 @@ scripts/bench/run-bench.sh --save-baseline
 
 ## 前提
 
-- 模拟器里已经添加飞地键盘（设置 › 通用 › 键盘 › 键盘 › 添加新键盘），并且上次用的是飞地键盘。
+- 模拟器里已经添加**这次装的这个 Bundle ID 的**飞地键盘（设置 › 通用 › 键盘 › 键盘 › 添加新键盘），并且它是当前键盘（上次切到的就是它）。
+  模拟器上可能有好几个都叫「飞地输入法」的键盘（不同前缀），弹出来的不是这次装的那个时基准不会启动，脚本报「没拿到结果」。
+  最省事：在平时编开发版的那个目录里跑（有同一份 Local.xcconfig，装上去覆盖平时那个开发版，键盘早就加好了）；
+  在没有 Local.xcconfig 的临时 worktree 里跑会装成 `com.example.enclave`，要先给它加键盘并切过去。
+- 编译要有完整的 `Vendor/`（`scripts/fetch-rime.sh` 下载的 Frameworks、RimeData、KeyLM 等），只拷 KeyLM、RimeData 不够。
 - 模拟器菜单 I/O › Keyboard 里关掉「Connect Hardware Keyboard」，否则软键盘不弹。
 - 没部署双拼方案（句子是全拼；装了双拼时键盘报 `double pinyin deployed`，不出数）。
 - 只编开发版（`INTERNAL_BUILD=NO PUBLIC_BUILD=NO`，Key 不会编进去），产物在 `build/bench/`。
