@@ -11,7 +11,10 @@
 #
 # 前提：模拟器里已经添加飞地键盘（设置 › 通用 › 键盘），并关掉「连接硬件键盘」（I/O › Keyboard），
 # 否则软键盘不弹，等 3 分钟后报「没拿到结果」。
-# 只编开发版（INTERNAL_BUILD、PUBLIC_BUILD 都是 NO），不读 Configs/Local.xcconfig。跑完照常启动一次 App，把调试选项清掉。
+# 只编开发版（INTERNAL_BUILD、PUBLIC_BUILD 都是 NO，Key 不会编进去）。Bundle ID 跟着 Base.xcconfig：有 Configs/Local.xcconfig 时
+# 用里面的前缀（装到模拟器上的就是平时那个开发版），没有时是 com.example。脚本自己不读 Local.xcconfig。
+# 键盘不是全键盘时基准自己切过去、跑完切回；跑完（包括中途出错）都会把调试选项清掉。
+# 测的是 Debug 编译（bench 选项只在 Debug 里有，-Onone），绝对数比手机上的正式包大，只拿来和基线前后比。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -28,7 +31,7 @@ while [[ $# -gt 0 ]]; do
     --no-build) BUILD=0; shift ;;
     --baseline) BASELINE="$2"; shift 2 ;;
     --save-baseline) SAVE_BASELINE=1; shift ;;
-    *) echo "不认识的参数：$1" >&2; exit 2 ;;
+    *) echo "不认识的参数：$1" >&2; exit 64 ;;
   esac
 done
 
@@ -61,6 +64,16 @@ GROUP="$(/usr/libexec/PlistBuddy -c 'Print :EnclaveAppGroup' "$APP/Info.plist" 2
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")"
 BUILDNO="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")"
 
+# 不管中途怎么结束（报错、Ctrl-C），都不带 -keyboardDebug 再启动一次 App（启动时会删掉上次写进去的调试选项），再关掉，
+# 模拟器上留下的是一个普通开发版。
+cleanup() {
+  [[ -n "${STREAM:-}" ]] && kill "$STREAM" 2>/dev/null || true
+  xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
+  sleep 2
+  xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
 OUT="$ROOT/bench/results"
 mkdir -p "$OUT"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -79,7 +92,7 @@ for i in $(seq 1 "$RUNS"); do
     --predicate 'subsystem == "app.enclave.keyboard" AND category == "Bench"' > "$LOG" 2>&1 &
   STREAM=$!
   sleep 2
-  xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" -keyboardDebug "qwerty,bench" -playground >/dev/null
+  xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" -keyboardDebug bench -playground >/dev/null
   LINE=""
   for _ in $(seq 1 180); do
     LINE="$(grep -o 'ENCLAVE_BENCH_RESULT .*' "$LOG" | head -n 1 || true)"
@@ -88,6 +101,7 @@ for i in $(seq 1 "$RUNS"); do
   done
   kill "$STREAM" 2>/dev/null || true
   wait "$STREAM" 2>/dev/null || true
+  STREAM=""
   rm -f "$LOG"
   FILE="$OUT/$VERSION-$BUILDNO-$STAMP-run$i.json"
   if [[ -n "$LINE" ]]; then
@@ -98,14 +112,12 @@ for i in $(seq 1 "$RUNS"); do
     echo "第 $i 次没拿到结果：键盘没弹出来？看看模拟器里是否添加了飞地键盘、是否关了硬件键盘。" >&2
     continue
   fi
-  python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); sys.exit("键盘报错："+r["error"]) if "error" in r else print("  按键中位数 %.2f ms，P95 %.2f ms，内存峰值 %.1f MB" % (r["keyMedianMs"], r["keyP95Ms"], r["memPeakMB"]))' "$FILE"
+  if ! python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); sys.exit("  键盘报错：" + r["error"]) if "error" in r else print("  按键中位数 %.2f ms，P95 %.2f ms，内存峰值 %.1f MB" % (r["keyMedianMs"], r["keyP95Ms"], r["memPeakMB"]))' "$FILE"; then
+    mv "$FILE" "$FILE.error"
+    continue
+  fi
   RUN_FILES+=("$FILE")
 done
-
-# 清掉调试选项：不带 -keyboardDebug 启动一次 App（启动时会删掉上次写进去的选项），再关掉。
-xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" >/dev/null
-sleep 2
-xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
 
 [[ ${#RUN_FILES[@]} -gt 0 ]] || { echo "一次结果都没拿到" >&2; exit 1; }
 RESULT="$OUT/$VERSION-$BUILDNO-$STAMP.json"

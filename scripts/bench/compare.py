@@ -2,7 +2,7 @@
 """打字性能基准的结果：合并几次、和基线比。
 
   compare.py --merge run1.json run2.json ...   几次结果每项取中位数，输出一份（JSON 到标准输出）
-  compare.py baseline.json result.json         和基线比：按键变慢、内存变大超过门槛就以 1 退出
+  compare.py baseline.json result.json         和基线比：没超门槛 0；按键变慢、内存变大超过门槛 1；没有基线或缺字段 2
 
 门槛（模拟器上同一台机器前后比；模拟器的绝对数和手机不一样，只看变化）：
   按键耗时中位数  比基线多 20% 且多 0.5 ms 以上
@@ -57,17 +57,20 @@ def compare(baseline_path, result_path):
         print(f"还没有基线（{baseline_path}）。这次的数：")
         for key, name, unit, *_ in CHECKS:
             print(f"  {name}：{result.get(key)} {unit}")
-        print("确认没问题后用 run-bench.sh --save-baseline 存一份。")
-        return 0
+        print("没有基线，什么都没比（以 2 退出）。确认没问题后用 run-bench.sh --save-baseline 存一份。")
+        return 2
     print(f"基线 {base.get('version')}（{base.get('build')}，{base.get('date', '')[:10]}，{base.get('device')}）"
           f" → 这次 {result.get('version')}（{result.get('build')}，{result.get('device')}）")
     if base.get("device") != result.get("device"):
         print("  注意：模拟器和基线不是同一台，数字只能大概参考。")
+    missing = [name for key, name, *_ in CHECKS if not isinstance(base.get(key), (int, float))
+               or not isinstance(result.get(key), (int, float))]
+    if missing:
+        print("基线或这次结果缺这几项，没法比（以 2 退出）：" + "、".join(missing))
+        return 2
     failed = []
     for key, name, unit, ratio, absolute in CHECKS:
-        old, new = base.get(key), result.get(key)
-        if old is None or new is None:
-            continue
+        old, new = base[key], result[key]
         diff = new - old
         bad = diff > absolute and (ratio is None or diff > old * ratio)
         pct = f"{diff / old * 100:+.0f}%" if old else ""
@@ -94,7 +97,7 @@ def main(argv):
     if len(argv) == 2:
         return compare(argv[0], argv[1])
     print(__doc__)
-    return 2
+    return 64
 
 
 if __name__ == "__main__":
