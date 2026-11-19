@@ -46,6 +46,9 @@ struct SavedAPI: Codable, Identifiable, Equatable {
     /// （04 复审 A1）。
     var keyPending: Bool { Keychain.isPending(keyAccount) }
 
+    /// 从什么时候开始等（接口页的提示）；不在等是 nil。
+    var keyPendingSince: Date? { Keychain.pendingSince(keyAccount) }
+
     /// 用户明确删掉这条（删方案、恢复备份时去掉备份里没有的）：Key 一起删，等同步时也删。
     func deleteKey() { Keychain.remove(keyAccount) }
 }

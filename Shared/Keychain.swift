@@ -92,6 +92,29 @@ enum Keychain {
         return read(account, synced: true) != nil
     }
 
+    private static let pendingSinceKey = "sync.keyPendingSince"
+
+    /// 从什么时候开始等同步（第一次看到时记下现在）；不在等了就清掉、返回 nil。
+    /// 接口页过了 24 小时还没到就换一句提示（02 复审第二轮）。
+    @discardableResult
+    static func pendingSince(_ account: String, now: Date = Date()) -> Date? {
+        var all = (SharedStorage.defaults.dictionary(forKey: pendingSinceKey) as? [String: Date]) ?? [:]
+        guard isPending(account) else {
+            if all.removeValue(forKey: account) != nil { SharedStorage.defaults.set(all, forKey: pendingSinceKey) }
+            return nil
+        }
+        if let since = all[account] { return since }
+        all[account] = now
+        SharedStorage.defaults.set(all, forKey: pendingSinceKey)
+        return now
+    }
+
+    /// 同步每轮做完时调：记下哪些 Key 开始等、哪些已经到了。
+    static func notePending(accounts: [String]) {
+        guard syncsToICloud else { return }
+        for account in accounts { pendingSince(account) }
+    }
+
     /// 存一个 Key；nil 或空字符串是删掉。开着同步时写同步版、删本机版（以后不用它了）；删除时两份都删，
     /// 同步版一删，其他设备上的也没了。关着同步时只动本机版。开着同步时同时记下本机配的是这个 Key。
     /// 等同步（isPending）时传空的什么都不做：界面上读到的空不是用户清空的，用户明确要删用 remove。

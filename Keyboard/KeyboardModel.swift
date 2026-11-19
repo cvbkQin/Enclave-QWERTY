@@ -89,6 +89,9 @@ final class KeyboardModel: ObservableObject {
         case privacy
         /// 还没填自己的 API Key（OB9）：引导去 App 首页跟着教程设置。
         case noKey
+        /// 开着 Key 的 iCloud 同步、要用的 Key 还在从 iCloud 钥匙串同步过来（别的设备刚换了 Key，02 复审第二轮）：
+        /// 不发没有 Key 的请求，卡片和 noKey 一样，换一句话。
+        case keyPending
         /// previous：上次同意的是另一个地址，确认卡上划掉显示。purpose：谁要发（卡上的标题、说明、按钮跟着换，RG9）。
         case consent(endpoint: String, previous: String?, purpose: GatePurpose)
         /// 试用已结束，今天的免费次数用完了。
@@ -641,6 +644,13 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
+    /// 这一次要用的 Key 是不是还在等 iCloud 钥匙串（只在点 AI 时查；没开 Key 同步时只读一个开关）。
+    private static func keyPending(_ settings: EnclaveSettings, purpose: GatePurpose) -> Bool {
+        guard Keychain.syncsToICloud else { return false }
+        if purpose == .answer && settings.usesAnswerEndpoint { return Keychain.isPending("apiKey.answer") }
+        return Keychain.isPending("apiKey")
+    }
+
     /// 能不能现在发给模型；不能时弹出对应的提示卡，返回 false。
     func passGate(purpose: GatePurpose = .polish, then action: @escaping () -> Void) -> Bool {
         if !hasFullAccess && !debugUnblocked {
@@ -653,6 +663,10 @@ final class KeyboardModel: ObservableObject {
         }
         if !settings.isConfigured && !debugUnblocked {
             gate = .noKey
+            return false
+        }
+        if !debugUnblocked && Self.keyPending(settings, purpose: purpose) {
+            gate = .keyPending
             return false
         }
         if !debugUnblocked && !AIAccess.current.allowsAI {

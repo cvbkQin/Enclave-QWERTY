@@ -181,6 +181,20 @@ enum ICloudSync {
         }.value
     }
 
+    /// 一条接口方案是哪台设备最后改的（接口页「这个接口方案是从『iPad Air』同步来的」）。看上次同步拉下来的缓存，不联网。
+    static func apiSource(_ id: UUID) async -> String? {
+        await Task.detached(priority: .userInitiated) { () -> String? in
+            let own = (try? ICloudSyncEngine.loadState())?.deviceID ?? ""
+            var best: (time: Date, name: String)?
+            for (_, payload) in PeerCache.payloads(excluding: own) {
+                guard let entry = payload.apis?[id.uuidString], entry.value != nil else { continue }
+                if let current = best, entry.time <= current.time { continue }
+                best = (entry.time, payload.deviceName)
+            }
+            return best?.name
+        }.value
+    }
+
     /// 这台的 iCloud 账户能不能用（设置页「没有登录 iCloud」）。查不出来（没联网等）时当能用，不挡着。
     /// 没有 iCloud 能力的包不能碰 CKContainer（会闪退，04 复审 B1）。
     static func accountAvailable() async -> Bool {
@@ -598,6 +612,8 @@ actor ICloudSyncEngine {
                 return ICloudSyncStatus(result: .failed, at: now, detail: "localChanged")
             }
         }
+        // 哪些 Key 还在等 iCloud 钥匙串（接口页过了 24 小时换一句提示）。
+        if syncsEndpoints { Keychain.notePending(accounts: BackupService.keyAccounts()) }
         // 写回本机后马上记下来：上传失败时，下次也不会把刚合并进来的当成本机的新改动。
         state.words = mergedWords
         state.phrases = mergedPhrases

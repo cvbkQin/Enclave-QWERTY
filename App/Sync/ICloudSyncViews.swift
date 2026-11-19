@@ -520,9 +520,9 @@ struct ICloudSyncSections: View {
                 .keyboardShortcut(.defaultAction)
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
         } message: {
-            Text(L("打开后，接口方案和 Key 会通过 iCloud 钥匙串同步到登录同一 Apple 账户的设备，端到端加密。开着时，在任何一台上删掉一个接口方案，其他设备上它的 Key 也会一起删掉。要先在 iPhone 设置里打开「密码」的 iCloud 同步。",
-                   "API setups and keys sync through iCloud Keychain to devices signed in to the same Apple Account, end-to-end encrypted. While on, deleting an API setup on any device also deletes its key on the others. Turn on iCloud sync for Passwords in Settings first.",
-                   "オンにすると、API の設定とキーが iCloud キーチェーンで同じ Apple アカウントのデバイスに同期され、エンドツーエンドで暗号化されます。オンの間は、どれかのデバイスで API の設定を削除すると、ほかのデバイスのキーも削除されます。先に設定で「パスワード」の iCloud 同期をオンにしてください。"))
+            Text(L("打开后，接口方案会和 Key 一起同步到登录同一 Apple 账户的设备：接口方案跟着 iCloud 同步，Key 走 iCloud 钥匙串，都是端到端加密。开着时，在任何一台上删掉一个接口方案，其他设备上它的 Key 也会一起删掉。要先在 iPhone 设置里打开「密码」的 iCloud 同步。",
+                   "API setups sync together with their keys to devices signed in to the same Apple Account: setups sync with iCloud, keys go through iCloud Keychain, both end-to-end encrypted. While on, deleting an API setup on any device also deletes its key on the others. Turn on iCloud sync for Passwords in Settings first.",
+                   "オンにすると、API の設定がキーと一緒に同じ Apple アカウントのデバイスに同期されます。設定は iCloud で、キーは iCloud キーチェーンで同期され、どちらもエンドツーエンドで暗号化されます。オンの間は、どれかのデバイスで API の設定を削除すると、ほかのデバイスのキーも削除されます。先に設定で「パスワード」の iCloud 同期をオンにしてください。"))
         }
         // ⑪b：iCloud 里已经有别的设备的接口方案，这时才是接口第一次加入，问用哪边（02 复审第 4 条）。
         .alert(L("同步接口 Key 和接口方案？", "Sync API keys and setups?", "API キーと API の設定を同期しますか？"),
@@ -532,9 +532,9 @@ struct ICloudSyncSections: View {
             Button(L("用这台 \(SyncText.model) 的", "Use This \(SyncText.model)'s", "この \(SyncText.model) のものを使う")) { enableKeys(useICloud: false) }
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
         } message: { owner in
-            Text(L("打开后，接口方案和 Key 会通过 iCloud 钥匙串同步，端到端加密。iCloud 里已经有「\(owner.name)」的接口方案（\(Loc.monthDay(owner.date))），两边只能留一份：",
-                   "API setups and keys sync through iCloud Keychain, end-to-end encrypted. iCloud already has API setups from “\(owner.name)” (\(Loc.monthDay(owner.date))). Only one copy can be kept:",
-                   "オンにすると、API の設定とキーが iCloud キーチェーンで同期され、エンドツーエンドで暗号化されます。iCloud にはすでに「\(owner.name)」の API の設定があります（\(Loc.monthDay(owner.date))）。どちらか一方だけ残せます："))
+            Text(L("打开后，接口方案跟着 iCloud 同步，Key 走 iCloud 钥匙串，都是端到端加密。iCloud 里已经有「\(owner.name)」的接口方案（\(Loc.monthDay(owner.date))），两边只能留一份：",
+                   "API setups sync with iCloud and keys go through iCloud Keychain, both end-to-end encrypted. iCloud already has API setups from “\(owner.name)” (\(Loc.monthDay(owner.date))). Only one copy can be kept:",
+                   "オンにすると、API の設定は iCloud で、キーは iCloud キーチェーンで同期され、どちらもエンドツーエンドで暗号化されます。iCloud にはすでに「\(owner.name)」の API の設定があります（\(Loc.monthDay(owner.date))）。どちらか一方だけ残せます："))
         }
         .confirmationDialog(L("关闭接口 Key 同步", "Turn Off API Key Sync", "API キーの同期をオフにする"), isPresented: $confirmKeysOff, titleVisibility: .visible) {
             Button(L("只在这台关闭", "Turn Off on This Device", "このデバイスだけオフにする")) { keysOff(removeFromICloud: false) }

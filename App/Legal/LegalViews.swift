@@ -129,22 +129,25 @@ struct PrivacyView: View {
     /// 开着 iCloud 同步时清除拼音学习记录：所有设备一起清（IC4 ⑬）。
     private var clearsAllDevices: Bool { confirm == .learning && ICloudSync.isEnabled }
 
+    /// ⑬ 正文（02 复审第二轮 B12）：这台马上清，其他设备下次同步时清、它们在 iCloud 里的旧副本跟着换掉；
+    /// 很久不同步的旧设备要在设备页删掉，它的副本才会删。
     private var allDevicesMessage: String {
         let others = syncDevices.filter { !$0.isThis }
-        let after = L("iCloud 里的副本也删除。\n候选会回到默认顺序。", " The copy in iCloud is deleted too. Candidates go back to the default order.",
-                      "iCloud のコピーも削除します。\n候補は初期の順番に戻ります。")
-        guard let first = others.first else {
-            return L("开着 iCloud 同步，学到的词会在所有同步的设备上一起清掉，", "With iCloud Sync on, learned words are cleared on all syncing devices.",
-                     "iCloud 同期がオンなので、学習した語は同期しているすべてのデバイスで消去されます。") + after
+        let zh: String
+        let en: String
+        let ja: String
+        if let first = others.first {
+            zh = others.count == 1 ? first.name + " " : "\(first.name) 等其他设备"
+            en = others.count == 1 ? first.name : "\(first.name) and your other devices"
+            ja = others.count == 1 ? first.name + " " : "\(first.name) などほかのデバイス"
+        } else {
+            zh = "其他设备"
+            en = "your other devices"
+            ja = "ほかのデバイス"
         }
-        if others.count == 1 {
-            return L("开着 iCloud 同步，学到的词会在这台和 \(first.name) 上一起清掉，", "With iCloud Sync on, learned words are cleared on this device and \(first.name).",
-                     "iCloud 同期がオンなので、学習した語はこのデバイスと \(first.name) で消去されます。") + after
-        }
-        let count = others.count + 1
-        return L("开着 iCloud 同步，学到的词会在这台、\(first.name) 等 \(count) 台设备上一起清掉，",
-                 "With iCloud Sync on, learned words are cleared on this device, \(first.name) and the others (\(count) devices).",
-                 "iCloud 同期がオンなので、学習した語はこのデバイス、\(first.name) など \(count) 台のデバイスで消去されます。") + after
+        return L("开着 iCloud 同步，学到的词会在所有设备上一起清掉：这台马上清，\(zh)下次同步时清，它们在 iCloud 里的旧副本也跟着换掉。很久不同步的旧设备，去「备份与恢复 › 设备」里删掉它，才会把它的副本也删掉。候选会回到默认顺序。",
+                 "With iCloud Sync on, learned words are cleared on all devices: this device right away, and \(en) the next time they sync, when their old copies in iCloud are replaced too. For an old device that hasn't synced in a long time, delete it under Backup & Restore › Devices to delete its copy. Candidates go back to the default order.",
+                 "iCloud 同期がオンなので、学習した語はすべてのデバイスで消去されます。このデバイスはすぐに、\(ja)は次の同期時に消去され、iCloud 上の古いコピーも置き換わります。長い間同期していない古いデバイスは、「バックアップと復元 › デバイス」で削除するとそのコピーも削除されます。候補は初期の順番に戻ります。")
     }
 
     /// 「第 1 版 · 10月26日」。

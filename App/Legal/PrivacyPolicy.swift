@@ -126,7 +126,7 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 **同步接口 Key（默认关闭）：** 开启 iCloud 同步后，您可以另行开启此项，每台设备分别决定。开启后，您保存的接口方案也会随上述加密字段同步，API 密钥则通过 Apple 的 iCloud 钥匙串同步到您的其他设备，端到端加密，我们和 Apple 都无法读取。开启期间，在一台设备上删除接口方案或密钥，其他设备上对应的密钥也会被删除。关闭此项时，本机保留密钥；您可以选择同时从 iCloud 钥匙串中删除，这样其他设备上的密钥也会删除。此项需要您在 iOS 设置中打开 iCloud 钥匙串（“密码”同步）才能生效。
 
-**清除与关闭：** 开启 iCloud 同步时，在“设置 › 隐私”中清除拼音输入学习记录，会同时清除您所有设备上的学习记录，并删除 iCloud 中的副本；在键盘上删除某个学到的词，只对当前设备生效。在同步设置中，您可以删除不再使用的旧设备的数据。关闭 iCloud 同步时，本应用会询问是否同时删除 iCloud 中本应用的数据。您也可以随时在 iOS“设置 › Apple 账户 › iCloud › 管理账户储存空间”中查看和删除本应用的 iCloud 数据。退出或更换 Apple 账户时，同步自动暂停，不会把本机数据合并到另一个账户。
+**清除与关闭：** 开启 iCloud 同步时，在“设置 › 隐私”中清除拼音输入学习记录，会清除您所有设备上的学习记录：当前设备立即清除，其他设备在下次同步时清除，它们存放在 iCloud 中的副本也随之替换为清除后的内容。长期未同步的旧设备，其在 iCloud 中的旧副本不会再合并到其他设备，但会一直保留，直至您在同步设置的“设备”中删除该设备。在键盘上删除某个学到的词，只对当前设备生效。在同步设置中，您可以删除不再使用的旧设备的数据。关闭 iCloud 同步时，本应用会询问是否同时删除 iCloud 中本应用的数据。您也可以随时在 iOS“设置 › Apple 账户 › iCloud › 管理账户储存空间”中查看和删除本应用的 iCloud 数据。退出或更换 Apple 账户时，同步自动暂停，不会把本机数据合并到另一个账户。
 
 使用中国大陆 Apple 账户时，iCloud 服务由云上贵州大数据产业发展有限公司运营，数据存储在中国境内。
 
@@ -272,7 +272,7 @@ Syncing happens only in the App itself: when you open it, when you tap Sync Now,
 
 **Sync API Keys (off by default).** Once iCloud Sync is on, you can turn this on separately on each device. Your saved API setups then sync in the encrypted fields above, and your API keys sync to your other devices through Apple's iCloud Keychain, end-to-end encrypted; neither we nor Apple can read them. While it is on, deleting an API setup or key on one device also deletes the matching key on your other devices. When you turn it off, this device keeps its keys; you can choose to also delete them from iCloud Keychain, which removes them from your other devices too. This only works if iCloud Keychain (Passwords sync) is turned on in iOS Settings.
 
-**Clearing and turning off.** While iCloud Sync is on, clearing the pinyin learning data in Settings › Privacy clears it on all your devices and deletes the copy in iCloud. Deleting a single learned word from the keyboard affects only that device. In the sync settings you can delete the data of old devices you no longer use. When you turn off iCloud Sync, the App asks whether to also delete its data in iCloud. You can also view and delete the App's iCloud data at any time in iOS Settings › Apple Account › iCloud › Manage Account Storage. If you sign out of or switch Apple Accounts, syncing pauses and this device's data is never merged into the other account.
+**Clearing and turning off.** While iCloud Sync is on, clearing the pinyin learning data in Settings › Privacy clears it on all your devices: this device right away, and each other device the next time it syncs, when its copy in iCloud is also replaced with the cleared data. An old device that no longer syncs keeps its old copy in iCloud; that copy is no longer merged into your other devices, but it stays until you delete the device under Devices in the sync settings. Deleting a single learned word from the keyboard affects only that device. In the sync settings you can delete the data of old devices you no longer use. When you turn off iCloud Sync, the App asks whether to also delete its data in iCloud. You can also view and delete the App's iCloud data at any time in iOS Settings › Apple Account › iCloud › Manage Account Storage. If you sign out of or switch Apple Accounts, syncing pauses and this device's data is never merged into the other account.
 
 For Apple Accounts in mainland China, iCloud is operated by Guizhou-Cloud Big Data Industry Co., Ltd. (GCBD), and the data is stored in mainland China.
 
@@ -407,7 +407,7 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 **API キーを同期（初期設定はオフ）：** iCloud 同期をオンにした後、端末ごとに別途オンにできます。オンにすると、保存した API の設定も上記の暗号化フィールドで同期され、API キーは Apple の iCloud キーチェーンでほかの端末に同期されます。いずれもエンドツーエンドで暗号化され、当方も Apple も読み取ることはできません。オンの間、ある端末で API の設定やキーを削除すると、ほかの端末の対応するキーも削除されます。オフにすると、この端末にはキーが残ります。あわせて iCloud キーチェーンから削除することも選べ、その場合はほかの端末のキーも削除されます。iOS の設定で iCloud キーチェーン（「パスワード」の同期）がオンになっている必要があります。
 
-**消去とオフ：** iCloud 同期がオンのとき、「設定 › プライバシー」でピンイン入力の学習データを消去すると、すべての端末の学習データが消去され、iCloud 上のコピーも削除されます。キーボードで学習した語句を個別に削除した場合は、その端末にのみ反映されます。同期の設定画面で、使わなくなった古い端末のデータを削除できます。iCloud 同期をオフにするときは、iCloud 上の本アプリのデータもあわせて削除するかを確認します。iOS の「設定 › Apple アカウント › iCloud › アカウントのストレージを管理」でも、本アプリの iCloud データをいつでも確認・削除できます。Apple アカウントからサインアウトしたり別のアカウントに切り替えたりすると同期は一時停止し、この端末のデータが別のアカウントに統合されることはありません。
+**消去とオフ：** iCloud 同期がオンのとき、「設定 › プライバシー」でピンイン入力の学習データを消去すると、すべての端末の学習データが消去されます。この端末ではすぐに、ほかの端末では次回の同期時に消去され、その端末の iCloud 上のコピーも消去後の内容に置き換わります。長い間同期していない古い端末の iCloud 上のコピーは、ほかの端末に統合されることはありませんが、同期の設定の「デバイス」でその端末を削除するまで残ります。キーボードで学習した語句を個別に削除した場合は、その端末にのみ反映されます。同期の設定画面で、使わなくなった古い端末のデータを削除できます。iCloud 同期をオフにするときは、iCloud 上の本アプリのデータもあわせて削除するかを確認します。iOS の「設定 › Apple アカウント › iCloud › アカウントのストレージを管理」でも、本アプリの iCloud データをいつでも確認・削除できます。Apple アカウントからサインアウトしたり別のアカウントに切り替えたりすると同期は一時停止し、この端末のデータが別のアカウントに統合されることはありません。
 
 中国本土の Apple アカウントの場合、iCloud は雲上貴州大数據產業發展有限公司（GCBD）が運営し、データは中国本土に保存されます。
 
