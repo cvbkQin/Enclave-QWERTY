@@ -79,7 +79,8 @@ enum ICloudSync {
     /// 还在跑的那一轮存状态会把这里的重置盖掉）。
     static func enable(preferLocal: Bool = false) {
         guard isAvailable else { return }
-        UserDefaults.standard.set(true, forKey: rejoinKey)
+        // 每次打开记一个新编号：同步引擎存好重置后的状态才删，删的时候只删自己读到的那个（04 三审第 4 条）。
+        UserDefaults.standard.set(UUID().uuidString, forKey: rejoinKey)
         prefersLocalOnJoin = preferLocal
         prefersLocalEndpoint = false
         // 关着时点过「清除学习记录」也不带进来：那时本机文件已经删了，重新加入不该让所有设备跟着清（04 复审 B2）。
@@ -108,11 +109,16 @@ enum ICloudSync {
         stopKeySync()
     }
 
-    /// 同步引擎在一轮开始时调：enable 之后第一次，要当这台重新加入。
-    static func takeRejoin() -> Bool {
-        guard UserDefaults.standard.bool(forKey: rejoinKey) else { return false }
+    /// 同步引擎在一轮开始时看：enable 之后还没做过重新加入，返回这次打开的编号。
+    static func pendingRejoin() -> String? {
+        UserDefaults.standard.string(forKey: rejoinKey)
+    }
+
+    /// 重置后的状态存好了才删标记（04 三审第 4 条：之前一开始就删，取 userRecordID 时没网抛出，重置没存下、标记也没了，
+    /// 下一轮不当重新加入）。期间又点了一次打开（编号变了）就留着，下一轮再做一次。
+    static func finishRejoin(_ token: String) {
+        guard UserDefaults.standard.string(forKey: rejoinKey) == token else { return }
         UserDefaults.standard.removeObject(forKey: rejoinKey)
-        return true
     }
 
     /// 「在这个账户继续同步」：本机的同步状态在暂停时已经清掉，下一次同步当这台第一次加入这个账户。
@@ -328,15 +334,22 @@ actor ICloudSyncEngine {
         return try? JSONDecoder().decode(ICloudSyncState.self, from: data)
     }
 
-    static func saveState(_ state: ICloudSyncState) {
+    /// 存下来了返回 true（重新加入的标记等存好了才删）。
+    @discardableResult
+    static func saveState(_ state: ICloudSyncState) -> Bool {
         stateLock.lock()
         defer { stateLock.unlock() }
-        guard var dir = Self.folder, let url = stateURL, let data = try? JSONEncoder().encode(state) else { return }
+        guard var dir = Self.folder, let url = stateURL, let data = try? JSONEncoder().encode(state) else { return false }
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         try? dir.setResourceValues(values)
-        try? data.write(to: url, options: .atomic)
+        do {
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
     }
 
     static func removeState() {
@@ -394,7 +407,8 @@ actor ICloudSyncEngine {
             PeerCache.clear()
         }
         // 刚重新打开同步（ICloudSync.enable）：在这里、在同步引擎里重置，不会被还在跑的上一轮盖掉（04 复审 B9）。
-        if ICloudSync.takeRejoin() { state = state.rejoined() }
+        let rejoin = ICloudSync.pendingRejoin()
+        if rejoin != nil { state = state.rejoined() }
         let user = try await container.userRecordID().recordName
         if let old = state.userRecordName, old != user {
             // 换了 Apple ID：同步暂停、Key 的同步关掉，新账户里不写任何东西，要用户确认后再继续（1.12）。
@@ -404,7 +418,7 @@ actor ICloudSyncEngine {
             return nil
         }
         state.userRecordName = user
-        Self.saveState(state)
+        if Self.saveState(state), let rejoin { ICloudSync.finishRejoin(rejoin) }
         return state
     }
 
@@ -555,11 +569,17 @@ actor ICloudSyncEngine {
         var newBindings: [String: String] = [:]
         // 接口第一次加入（Key 同步刚打开）时用哪边，看打开 Key 同步时选的（⑪、⑪b），和加入同步时选的风格无关（04 复审 B4）。
         let endpointJoining = syncsEndpoints && state.endpoint == nil
+        // 别的设备的接口或接口方案因为 Key 还没到被拒：排一次早一点的后台刷新（04 三审可选 9）。
+        var waitingForKeys = false
         if syncsEndpoints {
             let resolved = SyncMerge.resolve(local: local.endpoint, previous: state.endpoint,
                                              peers: peers.compactMapValues { $0.endpoint }, myID: state.deviceID, now: now,
                                              prefersLocal: ICloudSync.prefersLocalEndpoint,
-                                             accept: { SyncMerge.keysMatch($0.keys, current: Keychain.currentFingerprint) })
+                                             accept: { profile in
+                                                 let ok = SyncMerge.keysMatch(profile.keys, current: Keychain.currentFingerprint)
+                                                 if !ok { waitingForKeys = true }
+                                                 return ok
+                                             })
             endpointRecord = resolved.record
             if let value = resolved.apply {
                 newEndpoint = value
@@ -572,7 +592,9 @@ actor ICloudSyncEngine {
             for id in order { apiTables.append(id == state.deviceID ? myAPIs : peers[id]?.apis ?? [:]) }
             let mergedAPIs = SyncMerge.accepting(SyncMerge.pruned(SyncMerge.merge(apiTables), now: now), mine: myAPIs) { entry in
                 guard let value = entry.value else { return true }
-                return SyncMerge.keyMatches(value.key, current: Keychain.currentFingerprint(SyncMerge.SyncedAPI.account(value.api.id.uuidString)))
+                let ok = SyncMerge.keyMatches(value.key, current: Keychain.currentFingerprint(SyncMerge.SyncedAPI.account(value.api.id.uuidString)))
+                if !ok { waitingForKeys = true }
+                return ok
             }
             apisRecord = mergedAPIs
             let list = SyncMerge.apply(mergedAPIs, to: apiItems).map { $0.value }
@@ -581,6 +603,7 @@ actor ICloudSyncEngine {
                 newBindings[SyncMerge.SyncedAPI.account(item.api.id.uuidString)] = item.key
             }
         }
+        ICloudSyncScheduler.noteWaitingForKeys(waitingForKeys)
 
         let wordsChanged = newWords != local.words
         let phrasesChanged = newPhrases != local.phrases

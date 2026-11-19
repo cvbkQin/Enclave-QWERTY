@@ -336,15 +336,77 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertEqual(other.fuzzyPinyin, fuzzy, "模糊音不跟着同步")
     }
 
+    /// 04 三审第 1 条：那台没单独设问答接口时，它留着没用的问答地址不传过来，这台的问答地址（配的是这台的问答 Key）不动。
+    func testEndpointProfileLeavesUnusedAnswerEndpoint() {
+        var peer = EnclaveSettings()
+        peer.baseURL = "https://peer.example/v1"
+        peer.model = "p1"
+        peer.separateAnswer = false
+        peer.answerBaseURL = "https://peer-old.example/v1"
+        peer.answerModel = "old"
+        let profile = SyncMerge.EndpointProfile(settings: peer, keys: ["apiKey": "f1"])
+        XCTAssertFalse(profile.separateAnswer)
+        XCTAssertEqual(profile.answerBaseURL, "", "没用的问答地址不传")
+        XCTAssertEqual(profile.answerModel, "")
+
+        var mine = EnclaveSettings()
+        mine.answerBaseURL = "https://mine.example/v1"
+        mine.answerModel = "mine"
+        mine.answerMaxTokens = 4096
+        profile.apply(to: &mine)
+        XCTAssertEqual(mine.baseURL, "https://peer.example/v1")
+        XCTAssertEqual(mine.model, "p1")
+        XCTAssertFalse(mine.separateAnswer)
+        XCTAssertEqual(mine.answerBaseURL, "https://mine.example/v1", "本机的问答地址不换成那台留下的")
+        XCTAssertEqual(mine.answerModel, "mine")
+        XCTAssertEqual(mine.answerMaxTokens, 4096)
+        XCTAssertEqual(SyncMerge.EndpointProfile(settings: mine, keys: ["apiKey": "f1"]), profile,
+                       "写回后本机这份和合并结果一样，下次不当本机改过")
+    }
+
+    /// 这台单独走问答接口、那台没有：这台也不再单独走，问答地址留着（还是配这台的问答 Key）。
+    func testEndpointProfileTurnsOffLocalAnswerEndpoint() {
+        let profile = SyncMerge.EndpointProfile(settings: EnclaveSettings(), keys: ["apiKey": "f1"])
+        var mine = EnclaveSettings()
+        mine.separateAnswer = true
+        mine.answerBaseURL = "https://mine.example/v1"
+        mine.answerModel = "mine"
+        XCTAssertTrue(mine.usesAnswerEndpoint)
+        profile.apply(to: &mine)
+        XCTAssertFalse(mine.usesAnswerEndpoint)
+        XCTAssertEqual(mine.answerBaseURL, "https://mine.example/v1")
+        XCTAssertEqual(SyncMerge.EndpointProfile(settings: mine, keys: ["apiKey": "f1"]), profile)
+    }
+
+    /// 只开了「单独设问答接口」、地址或模型没填：问答不走另一个接口，按没开算，旧版传上来的没整理过的也一样。
+    func testEndpointProfileIncompleteAnswerEndpointCountsAsUnused() {
+        var peer = EnclaveSettings()
+        peer.separateAnswer = true
+        peer.answerBaseURL = "https://peer.example/v1"
+        let profile = SyncMerge.EndpointProfile(settings: peer, keys: ["apiKey": "f1"])
+        XCTAssertFalse(profile.usesAnswerEndpoint)
+        XCTAssertEqual(profile.answerBaseURL, "")
+
+        var legacy = profile
+        legacy.separateAnswer = true
+        legacy.answerBaseURL = "https://peer.example/v1"
+        var mine = EnclaveSettings()
+        mine.answerBaseURL = "https://mine.example/v1"
+        legacy.apply(to: &mine)
+        XCTAssertEqual(mine.answerBaseURL, "https://mine.example/v1")
+        XCTAssertFalse(mine.separateAnswer)
+    }
+
     func testEndpointProfileOnlyTouchesEndpointFields() {
         var settings = EnclaveSettings()
         settings.baseURL = "https://a.example/v1"
         settings.model = "m1"
         settings.separateAnswer = true
+        settings.answerBaseURL = "https://b.example/v1"
         settings.answerModel = "m2"
         settings.answerMaxTokens = 2048
         settings.helpPinned = true
-        let profile = SyncMerge.EndpointProfile(settings: settings, keys: ["apiKey": "f1"])
+        let profile = SyncMerge.EndpointProfile(settings: settings, keys: ["apiKey": "f1", "apiKey.answer": "f2"])
 
         var other = EnclaveSettings()
         other.keyboardLayout = .nineKey

@@ -109,12 +109,24 @@ final class ICloudSyncModel: ObservableObject {
         refresh()
     }
 
-    /// 打开 Key 同步之前：先同步一次（一分钟内同步过就不再跑），再看 iCloud 里有没有别的设备的接口方案（⑪b）。
-    func endpointOwner() async -> (name: String, date: Date)? {
+    /// 打开 Key 同步前看 iCloud 里有没有别的设备的接口方案：有就问用哪边（⑪b），没有就 ⑪，没同步成就报错不往下走。
+    enum KeyJoin {
+        case empty
+        case owner(name: String, date: Date)
+        case failed(String)
+    }
+
+    /// 先同步一次再看（04 三审第 3 条）：没同步成时缓存可能是空的，当成「没有别的设备」就会弹 ⑪，点「同步」等于
+    /// 选了「用这台的」，这台的 Key 和接口盖到所有设备。每次都真跑一轮（有一轮在跑就等它跑完再来一轮）：
+    /// 这一轮 Key 同步还关着，会清掉上次的接口记录，刚关了 Key 同步马上又开时 ⑪b 的选择也算数（三审可选 6）。
+    func keyJoin() async -> KeyJoin {
+        guard ICloudSync.isEnabled else { return .failed(SyncText.syncFailed(nil)) }
         keyProbing = true
         defer { keyProbing = false }
-        await ICloudSync.syncNow(minimumInterval: 60)
-        return await ICloudSyncEngine.shared.endpointOwner()
+        let status = await ICloudSyncEngine.shared.run(again: true)
+        guard status.result == .ok || status.result == .keyboardBusy else { return .failed(SyncText.syncFailed(status.result)) }
+        if let owner = await ICloudSyncEngine.shared.endpointOwner() { return .owner(name: owner.name, date: owner.date) }
+        return .empty
     }
 
     /// 打开 Key 同步。useICloud：iCloud 里已经有别的设备的接口方案、选了「用 iCloud 里的」（⑪b）：本机的 Key 不往 iCloud 钥匙串写，
@@ -158,6 +170,25 @@ final class ICloudSyncModel: ObservableObject {
 enum SyncText {
     /// 「iPhone」「iPad」：弹窗里说「这台 iPhone」。
     @MainActor static var model: String { UIDevice.current.model }
+
+    /// 打开 Key 同步前那次同步没成（04 三审第 3 条）：「没能完成」弹窗里的说明，沿用卡片和设备页已有的说法。
+    @MainActor static func syncFailed(_ result: ICloudSyncStatus.Result?) -> String {
+        switch result {
+        case .newerFormat:
+            return L("有设备装了更新版本的飞地，它的内容这次没合并；把这台也更新到最新版就好。",
+                     "A device has a newer version of Enclave, so its data wasn't merged. Update this device to the latest version.",
+                     "新しいバージョンの Enclave を使っているデバイスがあり、その内容は統合しませんでした。このデバイスも最新版に更新してください。")
+        case .quotaExceeded:
+            return L("iPhone 设置 › Apple 账户 › iCloud 里清出一些空间，或者升级 iCloud+。",
+                     "Free up some space in Settings › Apple Account › iCloud, or upgrade to iCloud+.",
+                     "設定 › Apple アカウント › iCloud で空き容量を増やすか、iCloud+ にアップグレードしてください。")
+        case .noAccount:
+            return L("这台 \(model) 没有登录 iCloud", "This \(model) isn't signed in to iCloud", "この \(model) は iCloud にサインインしていません")
+        default:
+            return L("网络不通或 iCloud 出错，联网后再试一次。", "No connection or an iCloud error. Try again when you're online.",
+                     "ネットワークまたは iCloud のエラーです。オンラインのときにもう一度お試しください。")
+        }
+    }
 
     /// 状态行和设备页的时间：一分钟内「刚刚」，一天内「N 分钟前」「N 小时前」，再早写日期和时间。
     static func time(_ date: Date, now: Date = Date()) -> String {
@@ -532,9 +563,10 @@ struct ICloudSyncSections: View {
             Button(L("用这台 \(SyncText.model) 的", "Use This \(SyncText.model)'s", "この \(SyncText.model) のものを使う")) { enableKeys(useICloud: false) }
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
         } message: { owner in
-            Text(L("打开后，接口方案跟着 iCloud 同步，Key 走 iCloud 钥匙串，都是端到端加密。iCloud 里已经有「\(owner.name)」的接口方案（\(Loc.monthDay(owner.date))），两边只能留一份：",
-                   "API setups sync with iCloud and keys go through iCloud Keychain, both end-to-end encrypted. iCloud already has API setups from “\(owner.name)” (\(Loc.monthDay(owner.date))). Only one copy can be kept:",
-                   "オンにすると、API の設定は iCloud で、キーは iCloud キーチェーンで同期され、どちらもエンドツーエンドで暗号化されます。iCloud にはすでに「\(owner.name)」の API の設定があります（\(Loc.monthDay(owner.date))）。どちらか一方だけ残せます："))
+            // 方案列表逐条合并、两边都留，只有正在用的接口选一边（02 三审改文案，三审可选 8）。
+            Text(L("打开后，接口方案跟着 iCloud 同步，Key 走 iCloud 钥匙串，都是端到端加密。iCloud 里已经有「\(owner.name)」的接口方案（\(Loc.monthDay(owner.date))）。两边的方案都会留着，正在用的接口只能选一边：",
+                   "API setups sync with iCloud and keys go through iCloud Keychain, both end-to-end encrypted. iCloud already has API setups from “\(owner.name)” (\(Loc.monthDay(owner.date))). Setups from both are kept, but the API in use can come from only one:",
+                   "オンにすると、API の設定は iCloud で、キーは iCloud キーチェーンで同期され、どちらもエンドツーエンドで暗号化されます。iCloud にはすでに「\(owner.name)」の API の設定があります（\(Loc.monthDay(owner.date))）。両方の設定が残りますが、使用中の API はどちらか一方だけ選べます："))
         }
         .confirmationDialog(L("关闭接口 Key 同步", "Turn Off API Key Sync", "API キーの同期をオフにする"), isPresented: $confirmKeysOff, titleVisibility: .visible) {
             Button(L("只在这台关闭", "Turn Off on This Device", "このデバイスだけオフにする")) { keysOff(removeFromICloud: false) }
@@ -562,10 +594,10 @@ struct ICloudSyncSections: View {
     /// 打开 Key 同步：先同步一次看 iCloud 里有没有别的设备的接口方案，有就问用哪边（⑪b），没有就 ⑪。
     private func keysOnTapped() {
         Task {
-            if let owner = await model.endpointOwner() {
-                keyJoin = JoinPrompt(name: owner.name, date: owner.date)
-            } else {
-                confirmKeysOn = true
+            switch await model.keyJoin() {
+            case .owner(let name, let date): keyJoin = JoinPrompt(name: name, date: date)
+            case .empty: confirmKeysOn = true
+            case .failed(let message): failure = message
             }
         }
     }

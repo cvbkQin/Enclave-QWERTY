@@ -507,7 +507,7 @@ struct BackupRestoreSheet: View {
     @State private var mode: BackupMerge.Mode = .merge
     @State private var confirmReplace = false
     /// 开着 iCloud 同步时用「替换现有的」（IC4 ⑭）：先提醒别的设备的词还会合并回来。
-    @State private var confirmSyncReplace = false
+    @State private var confirmSyncRestore = false
     @State private var working = false
     @State private var failure: String?
     @State private var report: BackupReport?
@@ -605,8 +605,11 @@ struct BackupRestoreSheet: View {
             }
             Section {
                 Button {
-                    if mode == .replace {
-                        if ICloudSync.isEnabled { confirmSyncReplace = true } else { confirmReplace = true }
+                    // 开着同步时合并、替换都先弹 ⑭（02 三审改文案：合并一样会改到所有设备）。
+                    if ICloudSync.isEnabled {
+                        confirmSyncRestore = true
+                    } else if mode == .replace {
+                        confirmReplace = true
                     } else {
                         restore()
                     }
@@ -637,24 +640,28 @@ struct BackupRestoreSheet: View {
         } message: {
             Text(L("选中的几项会先清空，再用备份里的。", "The selected items will be cleared, then filled from the backup.", "選んだ項目を消してから、バックアップの内容にします。"))
         }
-        // ⑭ 开着同步时「替换现有的」：会改到所有设备（02 复审第 5 条）。
-        .alert(L("替换会改到所有设备", "Replacing changes all devices", "置き換えはすべてのデバイスに反映されます"), isPresented: $confirmSyncReplace) {
-            Button(L("替换并同步到所有设备", "Replace and Sync to All Devices", "置き換えてすべてのデバイスに同期"), role: .destructive) { restore() }
+        // ⑭ 开着同步时恢复（合并、替换都弹）：会改到所有设备（02 三审改文案）。
+        .alert(L("恢复会同步到所有设备", "Restoring syncs to all devices", "復元はすべてのデバイスに同期されます"), isPresented: $confirmSyncRestore) {
+            Button(L("恢复并同步到所有设备", "Restore and Sync to All Devices", "復元してすべてのデバイスに同期"), role: .destructive) { restore() }
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
         } message: {
-            Text(syncReplaceMessage)
+            Text(syncRestoreMessage)
         }
     }
 
-    private var syncReplaceMessage: String {
-        if Keychain.syncsToICloud {
-            return L("开着 iCloud 同步：常用词、键盘常用语、润色和问答风格、接口方案和 Key 会换成备份里的，然后同步到所有设备。备份里没有的接口方案，所有设备上它的 Key 都会删掉。学到的词是这台先清空再恢复，下次同步时，其他设备学到的词还会合并回来。只想改这台，选「合并到现有的」。",
-                     "iCloud Sync is on: your words, keyboard phrases, polish and answer styles, API setups and keys are replaced with the backup's and then synced to all devices. For API setups not in the backup, their keys are deleted on all devices. Learned words on this device are cleared and then restored, and words learned on your other devices merge back at the next sync. To change only this device, choose Merge.",
-                     "iCloud 同期がオンです：ユーザ辞書、定型文、整えるスタイルと回答スタイル、API の設定とキーをバックアップの内容に置き換え、すべてのデバイスに同期します。バックアップにない API の設定は、すべてのデバイスでそのキーが削除されます。学習した語はこのデバイスで消してから復元し、次の同期でほかのデバイスの学習した語が統合されて戻ります。このデバイスだけ変えるなら「今のデータに追加」を選んでください。")
-        }
-        return L("开着 iCloud 同步：常用词、键盘常用语、润色和问答风格会换成备份里的，然后同步到所有设备。学到的词是这台先清空再恢复，下次同步时，其他设备学到的词还会合并回来。只想改这台，选「合并到现有的」。",
-                 "iCloud Sync is on: your words, keyboard phrases, polish and answer styles are replaced with the backup's and then synced to all devices. Learned words on this device are cleared and then restored, and words learned on your other devices merge back at the next sync. To change only this device, choose Merge.",
-                 "iCloud 同期がオンです：ユーザ辞書、定型文、整えるスタイルと回答スタイルをバックアップの内容に置き換え、すべてのデバイスに同期します。学習した語はこのデバイスで消してから復元し、次の同期でほかのデバイスの学習した語が統合されて戻ります。このデバイスだけ変えるなら「今のデータに追加」を選んでください。")
+    /// ⑭ 正文（02 三审改文案）：合并、替换都会改到所有设备，开着 Key 同步时再说接口方案和 Key。
+    private var syncRestoreMessage: String {
+        let body = mode == .merge
+            ? L("开着 iCloud 同步，恢复的内容会同步到所有设备：设置换成备份里的，备份里的常用词、键盘常用语、润色和问答风格加到每台设备上。",
+                "With iCloud Sync on, what you restore syncs to all devices: settings are replaced with the backup's, and the backup's words, keyboard phrases, and polish and answer styles are added on every device.",
+                "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。設定はバックアップのものに置き換わり、バックアップのユーザ辞書、定型文、整えるスタイルと回答スタイルが各デバイスに追加されます。")
+            : L("开着 iCloud 同步，恢复的内容会同步到所有设备：设置、常用词、键盘常用语、润色和问答风格都换成备份里的。学到的词是这台先清空再恢复，下次同步时，其他设备学到的词还会合并回来。",
+                "With iCloud Sync on, what you restore syncs to all devices: settings, words, keyboard phrases, and polish and answer styles are all replaced with the backup's. Learned words on this device are cleared and then restored, and words learned on your other devices merge back at the next sync.",
+                "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。設定、ユーザ辞書、定型文、整えるスタイルと回答スタイルがすべてバックアップのものに置き換わります。学習した語はこのデバイスで消してから復元し、次の同期でほかのデバイスの学習した語が統合されて戻ります。")
+        guard Keychain.syncsToICloud else { return body }
+        return body + L("接口方案也换成备份里的，备份里没有的方案，所有设备上它的 Key 都会删掉。",
+                        " API setups are replaced with the backup's too, and for setups not in the backup, their keys are deleted on all devices.",
+                        "API の設定もバックアップのものに置き換わり、バックアップにない設定は、すべてのデバイスでそのキーが削除されます。")
     }
 
     private func binding(_ item: BackupItem) -> Binding<Bool> {

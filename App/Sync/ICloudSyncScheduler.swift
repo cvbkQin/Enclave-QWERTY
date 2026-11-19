@@ -25,14 +25,41 @@ enum ICloudSyncScheduler {
             BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: processingID)
             return
         }
-        let refresh = BGAppRefreshTaskRequest(identifier: refreshID)
-        refresh.earliestBeginDate = Date(timeIntervalSinceNow: 2 * 3600)
-        try? BGTaskScheduler.shared.submit(refresh)
+        submitRefresh()
         let processing = BGProcessingTaskRequest(identifier: processingID)
         processing.requiresExternalPower = true
         processing.requiresNetworkConnectivity = true
         processing.earliestBeginDate = Date(timeIntervalSinceNow: 6 * 3600)
         try? BGTaskScheduler.shared.submit(processing)
+    }
+
+    private static let waitingKey = "sync.waitingForKeysSince"
+
+    /// 同步引擎每轮带接口同步完时调：别的设备的接口或接口方案配的 Key 还没从 iCloud 钥匙串到，这次没用上（04 三审可选 9）。
+    /// 钥匙串到了不会叫醒 App，推送也已经用掉了：等的这段时间后台刷新排到 15 分钟后（什么时候真跑由系统定），
+    /// 等了一天还没到（比如那台没开「密码」同步）就回到平常的 2 小时。
+    static func noteWaitingForKeys(_ waiting: Bool) {
+        let defaults = UserDefaults.standard
+        guard waiting else {
+            defaults.removeObject(forKey: waitingKey)
+            return
+        }
+        if defaults.object(forKey: waitingKey) == nil { defaults.set(Date(), forKey: waitingKey) }
+        guard ICloudSync.isAvailable, ICloudSync.isEnabled else { return }
+        submitRefresh()
+    }
+
+    private static var refreshDelay: TimeInterval {
+        guard let since = UserDefaults.standard.object(forKey: waitingKey) as? Date,
+              Date().timeIntervalSince(since) < 86400 else { return 2 * 3600 }
+        return 15 * 60
+    }
+
+    /// 同一个编号再排一次会替换掉已经排上的那次。
+    private static func submitRefresh() {
+        let refresh = BGAppRefreshTaskRequest(identifier: refreshID)
+        refresh.earliestBeginDate = Date(timeIntervalSinceNow: refreshDelay)
+        try? BGTaskScheduler.shared.submit(refresh)
     }
 
     private static func handle(_ task: BGTask) {

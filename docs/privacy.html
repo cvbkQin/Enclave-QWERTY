@@ -33,7 +33,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <!-- 由 scripts/gen-privacy.py 从 App/Legal/PrivacyPolicy.swift 生成，不要手改。 -->
 <header><a class="brand" href="index.html">Enclave keyboard</a>
 <nav class="lang"><a href="#zh">中文</a><a href="#en">English</a><a href="#ja">日本語</a></nav></header>
-<section class="lang" id="zh" lang="zh-Hans"><h1>飞地输入法隐私政策</h1><p class="meta">生效日期：2026 年 11 月 6 日 · 版本：5</p>
+<section class="lang" id="zh" lang="zh-Hans"><h1>飞地输入法隐私政策</h1><p class="meta">生效日期：2026 年 11 月 19 日 · 版本：5</p>
 <h2>引言</h2>
 <p>飞地输入法（英文名 Enclave，以下简称“本应用”）是由个人开发者秦耕耘（以下简称“我们”）开发和提供的中文输入法应用，包含 App 主程序及其附带的键盘扩展。</p>
 <p>我们深知个人信息对您的重要性，并依照《中华人民共和国个人信息保护法》等法律法规处理与您相关的信息。本政策说明本应用如何处理信息、您享有哪些权利以及如何联系我们。请您在使用本应用前仔细阅读，特别是以<strong>加粗</strong>方式标示的内容。</p>
@@ -99,12 +99,13 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <ol>
 <li>拼音输入学习记录（学到的词）；</li>
 <li>常用词和键盘常用语；</li>
-<li>润色风格和问答风格；如您另外开启“同步接口 Key”，还包括您保存的接口方案（服务商、地址、模型等）。</li>
+<li>润色风格和问答风格，以及润色、问答的开关、联网倾向和固定在 AI 栏上的风格；如您另外开启“同步接口 Key”，还包括您保存的接口方案（服务商、地址、模型等）。</li>
 </ol>
 <p>以下数据<strong>不同步</strong>：API 密钥和接口方案（除非您另行开启下文的“同步接口 Key”）、AI 历史记录、剪贴板记录、英文输入学习记录和纠错记录、键盘布局和双拼、模糊音、声音振动、外观等键盘设置、通讯录姓名、购买和试用信息、您对本政策和各接口地址的同意记录、使用统计和诊断记录。</p>
-<p>同步的内容存放在 CloudKit 的加密字段中，<strong>端到端加密</strong>，加密密钥保存在您的 iCloud 钥匙串中，<strong>我们和 Apple 都无法读取</strong>。为区分您的各台设备，iCloud 中还会保存每台设备的设备名称（默认取系统提供的名称，可在同步设置中修改）、型号（iPhone 或 iPad）、App 版本和同步状态，这些也存放在加密字段中；不加密的只有随机生成、不含个人信息的记录编号，以及 iCloud 存储所需的记录类型、大小和创建、修改时间。如您的 iCloud 账户无法使用加密字段，同步会停止，不会以不加密的方式上传。我们的服务器不参与同步，接触不到同步的数据。</p>
-<p>同步只在 App 主程序中进行：打开 App 时、点击“立即同步”时、收到 iCloud 的变更通知时，以及系统分配的后台时间（通常在设备充电时）。键盘不连接 iCloud。</p>
-<p><strong>同步接口 Key（默认关闭）：</strong> 开启 iCloud 同步后，您可以另行开启此项，每台设备分别决定。开启后，您保存的接口方案也会随上述加密字段同步，API 密钥则通过 Apple 的 iCloud 钥匙串同步到您的其他设备，端到端加密，我们和 Apple 都无法读取。开启期间，在一台设备上删除接口方案或密钥，其他设备上对应的密钥也会被删除。关闭此项时，本机保留密钥；您可以选择同时从 iCloud 钥匙串中删除，这样其他设备上的密钥也会删除。此项需要您在 iOS 设置中打开 iCloud 钥匙串（“密码”同步）才能生效。</p>
+<p>您在一台设备上删除的常用词和键盘常用语，会以删除记录的形式（包含该条的原文）在 iCloud 中保留 180 天，以便其他设备同步删除，之后不再保留。</p>
+<p>同步的内容存放在 CloudKit 的加密字段中，<strong>端到端加密</strong>，加密密钥保存在您的 iCloud 钥匙串中，<strong>我们和 Apple 都无法读取</strong>。为区分您的各台设备，iCloud 中还会保存每台设备的设备名称（默认取系统提供的名称，可在同步设置中修改）、型号（iPhone 或 iPad）、App 版本和同步状态，这些以及上述删除记录、下文的 Key 指纹也都存放在加密字段中；不加密的只有随机生成、不含个人信息的记录编号，以及 iCloud 存储所需的记录类型、大小和创建、修改时间。如您的 iCloud 账户无法使用加密字段，同步会停止，不会以不加密的方式上传。我们的服务器不参与同步，接触不到同步的数据。</p>
+<p>同步只在 App 主程序中进行：打开 App 时、在 App 中修改同步的内容约 3 秒后、点击“立即同步”时、收到 iCloud 的变更通知时，以及系统分配的后台时间（通常在设备充电时）。键盘不连接 iCloud。</p>
+<p><strong>同步接口 Key（默认关闭）：</strong> 开启 iCloud 同步后，您可以另行开启此项，每台设备分别决定。开启后，您保存的接口方案也会随上述加密字段同步，API 密钥则通过 Apple 的 iCloud 钥匙串同步到您的其他设备，端到端加密，我们和 Apple 都无法读取。为判断各台设备的接口方案是否配着同一个 Key，iCloud 中会随接口方案保存每个 Key 的指纹：由 Key 经 SHA-256 单向计算得到的 16 位字符，无法反推出 Key。开启期间，在一台设备上删除接口方案或密钥，其他设备上对应的密钥也会被删除。关闭此项时，本机保留密钥；您可以选择同时从 iCloud 钥匙串中删除，这样其他设备上的密钥也会删除。此项需要您在 iOS 设置中打开 iCloud 钥匙串（“密码”同步）才能生效。</p>
 <p><strong>清除与关闭：</strong> 开启 iCloud 同步时，在“设置 › 隐私”中清除拼音输入学习记录，会清除您所有设备上的学习记录：当前设备立即清除，其他设备在下次同步时清除，它们存放在 iCloud 中的副本也随之替换为清除后的内容。长期未同步的旧设备，其在 iCloud 中的旧副本不会再合并到其他设备，但会一直保留，直至您在同步设置的“设备”中删除该设备。在键盘上删除某个学到的词，只对当前设备生效。在同步设置中，您可以删除不再使用的旧设备的数据。关闭 iCloud 同步时，本应用会询问是否同时删除 iCloud 中本应用的数据。您也可以随时在 iOS“设置 › Apple 账户 › iCloud › 管理账户储存空间”中查看和删除本应用的 iCloud 数据。退出或更换 Apple 账户时，同步自动暂停，不会把本机数据合并到另一个账户。</p>
 <p>使用中国大陆 Apple 账户时，iCloud 服务由云上贵州大数据产业发展有限公司运营，数据存储在中国境内。</p>
 <h2>四、权限说明</h2>
@@ -139,7 +140,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <p>我们将在收到您的反馈后 15 个工作日内答复。如您对我们的答复不满意，可以向网信、工信等有关主管部门投诉或举报。</p>
 </section>
 
-<section class="lang" id="en" lang="en"><h1>Enclave Privacy Policy</h1><p class="meta">Effective date: November 6, 2026 · Version 5</p>
+<section class="lang" id="en" lang="en"><h1>Enclave Privacy Policy</h1><p class="meta">Effective date: November 19, 2026 · Version 5</p>
 <h2>Introduction</h2>
 <p>Enclave (the "App") is provided by Gengyun Qin ("we", "us"). This Privacy Policy explains how information is handled when you use the App and its keyboard extension, and describes your rights.</p>
 <h2>1. Information We Collect</h2>
@@ -194,12 +195,13 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <ul>
 <li>your pinyin input learning data (learned words);</li>
 <li>your custom words and keyboard phrases;</li>
-<li>your Polish and Ask styles; and, if you also turn on "Sync API Keys", your saved API setups (provider, address, model and so on).</li>
+<li>your Polish and Ask styles, together with the Polish and Ask on/off switches, the web search preference and the styles pinned to the AI bar; and, if you also turn on "Sync API Keys", your saved API setups (provider, address, model and so on).</li>
 </ul>
 <p>The following is <strong>never synced</strong>: API keys and API setups (unless you separately turn on "Sync API Keys", below), AI history, clipboard history, English learning and autocorrect data, keyboard settings such as layout, Double Pinyin, fuzzy Pinyin, sounds, haptics and appearance, contact names, purchase and trial information, your consent records for this policy and for each API address, usage statistics and diagnostic records.</p>
-<p>Synced content is stored in CloudKit encrypted fields and is <strong>end-to-end encrypted</strong>, with keys kept in your iCloud Keychain. <strong>Neither we nor Apple can read it.</strong> To tell your devices apart, iCloud also stores each device's name (the name the system provides by default, which you can change in the sync settings), model (iPhone or iPad), App version and sync status, also in encrypted fields. The only unencrypted items are randomly generated record IDs that contain no personal information, and what iCloud needs for storage: record type, size, and creation and modification times. If encrypted fields are not available for your iCloud account, syncing stops; data is never uploaded unencrypted. Our server takes no part in syncing and has no access to synced data.</p>
-<p>Syncing happens only in the App itself: when you open it, when you tap Sync Now, when iCloud reports a change, and in background time the system allows (usually while your device is charging). The keyboard never connects to iCloud.</p>
-<p><strong>Sync API Keys (off by default).</strong> Once iCloud Sync is on, you can turn this on separately on each device. Your saved API setups then sync in the encrypted fields above, and your API keys sync to your other devices through Apple's iCloud Keychain, end-to-end encrypted; neither we nor Apple can read them. While it is on, deleting an API setup or key on one device also deletes the matching key on your other devices. When you turn it off, this device keeps its keys; you can choose to also delete them from iCloud Keychain, which removes them from your other devices too. This only works if iCloud Keychain (Passwords sync) is turned on in iOS Settings.</p>
+<p>When you delete a custom word or keyboard phrase on one device, a deletion record (including its text) is kept in iCloud for 180 days so your other devices delete it too, and is then dropped.</p>
+<p>Synced content is stored in CloudKit encrypted fields and is <strong>end-to-end encrypted</strong>, with keys kept in your iCloud Keychain. <strong>Neither we nor Apple can read it.</strong> To tell your devices apart, iCloud also stores each device's name (the name the system provides by default, which you can change in the sync settings), model (iPhone or iPad), App version and sync status, also in encrypted fields, as are the deletion records above and the key fingerprints below. The only unencrypted items are randomly generated record IDs that contain no personal information, and what iCloud needs for storage: record type, size, and creation and modification times. If encrypted fields are not available for your iCloud account, syncing stops; data is never uploaded unencrypted. Our server takes no part in syncing and has no access to synced data.</p>
+<p>Syncing happens only in the App itself: when you open it, about 3 seconds after you change synced content in the App, when you tap Sync Now, when iCloud reports a change, and in background time the system allows (usually while your device is charging). The keyboard never connects to iCloud.</p>
+<p><strong>Sync API Keys (off by default).</strong> Once iCloud Sync is on, you can turn this on separately on each device. Your saved API setups then sync in the encrypted fields above, and your API keys sync to your other devices through Apple's iCloud Keychain, end-to-end encrypted; neither we nor Apple can read them. To tell whether your devices' API setups use the same key, each setup is stored with a fingerprint of its key: 16 characters computed one-way from the key with SHA-256, from which the key cannot be recovered. While it is on, deleting an API setup or key on one device also deletes the matching key on your other devices. When you turn it off, this device keeps its keys; you can choose to also delete them from iCloud Keychain, which removes them from your other devices too. This only works if iCloud Keychain (Passwords sync) is turned on in iOS Settings.</p>
 <p><strong>Clearing and turning off.</strong> While iCloud Sync is on, clearing the pinyin learning data in Settings › Privacy clears it on all your devices: this device right away, and each other device the next time it syncs, when its copy in iCloud is also replaced with the cleared data. An old device that no longer syncs keeps its old copy in iCloud; that copy is no longer merged into your other devices, but it stays until you delete the device under Devices in the sync settings. Deleting a single learned word from the keyboard affects only that device. In the sync settings you can delete the data of old devices you no longer use. When you turn off iCloud Sync, the App asks whether to also delete its data in iCloud. You can also view and delete the App's iCloud data at any time in iOS Settings › Apple Account › iCloud › Manage Account Storage. If you sign out of or switch Apple Accounts, syncing pauses and this device's data is never merged into the other account.</p>
 <p>For Apple Accounts in mainland China, iCloud is operated by Guizhou-Cloud Big Data Industry Co., Ltd. (GCBD), and the data is stored in mainland China.</p>
 <h2>4. Permissions</h2>
@@ -224,7 +226,7 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <p>We will respond within 15 business days.</p>
 </section>
 
-<section class="lang" id="ja" lang="ja"><h1>Enclave プライバシーポリシー</h1><p class="meta">施行日：2026 年 11 月 6 日 · バージョン：5</p>
+<section class="lang" id="ja" lang="ja"><h1>Enclave プライバシーポリシー</h1><p class="meta">施行日：2026 年 11 月 19 日 · バージョン：5</p>
 <h2>はじめに</h2>
 <p>Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が提供します。本ポリシーは、本アプリおよび付属のキーボード拡張をご利用いただく際の情報の取り扱いと、お客様の権利について説明するものです。</p>
 <h2>1. 収集する情報</h2>
@@ -279,12 +281,13 @@ code{font-family:ui-monospace,Menlo,monospace;font-size:.9em}
 <ul>
 <li>ピンイン入力の学習データ（学習した語句）</li>
 <li>ユーザー辞書とキーボードの定型文</li>
-<li>整えるスタイルと質問のスタイル。「API キーを同期」もオンにした場合は、保存した API の設定（サービス、アドレス、モデルなど）も含みます</li>
+<li>整えるスタイルと質問のスタイル、整える・質問のオン／オフ、ウェブ検索の傾向、AI バーに固定したスタイル。「API キーを同期」もオンにした場合は、保存した API の設定（サービス、アドレス、モデルなど）も含みます</li>
 </ul>
 <p>次のデータは<strong>同期されません</strong>：API キーと API の設定（下記の「API キーを同期」を別途オンにした場合を除く）、AI の履歴、クリップボード履歴、英語の学習データと自動修正の記録、配列・双拼・あいまいピンイン・音・振動・外観などのキーボード設定、連絡先の名前、購入と無料体験の情報、本ポリシーと各 API アドレスへの同意の記録、使用統計と診断記録。</p>
-<p>同期される内容は CloudKit の暗号化フィールドに保存され、<strong>エンドツーエンドで暗号化</strong>されます。暗号鍵はお客様の iCloud キーチェーンに保管され、<strong>当方も Apple も読み取ることはできません</strong>。端末を区別するため、端末ごとの端末名（初期設定はシステムが提供する名前で、同期の設定で変更できます）、機種（iPhone または iPad）、アプリのバージョン、同期の状態も iCloud に保存されますが、これらも暗号化フィールドに保存されます。暗号化されないのは、個人情報を含まないランダムなレコード ID と、保存に必要なレコードの種類・サイズ・作成日時・更新日時だけです。お客様の iCloud アカウントで暗号化フィールドが使えない場合、同期は停止し、暗号化せずにアップロードすることはありません。当方のサーバーは同期に関与せず、同期されたデータにアクセスできません。</p>
-<p>同期は本アプリ本体でのみ行われます：アプリを開いたとき、「今すぐ同期」をタップしたとき、iCloud から変更の通知を受けたとき、そしてシステムが割り当てるバックグラウンド時間（通常は充電中）です。キーボードが iCloud に接続することはありません。</p>
-<p><strong>API キーを同期（初期設定はオフ）：</strong> iCloud 同期をオンにした後、端末ごとに別途オンにできます。オンにすると、保存した API の設定も上記の暗号化フィールドで同期され、API キーは Apple の iCloud キーチェーンでほかの端末に同期されます。いずれもエンドツーエンドで暗号化され、当方も Apple も読み取ることはできません。オンの間、ある端末で API の設定やキーを削除すると、ほかの端末の対応するキーも削除されます。オフにすると、この端末にはキーが残ります。あわせて iCloud キーチェーンから削除することも選べ、その場合はほかの端末のキーも削除されます。iOS の設定で iCloud キーチェーン（「パスワード」の同期）がオンになっている必要があります。</p>
+<p>ある端末で削除したユーザー辞書の語句やキーボードの定型文は、ほかの端末でも削除されるよう、削除の記録（その語句の文字を含む）として iCloud に 180 日間保存され、その後は保存されません。</p>
+<p>同期される内容は CloudKit の暗号化フィールドに保存され、<strong>エンドツーエンドで暗号化</strong>されます。暗号鍵はお客様の iCloud キーチェーンに保管され、<strong>当方も Apple も読み取ることはできません</strong>。端末を区別するため、端末ごとの端末名（初期設定はシステムが提供する名前で、同期の設定で変更できます）、機種（iPhone または iPad）、アプリのバージョン、同期の状態も iCloud に保存されますが、これらや上記の削除の記録、下記のキーのフィンガープリントも暗号化フィールドに保存されます。暗号化されないのは、個人情報を含まないランダムなレコード ID と、保存に必要なレコードの種類・サイズ・作成日時・更新日時だけです。お客様の iCloud アカウントで暗号化フィールドが使えない場合、同期は停止し、暗号化せずにアップロードすることはありません。当方のサーバーは同期に関与せず、同期されたデータにアクセスできません。</p>
+<p>同期は本アプリ本体でのみ行われます：アプリを開いたとき、アプリで同期対象の内容を変更してから約 3 秒後、「今すぐ同期」をタップしたとき、iCloud から変更の通知を受けたとき、そしてシステムが割り当てるバックグラウンド時間（通常は充電中）です。キーボードが iCloud に接続することはありません。</p>
+<p><strong>API キーを同期（初期設定はオフ）：</strong> iCloud 同期をオンにした後、端末ごとに別途オンにできます。オンにすると、保存した API の設定も上記の暗号化フィールドで同期され、API キーは Apple の iCloud キーチェーンでほかの端末に同期されます。いずれもエンドツーエンドで暗号化され、当方も Apple も読み取ることはできません。端末間で API の設定が同じキーを使っているかを判断するため、各設定にはキーのフィンガープリント（キーから SHA-256 で一方向に計算した 16 文字。キーを復元することはできません）も保存されます。オンの間、ある端末で API の設定やキーを削除すると、ほかの端末の対応するキーも削除されます。オフにすると、この端末にはキーが残ります。あわせて iCloud キーチェーンから削除することも選べ、その場合はほかの端末のキーも削除されます。iOS の設定で iCloud キーチェーン（「パスワード」の同期）がオンになっている必要があります。</p>
 <p><strong>消去とオフ：</strong> iCloud 同期がオンのとき、「設定 › プライバシー」でピンイン入力の学習データを消去すると、すべての端末の学習データが消去されます。この端末ではすぐに、ほかの端末では次回の同期時に消去され、その端末の iCloud 上のコピーも消去後の内容に置き換わります。長い間同期していない古い端末の iCloud 上のコピーは、ほかの端末に統合されることはありませんが、同期の設定の「デバイス」でその端末を削除するまで残ります。キーボードで学習した語句を個別に削除した場合は、その端末にのみ反映されます。同期の設定画面で、使わなくなった古い端末のデータを削除できます。iCloud 同期をオフにするときは、iCloud 上の本アプリのデータもあわせて削除するかを確認します。iOS の「設定 › Apple アカウント › iCloud › アカウントのストレージを管理」でも、本アプリの iCloud データをいつでも確認・削除できます。Apple アカウントからサインアウトしたり別のアカウントに切り替えたりすると同期は一時停止し、この端末のデータが別のアカウントに統合されることはありません。</p>
 <p>中国本土の Apple アカウントの場合、iCloud は雲上貴州大数據產業發展有限公司（GCBD）が運営し、データは中国本土に保存されます。</p>
 <h2>4. 権限について</h2>

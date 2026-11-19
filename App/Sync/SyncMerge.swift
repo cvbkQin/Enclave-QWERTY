@@ -333,12 +333,21 @@ extension SyncMerge {
             model = settings.model
             temperature = settings.temperature
             maxTokens = settings.maxTokens
-            separateAnswer = settings.separateAnswer
-            answerBaseURL = settings.answerBaseURL
-            answerModel = settings.answerModel
-            answerTemperature = settings.answerTemperature
-            answerMaxTokens = settings.answerMaxTokens
+            // 没单独走问答接口时，问答那几项不算进来（04 三审第 1 条）：本机留着没用的问答地址配的是本机的问答 Key，
+            // 传过去会让另一台以后打开「单独设问答接口」时拿它自己的问答 Key 去请求这个地址。
+            let usesAnswer = settings.usesAnswerEndpoint
+            separateAnswer = usesAnswer
+            answerBaseURL = usesAnswer ? settings.answerBaseURL : ""
+            answerModel = usesAnswer ? settings.answerModel : ""
+            answerTemperature = usesAnswer ? settings.answerTemperature : nil
+            answerMaxTokens = usesAnswer ? settings.answerMaxTokens : nil
             self.keys = keys
+        }
+
+        /// 这份配置的问答走不走另一个接口（和 EnclaveSettings.usesAnswerEndpoint 一样判断；旧版传上来的没整理过，也按这个看）。
+        var usesAnswerEndpoint: Bool {
+            separateAnswer && !answerBaseURL.trimmingCharacters(in: .whitespaces).isEmpty
+                && !answerModel.trimmingCharacters(in: .whitespaces).isEmpty
         }
 
         func apply(to settings: inout EnclaveSettings) {
@@ -346,11 +355,17 @@ extension SyncMerge {
             settings.model = model
             settings.temperature = temperature
             settings.maxTokens = maxTokens
-            settings.separateAnswer = separateAnswer
-            settings.answerBaseURL = answerBaseURL
-            settings.answerModel = answerModel
-            settings.answerTemperature = answerTemperature
-            settings.answerMaxTokens = answerMaxTokens
+            if usesAnswerEndpoint {
+                settings.separateAnswer = true
+                settings.answerBaseURL = answerBaseURL
+                settings.answerModel = answerModel
+                settings.answerTemperature = answerTemperature
+                settings.answerMaxTokens = answerMaxTokens
+            } else if settings.usesAnswerEndpoint {
+                // 那台问答和润色走同一个接口：这台也不再单独走问答接口。本机的问答地址和参数留着不改，
+                // 它们配的还是本机的问答 Key（这份配置的 keys 里没有问答 Key，配对表也不动）。
+                settings.separateAnswer = false
+            }
         }
     }
 
