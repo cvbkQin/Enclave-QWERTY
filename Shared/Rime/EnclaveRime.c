@@ -113,6 +113,30 @@ bool enclave_userdb_locked(const char *lock_path) {
   return locked;
 }
 
+int enclave_userdb_lock(const char *lock_path) {
+  int fd = open(lock_path, O_RDWR | O_CREAT | O_CLOEXEC, 0644);
+  if (fd < 0) return -1;
+  struct flock info;
+  memset(&info, 0, sizeof(info));
+  info.l_type = F_WRLCK;
+  info.l_whence = SEEK_SET;
+  if (fcntl(fd, F_SETLK, &info) == -1) {
+    close(fd);
+    return -1;
+  }
+  return fd;
+}
+
+void enclave_userdb_unlock(int fd) {
+  if (fd < 0) return;
+  struct flock info;
+  memset(&info, 0, sizeof(info));
+  info.l_type = F_UNLCK;
+  info.l_whence = SEEK_SET;
+  fcntl(fd, F_SETLK, &info);
+  close(fd);
+}
+
 uint64_t enclave_rime_create_session(const char *schema_id) {
   RimeApi *api = rime_get_api();
   RimeSessionId session = api->create_session();

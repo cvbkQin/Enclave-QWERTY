@@ -9,6 +9,8 @@ struct EnclaveApp: App {
     init() {
         // 内测版：收崩溃、卡死记录，只存本机。
         CrashLog.shared.start(source: "app")
+        // 上次备份 / 恢复做到一半被杀时留下的词库副本，启动时清掉（后台做）。
+        LearnedWords.cleanUpLeftovers()
         #if DEBUG
         // 模拟器截图用：-keyboardDebug "expanded,nine,compose:nihao" 让键盘直接显示某个状态。
         let args = ProcessInfo.processInfo.arguments
