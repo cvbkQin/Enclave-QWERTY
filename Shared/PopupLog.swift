@@ -44,7 +44,7 @@ struct PopupRecord: Codable, Identifiable {
     var didCommonWords: Double
     /// 拼音引擎这次弹出后多久准备好（从 viewDidLoad 开始算；冷启动才有意义，热启动通常很快）。
     var engineReady: Double?
-    /// 拼音引擎这次准备：在引擎队列上排了多久、自己做了多久（毫秒）、做的是什么（见 RimeEngine.PrepareWork）。
+    /// 拼音引擎这次准备：在引擎队列上排了多久、自己做了多久（毫秒）、做的是什么（RimeEngine.lastPrepareWork，几次的按先后用 → 连起来）。
     var engineWait: Double?
     var engineRun: Double?
     var engineWork: String?
@@ -84,7 +84,7 @@ struct PopupRecord: Codable, Identifiable {
         } else if let wakeToInit {
             var line = "键盘被叫醒（之前闲了 \(String(format: "%.1f", (idleBeforeWake ?? 0) / 1000)) 秒）到开始建键盘：\(Self.ms(wakeToInit + initToLoad)) 毫秒"
             if let wakeBusy {
-                line += "；其中键盘主线程干活 \(Self.ms(wakeBusy)) 毫秒，其余 \(Self.ms(max(0, wakeToInit - wakeBusy))) 毫秒在等系统"
+                line += "；其中键盘主线程干活 \(Self.ms(wakeBusy)) 毫秒，其余 \(Self.ms(max(0, wakeToInit + initToLoad - wakeBusy))) 毫秒在等系统"
             }
             lines.append(line)
         } else {
@@ -236,8 +236,11 @@ enum PopupLog {
         let warm = records.filter { !$0.isCold }
         func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
         var parts = ["最近 \(records.count) 次弹出"]
-        if !warm.isEmpty { parts.append("热启动 \(warm.count) 次，一般 \(ms(median(warm.map(\.total)))) 毫秒") }
-        if !cold.isEmpty { parts.append("冷启动 \(cold.count) 次，一般 \(ms(median(cold.map(\.total)))) 毫秒") }
+        // 中途被挂起的那几次耗时不算数，不进「一般多久」。
+        let warmTimes = warm.filter { $0.paused == nil }.map(\.total)
+        let coldTimes = cold.filter { $0.paused == nil }.map(\.total)
+        if !warm.isEmpty { parts.append("热启动 \(warm.count) 次，一般 \(ms(median(warmTimes))) 毫秒") }
+        if !cold.isEmpty { parts.append("冷启动 \(cold.count) 次，一般 \(ms(median(coldTimes))) 毫秒") }
         let slow = records.filter(\.isSlow).count
         parts.append(slow == 0 ? "没有明显慢的" : "明显慢的 \(slow) 次")
         return parts.joined(separator: "；") + "。"
@@ -289,14 +292,17 @@ enum MainWake {
     static func install() {
         guard PopupLog.enabled, !installed else { return }
         installed = true
-        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity([.beforeWaiting, .afterWaiting]).rawValue, true, 0) { _, activity in
+        // 醒来记得越早越好、睡下记得越晚越好：睡下那个排在最后（order 最大），
+        // 不然同一圈里 Core Animation 提交（排版、绘制）和自动释放池在它后面才跑，我们自己的活会被算成「在等系统」。
+        let sleeping = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, CFIndex.max) { _, _ in
             let now = CACurrentMediaTime()
-            if activity == .beforeWaiting {
-                if awake { awakeTotal += now - awakeSince }
-                awake = false
-                sleepStart = now
-                return
-            }
+            if awake { awakeTotal += now - awakeSince }
+            awake = false
+            sleepStart = now
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), sleeping, .commonModes)
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue, true, CFIndex.min) { _, _ in
+            let now = CACurrentMediaTime()
             awakeSince = now
             awake = true
             if sleepStart > 0, now - sleepStart > 0.5 {

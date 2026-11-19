@@ -65,10 +65,6 @@ final class RimeEngine: InputEngine {
 
     /// 准备好引擎并切到指定方案；词库没部署或读不到共享目录时返回 false。
     /// useShared：开了完全访问时用 App 部署到共享目录的词库（带模糊拼音）；否则用键盘自带的那份。
-    /// 最近一次 prepare(schema:) 做了什么（弹出记录用）：重新加载词库、新建会话、换方案，都没做是「现成的」。
-    private(set) var lastPrepareWork = ""
-    private var prepareSteps: [String] = []
-
     func prepare(schema wanted: String, useShared: Bool) -> Bool {
         self.useShared = useShared
         prepareSteps = []
@@ -84,6 +80,10 @@ final class RimeEngine: InputEngine {
         }
         return true
     }
+
+    /// 最近一次 prepare(schema:) 做了什么（弹出记录用）：启动 / 重新加载词库、新建会话、换方案，都没做是「现成的」。
+    private(set) var lastPrepareWork = ""
+    private var prepareSteps: [String] = []
 
     /// 有没有能加载的词库（只看文件，不启动引擎），用来在引擎准备好之前先决定用不用拼音。
     static func hasDictionary(useShared: Bool) -> Bool {
@@ -145,7 +145,8 @@ final class RimeEngine: InputEngine {
             }
             // 内测包自带整句模型：App 升级后包路径变了，先把用户目录里的链接指回来。
             if version.hasPrefix("shared:") { GrammarModel.linkBundled() }
-            prepareSteps.append(loadedVersion == nil ? "启动词库" : "重新加载词库（App 部署过）")
+            // 换了词库（App 重新部署过，或者开关完全访问时在共享和自带两份之间换）。
+            prepareSteps.append(loadedVersion == nil ? "启动词库" : "重新加载词库")
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
             doublePinyin = DoublePinyin(versionString: version)

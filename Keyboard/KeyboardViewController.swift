@@ -11,6 +11,7 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         loadStart = CACurrentMediaTime()
+        loadBusy = MainWake.busySinceWake(now: loadStart)
         MainWake.install()
         MainStalls.start()
         if Self.popupsInProcess == 0, let start = TypingStats.processStartDate {
@@ -71,8 +72,8 @@ final class KeyboardViewController: UIInputViewController {
     private static var popupsInProcess = 0
     /// 控制器建出来的时刻：到 viewDidLoad 之间是系统在准备（热启动时也有）。
     private let createdAt = CACurrentMediaTime()
-    /// 控制器建出来时，主线程从上次醒来起醒着干活的合计（毫秒）。
-    private let createdBusy = MainWake.busySinceWake()
+    /// viewDidLoad 开始时，主线程从上次醒来起醒着干活的合计（毫秒）：和「叫醒到开始建键盘」那一行同一段。
+    private var loadBusy: Double = 0
     private var loadStart: CFTimeInterval = 0
     private var loadSinceProcess: Double?
     private var loadMs: Double = 0
@@ -353,7 +354,7 @@ final class KeyboardViewController: UIInputViewController {
             processToLoad: Self.popupsInProcess == 1 ? loadSinceProcess : nil,
             initToLoad: (loadStart - createdAt) * 1000,
             idleBeforeWake: wake.map { _ in MainWake.lastIdle * 1000 }, wakeToInit: wake.map { (createdAt - $0) * 1000 },
-            wakeBusy: wake.map { _ in createdBusy },
+            wakeBusy: wake.map { _ in loadBusy },
             stallLongest: stalls?.longest, stallTotal: stalls?.total,
             lastCleanupMs: PopupLog.lastCleanupMs, lastTeardownMs: PopupLog.lastTeardownMs,
             lastCleanupBefore: PopupLog.lastCleanupDone.map { (createdAt - $0) * 1000 },
@@ -371,8 +372,8 @@ final class KeyboardViewController: UIInputViewController {
         guard var finished = popupRecord, !popupRecorded else { return }
         popupRecorded = true
         finished.loadToAppear = (CACurrentMediaTime() - loadStart) * 1000
-        // viewDidLoad 以后主线程睡过半秒以上：主线程每 50 毫秒就被 MainStalls 叫醒一次，睡这么久只能是进程被系统挂起了。
-        if let wake = MainWake.lastWake, wake > loadStart { finished.paused = MainWake.lastIdle * 1000 }
+        // 控制器建出来以后主线程睡过半秒以上：主线程每 50 毫秒就被 MainStalls 叫醒一次，睡这么久只能是进程被系统挂起了。
+        if let wake = MainWake.lastWake, wake > createdAt { finished.paused = MainWake.lastIdle * 1000 }
         finished.didClipboard = clipboard * 1000
         finished.didCommonWords = commonWords * 1000
         finished.memoryMB = TypingStats.footprintMB()
@@ -380,10 +381,13 @@ final class KeyboardViewController: UIInputViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak model] in
             var record = partial
             if let ready = model?.engineReadyAt, ready >= loadStart { record.engineReady = (ready - loadStart) * 1000 }
-            if let prepare = QueuedEngine.shared.lastPrepare, prepare.done >= loadStart {
-                record.engineWait = prepare.wait
-                record.engineRun = prepare.run
-                record.engineWork = prepare.work
+            // 这次弹出以后的每一次准备：排队取第一次的，准备时间加起来，做了什么按先后列出。
+            let prepares = QueuedEngine.shared.recentPrepares.filter { $0.queued >= loadStart }
+            if let first = prepares.first {
+                record.engineWait = (first.started - first.queued) * 1000
+                record.engineRun = prepares.map { ($0.finished - $0.started) * 1000 }.reduce(0, +)
+                record.engineWork = prepares.map(\.work).joined(separator: " → ")
+                    + (prepares.count > 1 ? "（准备了 \(prepares.count) 次）" : "")
             }
             // 旧键盘常常在新的弹出以后才拆（deinit 晚一点），这时补上；期间又收起过就不补（已经是下一次的了）。
             if PopupLog.lastHideMono == hideMono {
