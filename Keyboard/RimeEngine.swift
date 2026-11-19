@@ -67,8 +67,11 @@ final class RimeEngine: InputEngine {
     /// useShared：开了完全访问时用 App 部署到共享目录的词库（带模糊拼音）；否则用键盘自带的那份。
     func prepare(schema wanted: String, useShared: Bool) -> Bool {
         self.useShared = useShared
+        prepareSteps = []
+        defer { lastPrepareWork = prepareSteps.isEmpty ? "现成的" : prepareSteps.joined(separator: "、") }
         guard prepare() else { return false }
         if wanted != schema {
+            prepareSteps.append("换方案")
             reset()
             guard enclave_rime_select_schema(session, wanted) else { return false }
             enclave_rime_set_option(session, "ascii_mode", false)
@@ -77,6 +80,10 @@ final class RimeEngine: InputEngine {
         }
         return true
     }
+
+    /// 最近一次 prepare(schema:) 做了什么（弹出记录用）：启动 / 重新加载词库、新建会话、换方案，都没做是「现成的」。
+    private(set) var lastPrepareWork = ""
+    private var prepareSteps: [String] = []
 
     /// 有没有能加载的词库（只看文件，不启动引擎），用来在引擎准备好之前先决定用不用拼音。
     static func hasDictionary(useShared: Bool) -> Bool {
@@ -138,6 +145,8 @@ final class RimeEngine: InputEngine {
             }
             // 内测包自带整句模型：App 升级后包路径变了，先把用户目录里的链接指回来。
             if version.hasPrefix("shared:") { GrammarModel.linkBundled() }
+            // 换了词库（App 重新部署过，或者开关完全访问时在共享和自带两份之间换）。
+            prepareSteps.append(loadedVersion == nil ? "启动词库" : "重新加载词库")
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
             doublePinyin = DoublePinyin(versionString: version)
@@ -145,6 +154,7 @@ final class RimeEngine: InputEngine {
             source = version
         }
         if !enclave_rime_session_alive(session) {
+            prepareSteps.append("新建会话")
             session = enclave_rime_create_session(schema)
             guard session != 0 else { return false }
             enclave_rime_set_option(session, "ascii_mode", false)
