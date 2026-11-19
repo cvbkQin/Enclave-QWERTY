@@ -649,6 +649,14 @@ struct BackupRestoreSheet: View {
         }
     }
 
+    /// ⑭ 勾了「设置」时多的一项（02 五审）：设置里只有同步的风格资料（SyncMerge.StyleProfile）那几项会同步出去，
+    /// 照它真有的字段列（风格本身归「润色和问答风格」那一项）；声音、外观、键盘布局等不同步，不列。
+    private var settingsSyncNote: String {
+        L("润色和问答的开关、帮回自动判断、钉在 AI 栏的风格、联网调用偏好也换成备份里的",
+          "the Polish and Q&A switches, Help Reply Auto Detect, styles pinned to the AI bar and the web search preference are also replaced with the backup's",
+          "整える・質問のオン／オフ、返信アシストの自動判断、AI バーに固定したスタイル、ウェブ検索の傾向もバックアップのものに置き換わります")
+    }
+
     /// ⑭ 正文（02 四审改文案）：只列这次勾了、会同步出去的几项；开着 Key 同步时再说接口方案和 Key。
     /// 接口方案只在勾了「设置」时换（恢复设置时备份里没有的方案会删 Key，04 三审第 2 条）。
     private var syncRestoreMessage: String {
@@ -666,6 +674,7 @@ struct BackupRestoreSheet: View {
                 parts.append(L("润色和问答风格加进来，同名的换成备份里的", "Polish and Answer styles are added, and ones with the same name are replaced by the backup's",
                                "整えるスタイルと回答スタイルは追加され、同じ名前のものはバックアップのものに置き換わります"))
             }
+            if selected.contains(.settings) { parts.append(settingsSyncNote) }
             body = parts.isEmpty
                 ? L("开着 iCloud 同步，恢复的内容会同步到所有设备。", "With iCloud Sync on, what you restore syncs to all devices.", "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。")
                 : L("开着 iCloud 同步，恢复的这几项会同步到所有设备：", "With iCloud Sync on, these restored items sync to all devices: ", "iCloud 同期がオンなので、復元するこれらの項目はすべてのデバイスに同期されます：")
@@ -674,17 +683,22 @@ struct BackupRestoreSheet: View {
             var replaced: [String] = []
             if selected.contains(.commonWords) { replaced.append(L("常用词、键盘常用语", "your words, keyboard phrases", "ユーザ辞書、定型文")) }
             if selected.contains(.styles) { replaced.append(L("润色和问答风格", "Polish and Answer styles", "整えるスタイルと回答スタイル")) }
+            var clauses: [String] = []
+            if !replaced.isEmpty {
+                clauses.append(replaced.joined(separator: sep) + L("都换成备份里的", " are all replaced with the backup's", "はすべてバックアップのものに置き換わります"))
+            }
+            if selected.contains(.settings) { clauses.append(settingsSyncNote) }
             let learned = selected.contains(.learnedWords)
-            if replaced.isEmpty && !learned {
+            if clauses.isEmpty && !learned {
                 body = L("开着 iCloud 同步，恢复的内容会同步到所有设备。", "With iCloud Sync on, what you restore syncs to all devices.", "iCloud 同期がオンなので、復元した内容はすべてのデバイスに同期されます。")
             } else {
                 body = L("开着 iCloud 同步，恢复的这几项会同步到所有设备：", "With iCloud Sync on, these restored items sync to all devices: ", "iCloud 同期がオンなので、復元するこれらの項目はすべてのデバイスに同期されます：")
-                if !replaced.isEmpty {
-                    body += replaced.joined(separator: sep) + L("都换成备份里的。", " are all replaced with the backup's.", "はすべてバックアップのものに置き換わります。")
+                if !clauses.isEmpty {
+                    body += clauses.joined(separator: L("；", "; ", "。")) + L("。", ".", "。")
                 }
                 if learned {
                     body += L("学到的词是这台先清空再恢复，下次同步时，其他设备学到的词还会合并回来。",
-                              (replaced.isEmpty ? "" : " ") + "Learned words on this device are cleared and then restored, and words learned on your other devices merge back at the next sync.",
+                              (clauses.isEmpty ? "" : " ") + "Learned words on this device are cleared and then restored, and words learned on your other devices merge back at the next sync.",
                               "学習した語はこのデバイスで消してから復元し、次の同期でほかのデバイスの学習した語が統合されて戻ります。")
                 }
             }
