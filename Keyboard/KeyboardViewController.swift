@@ -12,13 +12,13 @@ final class KeyboardViewController: UIInputViewController {
         super.viewDidLoad()
         loadStart = CACurrentMediaTime()
         loadBusy = MainWake.busySinceWake(now: loadStart)
+        wakeTracked = MainWake.isInstalled
         MainWake.install()
         MainStalls.start()
         if Self.popupsInProcess == 0, let start = TypingStats.processStartDate {
             loadSinceProcess = Date().timeIntervalSince(start) * 1000
         }
         defer { loadMs = (CACurrentMediaTime() - loadStart) * 1000 }
-        CrashLog.shared.start(source: "keyboard")
         installHost()
 
         // 键盘高度只由这一条必需约束决定。allowsSelfSizing 让系统按我们的约束算高度，
@@ -74,6 +74,8 @@ final class KeyboardViewController: UIInputViewController {
     private let createdAt = CACurrentMediaTime()
     /// viewDidLoad 开始时，主线程从上次醒来起醒着干活的合计（毫秒）：和「叫醒到开始建键盘」那一行同一段。
     private var loadBusy: Double = 0
+    /// viewDidLoad 之前主线程醒睡就已经在量了（冷启动第一次是在 viewDidLoad 里才装上观察器，那一圈量不全）。
+    private var wakeTracked = false
     private var loadStart: CFTimeInterval = 0
     private var loadSinceProcess: Double?
     private var loadMs: Double = 0
@@ -325,10 +327,6 @@ final class KeyboardViewController: UIInputViewController {
         let reloadDone = CACurrentMediaTime()
         model.applyInputLanguage()
         model.applyDebugState()
-        TouchCalibration.reload()
-        // 震动发生器提前建好、预热：不然第一次按键时才创建，第一个键会顿一下。
-        if model.settings.keyHaptics && model.hasFullAccess { model.haptic.prepare() }
-        if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
         // 高度和内容在滑出来之前就定好：reload 可能改了高度（比如试用提醒条），这里同步改掉，不等下一轮；
         // 再让 SwiftUI 先排一遍，系统做弹出动画时画的就是完整的键盘，AI 栏不会等滑出来以后才冒出来。
         let layoutStart = CACurrentMediaTime()
@@ -343,6 +341,9 @@ final class KeyboardViewController: UIInputViewController {
     private func startPopupRecord(willStart: CFTimeInterval, hostDone: CFTimeInterval, reload: CFTimeInterval, layoutStart: CFTimeInterval) {
         guard PopupLog.enabled, !popupRecorded, popupRecord == nil else { return }
         let now = CACurrentMediaTime()
+        // 这一圈主线程睡下时，Core Animation 已经把第一帧提交了：记下来，看系统那边空底板等的是不是我们。
+        let load = loadStart
+        MainWake.onNextSleep = { PopupLog.firstFrame = (load, CACurrentMediaTime()) }
         Self.popupsInProcess += 1
         let hide = PopupLog.lastHide
         // 这个控制器建出来之前 5 秒内主线程醒过（闲置 / 挂起后），才算这次弹出叫醒的。
@@ -374,12 +375,15 @@ final class KeyboardViewController: UIInputViewController {
         finished.loadToAppear = (CACurrentMediaTime() - loadStart) * 1000
         // 控制器建出来以后主线程睡过半秒以上：主线程每 50 毫秒就被 MainStalls 叫醒一次，睡这么久只能是进程被系统挂起了。
         if let wake = MainWake.lastWake, wake > createdAt { finished.paused = MainWake.lastIdle * 1000 }
+        // 建键盘到显示出来这段主线程干了多少活：没被挂起、建键盘之前就在量，才算得准。
+        if wakeTracked, finished.paused == nil { finished.appearBusy = max(0, MainWake.busySinceWake() - loadBusy) }
         finished.didClipboard = clipboard * 1000
         finished.didCommonWords = commonWords * 1000
         finished.memoryMB = TypingStats.footprintMB()
         let loadStart = loadStart, createdAt = createdAt, partial = finished, hideMono = PopupLog.lastHideMono
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak model] in
             var record = partial
+            if let frame = PopupLog.firstFrame, frame.load == loadStart { record.firstFrame = (frame.at - loadStart) * 1000 }
             if let ready = model?.engineReadyAt, ready >= loadStart { record.engineReady = (ready - loadStart) * 1000 }
             // 这次弹出以后的每一次准备：排队取第一次的，准备时间加起来，做了什么按先后列出。
             let prepares = QueuedEngine.shared.recentPrepares.filter { $0.queued >= loadStart }
@@ -411,6 +415,8 @@ final class KeyboardViewController: UIInputViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.heightLog("settled") }
         #endif
         TypingStats.noteLaunchAppeared()
+        // 先弹出、后载入：键盘长什么样用不到的准备，都等它显示出来以后的下一轮再做，不压在弹出前的主线程上。
+        DispatchQueue.main.async { [weak self] in self?.prepareAfterAppear() }
         // 弹出前没进窗口时方向是按尺寸类猜的，进了窗口按屏幕再核一次。
         scheduleOrientationCheck()
         clearStaleMarkedText()
@@ -424,6 +430,16 @@ final class KeyboardViewController: UIInputViewController {
         model.refreshCommonWords()
         let wordsDone = CACurrentMediaTime()
         finishPopupRecord(clipboard: wordsStart - clipboardStart, commonWords: wordsDone - wordsStart)
+    }
+
+    /// 弹出后再做的准备：崩溃记录订阅（冷启动时要读一遍以前的诊断包）、按键落点校准、震动预热、英文补全词表。
+    /// 都在第一个按键之前就做完了（显示出来以后的下一轮），只是不再挡在键盘显示出来之前。
+    private func prepareAfterAppear() {
+        CrashLog.shared.start(source: "keyboard")
+        TouchCalibration.reload()
+        // 震动发生器提前建好、预热：不然第一次按键时才创建，第一个键会顿一下。
+        if model.settings.keyHaptics && model.hasFullAccess { model.haptic.prepare() }
+        if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
     }
 
     /// 每有一个键盘页面要弹出就 +1（整个进程共用）。收起后补做清理前看它变没变：变了说明又弹出来了，会话归新页面用。
