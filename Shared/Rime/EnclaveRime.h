@@ -23,6 +23,12 @@ bool enclave_rime_sync_user_data(const char *shared_dir, const char *user_dir, c
 /// 这里试着加同样的锁，加不上就是别人拿着；加上了马上放开。只在主 App 里、librime 没开着这个库时调用。
 bool enclave_userdb_locked(const char *lock_path);
 
+/// 拿住用户词库的 LOCK（和 LevelDB 同一把 fcntl 写锁），拿住期间键盘打不开这个库。LOCK 不在时新建一个空的。
+/// 成功返回文件描述符，交给 enclave_userdb_unlock 放开；别人拿着或打不开时返回 -1。
+/// 拿着的时候别在本进程里对同一个文件调 enclave_userdb_locked：fcntl 锁按进程算，那边一 close 这把锁就没了。
+int enclave_userdb_lock(const char *lock_path);
+void enclave_userdb_unlock(int fd);
+
 uint64_t enclave_rime_create_session(const char *schema_id);
 void enclave_rime_destroy_session(uint64_t session);
 bool enclave_rime_select_schema(uint64_t session, const char *schema_id);

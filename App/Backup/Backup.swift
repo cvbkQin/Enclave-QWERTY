@@ -225,7 +225,8 @@ enum BackupService {
         }
     }
 
-    static func makeArchive(items: Set<BackupItem>, keysPassword: String?, origin: Origin) throws -> Data {
+    /// learnedSnapshot：已经导出好的学到的词（恢复前的安全备份用，省得再整库复制一遍）。
+    static func makeArchive(items: Set<BackupItem>, keysPassword: String?, origin: Origin, learnedSnapshot: String? = nil) throws -> Data {
         var files: [(name: String, data: Data)] = []
         var counts: [String: Int] = [:]
         let settings = SettingsStore.load()
@@ -258,8 +259,14 @@ enum BackupService {
                 files.append((item.fileName, try encoder.encode(words)))
                 counts[item.rawValue] = words.words.count
             case .learnedWords:
-                guard !LearnedWords.isBusy else { throw BackupError.learnedWordsBusy }
-                guard let snapshot = LearnedWords.snapshot() else { throw BackupError.learnedWords }
+                let snapshot: String
+                if let learnedSnapshot {
+                    snapshot = learnedSnapshot
+                } else {
+                    guard !LearnedWords.isBusy else { throw BackupError.learnedWordsBusy }
+                    guard let exported = LearnedWords.snapshot() else { throw BackupError.learnedWords }
+                    snapshot = exported
+                }
                 files.append((item.fileName, Data(snapshot.utf8)))
                 counts[item.rawValue] = BackupMerge.learnedCount(snapshot)
             case .history:
@@ -331,8 +338,15 @@ enum BackupService {
         let words = items.contains(.commonWords) ? try decoder.decode(CommonWordsFile.self, from: data(.commonWords)) : nil
         let learned = items.contains(.learnedWords) ? String(decoding: try data(.learnedWords), as: UTF8.self) : nil
         let history = items.contains(.history) ? try decoder.decode([AIHistoryEntry].self, from: data(.history)) : nil
-        // 键盘还开着词库：什么都先别动。
-        if learned != nil, LearnedWords.isBusy { throw BackupError.learnedWordsBusy }
+        // 键盘还开着词库：什么都先别动。现在的词先导出一份，下面的安全备份和数词都用它。
+        var learnedBefore: String?
+        if learned != nil {
+            guard !LearnedWords.isBusy else { throw BackupError.learnedWordsBusy }
+            guard let before = LearnedWords.snapshot() else {
+                throw LearnedWords.isBusy ? BackupError.learnedWordsBusy : BackupError.learnedWords
+            }
+            learnedBefore = before
+        }
         var keys: [String: String]?
         if let password = keysPassword {
             guard let decrypted = decryptKeys(file, password: password) else { throw BackupError.wrongPassword }
@@ -343,7 +357,7 @@ enum BackupService {
         if let folder = safetyFolder {
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let all = Set(BackupItem.allCases).subtracting(learned == nil ? [.learnedWords] : [])
-            if let archive = try? makeArchive(items: all, keysPassword: nil, origin: origin) {
+            if let archive = try? makeArchive(items: all, keysPassword: nil, origin: origin, learnedSnapshot: learnedBefore) {
                 let stamp = Int(Date().timeIntervalSince1970)
                 try? archive.write(to: folder.appendingPathComponent("before-restore-\(stamp).\(fileExtension)"), options: .atomic)
             }
@@ -360,26 +374,19 @@ enum BackupService {
         var state = RestoredState()
 
         // 3. 学到的词先做：交给拼音引擎合并，失败了别的都还没动。
-        if let learned {
-            let before = LearnedWords.snapshot()
-            let beforeCount = before.map(BackupMerge.learnedCount) ?? 0
-            // 在副本上合并、确认后原子换上（bug #29）：没成功时正式词库一点没动，不用退回。
-            guard LearnedWords.importSnapshot(learned, replace: mode == .replace) else {
+        if let learned, let before = learnedBefore {
+            let beforeCount = BackupMerge.learnedCount(before)
+            // 在副本上合并、数过词、确认后原子换上（bug #29）：没成功时正式词库一点没动，不用退回。
+            guard let merged = LearnedWords.importSnapshot(learned, replace: mode == .replace,
+                                                           existingCount: mode == .replace ? 0 : beforeCount) else {
                 throw LearnedWords.isBusy ? BackupError.learnedWordsBusy : BackupError.learnedWords
             }
-            // 换上以后再导出一次数词；这时键盘刚好开着就数不了，词已经恢复了，只是不报个数。
-            let after = LearnedWords.snapshot()
-            // 备份里有词、合并完一个都没有：副本没合并进去（同步照样返回成功），用刚才的快照换回去。
-            if let after, BackupMerge.learnedCount(learned) > 0, BackupMerge.learnedCount(after) == 0 {
-                if let before { _ = LearnedWords.importSnapshot(before, replace: true) }
-                throw BackupError.learnedWords
-            }
-            if let after {
-                let delta = BackupMerge.learnedCount(after) - (mode == .replace ? 0 : beforeCount)
+            let delta = BackupMerge.learnedCount(merged) - (mode == .replace ? 0 : beforeCount)
+            report.rows.append(.init(title: BackupItem.learnedWords.title,
+                                     value: L("+\(max(0, delta)) 个", "+\(max(0, delta))", "+\(max(0, delta)) 語")))
+            if LearnedWords.swapIssue != nil {
                 report.rows.append(.init(title: BackupItem.learnedWords.title,
-                                         value: L("+\(max(0, delta)) 个", "+\(max(0, delta))", "+\(max(0, delta)) 語")))
-            } else {
-                report.rows.append(.init(title: BackupItem.learnedWords.title, value: L("已恢复", "Restored", "復元済み")))
+                                         value: L("已换上，但刚才几秒里键盘学到的词可能没带上", "Restored; words learned in the last few seconds may be missing", "復元済み。直前の数秒に学習した語は含まれない場合があります")))
             }
         }
 
@@ -524,12 +531,13 @@ enum LearnedWords {
             .appendingPathComponent("LearnedWordsWork", isDirectory: true)
     }
 
-    /// 词库文件夹里每个文件的大小和修改时间；文件夹不在时为空。键盘一打开词库，LOG、LOCK 就会变。
+    /// 词库文件夹里每个文件的大小和修改时间；文件夹不在时为空。键盘一打开词库，LOG、MANIFEST、日志文件就会变。
+    /// 不算 LOCK：它是空文件，install 拿锁时可能新建它，内容永远不变。
     private static func fingerprint(_ dir: URL) -> [String: String] {
         let fm = FileManager.default
         let names = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
         var result: [String: String] = [:]
-        for name in names {
+        for name in names where name != "LOCK" {
             let attributes = try? fm.attributesOfItem(atPath: dir.appendingPathComponent(name).path)
             let size = (attributes?[.size] as? NSNumber)?.int64Value ?? -1
             let modified = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? -1
@@ -583,13 +591,35 @@ enum LearnedWords {
         if let root = workRoot { try? FileManager.default.removeItem(at: root) }
     }
 
+    private static func stagingURL(_ paths: RimeStore.Paths) -> URL {
+        paths.user.appendingPathComponent(".\(dictName).userdb.incoming", isDirectory: true)
+    }
+
+    /// App 启动时清一次：上次导出、恢复做到一半被杀，Caches 里会留着一整份学到的词，共享目录里可能留着暂存的词库。
+    static func cleanUpLeftovers() {
+        DispatchQueue.global(qos: .utility).async {
+            lock.lock()
+            defer { lock.unlock() }
+            cleanUp()
+            if let paths = RimeStore.paths { try? FileManager.default.removeItem(at: stagingURL(paths)) }
+        }
+    }
+
+    /// 最近一次换上新词库时，换下来的旧库在交换前后被改过（本该被锁挡住）。nil 是正常。
+    private(set) static var swapIssue: String?
+    static let swapIssueKey = "debug.learnedWordsSwapIssue"
+
     /// 把副本里合并好的词库换成正式的。先复制到共享目录里的暂存名（同一个卷，才能原子交换），
-    /// 再确认键盘没开着、原库从复制以后没变过，然后 renamex_np 交换；没有原库时直接改名。
+    /// 再拿住正式库的 LOCK（和 leveldb 同一把锁）、确认原库从复制以后没变过，然后 renamex_np 交换，换完放开。
+    /// 锁拿不到（键盘开着）就不换。拿着锁的这零点几毫秒里键盘要是正好弹出，它这一次打不开词库，
+    /// librime 会排一次修复（RepairDB），修的是刚换上、没人开着的完好词库，不丢词；不拿锁的话，键盘可能在检查和交换之间
+    /// 打开旧库，拿着旧目录往新目录写文件，把词库写坏。没有原库时直接改名（RENAME_EXCL，键盘刚好建了库就不换）。
     private static func install(_ work: Work, _ paths: RimeStore.Paths) -> Bool {
         let fm = FileManager.default
         let merged = work.user.appendingPathComponent("\(dictName).userdb", isDirectory: true)
         let target = userdb(paths)
-        let staging = paths.user.appendingPathComponent(".\(dictName).userdb.incoming", isDirectory: true)
+        let staging = stagingURL(paths)
+        swapIssue = nil
         try? fm.removeItem(at: staging)
         guard fm.fileExists(atPath: merged.path) else { return false }
         do {
@@ -598,20 +628,45 @@ enum LearnedWords {
             try? fm.removeItem(at: staging)
             return false
         }
-        guard !isBusy, fingerprint(target) == work.before else {
-            try? fm.removeItem(at: staging)
+        defer { try? fm.removeItem(at: staging) }
+        let exists = fm.fileExists(atPath: target.path)
+        // 拿着锁的时候不能调 isBusy：它在本进程里开关同一个 LOCK 文件，一 close 锁就没了。
+        let lockFD = exists ? enclave_userdb_lock(target.appendingPathComponent("LOCK").path) : -1
+        if exists && lockFD < 0 { return false }
+        guard fingerprint(target) == work.before else {
+            enclave_userdb_unlock(lockFD)
             return false
         }
         let swapped: Bool
-        if fm.fileExists(atPath: target.path) {
+        if exists {
             // RENAME_SWAP（0x2）：两个路径互换，正式词库这个名字一直有东西。
             swapped = renamex_np(staging.path, target.path, 0x2) == 0
         } else {
-            swapped = rename(staging.path, target.path) == 0
+            // RENAME_EXCL（0x4）：目标已经有了就失败，不覆盖。
+            swapped = renamex_np(staging.path, target.path, 0x4) == 0
         }
-        // 交换成功时暂存名下是旧库；失败时是没用上的副本。都删掉。
-        try? fm.removeItem(at: staging)
+        enclave_userdb_unlock(lockFD)
+        // 交换后暂存名下是换下来的旧库：它从复制起应该一点没变。变了说明有人绕过锁写过（比如修复任务），
+        // 新库已经换上、是完好的，只是那段时间里学到的词没带上。记下来，恢复结果里报出来。
+        if swapped, exists, fingerprint(staging) != work.before {
+            let issue = "old userdb changed during swap"
+            swapIssue = issue
+            SharedStorage.defaults.set("\(Date()) \(issue)", forKey: swapIssueKey)
+            NSLog("LearnedWords: %@", issue)
+        }
+        // 交换成功时暂存名下是旧库；失败时是没用上的副本。defer 里都删掉。
         return swapped
+    }
+
+    /// 副本同步完以后，librime 导出的本机快照（sync/<installation_id>/enclave.userdb.txt）；放进去合并的 skip 文件夹不算。
+    private static func ownSnapshot(_ user: URL, skip: String) -> String? {
+        let fm = FileManager.default
+        let sync = user.appendingPathComponent("sync", isDirectory: true)
+        let file = ((try? fm.contentsOfDirectory(at: sync, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.lastPathComponent != skip }
+            .map { $0.appendingPathComponent("\(dictName).userdb.txt") }
+            .first { fm.fileExists(atPath: $0.path) }
+        return file.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
     }
 
     /// 导出当前学到的词（*.userdb.txt 的文本）；没打过字是空字符串，引擎打不开（包括键盘占着）时为 nil。
@@ -634,25 +689,30 @@ enum LearnedWords {
     }
 
     /// 把备份里的快照合并进来（两边都有的词取权重大的）；replace 时从空库开始，合并完整个换掉现有的。
-    /// 任何一步不成（键盘开着、原库中途变了），正式词库都不动。
-    static func importSnapshot(_ text: String, replace: Bool) -> Bool {
-        guard let paths else { return false }
+    /// 返回换上的词库导出的快照（用来数词）。任何一步不成（键盘开着、原库中途变了、合并完一个词都没有），
+    /// 正式词库都不动，返回 nil。existingCount：合并时原来有几个词（替换时传 0）。
+    static func importSnapshot(_ text: String, replace: Bool, existingCount: Int = 0) -> String? {
+        guard let paths else { return nil }
         lock.lock()
         defer { lock.unlock() }
         defer { cleanUp() }
-        guard let work = prepareWork(paths, includeExisting: !replace) else { return false }
+        guard let work = prepareWork(paths, includeExisting: !replace) else { return nil }
         let fm = FileManager.default
         let folder = work.user.appendingPathComponent("sync/backup", isDirectory: true)
         do {
             try fm.createDirectory(at: folder, withIntermediateDirectories: true)
             try text.write(to: folder.appendingPathComponent("\(dictName).userdb.txt"), atomically: true, encoding: .utf8)
         } catch {
-            return false
+            return nil
         }
         guard RimeStore.withAppEngine({
             enclave_rime_sync_user_data(paths.shared.path, work.user.path, nil, RimeStore.schemaID)
-        }) else { return false }
-        return install(work, paths)
+        }) else { return nil }
+        // 同步合并完会把副本导出到本机的文件夹，在换上之前先数：备份里有词、或原来有词，合并完却一个都没有，
+        // 说明没合并进去（同步照样返回成功），不换上。这样不用事后再换回去。
+        guard let merged = ownSnapshot(work.user, skip: "backup") else { return nil }
+        if BackupMerge.learnedCount(merged) == 0, BackupMerge.learnedCount(text) > 0 || existingCount > 0 { return nil }
+        return install(work, paths) ? merged : nil
     }
 }
 
