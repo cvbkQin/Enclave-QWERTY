@@ -45,3 +45,32 @@ jobs:
             echo "::endgroup::"
           fi
           exit "${status:-0}"
+      # 单元测试（Tests/ 下的 EnclaveTests，不挂 App、不链拼音引擎）：有一个挂了这一步就失败，PR 标红。
+      - name: Unit tests
+        run: |
+          # 挑最新 iOS 运行时里的一台 iPhone 模拟器。
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          devices = json.load(sys.stdin)["devices"]
+          def version(key):
+              return [int(n) for n in re.findall(r"\d+", key.split("iOS-")[-1])]
+          for key in sorted((k for k in devices if ".iOS-" in k), key=version, reverse=True):
+              for device in devices[key]:
+                  if device["name"].startswith("iPhone"):
+                      print(device["udid"]); sys.exit()
+          ')
+          echo "Simulator: $udid"
+          xcodebuild test \
+            -project Enclave.xcodeproj \
+            -scheme EnclaveTests \
+            -destination "id=$udid" \
+            CODE_SIGNING_ALLOWED=NO \
+            > test.log 2>&1 || status=$?
+          grep -E "Executed [0-9]+ tests|Test Suite 'All tests'|\*\* TEST" test.log | tail -n 5 || true
+          if [ "${status:-0}" -ne 0 ]; then
+            echo "::group::Failing tests"
+            grep -n -E "error:|: failed|Failing tests|with an uncaught|Fatal error|crashed" test.log | head -n 300 || true
+            echo "::endgroup::"
+            tail -n 80 test.log
+          fi
+          exit "${status:-0}"

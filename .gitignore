@@ -30,3 +30,6 @@ Generated/
 # 纠错测试跑出来的结果，scripts/correction/run-eval.sh 放进来
 Tests/Correction/results/
 __pycache__/
+
+# 打字性能基准每次跑出来的结果（scripts/bench/run-bench.sh），基线 bench/baseline.json 要提交
+bench/results/
