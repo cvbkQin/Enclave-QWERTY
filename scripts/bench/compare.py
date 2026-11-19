@@ -2,7 +2,7 @@
 """打字性能基准的结果：合并几次、和基线比。
 
   compare.py --merge run1.json run2.json ...   几次结果每项取中位数，输出一份（JSON 到标准输出）
-  compare.py baseline.json result.json         和基线比：按键变慢、内存变大超过门槛就以 1 退出
+  compare.py baseline.json result.json         和基线比：没超门槛 0；按键变慢、内存变大超过门槛 1；没有基线 2
 
 门槛（模拟器上同一台机器前后比；模拟器的绝对数和手机不一样，只看变化）：
   按键耗时中位数  比基线多 20% 且多 0.5 ms 以上
@@ -57,8 +57,8 @@ def compare(baseline_path, result_path):
         print(f"还没有基线（{baseline_path}）。这次的数：")
         for key, name, unit, *_ in CHECKS:
             print(f"  {name}：{result.get(key)} {unit}")
-        print("确认没问题后用 run-bench.sh --save-baseline 存一份。")
-        return 0
+        print("没有基线，什么都没比（以 2 退出）。确认没问题后用 run-bench.sh --save-baseline 存一份。")
+        return 2
     print(f"基线 {base.get('version')}（{base.get('build')}，{base.get('date', '')[:10]}，{base.get('device')}）"
           f" → 这次 {result.get('version')}（{result.get('build')}，{result.get('device')}）")
     if base.get("device") != result.get("device"):
