@@ -49,7 +49,18 @@ def read_source():
     return texts, legal("developer"), legal("developerZh"), legal("email"), date, version
 
 
+def with_icloud(text):
+    """网页版按带 iCloud 同步的包生成：去掉 [[no-icloud]]…[[/no-icloud]]，留下 [[icloud]]…[[/icloud]] 里的字。
+    规则和 App/Legal/PolicyFilter.swift 一样（从行首包到行尾的连换行一起去掉，多出的空行合成一个）。"""
+    block = r"\[\[no-icloud\]\](?:(?!\[\[/no-icloud\]\])[\s\S])*\[\[/no-icloud\]\]"
+    text = re.sub(r"(?m)^" + block + r"\n", "", text)
+    text = re.sub(block, "", text)
+    text = re.sub(r"\[\[/?icloud\]\]", "", text)
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 def fill(text, lang, developer, developer_zh, email):
+    text = with_icloud(text)
     return text.replace("{developer}", developer_zh if lang == "zh" else developer).replace("{email}", email)
 
 

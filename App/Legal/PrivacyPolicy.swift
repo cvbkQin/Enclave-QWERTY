@@ -12,7 +12,8 @@ enum PrivacyPolicy {
         case .ja: raw = ja
         case .zh, .system: raw = zh
         }
-        return raw.replacingOccurrences(of: "{developer}", with: language == .en || language == .ja ? LegalInfo.developer : LegalInfo.developerZh)
+        // 没有 iCloud 同步能力的包里，去掉只说同步的那几段、换成不带同步的说法（PolicyFilter）。网页版按带同步的生成。
+        return PolicyFilter.apply(raw, iCloudSync: ICloudSync.isAvailable).replacingOccurrences(of: "{developer}", with: language == .en || language == .ja ? LegalInfo.developer : LegalInfo.developerZh)
             .replacingOccurrences(of: "{email}", with: LegalInfo.email)
     }
 
