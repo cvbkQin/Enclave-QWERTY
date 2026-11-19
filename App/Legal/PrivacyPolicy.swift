@@ -125,7 +125,7 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 同步的内容存放在 CloudKit 的加密字段中，**端到端加密**，加密密钥保存在您的 iCloud 钥匙串中，**我们和 Apple 都无法读取**。为区分您的各台设备，iCloud 中还会保存每台设备的设备名称（默认取系统提供的名称，可在同步设置中修改）、型号（iPhone 或 iPad）、App 版本和同步状态，这些以及上述删除记录、下文的 Key 指纹也都存放在加密字段中；不加密的只有随机生成、不含个人信息的记录编号，以及 iCloud 存储所需的记录类型、大小和创建、修改时间。如您的 iCloud 账户无法使用加密字段，同步会停止，不会以不加密的方式上传。我们的服务器不参与同步，接触不到同步的数据。
 
-同步只在 App 主程序中进行：打开 App 时、在 App 中修改润色或问答风格、AI 接口或接口方案约 3 秒后、点击“立即同步”时、收到 iCloud 的变更通知时，以及系统分配的后台时间（通常在设备充电时）。键盘不连接 iCloud。
+同步只在 App 主程序中进行：打开 App 时、在 App 中修改润色或问答风格、AI 接口、接口方案或 API 密钥约 3 秒后、点击“立即同步”时、收到 iCloud 的变更通知时，以及系统分配的后台时间（通常在设备充电时）。键盘不连接 iCloud。
 
 **同步接口 Key（默认关闭）：** 开启 iCloud 同步后，您可以另行开启此项，每台设备分别决定。开启后，您保存的接口方案也会随上述加密字段同步，API 密钥则通过 Apple 的 iCloud 钥匙串同步到您的其他设备，端到端加密，我们和 Apple 都无法读取。为判断各台设备的接口方案是否配着同一个 Key，iCloud 中会随接口方案保存每个 Key 的指纹：由 Key 经 SHA-256 单向计算得到的 16 位十六进制字符，无法反推出 Key。开启期间，在一台设备上删除接口方案或密钥，其他设备上对应的密钥也会被删除。关闭此项时，本机保留密钥；您可以选择同时从 iCloud 钥匙串中删除，这样其他设备上的密钥也会删除。此项需要您在 iOS 设置中打开 iCloud 钥匙串（“密码”同步）才能生效。
 
@@ -273,7 +273,7 @@ When you delete or edit a custom word or keyboard phrase on one device, a deleti
 
 Synced content is stored in CloudKit encrypted fields and is **end-to-end encrypted**, with keys kept in your iCloud Keychain. **Neither we nor Apple can read it.** To tell your devices apart, iCloud also stores each device's name (the name the system provides by default, which you can change in the sync settings), model (iPhone or iPad), App version and sync status, also in encrypted fields, as are the deletion records above and the key fingerprints below. The only unencrypted items are randomly generated record IDs that contain no personal information, and what iCloud needs for storage: record type, size, and creation and modification times. If encrypted fields are not available for your iCloud account, syncing stops; data is never uploaded unencrypted. Our server takes no part in syncing and has no access to synced data.
 
-Syncing happens only in the App itself: when you open it, about 3 seconds after you change Polish or Ask styles, the AI endpoint or API setups in the App, when you tap Sync Now, when iCloud reports a change, and in background time the system allows (usually while your device is charging). The keyboard never connects to iCloud.
+Syncing happens only in the App itself: when you open it, about 3 seconds after you change Polish or Ask styles, the AI endpoint, API setups or API keys in the App, when you tap Sync Now, when iCloud reports a change, and in background time the system allows (usually while your device is charging). The keyboard never connects to iCloud.
 
 **Sync API Keys (off by default).** Once iCloud Sync is on, you can turn this on separately on each device. Your saved API setups then sync in the encrypted fields above, and your API keys sync to your other devices through Apple's iCloud Keychain, end-to-end encrypted; neither we nor Apple can read them. To tell whether your devices' API setups use the same key, each setup is stored with a fingerprint of its key: 16 hexadecimal characters computed one-way from the key with SHA-256, from which the key cannot be recovered. While it is on, deleting an API setup or key on one device also deletes the matching key on your other devices. When you turn it off, this device keeps its keys; you can choose to also delete them from iCloud Keychain, which removes them from your other devices too. This only works if iCloud Keychain (Passwords sync) is turned on in iOS Settings.
 
@@ -410,7 +410,7 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 同期される内容は CloudKit の暗号化フィールドに保存され、**エンドツーエンドで暗号化**されます。暗号鍵はお客様の iCloud キーチェーンに保管され、**当方も Apple も読み取ることはできません**。端末を区別するため、端末ごとの端末名（初期設定はシステムが提供する名前で、同期の設定で変更できます）、機種（iPhone または iPad）、アプリのバージョン、同期の状態も iCloud に保存されますが、これらや上記の削除の記録、下記のキーのフィンガープリントも暗号化フィールドに保存されます。暗号化されないのは、個人情報を含まないランダムなレコード ID と、保存に必要なレコードの種類・サイズ・作成日時・更新日時だけです。お客様の iCloud アカウントで暗号化フィールドが使えない場合、同期は停止し、暗号化せずにアップロードすることはありません。当方のサーバーは同期に関与せず、同期されたデータにアクセスできません。
 
-同期は本アプリ本体でのみ行われます：アプリを開いたとき、アプリで整える・質問のスタイル、AI の接続先、API の設定を変更してから約 3 秒後、「今すぐ同期」をタップしたとき、iCloud から変更の通知を受けたとき、そしてシステムが割り当てるバックグラウンド時間（通常は充電中）です。キーボードが iCloud に接続することはありません。
+同期は本アプリ本体でのみ行われます：アプリを開いたとき、アプリで整える・質問のスタイル、AI の接続先、API の設定、API キーを変更してから約 3 秒後、「今すぐ同期」をタップしたとき、iCloud から変更の通知を受けたとき、そしてシステムが割り当てるバックグラウンド時間（通常は充電中）です。キーボードが iCloud に接続することはありません。
 
 **API キーを同期（初期設定はオフ）：** iCloud 同期をオンにした後、端末ごとに別途オンにできます。オンにすると、保存した API の設定も上記の暗号化フィールドで同期され、API キーは Apple の iCloud キーチェーンでほかの端末に同期されます。いずれもエンドツーエンドで暗号化され、当方も Apple も読み取ることはできません。端末間で API の設定が同じキーを使っているかを判断するため、各設定にはキーのフィンガープリント（キーから SHA-256 で一方向に計算した 16 桁の 16 進数。キーを復元することはできません）も保存されます。オンの間、ある端末で API の設定やキーを削除すると、ほかの端末の対応するキーも削除されます。オフにすると、この端末にはキーが残ります。あわせて iCloud キーチェーンから削除することも選べ、その場合はほかの端末のキーも削除されます。iOS の設定で iCloud キーチェーン（「パスワード」の同期）がオンになっている必要があります。
 
