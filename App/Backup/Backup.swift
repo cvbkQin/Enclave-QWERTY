@@ -363,19 +363,24 @@ enum BackupService {
         if let learned {
             let before = LearnedWords.snapshot()
             let beforeCount = before.map(BackupMerge.learnedCount) ?? 0
-            guard LearnedWords.importSnapshot(learned, replace: mode == .replace), let after = LearnedWords.snapshot() else {
-                // 替换时已经清空了：用刚才的快照退回去。
-                if mode == .replace, let before { _ = LearnedWords.importSnapshot(before, replace: true) }
+            // 在副本上合并、确认后原子换上（bug #29）：没成功时正式词库一点没动，不用退回。
+            guard LearnedWords.importSnapshot(learned, replace: mode == .replace) else {
                 throw LearnedWords.isBusy ? BackupError.learnedWordsBusy : BackupError.learnedWords
             }
-            // 备份里有词、合并完一个都没有：词库其实没打开（同步照样返回成功）。
-            if BackupMerge.learnedCount(learned) > 0, BackupMerge.learnedCount(after) == 0 {
-                if mode == .replace, let before { _ = LearnedWords.importSnapshot(before, replace: true) }
+            // 换上以后再导出一次数词；这时键盘刚好开着就数不了，词已经恢复了，只是不报个数。
+            let after = LearnedWords.snapshot()
+            // 备份里有词、合并完一个都没有：副本没合并进去（同步照样返回成功），用刚才的快照换回去。
+            if let after, BackupMerge.learnedCount(learned) > 0, BackupMerge.learnedCount(after) == 0 {
+                if let before { _ = LearnedWords.importSnapshot(before, replace: true) }
                 throw BackupError.learnedWords
             }
-            let delta = BackupMerge.learnedCount(after) - (mode == .replace ? 0 : beforeCount)
-            report.rows.append(.init(title: BackupItem.learnedWords.title,
-                                     value: L("+\(max(0, delta)) 个", "+\(max(0, delta))", "+\(max(0, delta)) 語")))
+            if let after {
+                let delta = BackupMerge.learnedCount(after) - (mode == .replace ? 0 : beforeCount)
+                report.rows.append(.init(title: BackupItem.learnedWords.title,
+                                         value: L("+\(max(0, delta)) 个", "+\(max(0, delta))", "+\(max(0, delta)) 語")))
+            } else {
+                report.rows.append(.init(title: BackupItem.learnedWords.title, value: L("已恢复", "Restored", "復元済み")))
+            }
         }
 
         // 4. 设置：总是直接用备份里的。
@@ -504,45 +509,150 @@ enum LearnedWords {
         return FileManager.default.fileExists(atPath: lockFile.path) && enclave_userdb_locked(lockFile.path)
     }
 
+    // MARK: 副本做法（bug #29）
+    //
+    // App 不再直接打开键盘在用的那份词库（App Group 里的 Rime/user/enclave.userdb）。
+    // 以前导出、恢复时 App 的 librime 开着正式词库；这时键盘弹出打不开词库，librime 会在键盘进程里排「词库修复」
+    // （UserDictionary::Load → userdb_recovery_task → leveldb::RepairDB）。RepairDB 不检查锁，会在 App 还开着的时候
+    // 重写词库的目录文件；修不好就把整个词库改名 .old、新建空库。反过来 App 开库时撞上键盘也一样（恢复时建会话会走 Load）。
+    // 现在：键盘没开着时把词库复制到 App 自己的目录，在副本上导出 / 合并；要写回时先放到共享目录里的暂存名，
+    // 确认键盘还没开着、原库从复制以后没变过，再用 renamex_np 原子交换，中间没有空档。
+
+    /// 副本所在的 App 私有目录（Caches）：librime 在这里拿锁，App 被挂起也不会因为 App Group 里的锁被杀（0xDEAD10CC）。
+    private static var workRoot: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("LearnedWordsWork", isDirectory: true)
+    }
+
+    /// 词库文件夹里每个文件的大小和修改时间；文件夹不在时为空。键盘一打开词库，LOG、LOCK 就会变。
+    private static func fingerprint(_ dir: URL) -> [String: String] {
+        let fm = FileManager.default
+        let names = (try? fm.contentsOfDirectory(atPath: dir.path)) ?? []
+        var result: [String: String] = [:]
+        for name in names {
+            let attributes = try? fm.attributesOfItem(atPath: dir.appendingPathComponent(name).path)
+            let size = (attributes?[.size] as? NSNumber)?.int64Value ?? -1
+            let modified = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? -1
+            result[name] = "\(size)@\(modified)"
+        }
+        return result
+    }
+
+    private struct Work {
+        let user: URL
+        /// 复制时原库的指纹：写回前要还是这样。
+        let before: [String: String]
+    }
+
+    /// 建副本的用户目录：编译好的词库（build）和整句模型链接过去（只读），设备号复制一份，
+    /// includeExisting 时把现在的词库复制进来（「替换」恢复时不带）。键盘开着、或者复制途中原库变了，返回 nil。
+    private static func prepareWork(_ paths: RimeStore.Paths, includeExisting: Bool) -> Work? {
+        guard !isBusy, let root = workRoot else { return nil }
+        let fm = FileManager.default
+        try? fm.removeItem(at: root)
+        let user = root.appendingPathComponent("user", isDirectory: true)
+        do {
+            try fm.createDirectory(at: user, withIntermediateDirectories: true)
+            let items = (try? fm.contentsOfDirectory(atPath: paths.user.path)) ?? []
+            for name in items where name == "build" || name.hasSuffix(".gram") {
+                try fm.createSymbolicLink(at: user.appendingPathComponent(name),
+                                          withDestinationURL: paths.user.appendingPathComponent(name).resolvingSymlinksInPath())
+            }
+            let installation = paths.user.appendingPathComponent("installation.yaml")
+            if fm.fileExists(atPath: installation.path) {
+                try fm.copyItem(at: installation, to: user.appendingPathComponent("installation.yaml"))
+            }
+            let source = userdb(paths)
+            let before = fingerprint(source)
+            if includeExisting, fm.fileExists(atPath: source.path) {
+                try fm.copyItem(at: source, to: user.appendingPathComponent(source.lastPathComponent, isDirectory: true))
+                // 副本里别带着键盘的锁文件状态：LOCK 是空文件，留着无妨；复制途中键盘开了库，副本可能不完整，放弃。
+                guard fingerprint(source) == before, !isBusy else {
+                    try? fm.removeItem(at: root)
+                    return nil
+                }
+            }
+            return Work(user: user, before: before)
+        } catch {
+            try? fm.removeItem(at: root)
+            return nil
+        }
+    }
+
+    private static func cleanUp() {
+        if let root = workRoot { try? FileManager.default.removeItem(at: root) }
+    }
+
+    /// 把副本里合并好的词库换成正式的。先复制到共享目录里的暂存名（同一个卷，才能原子交换），
+    /// 再确认键盘没开着、原库从复制以后没变过，然后 renamex_np 交换；没有原库时直接改名。
+    private static func install(_ work: Work, _ paths: RimeStore.Paths) -> Bool {
+        let fm = FileManager.default
+        let merged = work.user.appendingPathComponent("\(dictName).userdb", isDirectory: true)
+        let target = userdb(paths)
+        let staging = paths.user.appendingPathComponent(".\(dictName).userdb.incoming", isDirectory: true)
+        try? fm.removeItem(at: staging)
+        guard fm.fileExists(atPath: merged.path) else { return false }
+        do {
+            try fm.copyItem(at: merged, to: staging)
+        } catch {
+            try? fm.removeItem(at: staging)
+            return false
+        }
+        guard !isBusy, fingerprint(target) == work.before else {
+            try? fm.removeItem(at: staging)
+            return false
+        }
+        let swapped: Bool
+        if fm.fileExists(atPath: target.path) {
+            // RENAME_SWAP（0x2）：两个路径互换，正式词库这个名字一直有东西。
+            swapped = renamex_np(staging.path, target.path, 0x2) == 0
+        } else {
+            swapped = rename(staging.path, target.path) == 0
+        }
+        // 交换成功时暂存名下是旧库；失败时是没用上的副本。都删掉。
+        try? fm.removeItem(at: staging)
+        return swapped
+    }
+
     /// 导出当前学到的词（*.userdb.txt 的文本）；没打过字是空字符串，引擎打不开（包括键盘占着）时为 nil。
     static func snapshot() -> String? {
-        guard let paths, !isBusy else { return nil }
+        guard let paths else { return nil }
         lock.lock()
         defer { lock.unlock() }
-        let sync = paths.user.appendingPathComponent("sync", isDirectory: true)
+        defer { cleanUp() }
         let fm = FileManager.default
-        try? fm.removeItem(at: sync)
-        defer { try? fm.removeItem(at: sync) }
-        guard RimeStore.withAppEngine({ enclave_rime_sync_user_data(paths.shared.path, paths.user.path, nil, nil) }) else { return nil }
+        let hadUserdb = fm.fileExists(atPath: userdb(paths).path)
+        guard let work = prepareWork(paths, includeExisting: true) else { return nil }
+        guard RimeStore.withAppEngine({ enclave_rime_sync_user_data(paths.shared.path, work.user.path, nil, nil) }) else { return nil }
+        let sync = work.user.appendingPathComponent("sync", isDirectory: true)
         guard let found = fm.enumerator(at: sync, includingPropertiesForKeys: nil)?
             .compactMap({ $0 as? URL }).first(where: { $0.lastPathComponent == "\(dictName).userdb.txt" }) else {
             // 没打过字（没有用户词库）是空的；有词库却没导出来，说明没打开。
-            return fm.fileExists(atPath: userdb(paths).path) ? nil : ""
+            return hadUserdb ? nil : ""
         }
         return try? String(contentsOf: found, encoding: .utf8)
     }
 
-    /// 把备份里的快照合并进来（两边都有的词取权重大的）；replace 时先清空现有的。
+    /// 把备份里的快照合并进来（两边都有的词取权重大的）；replace 时从空库开始，合并完整个换掉现有的。
+    /// 任何一步不成（键盘开着、原库中途变了），正式词库都不动。
     static func importSnapshot(_ text: String, replace: Bool) -> Bool {
-        // 键盘占着时连清空都不能做。
-        guard let paths, !isBusy else { return false }
+        guard let paths else { return false }
         lock.lock()
         defer { lock.unlock() }
-        if replace { RimeStore.clearLearning() }
+        defer { cleanUp() }
+        guard let work = prepareWork(paths, includeExisting: !replace) else { return false }
         let fm = FileManager.default
-        let sync = paths.user.appendingPathComponent("sync", isDirectory: true)
-        try? fm.removeItem(at: sync)
-        defer { try? fm.removeItem(at: sync) }
-        let folder = sync.appendingPathComponent("backup", isDirectory: true)
+        let folder = work.user.appendingPathComponent("sync/backup", isDirectory: true)
         do {
             try fm.createDirectory(at: folder, withIntermediateDirectories: true)
             try text.write(to: folder.appendingPathComponent("\(dictName).userdb.txt"), atomically: true, encoding: .utf8)
         } catch {
             return false
         }
-        return RimeStore.withAppEngine {
-            enclave_rime_sync_user_data(paths.shared.path, paths.user.path, nil, RimeStore.schemaID)
-        }
+        guard RimeStore.withAppEngine({
+            enclave_rime_sync_user_data(paths.shared.path, work.user.path, nil, RimeStore.schemaID)
+        }) else { return false }
+        return install(work, paths)
     }
 }
 
