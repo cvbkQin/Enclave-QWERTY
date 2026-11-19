@@ -59,6 +59,26 @@ enum ICloudSyncFailure: Equatable {
         }
         return .other
     }
+
+    /// 同步失败时记进状态的原文（只进日志和状态；开发者版装机在卡片里显示，方便查 CKError 15 这类服务器拒绝）：
+    /// CKError 自己的描述，加上底层错误的域和编号（比如 CKInternalErrorDomain 2000）、服务器说明、几条逐条错误、多久后重试。
+    static func describe(_ error: Error) -> String {
+        var parts = [String(describing: error)]
+        let ns = error as NSError
+        if let message = ns.userInfo["ServerErrorDescription"] as? String { parts.append("server: \(message)") }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+            var line = "underlying \(underlying.domain) \(underlying.code)"
+            if let message = underlying.userInfo["ServerErrorDescription"] as? String { line += " server: \(message)" }
+            parts.append(line)
+        }
+        if let error = error as? CKError {
+            if let retry = error.retryAfterSeconds { parts.append("retryAfter \(Int(retry))s") }
+            if let partial = error.partialErrorsByItemID {
+                for (item, itemError) in partial.prefix(3) { parts.append("\(item): \(describe(itemError))") }
+            }
+        }
+        return String(parts.joined(separator: " | ").prefix(2000))
+    }
 }
 
 enum ICloudSync {
@@ -293,6 +313,8 @@ actor ICloudSyncEngine {
     private var running: Task<ICloudSyncStatus, Never>?
     private var runAgain = false
     private var runCount = 0
+    /// 这一轮走到哪一步了（失败时记进状态，查是哪个 CloudKit 请求被拒）。
+    private var step = ""
 
     /// 跑一次同步。正在跑时等它的结果；again 时（清除学习记录）等它跑完再跑一次，免得用的还是清除前的状态。
     /// 调用方的任务被取消（后台任务时间到）时取消这次同步：CloudKit 的请求会停下，本机状态停在上一步存好的地方。
@@ -389,6 +411,7 @@ actor ICloudSyncEngine {
         }
         let container = CKContainer(identifier: containerID)
         let database = container.privateCloudDatabase
+        step = "accountStatus"
         do {
             guard try await container.accountStatus() == .available else {
                 return ICloudSyncStatus(result: .noAccount, at: Date(), detail: nil)
@@ -416,9 +439,10 @@ actor ICloudSyncEngine {
         } catch let error as CKError where error.code == .notAuthenticated {
             return ICloudSyncStatus(result: .noAccount, at: Date(), detail: nil)
         } catch {
-            NSLog("ICloudSync: sync failed: %@", String(describing: error))
-            // 网络不通单独记一个词，卡片里的说明按原因换（02 四审改文案）；别的照旧记错误原文（只进日志和状态）。
-            let detail = ICloudSyncFailure.of(error) == .network ? ICloudSyncFailure.networkDetail : String(describing: error)
+            let described = "\(step): \(ICloudSyncFailure.describe(error))"
+            NSLog("ICloudSync: sync failed at %@", described)
+            // 网络不通单独记一个词，卡片里的说明按原因换（02 四审改文案）；别的记哪一步加错误原文（只进日志和状态，开发者版装机在卡片里显示）。
+            let detail = ICloudSyncFailure.of(error) == .network ? ICloudSyncFailure.networkDetail : described
             return ICloudSyncStatus(result: .failed, at: Date(), detail: detail)
         }
     }
@@ -434,6 +458,7 @@ actor ICloudSyncEngine {
         // 刚重新打开同步（ICloudSync.enable）：在这里、在同步引擎里重置，不会被还在跑的上一轮盖掉（04 复审 B9）。
         let rejoin = ICloudSync.pendingRejoin()
         if rejoin != nil { state = state.rejoined() }
+        step = "userRecordID"
         let user = try await container.userRecordID().recordName
         if let old = state.userRecordName, old != user {
             // 换了 Apple ID：同步暂停、Key 的同步关掉，新账户里不写任何东西，要用户确认后再继续（1.12）。
@@ -449,6 +474,7 @@ actor ICloudSyncEngine {
 
     private func ensureZone(_ database: CKDatabase, _ state: inout ICloudSyncState) async throws {
         if !state.zoneReady {
+            step = "saveZone"
             let (saved, _) = try await database.modifyRecordZones(saving: [CKRecordZone(zoneID: Self.zoneID)], deleting: [])
             if case .failure(let error) = saved[Self.zoneID] { throw error }
             state.zoneReady = true
@@ -459,6 +485,7 @@ actor ICloudSyncEngine {
             let info = CKSubscription.NotificationInfo()
             info.shouldSendContentAvailable = true
             subscription.notificationInfo = info
+            step = "saveSubscription"
             _ = try await database.save(subscription)
             state.subscribed = true
         }
@@ -470,6 +497,7 @@ actor ICloudSyncEngine {
             try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKServerChangeToken.self, from: $0)
         }
         var more = true
+        step = "fetchChanges"
         while more {
             let changes = try await database.recordZoneChanges(inZoneWith: Self.zoneID, since: token)
             for (_, result) in changes.modificationResultsByID {
@@ -492,6 +520,7 @@ actor ICloudSyncEngine {
     /// 合并、写回本机、上传本机这份。
     private func exchange(_ database: CKDatabase, _ state: inout ICloudSyncState) async throws -> ICloudSyncStatus {
         let now = Date()
+        step = "merge"
         var peers = PeerCache.payloads(excluding: state.deviceID)
         var skippedNewer = false
         for (id, payload) in peers where payload.format > SyncMerge.DevicePayload.currentFormat {
@@ -682,6 +711,7 @@ actor ICloudSyncEngine {
             let packed = try SyncMerge.packSnapshot(snapshot, chunkSize: Self.chunkSize)
             if packed.hash != state.snapshotHash || state.snapshotGeneration != state.generation {
                 for (index, chunk) in packed.chunks.enumerated() {
+                    step = "saveChunk \(index + 1)/\(packed.chunks.count) (\(chunk.count) bytes)"
                     let record = CKRecord(recordType: Self.chunkType, recordID: Self.chunkID(state.deviceID, index))
                     record.encryptedValues["data"] = chunk
                     try await Self.save([record], in: database)
@@ -713,7 +743,9 @@ actor ICloudSyncEngine {
         if SyncMerge.shouldUpload(digest: digest, uploadedDigest: state.uploadedDigest, uploadedAt: state.uploadedAt,
                                   now: now, heartbeat: Self.heartbeat) {
             let device = CKRecord(recordType: Self.deviceType, recordID: Self.deviceID(state.deviceID))
-            device.encryptedValues["payload"] = try JSONEncoder().encode(payload)
+            let encoded = try JSONEncoder().encode(payload)
+            step = "saveDevice (\(encoded.count) bytes)"
+            device.encryptedValues["payload"] = encoded
             try await Self.save([device], in: database)
             state.uploadedDigest = digest
             state.uploadedAt = now
