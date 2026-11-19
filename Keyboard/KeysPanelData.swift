@@ -308,13 +308,103 @@ enum RecentEmoji {
     }
 }
 
-/// 常用颜文字。
+/// 常用颜文字（EP2）：分开心、难过、生气、害羞、无语五组，面板里每组一个小标题，底栏按组跳。
 enum Kaomoji {
-    static let all: [String] = [
-        "^_^", "^^", "(^_^)", "(≧▽≦)", "(｡•̀ᴗ-)✧", "(๑•̀ㅂ•́)و✧", "(*^▽^*)", "(～￣▽￣)～",
-        "(＾▽＾)", "o(*￣▽￣*)o", "(´▽`ʃ♡ƪ)", "(づ｡◕‿‿◕｡)づ", "(｡･ω･｡)", "(・∀・)", "(￣▽￣)~*", "ヾ(≧▽≦*)o",
-        "(；′⌒`)", "(T_T)", "(╥﹏╥)", "QAQ", "(´；ω；`)", "(￣﹏￣；)", "(⊙_⊙)?", "(°ー°〃)",
-        "(╯°□°）╯︵ ┻━┻", "┬─┬ノ( º _ ºノ)", "(￣^￣)", "(｀へ´)", "(＃｀Д´)", "(；一_一)", "¯\\_(ツ)_/¯", "(-_-)zzz",
-        "(｡>﹏<｡)", "(*/ω＼*)", "(⁄ ⁄•⁄ω⁄•⁄ ⁄)", "(ﾉ´ヮ`)ﾉ*: ･ﾟ", "♪(^∇^*)", "(ง •_•)ง", "orz", "Σ(っ °Д °;)っ",
+    struct Mood: Identifiable {
+        let id: String
+        let items: [String]
+    }
+
+    static let groups: [Mood] = [
+        Mood(id: "开心", items: [
+            "^_^", "^^", "(^_^)", "(≧▽≦)", "(｡•̀ᴗ-)✧", "(๑•̀ㅂ•́)و✧", "(*^▽^*)", "(～￣▽￣)～", "(＾▽＾)",
+            "o(*￣▽￣*)o", "(´▽`ʃ♡ƪ)", "(づ｡◕‿‿◕｡)づ", "(｡･ω･｡)", "(・∀・)", "(￣▽￣)~*", "ヾ(≧▽≦*)o", "(ﾉ´ヮ`)ﾉ*: ･ﾟ",
+            "♪(^∇^*)", "(ง •_•)ง",
+        ]),
+        Mood(id: "难过", items: [
+            "(；′⌒`)", "(T_T)", "(╥﹏╥)", "QAQ", "(´；ω；`)", "(￣﹏￣；)", "(｡>﹏<｡)", "orz",
+        ]),
+        Mood(id: "生气", items: [
+            "(╯°□°）╯︵ ┻━┻", "┬─┬ノ( º _ ºノ)", "(￣^￣)", "(｀へ´)", "(＃｀Д´)", "(；一_一)",
+        ]),
+        Mood(id: "害羞", items: [
+            "(*/ω＼*)", "(⁄ ⁄•⁄ω⁄•⁄ ⁄)",
+        ]),
+        Mood(id: "无语", items: [
+            "(⊙_⊙)?", "(°ー°〃)", "Σ(っ °Д °;)っ", "¯\\_(ツ)_/¯", "(-_-)zzz",
+        ]),
     ]
+
+    static var all: [String] { groups.flatMap(\.items) }
+
+    /// 底栏和小标题上的名字（id 是中文组名）。
+    static func title(_ id: String) -> String {
+        switch id {
+        case "最近": return L("最近", "Recent", "最近")
+        case "开心": return L("开心", "Happy", "うれしい")
+        case "难过": return L("难过", "Sad", "かなしい")
+        case "生气": return L("生气", "Angry", "おこ")
+        case "害羞": return L("害羞", "Shy", "てれ")
+        case "无语": return L("无语", "Speechless", "あきれ")
+        default: return id
+        }
+    }
+}
+
+/// 用过的颜文字（EP2「最近」）：最多 8 个，还没用过就没有这一组。
+enum RecentKaomoji {
+    private static let key = "keyboard.recentKaomoji"
+
+    static var all: [String] { SharedStorage.defaults.stringArray(forKey: key) ?? [] }
+
+    static func add(_ kaomoji: String) {
+        var list = all.filter { $0 != kaomoji }
+        list.insert(kaomoji, at: 0)
+        SharedStorage.defaults.set(Array(list.prefix(8)), forKey: key)
+    }
+}
+
+/// 表情面板的分类（EP1）：最近、笑脸、手势、动物、食物、活动、出行、物品、符号、旗帜。
+/// 「笑脸与人物」从 👋 起拆成笑脸、手势两类（手势后面接着人物），别的照 emoji_panel.tsv 的分类。
+struct EmojiPanelSection: Identifiable {
+    let id: String
+    let symbol: String
+    let emoji: [String]
+
+    var title: String {
+        switch id {
+        case "最近": return L("最近", "Recent", "最近")
+        case "笑脸": return L("笑脸", "Smileys", "スマイリー")
+        case "手势": return L("手势", "Gestures", "ジェスチャー")
+        case "动物": return L("动物", "Animals", "動物")
+        case "食物": return L("食物", "Food", "食べ物")
+        case "活动": return L("活动", "Activities", "アクティビティ")
+        case "出行": return L("出行", "Travel", "旅行")
+        case "物品": return L("物品", "Objects", "もの")
+        case "符号": return L("符号", "Symbols", "記号")
+        case "旗帜": return L("旗帜", "Flags", "旗")
+        default: return id
+        }
+    }
+
+    static let catalog: [EmojiPanelSection] = {
+        let names = ["动物与自然": "动物", "食物与饮料": "食物", "旅行与地点": "出行"]
+        var result: [EmojiPanelSection] = []
+        for category in EmojiCatalog.categories {
+            if category.id == "笑脸与人物", let split = category.emoji.firstIndex(of: "👋") {
+                result.append(EmojiPanelSection(id: "笑脸", symbol: category.symbol, emoji: Array(category.emoji[..<split])))
+                result.append(EmojiPanelSection(id: "手势", symbol: "hand.raised", emoji: Array(category.emoji[split...])))
+            } else {
+                let id = category.id == "笑脸与人物" ? "笑脸" : names[category.id] ?? category.id
+                result.append(EmojiPanelSection(id: id, symbol: category.symbol, emoji: category.emoji))
+            }
+        }
+        return result
+    }()
+
+    /// 有用过的表情时前面加「最近」。
+    static var all: [EmojiPanelSection] {
+        let recent = RecentEmoji.all
+        return (recent.isEmpty ? [] : [EmojiPanelSection(id: "最近", symbol: "clock", emoji: recent)]) + catalog
+    }
 }

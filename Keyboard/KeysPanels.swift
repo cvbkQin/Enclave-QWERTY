@@ -1,98 +1,214 @@
 import SwiftUI
 
 /// 表情和颜文字面板，铺满按键区；底栏切换两者、返回键盘、删除。
+/// 底栏（EP1、EP2）：高 50，左右 4、间距 6；返回 60×40 ｜ 分类条（放不下横滑，两边 22 渐隐）｜ 表情 / 颜文字切换 44×40 ｜ 删除 60×40。
+/// 点分类：面板滚到那一类（0.2 秒），选中马上换；上下滑面板：顶上露出哪一类就选中哪一类，分类条跟着滚到看得见。
 struct SymbolPanel: View {
     @ObservedObject var model: KeyboardModel
-    @State private var category = "最近"
+    /// 底栏选中的分类；nil 是第一个。
+    @State private var selected: String?
+    /// 各组小标题现在在面板里的位置（不触发重画，选中变了才改 selected）。
+    @State private var tracker = SectionTracker()
+    /// 点了分类、面板正在滚过去：这期间不按滚动位置改选中。
+    @State private var jumping = false
 
     private var isEmoji: Bool { model.keysPanel == .emoji }
 
+    private struct Tab: Identifiable {
+        let id: String
+        let title: String
+        var symbol: String?
+    }
+
+    final class SectionTracker {
+        var tops: [String: CGFloat] = [:]
+    }
+
+    private static let space = "symbolPanel"
+
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
+        let emojiSections = isEmoji ? EmojiPanelSection.all : []
+        let kaomojiGroups = isEmoji ? [] : Self.kaomojiGroups
+        let tabs: [Tab] = isEmoji
+            ? emojiSections.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol) }
+            : kaomojiGroups.map { Tab(id: $0.id, title: Kaomoji.title($0.id)) }
+        let order = tabs.map(\.id)
+        let current = selected.flatMap { order.contains($0) ? $0 : nil } ?? order.first
+        return ScrollViewReader { proxy in
+            VStack(spacing: 0) {
                 ScrollView(.vertical, showsIndicators: false) {
-                    if isEmoji { emojiGrid } else { kaomojiGrid }
+                    if isEmoji { emojiGrid(emojiSections, order: order) } else { kaomojiGrid(kaomojiGroups, order: order) }
                 }
                 .hidingScrollEdgeEffect()
-                .onChange(of: category) { id in
+                .coordinateSpace(name: Self.space)
+                bottomBar(tabs: tabs, current: current) { id in
+                    selected = id
+                    jumping = true
                     withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { jumping = false }
                 }
             }
-            bottomBar
+            // 表情和颜文字互相切换：选中回到第一组，面板回到顶上。
+            .onChange(of: model.keysPanel) { _ in
+                selected = nil
+                tracker.tops = [:]
+                if let first = order.first { proxy.scrollTo(first, anchor: .top) }
+            }
         }
     }
 
-    private var emojiGrid: some View {
-        let recent = RecentEmoji.all
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 0)], spacing: 2,
-                         pinnedViews: [.sectionHeaders]) {
-            if !recent.isEmpty { section("最近", recent) }
-            ForEach(EmojiCatalog.categories) { section($0.id, $0.emoji) }
+    // MARK: 表情
+
+    private func emojiGrid(_ sections: [EmojiPanelSection], order: [String]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 0)], spacing: 2,
+                  pinnedViews: [.sectionHeaders]) {
+            ForEach(sections) { section in
+                Section {
+                    ForEach(section.emoji, id: \.self) { item in
+                        Button { model.pickFromPanel(item) } label: {
+                            Text(item).font(.system(size: 30)).frame(width: 40, height: 40)
+                        }
+                        .buttonStyle(KeyPressStyle())
+                    }
+                } header: {
+                    header(section.id, title: section.title, order: order)
+                }
+            }
         }
         .padding(.horizontal, 4)
     }
 
-    private func section(_ title: String, _ emoji: [String]) -> some View {
-        Section {
-            ForEach(emoji, id: \.self) { item in
-                Button { model.pickFromPanel(item) } label: {
-                    Text(item).font(.system(size: 30)).frame(width: 40, height: 40)
-                }
-                .buttonStyle(KeyPressStyle())
-            }
-        } header: {
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 3)
-                .id(title)
-        }
+    // MARK: 颜文字
+
+    /// 有用过的颜文字时前面加「最近」（最多 8 个）。
+    private static var kaomojiGroups: [Kaomoji.Mood] {
+        let recent = RecentKaomoji.all
+        return (recent.isEmpty ? [] : [Kaomoji.Mood(id: "最近", items: recent)]) + Kaomoji.groups
     }
 
-    private var kaomojiGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 6)], spacing: 6) {
-            ForEach(Kaomoji.all, id: \.self) { item in
-                Button { model.pickFromPanel(item) } label: {
-                    KeyCap(fill: KeyStyle.charKey, insetX: 0, insetY: 0) {
-                        Text(item).font(.system(size: 15)).lineLimit(1).minimumScaleFactor(0.6)
-                            .foregroundStyle(Color.primary).padding(.horizontal, 4)
+    /// 一行 4 个，每组上面一行小标题（同表情）。太长的缩小字号放进一格，不换行。
+    private func kaomojiGrid(_ groups: [Kaomoji.Mood], order: [String]) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6,
+                  pinnedViews: [.sectionHeaders]) {
+            ForEach(groups) { group in
+                Section {
+                    ForEach(group.items, id: \.self) { item in
+                        Button { model.pickFromPanel(item) } label: {
+                            KeyCap(fill: KeyStyle.charKey, insetX: 0, insetY: 0) {
+                                Text(item).font(.system(size: 15)).lineLimit(1).minimumScaleFactor(0.6)
+                                    .foregroundStyle(Color.primary).padding(.horizontal, 4)
+                            }
+                            .frame(height: 38)
+                        }
+                        .buttonStyle(KeyPressStyle())
                     }
-                    .frame(height: 38)
+                } header: {
+                    header(group.id, title: Kaomoji.title(group.id), order: order)
                 }
-                .buttonStyle(KeyPressStyle())
             }
         }
         .padding(.horizontal, KeyboardMetrics.keyInsetX)
-        .padding(.top, 4)
     }
 
-    private var bottomBar: some View {
-        HStack(spacing: 0) {
-            FunctionKey(title: model.chineseMode ? "返回" : "ABC") { model.closePanel() }
-                .frame(width: 52)
-            if isEmoji {
-                HStack(spacing: 0) {
-                    ForEach(["最近"] + EmojiCatalog.categories.map(\.id), id: \.self) { id in
-                        Button { category = id } label: {
-                            Image(systemName: EmojiCatalog.categories.first { $0.id == id }?.symbol ?? "clock")
-                                .font(.system(size: 14))
-                                .foregroundStyle(category == id ? Color.primary : Color.secondary)
-                                .frame(maxWidth: .infinity, minHeight: 40)
+    // MARK: 小标题、跟着滑动选中
+
+    private func header(_ id: String, title: String, order: [String]) -> some View {
+        Text(title)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(Color.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 3)
+            .background(GeometryReader { geo in
+                let top = geo.frame(in: .named(Self.space)).minY
+                Color.clear
+                    .onAppear { note(id, top: top, order: order) }
+                    .onChange(of: top) { note(id, top: $0, order: order) }
+                    .onDisappear { tracker.tops[id] = nil }
+            })
+            .id(id)
+    }
+
+    /// 顶上露出的是哪一组：已经滑到顶（离顶不到 4）的小标题里最靠下的那个；一个都没到顶就是第一组。
+    private func note(_ id: String, top: CGFloat, order: [String]) {
+        tracker.tops[id] = top
+        guard !jumping else { return }
+        let reached = tracker.tops.filter { $0.value <= 4 }
+        let now = reached.max { a, b in
+            a.value != b.value ? a.value < b.value : (order.firstIndex(of: a.key) ?? 0) < (order.firstIndex(of: b.key) ?? 0)
+        }?.key ?? order.first
+        if let now, now != (selected ?? order.first) { selected = now }
+    }
+
+    // MARK: 底栏
+
+    private func bottomBar(tabs: [Tab], current: String?, jump: @escaping (String) -> Void) -> some View {
+        HStack(spacing: 6) {
+            panelKey(width: 60, label: model.chineseMode ? L("返回", "Back", "戻る") : "ABC", action: { model.closePanel() }) {
+                Text(model.chineseMode ? "返回" : "ABC").font(.system(size: 17))
+            }
+            ScrollViewReader { bar in
+                AIKeyStrip(fadeWidth: 22) {
+                    HStack(spacing: 2) {
+                        ForEach(tabs) { tab in
+                            Button { jump(tab.id) } label: { tabLabel(tab, on: tab.id == current) }
+                                .buttonStyle(KeyPressStyle())
+                                .accessibilityLabel(tab.title)
+                                .accessibilityAddTraits(tab.id == current ? .isSelected : [])
+                                .id("tab-" + tab.id)
                         }
                     }
                 }
-            } else {
-                Spacer(minLength: 0)
+                // 选中换了（点的、滑出来的）：分类条滚到能看全这一格。
+                .onChange(of: current) { id in
+                    guard let id else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { bar.scrollTo("tab-" + id) }
+                }
             }
-            Button { model.keysPanel = isEmoji ? .kaomoji : .emoji } label: {
-                Text(isEmoji ? "^^" : "😀").font(.system(size: 17)).foregroundStyle(Color.primary)
-                    .frame(width: 40, height: 40)
+            .frame(maxWidth: .infinity)
+            panelKey(width: 44, label: isEmoji ? L("颜文字", "Kaomoji", "顔文字") : L("表情", "Emoji", "絵文字"),
+                     action: { model.keysPanel = isEmoji ? .kaomoji : .emoji }) {
+                Text(isEmoji ? "^^" : "😀").font(.system(size: 17))
             }
-            RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                .frame(width: 52)
+            // 按住连删，同原来。
+            RepeatingKey(systemImage: "delete.left", insetX: 0, insetY: 0) { model.deleteKey() }
+                .frame(width: 60, height: 40)
         }
-        .frame(height: 46)
+        .padding(.horizontal, 4)
+        .frame(height: 50)
+    }
+
+    /// 返回、切换：功能键底色，按下和别的功能键一样变深（KeyPressStyle）。
+    private func panelKey<Label: View>(width: CGFloat, label: String, action: @escaping () -> Void,
+                                       @ViewBuilder content: () -> Label) -> some View {
+        Button(action: action) {
+            KeyCap(fill: KeyStyle.functionKey, insetX: 0, insetY: 0) {
+                content().foregroundStyle(Color.primary)
+            }
+            .frame(width: width, height: 40)
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(label)
+    }
+
+    /// 表情：40×34、图标 20pt；颜文字：文字 15、左右 12、高 32。没选中灰色，选中浅紫底、主色（颜文字 600 粗），圆角 9。
+    private func tabLabel(_ tab: Tab, on: Bool) -> some View {
+        Group {
+            if let symbol = tab.symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 20))
+                    .frame(width: 40, height: 34)
+            } else {
+                Text(tab.title)
+                    .font(.system(size: 15, weight: on ? .semibold : .regular))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+            }
+        }
+        .foregroundStyle(on ? Brand.purpleText : Color.secondary)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(on ? Brand.panelTabFill : Color.clear))
+        .contentShape(Rectangle())
     }
 }
 

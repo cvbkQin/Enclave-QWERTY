@@ -401,6 +401,8 @@ struct UnpinBubble: View {
 /// AI 栏中间一段：两颗主键、竖线、固定的风格键，放不下就左右滑；▭ 和撤销重做不动。
 /// 哪边还有被遮住的内容，哪边就有约 9% 宽的渐隐（遮罩），滑动中实时跟着，滑到头那边才收掉（cvbk 13:14）。
 struct AIKeyStrip<Content: View>: View {
+    /// 两头渐隐多宽；nil 是 AI 栏的约 9%。表情面板底栏的分类条用 22（EP1）。
+    var fadeWidth: CGFloat? = nil
     @ViewBuilder var content: Content
     @State private var offset: CGFloat = 0
     @State private var contentWidth: CGFloat = 0
@@ -411,7 +413,7 @@ struct AIKeyStrip<Content: View>: View {
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
-            let fade = max(12, width * 0.09)
+            let fade = fadeWidth ?? max(12, width * 0.09)
             let left = offset > 0.5
             let right = offset + width < contentWidth - 0.5
             ScrollView(.horizontal, showsIndicators: false) {

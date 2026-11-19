@@ -331,6 +331,8 @@ enum Brand {
     static let answerBorder = dynamic(0x38BDF8, 0x7DD3FC)
     /// 结果卡左边模式控件（SW4）：改写 底 #ECEAFD 字 #4A3BD6（深色 #4E4875 / #E4DFFF），问答 底 #E0F2FE 字 #0369A1（深色 #0C4A6E / #BAE6FD）。
     static let modeRewriteFill = dynamic(0xECEAFD, 0x4E4875)
+    /// 表情 / 颜文字面板底栏选中的分类（EP1、EP2）：浅紫底 #E4E0FC，深色 #2E2766。
+    static let panelTabFill = dynamic(0xE4E0FC, 0x2E2766)
     static let modeRewriteText = dynamic(0x4A3BD6, 0xE4DFFF)
     static let modeAnswerFill = dynamic(0xE0F2FE, 0x0C4A6E)
     static let modeAnswerText = dynamic(0x0369A1, 0xBAE6FD)

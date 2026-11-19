@@ -684,6 +684,7 @@ extension KeyboardModel {
     func pickFromPanel(_ text: String) {
         typeSymbol(text)
         if keysPanel == .emoji { RecentEmoji.add(text) }
+        if keysPanel == .kaomoji { RecentKaomoji.add(text) }
     }
 
     /// 「常用 / 剪贴板」左栏里点了一条常用语：上屏，回到九宫格。
