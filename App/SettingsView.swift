@@ -854,10 +854,28 @@ struct KeyboardSettingsView: View {
                                 }
                             }
                         }
+                        // 「，。」键（PU2 ③，对齐清单第 80 条）：放空格左边还是右边，默认右边。只管键盘排法，不用重新部署。
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L("「，。」键", "「，。」 key", "「，。」キー"))
+                                Text(L("点出逗号，上滑出句号", "Tap for a comma, swipe up for a period", "タップで読点、上フリックで句点"))
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 12)
+                            Picker(L("「，。」键", "「，。」 key", "「，。」キー"), selection: $store.settings.quickPunctSide) {
+                                ForEach(QuickPunctSide.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .fixedSize()
+                        }
                     } footer: {
                         VStack(alignment: .leading, spacing: 6) {
                             DictionaryDeployStatus()
                             Text(typingFooter)
+                            Text(L("「，。」键只对全键盘生效；九宫格本来就有「，。?!」键。",
+                                   "The 「，。」 key is QWERTY only; 9-key already has a 「，。?!」 key.",
+                                   "「，。」キーは QWERTY のみです。10キーにはもともと「，。?!」キーがあります。"))
                         }
                     }
                 }
