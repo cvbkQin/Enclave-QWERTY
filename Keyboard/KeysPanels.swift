@@ -816,6 +816,8 @@ struct CrossView: View {
     private var centerLabel: some View {
         if popup.key.kind == .digitPunct {
             Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
+        } else if case .quickPunct(let chinese) = popup.key.kind {
+            QuickPunctLabel(chinese: chinese)
         } else if case .nine(let digit) = popup.key.kind, digit != "'" {
             Text(KeyLayout.nineKeyLetters[digit] ?? digit).font(KeyStyle.nineKeyFont).tracking(1)
         } else {

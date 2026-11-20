@@ -201,11 +201,13 @@ struct EnclaveSettings: Codable, Equatable {
     var doublePinyinHintMode: DoublePinyinHintMode = .fixed
     /// 双拼时也能打全拼（双拼调研 P3，默认关）。改了要重新部署。
     var doublePinyinMixFull = false
+    /// 全键盘空格旁的「，。」键放在哪边（对齐清单第 80 条），默认右边。只是键盘的排法，不同步、不用重新部署。
+    var quickPunctSide: QuickPunctSide = .right
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
         case pinnedStyleIDs, helpPinned, helpAuto
     }
@@ -316,6 +318,7 @@ extension EnclaveSettings {
             doublePinyinHintMode = hints ? .fixed : .off
         }
         doublePinyinMixFull = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinMixFull)) ?? doublePinyinMixFull
+        quickPunctSide = (try? c.decodeIfPresent(QuickPunctSide.self, forKey: .quickPunctSide)) ?? quickPunctSide
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }

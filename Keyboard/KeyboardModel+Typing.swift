@@ -407,7 +407,8 @@ extension KeyboardModel {
     var layoutState: KeyLayout.State {
         KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
                         englishOnly: settings.inputLanguage == .englishOnly,
-                        composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape)
+                        composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape,
+                        quickPunct: settings.keyboardLayout == .qwerty ? settings.quickPunctSide : nil)
     }
 
     func perform(_ kind: KeyKind) {
@@ -455,6 +456,8 @@ extension KeyboardModel {
             if isComposing && !(layer == .numbers && keepsNumberComposition) { returnKey() }
             switchLayer(layer)
         case .digitPunct: typeSymbol(".")
+        // 「，。」键：打拼音时先上屏第一个候选，再出逗号（typeSymbol 一起上屏）。
+        case .quickPunct(let chinese): typeSymbol(QuickPunct.tap(chinese: chinese))
         case .digitsMore: digitsMore.toggle()
         case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
@@ -535,7 +538,7 @@ extension KeyboardModel {
         if settings.keySound {
             let sound: SystemSoundID
             switch kind {
-            case .letter, .symbol, .nine, .digitPunct, .space: sound = 1104
+            case .letter, .symbol, .nine, .digitPunct, .quickPunct, .space: sound = 1104
             case .delete: sound = 1155
             default: sound = 1156
             }
@@ -961,8 +964,13 @@ extension KeyboardModel {
 
     // MARK: - 长按备选
 
-    func showAlternates(for key: KeySpec, containerWidth: CGFloat, origin: CGPoint? = nil) -> Bool {
-        if let options = KeyLayout.cross(for: key.kind, chinese: chineseMode) {
+    /// held：按住到时间弹出的（不是划出来的）。「，。」键按住弹一排标点，往上划才是十字。
+    func showAlternates(for key: KeySpec, containerWidth: CGFloat, origin: CGPoint? = nil, held: Bool = false) -> Bool {
+        let prefersRow: Bool = {
+            if held, case .quickPunct = key.kind { return true }
+            return false
+        }()
+        if !prefersRow, let options = KeyLayout.cross(for: key.kind, chinese: chineseMode) {
             cross = CrossPopup(key: key, options: options, containerWidth: containerWidth, origin: origin)
             keyFeedback(for: .space)
             return true
@@ -1605,7 +1613,7 @@ extension KeyboardModel {
     /// 打完一个词（按了空格、标点、换行）：记住这个词，下次补全排前面。
     func learnCurrentEnglishWord(before kind: KeyKind) {
         switch kind {
-        case .space, .symbol, .returnKey: break
+        case .space, .symbol, .quickPunct, .returnKey: break
         default: return
         }
         guard target == .host else { return }
