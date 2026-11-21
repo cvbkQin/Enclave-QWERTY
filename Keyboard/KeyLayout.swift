@@ -87,7 +87,8 @@ enum KeyLayout {
         var pinyinSide = false
         /// 横屏（LN1、LN2）：九宫格分左中右，全键盘底排照系统横屏的宽度。
         var landscape = false
-        /// 全键盘字母页空格旁的「，。」键放哪边；nil 不放（中文布局选了九宫格时）。只用英文时底栏已经有逗号键，也不放。
+        /// 全键盘字母页空格旁的「，。」键放哪边，中文、英文的全键盘都有（中文布局选九宫格时，英文的全键盘也有）；nil 不放。
+        /// 只用英文时底栏已经有逗号键，不放。
         var quickPunct: QuickPunctSide?
     }
 
