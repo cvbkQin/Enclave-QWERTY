@@ -17,8 +17,8 @@ settings:
     # DEV_LABEL 写「0.95_N」显示在关于页。测好合并进 main 时版本号进一位（0.95_N 合并叫 0.96，构建号 96），DEV_LABEL 清空；
     # 下一轮开发版是 0.96_1、0.96_2…。版本号、构建号统一由版本管理（04）分配和修改，功能线程不自己改。
     MARKETING_VERSION: "0.97"
-    CURRENT_PROJECT_VERSION: "97"
-    DEV_LABEL: ""
+    CURRENT_PROJECT_VERSION: "9705"
+    DEV_LABEL: "0.97_5"
     # 开发者版装机（04 装到自己手机上）时命令行加 DEV_BUILD=YES：App 设置里出现「AI 购买状态（测试）」，默认已解锁。
     # TestFlight、公测、正式包都不加；gen-builtin-secrets.py 检查它不和 INTERNAL_BUILD、PUBLIC_BUILD 一起打开。
     DEV_BUILD: "NO"
@@ -77,6 +77,13 @@ targets:
         outputFiles:
           - $(SRCROOT)/Generated/$(TARGET_NAME)/BuiltinSecrets.swift
         basedOnDependencyAnalysis: false
+    # iCloud 同步的后台模式：ICLOUD_SYNC=YES 时才写进编好的 Info.plist。输入写 Info.plist，Xcode 就会等它处理完再跑，签名在最后。
+    postBuildScripts:
+      - name: iCloud background modes
+        script: python3 "$SRCROOT/scripts/icloud-background-modes.py"
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID_PREFIX).enclave
@@ -84,7 +91,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        CODE_SIGN_ENTITLEMENTS: App/Enclave.entitlements
+        # 默认不带 iCloud（CloudKit）和推送；要测、要发 iCloud 同步时 ICLOUD_SYNC = YES 换成带的（见 Configs/Base.xcconfig）。
+        CODE_SIGN_ENTITLEMENTS: $(APP_ENTITLEMENTS)
     info:
       path: App/Info.plist
       properties:
@@ -108,6 +116,10 @@ targets:
         EnclaveBuiltinModel: $(ENCLAVE_BUILTIN_MODEL)
         EnclaveBuiltinAnswerBaseURL: $(ENCLAVE_BUILTIN_ANSWER_BASE_URL)
         EnclaveBuiltinAnswerModel: $(ENCLAVE_BUILTIN_ANSWER_MODEL)
+        # iCloud 同步（App/Sync）：这个包有没有 iCloud 能力、用哪个 CloudKit 容器。没有能力时代码不碰 CKContainer。
+        EnclaveICloudSync: $(ICLOUD_SYNC)
+        EnclaveCloudContainer: iCloud.$(BUNDLE_ID_PREFIX).enclave
+        # 后台同步的后台模式和后台任务编号不写在这里：只在 ICLOUD_SYNC=YES 的包里由 scripts/icloud-background-modes.py 加上（见下面 postBuildScripts）。
         CFBundleURLTypes:
           - CFBundleURLName: enclave
             CFBundleURLSchemes: [enclave]
@@ -213,6 +225,9 @@ targets:
       - path: App/Backup/BackupArchive.swift
       - path: App/Backup/BackupCrypto.swift
       - path: App/Backup/BackupMerge.swift
+      - path: App/Sync/SyncMerge.swift
+      - path: App/Sync/ICloudSyncState.swift
+      - path: App/Legal/PolicyFilter.swift
       - path: Generated/EnclaveTests/BuiltinSecrets.swift
         optional: true
     preBuildScripts:

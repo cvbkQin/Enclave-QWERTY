@@ -58,9 +58,9 @@ struct KeysView: View {
                             .frame(width: middle.width, height: middle.height)
                             .offset(x: middle.minX, y: middle.minY)
                     }
-                    // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选时也不显示）。
+                    // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选、「，。」键往上划出十字时也不显示）。
                     if !model.nineGrid {
-                        KeyPopupLayer(presses: model.keyPresses, keys: layout.keys, hiddenKey: model.alternates?.key.id,
+                        KeyPopupLayer(presses: model.keyPresses, keys: layout.keys, hiddenKey: model.alternates?.key.id ?? model.cross?.key.id,
                                       uppercase: model.shift != .off, containerWidth: geo.size.width)
                             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
                             .allowsHitTesting(false)
@@ -265,6 +265,8 @@ struct KeyCapView: View, Equatable {
             }
         case .digitPunct:
             Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
+        case .quickPunct(let chinese):
+            QuickPunctLabel(chinese: chinese)
         case .digitsMore:
             if context.digitsMore {
                 Text("返回").font(.system(size: 16, weight: .semibold)).foregroundStyle(Brand.deepPurple)
@@ -499,6 +501,28 @@ private enum ChinesePunctShape {
     }
 }
 
+/// 全键盘空格旁的「，。」键（PU2）：大字逗号居中偏下，左上角小灰字句号，提示可以往上划。英文时是「,」和「.」。
+struct QuickPunctLabel: View {
+    let chinese: Bool
+
+    var body: some View {
+        // 横屏键只有 32 高，小字往里收一点，不贴键帽上沿。
+        let landscape = KeyboardMetrics.landscape
+        ZStack {
+            if chinese {
+                ChinesePunctMark(kind: .comma)
+            } else {
+                Text(",").font(KeyStyle.symbolFont)
+            }
+            CenteredGlyph(QuickPunct.up(chinese: chinese), size: landscape ? 10 : 11)
+                .foregroundStyle(.secondary)
+                .offset(x: -9, y: landscape ? -8 : -11)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(chinese ? "，。" : ",.")
+    }
+}
+
 /// 全角标点的字形偏在字框左下角，直接用 Text 排出来会散。这里取 PingFang SC 的字形外框，
 /// 把外框中心画到图的中心，再按 drop 往下偏。模板图，颜色跟着前景色。
 struct CenteredGlyph: View {
@@ -568,6 +592,7 @@ struct KeyPopup: View {
         switch key.kind {
         case .letter(let letter): return uppercase ? letter.uppercased() : letter
         case .symbol(let symbol): return symbol
+        case .quickPunct(let chinese): return QuickPunct.tap(chinese: chinese)
         default: return ""
         }
     }

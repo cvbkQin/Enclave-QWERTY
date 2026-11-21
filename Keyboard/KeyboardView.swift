@@ -491,6 +491,7 @@ struct GateCard: View {
             case .fullAccess: fullAccess
             case .privacy: privacy
             case .noKey: noKey
+            case .keyPending: keyPending
             case .consent(let endpoint, let previous, let purpose): consent(endpoint, previous: previous, purpose: purpose)
             case .quotaUsed: quotaUsed
             }
@@ -567,6 +568,20 @@ struct GateCard: View {
 
     /// 还没填 API Key 时点 ✨ /「执行」（OB9）：不发请求，引导去 App 首页跟着教程设置。点卡片或开始打字就收起。
     private var noKey: some View {
+        keyCard(title: L("AI 要先填你自己的 API Key", "Add your own API key to use AI", "AI を使うには自分の API キーが必要です"),
+                detail: L("打开「飞地输入法」App，首页点「跟着教程设置」，大约 3 分钟。拼音输入不受影响。",
+                        "Open the Enclave app and tap Follow the Guide on Home. About 3 minutes. Pinyin input still works.",
+                        "Enclave アプリのホームで「ガイドで設定」をタップ。約 3 分です。ピンイン入力はそのまま使えます。"))
+    }
+
+    /// Key 还在从 iCloud 钥匙串同步过来（02 复审第二轮）：和没填 Key 同一张卡，换一句话。
+    private var keyPending: some View {
+        keyCard(title: L("Key 还在从 iCloud 同步", "Your key is still syncing from iCloud", "キーはまだ iCloud から同期中です"),
+                detail: L("稍等几分钟再试，或者去 App 里填上。", "Try again in a few minutes, or enter it in the app.",
+                        "数分待ってからもう一度試すか、アプリで入力してください。"))
+    }
+
+    private func keyCard(title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "sparkle")
                 .font(.system(size: 14, weight: .semibold))
@@ -576,13 +591,11 @@ struct GateCard: View {
                     colors: [Color(red: 0x8A / 255, green: 0x7B / 255, blue: 1), Brand.purple],
                     startPoint: .topLeading, endPoint: .bottomTrailing)))
             VStack(alignment: .leading, spacing: 2) {
-                Text(L("AI 要先填你自己的 API Key", "Add your own API key to use AI", "AI を使うには自分の API キーが必要です"))
+                Text(title)
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                Text(L("打开「飞地输入法」App，首页点「跟着教程设置」，大约 3 分钟。拼音输入不受影响。",
-                       "Open the Enclave app and tap Follow the Guide on Home. About 3 minutes. Pinyin input still works.",
-                       "Enclave アプリのホームで「ガイドで設定」をタップ。約 3 分です。ピンイン入力はそのまま使えます。"))
+                Text(detail)
                     .font(.system(size: 12.5))
                     .foregroundStyle(Brand.cardBody)
                     .lineLimit(2)

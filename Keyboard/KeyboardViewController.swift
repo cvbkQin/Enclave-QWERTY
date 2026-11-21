@@ -11,14 +11,17 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         loadStart = CACurrentMediaTime()
+        loadBusy = MainWake.busySinceWake(now: loadStart)
+        wakeTracked = MainWake.isInstalled
         MainWake.install()
         MainStalls.start()
         if Self.popupsInProcess == 0, let start = TypingStats.processStartDate {
             loadSinceProcess = Date().timeIntervalSince(start) * 1000
         }
         defer { loadMs = (CACurrentMediaTime() - loadStart) * 1000 }
-        CrashLog.shared.start(source: "keyboard")
-        installHost()
+        snapshotOn = PopupSnapshot.enabled
+        // 「先显示截图」开着时，建不建真键盘留到弹出前准备做完再定（见 viewWillAppear）。
+        if !snapshotOn { installHost() }
 
         // 键盘高度只由这一条必需约束决定。allowsSelfSizing 让系统按我们的约束算高度，
         // 而不是套用它自己的固定高度——否则展开后系统仍按旧高度摆放，面板顶部和最后一排键会被裁掉。
@@ -71,6 +74,10 @@ final class KeyboardViewController: UIInputViewController {
     private static var popupsInProcess = 0
     /// 控制器建出来的时刻：到 viewDidLoad 之间是系统在准备（热启动时也有）。
     private let createdAt = CACurrentMediaTime()
+    /// viewDidLoad 开始时，主线程从上次醒来起醒着干活的合计（毫秒）：和「叫醒到开始建键盘」那一行同一段。
+    private var loadBusy: Double = 0
+    /// viewDidLoad 之前主线程醒睡就已经在量了（冷启动第一次是在 viewDidLoad 里才装上观察器，那一圈量不全）。
+    private var wakeTracked = false
     private var loadStart: CFTimeInterval = 0
     private var loadSinceProcess: Double?
     private var loadMs: Double = 0
@@ -285,6 +292,86 @@ final class KeyboardViewController: UIInputViewController {
         self.host = host
     }
 
+    // MARK: 先显示截图（试验，PopupSnapshot）
+
+    /// 测试工具里的「弹出时先显示截图」开关，viewDidLoad 时读一次。
+    private var snapshotOn = false
+    /// 弹出时先放着的上次键盘的截图；真键盘建好、交出一帧以后拿掉。
+    private var snapshotView: UIImageView?
+    /// 截图放上时还没进窗口：第一帧交不出去，等进了窗口再排建真键盘。
+    private var snapshotWaitingWindow = false
+
+    /// 现在键盘长什么样（宽、高、深浅色、回车键……），和截图时的对得上才用那张图。
+    private func snapshotKey() -> PopupSnapshot.Key? {
+        let width = view.bounds.width
+        guard width > 0 else { return nil }
+        return PopupSnapshot.Key(size: CGSize(width: width, height: model.keyboardHeight),
+                                 style: traitCollection.userInterfaceStyle,
+                                 appearance: textDocumentProxy.keyboardAppearance ?? .default,
+                                 returnKey: model.hostReturnKey, hasText: model.hostHasText,
+                                 nineKey: model.showsNineKey, chinese: model.chineseMode,
+                                 landscape: model.landscape, settings: model.settings)
+    }
+
+    private func showSnapshot(_ image: UIImage) {
+        removeSnapshot()
+        let imageView = UIImageView(image: image)
+        imageView.frame = view.bounds
+        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        imageView.contentMode = .scaleToFill
+        view.addSubview(imageView)
+        snapshotView = imageView
+        if view.window != nil { buildHostAfterNextFrame() } else { snapshotWaitingWindow = true }
+    }
+
+    /// 这一圈主线程睡下时，Core Animation 已经把带着截图的第一帧提交了；下一轮再建真键盘。
+    private func buildHostAfterNextFrame() {
+        snapshotWaitingWindow = false
+        Self.afterNextCommit { [weak self] in self?.replaceSnapshot() }
+    }
+
+    /// 主线程这一圈睡下时（这时这一圈的 Core Animation 提交已经做完）排到下一轮做。
+    private static func afterNextCommit(_ action: @escaping () -> Void) {
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, false, CFIndex.max) { _, _ in
+            DispatchQueue.main.async(execute: action)
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+    }
+
+    /// 建真键盘、排好。真键盘盖在截图上面；截图等真键盘这一帧也交出去了再拿掉：
+    /// 万一 SwiftUI 这一圈还没画完，露出来的也是截图，不会空一帧。
+    private func replaceSnapshot() {
+        guard snapshotView != nil, host == nil else { return }
+        installHost()
+        view.layoutIfNeeded()
+        snapshotWaitingWindow = false
+        if PopupLog.enabled { PopupLog.snapshotSwap = (loadStart, CACurrentMediaTime()) }
+        let shot = snapshotView
+        Self.afterNextCommit { [weak self] in
+            guard let self, self.snapshotView === shot else { return }
+            self.removeSnapshot()
+        }
+    }
+
+    private func removeSnapshot() {
+        snapshotView?.removeFromSuperview()
+        snapshotView = nil
+        snapshotWaitingWindow = false
+    }
+
+    /// 弹出 0.4 秒后（滑完了、多半还没开始打字）把真键盘的样子截下来，留给下次弹出先显示。已经有对得上的就不截。
+    private func captureSnapshotIfNeeded() {
+        guard snapshotOn, let host, view.window != nil, snapshotView == nil,
+              !model.isComposing, model.keysPanel == nil, model.layoutMenu == nil,
+              let key = snapshotKey(), PopupSnapshot.image(for: key) == nil,
+              abs(host.view.bounds.height - key.size.height) < 0.5, abs(host.view.bounds.width - key.size.width) < 0.5
+        else { return }
+        let start = CACurrentMediaTime()
+        guard let image = PopupSnapshot.capture(host.view) else { return }
+        PopupSnapshot.store(image, for: key)
+        if PopupLog.enabled { PopupLog.snapshotCapture = (loadStart, (CACurrentMediaTime() - start) * 1000) }
+    }
+
     private func removeHost() {
         guard let host else { return }
         // 先换成空视图：就算宿主视图被 SwiftUI 内部（显示链）多拿一会儿，键盘那棵视图图和 model 的引用也先放掉。
@@ -300,7 +387,9 @@ final class KeyboardViewController: UIInputViewController {
         Self.appearCount += 1
         hiddenCleanupDone = false
         let willStart = CACurrentMediaTime()
-        installHost()
+        // 「先显示截图」：样子和上次截的图对得上，就先放图、下一轮再建真键盘；对不上照旧在这里建。
+        let deferHost = snapshotOn && host == nil
+        if !deferHost { installHost() }
         let hostDone = CACurrentMediaTime()
         // 先定下有没有地球键，免得键盘滑出来的途中按键再换一次排法。
         updateGlobeKey()
@@ -322,24 +411,38 @@ final class KeyboardViewController: UIInputViewController {
         let reloadDone = CACurrentMediaTime()
         model.applyInputLanguage()
         model.applyDebugState()
-        TouchCalibration.reload()
-        // 震动发生器提前建好、预热：不然第一次按键时才创建，第一个键会顿一下。
-        if model.settings.keyHaptics && model.hasFullAccess { model.haptic.prepare() }
-        if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
         // 高度和内容在滑出来之前就定好：reload 可能改了高度（比如试用提醒条），这里同步改掉，不等下一轮；
         // 再让 SwiftUI 先排一遍，系统做弹出动画时画的就是完整的键盘，AI 栏不会等滑出来以后才冒出来。
         let layoutStart = CACurrentMediaTime()
         updateHeight()
         view.layoutIfNeeded()
+        var snapshotMiss: String?
+        if deferHost {
+            let key = snapshotKey()
+            if let key, let image = PopupSnapshot.image(for: key) {
+                showSnapshot(image)
+            } else {
+                snapshotMiss = key.map(PopupSnapshot.missReason) ?? "键盘宽度还是 0，没法比"
+                installHost()
+                view.layoutIfNeeded()
+            }
+        } else {
+            removeSnapshot()
+        }
         #if DEBUG
         heightLog("willAppear")
         #endif
-        startPopupRecord(willStart: willStart, hostDone: hostDone, reload: reloadDone - reloadStart, layoutStart: layoutStart)
+        startPopupRecord(willStart: willStart, hostDone: hostDone, reload: reloadDone - reloadStart, layoutStart: layoutStart,
+                         snapshotMiss: snapshotMiss)
     }
 
-    private func startPopupRecord(willStart: CFTimeInterval, hostDone: CFTimeInterval, reload: CFTimeInterval, layoutStart: CFTimeInterval) {
+    private func startPopupRecord(willStart: CFTimeInterval, hostDone: CFTimeInterval, reload: CFTimeInterval, layoutStart: CFTimeInterval,
+                                  snapshotMiss: String?) {
         guard PopupLog.enabled, !popupRecorded, popupRecord == nil else { return }
         let now = CACurrentMediaTime()
+        // 这一圈主线程睡下时，Core Animation 已经把第一帧提交了：记下来，看系统那边空底板等的是不是我们。
+        let load = loadStart
+        MainWake.onNextSleep = { PopupLog.firstFrame = (load, CACurrentMediaTime()) }
         Self.popupsInProcess += 1
         let hide = PopupLog.lastHide
         // 这个控制器建出来之前 5 秒内主线程醒过（闲置 / 挂起后），才算这次弹出叫醒的。
@@ -351,13 +454,14 @@ final class KeyboardViewController: UIInputViewController {
             processToLoad: Self.popupsInProcess == 1 ? loadSinceProcess : nil,
             initToLoad: (loadStart - createdAt) * 1000,
             idleBeforeWake: wake.map { _ in MainWake.lastIdle * 1000 }, wakeToInit: wake.map { (createdAt - $0) * 1000 },
+            wakeBusy: wake.map { _ in loadBusy },
             stallLongest: stalls?.longest, stallTotal: stalls?.total,
             lastCleanupMs: PopupLog.lastCleanupMs, lastTeardownMs: PopupLog.lastTeardownMs,
             lastCleanupBefore: PopupLog.lastCleanupDone.map { (createdAt - $0) * 1000 },
             lastTeardownBefore: PopupLog.lastTeardownDone.map { (createdAt - $0) * 1000 },
             load: loadMs, willAppear: (now - willStart) * 1000, willHost: (hostDone - willStart) * 1000,
             willReload: reload * 1000, willLayout: (now - layoutStart) * 1000,
-            loadToAppear: 0, didClipboard: 0, didCommonWords: 0, engineReady: nil, memoryMB: nil,
+            loadToAppear: 0, snapshotMiss: snapshotMiss, didClipboard: 0, didCommonWords: 0, engineReady: nil, memoryMB: nil,
             sinceHide: hide.map { Date().timeIntervalSince($0.at) },
             sameProcess: hide.map { $0.pid == ProcessInfo.processInfo.processIdentifier },
             lastCleanup: hide?.cleanup, nineKey: model.showsNineKey)
@@ -368,13 +472,28 @@ final class KeyboardViewController: UIInputViewController {
         guard var finished = popupRecord, !popupRecorded else { return }
         popupRecorded = true
         finished.loadToAppear = (CACurrentMediaTime() - loadStart) * 1000
+        // 控制器建出来以后主线程睡过半秒以上：主线程每 50 毫秒就被 MainStalls 叫醒一次，睡这么久只能是进程被系统挂起了。
+        if let wake = MainWake.lastWake, wake > createdAt { finished.paused = MainWake.lastIdle * 1000 }
+        // 建键盘到显示出来这段主线程干了多少活：没被挂起、建键盘之前就在量，才算得准。
+        if wakeTracked, finished.paused == nil { finished.appearBusy = max(0, MainWake.busySinceWake() - loadBusy) }
         finished.didClipboard = clipboard * 1000
         finished.didCommonWords = commonWords * 1000
         finished.memoryMB = TypingStats.footprintMB()
         let loadStart = loadStart, createdAt = createdAt, partial = finished, hideMono = PopupLog.lastHideMono
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak model] in
             var record = partial
+            if let frame = PopupLog.firstFrame, frame.load == loadStart { record.firstFrame = (frame.at - loadStart) * 1000 }
+            if let swap = PopupLog.snapshotSwap, swap.load == loadStart { record.snapshotSwap = (swap.at - loadStart) * 1000 }
+            if let shot = PopupLog.snapshotCapture, shot.load == loadStart { record.snapshotCapture = shot.ms }
             if let ready = model?.engineReadyAt, ready >= loadStart { record.engineReady = (ready - loadStart) * 1000 }
+            // 这次弹出以后的每一次准备：排队取第一次的，准备时间加起来，做了什么按先后列出。
+            let prepares = QueuedEngine.shared.recentPrepares.filter { $0.queued >= loadStart }
+            if let first = prepares.first {
+                record.engineWait = (first.started - first.queued) * 1000
+                record.engineRun = prepares.map { ($0.finished - $0.started) * 1000 }.reduce(0, +)
+                record.engineWork = prepares.map(\.work).joined(separator: " → ")
+                    + (prepares.count > 1 ? "（准备了 \(prepares.count) 次）" : "")
+            }
             // 旧键盘常常在新的弹出以后才拆（deinit 晚一点），这时补上；期间又收起过就不补（已经是下一次的了）。
             if PopupLog.lastHideMono == hideMono {
                 if record.lastCleanupMs == nil, let done = PopupLog.lastCleanupDone {
@@ -392,11 +511,18 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        // 截图还挂着（下一轮还没轮到）：现在就换成真键盘，后面的事都要用到它。
+        replaceSnapshot()
+        if snapshotOn {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.captureSnapshotIfNeeded() }
+        }
         #if DEBUG
         heightLog("didAppear")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.heightLog("settled") }
         #endif
         TypingStats.noteLaunchAppeared()
+        // 先弹出、后载入：键盘长什么样用不到的准备，都等它显示出来以后的下一轮再做，不压在弹出前的主线程上。
+        DispatchQueue.main.async { [weak self] in self?.prepareAfterAppear() }
         // 弹出前没进窗口时方向是按尺寸类猜的，进了窗口按屏幕再核一次。
         scheduleOrientationCheck()
         clearStaleMarkedText()
@@ -410,6 +536,16 @@ final class KeyboardViewController: UIInputViewController {
         model.refreshCommonWords()
         let wordsDone = CACurrentMediaTime()
         finishPopupRecord(clipboard: wordsStart - clipboardStart, commonWords: wordsDone - wordsStart)
+    }
+
+    /// 弹出后再做的准备：崩溃记录订阅（冷启动时要读一遍以前的诊断包）、按键落点校准、震动预热、英文补全词表。
+    /// 都在第一个按键之前就做完了（显示出来以后的下一轮），只是不再挡在键盘显示出来之前。
+    private func prepareAfterAppear() {
+        CrashLog.shared.start(source: "keyboard")
+        TouchCalibration.reload()
+        // 震动发生器提前建好、预热：不然第一次按键时才创建，第一个键会顿一下。
+        if model.settings.keyHaptics && model.hasFullAccess { model.haptic.prepare() }
+        if !model.chineseMode || model.settings.inputLanguage != .chinese { EnglishPredictor.prepare() }
     }
 
     /// 每有一个键盘页面要弹出就 +1（整个进程共用）。收起后补做清理前看它变没变：变了说明又弹出来了，会话归新页面用。
@@ -473,6 +609,7 @@ final class KeyboardViewController: UIInputViewController {
         model.trackpadActive = false
         model.dismissPredictions()
         Self.flushShared()
+        removeSnapshot()
         removeHost()
     }
 
@@ -515,6 +652,8 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
+        // 截图放上时还没进窗口：进了窗口，这一圈的第一帧才交得出去，交完再建真键盘。
+        if snapshotWaitingWindow, view.window != nil { buildHostAfterNextFrame() }
         updateGlobeKey()
         scheduleOrientationCheck()
     }

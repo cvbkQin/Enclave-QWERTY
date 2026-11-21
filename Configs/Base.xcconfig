@@ -16,7 +16,18 @@ INTERNAL_ANSWER_BASE_URL =
 INTERNAL_ANSWER_MODEL =
 INTERNAL_ANSWER_API_KEY =
 
+// iCloud 同步（App/Sync，方案 specs/icloud-sync/iCloud同步方案.md）：默认关。打开（ICLOUD_SYNC = YES，写在 Local.xcconfig 或命令行）时
+// 主 App 带 iCloud（CloudKit，容器 iCloud.$(BUNDLE_ID_PREFIX).enclave）和推送权限，Info.plist 加后台模式（scripts/icloud-background-modes.py）。
+// 要付费开发者账号、开发者网站上给 App ID 开了 iCloud 和推送；免费 Apple ID（Personal Team）签名拿不到，保持 NO。
+// 关着时主 App 用不带 iCloud 的权限文件、不声明后台模式，代码也不碰 CloudKit。键盘扩展不管哪种都不带 iCloud。
+// 什么时候默认打开由 04 定：要先有设置页的入口（等 02），TestFlight 前要在 CloudKit 控制台把记录类型部署到 Production。
+ICLOUD_SYNC = NO
+
 #include? "Local.xcconfig"
+
+APP_ENTITLEMENTS_YES = App/Enclave-iCloud.entitlements
+APP_ENTITLEMENTS_NO = App/Enclave.entitlements
+APP_ENTITLEMENTS = $(APP_ENTITLEMENTS_$(ICLOUD_SYNC))
 
 ENCLAVE_BUILTIN_BASE_URL_YES = $(INTERNAL_BASE_URL)
 ENCLAVE_BUILTIN_MODEL_YES = $(INTERNAL_MODEL)

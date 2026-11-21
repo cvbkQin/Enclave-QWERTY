@@ -84,7 +84,8 @@ extension KeyboardModel {
     func askTapped(_ mode: AskMode?, contextOverride: String? = nil) {
         guard !isRunning, canAsk else { return }
         let answerStyle = runAnswerStyleOverride
-        guard passGate(then: { [weak self] in
+        let keys: KeyUse = mode == .rewrite ? .polish : (mode == .answer ? .answer : .either)
+        guard passGate(keys: keys, then: { [weak self] in
             self?.runAnswerStyleOverride = answerStyle
             self?.askTapped(mode, contextOverride: contextOverride)
             self?.runAnswerStyleOverride = nil
@@ -378,7 +379,7 @@ extension KeyboardModel {
     /// 点「使用联网查询」：同一个问题强制联网重问，结果替换这条回答（MG7）。
     func forceWebSearch() {
         guard canForceSearch, let session, let source = session.currentAskSource, let provider = settings.answerSearch else { return }
-        guard passGate(then: { [weak self] in self?.forceWebSearch() }) else { return }
+        guard passGate(keys: .answer, then: { [weak self] in self?.forceWebSearch() }) else { return }
         reload()
         guard checkCanAsk() else { return }
         guard passAnswerConsent(then: { [weak self] in self?.forceWebSearch() }) else { return }

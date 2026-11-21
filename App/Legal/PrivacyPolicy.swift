@@ -3,7 +3,7 @@ import Foundation
 /// 隐私政策全文（P07），中英日三份；中文是中国大陆备案版（beian/隐私政策-中国大陆版.md）。网页 docs/privacy.html 和 PRIVACY.md 由 scripts/gen-privacy.py 从这里生成，改完运行一次。
 /// 开发者名称和联系邮箱在 LegalInfo 里改。
 enum PrivacyPolicy {
-    static let effectiveDate = DateComponents(calendar: .current, year: 2026, month: 11, day: 6).date ?? Date()
+    static let effectiveDate = DateComponents(calendar: .current, year: 2026, month: 11, day: 19).date ?? Date()
 
     static func text(_ language: AppLanguage) -> String {
         let raw: String
@@ -12,7 +12,8 @@ enum PrivacyPolicy {
         case .ja: raw = ja
         case .zh, .system: raw = zh
         }
-        return raw.replacingOccurrences(of: "{developer}", with: language == .en || language == .ja ? LegalInfo.developer : LegalInfo.developerZh)
+        // 没有 iCloud 同步能力的包里，去掉只说同步的那几段、换成不带同步的说法（PolicyFilter）。网页版跟着 Base.xcconfig 的 ICLOUD_SYNC 默认值。
+        return PolicyFilter.apply(raw, iCloudSync: ICloudSync.isAvailable).replacingOccurrences(of: "{developer}", with: language == .en || language == .ja ? LegalInfo.developer : LegalInfo.developerZh)
             .replacingOccurrences(of: "{email}", with: LegalInfo.email)
     }
 
@@ -28,14 +29,14 @@ enum PrivacyPolicy {
 ## 一、核心原则
 
 1. **本应用不设账号体系。您的 AI 请求由设备直接发送给您选择的服务商，无第三方中转；我们不收集、不上传您的输入内容。我们的服务器仅用于接收您主动提交的反馈（见第二条第（七）项）和提供可选的词库文件下载。**
-2. 打字、候选词计算和输入习惯学习全部在您的设备本地完成。
+2. 打字、候选词计算和输入习惯学习全部在您的设备本地完成。[[icloud]]如您开启 iCloud 同步，学到的词等数据会以端到端加密的方式存入您自己的 iCloud 账户，我们和 Apple 都无法读取（见第三条“iCloud 同步”）。[[/icloud]]
 3. 只有在您主动使用 AI 功能时，相关文字才会发送到**您自己填写**的模型服务接口，且不经过我们。
 
 ## 二、各项功能如何处理信息
 
 ### （一）文字输入
 
-拼音输入、候选词计算、联想预测和输入习惯学习均在您的设备本地完成，不通过网络传输任何内容。
+拼音输入、候选词计算、联想预测和输入习惯学习均在您的设备本地完成，不通过网络传输任何内容。[[icloud]]键盘本身不连接 iCloud。[[/icloud]]
 
 如您主动下载词库文件，本应用会从文件服务器下载：在“键盘 › 词库 › 热门词库”中下载的在线词库（如游戏、网络流行语、百科词库），来自我们的服务器 enclavekb.cn；拼音设置中的“整句模型”，中国大陆店面来自 enclavekb.cn，其他地区来自 GitHub。下载请求不包含您的输入内容；我们的服务器会依法记录访问日志（IP 地址、时间、请求地址、设备标识），保存 6 个月后删除。
 
@@ -57,7 +58,7 @@ enum PrivacyPolicy {
 
 本应用预设的模型服务仅为方便填写，您可以自由选择其他服务。我们建议您选择依法完成备案的模型服务。
 
-**AI 帮回：** 帮回是润色的一种：用您当前的润色风格，为您复制的别人的一句话写一条回复。**仅在您点击帮回时**（润色风格下拉框最上面的“帮回”、识意框右边的“帮回”按钮、刚复制内容时变成“帮回”的润色键、固定在 AI 栏上的“帮回”键，或剪贴板记录长按菜单里的“帮回这条”），本应用才读取系统剪贴板（读取时系统会显示“粘贴自…”的提示；从剪贴板记录发起时，使用本机已保存的那条记录），并将以下信息直接发送至您为润色配置的模型服务接口（即上述主接口），生成一条回复：1. 您复制的那段文字；2. 当前润色风格的说明文字；3. 您在识意框中写的要求（如有）；4. 输入框中您自己打的字（如有），作为您想表达的意思。发送前同样适用润色接口地址的发送同意。帮回不使用联网搜索。在您点击之前，键盘只通过系统提供的变更标记和内容类型判断（例如是否为链接或纯数字）来判断是否有可以帮回的新复制内容，不读取内容。读取到的文字会存入剪贴板记录，生成的回复和润色、问答一起存入 AI 历史记录，都只保存在本机。别人发给您的消息里可能含有对方的个人信息，请只对您有权处理的内容使用帮回。
+**AI 帮回：** 帮回是润色的一种：用您当前的润色风格，为您复制的别人的一句话写一条回复。**仅在您点击帮回时**（润色风格下拉框最上面的“帮回”、识意框右边的“帮回”按钮、刚复制内容时变成“帮回”的润色键、固定在 AI 栏上的“帮回”键，或剪贴板记录长按菜单里的“帮回这条”），本应用才读取系统剪贴板（读取时系统会显示“粘贴自…”的提示；从剪贴板记录发起时，使用本机已保存的那条记录），并将以下信息直接发送至您为润色配置的模型服务接口（即上述主接口），生成一条回复：1. 您复制的那段文字；2. 当前润色风格的说明文字；3. 您在识意框中写的要求（如有）；4. 输入框中您自己打的字（如有），作为您想表达的意思。发送前同样适用润色接口地址的发送同意。帮回不使用联网搜索。在您点击之前，如您开启了“自动判断”，键盘只通过系统提供的变更标记和内容类型判断（例如是否为链接或纯数字），来判断是否有可以帮回的新复制内容，不读取内容；关闭“自动判断”后，键盘不做这项判断，您仍可以从润色风格下拉框、固定在 AI 栏上的“帮回”键或剪贴板记录中点击帮回。识意框右边的“帮回”按钮和变成“帮回”的润色键，只在开启“自动判断”时出现。“自动判断”默认开启，可以在 App 的“AI › 接口”润色卡中关闭；关闭润色时，帮回也一并不可用。读取到的文字会存入剪贴板记录，生成的回复和润色、问答一起存入 AI 历史记录，都只保存在本机。别人发给您的消息里可能含有对方的个人信息，请只对您有权处理的内容使用帮回。
 
 ### （三）识意问答与联网（联网仅在问答接口为千问、Kimi、智谱或腾讯混元时可用）
 
@@ -94,9 +95,9 @@ enum PrivacyPolicy {
 
 ## 三、在设备本地存储的信息
 
-以下信息仅保存在您的设备上：
+[[icloud]]以下信息保存在您的设备上；除您开启下文“iCloud 同步”的情形外，不会离开您的设备：[[/icloud]][[no-icloud]]以下信息仅保存在您的设备上：[[/no-icloud]]
 
-1. 您填写的模型服务 API 密钥（包括主接口、问答接口及您保存的接口方案），保存在系统钥匙串中；
+1. 您填写的模型服务 API 密钥（包括主接口、问答接口及您保存的接口方案），保存在系统钥匙串中；[[icloud]]如您开启“同步接口 Key”，还会经 iCloud 钥匙串同步到您登录同一 Apple 账户的其他设备；[[/icloud]]
 2. AI 历史记录（润色、问答和帮回），包括原文与生成结果；
 3. 剪贴板记录：您在键盘中点开剪贴板时读取到的文字，最多 20 条；
 4. 拼音输入学习记录；
@@ -108,9 +109,29 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 本应用**只在您点开键盘上的剪贴板或点击“帮回”时**读取系统剪贴板，读取时系统会显示“飞地输入法粘贴自…”的提示；不会在后台读取或监听剪贴板，判断剪贴板是否有新内容时只查看系统提供的变更标记，不读取内容。剪贴板记录仅保存在本机，最多 20 条，超过 24 小时自动删除，不会上传；您可以在剪贴板面板中删除单条记录，在 App 的“键盘”页清除全部剪贴板记录，或关闭“剪贴板记录”开关（关闭时已有记录一并删除）。
 
-**卸载本应用后，上述信息将全部从设备上删除**（购买记录由 App Store 保存，重新安装后可恢复）。
+**卸载本应用后，上述信息将全部从设备上删除**（购买记录由 App Store 保存，重新安装后可恢复）。[[icloud]]已同步到 iCloud 的数据不会随卸载删除，删除方法见下文“iCloud 同步”。[[/icloud]]
 
-**备份与恢复：** 在“设置 › 数据 › 备份与恢复”中，您可以把数据导出为备份文件，或从备份文件恢复。备份文件存放的位置由您在系统文件选择器中选择，例如本机或 iCloud 云盘，由您自行保管和删除。备份文件默认包含您的设置（包括您保存的接口方案，不含密钥）、常用词、提示词和拼音学习记录；AI 历史记录默认不包含，可以勾选。备份文件**默认不包含 API 密钥**；如您主动勾选，密钥会用您设置的密码加密（PBKDF2 + AES-GCM）后写入备份文件，我们不保存这个密码，也无法帮您找回。剪贴板记录、购买状态和试用信息从不包含在备份文件中：购买可在新设备上通过“恢复购买”找回，试用期不会因恢复备份而重置或延长。导出和恢复都在您的设备上完成，**我们的服务器接触不到您的备份**。
+**备份与恢复：** 在“设置 › 数据 › 备份与恢复”中，您可以把数据导出为备份文件，或从备份文件恢复。备份文件存放的位置由您在系统文件选择器中选择，例如本机或 iCloud 云盘，由您自行保管和删除。备份文件默认包含您的设置（包括您保存的接口方案，不含密钥）、常用词、提示词和拼音学习记录；AI 历史记录默认不包含，可以勾选。备份文件**默认不包含 API 密钥**；如您主动勾选，密钥会用您设置的密码加密（PBKDF2 + AES-GCM）后写入备份文件，我们不保存这个密码，也无法帮您找回。剪贴板记录、购买状态和试用信息从不包含在备份文件中：购买可在新设备上通过“恢复购买”找回，试用期不会因恢复备份而重置或延长。导出和恢复都在您的设备上完成，**我们的服务器接触不到您的备份**。[[icloud]]
+
+**iCloud 同步（默认关闭）：** 在“设置 › 数据 › 备份与恢复”中开启“iCloud 同步”后，App 主程序会把以下数据同步到**您自己的 iCloud 账户**（Apple 的 CloudKit 私有数据库），供您登录同一 Apple 账户的其他设备合并使用：
+
+1. 拼音输入学习记录（学到的词）；
+2. 常用词和键盘常用语；
+3. 润色风格和问答风格，以及润色、问答的开关、联网倾向和固定在 AI 栏上的风格和帮回键、帮回的“自动判断”开关；如您另外开启“同步接口 Key”，还包括您保存的接口方案（服务商、地址、模型等）。
+
+以下数据**不同步**：API 密钥和接口方案（除非您另行开启下文的“同步接口 Key”）、AI 历史记录、剪贴板记录、英文输入学习记录和纠错记录、键盘布局和双拼、模糊音、声音振动、外观等键盘设置、通讯录姓名、购买和试用信息、您对本政策和各接口地址的同意记录、使用统计和诊断记录。
+
+您在一台设备上删除或修改的常用词和键盘常用语，原来的那一条会以删除记录的形式（包含原文）在 iCloud 中保留 180 天，以便其他设备同步删除，之后不再保留。
+
+同步的内容存放在 CloudKit 的加密字段中，**端到端加密**，加密密钥保存在您的 iCloud 钥匙串中，**我们和 Apple 都无法读取**。为区分您的各台设备，iCloud 中还会保存每台设备的设备名称（默认取系统提供的名称，可在同步设置中修改）、型号（iPhone 或 iPad）、App 版本和同步状态，这些以及上述删除记录、下文的 Key 指纹也都存放在加密字段中；不加密的只有随机生成、不含个人信息的记录编号，以及 iCloud 存储所需的记录类型、大小和创建、修改时间。如您的 iCloud 账户无法使用加密字段，同步会停止，不会以不加密的方式上传。我们的服务器不参与同步，接触不到同步的数据。
+
+同步只在 App 主程序中进行：打开 App 时、在 App 中修改润色或问答风格、AI 接口、接口方案或 API 密钥约 3 秒后、点击“立即同步”时、收到 iCloud 的变更通知时，以及系统分配的后台时间（通常在设备充电时）。键盘不连接 iCloud。
+
+**同步接口 Key（默认关闭）：** 开启 iCloud 同步后，您可以另行开启此项，每台设备分别决定。开启后，您保存的接口方案也会随上述加密字段同步，API 密钥则通过 Apple 的 iCloud 钥匙串同步到您的其他设备，端到端加密，我们和 Apple 都无法读取。为判断各台设备的接口方案是否配着同一个 Key，iCloud 中会随接口方案保存每个 Key 的指纹：由 Key 经 SHA-256 单向计算得到的 16 位十六进制字符，无法反推出 Key。开启期间，在一台设备上删除接口方案或密钥，其他设备上对应的密钥也会被删除。关闭此项时，本机保留密钥；您可以选择同时从 iCloud 钥匙串中删除，这样其他设备上的密钥也会删除。此项需要您在 iOS 设置中打开 iCloud 钥匙串（“密码”同步）才能生效。
+
+**清除与关闭：** 开启 iCloud 同步时，在“设置 › 隐私”中清除拼音输入学习记录，会清除您所有设备上的学习记录：当前设备立即清除，其他设备在下次同步时清除，它们存放在 iCloud 中的副本也随之替换为清除后的内容。长期未同步的旧设备，其在 iCloud 中的旧副本不会再合并到其他设备，但会一直保留，直至您在同步设置的“设备”中删除该设备。在键盘上删除某个学到的词，只对当前设备生效。在同步设置中，您可以删除不再使用的旧设备的数据。关闭 iCloud 同步时，本应用会询问是否同时删除 iCloud 中本应用的数据。您也可以随时在 iOS“设置 › Apple 账户 › iCloud › 管理账户储存空间”中查看和删除本应用的 iCloud 数据。退出或更换 Apple 账户时，同步自动暂停，不会把本机数据合并到另一个账户。
+
+使用中国大陆 Apple 账户时，iCloud 服务由云上贵州大数据产业发展有限公司运营，数据存储在中国境内。[[/icloud]]
 
 ## 四、权限说明
 
@@ -120,7 +141,9 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 **剪贴板：** 键盘读取剪贴板需要开启“允许完全访问”，且只在您点开剪贴板或点击“帮回”时读取（见第三条）。
 
-本应用不申请定位、相机、麦克风、相册等权限。
+[[icloud]]**后台 App 刷新：** 开启 iCloud 同步后，App 主程序会利用系统的后台刷新在后台同步。您可以在 iOS“设置 › 通用 › 后台 App 刷新”中关闭；关闭后，或设备处于低电量模式时，基本只在您打开本应用时同步。
+
+[[/icloud]]本应用不申请定位、相机、麦克风、相册等权限。
 
 ## 五、第三方服务
 
@@ -129,10 +152,11 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 3. 如您开启识意问答联网，联网搜索由您选择的问答服务商（千问、Kimi、智谱或腾讯混元）完成，适用该服务商的服务条款和隐私政策。
 4. 购买由 Apple 的 App Store 处理，适用 Apple 的隐私政策。
 5. 您提交的反馈通过腾讯 QQ 邮箱的发信服务转发给我们，适用腾讯的隐私政策。
+[[icloud]]6. 如您开启 iCloud 同步，或把备份文件存到 iCloud 云盘，相关数据存储在您自己的 iCloud 账户中，适用 Apple 的隐私政策；使用中国大陆 Apple 账户的，iCloud 由云上贵州大数据产业发展有限公司运营，适用《iCloud（云上贵州运营）条款与条件》。iCloud 同步的内容端到端加密，Apple 和云上贵州均无法读取。[[/icloud]][[no-icloud]]6. 如您把备份文件存到 iCloud 云盘，相关数据存储在您自己的 iCloud 账户中，适用 Apple 的隐私政策；使用中国大陆 Apple 账户的，iCloud 由云上贵州大数据产业发展有限公司运营，适用《iCloud（云上贵州运营）条款与条件》。[[/no-icloud]]
 
 ## 六、您的权利
 
-1. **查阅和删除：** 您的信息都保存在您的设备上。您可以在本应用内查看 AI 历史记录、剪贴板记录和设置，并随时在“设置 › 隐私”中清除；在 App 的“键盘”页可以关闭“剪贴板记录”（已有记录一并删除）或清除剪贴板记录；或卸载本应用删除设备上的全部信息。
+1. **查阅和删除：** [[icloud]]您的信息保存在您的设备上；开启 iCloud 同步时，也保存在您自己的 iCloud 中。[[/icloud]][[no-icloud]]您的信息都保存在您的设备上。[[/no-icloud]]您可以在本应用内查看 AI 历史记录、剪贴板记录和设置，并随时在“设置 › 隐私”中清除；在 App 的“键盘”页可以关闭“剪贴板记录”（已有记录一并删除）或清除剪贴板记录；[[icloud]]可以关闭 iCloud 同步并删除 iCloud 中的数据；[[/icloud]]或卸载本应用删除设备上的全部信息。
 2. **撤回同意：** 您可以在“设置 › 隐私”中撤回对本政策的同意，撤回后本应用回到基础输入功能模式；也可以撤回对某个接口地址的发送同意，撤回后下一次发送前会再次征求您的同意。撤回同意不影响撤回前基于您的同意已进行的处理。
 3. **关闭权限：** 您可以随时在系统设置中关闭“允许完全访问”或通讯录权限。
 4. **联系我们：** 对以上权利的行使有任何问题，可通过第九条的方式联系我们。
@@ -163,13 +187,13 @@ Enclave (the "App") is provided by {developer} ("we", "us"). This Privacy Policy
 
 ## 1. Information We Collect
 
-The App has no user accounts. Your AI requests go straight from your device to the provider you chose, with no third-party relay, and we never collect or upload what you type. Our own server is used only to receive feedback you choose to send (see "Feedback" below) and to offer optional dictionary downloads.
+The App has no user accounts. Your AI requests go straight from your device to the provider you chose, with no third-party relay, and we never collect or upload what you type. Our own server is used only to receive feedback you choose to send (see "Feedback" below) and to offer optional dictionary downloads.[[icloud]] If you turn on iCloud Sync, data such as your learned words is stored, end-to-end encrypted, in your own iCloud account. Neither we nor Apple can read it (see "iCloud Sync" in section 3).[[/icloud]]
 
 ## 2. How Each Feature Handles Information
 
 ### Typing
 
-Pinyin input, candidate generation and input learning are performed entirely on your device. No content is transmitted over the network.
+Pinyin input, candidate generation and input learning are performed entirely on your device. No content is transmitted over the network.[[icloud]] The keyboard itself never connects to iCloud.[[/icloud]]
 
 If you choose to download a dictionary file, the App downloads it from a file server. Online dictionaries you download under Keyboard › Dictionaries › Popular dictionaries (such as games, internet slang or the encyclopedia dictionary) come from our server enclavekb.cn. The sentence model in the Pinyin settings comes from enclavekb.cn for the mainland China storefront and from GitHub elsewhere. The download request contains nothing you type; our server keeps access logs (IP address, time, requested address, device identifier) for 6 months as required by law, then deletes them.
 
@@ -191,7 +215,7 @@ Before the first transmission, and whenever you change the endpoint address, the
 
 **AI-generated content:** Text returned by AI features is generated by the model you configured, and the App labels it on screen with tags such as "AI-generated", "AI edit" and "AI Q&A". It may be inaccurate, so please check it before use. We never insert any marker into your text.
 
-**AI Help Reply.** Help Reply is a kind of Polish: it writes one reply, in your current polish style, to a message you copied from someone else. **Only when you tap Help Reply** (Help Reply at the top of the polish style menu, the Help Reply button next to the intent box, the Polish key when it turns into Help Reply after you copy something, the Help Reply key pinned to the AI bar, or "Help Reply to This" in the long-press menu of a clipboard item), the App reads the system clipboard (the system shows its "pasted from" banner when it does; when you start from a clipboard item, the item already saved on your device is used) and sends the following directly to the model service API you configured for Polish (the main API above): the text you copied; the description of your current polish style; any instructions you wrote in the intent box; and any text you typed in the input field yourself, as what you want to say. The consent you gave for the Polish API address applies. Help Reply never uses web search. Before you tap, the keyboard only uses the change marker and content type the system provides (for example whether it is a link or just a number) to tell whether there is something new to reply to, without reading the contents. The text read is saved to your clipboard history, and the reply is saved to your AI history along with Polish and Ask, all only on your device. Messages from other people may contain their personal information, so please use Help Reply only on content you are entitled to process.
+**AI Help Reply.** Help Reply is a kind of Polish: it writes one reply, in your current polish style, to a message you copied from someone else. **Only when you tap Help Reply** (Help Reply at the top of the polish style menu, the Help Reply button next to the intent box, the Polish key when it turns into Help Reply after you copy something, the Help Reply key pinned to the AI bar, or "Help Reply to This" in the long-press menu of a clipboard item), the App reads the system clipboard (the system shows its "pasted from" banner when it does; when you start from a clipboard item, the item already saved on your device is used) and sends the following directly to the model service API you configured for Polish (the main API above): the text you copied; the description of your current polish style; any instructions you wrote in the intent box; and any text you typed in the input field yourself, as what you want to say. The consent you gave for the Polish API address applies. Help Reply never uses web search. Before you tap, if Auto Detect is on, the keyboard only uses the change marker and content type the system provides (for example whether it is a link or just a number) to tell whether there is something new to reply to, without reading the contents. With Auto Detect off, the keyboard does not check at all, and you can still tap Help Reply from the polish style menu, a Help Reply key pinned to the AI bar or your clipboard history. The Help Reply button next to the intent box and the Polish key turning into Help Reply appear only while Auto Detect is on. Auto Detect is on by default and can be turned off on the Polish card under AI › API in the App. When Polish is turned off, Help Reply is unavailable too. The text read is saved to your clipboard history, and the reply is saved to your AI history along with Polish and Ask, all only on your device. Messages from other people may contain their personal information, so please use Help Reply only on content you are entitled to process.
 
 ### Ask Answers and Web Search (web search only with a Qwen, Kimi, Zhipu or Tencent Hunyuan answers API)
 
@@ -220,9 +244,9 @@ The server forwards it to us by email right away (sent through Tencent QQ Mail) 
 
 ## 3. Information Stored on Your Device
 
-The following is stored only on your device:
+[[icloud]]The following is stored on your device and never leaves it, except as described under "iCloud Sync" below if you turn it on:[[/icloud]][[no-icloud]]The following is stored only on your device:[[/no-icloud]]
 
-- the model service API keys you entered (for the main API, the answers API and any API setups you saved), in the system Keychain;
+- the model service API keys you entered (for the main API, the answers API and any API setups you saved), in the system Keychain;[[icloud]] if you turn on "Sync API Keys", they are also synced through iCloud Keychain to your other devices signed in to the same Apple Account;[[/icloud]]
 - your AI history (Polish, Ask and Help Reply), including the original text and the results;
 - your clipboard history: text read when you open the clipboard in the keyboard, up to 20 items;
 - your pinyin input learning data;
@@ -233,9 +257,29 @@ Your AI history stays on your device and is never uploaded. From the ⋯ menu at
 
 The App reads the system clipboard **only when you open the clipboard in the keyboard or tap Help Reply**, and the system then shows a "pasted from" banner for the App. It never reads or monitors the clipboard in the background: to tell whether there is something new, it only checks the change marker the system provides, without reading the contents. Clipboard history stays on your device only, is limited to 20 items, is deleted automatically after 24 hours, and is never uploaded. You can delete single items in the clipboard panel, clear all of them on the App's Keyboard page, or turn off Clipboard History there (which also deletes existing items).
 
-Deleting the App removes all of this information from your device (your purchase is kept by the App Store and can be restored after reinstalling).
+Deleting the App removes all of this information from your device (your purchase is kept by the App Store and can be restored after reinstalling).[[icloud]] Data already synced to iCloud is not deleted with the App; see "iCloud Sync" below for how to delete it.[[/icloud]]
 
-**Backup and restore.** In Settings › Data › Backup & Restore you can export your data to a backup file or restore from one. You choose where the file is saved in the system file picker, for example on your device or in iCloud Drive, and you keep and delete it yourself. By default the file includes your settings (including saved endpoint configurations, without keys), custom words, prompts and pinyin learning data. AI history is left out by default, and you can choose to include it. The file **leaves out your API keys by default**. If you choose to include them, they are encrypted with a password you set (PBKDF2 + AES-GCM) before being written to the file. We never store this password and cannot recover it for you. Clipboard history, purchase status and trial information are never included: you can get your purchase back on a new device with Restore Purchases, and restoring a backup does not reset or extend the trial. Export and restore happen on your device, and **our server cannot access your backups**.
+**Backup and restore.** In Settings › Data › Backup & Restore you can export your data to a backup file or restore from one. You choose where the file is saved in the system file picker, for example on your device or in iCloud Drive, and you keep and delete it yourself. By default the file includes your settings (including saved endpoint configurations, without keys), custom words, prompts and pinyin learning data. AI history is left out by default, and you can choose to include it. The file **leaves out your API keys by default**. If you choose to include them, they are encrypted with a password you set (PBKDF2 + AES-GCM) before being written to the file. We never store this password and cannot recover it for you. Clipboard history, purchase status and trial information are never included: you can get your purchase back on a new device with Restore Purchases, and restoring a backup does not reset or extend the trial. Export and restore happen on your device, and **our server cannot access your backups**.[[icloud]]
+
+**iCloud Sync (off by default).** When you turn on iCloud Sync in Settings › Data › Backup & Restore, the App syncs the following to **your own iCloud account** (Apple's CloudKit private database), so your other devices signed in to the same Apple Account can merge it:
+
+- your pinyin input learning data (learned words);
+- your custom words and keyboard phrases;
+- your Polish and Ask styles, together with the Polish and Ask on/off switches, the web search preference and the styles and Help Reply key pinned to the AI bar, and the Help Reply Auto Detect switch; and, if you also turn on "Sync API Keys", your saved API setups (provider, address, model and so on).
+
+The following is **never synced**: API keys and API setups (unless you separately turn on "Sync API Keys", below), AI history, clipboard history, English learning and autocorrect data, keyboard settings such as layout, Double Pinyin, fuzzy Pinyin, sounds, haptics and appearance, contact names, purchase and trial information, your consent records for this policy and for each API address, usage statistics and diagnostic records.
+
+When you delete or edit a custom word or keyboard phrase on one device, a deletion record of the old entry (including its text) is kept in iCloud for 180 days so your other devices delete it too, and is then dropped.
+
+Synced content is stored in CloudKit encrypted fields and is **end-to-end encrypted**, with keys kept in your iCloud Keychain. **Neither we nor Apple can read it.** To tell your devices apart, iCloud also stores each device's name (the name the system provides by default, which you can change in the sync settings), model (iPhone or iPad), App version and sync status, also in encrypted fields, as are the deletion records above and the key fingerprints below. The only unencrypted items are randomly generated record IDs that contain no personal information, and what iCloud needs for storage: record type, size, and creation and modification times. If encrypted fields are not available for your iCloud account, syncing stops; data is never uploaded unencrypted. Our server takes no part in syncing and has no access to synced data.
+
+Syncing happens only in the App itself: when you open it, about 3 seconds after you change Polish or Ask styles, the AI endpoint, API setups or API keys in the App, when you tap Sync Now, when iCloud reports a change, and in background time the system allows (usually while your device is charging). The keyboard never connects to iCloud.
+
+**Sync API Keys (off by default).** Once iCloud Sync is on, you can turn this on separately on each device. Your saved API setups then sync in the encrypted fields above, and your API keys sync to your other devices through Apple's iCloud Keychain, end-to-end encrypted; neither we nor Apple can read them. To tell whether your devices' API setups use the same key, each setup is stored with a fingerprint of its key: 16 hexadecimal characters computed one-way from the key with SHA-256, from which the key cannot be recovered. While it is on, deleting an API setup or key on one device also deletes the matching key on your other devices. When you turn it off, this device keeps its keys; you can choose to also delete them from iCloud Keychain, which removes them from your other devices too. This only works if iCloud Keychain (Passwords sync) is turned on in iOS Settings.
+
+**Clearing and turning off.** While iCloud Sync is on, clearing the pinyin learning data in Settings › Privacy clears it on all your devices: this device right away, and each other device the next time it syncs, when its copy in iCloud is also replaced with the cleared data. An old device that no longer syncs keeps its old copy in iCloud; that copy is no longer merged into your other devices, but it stays until you delete the device under Devices in the sync settings. Deleting a single learned word from the keyboard affects only that device. In the sync settings you can delete the data of old devices you no longer use. When you turn off iCloud Sync, the App asks whether to also delete its data in iCloud. You can also view and delete the App's iCloud data at any time in iOS Settings › Apple Account › iCloud › Manage Account Storage. If you sign out of or switch Apple Accounts, syncing pauses and this device's data is never merged into the other account.
+
+For Apple Accounts in mainland China, iCloud is operated by Guizhou-Cloud Big Data Industry Co., Ltd. (GCBD), and the data is stored in mainland China.[[/icloud]]
 
 ## 4. Permissions
 
@@ -245,14 +289,16 @@ Deleting the App removes all of this information from your device (your purchase
 
 **Clipboard.** Reading the clipboard from the keyboard requires Allow Full Access, and happens only when you open the clipboard or tap Help Reply (see section 3).
 
-## 5. Third-Party Services
+[[icloud]]**Background App Refresh.** With iCloud Sync on, the App uses the system's background refresh to sync in the background. You can turn this off in iOS Settings › General › Background App Refresh; the App then syncs essentially only when you open it, as it also does in Low Power Mode.
 
-The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi, Zhipu or Tencent Hunyuan) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy. Feedback you send is forwarded to us through Tencent QQ Mail under Tencent's privacy policy.
+[[/icloud]]## 5. Third-Party Services
+
+The App contains no third-party analytics, advertising or crash-reporting SDKs. The model service used for AI Polish is chosen and configured by you. Its terms of service and privacy policy govern how it processes your data. If you use web search in Ask, the search is done by the answer provider you chose (Qwen, Kimi, Zhipu or Tencent Hunyuan) under that provider's terms of service and privacy policy. Purchases are processed by Apple's App Store under Apple's privacy policy. Feedback you send is forwarded to us through Tencent QQ Mail under Tencent's privacy policy.[[icloud]] If you turn on iCloud Sync or save a backup file to iCloud Drive, that data is stored in your own iCloud account under Apple's privacy policy; for Apple Accounts in mainland China, iCloud is operated by GCBD under the iCloud (operated by GCBD) Terms and Conditions. Content synced by iCloud Sync is end-to-end encrypted, and neither Apple nor GCBD can read it.[[/icloud]][[no-icloud]] If you save a backup file to iCloud Drive, that data is stored in your own iCloud account under Apple's privacy policy; for Apple Accounts in mainland China, iCloud is operated by GCBD under the iCloud (operated by GCBD) Terms and Conditions.[[/no-icloud]]
 
 ## 6. Your Rights
 
 - **Withdraw consent:** under Settings › Privacy, at any time. The App will ask again before the next transmission.
-- **Delete data:** clear the locally stored AI history, clipboard history and input learning data at any time; on the App's Keyboard page, turn off Clipboard History (existing items are deleted too) or clear it; or delete the App to remove everything from your device.
+- **Delete data:** clear the locally stored AI history, clipboard history and input learning data at any time; on the App's Keyboard page, turn off Clipboard History (existing items are deleted too) or clear it;[[icloud]] turn off iCloud Sync and delete the App's data in iCloud;[[/icloud]] or delete the App to remove everything from your device.
 - **Disable permissions:** turn off Allow Full Access in the system Settings at any time.
 
 ## 7. Children
@@ -278,13 +324,13 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 ## 1. 収集する情報
 
-本アプリにはアカウント機能がありません。AI へのリクエストは端末から選択したサービスへ直接送信され、第三者の中継はありません。入力内容を当方が収集・送信することはありません。当方のサーバーは、お客様が送信したフィードバックの受け取り（下記「フィードバック」）と任意の辞書ファイルの配布にのみ使います。
+本アプリにはアカウント機能がありません。AI へのリクエストは端末から選択したサービスへ直接送信され、第三者の中継はありません。入力内容を当方が収集・送信することはありません。当方のサーバーは、お客様が送信したフィードバックの受け取り（下記「フィードバック」）と任意の辞書ファイルの配布にのみ使います。[[icloud]]iCloud 同期をオンにした場合、学習した語句などのデータはエンドツーエンドで暗号化され、お客様ご自身の iCloud アカウントに保存されます。当方も Apple も読み取ることはできません（第 3 節「iCloud 同期」を参照）。[[/icloud]]
 
 ## 2. 機能ごとの情報の取り扱い
 
 ### 文字入力
 
-ピンイン入力、候補の生成、入力の学習はすべてお客様の端末上で行われ、内容がネットワークで送信されることはありません。
+ピンイン入力、候補の生成、入力の学習はすべてお客様の端末上で行われ、内容がネットワークで送信されることはありません。[[icloud]]キーボード自体が iCloud に接続することはありません。[[/icloud]]
 
 辞書ファイルをダウンロードすることを選んだ場合、本アプリはファイルサーバーからダウンロードします。「キーボード › 辞書 › 人気の辞書」でダウンロードするオンライン辞書（ゲーム、ネット流行語、百科辞書など）は当方のサーバー enclavekb.cn から、ピンイン設定の整句モデルは中国本土のストアでは enclavekb.cn、その他の地域では GitHub からダウンロードします。リクエストに入力内容は含まれません。当方のサーバーは法令に基づきアクセスログ（IP アドレス、日時、リクエスト先、端末識別情報）を 6 か月保存した後に削除します。
 
@@ -306,7 +352,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 **AI 生成コンテンツの表示：** AI 機能が返す文章は、お客様が設定したモデルが生成したもので、本アプリは画面上で「AI 生成」「AI書換」「AI回答」などのラベルで表示します。不正確な場合があるため、ご自身で確認してからお使いください。お客様の文章に目印を入れることはありません。
 
-**AI 返信アシスト：** 返信アシストは「整える」の一種で、コピーした相手のメッセージへの返信を、現在の整えるスタイルで 1 つ作ります。**返信アシストをタップしたときだけ**（スタイルのメニューの一番上の「返信アシスト」、意図入力欄の右の「返信アシスト」ボタン、コピー直後に「返信アシスト」に変わる「整える」キー、AI バーに固定した「返信アシスト」キー、クリップボード履歴の長押しメニューの「この内容に返信」）、本アプリはシステムのクリップボードを読み取り（読み取る際はシステムが「ペースト元」のバナーを表示します。クリップボード履歴から始めた場合は、端末内に保存済みの履歴を使います）、次の情報を「整える」用に設定したモデルサービスの API（上記のメインの API）に直接送信して、返信を 1 つ作ります：コピーした文章、現在の整えるスタイルの説明文、意図入力欄に書いた指示（あれば）、入力欄にお客様が自分で入力した文章（あれば。伝えたい内容として）。「整える」用 API の URL について同意いただいた内容が適用されます。返信アシストではウェブ検索を使いません。タップするまで、キーボードはシステムが提供する変更の目印と内容の種類（リンクや数字だけかどうかなど）だけで返信できる新しいコピーがあるかを判断し、内容は読み取りません。読み取った文章はクリップボード履歴に、作った返信は整える・質問と同じ AI の履歴に保存され、どれも端末内にのみ保存されます。他の人から届いたメッセージにはその人の個人情報が含まれることがあるため、返信アシストはお客様が扱う権限のある内容にのみお使いください。
+**AI 返信アシスト：** 返信アシストは「整える」の一種で、コピーした相手のメッセージへの返信を、現在の整えるスタイルで 1 つ作ります。**返信アシストをタップしたときだけ**（スタイルのメニューの一番上の「返信アシスト」、意図入力欄の右の「返信アシスト」ボタン、コピー直後に「返信アシスト」に変わる「整える」キー、AI バーに固定した「返信アシスト」キー、クリップボード履歴の長押しメニューの「この内容に返信」）、本アプリはシステムのクリップボードを読み取り（読み取る際はシステムが「ペースト元」のバナーを表示します。クリップボード履歴から始めた場合は、端末内に保存済みの履歴を使います）、次の情報を「整える」用に設定したモデルサービスの API（上記のメインの API）に直接送信して、返信を 1 つ作ります：コピーした文章、現在の整えるスタイルの説明文、意図入力欄に書いた指示（あれば）、入力欄にお客様が自分で入力した文章（あれば。伝えたい内容として）。「整える」用 API の URL について同意いただいた内容が適用されます。返信アシストではウェブ検索を使いません。タップするまで、「自動判断」がオンの場合、キーボードはシステムが提供する変更の目印と内容の種類（リンクや数字だけかどうかなど）だけで返信できる新しいコピーがあるかを判断し、内容は読み取りません。「自動判断」をオフにするとキーボードはこの判断を行わず、スタイルのメニュー、AI バーに固定した「返信アシスト」キー、クリップボード履歴からタップして返信アシストを使えます。意図入力欄の右の「返信アシスト」ボタンと、「返信アシスト」に変わる「整える」キーは、「自動判断」がオンのときだけ表示されます。「自動判断」は初期設定でオンで、アプリの「AI › API」の「整える」カードでオフにできます。「整える」をオフにすると、返信アシストも使えなくなります。読み取った文章はクリップボード履歴に、作った返信は整える・質問と同じ AI の履歴に保存され、どれも端末内にのみ保存されます。他の人から届いたメッセージにはその人の個人情報が含まれることがあるため、返信アシストはお客様が扱う権限のある内容にのみお使いください。
 
 ### 質問への回答とウェブ検索（ウェブ検索は回答用 API が Qwen・Kimi・Zhipu・Tencent Hunyuan のときのみ）
 
@@ -335,9 +381,9 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 ## 3. 端末に保存される情報
 
-次の情報はお客様の端末にのみ保存されます。
+[[icloud]]次の情報はお客様の端末に保存され、下記の「iCloud 同期」をオンにした場合を除き、端末の外に出ることはありません。[[/icloud]][[no-icloud]]次の情報はお客様の端末にのみ保存されます。[[/no-icloud]]
 
-- お客様が入力したモデルサービスの API キー（メインの API、回答用 API、保存した API の設定を含む。システムのキーチェーンに保存）
+- お客様が入力したモデルサービスの API キー（メインの API、回答用 API、保存した API の設定を含む。システムのキーチェーンに保存[[icloud]]。「API キーを同期」をオンにした場合は、同じ Apple アカウントでサインインしているほかの端末にも iCloud キーチェーンで同期[[/icloud]]）
 - AI の履歴（整える・質問・返信アシスト。元の文章と結果）
 - クリップボード履歴（キーボードでクリップボードを開いたときに読み取った文字。最大 20 件）
 - ピンイン入力の学習データ
@@ -348,9 +394,29 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 本アプリは、**キーボードでクリップボードを開いたとき、または「返信アシスト」をタップしたときにのみ**システムのクリップボードを読み取ります。読み取る際はシステムが「ペースト元」のバナーを表示します。バックグラウンドでクリップボードを読み取ったり監視したりすることはなく、新しい内容があるかどうかはシステムが提供する変更の目印だけで判断し、内容は読み取りません。クリップボード履歴は端末内にのみ保存され、最大 20 件、24 時間を過ぎると自動的に削除され、送信されることはありません。クリップボードパネルで 1 件ずつ削除できるほか、本アプリの「キーボード」ページですべて消去したり、「クリップボード履歴」をオフにしたり（既存の履歴も削除されます）できます。
 
-本アプリを削除すると、これらの情報は端末からすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。
+本アプリを削除すると、これらの情報は端末からすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。[[icloud]]iCloud に同期済みのデータはアプリを削除しても消えません。削除方法は下記「iCloud 同期」を参照してください。[[/icloud]]
 
-**バックアップと復元：** 「設定 › データ › バックアップと復元」で、データをバックアップファイルに書き出したり、バックアップファイルから復元したりできます。保存先はシステムのファイル選択画面でお客様が選び（端末内や iCloud Drive など）、保管と削除はお客様ご自身で行います。初期設定では設定（保存した API の設定を含み、キーは含みません）、ユーザー辞書、プロンプト、ピンイン学習データが含まれます。AI 履歴は初期設定では含まれず、選択して含めることができます。**API キーは初期設定では含まれません**。含めることを選択した場合、キーはお客様が設定したパスワードで暗号化（PBKDF2 + AES-GCM）されてからファイルに書き込まれます。当方はこのパスワードを保存せず、復元することもできません。クリップボード履歴、購入状況、無料体験の情報は含まれません。購入は新しい端末で「購入を復元」から取り戻せます。バックアップを復元しても無料体験の期間がリセットされたり延長されたりすることはありません。書き出しと復元は端末上で行われ、**当方のサーバーからバックアップにアクセスすることはできません**。
+**バックアップと復元：** 「設定 › データ › バックアップと復元」で、データをバックアップファイルに書き出したり、バックアップファイルから復元したりできます。保存先はシステムのファイル選択画面でお客様が選び（端末内や iCloud Drive など）、保管と削除はお客様ご自身で行います。初期設定では設定（保存した API の設定を含み、キーは含みません）、ユーザー辞書、プロンプト、ピンイン学習データが含まれます。AI 履歴は初期設定では含まれず、選択して含めることができます。**API キーは初期設定では含まれません**。含めることを選択した場合、キーはお客様が設定したパスワードで暗号化（PBKDF2 + AES-GCM）されてからファイルに書き込まれます。当方はこのパスワードを保存せず、復元することもできません。クリップボード履歴、購入状況、無料体験の情報は含まれません。購入は新しい端末で「購入を復元」から取り戻せます。バックアップを復元しても無料体験の期間がリセットされたり延長されたりすることはありません。書き出しと復元は端末上で行われ、**当方のサーバーからバックアップにアクセスすることはできません**。[[icloud]]
+
+**iCloud 同期（初期設定はオフ）：** 「設定 › データ › バックアップと復元」で「iCloud 同期」をオンにすると、本アプリは次のデータを**お客様ご自身の iCloud アカウント**（Apple の CloudKit プライベートデータベース）に同期し、同じ Apple アカウントでサインインしているほかの端末で統合できるようにします。
+
+- ピンイン入力の学習データ（学習した語句）
+- ユーザー辞書とキーボードの定型文
+- 整えるスタイルと質問のスタイル、整える・質問のオン／オフ、ウェブ検索の傾向、AI バーに固定したスタイルと返信アシストのキー、返信アシストの「自動判断」の設定。「API キーを同期」もオンにした場合は、保存した API の設定（サービス、アドレス、モデルなど）も含みます
+
+次のデータは**同期されません**：API キーと API の設定（下記の「API キーを同期」を別途オンにした場合を除く）、AI の履歴、クリップボード履歴、英語の学習データと自動修正の記録、配列・双拼・あいまいピンイン・音・振動・外観などのキーボード設定、連絡先の名前、購入と無料体験の情報、本ポリシーと各 API アドレスへの同意の記録、使用統計と診断記録。
+
+ある端末で削除または変更したユーザー辞書の語句やキーボードの定型文は、ほかの端末にも反映されるよう、元の項目が削除の記録（その文字を含む）として iCloud に 180 日間保存され、その後は保存されません。
+
+同期される内容は CloudKit の暗号化フィールドに保存され、**エンドツーエンドで暗号化**されます。暗号鍵はお客様の iCloud キーチェーンに保管され、**当方も Apple も読み取ることはできません**。端末を区別するため、端末ごとの端末名（初期設定はシステムが提供する名前で、同期の設定で変更できます）、機種（iPhone または iPad）、アプリのバージョン、同期の状態も iCloud に保存されますが、これらや上記の削除の記録、下記のキーのフィンガープリントも暗号化フィールドに保存されます。暗号化されないのは、個人情報を含まないランダムなレコード ID と、保存に必要なレコードの種類・サイズ・作成日時・更新日時だけです。お客様の iCloud アカウントで暗号化フィールドが使えない場合、同期は停止し、暗号化せずにアップロードすることはありません。当方のサーバーは同期に関与せず、同期されたデータにアクセスできません。
+
+同期は本アプリ本体でのみ行われます：アプリを開いたとき、アプリで整える・質問のスタイル、AI の接続先、API の設定、API キーを変更してから約 3 秒後、「今すぐ同期」をタップしたとき、iCloud から変更の通知を受けたとき、そしてシステムが割り当てるバックグラウンド時間（通常は充電中）です。キーボードが iCloud に接続することはありません。
+
+**API キーを同期（初期設定はオフ）：** iCloud 同期をオンにした後、端末ごとに別途オンにできます。オンにすると、保存した API の設定も上記の暗号化フィールドで同期され、API キーは Apple の iCloud キーチェーンでほかの端末に同期されます。いずれもエンドツーエンドで暗号化され、当方も Apple も読み取ることはできません。端末間で API の設定が同じキーを使っているかを判断するため、各設定にはキーのフィンガープリント（キーから SHA-256 で一方向に計算した 16 桁の 16 進数。キーを復元することはできません）も保存されます。オンの間、ある端末で API の設定やキーを削除すると、ほかの端末の対応するキーも削除されます。オフにすると、この端末にはキーが残ります。あわせて iCloud キーチェーンから削除することも選べ、その場合はほかの端末のキーも削除されます。iOS の設定で iCloud キーチェーン（「パスワード」の同期）がオンになっている必要があります。
+
+**消去とオフ：** iCloud 同期がオンのとき、「設定 › プライバシー」でピンイン入力の学習データを消去すると、すべての端末の学習データが消去されます。この端末ではすぐに、ほかの端末では次回の同期時に消去され、その端末の iCloud 上のコピーも消去後の内容に置き換わります。長い間同期していない古い端末の iCloud 上のコピーは、ほかの端末に統合されることはありませんが、同期の設定の「デバイス」でその端末を削除するまで残ります。キーボードで学習した語句を個別に削除した場合は、その端末にのみ反映されます。同期の設定画面で、使わなくなった古い端末のデータを削除できます。iCloud 同期をオフにするときは、iCloud 上の本アプリのデータもあわせて削除するかを確認します。iOS の「設定 › Apple アカウント › iCloud › アカウントのストレージを管理」でも、本アプリの iCloud データをいつでも確認・削除できます。Apple アカウントからサインアウトしたり別のアカウントに切り替えたりすると同期は一時停止し、この端末のデータが別のアカウントに統合されることはありません。
+
+中国本土の Apple アカウントの場合、iCloud は雲上貴州大数據產業發展有限公司（GCBD）が運営し、データは中国本土に保存されます。[[/icloud]]
 
 ## 4. 権限について
 
@@ -360,14 +426,16 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 **クリップボード：** キーボードがクリップボードを読み取るには「フルアクセスを許可」が必要で、読み取るのはクリップボードを開いたときか「返信アシスト」をタップしたときだけです（第 3 節を参照）。
 
-## 5. 第三者のサービス
+[[icloud]]**Appのバックグラウンド更新：** iCloud 同期がオンのとき、本アプリはシステムのバックグラウンド更新を使って同期します。iOS の「設定 › 一般 › Appのバックグラウンド更新」でオフにでき、その場合や低電力モードのときは、基本的に本アプリを開いたときにのみ同期します。
 
-本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu・Tencent Hunyuan）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。送信されたフィードバックは Tencent QQ メールの送信サービスを通じて当方へ転送され、Tencent のプライバシーポリシーが適用されます。
+[[/icloud]]## 5. 第三者のサービス
+
+本アプリには、第三者の分析・広告・クラッシュレポートのツールは組み込まれていません。AI 機能で使うモデルサービスはお客様が選択・設定するもので、そのサービスの利用規約とプライバシーポリシーが適用されます。質問のウェブ検索を使う場合、検索はお客様が選んだ回答用サービス（Qwen・Kimi・Zhipu・Tencent Hunyuan）が行い、そのサービスの利用規約とプライバシーポリシーが適用されます。購入は Apple の App Store が処理し、Apple のプライバシーポリシーが適用されます。送信されたフィードバックは Tencent QQ メールの送信サービスを通じて当方へ転送され、Tencent のプライバシーポリシーが適用されます。[[icloud]]iCloud 同期をオンにした場合、またはバックアップファイルを iCloud Drive に保存した場合、そのデータはお客様ご自身の iCloud アカウントに保存され、Apple のプライバシーポリシーが適用されます。中国本土の Apple アカウントの場合、iCloud は GCBD が運営し、iCloud（GCBD 運営）利用規約が適用されます。iCloud 同期の内容はエンドツーエンドで暗号化されており、Apple も GCBD も読み取ることはできません。[[/icloud]][[no-icloud]]バックアップファイルを iCloud Drive に保存した場合、そのデータはお客様ご自身の iCloud アカウントに保存され、Apple のプライバシーポリシーが適用されます。中国本土の Apple アカウントの場合、iCloud は GCBD が運営し、iCloud（GCBD 運営）利用規約が適用されます。[[/no-icloud]]
 
 ## 6. お客様の権利
 
 - **同意の撤回：**「設定 › プライバシー」からいつでも撤回できます。撤回後は、次回の送信前にあらためて同意をお願いします。
-- **情報の削除：** 端末に保存された AI の履歴、クリップボード履歴、入力の学習データはいつでも消去できます。本アプリの「キーボード」ページで「クリップボード履歴」をオフにする（既存の履歴も削除されます）か、クリップボード履歴を消去できます。本アプリを削除して端末上のすべての情報を削除することもできます。
+- **情報の削除：** 端末に保存された AI の履歴、クリップボード履歴、入力の学習データはいつでも消去できます。本アプリの「キーボード」ページで「クリップボード履歴」をオフにする（既存の履歴も削除されます）か、クリップボード履歴を消去できます。[[icloud]]iCloud 同期をオフにして iCloud 上の本アプリのデータを削除することも、本アプリを削除して端末上のすべての情報を削除することもできます。[[/icloud]][[no-icloud]]本アプリを削除して端末上のすべての情報を削除することもできます。[[/no-icloud]]
 - **権限の無効化：** システムの設定で「フルアクセスを許可」をいつでもオフにできます。
 
 ## 7. 未成年の方

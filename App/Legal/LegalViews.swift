@@ -11,6 +11,7 @@ struct PrivacyView: View {
     @State private var confirm: ClearTarget?
     @State private var cleared: Set<ClearTarget> = []
     @State private var confirmsRevoke = false
+    @State private var syncDevices: [ICloudSync.Device] = []
 
     private enum ClearTarget: Identifiable {
         case history, learning, stats, clipboard
@@ -82,7 +83,8 @@ struct PrivacyView: View {
             Section {
                 clearRow(L("清除使用统计", "Clear Usage Stats", "利用統計を消去"), target: .stats)
                 clearRow(L("清除 AI 历史", "Clear AI History", "AI の履歴を消去"), target: .history)
-                clearRow(L("清除拼音学习记录", "Clear Pinyin Learning", "ピンインの学習データを消去"), target: .learning)
+                clearRow(L("清除拼音学习记录", "Clear Pinyin Learning", "ピンインの学習データを消去"), target: .learning,
+                         detail: ICloudSync.isEnabled ? L("开着 iCloud 同步：所有设备一起清", "iCloud Sync is on: clears on all devices", "iCloud 同期オン：すべてのデバイスで消去") : nil)
                 // B1：和 App › 键盘 › 剪贴板 里的「清除剪贴板记录」是同一个操作。
                 clearRow(L("清除剪贴板记录", "Clear Clipboard History", "クリップボード履歴を消去"), target: .clipboard)
             } header: {
@@ -96,6 +98,8 @@ struct PrivacyView: View {
         .navigationTitle(L("隐私", "Privacy", "プライバシー"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { consent = ConsentStore.consented }
+        // 清除弹窗里列的设备：读状态文件和每台设备的记录，放到后台先读好（04 复审 B13）。
+        .task { if ICloudSync.isEnabled { syncDevices = await ICloudSync.devices() } }
         .alert(L("撤回同意？", "Withdraw consent?", "同意を撤回しますか？"), isPresented: $confirmsRevoke) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
             Button(L("撤回同意", "Withdraw Consent", "同意を撤回"), role: .destructive) { router.revokePrivacy() }
@@ -104,7 +108,7 @@ struct PrivacyView: View {
         }
         .alert(confirmTitle, isPresented: Binding(get: { confirm != nil }, set: { if !$0 { confirm = nil } })) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
-            Button(L("清除", "Clear", "消去"), role: .destructive) {
+            Button(clearsAllDevices ? L("全部清除", "Clear All", "すべて消去") : L("清除", "Clear", "消去"), role: .destructive) {
                 guard let target = confirm else { return }
                 switch target {
                 case .history:
@@ -117,7 +121,33 @@ struct PrivacyView: View {
                 }
                 cleared.insert(target)
             }
+        } message: {
+            if clearsAllDevices { Text(allDevicesMessage) }
         }
+    }
+
+    /// 开着 iCloud 同步时清除拼音学习记录：所有设备一起清（IC4 ⑬）。
+    private var clearsAllDevices: Bool { confirm == .learning && ICloudSync.isEnabled }
+
+    /// ⑬ 正文（02 复审第二轮 B12）：这台马上清，其他设备下次同步时清、它们在 iCloud 里的旧副本跟着换掉；
+    /// 很久不同步的旧设备要在设备页删掉，它的副本才会删。
+    private var allDevicesMessage: String {
+        let others = syncDevices.filter { !$0.isThis }
+        let zh: String
+        let en: String
+        let ja: String
+        if let first = others.first {
+            zh = others.count == 1 ? first.name + " " : "\(first.name) 等其他设备"
+            en = others.count == 1 ? first.name : "\(first.name) and your other devices"
+            ja = others.count == 1 ? first.name + " " : "\(first.name) などほかのデバイス"
+        } else {
+            zh = "其他设备"
+            en = "your other devices"
+            ja = "ほかのデバイス"
+        }
+        return L("开着 iCloud 同步，学到的词会在所有设备上一起清掉：这台马上清，\(zh)下次同步时清，它们在 iCloud 里的旧副本也跟着换掉。很久不同步的旧设备，去「备份与恢复 › 设备」里删掉它，才会把它的副本也删掉。候选会回到默认顺序。",
+                 "With iCloud Sync on, learned words are cleared on all devices: this device right away, and \(en) the next time they sync, when their old copies in iCloud are replaced too. For an old device that hasn't synced in a long time, delete it under Backup & Restore › Devices to delete its copy. Candidates go back to the default order.",
+                 "iCloud 同期がオンなので、学習した語はすべてのデバイスで消去されます。このデバイスはすぐに、\(ja)は次の同期時に消去され、iCloud 上の古いコピーも置き換わります。長い間同期していない古いデバイスは、「バックアップと復元 › デバイス」で削除するとそのコピーも削除されます。候補は初期の順番に戻ります。")
     }
 
     /// 「第 1 版 · 10月26日」。
@@ -131,8 +161,12 @@ struct PrivacyView: View {
         switch confirm {
         case .history: return L("清除 AI 历史？历史页的记录和键盘里正在用的这一轮都会删除。", "Clear AI history? Records on the History tab and the round in use on the keyboard will be deleted.",
                                 "AI の履歴を消去しますか？履歴タブの記録とキーボードで使用中の回が削除されます。")
-        case .learning: return L("清除拼音学习记录？候选会回到默认的顺序。", "Clear pinyin learning? Candidates go back to the default order.",
-                                 "ピンインの学習データを消去しますか？候補は初期の順番に戻ります。")
+        case .learning:
+            if ICloudSync.isEnabled {
+                return L("清除所有设备的拼音学习记录？", "Clear pinyin learning on all devices?", "すべてのデバイスのピンイン学習データを消去しますか？")
+            }
+            return L("清除拼音学习记录？候选会回到默认的顺序。", "Clear pinyin learning? Candidates go back to the default order.",
+                     "ピンインの学習データを消去しますか？候補は初期の順番に戻ります。")
         case .stats: return L("清除使用统计？首页的次数和图表会从零开始。", "Clear usage stats? The counts and charts on Home start over.",
                               "利用統計を消去しますか？ホームの回数とグラフはゼロからになります。")
         case .clipboard: return L("清除剪贴板记录？键盘「常用 › 剪贴板」里的记录会全部删除。", "Clear clipboard history? Everything under Phrases › Clipboard on the keyboard will be deleted.",
@@ -142,10 +176,13 @@ struct PrivacyView: View {
     }
 
     /// 红字整行按钮（CP4），清除后换成灰色「已清除」。
-    private func clearRow(_ title: String, target: ClearTarget) -> some View {
+    private func clearRow(_ title: String, target: ClearTarget, detail: String? = nil) -> some View {
         Button { confirm = target } label: {
             HStack {
-                Text(title).foregroundStyle(cleared.contains(target) ? Color.secondary : Color(hex: 0xFF3B30))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).foregroundStyle(cleared.contains(target) ? Color.secondary : Color(hex: 0xFF3B30))
+                    if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
+                }
                 Spacer()
                 if cleared.contains(target) {
                     Label(L("已清除", "Cleared", "消去しました"), systemImage: "checkmark")
@@ -168,6 +205,8 @@ extension RimeStore {
         for url in items where url.lastPathComponent.contains(".userdb") {
             try? fm.removeItem(at: url)
         }
+        // 开着 iCloud 同步时，所有设备一起清，iCloud 里的快照也删掉（同步方案 1.5）。
+        ICloudSync.noteLearningCleared()
     }
 }
 

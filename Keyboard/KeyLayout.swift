@@ -17,20 +17,23 @@ enum KeyKind: Equatable {
     case digitPunct
     /// 九宫格数字键盘的「更多」：左列换成运算符，再点是「返回」。
     case digitsMore
+    /// 全键盘空格旁的「，。」键（对齐清单第 80 条）：点一下逗号，往上划句号，长按一排标点（QuickPunct）。
+    /// chinese：中文时全角，英文时半角。
+    case quickPunct(chinese: Bool)
 
     /// 会打出字符的键：按下时显示放大气泡，另一根手指按下时先上屏。
     var typesCharacter: Bool {
         switch self {
-        case .letter, .symbol, .nine, .digitPunct: return true
+        case .letter, .symbol, .nine, .digitPunct, .quickPunct: return true
         default: return false
         }
     }
 
-    /// 按住直接往四个方向划就出十字（打拼音时的分词键除外）。
+    /// 按住直接往四个方向划就出十字（打拼音时的分词键除外）。「，。」键和九宫格标点键同一种判定，只有往上有字。
     func flicks(composing: Bool) -> Bool {
         switch self {
         case .nine(let digit): return !(digit == "'" && composing)
-        case .digitPunct: return true
+        case .digitPunct, .quickPunct: return true
         default: return false
         }
     }
@@ -84,6 +87,9 @@ enum KeyLayout {
         var pinyinSide = false
         /// 横屏（LN1、LN2）：九宫格分左中右，全键盘底排照系统横屏的宽度。
         var landscape = false
+        /// 全键盘字母页空格旁的「，。」键放哪边，中文、英文的全键盘都有（中文布局选九宫格时，英文的全键盘也有）；nil 不放。
+        /// 只用英文时底栏已经有逗号键，不放。
+        var quickPunct: QuickPunctSide?
     }
 
     /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。
@@ -212,7 +218,19 @@ enum KeyLayout {
         }
         add(state.englishOnly ? "comma" : "chinese", state.englishOnly ? .symbol(",") : .toggleChinese, x: x, row: 3, width: toggle)
         x += toggle
-        add("space", .space, x: x, row: 3, width: size.width - returnWidth - x)
+        // 「，。」键（PU4、PU3）：宽一格、和字母键一样，只从空格里让出来，123、表情、中/英、回车的位置和宽度都不动。
+        // 放左边时夹在中/英和空格中间，放右边时夹在空格和回车中间。
+        let punct = state.layer == .letters && !state.englishOnly ? state.quickPunct : nil
+        let punctKind = KeyKind.quickPunct(chinese: state.chineseMode)
+        if punct == .left {
+            add("quickPunct", punctKind, x: x, row: 3, width: unit)
+            x += unit
+        }
+        let spaceEnd = size.width - returnWidth - (punct == .right ? unit : 0)
+        add("space", .space, x: x, row: 3, width: spaceEnd - x)
+        if punct == .right {
+            add("quickPunct", punctKind, x: spaceEnd, row: 3, width: unit)
+        }
         add("return", .returnKey, x: size.width - returnWidth, row: 3, width: returnWidth)
         return KeyLayoutResult(keys: keys)
     }
@@ -345,6 +363,8 @@ enum KeyLayout {
     /// 九宫格长按的十字：标点键左「，」上「。」右「？」下「！」；字母键 DEF 是左 D 上 E 右 F，四字母键第四个在下。
     static func cross(for kind: KeyKind, chinese: Bool) -> [CrossPopup.Direction: String]? {
         if kind == .digitPunct { return [.left: ",", .up: ":"] }
+        // 「，。」键往上划出句号（长按是一排，见 alternates）。
+        if case .quickPunct(let chinese) = kind { return [.up: QuickPunct.up(chinese: chinese)] }
         guard case .nine(let digit) = kind else { return nil }
         let options: [String]
         if digit == "'" {
@@ -367,6 +387,8 @@ enum KeyLayout {
         case .symbol(","):
             // 只用英文时底栏的逗号键：长按出常用英文标点。
             return [",", "'", "?", "!"]
+        case .quickPunct(let chinese):
+            return QuickPunct.row(chinese: chinese)
         default:
             return nil
         }

@@ -150,6 +150,10 @@ struct EnclaveSettings: Codable, Equatable {
     /// AI 栏上固定的「帮回」键（帮回并入润色，方案 D）：全键盘和九宫格同一个设置，默认不固定，不占固定风格「N / 5」的名额。
     /// 0.96_11 以前全键盘、九宫格各一个（helpPinnedQwerty / helpPinnedNine，全键盘默认固定），不再读。
     var helpPinned = false
+    /// 帮回「自动判断」（帮回开关方案第 2 版）：开着时键盘看剪贴板有没有刚复制、可以帮回的话（只看变更标记和内容类型），
+    /// 有就让润色键变绿、识意框出帮回按钮、出红点。关着时不做这项判断，帮回照样能从润色 ⌄ 最上面一行、钉住的帮回键、
+    /// 剪贴板「帮回这条」点。新装开；0.97 以前没有这个设置（相当于开着），读不到也当开。
+    var helpAuto = true
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -197,13 +201,15 @@ struct EnclaveSettings: Codable, Equatable {
     var doublePinyinHintMode: DoublePinyinHintMode = .fixed
     /// 双拼时也能打全拼（双拼调研 P3，默认关）。改了要重新部署。
     var doublePinyinMixFull = false
+    /// 全键盘空格旁的「，。」键放在哪边（对齐清单第 80 条），默认右边。只是键盘的排法，不同步、不用重新部署。
+    var quickPunctSide: QuickPunctSide = .right
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
-        case pinnedStyleIDs, helpPinned
+        case pinnedStyleIDs, helpPinned, helpAuto
     }
 
     private enum LegacyKeys: String, CodingKey { case webSearch, doublePinyinHints }
@@ -303,6 +309,7 @@ extension EnclaveSettings {
         answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
         helpPinned = (try? c.decodeIfPresent(Bool.self, forKey: .helpPinned)) ?? helpPinned
+        helpAuto = (try? c.decodeIfPresent(Bool.self, forKey: .helpAuto)) ?? helpAuto
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         doublePinyin = try? c.decodeIfPresent(DoublePinyin.self, forKey: .doublePinyin)
         if let mode = try? c.decodeIfPresent(DoublePinyinHintMode.self, forKey: .doublePinyinHintMode) {
@@ -311,6 +318,7 @@ extension EnclaveSettings {
             doublePinyinHintMode = hints ? .fixed : .off
         }
         doublePinyinMixFull = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinMixFull)) ?? doublePinyinMixFull
+        quickPunctSide = (try? c.decodeIfPresent(QuickPunctSide.self, forKey: .quickPunctSide)) ?? quickPunctSide
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }
@@ -487,6 +495,11 @@ extension EnclaveSettings {
 
     /// 键盘 AI 栏显示润色键 / 问答键：开关开着、配置能用。关掉或不能用时这颗键不显示，固定键往左补位。
     var showsPolishKey: Bool { polishEnabled && polishUsable }
+
+    /// 帮回能不能用：帮回走润色接口，润色开着、能用才有（关掉润色时钉住的帮回键、「帮回这条」、剪贴板判断都没有，bug #34）。
+    var helpReplyUsable: Bool { showsPolishKey }
+    /// 键盘要不要自己判断剪贴板里有没有可以帮回的新复制（润色键变绿、识意框帮回按钮、红点都靠它）。
+    var helpAutoDetects: Bool { helpReplyUsable && helpAuto }
     var showsAnswerKey: Bool { answerEnabled && answerUsable }
 
     static func searchProvider(baseURL: String) -> SearchProvider? {
@@ -513,6 +526,26 @@ extension EnclaveSettings {
     }
     /// 识意问答联网用哪一家：问答走的接口能联网就有（三档里选了禁止也有，要联网时提示去开启）。
     var answerSearch: SearchProvider? { forAnswers.searchProvider }
+
+    /// 接口那几项（地址、模型、参数）和另一份一样。iCloud 同步换了接口时，键盘发请求前对一下（Keychain 的「配对」）。
+    func sameEndpoint(as other: EnclaveSettings) -> Bool {
+        baseURL == other.baseURL && model == other.model && temperature == other.temperature && maxTokens == other.maxTokens
+            && separateAnswer == other.separateAnswer && answerBaseURL == other.answerBaseURL && answerModel == other.answerModel
+            && answerTemperature == other.answerTemperature && answerMaxTokens == other.answerMaxTokens
+    }
+
+    /// 换成另一份的接口那几项，别的不动。
+    mutating func adoptEndpoint(from other: EnclaveSettings) {
+        baseURL = other.baseURL
+        model = other.model
+        temperature = other.temperature
+        maxTokens = other.maxTokens
+        separateAnswer = other.separateAnswer
+        answerBaseURL = other.answerBaseURL
+        answerModel = other.answerModel
+        answerTemperature = other.answerTemperature
+        answerMaxTokens = other.answerMaxTokens
+    }
 
     /// 问答真的走另一个接口：开着、地址和模型都填了。
     var usesAnswerEndpoint: Bool {

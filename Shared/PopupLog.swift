@@ -17,6 +17,10 @@ struct PopupRecord: Codable, Identifiable {
     /// 醒来→建 很小说明我们这边一醒就开始了，空白的时间花在系统把弹出交给我们之前。
     var idleBeforeWake: Double?
     var wakeToInit: Double?
+    /// 醒来到控制器建出来这段里，键盘主线程真正醒着干活的合计（毫秒）；其余时间主线程睡着，在等系统把弹出交过来。
+    var wakeBusy: Double?
+    /// 建键盘到显示出来的途中，键盘进程被系统挂起了多久（毫秒，比如弹出动画时切走、锁屏）。这次的耗时不算数。
+    var paused: Double?
     /// 控制器建出来之前 2 秒里，键盘主线程卡住（一次超过 50 毫秒没空）最长的一次和合计。nil 是没开监测（旧记录）。
     var stallLongest: Double?
     var stallTotal: Double?
@@ -33,13 +37,26 @@ struct PopupRecord: Codable, Identifiable {
     var willHost: Double
     var willReload: Double
     var willLayout: Double
-    /// 从 viewDidLoad 开始到 viewDidAppear（含系统的弹出动画，约 250–350 毫秒）。
+    /// 从 viewDidLoad 开始到 viewDidAppear。热启动一般 50–70 毫秒，比弹出动画（约 330 毫秒）短：不含整段动画。
     var loadToAppear: Double
+    /// 从 viewDidLoad 开始到第一帧交给系统：弹出前准备做完以后主线程第一次睡下，这时这一圈的 Core Animation 提交已经做完。
+    /// 在这之前系统那边只有一块空的键盘底板。
+    var firstFrame: Double?
+    /// viewDidLoad 到 viewDidAppear 这段里键盘主线程醒着干活的合计（毫秒）；其余时间主线程睡着，在等系统。
+    var appearBusy: Double?
+    /// 「先显示截图」开着时：第几毫秒（从 viewDidLoad 算）真键盘换下了截图；没用上截图时写为什么；这次截图用了多久。
+    var snapshotSwap: Double?
+    var snapshotMiss: String?
+    var snapshotCapture: Double?
     /// viewDidAppear 里同步做的事：剪贴板 / 帮回检测、常用词。
     var didClipboard: Double
     var didCommonWords: Double
     /// 拼音引擎这次弹出后多久准备好（从 viewDidLoad 开始算；冷启动才有意义，热启动通常很快）。
     var engineReady: Double?
+    /// 拼音引擎这次准备：在引擎队列上排了多久、自己做了多久（毫秒）、做的是什么（RimeEngine.lastPrepareWork，几次的按先后用 → 连起来）。
+    var engineWait: Double?
+    var engineRun: Double?
+    var engineWork: String?
     var memoryMB: Double?
     /// 上次收起到这次弹出隔了几秒；上次收起时的进程和这次是不是同一个；上次收起是怎么收尾的。
     var sinceHide: Double?
@@ -56,7 +73,8 @@ struct PopupRecord: Codable, Identifiable {
     }
 
     /// 明显慢：热启动超过 150 毫秒，冷启动超过 800 毫秒（平时热启动 50–70、冷启动 300–400）。
-    var isSlow: Bool { total >= (isCold ? PopupLog.slowCold : PopupLog.slowWarm) }
+    /// 中途被挂起的不算：那段时间键盘进程根本没在跑。
+    var isSlow: Bool { paused == nil && total >= (isCold ? PopupLog.slowCold : PopupLog.slowWarm) }
 
     private static func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
 
@@ -64,7 +82,7 @@ struct PopupRecord: Codable, Identifiable {
     var title: String {
         let time = PopupLog.timeFormatter.string(from: at)
         let kind = isCold ? "冷启动（键盘进程重新启动）" : "热启动（第 \(nth) 次弹出）"
-        return "\(time) · \(kind) · 共 \(Self.ms(total)) 毫秒\(isSlow ? " · 慢" : "")"
+        return "\(time) · \(kind) · 共 \(Self.ms(total)) 毫秒\(isSlow ? " · 慢" : "")\(paused != nil ? " · 中途被挂起，不算" : "")"
     }
 
     /// 下面几行：每一段用了多久，用大白话写。
@@ -73,7 +91,11 @@ struct PopupRecord: Codable, Identifiable {
         if let processToLoad {
             lines.append("系统启动键盘进程到开始建键盘：\(Self.ms(processToLoad)) 毫秒")
         } else if let wakeToInit {
-            lines.append("键盘被叫醒（之前闲了 \(String(format: "%.1f", (idleBeforeWake ?? 0) / 1000)) 秒）到开始建键盘：\(Self.ms(wakeToInit + initToLoad)) 毫秒")
+            var line = "键盘被叫醒（之前闲了 \(String(format: "%.1f", (idleBeforeWake ?? 0) / 1000)) 秒）到开始建键盘：\(Self.ms(wakeToInit + initToLoad)) 毫秒"
+            if let wakeBusy {
+                line += "；其中键盘主线程干活 \(Self.ms(wakeBusy)) 毫秒，其余 \(Self.ms(max(0, wakeToInit + initToLoad - wakeBusy))) 毫秒在等系统"
+            }
+            lines.append(line)
         } else {
             lines.append("开始建键盘前的准备：\(Self.ms(initToLoad)) 毫秒（上次收起后键盘没闲下来过，量不到被叫醒的时刻）")
         }
@@ -88,8 +110,25 @@ struct PopupRecord: Codable, Identifiable {
             }
             lines.append("上次收起后的收尾 \(Self.ms(lastCleanupMs)) 毫秒\(when(lastCleanupBefore))，拆掉旧键盘 \(Self.ms(lastTeardownMs)) 毫秒\(when(lastTeardownBefore))")
         }
-        lines.append("建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）")
-        lines.append("显示后：剪贴板和帮回检测 \(Self.ms(didClipboard)) 毫秒，拼音能打 \(Self.ms(engineReady)) 毫秒")
+        var appear = "建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中建视图 \(Self.ms(load))、弹出前准备 \(Self.ms(willAppear))：读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）"
+        if let paused { appear += "，途中键盘进程被系统挂起 \(String(format: "%.1f", paused / 1000)) 秒" }
+        lines.append(appear)
+        var frame: [String] = []
+        if let firstFrame { frame.append("建键盘后第 \(Self.ms(firstFrame)) 毫秒把第一帧交给系统") }
+        if let appearBusy {
+            frame.append("建键盘到显示出来这段，键盘主线程干活 \(Self.ms(appearBusy)) 毫秒，其余 \(Self.ms(max(0, loadToAppear - appearBusy))) 毫秒在等系统")
+        }
+        if !frame.isEmpty { lines.append(frame.joined(separator: "；")) }
+        var shot: [String] = []
+        if let snapshotSwap { shot.append("先显示上次的截图，第 \(Self.ms(snapshotSwap)) 毫秒换成真键盘") }
+        if let snapshotMiss { shot.append("截图开关开着，这次没用截图：\(snapshotMiss)") }
+        if let snapshotCapture { shot.append("这次截了一张图留给下次，用了 \(Self.ms(snapshotCapture)) 毫秒") }
+        if !shot.isEmpty { lines.append(shot.joined(separator: "；")) }
+        var engine = "显示后：剪贴板和帮回检测 \(Self.ms(didClipboard)) 毫秒，拼音能打 \(Self.ms(engineReady)) 毫秒"
+        if engineWait != nil || engineRun != nil {
+            engine += "（引擎排队 \(Self.ms(engineWait))、准备 \(Self.ms(engineRun))\(engineWork.map { "：" + $0 } ?? "")）"
+        }
+        lines.append(engine)
         var last = "内存 \(memoryMB.map { String(format: "%.0f", $0) } ?? "-") MB · \(nineKey ? "九宫格" : "全键盘")"
         if let sinceHide {
             last += " · 距上次收起 \(Self.duration(sinceHide))"
@@ -193,6 +232,18 @@ enum PopupLog {
     static var lastTeardownMs: Double?
     static var lastCleanupDone: CFTimeInterval?
     static var lastTeardownDone: CFTimeInterval?
+    /// 最近一次弹出把第一帧交给系统的时刻（load 是那次的 viewDidLoad 开始时刻，用来对上是哪一次）。
+    static var firstFrame: (load: CFTimeInterval, at: CFTimeInterval)?
+    /// 「先显示截图」：真键盘换下截图的时刻、截一张图用了多少毫秒（load 同上，对上是哪一次）。
+    static var snapshotSwap: (load: CFTimeInterval, at: CFTimeInterval)?
+    static var snapshotCapture: (load: CFTimeInterval, ms: Double)?
+
+    /// 测试工具 › 弹出记录里的开关「弹出时先显示截图」（试验，默认关）。只在记弹出记录的包里有用。
+    static let snapshotEnabledKey = "debug.popupSnapshot"
+    static var snapshotEnabled: Bool {
+        get { enabled && SharedStorage.defaults.bool(forKey: snapshotEnabledKey) }
+        set { SharedStorage.defaults.set(newValue, forKey: snapshotEnabledKey) }
+    }
 
     static func noteHide(cleanup: String) {
         guard enabled else { return }
@@ -217,8 +268,11 @@ enum PopupLog {
         let warm = records.filter { !$0.isCold }
         func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
         var parts = ["最近 \(records.count) 次弹出"]
-        if !warm.isEmpty { parts.append("热启动 \(warm.count) 次，一般 \(ms(median(warm.map(\.total)))) 毫秒") }
-        if !cold.isEmpty { parts.append("冷启动 \(cold.count) 次，一般 \(ms(median(cold.map(\.total)))) 毫秒") }
+        // 中途被挂起的那几次耗时不算数，不进「一般多久」。
+        let warmTimes = warm.filter { $0.paused == nil }.map(\.total)
+        let coldTimes = cold.filter { $0.paused == nil }.map(\.total)
+        if !warm.isEmpty { parts.append("热启动 \(warm.count) 次，一般 \(ms(median(warmTimes))) 毫秒") }
+        if !cold.isEmpty { parts.append("冷启动 \(cold.count) 次，一般 \(ms(median(coldTimes))) 毫秒") }
         let slow = records.filter(\.isSlow).count
         parts.append(slow == 0 ? "没有明显慢的" : "明显慢的 \(slow) 次")
         return parts.joined(separator: "；") + "。"
@@ -230,6 +284,10 @@ enum PopupLog {
     冷启动：键盘进程已经被系统关掉，要重新启动，一般 300–400 毫秒。
     「共 N 毫秒」只算键盘自己用的时间；在这之前系统处理弹出用的时间记不到。
     「主线程卡住」：键盘自己的主线程忙着别的、接不了系统的弹出请求；没卡住却还慢，时间就花在系统那边。
+    「在等系统」：键盘进程醒了，主线程却睡着，等系统把弹出请求交过来；这段不是键盘慢。
+    「第一帧」：键盘第一次把画好的样子交给系统；在这之前系统那边只有一块空的键盘底板，交晚了就会看到底板先往上滑、键后冒出来。
+    「先显示截图」：测试工具里的试验开关。开着时，样子和上次一样就先放一张上次截的图，第一帧马上交出去，真键盘随后换上。
+    「中途被挂起」：键盘建到一半，系统把键盘进程挂起了（比如弹出时切走或锁屏），那次的耗时不算数，也不标慢。
     明显慢：热启动超过 \(Int(slowWarm)) 毫秒、冷启动超过 \(Int(slowCold)) 毫秒，标「慢」，和冷启动一起另外保留。
     """
 
@@ -255,21 +313,43 @@ enum MainWake {
     private(set) static var sleepStart: CFTimeInterval = 0
     /// 主线程最近一次醒来（RunLoop afterWaiting）的时刻：从这以后它一直醒着。
     private(set) static var awakeSince: CFTimeInterval = 0
+    /// lastWake 以后主线程醒着的时间合计（不含正在醒着的这一段）：拿来分「我们在忙」和「在等系统」。
+    private static var awakeTotal: CFTimeInterval = 0
+    private static var awake = false
     private static var installed = false
+    static var isInstalled: Bool { installed }
+    /// 主线程下一次睡下时调一次（这时这一圈的 Core Animation 提交已经做完）：拿来量第一帧什么时候交给系统。
+    static var onNextSleep: (() -> Void)?
+
+    /// lastWake 到现在主线程醒着干活的合计（毫秒）。在主线程调。
+    static func busySinceWake(now: CFTimeInterval = CACurrentMediaTime()) -> Double {
+        (awakeTotal + (awake ? now - awakeSince : 0)) * 1000
+    }
 
     static func install() {
         guard PopupLog.enabled, !installed else { return }
         installed = true
-        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity([.beforeWaiting, .afterWaiting]).rawValue, true, 0) { _, activity in
+        // 醒来记得越早越好、睡下记得越晚越好：睡下那个排在最后（order 最大），
+        // 不然同一圈里 Core Animation 提交（排版、绘制）和自动释放池在它后面才跑，我们自己的活会被算成「在等系统」。
+        let sleeping = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.beforeWaiting.rawValue, true, CFIndex.max) { _, _ in
             let now = CACurrentMediaTime()
-            if activity == .beforeWaiting {
-                sleepStart = now
-                return
+            if awake { awakeTotal += now - awakeSince }
+            awake = false
+            sleepStart = now
+            if let action = onNextSleep {
+                onNextSleep = nil
+                action()
             }
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), sleeping, .commonModes)
+        let observer = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.afterWaiting.rawValue, true, CFIndex.min) { _, _ in
+            let now = CACurrentMediaTime()
             awakeSince = now
+            awake = true
             if sleepStart > 0, now - sleepStart > 0.5 {
                 lastWake = now
                 lastIdle = now - sleepStart
+                awakeTotal = 0
             }
         }
         CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)

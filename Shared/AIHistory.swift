@@ -37,8 +37,9 @@ struct AIHistoryEntry: Codable, Identifiable, Equatable {
         /// 这一版是回答（问答、帮我写）。0.96_12 起记；旧记录按整条的种类算。
         var answer: Bool?
 
-        /// 帮回写的一版（新旧记录都算）。
-        var isReply: Bool { source == EditSession.VersionSource.reply }
+        /// 帮回写的一版（新旧记录都算）。认来源，也认记着对方的话（message 只从会话的帮回记录来）：
+        /// 会话里标了帮回（markReply）、却没记来源的版本，历史里也要算帮回，「帮回」筛选里才找得到。
+        var isReply: Bool { source == EditSession.VersionSource.reply || message != nil }
     }
 
     var id: String

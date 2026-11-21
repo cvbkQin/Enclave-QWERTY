@@ -302,7 +302,7 @@ final class KeyTouchView: UIView {
                 guard let self, let state, !state.fired,
                       self.tracking.values.contains(where: { $0 === state }),
                       self.model?.showAlternates(for: state.key, containerWidth: self.bounds.width,
-                                                              origin: state.start) == true else { return }
+                                                              origin: state.start, held: true) == true else { return }
                 state.alternates = true
                 state.fired = true
             }

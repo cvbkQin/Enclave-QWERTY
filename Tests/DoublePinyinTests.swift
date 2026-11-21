@@ -45,9 +45,9 @@ final class DoublePinyinTests: XCTestCase {
             }
             XCTAssertEqual(alternates["er"], [], "\(scheme)")
         }
-        let flypy = DoublePinyin.flypy.readings
+        let readings = DoublePinyin.flypy.readings
         for (code, syllable) in ["ad": "ai", "aj": "an", "ac": "ao", "ew": "ei", "ef": "en", "oz": "ou", "jv": "ju", "xv": "xu"] {
-            XCTAssertEqual(flypy[code], syllable, code)
+            XCTAssertEqual(readings[code], syllable, code)
         }
     }
 

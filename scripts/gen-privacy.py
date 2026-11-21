@@ -49,7 +49,33 @@ def read_source():
     return texts, legal("developer"), legal("developerZh"), legal("email"), date, version
 
 
+XCCONFIG = ROOT / "Configs/Base.xcconfig"
+
+
+def icloud_default():
+    """网页版跟着正式包走：Configs/Base.xcconfig 里 ICLOUD_SYNC = YES 时按带同步的生成，NO 时按不带的生成，
+    免得网页（也是 App Store 里填的隐私政策网址）写了正式包里没有的功能。加 --icloud / --no-icloud 可以临时指定。"""
+    if "--icloud" in sys.argv:
+        return True
+    if "--no-icloud" in sys.argv:
+        return False
+    m = re.search(r"^ICLOUD_SYNC\s*=\s*(\w+)", XCCONFIG.read_text(encoding="utf-8"), re.M)
+    return bool(m) and m.group(1) == "YES"
+
+
+def filter_icloud(text, on):
+    """规则和 App/Legal/PolicyFilter.swift 一样：去掉另一种包的块（从行首包到行尾的连换行一起去掉），
+    留下这种包的块里的字，多出的空行合成一个。"""
+    drop, keep = ("no-icloud", "icloud") if on else ("icloud", "no-icloud")
+    block = r"\[\[%s\]\](?:(?!\[\[/%s\]\])[\s\S])*\[\[/%s\]\]" % (drop, drop, drop)
+    text = re.sub(r"(?m)^" + block + r"\n", "", text)
+    text = re.sub(block, "", text)
+    text = re.sub(r"\[\[/?%s\]\]" % keep, "", text)
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
 def fill(text, lang, developer, developer_zh, email):
+    text = filter_icloud(text, icloud_default())
     return text.replace("{developer}", developer_zh if lang == "zh" else developer).replace("{email}", email)
 
 
