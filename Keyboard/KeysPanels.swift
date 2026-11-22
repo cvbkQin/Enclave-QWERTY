@@ -222,7 +222,7 @@ struct QuickWordsPanel: View {
     @State private var dragSplit: CGFloat?
 
     /// 两栏和底排按键的左右边缘对齐九宫格的键。
-    private static let sideInset = KeyboardWordsLayout.sideMargin - KeyboardMetrics.sidePadding
+    private static var sideInset: CGFloat { KeyboardWordsLayout.sideMargin - KeyboardMetrics.sidePadding }
     /// 中间分割线那一列的宽（竖线在正中，整列都能按住拖）。
     private static let dividerWidth: CGFloat = 14
     static let headerHeight: CGFloat = 36

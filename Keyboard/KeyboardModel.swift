@@ -204,6 +204,8 @@ final class KeyboardModel: ObservableObject {
     /// 拼音词库是否可用（主 App 部署过，并且打开了完全访问）。
     @Published var pinyinReady = false
     var lastShiftTap = Date.distantPast
+    /// ⇧ 是自己按的（不是英文句首自动大写）：iPad 标点键这时才打键帽上的灰色小字（PK2），句首打逗号不会变成「<」。
+    var shiftFromKey = false
     /// 正被按住的键，用来画按下状态和气泡。单独放在 keyPresses 里：按下、松开只重画按键和气泡，不牵动整个键盘。
     let keyPresses = KeyPresses()
     var pressedKeys: Set<String> {
@@ -434,14 +436,21 @@ final class KeyboardModel: ObservableObject {
     /// 九宫格的符号页（#@¥）也按这个高度，不显示 AI 栏，切过去键盘不跳。
     var landscapeSplit: Bool { landscape && showsNineKey }
 
-    func setLandscape(_ value: Bool) {
+    /// iPad 全宽键盘的尺寸（PK1、PK2）：控制器按键盘宽和屏幕设；iPhone 和 iPad 浮动键盘为 nil。和 KeyboardMetrics.pad 一样。
+    @Published private(set) var pad: PadMetrics?
+
+    /// pad：iPad 全宽键盘的尺寸。有值时 landscape 一律当 false（iPhone 横屏的扁按键、九宫格分左中右不用在 iPad 上）。
+    func setLandscape(_ value: Bool, pad newPad: PadMetrics? = nil) {
+        let value = newPad == nil && value
         // KeyboardMetrics.landscape 是整个键盘进程共用的，model.landscape 是每个页面自己的（新页面从 false 开始）。
         // 以前只比 model.landscape：横屏弹过一次以后，竖屏新页面 setLandscape(false) 直接返回，进程里的尺寸一直是横屏的，
-        // 之后每次竖屏弹出都是扁按键、AI 栏上面空一大块，恢复不了（T82，11-18 真机）。两个都要对上。
-        let metricsChanged = KeyboardMetrics.landscape != value
+        // 之后每次竖屏弹出都是扁按键、AI 栏上面空一大块，恢复不了（T82，11-18 真机）。两个都要对上。pad 同理。
+        let metricsChanged = KeyboardMetrics.landscape != value || KeyboardMetrics.pad != newPad
         KeyboardMetrics.landscape = value
-        guard metricsChanged || value != landscape else { return }
+        KeyboardMetrics.pad = newPad
+        guard metricsChanged || value != landscape || newPad != pad else { return }
         landscape = value
+        pad = newPad
         heightMayChange?()
     }
 

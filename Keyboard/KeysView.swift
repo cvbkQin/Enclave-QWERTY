@@ -59,7 +59,8 @@ struct KeysView: View {
                             .offset(x: middle.minX, y: middle.minY)
                     }
                     // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选、「，。」键往上划出十字时也不显示）。
-                    if !model.nineGrid {
+                    // iPad 全宽键盘也和原生一样不显示，按下的键变灰。
+                    if !model.nineGrid && model.pad == nil {
                         KeyPopupLayer(presses: model.keyPresses, keys: layout.keys, hiddenKey: model.alternates?.key.id ?? model.cross?.key.id,
                                       uppercase: model.shift != .off, containerWidth: geo.size.width)
                             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -222,7 +223,12 @@ struct KeyCapView: View, Equatable {
         if let look = returnLook {
             return look.solid ? Brand.purple.opacity(pressed ? 0.75 : 1) : Brand.returnSoftFill.opacity(pressed ? 0.7 : 1)
         }
-        let showsPopup = key.kind.typesCharacter && !context.nineGrid
+        let showsPopup = key.kind.typesCharacter && !context.nineGrid && KeyboardMetrics.pad == nil
+        // iPad 全宽键盘的功能键是灰底（PK1），按下和 ⇧ 打开时变白，和原生一样。
+        if KeyboardMetrics.pad != nil, key.kind.isPadFunction {
+            let lit = pressed || (key.kind == .shift && context.shift != .off)
+            return lit ? KeyStyle.charKey : KeyStyle.padFunctionKey
+        }
         if pressed && !showsPopup { return KeyStyle.pressedKey }
         // 「跟着按键变」拼不上的键：键底往键盘底色压一点（SP7 约 30%）。
         return dimmed ? KeyStyle.charKey.opacity(0.7) : KeyStyle.charKey
@@ -267,6 +273,12 @@ struct KeyCapView: View, Equatable {
             Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
         case .quickPunct(let chinese):
             QuickPunctLabel(chinese: chinese)
+        case .padSymbol(let base, let shifted):
+            PadSymbolLabel(base: base, shifted: shifted)
+        case .tab:
+            Image(systemName: "arrow.right.to.line").font(KeyStyle.iconFont)
+        case .dismiss:
+            Image(systemName: "keyboard.chevron.compact.down").font(KeyStyle.iconFont)
         case .digitsMore:
             if context.digitsMore {
                 Text("返回").font(.system(size: 16, weight: .semibold)).foregroundStyle(Brand.deepPurple)
@@ -296,7 +308,7 @@ struct KeyCapView: View, Equatable {
         case .returnKey:
             let look = context.returnLook
             if let title = look.title {
-                Text(title).font(.system(size: 17, weight: look.bold ? .semibold : .regular))
+                Text(title).font(.system(size: KeyboardMetrics.pad?.functionFontSize ?? 17, weight: look.bold ? .semibold : .regular))
             } else {
                 Image(systemName: "return.left").font(KeyStyle.iconFont)
             }
@@ -343,7 +355,47 @@ struct KeyCapView: View, Equatable {
         case .numbers: return "123"
         case .symbols: return "#+="
         case .digits: return "123"
-        case .letters: return context.chineseMode || context.showsNineKey ? "拼音" : "ABC"
+        // iPad 的数字符号页（PK9）回字母写 ABC，和原生一样。
+        case .letters: return (context.chineseMode || context.showsNineKey) && KeyboardMetrics.pad == nil ? "拼音" : "ABC"
+        }
+    }
+}
+
+extension KeyKind {
+    /// iPad 全宽键盘上灰底的功能键（PK1 --fn）。空格、回车、「，。」和字符键是白的。
+    var isPadFunction: Bool {
+        switch self {
+        case .tab, .delete, .toggleChinese, .shift, .globe, .layer, .emoji, .dismiss: return true
+        default: return false
+        }
+    }
+}
+
+/// iPad 的标点、数字键（PK2）：上面灰色小字是按 ⇧ 出的，下面是平时打的。全角 ，。、：； 画成居中的字形（CenteredGlyph），
+/// 视觉上在键帽正中，不偏左下（11-22 cvbk「注意里面文字的大小居中（视觉上）」）。
+struct PadSymbolLabel: View {
+    let base: String
+    let shifted: String
+
+    private static let centered: Set<String> = ["，", "。", "、", "：", "；", "‘", "“"]
+
+    var body: some View {
+        let size = KeyboardMetrics.pad?.fontSize ?? 22
+        VStack(spacing: 1) {
+            glyph(shifted, size: (size * 0.55).rounded())
+                .foregroundStyle(.secondary)
+            glyph(base, size: size)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(base)
+    }
+
+    @ViewBuilder
+    private func glyph(_ text: String, size: CGFloat) -> some View {
+        if Self.centered.contains(text) {
+            CenteredGlyph(text, size: size)
+        } else {
+            Text(text == "……" ? "…" : text).font(.system(size: size))
         }
     }
 }
@@ -508,18 +560,34 @@ struct QuickPunctLabel: View {
     var body: some View {
         // 横屏键只有 32 高，小字往里收一点，不贴键帽上沿。
         let landscape = KeyboardMetrics.landscape
-        ZStack {
-            if chinese {
-                ChinesePunctMark(kind: .comma)
-            } else {
-                Text(",").font(KeyStyle.symbolFont)
+        if let pad = KeyboardMetrics.pad {
+            // iPad（PK1）：「，」在键帽正中，「。」小字在左上。
+            ZStack {
+                if chinese {
+                    CenteredGlyph("，", size: pad.fontSize)
+                } else {
+                    Text(",").font(KeyStyle.symbolFont)
+                }
+                CenteredGlyph(QuickPunct.up(chinese: chinese), size: (pad.fontSize * 0.5).rounded())
+                    .foregroundStyle(.secondary)
+                    .offset(x: -(pad.fontSize * 0.45).rounded(), y: -(pad.fontSize * 0.5).rounded())
             }
-            CenteredGlyph(QuickPunct.up(chinese: chinese), size: landscape ? 10 : 11)
-                .foregroundStyle(.secondary)
-                .offset(x: -9, y: landscape ? -8 : -11)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(chinese ? "，。" : ",.")
+        } else {
+            ZStack {
+                if chinese {
+                    ChinesePunctMark(kind: .comma)
+                } else {
+                    Text(",").font(KeyStyle.symbolFont)
+                }
+                CenteredGlyph(QuickPunct.up(chinese: chinese), size: landscape ? 10 : 11)
+                    .foregroundStyle(.secondary)
+                    .offset(x: -9, y: landscape ? -8 : -11)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(chinese ? "，。" : ",.")
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(chinese ? "，。" : ",.")
     }
 }
 

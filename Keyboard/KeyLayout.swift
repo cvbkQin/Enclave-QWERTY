@@ -20,11 +20,15 @@ enum KeyKind: Equatable {
     /// 全键盘空格旁的「，。」键（对齐清单第 80 条）：点一下逗号，往上划句号，长按一排标点（QuickPunct）。
     /// chinese：中文时全角，英文时半角。
     case quickPunct(chinese: Bool)
+    /// iPad 全宽键盘（PK1、PK2）：Tab 键、右下角「收起键盘」。
+    case tab, dismiss
+    /// iPad 全宽键盘的标点、数字键（PK1、PK2）：按了 ⇧ 打 shifted（键帽上的灰色小字），平时打 base。
+    case padSymbol(String, shifted: String)
 
     /// 会打出字符的键：按下时显示放大气泡，另一根手指按下时先上屏。
     var typesCharacter: Bool {
         switch self {
-        case .letter, .symbol, .nine, .digitPunct, .quickPunct: return true
+        case .letter, .symbol, .nine, .digitPunct, .quickPunct, .padSymbol: return true
         default: return false
         }
     }
@@ -90,6 +94,8 @@ enum KeyLayout {
         /// 全键盘字母页空格旁的「，。」键放哪边，中文、英文的全键盘都有（中文布局选九宫格时，英文的全键盘也有）；nil 不放。
         /// 只用英文时底栏已经有逗号键，不放。
         var quickPunct: QuickPunctSide?
+        /// iPad 全宽键盘（PK1、PK2、PK9）：26 键和数字符号页按 iPad 原生排（KeyLayout+Pad）。
+        var pad: PadMetrics?
     }
 
     /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。
@@ -119,7 +125,7 @@ enum KeyLayout {
     }
 
     static let letterRows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map { $0.map(String.init) }
-    private static let digits = "1234567890".map(String.init)
+    static let digits = "1234567890".map(String.init)
 
     private static var lastBuild: (state: State, size: CGSize, result: KeyLayoutResult)?
 
@@ -137,6 +143,9 @@ enum KeyLayout {
         }
         if state.layer == .digits {
             return digitPad(state, size: size)
+        }
+        if let pad = state.pad {
+            return padBoard(state, size: size, pad: pad)
         }
         let unit = size.width / 10
         let slot = KeyboardMetrics.slotHeight

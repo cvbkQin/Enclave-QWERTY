@@ -409,7 +409,7 @@ extension KeyboardModel {
                         englishOnly: settings.inputLanguage == .englishOnly,
                         composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape,
                         // 中文布局选九宫格的人切到英文时用的也是全键盘，一样要有「，。」键（0.97_4 用户反馈英文 26 键没有）。
-                        quickPunct: settings.quickPunctSide)
+                        quickPunct: settings.quickPunctSide, pad: pad)
     }
 
     func perform(_ kind: KeyKind) {
@@ -467,7 +467,31 @@ extension KeyboardModel {
             if isComposing { returnKey() }
             openQuickPanel()
         case .globe: break
+        // iPad（PK1）：Tab 键打一个制表符；右下角收起键盘，正在打的拼音原样留下。
+        case .tab: typeSymbol("\t")
+        case .dismiss:
+            if isComposing, let raw = engine.commitComposition() { commit(raw) }
+            engine.reset()
+            syncEngine()
+            controller?.dismissKeyboard()
+        case .padSymbol(let base, let shifted):
+            let useShifted = shift == .locked || (shift == .on && shiftFromKey)
+            if shift == .on {
+                shift = .off
+                shiftFromKey = false
+            }
+            typeSymbol(pairedQuote(useShifted ? shifted : base))
         }
+    }
+
+    /// iPad 13 寸的引号键（PK2）：前面有没配对的左引号就打右引号，否则打左引号。只看光标前一段。
+    private func pairedQuote(_ symbol: String) -> String {
+        let pairs = ["‘": "’", "“": "”"]
+        guard let close = pairs[symbol] else { return symbol }
+        let before = target == .host ? (proxy?.documentContextBeforeInput ?? "") : ""
+        let opens = before.filter { String($0) == symbol }.count
+        let closes = before.filter { String($0) == close }.count
+        return opens > closes ? close : symbol
     }
 
     func keyPressed(_ key: KeySpec, feedback: Bool = true) {
@@ -539,7 +563,7 @@ extension KeyboardModel {
         if settings.keySound {
             let sound: SystemSoundID
             switch kind {
-            case .letter, .symbol, .nine, .digitPunct, .quickPunct, .space: sound = 1104
+            case .letter, .symbol, .nine, .digitPunct, .quickPunct, .padSymbol, .space: sound = 1104
             case .delete: sound = 1155
             default: sound = 1156
             }
@@ -592,6 +616,7 @@ extension KeyboardModel {
         case .on: shift = now.timeIntervalSince(lastShiftTap) < 0.35 ? .locked : .off
         case .locked: shift = .off
         }
+        shiftFromKey = shift != .off
         lastShiftTap = now
     }
 
@@ -1386,7 +1411,10 @@ extension KeyboardModel {
         let hostWantsNone = proxy?.autocapitalizationType == UITextAutocapitalizationType.none
         let wanted: ShiftState = sentenceStart && !hostWantsNone ? .on : .off
         // 没变就不设（同 syncEngine），英文打字时每个键都会走到这里。
-        if shift != wanted { shift = wanted }
+        if shift != wanted {
+            shift = wanted
+            shiftFromKey = false
+        }
     }
 }
 
@@ -1614,7 +1642,7 @@ extension KeyboardModel {
     /// 打完一个词（按了空格、标点、换行）：记住这个词，下次补全排前面。
     func learnCurrentEnglishWord(before kind: KeyKind) {
         switch kind {
-        case .space, .symbol, .quickPunct, .returnKey: break
+        case .space, .symbol, .quickPunct, .padSymbol, .tab, .returnKey: break
         default: return
         }
         guard target == .host else { return }
