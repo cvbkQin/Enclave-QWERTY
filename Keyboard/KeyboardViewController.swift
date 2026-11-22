@@ -164,12 +164,12 @@ final class KeyboardViewController: UIInputViewController {
     /// 不用 iPhone 横屏的扁按键。还没进窗口时先沿用这个进程上次的 iPad 尺寸，进了窗口再核（scheduleOrientationCheck）。
     private func updateOrientation() {
         if let geometry = currentGeometry() {
-            model.setLandscape(geometry.landscape, pad: geometry.pad)
+            model.setLandscape(geometry.landscape, pad: geometry.pad, floating: isPad && geometry.pad == nil)
         } else if isPad {
             let width = view.bounds.width
             let pad = width > 0 && width < 500 ? nil
                 : KeyboardMetrics.padBase ?? PadMetrics.make(isPad: true, width: 820, screen: CGSize(width: 820, height: 1180))
-            model.setLandscape(false, pad: pad)
+            model.setLandscape(false, pad: pad, floating: pad == nil)
         } else {
             model.setLandscape(traitCollection.verticalSizeClass == .compact)
         }
@@ -693,7 +693,8 @@ final class KeyboardViewController: UIInputViewController {
     /// 只在变了的时候设：needsGlobeKey 是 @Published，设一次（哪怕值一样）整个键盘就重画一遍、高度也要重算，
     /// 而每次布局都会走到这里，弹出动画途中会连着重画好多次，看起来就是卡。
     private func updateGlobeKey() {
-        let needs = needsInputModeSwitchKey
+        // iPad 浮动键盘（PK13）下面没有系统的 🌐，26 键底排、9 键左下角都要画（左下 ☺ 换成 🌐，表情从 123 里进）。
+        let needs = needsInputModeSwitchKey || KeyboardMetrics.floating
         if model.needsGlobeKey != needs { model.needsGlobeKey = needs }
     }
 }

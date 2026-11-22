@@ -70,10 +70,14 @@ enum KeyboardMetrics {
     static var landscape = false
 
     /// 一个按键格子的高度（含上下间隙）：行距 54，按键本身 43；横屏 38（键 32 + 缝 6）。
-    static var slotHeight: CGFloat { pad.map { $0.keyHeight + $0.gap } ?? (landscape ? 38 : 54) }
+    /// iPad 浮动键盘（PK13，宽约 320）：照 iPhone 竖屏排，但矮一点：AI 栏 42，每行 40（键 34 + 缝 6），总高约 240。
+    /// 控制器在 iPad 上键盘宽不到 500 时设（KeyboardModel.setLandscape）。
+    static var floating = false
+
+    static var slotHeight: CGFloat { pad.map { $0.keyHeight + $0.gap } ?? (floating ? 40 : (landscape ? 38 : 54)) }
     /// iPad 上键帽四周各留半条缝。
     static var keyInsetX: CGFloat { pad.map { $0.gap / 2 } ?? 3.1 }
-    static var keyInsetY: CGFloat { pad.map { $0.gap / 2 } ?? (landscape ? 3 : 5.5) }
+    static var keyInsetY: CGFloat { pad.map { $0.gap / 2 } ?? (floating || landscape ? 3 : 5.5) }
     static var keysHeight: CGFloat {
         guard let pad else { return slotHeight * 4 }
         return padNine ? pad.keysHeight(rows: 4) : pad.keysHeight
@@ -89,9 +93,10 @@ enum KeyboardMetrics {
     /// iPad 全宽 9 键（PK3）：键高、键距照 26 键，最下面一排矮 15%（KeyLayout.padNine 自己排）。
     static var nineKeyHeight: CGFloat {
         if let pad { return pad.keyHeight }
+        if floating { return 34 }
         return landscape ? 32 : 46
     }
-    static var nineRowGap: CGFloat { pad?.gap ?? (landscape ? 6 : 7) }
+    static var nineRowGap: CGFloat { pad?.gap ?? (floating || landscape ? 6 : 7) }
     static var nineColumnGap: CGFloat { pad?.gap ?? 6 }
     static var nineSideMargin: CGFloat { pad?.edge ?? 7 }
     static var nineRowPitch: CGFloat { nineKeyHeight + nineRowGap }
@@ -99,7 +104,11 @@ enum KeyboardMetrics {
     static var nineKeyInsetX: CGFloat { nineColumnGap / 2 }
     static var nineKeyInsetY: CGFloat { nineRowGap / 2 }
     /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝；横屏每格 36（LN1 ②，三格露 3 项）。
-    static var pinyinCellHeight: CGFloat { pad.map { (nineRowPitch * 3 - $0.gap) / 4 } ?? (landscape ? 36 : 38) }
+    static var pinyinCellHeight: CGFloat {
+        if let pad { return (nineRowPitch * 3 - pad.gap) / 4 }
+        if floating { return (nineRowPitch * 3 - nineRowGap) / 4 }
+        return landscape ? 36 : 38
+    }
 
     /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 36 高（横屏 28，和原生差不多），平时空着，键盘总高不随打字变化。
     /// 竖屏收着时总高 36 + 44 + 216 = 296。
@@ -109,12 +118,12 @@ enum KeyboardMetrics {
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     /// 横屏 38：键 32 居中，上面再加 boardTop 4，键盘上边到 AI 栏 7、AI 栏到第一行键 6（LN2）。
     /// iPad 44（16:01 重定，原来 52）。
-    static var topRow: CGFloat { pad != nil ? 44 : (landscape ? 38 : 44) }
+    static var topRow: CGFloat { pad != nil ? 44 : (floating ? 42 : (landscape ? 38 : 44)) }
     /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 32）。
     /// iPad 9 键的功能键一列（PK3 ①，16:01 重定）：竖屏 86×32、横屏 94×36。
     static var chipHeight: CGFloat {
         if let pad, padNine { return pad.landscape ? 36 : 32 }
-        return landscape ? 32 : 34
+        return landscape || floating ? 32 : 34
     }
     /// 横屏键盘最上面多留的一截：加上按键自己的上缝 3，第一行离键盘上边 7。竖屏 0。
     static var boardTop: CGFloat { landscape ? 4 : 0 }
@@ -214,13 +223,15 @@ enum KeyStyle {
     static let cornerRadius: CGFloat = 8.5
 
     /// iPad 按设计稿的字号（PK1：竖屏 23、横屏 26），功能键用它的 72%。
-    static var letterFont: Font { .system(size: KeyboardMetrics.pad?.fontSize ?? 24) }
-    static var symbolFont: Font { .system(size: KeyboardMetrics.pad.map { $0.fontSize - 1 } ?? 22) }
+    /// iPad 浮动键盘（PK13）键小，字也小一号。
+    private static var floating: Bool { KeyboardMetrics.floating }
+    static var letterFont: Font { .system(size: KeyboardMetrics.pad?.fontSize ?? (floating ? 21 : 24)) }
+    static var symbolFont: Font { .system(size: KeyboardMetrics.pad.map { $0.fontSize - 1 } ?? (floating ? 19 : 22)) }
     /// 九宫格的字母键、标点键、123、#@¥、^^：16pt，字距 1pt。
     /// iPad 全宽 9 键（PK3）键大，字也大：竖屏 20、横屏 23。
-    static var nineKeyFont: Font { .system(size: KeyboardMetrics.pad.map { $0.fontSize - 3 } ?? 16) }
-    static var functionFont: Font { .system(size: KeyboardMetrics.pad?.functionFontSize ?? 17) }
-    static var iconFont: Font { .system(size: KeyboardMetrics.pad.map { $0.functionFontSize + 3 } ?? 19, weight: .regular) }
+    static var nineKeyFont: Font { .system(size: KeyboardMetrics.pad.map { $0.fontSize - 3 } ?? (floating ? 15 : 16)) }
+    static var functionFont: Font { .system(size: KeyboardMetrics.pad?.functionFontSize ?? (floating ? 15 : 17)) }
+    static var iconFont: Font { .system(size: KeyboardMetrics.pad.map { $0.functionFontSize + 3 } ?? (floating ? 17 : 19), weight: .regular) }
     /// iPad 全宽键盘的功能键（tab、⌫、中/英、⇧、🌐、123、☺、收起键盘）照 iPad 原生是灰底（PK1 --fn）：浅色 #ACB1BB，深色 #3A3A3C。
     static let padFunctionKey = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)

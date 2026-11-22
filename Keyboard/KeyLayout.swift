@@ -103,6 +103,8 @@ enum KeyLayout {
         var pad: PadMetrics?
         /// iPad 全宽 9 键：九键在左边（PK4），默认右边（PK3）。
         var nineOnLeft = false
+        /// iPad 浮动键盘（PK13、PK14）：9 键数字页左列一直是运算符号，最下面一行 返回、☺、0、空格（字母页左下 ☺ 让给了 🌐）。
+        var floating = false
     }
 
     /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。
@@ -340,6 +342,17 @@ enum KeyLayout {
             }
         }
         var operatorColumn: CGRect?
+        if state.floating {
+            let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
+            add("layer", .layer(.letters), col: 0, row: 3)
+            add("emoji", .emoji, col: 1, row: 3)
+            add("d0", .symbol("0"), col: 2, row: 3)
+            add("space", .space, col: 3, row: 3)
+            add("delete", .delete, col: 4, row: 0)
+            add("dot", .digitPunct, col: 4, row: 1)
+            add("return", .returnKey, col: 4, row: 2, rows: 2)
+            return KeyLayoutResult(keys: keys, operatorColumn: CGRect(x: x, y: top, width: width, height: slot * 3))
+        }
         if state.digitsMore {
             let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
             operatorColumn = CGRect(x: x, y: top, width: width, height: slot * 3)

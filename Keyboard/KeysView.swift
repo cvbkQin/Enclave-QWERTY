@@ -370,6 +370,8 @@ struct KeyCapView: View, Equatable {
         // iPad 9 键数字页（PK9 右）左下是「返回」。
         case .letters:
             if KeyboardMetrics.pad != nil { return context.nineGrid ? "返回" : "ABC" }
+            // iPad 浮动 9 键数字页（PK14）左下也是「返回」。
+            if KeyboardMetrics.floating && context.nineGrid { return "返回" }
             return context.chineseMode || context.showsNineKey ? "拼音" : "ABC"
         }
     }
@@ -753,7 +755,8 @@ struct CandidateGrid: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
                         ForEach(CandidateRows.rows(model.displayWords(model.candidates), width: geo.size.width,
-                                                   minimumCell: pad == nil ? 64 : 86, fontSize: fontSize)) { row in
+                                                   minimumCell: pad == nil ? (KeyboardMetrics.floating ? 50 : 64) : 86,
+                                                   fontSize: fontSize)) { row in
                             HStack(spacing: 0) {
                                 ForEach(row.cells, id: \.index) { cell in
                                     Button { model.selectCandidate(cell.index) } label: {
