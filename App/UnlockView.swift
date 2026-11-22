@@ -151,9 +151,10 @@ struct UnlockView: View {
                                  "入力した文章を整えます。選択した部分だけ直すこともできます"))
             FeatureRow(icon: "questionmark.bubble", title: L("问答", "Ask", "質問"),
                        detail: L("直接回答你写的问题", "Answers the question you typed", "書いた質問にそのまま答えます"))
-            FeatureRow(icon: "doc.text", title: L("帮我写", "Write for me", "代わりに書く"),
-                       detail: L("输入框空着时，按要求写一段", "When the field is empty, writes a passage to your request",
-                                 "入力欄が空のとき、指示どおりに文章を書きます"))
+            // 原来这里是「帮我写」：0.96 起不再单独列这个功能（商店资料 A12），换成帮回（05，上架风险 2.3.1）。
+            FeatureRow(icon: "arrowshape.turn.up.left", title: L("帮回", "Help Reply", "返信アシスト"),
+                       detail: L("复制别人的话，按你的润色风格写一条回复", "Copy a message and get a reply in your polish style",
+                                 "相手のメッセージをコピーすると、整えるスタイルで返信を書きます"))
             FeatureRow(icon: "arrow.clockwise", title: L("再润", "Rewrite", "別の案"),
                        detail: L("不满意再来一版，上下翻着挑", "Get another version and flip between them",
                                  "別の案を出して、上下に切り替えて選べます"))
