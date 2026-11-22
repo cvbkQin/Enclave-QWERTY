@@ -796,9 +796,11 @@ struct GateCard: View {
         }
     }
 
-    /// 设置 › 通用 › 键盘 › 键盘 › Enclave › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
+    /// 设置 › 通用 › 键盘 › 键盘 › 飞地输入法 › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
+    /// 键盘那一项写系统设置键盘列表里显示的名字（Loc.nameInSettings，跟 iPhone 的语言：中文系统是「飞地输入法」，不是「Enclave」）；
+    /// 其他几段照旧跟 App 的语言（02 定，design/fix/系统设置里的键盘名.md）。
     private var settingsPath: Text {
-        let steps = [L("设置", "Settings", "設定"), L("通用", "General", "一般"), L("键盘", "Keyboard", "キーボード"), L("键盘", "Keyboards", "キーボード"), "Enclave"]
+        let steps = [L("设置", "Settings", "設定"), L("通用", "General", "一般"), L("键盘", "Keyboard", "キーボード"), L("键盘", "Keyboards", "キーボード"), Loc.nameInSettings]
         var text = Text("")
         for step in steps {
             text = text + Text(step).foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
