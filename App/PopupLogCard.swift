@@ -60,6 +60,8 @@ struct PopupLogCard: View {
             .font(.system(size: 13, weight: .semibold))
         }
         .onAppear { reload() }
+        // 这一页开着时切到别的 App 弹键盘、再切回来：onAppear 不会再走，回到前台时也读一次，不然列表还是旧的。
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in reload() }
     }
 
     private func reload() {
