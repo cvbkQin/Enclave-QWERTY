@@ -71,7 +71,9 @@ extension View {
     @ViewBuilder
     func padTabStyle() -> some View {
         if #available(iOS 18.0, *) {
+            // 默认标签在顶上（PA1 ③）：iPadOS 27 横屏默认是侧边栏，侧边栏 + 列表 + 详情三栏太挤，接口、键盘页也排不成两列。
             self.tabViewStyle(.sidebarAdaptable)
+                .defaultAdaptableTabBarPlacement(.tabBar)
         } else {
             self
         }
