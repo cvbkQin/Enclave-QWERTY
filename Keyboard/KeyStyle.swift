@@ -131,7 +131,8 @@ enum KeyboardMetrics {
         (tall ? expandedCardHeight : cardHeight) + (aiLabel ? aiLabelHeight : 0)
     }
     /// 结果卡左边的替换 / 插入键：宽 58，和卡片一样高，和卡片隔 6。
-    static let resultKeyWidth: CGFloat = 36
+    /// iPad（PK7 ①）：44 宽。
+    static var resultKeyWidth: CGFloat { pad != nil ? 44 : 36 }
     static let resultKeyGap: CGFloat = 6
     /// AI 栏上方展开的一行（提示词 / 识意，QA2、QA14）：高 42，底边的小尖角伸到下面按钮的上沿。
     static let aiRowHeight: CGFloat = 42
@@ -140,7 +141,8 @@ enum KeyboardMetrics {
     /// 试用最后 3 天的提示条（K3）。
     static let trialReminderHeight: CGFloat = 34
     static let panelSpacing: CGFloat = 5
-    static let panelTop: CGFloat = 6
+    /// iPad 回答卡离上边 8（PK15：卡片 80，连上边距 88）。
+    static var panelTop: CGFloat { pad != nil ? 8 : 6 }
     /// 按键区左右留的边。iPad 上是 edge 减半条缝：键帽离键盘边正好 edge（PK1）。
     static var sidePadding: CGFloat { pad.map { $0.edge - $0.gap / 2 } ?? 3.7 }
 
@@ -165,6 +167,13 @@ enum KeyboardMetrics {
     /// 分词面板打开时比按键区高 40（BB 修订：266→306），结果卡同时固定 2 行。
     static let wordPanelExtra: CGFloat = 40
 
+    /// 回答卡整块的高（不含上边距）：iPhone 是卡片加下半格识意框（自由编辑时识意框那块也给编辑框）；
+    /// iPad（PK7、PK15，16:01）识意框在卡片右边，不另占一条：收起 80、展开 120，自由编辑也一样。
+    static func panelCardHeight(tall: Bool, freeEdit: Bool, aiLabel: Bool) -> CGFloat {
+        if pad != nil { return tall ? 120 : 80 }
+        return cardHeight(tall: tall, aiLabel: aiLabel) + (freeEdit ? freeEditExtra : askBoxHeight)
+    }
+
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
                        reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false,
                        pinyinRow: Bool = true, split: Bool = false, padNine: Bool = false) -> CGFloat {
@@ -178,7 +187,7 @@ enum KeyboardMetrics {
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
-            return height + panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel) + (freeEdit ? freeEditExtra : askBoxHeight)
+            return height + panelTop + panelCardHeight(tall: cardExpanded, freeEdit: freeEdit, aiLabel: aiLabel)
         }
         if rowOpen {
             height += panelTop + aiRowHeight + aiRowGap

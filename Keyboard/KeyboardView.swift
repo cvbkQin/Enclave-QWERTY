@@ -33,9 +33,8 @@ struct KeyboardView: View {
                     }
                     ResultCard(model: model)
                 }
-                .frame(height: freeEdit
-                       ? KeyboardMetrics.cardHeight(tall: model.freeEditTall, aiLabel: model.showsAILabel) + KeyboardMetrics.freeEditExtra
-                       : KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel) + KeyboardMetrics.askBoxHeight)
+                .frame(height: KeyboardMetrics.panelCardHeight(tall: freeEdit ? model.freeEditTall : model.cardTall,
+                                                               freeEdit: freeEdit, aiLabel: model.showsAILabel))
                 .overlay(alignment: .top) {
                     if model.freeEditToast {
                         FreeEditToast().offset(y: -2).transition(.opacity).allowsHitTesting(false)
@@ -881,6 +880,50 @@ struct ResultCard: View {
 
     var body: some View {
         let look = look
+        if KeyboardMetrics.pad != nil, !compact {
+            padBody(look)
+        } else {
+            phoneBody(look)
+        }
+    }
+
+    /// iPad 宽版（PK7、PK15）：正文在左，识意区在右约四成宽（PadAskArea），中间一条细线；没有下半格。
+    /// 自由编辑时编辑框占满整张卡。
+    private func padBody(_ look: Look) -> some View {
+        GeometryReader { geo in
+            let showsAsk = model.target != .card
+            let active = askActive
+            let askWidth = showsAsk ? (geo.size.width * 0.38).rounded() : 0
+            HStack(spacing: 0) {
+                content(look)
+                if showsAsk {
+                    Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair)
+                        .frame(width: active ? 1 : 0.5)
+                    PadAskArea(model: model, tall: model.cardTall)
+                        .frame(width: askWidth - (active ? 1 : 0.5))
+                }
+            }
+            .background {
+                if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
+                shape.fill(KeyStyle.charKey)
+                if showsAsk, !active {
+                    Brand.askInactiveFill
+                        .frame(width: askWidth)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .clipShape(shape)
+                }
+                if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
+            }
+            .overlay {
+                if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
+            }
+            .overlay {
+                border(look).allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func phoneBody(_ look: Look) -> some View {
         VStack(spacing: 0) {
             if compact, model.target != .card {
                 HStack(spacing: 0) {
