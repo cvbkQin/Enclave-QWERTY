@@ -59,14 +59,17 @@ struct SymbolPanel: View {
 
     // MARK: 表情
 
+    /// iPad（PK10 ①）：每格 54、字 38，11 寸横屏一行 20 个左右。
     private func emojiGrid(_ sections: [EmojiPanelSection], order: [String]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 40), spacing: 0)], spacing: 2,
+        let pad = KeyboardMetrics.pad != nil
+        let cell: CGFloat = pad ? 54 : 40
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: cell), spacing: 0)], spacing: 2,
                   pinnedViews: [.sectionHeaders]) {
             ForEach(sections) { section in
                 Section {
                     ForEach(section.emoji, id: \.self) { item in
                         Button { model.pickFromPanel(item) } label: {
-                            Text(item).font(.system(size: 30)).frame(width: 40, height: 40)
+                            Text(item).font(.system(size: pad ? 38 : 30)).frame(width: cell, height: cell)
                         }
                         .buttonStyle(KeyPressStyle())
                     }
@@ -86,19 +89,20 @@ struct SymbolPanel: View {
         return (recent.isEmpty ? [] : [Kaomoji.Mood(id: "最近", items: recent)]) + Kaomoji.groups
     }
 
-    /// 一行 4 个，每组上面一行小标题（同表情）。太长的缩小字号放进一格，不换行。
+    /// 一行 4 个，每组上面一行小标题（同表情）。太长的缩小字号放进一格，不换行。iPad（PK10）一行 6 个，格子高 46、字 17。
     private func kaomojiGrid(_ groups: [Kaomoji.Mood], order: [String]) -> some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4), spacing: 6,
+        let pad = KeyboardMetrics.pad != nil
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: pad ? 8 : 6), count: pad ? 6 : 4), spacing: pad ? 8 : 6,
                   pinnedViews: [.sectionHeaders]) {
             ForEach(groups) { group in
                 Section {
                     ForEach(group.items, id: \.self) { item in
                         Button { model.pickFromPanel(item) } label: {
                             KeyCap(fill: KeyStyle.charKey, insetX: 0, insetY: 0) {
-                                Text(item).font(.system(size: 15)).lineLimit(1).minimumScaleFactor(0.6)
+                                Text(item).font(.system(size: pad ? 17 : 15)).lineLimit(1).minimumScaleFactor(0.6)
                                     .foregroundStyle(Color.primary).padding(.horizontal, 4)
                             }
-                            .frame(height: 38)
+                            .frame(height: pad ? 46 : 38)
                         }
                         .buttonStyle(KeyPressStyle())
                     }
@@ -141,7 +145,63 @@ struct SymbolPanel: View {
 
     // MARK: 底栏
 
+    @ViewBuilder
     private func bottomBar(tabs: [Tab], current: String?, jump: @escaping (String) -> Void) -> some View {
+        if let pad = KeyboardMetrics.pad {
+            padBottomBar(pad, tabs: tabs, current: current, jump: jump)
+        } else {
+            phoneBottomBar(tabs: tabs, current: current, jump: jump)
+        }
+    }
+
+    /// iPad（PK10 ②，11-22 cvbk「下面的选项明显没适配ipad的显示空间，按键太小」）：🌐、返回、表情 / 颜文字切换、⌫、收起键盘
+    /// 和键盘最下面一排的功能键一样大；中间一整条放分类，平均分满，不用横滑，选中那格白底紫字。
+    private func padBottomBar(_ pad: PadMetrics, tabs: [Tab], current: String?, jump: @escaping (String) -> Void) -> some View {
+        PadPanelBar(pad: pad) { cell in
+            PadGlobeKey(model: model).frame(width: cell * 1.2)
+            PadPanelKey(label: model.chineseMode ? L("返回", "Back", "戻る") : "ABC", action: { model.closePanel() }) {
+                Text(model.chineseMode ? "返回" : "ABC").font(KeyStyle.functionFont)
+            }
+            .frame(width: cell * 1.4)
+            HStack(spacing: 2) {
+                ForEach(tabs) { tab in
+                    let on = tab.id == current
+                    Button { jump(tab.id) } label: {
+                        Group {
+                            if let symbol = tab.symbol {
+                                Image(systemName: symbol).font(.system(size: 20))
+                            } else {
+                                Text(tab.title).font(.system(size: 15, weight: on ? .semibold : .regular)).lineLimit(1).minimumScaleFactor(0.7)
+                            }
+                        }
+                        .foregroundStyle(on ? Brand.purpleText : Color.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous)
+                            .fill(on ? KeyStyle.charKey : Color.clear))
+                        .padding(.vertical, pad.gap / 2)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(KeyPressStyle())
+                    .accessibilityLabel(tab.title)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, pad.gap / 2)
+            .frame(maxWidth: .infinity)
+            PadPanelKey(label: isEmoji ? L("颜文字", "Kaomoji", "顔文字") : L("表情", "Emoji", "絵文字"),
+                        action: { model.keysPanel = isEmoji ? .kaomoji : .emoji }) {
+                Text(isEmoji ? "^^" : "😀").font(KeyStyle.functionFont)
+            }
+            .frame(width: cell)
+            RepeatingKey(systemImage: "delete.left", insetX: pad.gap / 2, insetY: pad.gap / 2, fill: KeyStyle.padFunctionKey) {
+                model.deleteKey()
+            }
+            .frame(width: cell * 1.4)
+            PadDismissKey(model: model).frame(width: cell * 1.2)
+        }
+    }
+
+    private func phoneBottomBar(tabs: [Tab], current: String?, jump: @escaping (String) -> Void) -> some View {
         HStack(spacing: 6) {
             panelKey(width: 60, label: model.chineseMode ? L("返回", "Back", "戻る") : "ABC", action: { model.closePanel() }) {
                 Text(model.chineseMode ? "返回" : "ABC").font(.system(size: 17))
@@ -259,9 +319,13 @@ struct QuickWordsPanel: View {
                 .padding(.horizontal, Self.sideInset)
                 .frame(maxHeight: .infinity)
                 .zIndex(model.clipMenu != nil ? 1 : 0)
-                bottomRow(width: geo.size.width)
-                    .frame(height: KeyboardMetrics.nineRowPitch)
-                    .padding(.bottom, KeyboardMetrics.nineTopOffset)
+                if let pad = KeyboardMetrics.pad {
+                    padBottomRow(pad)
+                } else {
+                    bottomRow(width: geo.size.width)
+                        .frame(height: KeyboardMetrics.nineRowPitch)
+                        .padding(.bottom, KeyboardMetrics.nineTopOffset)
+                }
             }
         }
     }
@@ -385,6 +449,30 @@ struct QuickWordsPanel: View {
 
     // MARK: 底排
 
+    /// iPad（PK10 ③）：🌐、返回、空格、⌫、发送、收起键盘，和键盘最下面一排一样高。
+    private func padBottomRow(_ pad: PadMetrics) -> some View {
+        PadPanelBar(pad: pad) { cell in
+            PadGlobeKey(model: model).frame(width: cell * 1.2)
+            PadPanelKey(label: L("返回", "Back", "戻る"), action: { model.closePanel() }) {
+                Text("返回").font(KeyStyle.functionFont)
+            }
+            .frame(width: cell * 1.4)
+            PadPanelKey(fill: KeyStyle.charKey, label: L("空格", "Space", "スペース"), action: { model.spaceKey() }) {
+                Text("空格").font(KeyStyle.functionFont).tracking(3)
+            }
+            .frame(maxWidth: .infinity)
+            RepeatingKey(systemImage: "delete.left", insetX: pad.gap / 2, insetY: pad.gap / 2, fill: KeyStyle.padFunctionKey) {
+                model.deleteKey()
+            }
+            .frame(width: cell * 1.4)
+            PadPanelKey(fill: Brand.returnSoftFill, label: L("发送", "Send", "送信"), action: { model.returnKey() }) {
+                Image(systemName: "return.left").font(KeyStyle.iconFont).foregroundStyle(Brand.deepPurple)
+            }
+            .frame(width: cell * 1.9)
+            PadDismissKey(model: model).frame(width: cell * 1.2)
+        }
+    }
+
     private func bottomRow(width: CGFloat) -> some View {
         let edge = KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding - KeyboardMetrics.nineKeyInsetX
         let column = (width - edge * 2) / 5
@@ -425,6 +513,8 @@ struct PhraseColumn: View {
     @ObservedObject var model: KeyboardModel
     /// 这一栏占整个面板宽的比例。
     var fraction: CGFloat
+    /// 这一栏多宽：iPad 上够宽（540 以上）时卡片排两列（PK10 ③，一次看 6 条）。
+    @State private var columnWidth: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -476,6 +566,15 @@ struct PhraseColumn: View {
                                 .buttonStyle(KeyPressStyle())
                         }
                     }
+                } else if KeyboardMetrics.pad != nil, columnWidth >= 540 {
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 5), GridItem(.flexible(), spacing: 5)], spacing: 5) {
+                        ForEach(model.quickPhrases) { phrase in
+                            Button { model.pickQuickWord(phrase.text) } label: {
+                                PhraseCard(phrase: phrase, showsTitle: model.phraseDisplay == .both, accent: Brand.deepPurple, fill: KeyStyle.charKey)
+                            }
+                            .buttonStyle(KeyPressStyle())
+                        }
+                    }
                 } else {
                     VStack(spacing: 5) {
                         ForEach(model.quickPhrases) { phrase in
@@ -488,6 +587,11 @@ struct PhraseColumn: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(GeometryReader { geo in
+                Color.clear
+                    .onAppear { columnWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { columnWidth = $0 }
+            })
             .padding(.top, 2)
             .padding(.bottom, 18)
         }
@@ -1152,5 +1256,66 @@ struct FullPinyinKeyStyle: ButtonStyle {
                 }
             }
             .contentShape(Rectangle())
+    }
+}
+
+
+// MARK: - iPad 面板底栏（PK10）
+
+/// iPad 表情、颜文字、常用语和剪贴板面板的底栏：和键盘最下面一排一样高（竖屏 43、横屏 49）、一样离边，
+/// 键帽之间一条缝；content 拿到「一格」的宽（按键区宽 / 12.8，和 11 寸 26 键一样），按几格排。
+struct PadPanelBar<Content: View>: View {
+    let pad: PadMetrics
+    @ViewBuilder let content: (CGFloat) -> Content
+
+    var body: some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) { content(geo.size.width / 12.8) }
+        }
+        .frame(height: pad.bottomKeyHeight + pad.gap)
+        .padding(.bottom, pad.bottom - pad.gap / 2)
+    }
+}
+
+/// 面板底栏的一颗键：默认功能键灰底，键帽四周缩进半条缝。
+struct PadPanelKey<Label: View>: View {
+    var fill: Color = KeyStyle.padFunctionKey
+    let label: String
+    let action: () -> Void
+    @ViewBuilder let content: () -> Label
+
+    var body: some View {
+        let half = (KeyboardMetrics.pad?.gap ?? 8) / 2
+        Button(action: action) {
+            KeyCap(fill: fill, insetX: half, insetY: half) {
+                content().foregroundStyle(Color.primary)
+            }
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(label)
+    }
+}
+
+/// 🌐：系统的键盘列表要 UIKit 接触摸（NextKeyboardButton），外面画成功能键。
+struct PadGlobeKey: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        let half = (KeyboardMetrics.pad?.gap ?? 8) / 2
+        KeyCap(fill: KeyStyle.padFunctionKey, insetX: half, insetY: half) {
+            NextKeyboardButton(controller: model.controller)
+        }
+        .accessibilityLabel(L("下一个键盘", "Next keyboard", "次のキーボード"))
+    }
+}
+
+/// 收起键盘（和键盘右下角那颗一样，正在打的拼音原样留下）。
+struct PadDismissKey: View {
+    @ObservedObject var model: KeyboardModel
+
+    var body: some View {
+        PadPanelKey(label: L("收起键盘", "Hide keyboard", "キーボードを閉じる"), action: { model.perform(.dismiss) }) {
+            Image(systemName: "keyboard.chevron.compact.down").font(KeyStyle.iconFont)
+        }
     }
 }
