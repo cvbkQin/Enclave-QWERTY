@@ -17,10 +17,12 @@ struct PopupRecord: Codable, Identifiable {
     /// 醒来→建 很小说明我们这边一醒就开始了，空白的时间花在系统把弹出交给我们之前。
     var idleBeforeWake: Double?
     var wakeToInit: Double?
-    /// 醒来到控制器建出来这段里，键盘主线程真正醒着干活的合计（毫秒）；其余时间主线程睡着，在等系统把弹出交过来。
+    /// 醒来到开始建键盘（viewDidLoad）这段里，键盘主线程真正醒着干活的合计（毫秒）；其余时间主线程睡着，在等系统把弹出交过来。
     var wakeBusy: Double?
-    /// 建键盘到显示出来的途中，键盘进程被系统挂起了多久（毫秒，比如弹出动画时切走、锁屏）。这次的耗时不算数。
+    /// 控制器建出来到显示出来的途中，键盘进程被系统挂起了多久（毫秒，比如弹出动画时切走、锁屏）。这次的耗时不算数。
     var paused: Double?
+    /// 挂起落在控制器建出来到开始建键盘（viewDidLoad）之间：挂起的说明写在「准备」那一行，不写在「建键盘到显示出来」那一行。
+    var pausedBeforeLoad: Bool?
     /// 控制器建出来之前 2 秒里，键盘主线程卡住（一次超过 50 毫秒没空）最长的一次和合计。nil 是没开监测（旧记录）。
     var stallLongest: Double?
     var stallTotal: Double?
@@ -115,6 +117,8 @@ struct PopupRecord: Codable, Identifiable {
                 line += "；其中键盘主线程干活 \(Self.ms(wakeBusy)) 毫秒，其余 \(Self.ms(max(0, wakeToInit + initToLoad - wakeBusy))) 毫秒在等系统"
             }
             lines.append(line)
+        } else if let paused, pausedBeforeLoad == true {
+            lines.append("开始建键盘前的准备：\(Self.ms(initToLoad)) 毫秒，其中键盘进程被系统挂起 \(String(format: "%.1f", paused / 1000)) 秒")
         } else {
             lines.append("开始建键盘前的准备：\(Self.ms(initToLoad)) 毫秒（上次收起后键盘没闲下来过，量不到被叫醒的时刻）")
         }
@@ -131,7 +135,7 @@ struct PopupRecord: Codable, Identifiable {
         }
         var appear = "建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中建视图 \(Self.ms(load))、弹出前准备 \(Self.ms(willAppear))：读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）"
         if let paused {
-            appear += "，途中键盘进程被系统挂起 \(String(format: "%.1f", paused / 1000)) 秒"
+            if pausedBeforeLoad != true { appear += "，途中键盘进程被系统挂起 \(String(format: "%.1f", paused / 1000)) 秒" }
         } else if interrupted {
             appear += "，超过 \(Int(PopupLog.interruptedAfter / 1000)) 秒，多半是弹出途中切走了"
         }
@@ -292,11 +296,15 @@ enum PopupLog {
         let warm = records.filter { !$0.isCold }
         func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
         var parts = ["最近 \(records.count) 次弹出"]
-        // 中途被挂起、被打断的那几次耗时不算数，不进「一般多久」。
-        let warmTimes = warm.filter { !$0.excluded }.map(\.total)
-        let coldTimes = cold.filter { !$0.excluded }.map(\.total)
-        if !warm.isEmpty { parts.append("热启动 \(warm.count) 次，一般 \(ms(median(warmTimes))) 毫秒") }
-        if !cold.isEmpty { parts.append("冷启动 \(cold.count) 次，一般 \(ms(median(coldTimes))) 毫秒") }
+        // 中途被挂起、被打断的那几次耗时不算数，不进「一般多久」；次数里写明有几次不算。
+        func part(_ name: String, _ group: [PopupRecord]) -> String {
+            let times = group.filter { !$0.excluded }.map(\.total)
+            let left = group.count - times.count
+            let note = left > 0 ? "（\(left) 次中途被挂起或打断，不算）" : ""
+            return "\(name) \(group.count) 次\(note)，一般 \(ms(median(times))) 毫秒"
+        }
+        if !warm.isEmpty { parts.append(part("热启动", warm)) }
+        if !cold.isEmpty { parts.append(part("冷启动", cold)) }
         let slow = records.filter(\.isSlow).count
         parts.append(slow == 0 ? "没有明显慢的" : "明显慢的 \(slow) 次")
         return parts.joined(separator: "；") + "。"

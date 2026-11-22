@@ -24,8 +24,17 @@ final class PopupLogTests: XCTestCase {
     func testSummaryLeavesOutInterrupted() {
         let records = [record(loadToAppear: 60), record(loadToAppear: 70), record(loadToAppear: 5000)]
         let summary = PopupLog.summary(records)
-        XCTAssertTrue(summary.contains("热启动 3 次，一般 75 毫秒"), summary)
+        XCTAssertTrue(summary.contains("热启动 3 次（1 次中途被挂起或打断，不算），一般 75 毫秒"), summary)
         XCTAssertTrue(summary.contains("没有明显慢的"), summary)
+    }
+
+    func testPauseBeforeLoadIsOnPrepareLine() {
+        var before = record(paused: 2000)
+        before.pausedBeforeLoad = true
+        XCTAssertTrue(before.details[0].contains("其中键盘进程被系统挂起 2.0 秒"), before.details[0])
+        XCTAssertFalse(before.details.contains { $0.hasPrefix("建键盘到显示出来") && $0.contains("挂起") })
+        let during = record(paused: 2000)
+        XCTAssertTrue(during.details.contains { $0.hasPrefix("建键盘到显示出来") && $0.contains("挂起 2.0 秒") })
     }
 
     func testPrewarmedColdStartCountsFromController() {

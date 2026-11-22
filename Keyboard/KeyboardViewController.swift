@@ -514,12 +514,18 @@ final class KeyboardViewController: UIInputViewController {
         popupRecorded = true
         finished.loadToAppear = (CACurrentMediaTime() - loadStart) * 1000
         // 控制器建出来以后主线程睡过半秒以上：主线程每 50 毫秒就被 MainStalls 叫醒一次，睡这么久只能是进程被系统挂起了。
-        if let wake = MainWake.lastWake, wake > createdAt { finished.paused = MainWake.lastIdle * 1000 }
+        if let wake = MainWake.lastWake, wake > createdAt {
+            finished.paused = MainWake.lastIdle * 1000
+            // 醒来早于开始建键盘：挂起落在控制器建出来到 viewDidLoad 之间，说明写在「准备」那一行。
+            if wake <= loadStart { finished.pausedBeforeLoad = true }
+        }
         // 建键盘到显示出来这段主线程干了多少活：没被挂起、建键盘之前就在量，才算得准。
         if wakeTracked, finished.paused == nil { finished.appearBusy = max(0, MainWake.busySinceWake() - loadBusy) }
         finished.didClipboard = clipboard * 1000
         finished.didCommonWords = commonWords * 1000
         finished.memoryMB = TypingStats.footprintMB()
+        // 只算显示出来之前排上队的准备：之后用户切中英、换布局，或者 1.5 秒里收起又弹出的新键盘排的，不是这次弹出的。
+        let appeared = CACurrentMediaTime()
         let loadStart = loadStart, createdAt = createdAt, partial = finished, hideMono = PopupLog.lastHideMono, marks = marks
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak model] in
             var record = partial
@@ -532,7 +538,7 @@ final class KeyboardViewController: UIInputViewController {
             if let ready = model?.engineReadyAt, ready >= loadStart { record.engineReady = since(ready) }
             // 这次弹出以后的每一次准备：排队取第一次的，准备时间加起来，做了什么按先后列出；
             // 准备了不止一次时，每次写上第几毫秒排上队、做了多久，看后面那次是谁排的。
-            let prepares = QueuedEngine.shared.recentPrepares.filter { $0.queued >= loadStart }
+            let prepares = QueuedEngine.shared.recentPrepares.filter { $0.queued >= loadStart && $0.queued <= appeared }
             if let first = prepares.first {
                 record.engineWait = (first.started - first.queued) * 1000
                 record.engineRun = prepares.map { ($0.finished - $0.started) * 1000 }.reduce(0, +)
