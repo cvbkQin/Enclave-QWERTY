@@ -1515,6 +1515,8 @@ extension KeyboardModel {
             case "quick:failed": loadDebugQuick(.failed)
             case "quick:cycle": loadDebugQuickCycle()
             case "ask:cycle": loadDebugQuickCycle(answer: true)
+            // 截图用：没配接口的模拟器上也显示润色、问答键（看 AI 栏排得怎么样）。
+            case "ai": debugUnblocked = true
             // 截图用：输入框空着时点 ✨（NC1）：1 秒后点一次，再过 1 秒又点一次，看按钮晃。
             case "emptyTap":
                 debugUnblocked = true

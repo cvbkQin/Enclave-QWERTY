@@ -147,7 +147,7 @@ extension KeyLayout {
     /// #+=  。 ， 、 ？ ！ … ～ · ‘ #+=
     /// 🌐 ABC ☺     空格     ABC ⌨↓
     /// #+= 层第一行换成【】｛｝# % ^ * + =，左右两颗换回 123。
-    /// 13 寸第一行是字母页那排数字（本来就有，123 层只放符号）；#+= 层第一行多放 ＿ — ＼。
+    /// 13 寸第一行是字母页那排数字（本来就有，123 层只放符号）；#+= 层第一行多放三个（中文「 」&，英文 ` & @）。
     private static func padSymbolPage(_ state: State, chinese: Bool, big: Bool) -> [[PadKey]] {
         let symbols = state.layer == .symbols
         let rows = padSymbolRows(chinese: chinese, symbols: symbols)
@@ -159,7 +159,8 @@ extension KeyLayout {
         let first: [PadKey]
         if big {
             if symbols {
-                let extra: [String] = chinese ? ["＿", "——", "＼"] : ["_", "—", "\\"]
+                // 第二排已经有 _ — ＼，这里放这一页别处没有的。
+                let extra: [String] = chinese ? ["「", "」", "&"] : ["`", "&", "@"]
                 let extraKeys = extra.enumerated().map { PadKey(id: "s0-x\($0.offset)", kind: .symbol($0.element)) }
                 first = keys(0) + extraKeys + [PadKey(id: "delete", kind: .delete, units: 1.6)]
             } else {

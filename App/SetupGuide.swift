@@ -773,10 +773,14 @@ struct GuidePage<Content: View, Bottom: View>: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
+                    // iPad 宽屏（首页没设置好时整页是它）：最宽 640 居中；iPhone 和表单窗口里没有影响。
+                    .frame(maxWidth: PadWidth.content)
+                    .frame(maxWidth: .infinity)
             }
             VStack(spacing: 6) { bottom }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
+                .frame(maxWidth: PadWidth.content)
         }
     }
 }

@@ -16,6 +16,7 @@ struct PromptsSplitView: View {
     @State private var choosesNewKind = false
     /// 竖屏也两栏并排（PA4 ⑧），不把左栏收成浮层。
     @State private var columns: NavigationSplitViewVisibility = .all
+    @State private var windowWidth: CGFloat = 1180
 
     struct Selection: Hashable {
         let id: UUID
@@ -25,11 +26,12 @@ struct PromptsSplitView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 300, ideal: PadWidth.sidebar, max: 380)
+                .navigationSplitViewColumnWidth(PadWidth.sidebar(windowWidth))
         } detail: {
             NavigationStack { detail }
         }
         .navigationSplitViewStyle(.balanced)
+        .readWidth($windowWidth)
         .tint(DashColor.ai)
         .onAppear(perform: selectDefault)
         .onChange(of: selection) { _ in dropAddedIfLeft() }
@@ -150,12 +152,13 @@ struct HistorySplitView: View {
     @EnvironmentObject private var router: AppRouter
     @ObservedObject private var store = HistoryStore.shared
     @State private var columns: NavigationSplitViewVisibility = .all
+    @State private var windowWidth: CGFloat = 1180
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
             HistoryListView()
                 .environment(\.padSplit, true)
-                .navigationSplitViewColumnWidth(min: 300, ideal: PadWidth.sidebar, max: 400)
+                .navigationSplitViewColumnWidth(PadWidth.sidebar(windowWidth))
         } detail: {
             NavigationStack(path: $router.historyPath) {
                 Group {
@@ -178,6 +181,7 @@ struct HistorySplitView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .readWidth($windowWidth)
     }
 }
 
@@ -190,12 +194,13 @@ struct SettingsSplitView<Sidebar: View, Destination: View>: View {
     @ViewBuilder var sidebar: Sidebar
     let destination: (AppRouter.SettingsPage) -> Destination
     @State private var columns: NavigationSplitViewVisibility = .all
+    @State private var windowWidth: CGFloat = 1180
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
             sidebar
                 .environment(\.padSplit, true)
-                .navigationSplitViewColumnWidth(min: 300, ideal: PadWidth.sidebar, max: 400)
+                .navigationSplitViewColumnWidth(PadWidth.sidebar(windowWidth))
         } detail: {
             NavigationStack(path: detailPath) {
                 Group {
@@ -210,6 +215,7 @@ struct SettingsSplitView<Sidebar: View, Destination: View>: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .readWidth($windowWidth)
     }
 
     /// 右边那一摞：settingsPath 去掉第一项（左边选中的那行）。

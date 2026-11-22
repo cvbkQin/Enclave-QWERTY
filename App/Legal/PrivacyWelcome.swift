@@ -43,9 +43,13 @@ struct PrivacyWelcomeView: View {
                         .multilineTextAlignment(.center)
                         .padding(.top, 12)
                     VStack(alignment: .leading, spacing: 20) {
-                        point(Image(systemName: "iphone"), color: .blue,
-                              L("打字只在手机上", "Typing stays on your iPhone", "入力は iPhone の中だけ"),
-                              L("打字和候选全部在手机上完成，不联网。", "Typing and candidates are all handled on your iPhone, offline.", "入力も候補もすべて iPhone 上で処理し、通信しません。"))
+                        // iPad 上说「iPad」（PA4 ⑦）。
+                        let pad = UIDevice.current.userInterfaceIdiom == .pad
+                        point(Image(systemName: pad ? "ipad" : "iphone"), color: .blue,
+                              pad ? L("打字只在 iPad 上", "Typing stays on your iPad", "入力は iPad の中だけ")
+                                  : L("打字只在手机上", "Typing stays on your iPhone", "入力は iPhone の中だけ"),
+                              pad ? L("打字和候选全部在 iPad 上完成，不联网。", "Typing and candidates are all handled on your iPad, offline.", "入力も候補もすべて iPad 上で処理し、通信しません。")
+                                  : L("打字和候选全部在手机上完成，不联网。", "Typing and candidates are all handled on your iPhone, offline.", "入力も候補もすべて iPhone 上で処理し、通信しません。"))
                         point(Image(systemName: "link"), color: AppColor.purple,
                               L("AI 只连你自己的接口", "AI only talks to your own API", "AI はあなたの API にだけ接続"),
                               L("只有你主动用 AI 时，选中的文字才会发到你自己填写的模型接口。", "Only when you use AI is the selected text sent, to the model API you set up yourself.", "AI を使ったときだけ、選んだ文章をあなたが設定したモデルの API に送ります。"))
