@@ -1126,9 +1126,9 @@ struct ClipboardList: View {
         VStack(spacing: 8) {
             Text(L("剪贴板要先打开「允许完全访问」", "Clipboard needs Full Access", "クリップボードには「フルアクセスを許可」が必要です"))
                 .font(.system(size: 15, weight: .semibold))
-            Text(L("设置 › 通用 › 键盘 › 键盘 › 飞地输入法 › 允许完全访问。打开后只在你点粘贴时才读剪贴板。",
-                   "Settings › General › Keyboard › Keyboards › Enclave › Allow Full Access. The clipboard is read only when you tap paste.",
-                   "設定 › 一般 › キーボード › キーボード › Enclave › フルアクセスを許可。オンにしても、貼り付けをタップしたときだけ読み取ります。"))
+            Text(L("设置 › 通用 › 键盘 › 键盘 › \(Loc.nameInSettings) › 允许完全访问。打开后只在你点粘贴时才读剪贴板。",
+                   "Settings › General › Keyboard › Keyboards › \(Loc.nameInSettings) › Allow Full Access. The clipboard is read only when you tap paste.",
+                   "設定 › 一般 › キーボード › キーボード › \(Loc.nameInSettings) › フルアクセスを許可。オンにしても、貼り付けをタップしたときだけ読み取ります。"))
                 .font(.system(size: 12.5))
                 .foregroundStyle(Color.secondary)
                 .multilineTextAlignment(.center)

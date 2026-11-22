@@ -76,3 +76,21 @@ func L(_ zh: String, _ en: String, _ ja: String) -> String {
     case .zh, .system: return zh
     }
 }
+
+extension Loc {
+    /// 系统设置里显示的 App 名和键盘名（02 定，11-22，对齐清单第 84 条）：按 iPhone 的语言挑 InfoPlist.strings 里的
+    /// CFBundleDisplayName（中文「飞地输入法」，英文、日文「Enclave」），和系统设置里看到的一样，不跟 App 里选的语言。
+    /// 只用在带用户去系统设置的文字和插图里；路径里的其他词照旧跟 App 语言（L）。App 自己界面里的品牌名不用它。
+    /// App 和键盘扩展的 InfoPlist.strings 写的是同一个名字，在哪边调用都一样。
+    static var nameInSettings: String {
+        let bundle = Bundle.main
+        let localization = Bundle.preferredLocalizations(from: bundle.localizations, forPreferences: Locale.preferredLanguages).first
+        if let localization,
+           let path = bundle.path(forResource: "InfoPlist", ofType: "strings", inDirectory: nil, forLocalization: localization),
+           let strings = NSDictionary(contentsOfFile: path), let name = strings["CFBundleDisplayName"] as? String, !name.isEmpty {
+            return name
+        }
+        return bundle.localizedInfoDictionary?["CFBundleDisplayName"] as? String
+            ?? bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Enclave"
+    }
+}

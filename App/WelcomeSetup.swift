@@ -131,9 +131,9 @@ struct WelcomeSetupView: View {
         VStack(spacing: 0) {
             row(0, progress, title: L("添加飞地输入法", "Add the Enclave keyboard", "Enclave キーボードを追加"),
                 detail: progress.keyboard ? L("已添加", "Added", "追加済み")
-                    : L("系统设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选飞地输入法",
-                        "Settings › General › Keyboard › Keyboards › Add New Keyboard, then choose Enclave",
-                        "設定 › 一般 › キーボード › キーボード › 新しいキーボードを追加 で Enclave を選択"))
+                    : L("系统设置 › 通用 › 键盘 › 键盘 › 添加新键盘，选\(Loc.nameInSettings)",
+                        "Settings › General › Keyboard › Keyboards › Add New Keyboard, then choose \(Loc.nameInSettings)",
+                        "設定 › 一般 › キーボード › キーボード › 新しいキーボードを追加 で \(Loc.nameInSettings) を選択"))
             divider
             row(1, progress, title: L("允许完全访问", "Allow Full Access", "フルアクセスを許可"),
                 detail: progress.fullAccess ? L("已打开", "On", "オン")
@@ -141,9 +141,9 @@ struct WelcomeSetupView: View {
                         ? L("去过设置了？在任意 App 里用一次飞地输入法，这里会自动打勾",
                             "Been to Settings? Use Enclave once in any app and this gets checked",
                             "設定しましたか？どこかの App で Enclave を一度使うと、自動でチェックが付きます")
-                        : L("系统设置 › 飞地输入法 › 键盘，打开「允许完全访问」，AI 联网时要用",
-                            "Settings › Enclave › Keyboards, turn on Allow Full Access. AI needs it to go online",
-                            "設定 › Enclave › キーボード で「フルアクセスを許可」をオン。AI の通信に必要です"))
+                        : L("系统设置 › \(Loc.nameInSettings) › 键盘，打开「允许完全访问」，AI 联网时要用",
+                            "Settings › \(Loc.nameInSettings) › Keyboards, turn on Allow Full Access. AI needs it to go online",
+                            "設定 › \(Loc.nameInSettings) › キーボード で「フルアクセスを許可」をオン。AI の通信に必要です"))
             divider
             row(2, progress, title: L("润色接口", "Polish API", "整える API"), detail: polishDetail(progress)) {
                 if progress.state(2) == .current && store.settings.isConfigured { configBox }
@@ -439,7 +439,7 @@ private struct WelcomeIllustration: View {
             HStack(spacing: 5) {
                 Image(systemName: "gearshape").font(.system(size: 11))
                 Text(step == 1 ? L("设置 › 键盘 › 添加新键盘", "Settings › Keyboards › Add New Keyboard", "設定 › キーボード › 新しいキーボードを追加")
-                               : L("设置 › 飞地输入法 › 键盘", "Settings › Enclave › Keyboards", "設定 › Enclave › キーボード"))
+                               : L("设置 › \(Loc.nameInSettings) › 键盘", "Settings › \(Loc.nameInSettings) › Keyboards", "設定 › \(Loc.nameInSettings) › キーボード"))
                     .font(.system(size: 12))
             }
             .foregroundStyle(GuideColor.secondary)
@@ -449,10 +449,10 @@ private struct WelcomeIllustration: View {
             VStack(alignment: .leading, spacing: 8) {
                 if step == 1 {
                     Text(L("第三方键盘", "Third-party keyboards", "他社製キーボード")).font(.system(size: 11)).foregroundStyle(GuideColor.secondary)
-                    marked(1) { item(L("飞地输入法", "Enclave", "Enclave")) }
+                    marked(1) { item(Loc.nameInSettings) }
                     Text(L("其他键盘…", "Other keyboards…", "その他のキーボード…")).font(.system(size: 12)).foregroundStyle(GuideColor.secondary)
                 } else {
-                    toggleRow(L("飞地输入法", "Enclave", "Enclave"))
+                    toggleRow(Loc.nameInSettings)
                     marked(2) { toggleRow(L("允许完全访问", "Allow Full Access", "フルアクセスを許可")) }
                 }
             }
