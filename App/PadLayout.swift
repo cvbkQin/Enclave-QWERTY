@@ -13,7 +13,15 @@ enum DeviceName {
 enum PadWidth {
     static let content: CGFloat = 640
     static let unlock: CGFloat = 560
-    extension View {
+    /// 一长串设置排成两列要的最小宽度：11 寸横屏的内容区约 1180，竖屏 820 时一列。
+    static let twoColumns: CGFloat = 960
+    /// 两栏左边那一栏（PA4 ⑧：11 寸竖屏 330；PA2 横屏约 400）：跟着窗口宽，330～420。
+    static func sidebar(_ windowWidth: CGFloat) -> CGFloat {
+        min(max((windowWidth * 0.34).rounded(), 330), 420)
+    }
+}
+
+extension View {
     /// 量自己的宽度（两栏的左栏跟着窗口宽）。
     func readWidth(_ width: Binding<CGFloat>) -> some View {
         background(GeometryReader { geo in
@@ -21,14 +29,6 @@ enum PadWidth {
                 .onAppear { width.wrappedValue = geo.size.width }
                 .onChange(of: geo.size.width) { width.wrappedValue = $0 }
         })
-    }
-}
-
-/// 一长串设置排成两列要的最小宽度：11 寸横屏的内容区约 1180，竖屏 820 时一列。
-    static let twoColumns: CGFloat = 960
-    /// 两栏左边那一栏（PA4 ⑧：11 寸竖屏 330；PA2 横屏约 400）：跟着窗口宽，330～420。
-    static func sidebar(_ windowWidth: CGFloat) -> CGFloat {
-        min(max((windowWidth * 0.34).rounded(), 330), 420)
     }
 }
 
