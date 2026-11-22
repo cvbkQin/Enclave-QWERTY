@@ -506,12 +506,13 @@ struct GateCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             switch gate {
-            case .fullAccess: fullAccess
+            case .fullAccess: if pad { padFullAccess } else { fullAccess }
             case .privacy: privacy
             case .noKey: noKey
             case .keyPending: keyPending
-            case .consent(let endpoint, let previous, let purpose): consent(endpoint, previous: previous, purpose: purpose)
-            case .quotaUsed: quotaUsed
+            case .consent(let endpoint, let previous, let purpose):
+                if pad { padConsent(endpoint, previous: previous, purpose: purpose) } else { consent(endpoint, previous: previous, purpose: purpose) }
+            case .quotaUsed: if pad { padQuotaUsed } else { quotaUsed }
             }
         }
         .padding(12)
@@ -554,6 +555,135 @@ struct GateCard: View {
             Spacer(minLength: 4)
             GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
         }
+    }
+
+    // MARK: iPad 横排（PK12，11-22 14:41 cvbk「pk12的提示卡要重新适配，不用搞的这么高」）
+    // 左边图标、标题和说明，中间灰底框写路径（横屏 330 宽、竖屏 230 宽），右边按钮，铺满键盘宽。
+    // 卡片横屏高约 80、竖屏约 96（KeyboardMetrics.gateHeight）；字多的（第一次发送确认）正文最多 3 行，不超过 116。
+    // 没同意隐私、没填接口、Key 在同步这三张本来就是横排，iPad 上照用。
+
+    private var pad: Bool { KeyboardMetrics.pad != nil }
+    private var padPathWidth: CGFloat { KeyboardMetrics.pad?.landscape == true ? 330 : 230 }
+
+    private func lockBadge() -> some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(Brand.deepPurple)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(Brand.returnSoftFill))
+    }
+
+    private func padRow<Middle: View, Trailing: View>(title: String, detail: String,
+                                                      @ViewBuilder middle: () -> Middle,
+                                                      @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    lockBadge()
+                    Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Text(detail)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Brand.cardBody)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            middle()
+            trailing()
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private func padPathBox<Path: View>(label: String, @ViewBuilder path: () -> Path) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label).font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            path().font(.system(size: 13)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 11)
+        .frame(width: padPathWidth, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
+    }
+
+    private var padFullAccess: some View {
+        // 文字照 iPhone（PK12 ①）。
+        padRow(title: L("AI 润色需要开启「允许完全访问」", "AI Polish needs Allow Full Access", "AI 機能には「フルアクセスを許可」が必要です"),
+               detail: L("打字不受影响。开启后才能用 AI 润色，App 里的键盘设置也会同步过来。", "Typing still works. Turn it on to use AI Polish and to sync keyboard settings from the app.", "入力はそのまま使えます。オンにすると AI 機能が使え、アプリのキーボード設定も同期されます。")) {
+            padPathBox(label: L("在系统设置里开启", "Turn it on in Settings", "設定でオンにする")) { settingsPath }
+        } trailing: {
+            GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
+        }
+    }
+
+    private var padQuotaUsed: some View {
+        let uses = AIAccess.dailyFreeUses
+        return padRow(title: L("今天的 \(uses) 次用完了", "You’ve used today’s \(uses) free uses", "今日の無料分（\(uses) 回）を使い切りました"),
+                      detail: L("AI 每天可以免费用 \(uses) 次，明天 0 点恢复。打字、拼音、常用词一直可以用，不受影响。",
+                                "AI has \(uses) free uses a day, reset at midnight. Typing, pinyin and My Words keep working as usual.",
+                                "AI は 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。入力・ピンイン・ユーザ辞書はそのまま使えます。")) {
+            padPathBox(label: L("详细说明", "Details", "詳しくは")) {
+                Text(L("打开飞地输入法", "Open Enclave", "Enclave を開く")).foregroundColor(Brand.cardBody)
+                    + Text(" › ").foregroundColor(Brand.pathSeparator)
+                    + Text(L("设置", "Settings", "設定")).foregroundColor(Brand.cardBody)
+                    + Text(" › ").foregroundColor(Brand.pathSeparator)
+                    + Text("AI").fontWeight(.semibold).foregroundColor(Brand.deepPurple)
+            }
+        } trailing: {
+            GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
+        }
+    }
+
+    /// 第一次发送前确认（RG9）横排：标题和地址一行，下面原来的地址（换了地址时）和说明（最多 3 行），右边按钮和隐私政策。
+    private func padConsent(_ endpoint: String, previous: String?, purpose: KeyboardModel.GatePurpose) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    SparkleMark(size: 14, color: Brand.tagSelectedText)
+                    Text(previous == nil ? Self.consentTitle(purpose) : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    Text(L("文字会发送到", "Text will be sent to", "文章の送信先")).font(.system(size: 13)).foregroundStyle(Brand.cardBody)
+                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe").font(.system(size: 11, weight: .semibold))
+                        Text(endpoint).font(.system(size: 12.5, weight: .semibold, design: .monospaced)).lineLimit(1)
+                    }
+                    .foregroundStyle(Brand.deepPurple)
+                    .padding(.horizontal, 9)
+                    .frame(height: 24)
+                    .background(Capsule().fill(Brand.returnSoftFill))
+                }
+                if let previous {
+                    (Text(L("原来是 ", "Was ", "以前は ")) + Text(previous).strikethrough())
+                        .font(.system(size: 12))
+                        .foregroundStyle(Brand.panelLabel.opacity(0.7))
+                        .lineLimit(1)
+                }
+                Text(Self.consentNote(purpose))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Brand.cardNote)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
+                    GateButton(title: L("取消", "Cancel", "キャンセル"), primary: false) { model.dismissGate() }
+                    GateButton(title: Self.consentAgree(purpose), primary: true) { model.acceptConsent() }
+                }
+                Button { model.showAppHint(.privacyPolicy) } label: {
+                    Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12))
+                        .foregroundStyle(Brand.tagSelectedText)
+                }
+                .buttonStyle(.plain)
+            }
+            .fixedSize()
+        }
+        .frame(maxHeight: .infinity)
     }
 
     /// 仅基础功能时点 ✨ /「执行」（CP7）：不发请求，说明去 App 里同意。点卡片或开始打字就收起。

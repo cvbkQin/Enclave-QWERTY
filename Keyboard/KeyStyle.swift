@@ -148,6 +148,14 @@ enum KeyboardMetrics {
 
     /// 点「润色」时 AI 栏上方的提示卡：没开完全访问（P02）、首次发送前确认（P03），换了地址时多一行旧地址（P04）。
     static func gateHeight(_ gate: KeyboardModel.AIGate) -> CGFloat {
+        // iPad 横排（PK12）：路径框在中间，横屏一行、竖屏两行。
+        if let pad {
+            switch gate {
+            case .fullAccess, .quotaUsed: return pad.landscape ? 80 : 96
+            case .privacy, .noKey, .keyPending: return 76
+            case .consent(_, let previous, _): return previous == nil ? 100 : 116
+            }
+        }
         switch gate {
         case .fullAccess: return 188
         case .privacy: return 76
