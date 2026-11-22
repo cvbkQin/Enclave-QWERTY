@@ -105,7 +105,7 @@ enum KeyLayout {
         var pad: PadMetrics?
         /// iPad 全宽 9 键：九键在左边（PK4），默认右边（PK3）。
         var nineOnLeft = false
-        /// iPad 浮动键盘（PK13、PK14）：9 键数字页左列一直是运算符号，最下面一行 返回、☺、0、空格（字母页左下 ☺ 让给了 🌐）。
+        /// iPad 浮动键盘（PK13、PK14）：9 键数字页左列一直是运算符号，最下面一行 返回、☺、0、空格（系统要我们画 🌐 时，字母页左下 ☺ 让给了 🌐）。
         var floating = false
         /// iPad 11 寸 26 键字母上的灰色小字、往下滑打出来（设置「字母上的数字和符号」，默认开）。
         var padLetterHints = true

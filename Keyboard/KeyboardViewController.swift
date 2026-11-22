@@ -694,8 +694,9 @@ final class KeyboardViewController: UIInputViewController {
     /// 只在变了的时候设：needsGlobeKey 是 @Published，设一次（哪怕值一样）整个键盘就重画一遍、高度也要重算，
     /// 而每次布局都会走到这里，弹出动画途中会连着重画好多次，看起来就是卡。
     private func updateGlobeKey() {
-        // iPad 浮动键盘（PK13）下面没有系统的 🌐，26 键底排、9 键左下角都要画（左下 ☺ 换成 🌐，表情从 123 里进）。
-        let needs = needsInputModeSwitchKey || KeyboardMetrics.floating
+        // iPad 浮动键盘（PK13）也照系统说的：模拟器（iPadOS 27.2）里浮动时系统在下面自己画一排 🌐 … 🎤，
+        // 这时 needsInputModeSwitchKey 是 false，不再自己画，免得两个 🌐；系统没画的时候它是 true，照样画在左下角。
+        let needs = needsInputModeSwitchKey
         if model.needsGlobeKey != needs { model.needsGlobeKey = needs }
     }
 }
