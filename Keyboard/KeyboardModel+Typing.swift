@@ -1481,6 +1481,9 @@ extension KeyboardModel {
             case "expanded": aiExpanded = true
             case "nine": if settings.keyboardLayout != .nineKey { setLayout(.nineKey) }
             case "qwerty": if settings.keyboardLayout != .qwerty { setLayout(.qwerty) }
+            // iPad 9 键在左（PK4）/ 在右（PK3）。
+            case "nineLeft": if settings.nineKeySide != .left { updateSettings { $0.nineKeySide = .left } }
+            case "nineRight": if settings.nineKeySide != .right { updateSettings { $0.nineKeySide = .right } }
             // 拼音显示（F12）：side 侧边、row 上方一行。
             case "side": setPinyinDisplay(.side)
             case "row": setPinyinDisplay(.row)
