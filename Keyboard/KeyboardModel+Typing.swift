@@ -1526,6 +1526,10 @@ extension KeyboardModel {
             case "partialReplace": aiExpanded = true; debugUnblocked = true; loadDebugVersions(); debugShowNotes(partial: true)
             case "openAppFailed": debugShowNotes(partial: false)
             case "quotaUsed": debugShowGate(.quotaUsed)
+            // iPad 横排提示卡（PK12）截图用：没开完全访问、第一次发送确认（换了地址）。
+            case "gate:fullAccess": debugShowGate(.fullAccess)
+            case "gate:consent":
+                debugShowGate(.consent(endpoint: "https://api.example.com/v1", previous: "https://old.example.com/v1", purpose: .polish))
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
