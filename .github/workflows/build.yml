@@ -45,6 +45,21 @@ jobs:
             echo "::endgroup::"
           fi
           exit "${status:-0}"
+      # Date 的 <= 和 >=（还有用到 >= 的 max(a, b)）在 Xcode 27.2 的 SDK 里是回溯部署的新函数，iPadOS 27.2 测试版
+      # 报 27.2 却没有它们，一调就跳到 0 地址闪退（11-23 iPad 真机，iCloud 同步合并时）。比时间用 Shared/DateOrder.swift。
+      # 编出来的 App 和键盘里只要还弱引用着这两个函数就标红（老一点的 Xcode 编出来本来就没有，这一步照样过）。
+      - name: Check back-deployed Date comparisons
+        run: |
+          app=build/Debug-iphonesimulator/Enclave.app
+          [ -d "$app" ] || { echo "::error::没找到 $app"; exit 1; }
+          found=0
+          while IFS= read -r -d '' file; do
+            if nm -m "$file" 2>/dev/null | grep -E 'weak external _\$s10Foundation4DateV2(le|ge)oiySbAC_ACtFZ'; then
+              echo "::error::$file 弱引用了 Foundation 的 Date <= / >=，iPadOS 27.2 测试版上会闪退。改用 Shared/DateOrder.swift 里的 isAfter / isBefore / Date.later。"
+              found=1
+            fi
+          done < <(find "$app" -type f \( -perm -u+x -o -name '*.dylib' \) -print0)
+          exit "$found"
       # 单元测试（Tests/ 下的 EnclaveTests，不挂 App、不链拼音引擎）：有一个挂了这一步就失败，PR 标红。
       - name: Unit tests
         run: |

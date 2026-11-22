@@ -26,7 +26,7 @@ enum SyncMerge {
     /// 本机改动记的时间：一般是 now；上次那条的时间比 now 还晚（别的设备时钟快）时取它加 1 毫秒，本机的改动才不会输给它。
     static func stamp(now: Date, after old: Date?) -> Date {
         guard let old else { return now }
-        return max(now, old.addingTimeInterval(0.001))
+        return Date.later(now, old.addingTimeInterval(0.001))
     }
 
     /// 本机现在的列表和上次同步完的表比：新出现的、内容变了的记成 now 时「在」，不见了的记成 now 时「删了」。
@@ -142,7 +142,7 @@ enum SyncMerge {
     static func latest<V: Codable & Equatable>(_ entries: [Entry<V>]) -> Entry<V>? {
         var best: Entry<V>?
         for entry in entries where entry.value != nil {
-            if let current = best, entry.time <= current.time { continue }
+            if let current = best, !entry.time.isAfter(current.time) { continue }
             best = entry
         }
         return best
