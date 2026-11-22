@@ -796,14 +796,32 @@ struct GateCard: View {
         }
     }
 
-    /// 设置 › 通用 › 键盘 › 键盘 › Enclave › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
+    /// 设置 › 通用 › 键盘 › 键盘 › 飞地输入法 › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
+    /// 写的是系统设置里的菜单名，按 iPhone 的语言写（App 里选的语言管不到系统设置）；
+    /// 键盘那一项用系统设置键盘列表里显示的名字，中文系统是「飞地输入法」，不是「Enclave」。
     private var settingsPath: Text {
-        let steps = [L("设置", "Settings", "設定"), L("通用", "General", "一般"), L("键盘", "Keyboard", "キーボード"), L("键盘", "Keyboards", "キーボード"), "Enclave"]
+        let steps = [Loc.systemText("设置", "Settings", "設定"), Loc.systemText("通用", "General", "一般"),
+                     Loc.systemText("键盘", "Keyboard", "キーボード"), Loc.systemText("键盘", "Keyboards", "キーボード"),
+                     Self.nameInSettings]
         var text = Text("")
         for step in steps {
             text = text + Text(step).foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
         }
-        return text + Text(L("允许完全访问", "Allow Full Access", "フルアクセスを許可")).fontWeight(.semibold).foregroundColor(Brand.deepPurple)
+        return text + Text(Loc.systemText("允许完全访问", "Allow Full Access", "フルアクセスを許可")).fontWeight(.semibold).foregroundColor(Brand.deepPurple)
+    }
+
+    /// 系统设置键盘列表里我们这一行的名字：键盘扩展的显示名（各语言的 InfoPlist.strings），
+    /// 按系统挑本地化的办法挑（iPhone 的语言顺序对键盘带的几种语言），和系统设置里显示的一样。
+    static var nameInSettings: String {
+        let bundle = Bundle.main
+        let localization = Bundle.preferredLocalizations(from: bundle.localizations, forPreferences: Locale.preferredLanguages).first
+        if let localization,
+           let path = bundle.path(forResource: "InfoPlist", ofType: "strings", inDirectory: nil, forLocalization: localization),
+           let strings = NSDictionary(contentsOfFile: path), let name = strings["CFBundleDisplayName"] as? String, !name.isEmpty {
+            return name
+        }
+        return bundle.localizedInfoDictionary?["CFBundleDisplayName"] as? String
+            ?? bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Enclave"
     }
 
     /// 第一次发送前确认（RG9）：润色（帮回也用这张）、问答各一张，标题、说明、按钮跟着换。

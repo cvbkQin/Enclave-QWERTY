@@ -43,6 +43,15 @@ enum Loc {
         return .en
     }
 
+    /// 按 iPhone 的语言取，不看 App 里选的语言：写系统设置里的菜单名（设置 › 通用 › 键盘…）时用，那边跟着 iPhone 走。
+    static func systemText(_ zh: String, _ en: String, _ ja: String) -> String {
+        switch system {
+        case .en: return en
+        case .ja: return ja
+        case .zh, .system: return zh
+        }
+    }
+
     /// 日期、价格等格式化用的地区。
     static var locale: Locale {
         switch current {
