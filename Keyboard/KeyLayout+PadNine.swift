@@ -129,6 +129,7 @@ extension KeyLayout {
         var result = KeyLayoutResult(keys: keys, pinyinColumn: pinyinColumn, operatorColumn: operatorColumn)
         result.padFunctions = functions
         result.padMiddle = middle
+        result.padUpper = CGRect(x: areaX, y: 0, width: areaWidth, height: upper.y + upper.height)
         return result
     }
 }
