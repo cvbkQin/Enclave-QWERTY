@@ -608,7 +608,7 @@ struct GateCard: View {
         .onTapGesture { model.dismissGate() }
     }
 
-    /// 试用结束后今天的免费次数用完（K2）：打字照常，明天 0 点恢复。
+    /// 今天的免费次数用完（K2，没开始试用或试用结束时）：打字照常，明天 0 点恢复。
     /// 审核 4.4.1：键盘里不提购买、不引导去买，只说明情况和在 App 哪里能看到详情。
     @ViewBuilder
     private var quotaUsed: some View {
@@ -622,9 +622,9 @@ struct GateCard: View {
             Text(L("今天的 \(uses) 次用完了", "You’ve used today’s \(uses) free uses", "今日の無料分（\(uses) 回）を使い切りました"))
                 .font(.system(size: 14, weight: .semibold))
         }
-        Text(L("试用结束后每天可以免费用 \(uses) 次，明天 0 点恢复。打字、拼音、常用词一直可以用，不受影响。",
-               "After the trial you get \(uses) free uses a day, reset at midnight. Typing, pinyin and My Words keep working as usual.",
-               "無料体験のあとも 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。入力・ピンイン・ユーザ辞書はそのまま使えます。"))
+        Text(L("AI 每天可以免费用 \(uses) 次，明天 0 点恢复。打字、拼音、常用词一直可以用，不受影响。",
+               "AI has \(uses) free uses a day, reset at midnight. Typing, pinyin and My Words keep working as usual.",
+               "AI は 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。入力・ピンイン・ユーザ辞書はそのまま使えます。"))
             .font(.system(size: 13))
             .foregroundStyle(Brand.cardBody)
             .fixedSize(horizontal: false, vertical: true)

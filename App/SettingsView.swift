@@ -2,65 +2,119 @@ import StoreKit
 import SwiftUI
 import UIKit
 
-/// 设置顶部的 AI 卡（PB3）：试用剩几天和进度格、解锁按钮、一句说明。点整张卡进解锁页。
+/// 设置顶部的 AI 卡（R4，design/app-redesign，11-22 交付）：标题行紫色小方块 +「AI」+ ›，大数字，一条 4pt 细线，一句说明。
+/// 卡里不放按钮和格子，整张卡点进解锁页；最后 3 天、今天用完时数字和细线变橙。
 struct EnclaveAICard: View {
     @ObservedObject private var unlock = UnlockStore.shared
 
     var body: some View {
-        DashCard {
-            // 备案口径是开发者不提供模型服务，卡片标题只写「AI」。
-            DashCardHeader(icon: "sparkles", title: "AI", color: DashColor.ai, note: state)
-            HStack(alignment: .center) {
-                big
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(HIG.accentFill))
+                    .accessibilityHidden(true)
+                // 备案口径是开发者不提供模型服务，卡片标题只写「AI」。
+                Text("AI").font(.headline)
                 Spacer(minLength: 8)
-                if !unlocked {
-                    Text(unlock.unlockTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .frame(height: 32)
-                        .background(Capsule().fill(DashColor.ai))
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(big)
+                    .font(.largeTitle.bold())
+                    .monospacedDigit()
+                    .foregroundStyle(warn ? HIG.warning : Color.primary)
+                if let unit { Text(unit).font(.subheadline).foregroundStyle(.secondary) }
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.top, 6)
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(.systemGray5))
+                    Capsule().fill(warn ? HIG.warning : HIG.accentFill)
+                        .frame(width: proxy.size.width * progress)
                 }
             }
-            if case .trial(let days, _) = unlock.access {
-                // 14 天试用画成 7 格，一格两天。
-                DashSegments(total: 7, done: Int((Double(days) / 2).rounded(.up)))
-            }
-            Text(detail).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            .frame(height: 4)
+            .padding(.top, 10)
+            .accessibilityHidden(true)
+            Text(detail)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DashColor.card))
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var usesLeft: Int { AIAccess.usesLeftToday }
+
+    /// 橙色：试用最后 3 天、今天的免费次数用完。
+    private var warn: Bool {
+        switch unlock.access {
+        case .notStarted, .expired: return usesLeft == 0
+        case .trial: return unlock.access.isEndingSoon
+        case .unlocked: return false
         }
     }
 
-    private var unlocked: Bool {
-        if case .unlocked = unlock.access { return true }
-        return false
-    }
-
-    private var state: String {
+    private var big: String {
         switch unlock.access {
-        case .trial: return L("试用中", "Trial", "無料体験中")
-        case .expired: return L("试用已结束", "Trial ended", "無料体験終了")
-        case .unlocked: return L("已解锁", "Unlocked", "購入済み")
+        case .notStarted, .expired: return "\(usesLeft)"
+        case .trial(let days, _): return "\(days)"
+        case .unlocked: return L("不限次数", "Unlimited", "回数無制限")
         }
     }
 
-    @ViewBuilder
-    private var big: some View {
+    private var unit: String? {
         switch unlock.access {
-        case .trial(let days, _): DashBigNumber(value: "\(days)", unit: L("天 · 试用剩余", "days left", "日・残り"))
-        case .expired: DashBigNumber(value: "\(AIAccess.usesLeftToday)", unit: L("次 · 今天还剩", "left today", "回・今日の残り"))
-        case .unlocked: DashBigNumber(value: "∞", unit: L("不限次数", "No limits", "回数無制限"))
+        case .notStarted, .expired: return L("次 · 今天还剩", "left today", "回・今日の残り")
+        case .trial: return L("天 · 试用剩余", "days left in trial", "日・無料体験の残り")
+        case .unlocked: return nil
+        }
+    }
+
+    private var progress: CGFloat {
+        switch unlock.access {
+        case .notStarted, .expired: return CGFloat(usesLeft) / CGFloat(AIAccess.dailyFreeUses)
+        case .trial(let days, _): return CGFloat(days) / CGFloat(AIAccess.trialDays)
+        case .unlocked: return 1
         }
     }
 
     private var detail: String {
         let uses = AIAccess.dailyFreeUses
         switch unlock.access {
+        case .notStarted, .expired:
+            if usesLeft == 0 {
+                return L("今天的 \(uses) 次用完了，明天 0 点恢复。", "Today's \(uses) free uses are gone. They come back at midnight.",
+                         "今日の \(uses) 回を使い切りました。0 時に戻ります。")
+            }
+            if unlock.access == .notStarted {
+                return L("每天免费 \(uses) 次。可以免费试用 \(AIAccess.trialDays) 天，不限次数。",
+                         "\(uses) free uses a day. Try \(AIAccess.trialDays) days unlimited for free.",
+                         "1 日 \(uses) 回まで無料。\(AIAccess.trialDays) 日間、回数無制限で無料体験できます。")
+            }
+            return L("每天免费 \(uses) 次，明天 0 点恢复。一次买断，不限次数。", "\(uses) free uses a day, reset at midnight. Pay once for unlimited.",
+                     "1 日 \(uses) 回まで無料、0 時にリセット。買い切りで回数無制限。")
         case .trial(_, let ends):
-            return L("\(Loc.monthDay(ends))结束，之后每天免费 \(uses) 次。一次买断，不限次数。", "Ends \(Loc.monthDay(ends)), then \(uses) free a day. One-time purchase, no limits.", "\(Loc.monthDay(ends))に終了し、その後は 1 日 \(uses) 回無料。買い切りで回数無制限。")
-        case .expired:
-            return L("每天免费 \(uses) 次，明天 0 点恢复。一次买断，不限次数。", "\(uses) free a day, reset at midnight. One-time purchase, no limits.", "1 日 \(uses) 回無料、0 時にリセット。買い切りで回数無制限。")
+            let day = Loc.monthDay(AIAccess.lastTrialDay(ends: ends))
+            return L("用到 \(day)，之后每天免费 \(uses) 次。", "Until \(day), then \(uses) free uses a day.",
+                     "\(day)まで。その後は 1 日 \(uses) 回まで無料。")
         case .unlocked:
-            return L("一次买断，不限次数。谢谢支持。", "One-time purchase, no limits. Thank you.", "買い切りで回数無制限。ありがとうございます。")
+            return L("已买断。谢谢支持。", "Purchased. Thank you for your support.", "購入済みです。ありがとうございます。")
         }
     }
 }
