@@ -18,6 +18,21 @@
       "productID" : "com.gengyunqin.enclave.unlock",
       "referenceName" : "Enclave AI Unlock",
       "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "0",
+      "familyShareable" : false,
+      "internalID" : "6739000002",
+      "localizations" : [
+        {
+          "description" : "14 days of unlimited AI, then 10 free uses a day",
+          "displayName" : "14-day Trial",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.gengyunqin.enclave.trial14",
+      "referenceName" : "14-day Trial",
+      "type" : "NonConsumable"
     }
   ],
   "settings" : {

@@ -1,7 +1,7 @@
 import StoreKit
 import SwiftUI
 
-/// AI 解锁页：试用中（U1）、试用结束（U2）、已解锁（U3）。
+/// AI 解锁页：没开始试用、试用中（U1）、试用结束（U2）、已解锁（U3）。
 /// 入口：设置顶部「AI」卡片、首页最后几天的提醒条、键盘提示卡里的「去解锁」（enclave://unlock）。
 struct UnlockView: View {
     @EnvironmentObject private var store: AppStore
@@ -260,6 +260,10 @@ struct UnlockHeroCard: View {
         case .unlocked:
             return L("谢谢支持。AI 功能一直能用，模型随你换。", "Thanks for your support. AI features are yours to keep, with any model.",
                      "ご購入ありがとうございます。AI 機能はずっと使え、モデルも自由に変えられます。")
+        case .notStarted:
+            return L("每天免费用 \(uses) 次。可以先免费试用 \(AIAccess.trialDays) 天不限次数，一次买断，没有订阅。",
+                     "\(uses) free uses a day. Try \(AIAccess.trialDays) days unlimited for free, or pay once. No subscription.",
+                     "1 日 \(uses) 回まで無料。\(AIAccess.trialDays) 日間の無料体験（回数無制限）もできます。買い切りで、サブスクはありません。")
         case .expired:
             return L("试用结束后每天免费用 \(uses) 次。一次买断，不限次数。", "\(uses) free uses a day. Pay once for unlimited.",
                      "無料体験のあとも 1 日 \(uses) 回まで無料。買い切りで回数無制限。")
@@ -318,6 +322,12 @@ struct UnlockHeroCard: View {
     private var statusCapsule: some View {
         let (icon, text, color, fill): (String, String, Color, Color) = {
             switch access {
+            case .notStarted:
+                let left = AIAccess.usesLeftToday
+                let text = left > 0
+                    ? L("今天还能免费用 \(left) 次", "\(left) free uses left today", "今日あと \(left) 回無料")
+                    : L("今天的免费次数已用完", "No free uses left today", "今日の無料分は終了")
+                return ("gift", text, Color(hex: 0xE4E0FF), .white.opacity(0.14))
             case .trial(let days, let ends):
                 return ("clock", L("试用剩余 \(days) 天 · \(Loc.monthDay(ends)) 结束",
                                    "Free trial · \(days) days left · Ends \(Loc.monthDay(ends))",
@@ -350,8 +360,14 @@ struct UnlockHeroCard: View {
 private struct PurchaseBar: View {
     @ObservedObject var unlock: UnlockStore
 
+    private var showsTrial: Bool {
+        if case .notStarted = unlock.access { return true }
+        return false
+    }
+
     var body: some View {
         VStack(spacing: 8) {
+            if showsTrial { trialOffer }
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     if let price = unlock.displayPrice {
@@ -401,6 +417,36 @@ private struct PurchaseBar: View {
         .background(.regularMaterial)
         .overlay(alignment: .top) { Divider() }
     }
+
+    /// 没开始试用时：「开始 14 天免费试用」，按钮上面写清楚试用多长、到期后能用什么、买断多少钱（审核指南 3.1.1）。
+    /// 试用是 0 元的商品，点了系统会弹一次购买确认，不扣钱。
+    private var trialOffer: some View {
+        let days = AIAccess.trialDays
+        let uses = AIAccess.dailyFreeUses
+        let price = unlock.displayPrice
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(price.map {
+                L("免费试用 \(days) 天，AI 不限次数；到期后不会扣费，回到每天免费 \(uses) 次。想一直不限次数，可以 \($0) 一次买断。",
+                  "Free for \(days) days with unlimited AI. Nothing is charged when it ends; you go back to \(uses) free uses a day. Pay \($0) once to keep it unlimited.",
+                  "\(days) 日間無料で AI を回数無制限で使えます。終了しても料金はかからず、1 日 \(uses) 回の無料に戻ります。ずっと無制限にするには \($0) の買い切りです。")
+            } ?? L("免费试用 \(days) 天，AI 不限次数；到期后不会扣费，回到每天免费 \(uses) 次。想一直不限次数，可以一次买断。",
+                   "Free for \(days) days with unlimited AI. Nothing is charged when it ends; you go back to \(uses) free uses a day. Pay once to keep it unlimited.",
+                   "\(days) 日間無料で AI を回数無制限で使えます。終了しても料金はかからず、1 日 \(uses) 回の無料に戻ります。ずっと無制限にするには買い切りです。"))
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button { Task { await unlock.startTrial() } } label: {
+                Text(L("开始 \(days) 天免费试用", "Start \(days)-day free trial", "\(days) 日間の無料体験を始める"))
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color(hex: 0x5B4BE8))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color(hex: 0x5B4BE8).opacity(0.6), lineWidth: 1.5))
+            }
+            .buttonStyle(.plain)
+            .disabled(unlock.purchasing)
+        }
+    }
 }
 
 /// 用户协议用 Apple 的标准 EULA；隐私政策在 App 里的「隐私」页。
@@ -413,6 +459,7 @@ extension UnlockStore.Message {
     var title: String {
         switch self {
         case .unlocked: return L("已解锁", "Unlocked", "購入済み")
+        case .trialStarted: return L("试用开始了", "Trial started", "無料体験を開始しました")
         case .pending: return L("等家长批准", "Waiting for approval", "保護者の承認待ち")
         case .notFound: return L("没有找到购买记录", "No purchase found", "購入履歴が見つかりません")
         case .offline: return L("暂时连不上 App Store", "Can't reach the App Store", "App Store に接続できません")
@@ -424,6 +471,16 @@ extension UnlockStore.Message {
     var detail: String? {
         switch self {
         case .unlocked: return L("AI 功能不再限次数。", "AI features no longer have a daily limit.", "AI 機能の回数制限がなくなりました。")
+        case .trialStarted:
+            if case .trial(let days, let ends) = AIAccess.current {
+                return L("接下来 \(days) 天 AI 不限次数，\(Loc.monthDay(ends))结束。到期后不会扣费。",
+                         "Unlimited AI for the next \(days) days, until \(Loc.monthDay(ends)). Nothing is charged when it ends.",
+                         "これから \(days) 日間 AI を回数無制限で使えます（\(Loc.monthDay(ends))まで）。終了しても料金はかかりません。")
+            }
+            // 这个 Apple ID 以前领过、已经到期：从原来的日子算。
+            return L("这个 Apple ID 的试用已经用过了，现在每天免费 \(AIAccess.dailyFreeUses) 次。",
+                     "This Apple Account has already used its trial. You have \(AIAccess.dailyFreeUses) free uses a day.",
+                     "この Apple アカウントの無料体験は使用済みです。1 日 \(AIAccess.dailyFreeUses) 回まで無料で使えます。")
         case .pending: return L("批准后会自动解锁。", "It unlocks automatically once approved.", "承認されると自動で使えるようになります。")
         case .notFound: return L("这个 Apple ID 还没有买过 AI 解锁。", "This Apple Account hasn't unlocked AI.",
                                  "この Apple アカウントでは AI を購入していません。")

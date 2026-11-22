@@ -37,6 +37,7 @@ struct EnclaveAICard: View {
 
     private var state: String {
         switch unlock.access {
+        case .notStarted: return L("每天免费 \(AIAccess.dailyFreeUses) 次", "\(AIAccess.dailyFreeUses) free a day", "1 日 \(AIAccess.dailyFreeUses) 回無料")
         case .trial: return L("试用中", "Trial", "無料体験中")
         case .expired: return L("试用已结束", "Trial ended", "無料体験終了")
         case .unlocked: return L("已解锁", "Unlocked", "購入済み")
@@ -46,6 +47,7 @@ struct EnclaveAICard: View {
     @ViewBuilder
     private var big: some View {
         switch unlock.access {
+        case .notStarted: DashBigNumber(value: "\(AIAccess.usesLeftToday)", unit: L("次 · 今天还剩", "left today", "回・今日の残り"))
         case .trial(let days, _): DashBigNumber(value: "\(days)", unit: L("天 · 试用剩余", "days left", "日・残り"))
         case .expired: DashBigNumber(value: "\(AIAccess.usesLeftToday)", unit: L("次 · 今天还剩", "left today", "回・今日の残り"))
         case .unlocked: DashBigNumber(value: "∞", unit: L("不限次数", "No limits", "回数無制限"))
@@ -55,6 +57,10 @@ struct EnclaveAICard: View {
     private var detail: String {
         let uses = AIAccess.dailyFreeUses
         switch unlock.access {
+        case .notStarted:
+            return L("每天免费 \(uses) 次，明天 0 点恢复。可以免费试用 \(AIAccess.trialDays) 天不限次数，或一次买断。",
+                     "\(uses) free a day, reset at midnight. Try \(AIAccess.trialDays) days unlimited for free, or pay once.",
+                     "1 日 \(uses) 回無料、0 時にリセット。\(AIAccess.trialDays) 日間の無料体験（回数無制限）か、買い切りで使えます。")
         case .trial(_, let ends):
             return L("\(Loc.monthDay(ends))结束，之后每天免费 \(uses) 次。一次买断，不限次数。", "Ends \(Loc.monthDay(ends)), then \(uses) free a day. One-time purchase, no limits.", "\(Loc.monthDay(ends))に終了し、その後は 1 日 \(uses) 回無料。買い切りで回数無制限。")
         case .expired:
