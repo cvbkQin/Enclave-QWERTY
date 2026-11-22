@@ -64,7 +64,7 @@
 
 ### （四）试用与购买
 
-本应用提供 14 天免费试用，试用结束后 AI 功能每天可免费使用一定次数，也可通过 App Store 一次性购买解锁。付款由 Apple 处理，我们不会获得您的付款信息。本应用通过 Apple 提供的接口读取本应用的首次下载日期和购买记录，用于计算试用期和确认是否已购买。
+本应用提供 14 天免费试用（App Store 中的 0 元商品“14 天试用”，您点击“开始 14 天免费试用”后才开始计算）；未开始试用或试用结束后，AI 功能每天可免费使用一定次数，也可通过 App Store 一次性购买解锁。付款由 Apple 处理，我们不会获得您的付款信息。本应用通过 Apple 提供的接口读取您在本应用中的试用和购买记录，用于计算试用期和确认是否已购买。
 
 ### （五）通讯录（可选）
 
@@ -204,7 +204,7 @@ When web search is Off, or you decline it in the answer box, your question goes 
 
 ### Free Trial and Purchase
 
-The App offers a 14-day free trial. After the trial, AI features can be used a limited number of times per day for free, or unlocked with a one-time purchase on the App Store. Payment is handled by Apple, and we never receive your payment details. The App uses Apple's interfaces to read the App's original download date and your purchase record, to calculate the trial and confirm the purchase. Daily usage counts are stored only on your device.
+The App offers a 14-day free trial (a free item, "14-day Trial", on the App Store; it starts only when you tap "Start 14-day free trial"). Before you start the trial, or after it ends, AI features can be used a limited number of times per day for free, or unlocked with a one-time purchase on the App Store. Payment is handled by Apple, and we never receive your payment details. The App uses Apple's interfaces to read your trial and purchase records for the App, to calculate the trial and confirm the purchase. Daily usage counts are stored only on your device.
 
 ### Feedback
 
@@ -324,7 +324,7 @@ Enclave（以下「本アプリ」）は Gengyun Qin（以下「当方」）が�
 
 ### 無料体験と購入
 
-本アプリには 14 日間の無料体験があり、終了後も AI 機能は 1 日に一定回数まで無料で使えます。App Store での買い切り購入で回数制限がなくなります。支払いは Apple が処理し、当方がお支払い情報を受け取ることはありません。無料体験の期間計算と購入の確認のため、本アプリは Apple の仕組みを通じて初回ダウンロード日と購入履歴を読み取ります。1 日の使用回数はお客様の端末にのみ記録されます。
+本アプリには 14 日間の無料体験があります（App Store の 0 円の項目「14 日間無料体験」で、「14 日間の無料体験を始める」をタップしたときに始まります）。体験を始める前や終了後も、AI 機能は 1 日に一定回数まで無料で使えます。App Store での買い切り購入で回数制限がなくなります。支払いは Apple が処理し、当方がお支払い情報を受け取ることはありません。無料体験の期間計算と購入の確認のため、本アプリは Apple の仕組みを通じて本アプリでの無料体験と購入の履歴を読み取ります。1 日の使用回数はお客様の端末にのみ記録されます。
 
 ### フィードバック
 
