@@ -818,8 +818,8 @@ struct AskField: View {
 
 
 /// iPad 回答卡右边的识意区（PK7 ②、PK15，16:01）：约四成宽。识意框两行高、填满卡片，白底圆角，打字时紫框；
-/// 「🌐 联网」「✨ 再改」收起（卡高 80）时上下叠在最右边，展开（120）时并排放在识意框下面，不留空白。
-/// 再改 = 点回车的识意（交给 AI 判断改写还是回答，执行中点了是停止）；联网 = 识意框右边那颗「使用联网查询」（MG6），
+/// 「🌐 联网」「✓ 确认」收起（卡高 80）时上下叠在最右边，展开（120）时并排放在识意框下面，不留空白。
+/// 确认 = 点回车的识意（交给 AI 判断改写还是回答，执行中点了是停止；11-23 cvbk「再改按钮改成确认按钮」，原来写「✨ 再改」）；联网 = 识意框右边那颗「使用联网查询」（MG6），
 /// 不能用时变淡，联网过的回答写「已联网」。
 struct PadAskArea: View {
     @ObservedObject var model: KeyboardModel
@@ -881,9 +881,9 @@ struct PadAskArea: View {
         let running = model.isRunning
         return Button { model.enterAskTapped() } label: {
             HStack(spacing: 3) {
-                Image(systemName: running ? "stop.fill" : "sparkles")
+                Image(systemName: running ? "stop.fill" : "checkmark")
                     .font(.system(size: 11, weight: .semibold))
-                Text(running ? L("停止", "Stop", "停止") : L("再改", "Redo", "再生成"))
+                Text(running ? L("停止", "Stop", "停止") : L("确认", "Confirm", "確定"))
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -894,7 +894,7 @@ struct PadAskArea: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(KeyPressStyle())
-        .accessibilityLabel(running ? L("停止", "Stop", "停止") : L("识意：按框里写的再改或回答", "Ask: redo or answer with what you typed", "入力内容でやり直すか回答"))
+        .accessibilityLabel(running ? L("停止", "Stop", "停止") : L("确认：按框里写的改写或回答", "Confirm: rewrite or answer with what you typed", "確定：入力内容で書き直すか回答"))
     }
 }
 
