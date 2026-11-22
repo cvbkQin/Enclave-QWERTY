@@ -18,6 +18,23 @@ enum DashColor {
     static let empty = Color(.systemGray5)
 }
 
+/// DESIGN.md（11-22）的颜色：品牌紫只用在能点的地方和最重要的数字；橙只表示「快到了 / 用完了」。
+enum HIG {
+    /// 实色按钮、小方块的底：#5B4BE8，深色 #8B80F9。
+    static let accentFill = dynamic(light: 0x5B4BE8, dark: 0x8B80F9)
+    /// 紫色文字、图标、细线：#5B4BE8，深色 #B4A9FF。
+    static let accentText = dynamic(light: 0x5B4BE8, dark: 0xB4A9FF)
+    /// 快到了、用完了：#C93400，深色 #FF9F0A。
+    static let warning = dynamic(light: 0xC93400, dark: 0xFF9F0A)
+
+    private static func dynamic(light: UInt32, dark: UInt32) -> Color {
+        func ui(_ hex: UInt32) -> UIColor {
+            UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? ui(dark) : ui(light) })
+    }
+}
+
 /// 没有数据时的那句话。
 enum DashText {
     static var emptyStats: String {

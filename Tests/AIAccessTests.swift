@@ -35,6 +35,11 @@ final class AIAccessTests: XCTestCase {
         XCTAssertEqual(AIAccess.trialState(start: start, now: date(15, 0), calendar: calendar), .expired(ended: date(15, 0)))
     }
 
+    /// 到期日统一写「用到 X 月 Y 日」：ends（第 15 天 0 点）减一天，就是第 14 天。
+    func testLastTrialDay() {
+        XCTAssertEqual(AIAccess.lastTrialDay(ends: date(15, 0), calendar: calendar), date(14, 0))
+    }
+
     /// 没领试用商品：不是自动开始的试用，按每天次数走。
     func testNotStartedUsesDailyQuota() {
         XCTAssertEqual(AIAccess.current, .notStarted)

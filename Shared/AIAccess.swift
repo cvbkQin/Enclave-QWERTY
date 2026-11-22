@@ -88,6 +88,11 @@ enum AIAccess: Equatable {
         return .trial(daysLeft: max(left, 1), ends: ends)
     }
 
+    /// 试用能用到的最后一天：ends 是第 15 天 0 点，显示减一天，写「用到 12 月 5 日」（11-22 cvbk 定，全 App 统一）。
+    static func lastTrialDay(ends: Date, calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: -1, to: ends) ?? ends
+    }
+
     /// 0.94 及以前的 TestFlight 版写过这个值（按已解锁处理，没有购买日期）；0.95 起不再写，App 启动时清掉。
     static let testFlightUnlock = "testflight"
 

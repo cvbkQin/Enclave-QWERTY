@@ -17,8 +17,8 @@ final class UnlockStore: ObservableObject {
 
     enum Message: Identifiable, Equatable {
         /// unavailable：连上了 App Store，但没给这个商品（App Store Connect 里没配好，开发版、沙盒里常见）。
-        /// trialStarted：试用开始了（或这个 Apple ID 以前就领过，从原来的日子接着算）。
-        case unlocked, trialStarted, pending, notFound, offline, unavailable, failed(String)
+        /// 买成功、试用开始了都不提示：Apple 自己会弹「已完成」，解锁页原地变成新状态（DESIGN.md，R5 ②）。unlocked 只给「恢复购买」用。
+        case unlocked, pending, notFound, offline, unavailable, failed(String)
         var id: String { "\(self)" }
     }
 
@@ -51,6 +51,12 @@ final class UnlockStore: ObservableObject {
     /// 价格用 StoreKit 给的本地化价格；还没拿到时显示美元档位。
     /// StoreKit 给的本地价格（中国区 ¥18）；商品还没加载出来时为 nil，按钮只写「解锁」，不写死美元价。
     var displayPrice: String? { product?.displayPrice }
+
+    /// 解锁页的买断按钮：「US$2.99 一次买断」，没拿到价格时只写「一次买断」。
+    var buyTitle: String {
+        guard let price = displayPrice else { return L("一次买断", "Buy once", "買い切りで購入") }
+        return L("\(price) 一次买断", "Buy once for \(price)", "\(price) で買い切り")
+    }
 
     /// 「¥18 解锁」，没拿到价格时只写「解锁」。
     var unlockTitle: String {
@@ -108,7 +114,6 @@ final class UnlockStore: ObservableObject {
             case .success(.verified(let transaction)):
                 await transaction.finish()
                 await refresh()
-                message = .trialStarted
             case .success(.unverified(_, let error)):
                 message = .failed(error.localizedDescription)
             case .pending:
@@ -138,7 +143,6 @@ final class UnlockStore: ObservableObject {
             case .success(.verified(let transaction)):
                 await transaction.finish()
                 await refresh()
-                message = .unlocked
             case .success(.unverified(_, let error)):
                 message = .failed(error.localizedDescription)
             case .pending:
