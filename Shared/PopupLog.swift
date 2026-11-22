@@ -48,6 +48,10 @@ struct PopupRecord: Codable, Identifiable {
     var snapshotSwap: Double?
     var snapshotMiss: String?
     var snapshotCapture: Double?
+    /// 建键盘后到存这条记录前，键盘视图的高度每变一次记一段（「第 N 毫秒 高度」，用 → 连起来），和我们要的高度。
+    /// 查「开着截图时，第一次下拉搜索框先停低了约 24pt、0.4 秒后才跳上去」：系统是不是到动画结束才定下键盘高度。
+    var heights: String?
+    var wantedHeight: Double?
     /// viewDidAppear 里同步做的事：剪贴板 / 帮回检测、常用词。
     var didClipboard: Double
     var didCommonWords: Double
@@ -66,29 +70,44 @@ struct PopupRecord: Codable, Identifiable {
 
     var isCold: Bool { nth == 1 }
 
-    /// 我们这边一共用了多久（毫秒）：冷启动从进程启动算，热启动从进程被叫醒算（没记到醒的时刻就从控制器建出来算），到键盘显示出来。
+    /// 系统提前把键盘进程启动好了（预热）：进程启动到开始建键盘隔了 5 秒以上，那段进程在闲着等，不算我们用的时间。
+    var prewarmed: Bool { (processToLoad ?? 0) > PopupLog.prewarmAfter }
+
+    /// 建键盘到显示出来超过 3 秒、又没量到被挂起：多半是弹出途中对方 App 走开了（切走、收起），过一会儿才接着显示。
+    /// 主线程每 50 毫秒被卡顿监测叫醒一次，睡不到半秒，「被挂起」那条量不出来。这次的耗时不算数。
+    var interrupted: Bool { paused == nil && loadToAppear > PopupLog.interruptedAfter }
+
+    /// 耗时不算数：中途被挂起，或者途中被打断。
+    var excluded: Bool { paused != nil || interrupted }
+
+    /// 我们这边一共用了多久（毫秒）：冷启动从进程启动算（系统预热过的从控制器建出来算），
+    /// 热启动从进程被叫醒算（没记到醒的时刻就从控制器建出来算），到键盘显示出来。
     var total: Double {
-        if let processToLoad { return processToLoad + loadToAppear }
+        if let processToLoad, !prewarmed { return processToLoad + loadToAppear }
         return (wakeToInit ?? 0) + initToLoad + loadToAppear
     }
 
     /// 明显慢：热启动超过 150 毫秒，冷启动超过 800 毫秒（平时热启动 50–70、冷启动 300–400）。
-    /// 中途被挂起的不算：那段时间键盘进程根本没在跑。
-    var isSlow: Bool { paused == nil && total >= (isCold ? PopupLog.slowCold : PopupLog.slowWarm) }
+    /// 中途被挂起、被打断的不算：那段时间键盘根本没在弹。
+    var isSlow: Bool { !excluded && total >= (isCold ? PopupLog.slowCold : PopupLog.slowWarm) }
 
     private static func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
 
     /// 第一行：什么时候、冷 / 热启动、一共多久、慢不慢。
     var title: String {
         let time = PopupLog.timeFormatter.string(from: at)
-        let kind = isCold ? "冷启动（键盘进程重新启动）" : "热启动（第 \(nth) 次弹出）"
-        return "\(time) · \(kind) · 共 \(Self.ms(total)) 毫秒\(isSlow ? " · 慢" : "")\(paused != nil ? " · 中途被挂起，不算" : "")"
+        let kind = isCold ? (prewarmed ? "冷启动（系统提前启动过键盘进程）" : "冷启动（键盘进程重新启动）") : "热启动（第 \(nth) 次弹出）"
+        var title = "\(time) · \(kind) · 共 \(Self.ms(total)) 毫秒\(isSlow ? " · 慢" : "")"
+        if paused != nil { title += " · 中途被挂起，不算" } else if interrupted { title += " · 途中被打断，不算" }
+        return title
     }
 
     /// 下面几行：每一段用了多久，用大白话写。
     var details: [String] {
         var lines: [String] = []
-        if let processToLoad {
+        if let processToLoad, prewarmed {
+            lines.append("系统提前 \(String(format: "%.1f", processToLoad / 1000)) 秒启动了键盘进程（预热），这段不算；弹出时建控制器到开始建键盘：\(Self.ms(initToLoad)) 毫秒")
+        } else if let processToLoad {
             lines.append("系统启动键盘进程到开始建键盘：\(Self.ms(processToLoad)) 毫秒")
         } else if let wakeToInit {
             var line = "键盘被叫醒（之前闲了 \(String(format: "%.1f", (idleBeforeWake ?? 0) / 1000)) 秒）到开始建键盘：\(Self.ms(wakeToInit + initToLoad)) 毫秒"
@@ -111,7 +130,11 @@ struct PopupRecord: Codable, Identifiable {
             lines.append("上次收起后的收尾 \(Self.ms(lastCleanupMs)) 毫秒\(when(lastCleanupBefore))，拆掉旧键盘 \(Self.ms(lastTeardownMs)) 毫秒\(when(lastTeardownBefore))")
         }
         var appear = "建键盘到显示出来：\(Self.ms(loadToAppear)) 毫秒（其中建视图 \(Self.ms(load))、弹出前准备 \(Self.ms(willAppear))：读设置 \(Self.ms(willReload))、排版 \(Self.ms(willLayout))）"
-        if let paused { appear += "，途中键盘进程被系统挂起 \(String(format: "%.1f", paused / 1000)) 秒" }
+        if let paused {
+            appear += "，途中键盘进程被系统挂起 \(String(format: "%.1f", paused / 1000)) 秒"
+        } else if interrupted {
+            appear += "，超过 \(Int(PopupLog.interruptedAfter / 1000)) 秒，多半是弹出途中切走了"
+        }
         lines.append(appear)
         var frame: [String] = []
         if let firstFrame { frame.append("建键盘后第 \(Self.ms(firstFrame)) 毫秒把第一帧交给系统") }
@@ -124,6 +147,9 @@ struct PopupRecord: Codable, Identifiable {
         if let snapshotMiss { shot.append("截图开关开着，这次没用截图：\(snapshotMiss)") }
         if let snapshotCapture { shot.append("这次截了一张图留给下次，用了 \(Self.ms(snapshotCapture)) 毫秒") }
         if !shot.isEmpty { lines.append(shot.joined(separator: "；")) }
+        if let heights {
+            lines.append("键盘高度：\(heights)\(wantedHeight.map { "（我们要的 \(Self.ms($0))）" } ?? "")")
+        }
         var engine = "显示后：剪贴板和帮回检测 \(Self.ms(didClipboard)) 毫秒，拼音能打 \(Self.ms(engineReady)) 毫秒"
         if engineWait != nil || engineRun != nil {
             engine += "（引擎排队 \(Self.ms(engineWait))、准备 \(Self.ms(engineRun))\(engineWork.map { "：" + $0 } ?? "")）"
@@ -158,6 +184,9 @@ enum PopupLog {
     private static let keepSpecial = 40
     static let slowWarm: Double = 150
     static let slowCold: Double = 800
+    /// 建键盘到显示出来超过这么久（毫秒）算途中被打断；进程启动到建键盘超过这么久算系统预热过。
+    static let interruptedAfter: Double = 3000
+    static let prewarmAfter: Double = 5000
 
     /// 正式版不记。
     static var enabled: Bool {
@@ -232,11 +261,6 @@ enum PopupLog {
     static var lastTeardownMs: Double?
     static var lastCleanupDone: CFTimeInterval?
     static var lastTeardownDone: CFTimeInterval?
-    /// 最近一次弹出把第一帧交给系统的时刻（load 是那次的 viewDidLoad 开始时刻，用来对上是哪一次）。
-    static var firstFrame: (load: CFTimeInterval, at: CFTimeInterval)?
-    /// 「先显示截图」：真键盘换下截图的时刻、截一张图用了多少毫秒（load 同上，对上是哪一次）。
-    static var snapshotSwap: (load: CFTimeInterval, at: CFTimeInterval)?
-    static var snapshotCapture: (load: CFTimeInterval, ms: Double)?
 
     /// 测试工具 › 弹出记录里的开关「弹出时先显示截图」（试验，默认关）。只在记弹出记录的包里有用。
     static let snapshotEnabledKey = "debug.popupSnapshot"
@@ -268,9 +292,9 @@ enum PopupLog {
         let warm = records.filter { !$0.isCold }
         func ms(_ value: Double?) -> String { value.map { String(format: "%.0f", $0) } ?? "-" }
         var parts = ["最近 \(records.count) 次弹出"]
-        // 中途被挂起的那几次耗时不算数，不进「一般多久」。
-        let warmTimes = warm.filter { $0.paused == nil }.map(\.total)
-        let coldTimes = cold.filter { $0.paused == nil }.map(\.total)
+        // 中途被挂起、被打断的那几次耗时不算数，不进「一般多久」。
+        let warmTimes = warm.filter { !$0.excluded }.map(\.total)
+        let coldTimes = cold.filter { !$0.excluded }.map(\.total)
         if !warm.isEmpty { parts.append("热启动 \(warm.count) 次，一般 \(ms(median(warmTimes))) 毫秒") }
         if !cold.isEmpty { parts.append("冷启动 \(cold.count) 次，一般 \(ms(median(coldTimes))) 毫秒") }
         let slow = records.filter(\.isSlow).count
@@ -288,6 +312,9 @@ enum PopupLog {
     「第一帧」：键盘第一次把画好的样子交给系统；在这之前系统那边只有一块空的键盘底板，交晚了就会看到底板先往上滑、键后冒出来。
     「先显示截图」：测试工具里的试验开关。开着时，样子和上次一样就先放一张上次截的图，第一帧马上交出去，真键盘随后换上。
     「中途被挂起」：键盘建到一半，系统把键盘进程挂起了（比如弹出时切走或锁屏），那次的耗时不算数，也不标慢。
+    「途中被打断」：建键盘到显示出来超过 \(Int(interruptedAfter / 1000)) 秒，多半是弹出途中切走了、过一会儿才接着显示，同样不算数。
+    「系统提前启动过键盘进程」：系统预先把键盘进程启动好放着（预热），进程启动到弹出隔了好几秒，这段不算进冷启动的时间。
+    「键盘高度」：弹出后系统给键盘的高度每变一次记一段；刚开始常常是整屏高（还没定），定下来应该等于我们要的高度。
     明显慢：热启动超过 \(Int(slowWarm)) 毫秒、冷启动超过 \(Int(slowCold)) 毫秒，标「慢」，和冷启动一起另外保留。
     """
 
@@ -401,5 +428,28 @@ enum MainStalls {
         let hits = stalls.filter { $0.at + $0.ms / 1000 > from && $0.at < to }
         lock.unlock()
         return (hits.map(\.ms).max() ?? 0, hits.map(\.ms).reduce(0, +))
+    }
+}
+
+/// 一次弹出途中记下的几个时刻（CACurrentMediaTime）。每个键盘控制器一份：原来放在 PopupLog 的静态变量里，
+/// 两次弹出挨得很近（0.1 秒）时后一次把前一次的盖掉，前一次的「第一帧」「截图」几行就丢了。
+final class PopupMarks {
+    /// 把第一帧交给系统、真键盘换下截图的时刻；截一张图用了多少毫秒。
+    var firstFrame: CFTimeInterval?
+    var snapshotSwap: CFTimeInterval?
+    var snapshotCapture: Double?
+    /// 键盘视图高度每变一次记一条。
+    var heights: [(at: CFTimeInterval, height: Double)] = []
+
+    func noteHeight(_ height: Double, at time: CFTimeInterval) {
+        guard heights.last?.height != height, heights.count < 12 else { return }
+        heights.append((time, height))
+    }
+
+    /// 「第 13 毫秒 667 → 第 62 毫秒 296」，从 start（viewDidLoad 开始）算。
+    func heightsText(from start: CFTimeInterval) -> String? {
+        guard !heights.isEmpty else { return nil }
+        return heights.map { "第 \(String(format: "%.0f", ($0.at - start) * 1000)) 毫秒 \(String(format: "%.0f", $0.height))" }
+            .joined(separator: " → ")
     }
 }

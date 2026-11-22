@@ -1172,7 +1172,8 @@ extension KeyboardModel {
             // 联想数据等拼音引擎启动完再读：冷启动时两边一起读词库，抢 CPU 和磁盘，键盘出来得慢。
             if ok {
                 TypingStats.noteLaunchEngineReady()
-                self?.engineReadyAt = CACurrentMediaTime()
+                // 只记第一次好的时刻：之后再准备（切中英、换布局、回前台）不改它，不然「拼音能打」会被后来的准备拉长。
+                if self?.engineReadyAt == nil { self?.engineReadyAt = CACurrentMediaTime() }
                 Predictor.prepare()
             }
             guard let self, !ok, self.pinyinReady else { return }
