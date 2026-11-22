@@ -43,13 +43,20 @@ enum Loc {
         return .en
     }
 
-    /// 按 iPhone 的语言取，不看 App 里选的语言：写系统设置里的菜单名（设置 › 通用 › 键盘…）时用，那边跟着 iPhone 走。
-    static func systemText(_ zh: String, _ en: String, _ ja: String) -> String {
-        switch system {
-        case .en: return en
-        case .ja: return ja
-        case .zh, .system: return zh
+    /// 系统设置里显示的我们的名字（App 和键盘一样：中文「飞地输入法」，英文、日文「Enclave」）。
+    /// 取 Bundle.main 的显示名（各语言的 InfoPlist.strings），按系统挑本地化的办法挑（iPhone 的语言顺序对我们带的几种语言），
+    /// 和系统设置里显示的一样，不跟 App 里选的语言。带用户去系统设置的文字和插图里，App 名、键盘名都用它；
+    /// 路径里其他的词（设置、通用、键盘……）照旧用 L()（02 定，design/fix/系统设置里的键盘名.md）。
+    static var nameInSettings: String {
+        let bundle = Bundle.main
+        let localization = Bundle.preferredLocalizations(from: bundle.localizations, forPreferences: Locale.preferredLanguages).first
+        if let localization,
+           let path = bundle.path(forResource: "InfoPlist", ofType: "strings", inDirectory: nil, forLocalization: localization),
+           let strings = NSDictionary(contentsOfFile: path), let name = strings["CFBundleDisplayName"] as? String, !name.isEmpty {
+            return name
         }
+        return bundle.localizedInfoDictionary?["CFBundleDisplayName"] as? String
+            ?? bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Enclave"
     }
 
     /// 日期、价格等格式化用的地区。
