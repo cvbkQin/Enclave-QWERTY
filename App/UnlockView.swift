@@ -491,7 +491,9 @@ private struct ProviderChips: View {
                     .frame(height: 28)
                     .background(Capsule().fill(Color(.tertiarySystemFill)))
             }
-            Text(L("+ 任意 OpenAI 兼容接口", "+ Any OpenAI-compatible API", "+ OpenAI 互換の API なら何でも"))
+            // 中国大陆店面不出现 OpenAI 字样（05 上架风险报告低 7）。
+            Text(Storefront.isMainlandChina ? L("+ 任意兼容接口", "+ Any compatible API", "+ 互換の API なら何でも")
+                 : L("+ 任意 OpenAI 兼容接口", "+ Any OpenAI-compatible API", "+ OpenAI 互換の API なら何でも"))
                 .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(Color(hex: 0x5B4BE8))
                 .padding(.horizontal, 10)

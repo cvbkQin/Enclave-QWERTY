@@ -125,7 +125,9 @@ struct HotDictsView: View {
                     } else if store.isDownloaded(item.id) {
                         CapsuleButton(title: L("已下载", "Downloaded", "ダウンロード済み"), active: false) {}
                     } else if ExtDictCatalog.downloadURL(item) == nil {
-                        CapsuleButton(title: L("准备中", "Coming soon", "準備中"), active: false) {}
+                        // 不写「准备中 / Coming soon」：审核指南 2.3.1 不让写还没有的功能（05 上架风险报告低 4）。
+                        // 服务器清单里都有地址，只有拉不到清单、用 App 自带的那份时才会走到这里。
+                        CapsuleButton(title: L("暂时无法下载", "Unavailable", "現在ダウンロード不可"), active: false) {}
                     } else {
                         CapsuleButton(title: L("下载", "Download", "ダウンロード"), active: true) { store.download(item) }
                     }
