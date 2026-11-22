@@ -235,7 +235,7 @@ enum ICloudSync {
             var best: (time: Date, name: String)?
             for (_, payload) in PeerCache.payloads(excluding: own) {
                 guard let entry = payload.apis?[id.uuidString], entry.value != nil else { continue }
-                if let current = best, entry.time <= current.time { continue }
+                if let current = best, !entry.time.isAfter(current.time) { continue }
                 best = (entry.time, payload.deviceName)
             }
             return best?.name
@@ -798,7 +798,7 @@ actor ICloudSyncEngine {
                     let payload = (record.encryptedValues["payload"] as? Data)
                         .flatMap { try? JSONDecoder().decode(SyncMerge.DevicePayload.self, from: $0) }
                     let date = payload?.updatedAt ?? record.modificationDate ?? .distantPast
-                    if let current = latest, current.date >= date { continue }
+                    if let current = latest, !date.isAfter(current.date) { continue }
                     latest = (payload?.deviceName ?? L("另一台设备", "another device", "別のデバイス"), date)
                 }
                 token = changes.changeToken
@@ -820,7 +820,7 @@ actor ICloudSyncEngine {
         var best: (time: Date, payload: SyncMerge.DevicePayload)?
         for (_, payload) in candidates {
             guard let time = payload.endpoint?.time else { continue }
-            if let current = best, time <= current.time { continue }
+            if let current = best, !time.isAfter(current.time) { continue }
             best = (time, payload)
         }
         guard let best else { return nil }
