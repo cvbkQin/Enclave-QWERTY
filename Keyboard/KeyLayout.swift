@@ -80,6 +80,9 @@ struct KeyLayoutResult: Equatable {
     /// 都不归触摸层管。
     var padFunctions: CGRect?
     var padMiddle: CGRect?
+    /// iPad 全宽 9 键：九键另一边上面三排高的整块（功能键一列 + 中间那块，连它们四周半条缝、一直到按键区顶边）。
+    /// 触摸层这里不接：不然点在缝里会按「最近的键」算，功能键一列最近的是左下的 🌐，一点就切到别的键盘。
+    var padUpper: CGRect?
 }
 
 /// 按当前状态算出所有按键的位置，参照 iOS 自带键盘的比例。

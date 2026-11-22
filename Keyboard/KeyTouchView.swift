@@ -62,6 +62,7 @@ final class KeyTouchView: UIView {
         if let column = layout.pinyinColumn, column.contains(point) { return false }
         if let column = layout.operatorColumn, column.contains(point) { return false }
         if let middle = layout.middle, middle.contains(point) { return false }
+        if let upper = layout.padUpper, upper.contains(point) { return false }
         return super.point(inside: point, with: event)
     }
 
