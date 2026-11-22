@@ -6,16 +6,22 @@ import SwiftUI
 /// 提示词（R2b）：润色风格、问答风格上下两组，带图钉和本周次数；右上「编辑」就地排序、删除，「＋」新建；最下面删掉的预设可加回。
 struct AITab: View {
     @EnvironmentObject private var router: AppRouter
+    /// iPad 宽屏的「接口」标签（PA1 ②）：固定在接口，没有分段；nil 时照 iPhone 用顶上的分段。
+    var segment: AppRouter.AISegment?
 
     var body: some View {
         NavigationStack(path: $router.aiPath) {
-            AIView()
+            AIView(fixedSegment: segment)
                 .navigationDestination(for: AppRouter.AIPage.self) { page in
-                    switch page {
-                    case .api(let answer): ModelSettingsView(answer: answer)
-                    case .resultKey: ResultKeySettingsView()
-                    case .recent(let answer): RecentRequestsView(answer: answer)
+                    Group {
+                        switch page {
+                        case .api(let answer): ModelSettingsView(answer: answer)
+                        case .resultKey: ResultKeySettingsView()
+                        case .recent(let answer): RecentRequestsView(answer: answer)
+                        }
                     }
+                    // 子页面内容照 iPhone，iPad 宽屏时最宽 640 居中。
+                    .padReadable(router.wideLayout)
                 }
         }
     }
@@ -31,6 +37,10 @@ enum PromptsDebug {
 struct AIView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
+    /// iPad 宽屏的「接口」标签固定在接口（PA1 ②），不显示「接口 | 提示词」分段。
+    var fixedSegment: AppRouter.AISegment?
+
+    private var segment: AppRouter.AISegment { fixedSegment ?? router.aiSegment }
     /// 没同意隐私政策时点「测试连接」：先去同意。
     @State private var needsPrivacy = false
     /// 大陆店面从「禁止」改成「开 / 每次询问」前的确认框（AP4）：选的那一档。
@@ -54,17 +64,30 @@ struct AIView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
-            List {
-                if router.aiSegment == .api {
-                    apiSection(answer: false)
-                    apiSection(answer: true)
-                    webSearchSection
-                    KeyboardAISection()
+            Group {
+                if segment == .api && fixedSegment != nil {
+                    // iPad「接口」标签（PA1 ②）：润色和键盘里的 AI 在左，问答和联网搜索在右；竖屏一列、最宽 640。
+                    PadColumns {
+                        apiSection(answer: false)
+                        KeyboardAISection()
+                    } right: {
+                        apiSection(answer: true)
+                        webSearchSection
+                    }
                 } else {
-                    // 提示词（R2b）：润色风格、问答风格上下两组，不再有第二层分段；右上「编辑」「＋」。
-                    PromptListSections(answer: false, settings: $store.settings) { debugEditing = $0 }
-                    PromptListSections(answer: true, settings: $store.settings) { editingAnswerStyle = $0 }
-                    DeletedPresetsSection(settings: $store.settings)
+                    List {
+                        if segment == .api {
+                            apiSection(answer: false)
+                            apiSection(answer: true)
+                            webSearchSection
+                            KeyboardAISection()
+                        } else {
+                            // 提示词（R2b）：润色风格、问答风格上下两组，不再有第二层分段；右上「编辑」「＋」。
+                            PromptListSections(answer: false, settings: $store.settings) { debugEditing = $0 }
+                            PromptListSections(answer: true, settings: $store.settings) { editingAnswerStyle = $0 }
+                            DeletedPresetsSection(settings: $store.settings)
+                        }
+                    }
                 }
             }
             .tint(DashColor.ai)
@@ -73,15 +96,17 @@ struct AIView: View {
             .onAppear { openAnswerStyles(proxy) }
             .onChange(of: router.promptKind) { _ in openAnswerStyles(proxy) }
         }
-        .pinnedTabTitle(caption: caption, title: AppRouter.aiTabTitle) {
-            Picker("", selection: $router.aiSegment) {
-                Text(L("接口", "API", "API")).tag(AppRouter.AISegment.api)
-                Text(L("提示词", "Prompts", "プロンプト")).tag(AppRouter.AISegment.prompts)
+        .pinnedTabTitle(caption: caption, title: fixedSegment == .api ? L("接口", "API", "API") : AppRouter.aiTabTitle) {
+            if fixedSegment == nil {
+                Picker("", selection: $router.aiSegment) {
+                    Text(L("接口", "API", "API")).tag(AppRouter.AISegment.api)
+                    Text(L("提示词", "Prompts", "プロンプト")).tag(AppRouter.AISegment.prompts)
+                }
+                .pickerStyle(.segmented)
+                .frame(height: 34)
             }
-            .pickerStyle(.segmented)
-            .frame(height: 34)
         } trailing: {
-            if router.aiSegment == .prompts {
+            if segment == .prompts {
                 // 系统的编辑按钮：自己管 editMode 时拖过一次后再拖、点 ⊖ 都没反应（PH2 的经验）。
                 EditButton()
                     .environment(\.locale, Loc.locale)
@@ -96,7 +121,7 @@ struct AIView: View {
             Button(L("润色风格", "Polish style", "整えるスタイル")) { addStyle(answer: false) }
             Button(L("问答风格", "Answer style", "回答スタイル")) { addStyle(answer: true) }
         }
-        .navigationTitle(AppRouter.aiTabTitle)
+        .navigationTitle(fixedSegment == .api ? L("接口", "API", "API") : AppRouter.aiTabTitle)
         .tabRootPage()
         .onAppear {
             reloadRecent()

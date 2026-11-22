@@ -160,12 +160,31 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     /// 横屏用简版尺寸。键盘扩展里拿不到界面方向：有窗口时按屏幕宽高比，还没进窗口时看竖向尺寸类（iPhone 横屏是 compact）。
+    /// iPad：全宽时按键盘宽和屏幕定 iPad 尺寸（PadMetrics，11 寸 / 13 寸、横竖屏）；浮动键盘（宽约 320）照 iPhone 竖屏排，
+    /// 不用 iPhone 横屏的扁按键。还没进窗口时先沿用这个进程上次的 iPad 尺寸，进了窗口再核（scheduleOrientationCheck）。
     private func updateOrientation() {
-        if let screen = view.window?.windowScene?.screen.bounds.size {
-            model.setLandscape(screen.width > screen.height)
+        if let geometry = currentGeometry() {
+            model.setLandscape(geometry.landscape, pad: geometry.pad, floating: isPad && geometry.pad == nil)
+        } else if isPad {
+            let width = view.bounds.width
+            let pad = width > 0 && width < 500 ? nil
+                : KeyboardMetrics.padBase ?? PadMetrics.make(isPad: true, width: 820, screen: CGSize(width: 820, height: 1180))
+            model.setLandscape(false, pad: pad, floating: pad == nil)
         } else {
             model.setLandscape(traitCollection.verticalSizeClass == .compact)
         }
+        // 浮动和全宽来回换时 🌐 跟着变（浮动时不画自己的），不等下一次布局。
+        updateGlobeKey()
+    }
+
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    /// 进了窗口以后按屏幕和键盘宽算出来的方向和 iPad 尺寸；还没进窗口时为 nil。
+    private func currentGeometry() -> (landscape: Bool, pad: PadMetrics?)? {
+        guard let screen = view.window?.windowScene?.screen.bounds.size else { return nil }
+        let width = view.bounds.width > 0 ? view.bounds.width : screen.width
+        let pad = PadMetrics.make(isPad: isPad, width: width, screen: screen)
+        return (!isPad && screen.width > screen.height, pad)
     }
 
     /// 方向复查：弹出时（viewWillAppear）往往还没进窗口，只能看尺寸类，而键盘进程里留着的旧值可能还是上次横屏的 compact；
@@ -174,8 +193,9 @@ final class KeyboardViewController: UIInputViewController {
     /// 布局途中不直接改高度约束（updateHeight 会让父视图立刻重排），放到下一轮做。
     private var orientationCheckScheduled = false
     private func scheduleOrientationCheck() {
-        guard !orientationCheckScheduled, let screen = view.window?.windowScene?.screen.bounds.size,
-              (screen.width > screen.height) != model.landscape || (screen.width > screen.height) != KeyboardMetrics.landscape
+        guard !orientationCheckScheduled, let geometry = currentGeometry(),
+              geometry.landscape != model.landscape || geometry.landscape != KeyboardMetrics.landscape
+                || geometry.pad != model.pad || geometry.pad != KeyboardMetrics.padBase
         else { return }
         orientationCheckScheduled = true
         DispatchQueue.main.async { [weak self] in
@@ -188,7 +208,9 @@ final class KeyboardViewController: UIInputViewController {
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
-        guard previousTraitCollection?.verticalSizeClass != traitCollection.verticalSizeClass else { return }
+        // iPad 换成浮动键盘、换回全宽时横向尺寸类会变，也重排一次。
+        guard previousTraitCollection?.verticalSizeClass != traitCollection.verticalSizeClass
+                || previousTraitCollection?.horizontalSizeClass != traitCollection.horizontalSizeClass else { return }
         DispatchQueue.main.async { [weak self] in
             self?.updateOrientation()
             self?.updateHeight()
@@ -606,6 +628,7 @@ final class KeyboardViewController: UIInputViewController {
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
         releaseEngine()
         model.pressedKeys = []
+        if !model.keyPresses.flicked.isEmpty { model.keyPresses.flicked = [] }
         model.trackpadActive = false
         model.dismissPredictions()
         Self.flushShared()
@@ -673,7 +696,9 @@ final class KeyboardViewController: UIInputViewController {
     /// 只在变了的时候设：needsGlobeKey 是 @Published，设一次（哪怕值一样）整个键盘就重画一遍、高度也要重算，
     /// 而每次布局都会走到这里，弹出动画途中会连着重画好多次，看起来就是卡。
     private func updateGlobeKey() {
-        let needs = needsInputModeSwitchKey
+        // iPad 浮动键盘（PK13）：系统在键盘下面自己画一排 🌐 … 🎤（模拟器 iPadOS 27.2 实测），needsInputModeSwitchKey
+        // 却还是 true，照它画就有两个 🌐。浮动时不画自己的，26 键底排没有 🌐、9 键左下回到 ☺。全宽时系统下面没有这一排，照样画。
+        let needs = needsInputModeSwitchKey && !KeyboardMetrics.floating
         if model.needsGlobeKey != needs { model.needsGlobeKey = needs }
     }
 }

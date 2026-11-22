@@ -8,6 +8,15 @@ struct HistoryTab: View {
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
+        if router.wideLayout {
+            // iPad 宽屏（PA2 ④）：左边列表、右边详情。
+            HistorySplitView()
+        } else {
+            stack
+        }
+    }
+
+    private var stack: some View {
         NavigationStack(path: $router.historyPath) {
             HistoryListView()
                 .navigationDestination(for: AppRouter.HistoryPage.self) { page in
@@ -58,7 +67,8 @@ final class HistoryStore: ObservableObject {
 
     /// 首页、列表顶上的那行小字。
     var caption: String {
-        let here = L("只存在这台 iPhone 上", "Only on this iPhone", "この iPhone にだけ保存")
+        let device = DeviceName.current
+        let here = L("只存在这台 \(device) 上", "Only on this \(device)", "この \(device) にだけ保存")
         guard enabled else { return here }
         switch retention {
         case .forever: return here
@@ -197,6 +207,7 @@ enum HistoryFormat {
 
 struct HistoryListView: View {
     @EnvironmentObject private var router: AppRouter
+    @Environment(\.padSplit) private var padSplit
     @ObservedObject private var store = HistoryStore.shared
     @State private var query = ""
     @State private var filter: HistoryFilter = .all
@@ -239,7 +250,7 @@ struct HistoryListView: View {
                 Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
                 Button(L("清空", "Clear", "消去"), role: .destructive) { store.clear() }
             } message: {
-                Text(L("这台 iPhone 上的润色和问答记录都会删除。", "All polish and Q&A records on this iPhone will be deleted.", "この iPhone の整える・質問の記録がすべて削除されます。"))
+                Text(L("这台 \(DeviceName.current) 上的润色和问答记录都会删除。", "All polish and Q&A records on this \(DeviceName.current) will be deleted.", "この \(DeviceName.current) の整える・質問の記録がすべて削除されます。"))
             }
     }
 
@@ -262,10 +273,12 @@ struct HistoryListView: View {
                 ForEach(groups(Array(list.prefix(limit))), id: \.title) { group in
                     Section(group.title) {
                         ForEach(group.entries) { entry in
-                            Button { router.historyPath.append(AppRouter.HistoryPage.detail(entry.id)) } label: {
+                            Button { router.openHistory(entry.id) } label: {
                                 HistoryRow(entry: entry)
                             }
                             .buttonStyle(.plain)
+                            // iPad 两栏：右边正在看的那一行浅紫底（PA2 ④）。
+                            .listRowBackground(padSplit && router.historySelection == entry.id ? AppColor.chipSelectedFill : nil)
                             .listRowInsets(EdgeInsets(top: 9, leading: 16, bottom: 9, trailing: 16))
                             .swipeActions(edge: .trailing) {
                                 Button(L("删除", "Delete", "削除"), role: .destructive) { store.delete(entry.id) }
@@ -965,7 +978,7 @@ struct HistorySettingsView: View {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
             Button(L("清空", "Clear", "消去"), role: .destructive) { store.clear() }
         } message: {
-            Text(L("这台 iPhone 上的润色和问答记录都会删除。", "All polish and Q&A records on this iPhone will be deleted.", "この iPhone の整える・質問の記録がすべて削除されます。"))
+            Text(L("这台 \(DeviceName.current) 上的润色和问答记录都会删除。", "All polish and Q&A records on this \(DeviceName.current) will be deleted.", "この \(DeviceName.current) の整える・質問の記録がすべて削除されます。"))
         }
     }
 }

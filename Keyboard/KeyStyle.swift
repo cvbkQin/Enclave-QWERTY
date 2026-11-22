@@ -3,7 +3,66 @@ import SwiftUI
 import UIKit
 
 /// 键盘尺寸，按 iOS 26 自带简体拼音键盘在 402pt 宽的 iPhone 上量出来的。键盘高度也从这里算。
+/// iPad 全宽键盘的尺寸（PK1、PK2，照 iPad 原生）。浮动键盘（宽约 320）和 iPhone 一样排，没有这一份。
+/// 每个键之间隔 gap，按键区离键盘左右边 edge、离上边 top、离下边 bottom；最下面一排矮 15%（11-22 cvbk「下巴感觉都很大」）。
+/// 11-22 16:01 重定（design/ipad/交接.md「键盘高度」，对齐清单第 83 条）：iPadOS 在第三方键盘上面固定画一条快捷栏（约 55）、
+/// 下面留 home 横条区（约 20），算上这两条重新分高度：11、13 寸一样，竖屏键高 50、横屏 58，键距 8，上下边 6。
+struct PadMetrics: Equatable {
+    var keyHeight: CGFloat
+    var gap: CGFloat
+    var edge: CGFloat
+    var top: CGFloat
+    var bottom: CGFloat
+    /// 字母键的字号；功能键（123、中/英、空格、发送）用它的 72%。
+    var fontSize: CGFloat
+    /// 13 寸（长边 1300 以上）：多一排数字，标点各有自己的键，26 键是 5 行。
+    var big: Bool
+    var landscape: Bool
+
+    /// 最下面一排：键高 50 以上的矮 15%（竖屏 43、横屏 49；9 键压扁后横屏 50 → 43，竖屏 44 不再矮）。
+    var bottomKeyHeight: CGFloat { keyHeight >= 50 ? (keyHeight * 0.85).rounded() : keyHeight }
+    var functionFontSize: CGFloat { (fontSize * 0.72).rounded() }
+    /// 26 键字母页的行数。数字符号页也按这个高度排，切过去键盘不跳。
+    var rows: Int { big ? 5 : 4 }
+    var keysHeight: CGFloat { keysHeight(rows: rows) }
+    /// 全宽 9 键（PK3）一直是 4 排，13 寸也是。
+    func keysHeight(rows: Int) -> CGFloat { top + bottom + CGFloat(rows - 1) * (keyHeight + gap) + bottomKeyHeight }
+
+    /// 9 键开着回答卡时按键压扁（PK15，11-22 cvbk「底下这里可以压缩么」；16:01 重定）：每排横屏 50、竖屏 44，字小一号。
+    /// 按键区竖屏 212、横屏 229，加上卡片收起 88 是 300 / 317（交接.md）。
+    var compressed: PadMetrics {
+        var metrics = self
+        metrics.keyHeight = landscape ? 50 : 44
+        metrics.fontSize -= 1
+        return metrics
+    }
+
+    /// 键盘宽 width（浮动时约 320）、屏幕 screen（按当前方向）。不是 iPad 或者是浮动键盘时为 nil。
+    static func make(isPad: Bool, width: CGFloat, screen: CGSize) -> PadMetrics? {
+        guard isPad, width >= 500 else { return nil }
+        let landscape = screen.width > screen.height
+        let big = max(screen.width, screen.height) >= 1300
+        switch (big, landscape) {
+        case (_, false): return PadMetrics(keyHeight: 50, gap: 8, edge: 6, top: 6, bottom: 6, fontSize: 22, big: big, landscape: false)
+        case (_, true): return PadMetrics(keyHeight: 58, gap: 8, edge: 8, top: 6, bottom: 6, fontSize: 24, big: big, landscape: true)
+        }
+    }
+}
+
 enum KeyboardMetrics {
+    /// iPad 全宽键盘（PK1、PK2）：控制器按键盘宽和屏幕设，浮动键盘和 iPhone 为 nil。有值时 landscape 一直是 false
+    /// （iPhone 横屏那套扁按键、九宫格分左中右不用在 iPad 上）。
+    static var padBase: PadMetrics?
+    /// iPad 全宽 9 键（PK3、PK4）：没有整行顶栏和拼音行，按键 4 排；开着回答卡时按键压扁（PK15）。
+    /// KeyboardModel.syncPadMetrics 按键盘状态设。
+    static var padNine = false
+    static var padCompressed = false
+    /// 现在按键用的尺寸：平时就是 padBase，9 键开着回答卡时是压扁的那份。各尺寸按这一份算。
+    static var pad: PadMetrics? {
+        guard let padBase else { return nil }
+        return padNine && padCompressed ? padBase.compressed : padBase
+    }
+
     /// 横屏（LN1、LN2，11-18 定稿，照 iOS 原生）：按键高 32、行距 6，AI 栏的键也高 32；按键区铺满键盘宽（系统横屏给键盘的宽
     /// 已经让开了两边画地球、话筒的地方，约 724，按键外沿 714）。全键盘不分左右，AI 栏在最上面；
     /// 九宫格分左列、中间、右边四列（KeyLayout.LandscapeNine），中间上面是 AI 栏、下面是联想 / 候选 / 结果卡，键盘不变高。
@@ -11,38 +70,61 @@ enum KeyboardMetrics {
     static var landscape = false
 
     /// 一个按键格子的高度（含上下间隙）：行距 54，按键本身 43；横屏 38（键 32 + 缝 6）。
-    static var slotHeight: CGFloat { landscape ? 38 : 54 }
-    static let keyInsetX: CGFloat = 3.1
-    static var keyInsetY: CGFloat { landscape ? 3 : 5.5 }
-    static var keysHeight: CGFloat { slotHeight * 4 }
+    /// iPad 浮动键盘（PK13，宽约 320）：照 iPhone 竖屏排，但矮一点：AI 栏 42，每行 40（键 34 + 缝 6），总高约 240。
+    /// 控制器在 iPad 上键盘宽不到 500 时设（KeyboardModel.setLandscape）。
+    static var floating = false
+
+    static var slotHeight: CGFloat { pad.map { $0.keyHeight + $0.gap } ?? (floating ? 40 : (landscape ? 38 : 54)) }
+    /// iPad 上键帽四周各留半条缝。
+    static var keyInsetX: CGFloat { pad.map { $0.gap / 2 } ?? 3.1 }
+    static var keyInsetY: CGFloat { pad.map { $0.gap / 2 } ?? (floating || landscape ? 3 : 5.5) }
+    static var keysHeight: CGFloat {
+        guard let pad else { return slotHeight * 4 }
+        return padNine ? pad.keysHeight(rows: 4) : pad.keysHeight
+    }
     /// 全键盘底行「中/英」键宽 42pt，字 14pt；九宫格的「中/英」16pt。
     static let toggleKeyWidth: CGFloat = 42
-    static let toggleFontSize: CGFloat = 14
-    static let nineToggleFontSize: CGFloat = 16
+    static var toggleFontSize: CGFloat { pad?.functionFontSize ?? 14 }
+    static var nineToggleFontSize: CGFloat { pad?.functionFontSize ?? 16 }
     /// 全键盘 Shift、删除键画出来的宽度（触摸范围仍是 1.5 格）。
     static let shiftKeyWidth: CGFloat = 45
     /// 九宫格对齐原生：键高 46、行距 7（每行 53），列距 6、两边各 7，五列等宽。
     /// 四行 212pt，比按键区少 4pt，上下各留 2pt，键盘总高不变。
-    static var nineKeyHeight: CGFloat { landscape ? 32 : 46 }
-    static var nineRowGap: CGFloat { landscape ? 6 : 7 }
-    static let nineColumnGap: CGFloat = 6
-    static let nineSideMargin: CGFloat = 7
+    /// iPad 全宽 9 键（PK3）：键高、键距照 26 键，最下面一排矮 15%（KeyLayout.padNine 自己排）。
+    static var nineKeyHeight: CGFloat {
+        if let pad { return pad.keyHeight }
+        if floating { return 34 }
+        return landscape ? 32 : 46
+    }
+    static var nineRowGap: CGFloat { pad?.gap ?? (floating || landscape ? 6 : 7) }
+    static var nineColumnGap: CGFloat { pad?.gap ?? 6 }
+    static var nineSideMargin: CGFloat { pad?.edge ?? 7 }
     static var nineRowPitch: CGFloat { nineKeyHeight + nineRowGap }
-    static var nineTopOffset: CGFloat { (keysHeight - nineRowPitch * 4) / 2 }
-    static let nineKeyInsetX: CGFloat = nineColumnGap / 2
+    static var nineTopOffset: CGFloat { pad.map { $0.top - $0.gap / 2 } ?? (keysHeight - nineRowPitch * 4) / 2 }
+    static var nineKeyInsetX: CGFloat { nineColumnGap / 2 }
     static var nineKeyInsetY: CGFloat { nineRowGap / 2 }
     /// 打拼音时左列音节栏每格 38pt，四格正好是三个键加两条缝；横屏每格 36（LN1 ②，三格露 3 项）。
-    static var pinyinCellHeight: CGFloat { landscape ? 36 : 38 }
+    static var pinyinCellHeight: CGFloat {
+        if let pad { return (nineRowPitch * 3 - pad.gap) / 4 }
+        if floating { return (nineRowPitch * 3 - nineRowGap) / 4 }
+        return landscape ? 36 : 38
+    }
 
     /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 36 高（横屏 28，和原生差不多），平时空着，键盘总高不随打字变化。
     /// 竖屏收着时总高 36 + 44 + 216 = 296。
-    static var pinyinRowHeight: CGFloat { landscape ? 28 : 36 }
+    /// iPad 28（16:01 重定）。
+    static var pinyinRowHeight: CGFloat { pad != nil ? 28 : (landscape ? 28 : 36) }
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     /// 横屏 38：键 32 居中，上面再加 boardTop 4，键盘上边到 AI 栏 7、AI 栏到第一行键 6（LN2）。
-    static var topRow: CGFloat { landscape ? 38 : 44 }
+    /// iPad 44（16:01 重定，原来 52）。
+    static var topRow: CGFloat { pad != nil ? 44 : (floating ? 42 : (landscape ? 38 : 44)) }
     /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 32）。
-    static var chipHeight: CGFloat { landscape ? 32 : 34 }
+    /// iPad 9 键的功能键一列（PK3 ①，16:01 重定）：竖屏 86×32、横屏 94×36。
+    static var chipHeight: CGFloat {
+        if let pad, padNine { return pad.landscape ? 36 : 32 }
+        return landscape || floating ? 32 : 34
+    }
     /// 横屏键盘最上面多留的一截：加上按键自己的上缝 3，第一行离键盘上边 7。竖屏 0。
     static var boardTop: CGFloat { landscape ? 4 : 0 }
     /// AI 栏的键上下各剩多少（滑动区会裁掉伸出去的投影）。
@@ -58,7 +140,8 @@ enum KeyboardMetrics {
         (tall ? expandedCardHeight : cardHeight) + (aiLabel ? aiLabelHeight : 0)
     }
     /// 结果卡左边的替换 / 插入键：宽 58，和卡片一样高，和卡片隔 6。
-    static let resultKeyWidth: CGFloat = 36
+    /// iPad（PK7 ①）：44 宽。
+    static var resultKeyWidth: CGFloat { pad != nil ? 44 : 36 }
     static let resultKeyGap: CGFloat = 6
     /// AI 栏上方展开的一行（提示词 / 识意，QA2、QA14）：高 42，底边的小尖角伸到下面按钮的上沿。
     static let aiRowHeight: CGFloat = 42
@@ -67,11 +150,21 @@ enum KeyboardMetrics {
     /// 试用最后 3 天的提示条（K3）。
     static let trialReminderHeight: CGFloat = 34
     static let panelSpacing: CGFloat = 5
-    static let panelTop: CGFloat = 6
-    static let sidePadding: CGFloat = 3.7
+    /// iPad 回答卡离上边 8（PK15：卡片 80，连上边距 88）。
+    static var panelTop: CGFloat { pad != nil ? 8 : 6 }
+    /// 按键区左右留的边。iPad 上是 edge 减半条缝：键帽离键盘边正好 edge（PK1）。
+    static var sidePadding: CGFloat { pad.map { $0.edge - $0.gap / 2 } ?? 3.7 }
 
     /// 点「润色」时 AI 栏上方的提示卡：没开完全访问（P02）、首次发送前确认（P03），换了地址时多一行旧地址（P04）。
     static func gateHeight(_ gate: KeyboardModel.AIGate) -> CGFloat {
+        // iPad 横排（PK12）：路径框在中间，横屏一行、竖屏两行。
+        if let pad {
+            switch gate {
+            case .fullAccess, .quotaUsed: return pad.landscape ? 80 : 96
+            case .privacy, .noKey, .keyPending: return 76
+            case .consent(_, let previous, _): return previous == nil ? 100 : 116
+            }
+        }
         switch gate {
         case .fullAccess: return 188
         case .privacy: return 76
@@ -91,17 +184,27 @@ enum KeyboardMetrics {
     /// 分词面板打开时比按键区高 40（BB 修订：266→306），结果卡同时固定 2 行。
     static let wordPanelExtra: CGFloat = 40
 
+    /// 回答卡整块的高（不含上边距）：iPhone 是卡片加下半格识意框（自由编辑时识意框那块也给编辑框）；
+    /// iPad（PK7、PK15，16:01）识意框在卡片右边，不另占一条：收起 80、展开 120，自由编辑也一样。
+    static func panelCardHeight(tall: Bool, freeEdit: Bool, aiLabel: Bool) -> CGFloat {
+        if pad != nil { return tall ? 120 : 80 }
+        return cardHeight(tall: tall, aiLabel: aiLabel) + (freeEdit ? freeEditExtra : askBoxHeight)
+    }
+
     static func height(expanded: Bool, cardExpanded: Bool, rowOpen: Bool, gate: KeyboardModel.AIGate? = nil,
                        reminder: Bool = false, aiLabel: Bool = false, freeEdit: Bool = false, wordPanel: Bool = false,
-                       pinyinRow: Bool = true, split: Bool = false) -> CGFloat {
+                       pinyinRow: Bool = true, split: Bool = false, padNine: Bool = false) -> CGFloat {
         // 横屏九宫格（LN1）：AI 栏、候选、结果卡、提示卡都在按键中间那块里，键盘一直是按键这么高。
         if split { return boardTop + keysHeight + (reminder ? panelTop + trialReminderHeight : 0) }
+        // iPad 全宽 9 键（PK3）：AI 键、联想、候选、拼音都在按键旁边那块里，没有整行顶栏和拼音行；
+        // 回答卡、提示卡照 26 键放在键盘上面（PK15），键盘往上长。
         // 拼音显示在侧边（F12）时不留拼音行。
-        var height = boardTop + (pinyinRow ? pinyinRowHeight : 0) + topRow + keysHeight + (wordPanel ? wordPanelExtra : 0)
+        let rows = padNine ? 0 : (pinyinRow ? pinyinRowHeight : 0) + topRow
+        var height = boardTop + rows + keysHeight + (wordPanel ? wordPanelExtra : 0)
         if let gate { return height + panelTop + gateHeight(gate) }
         if reminder { height += panelTop + trialReminderHeight }
         if expanded {
-            return height + panelTop + cardHeight(tall: cardExpanded, aiLabel: aiLabel) + (freeEdit ? freeEditExtra : askBoxHeight)
+            return height + panelTop + panelCardHeight(tall: cardExpanded, freeEdit: freeEdit, aiLabel: aiLabel)
         }
         if rowOpen {
             height += panelTop + aiRowHeight + aiRowGap
@@ -119,12 +222,20 @@ enum KeyStyle {
         ? UIColor(white: 0.43, alpha: 1) : UIColor(red: 0.70, green: 0.72, blue: 0.76, alpha: 1) })
     static let cornerRadius: CGFloat = 8.5
 
-    static let letterFont = Font.system(size: 24)
-    static let symbolFont = Font.system(size: 22)
+    /// iPad 按设计稿的字号（PK1：竖屏 23、横屏 26），功能键用它的 72%。
+    /// iPad 浮动键盘（PK13）键小，字也小一号。
+    private static var floating: Bool { KeyboardMetrics.floating }
+    static var letterFont: Font { .system(size: KeyboardMetrics.pad?.fontSize ?? (floating ? 21 : 24)) }
+    static var symbolFont: Font { .system(size: KeyboardMetrics.pad.map { $0.fontSize - 1 } ?? (floating ? 19 : 22)) }
     /// 九宫格的字母键、标点键、123、#@¥、^^：16pt，字距 1pt。
-    static let nineKeyFont = Font.system(size: 16)
-    static let functionFont = Font.system(size: 17)
-    static let iconFont = Font.system(size: 19, weight: .regular)
+    /// iPad 全宽 9 键（PK3）键大，字也大：竖屏 20、横屏 23。
+    static var nineKeyFont: Font { .system(size: KeyboardMetrics.pad.map { $0.fontSize - 3 } ?? (floating ? 15 : 16)) }
+    static var functionFont: Font { .system(size: KeyboardMetrics.pad?.functionFontSize ?? (floating ? 15 : 17)) }
+    static var iconFont: Font { .system(size: KeyboardMetrics.pad.map { $0.functionFontSize + 3 } ?? (floating ? 17 : 19), weight: .regular) }
+    /// iPad 全宽键盘的功能键（tab、⌫、中/英、⇧、🌐、123、☺、收起键盘）照 iPad 原生是灰底（PK1 --fn）：浅色 #ACB1BB，深色 #3A3A3C。
+    static let padFunctionKey = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255, alpha: 1)
+        : UIColor(red: 0xAC / 255, green: 0xB1 / 255, blue: 0xBB / 255, alpha: 1) })
 
     /// 数字和符号层里的（）？！键帽画成半角字形（上屏的仍是全角字符），全角居中后反而显大。
     /// ，。、：；改用 CenteredGlyph 画全角字形，和英文页的半角标点一眼能分开。
@@ -492,12 +603,14 @@ struct RepeatingKey: View {
     var systemImage: String
     var insetX = KeyboardMetrics.keyInsetX
     var insetY = KeyboardMetrics.keyInsetY
+    /// iPad 上和功能键一样灰底（KeyStyle.padFunctionKey）。
+    var fill = KeyStyle.functionKey
     var action: () -> Void
     @State private var timer: Timer?
     @State private var pressed = false
 
     var body: some View {
-        KeyCap(fill: pressed ? KeyStyle.pressedKey : KeyStyle.functionKey, insetX: insetX, insetY: insetY) {
+        KeyCap(fill: pressed ? KeyStyle.pressedKey : fill, insetX: insetX, insetY: insetY) {
             Image(systemName: systemImage).font(KeyStyle.iconFont).foregroundStyle(Color.primary)
         }
         .gesture(

@@ -405,11 +405,14 @@ extension KeyboardModel {
     // MARK: - 按键触摸（由 KeyTouchView 调用）
 
     var layoutState: KeyLayout.State {
-        KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
-                        englishOnly: settings.inputLanguage == .englishOnly,
-                        composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape,
-                        // 中文布局选九宫格的人切到英文时用的也是全键盘，一样要有「，。」键（0.97_4 用户反馈英文 26 键没有）。
-                        quickPunct: settings.quickPunctSide)
+        syncPadMetrics()
+        return KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
+                               englishOnly: settings.inputLanguage == .englishOnly,
+                               composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape,
+                               // 中文布局选九宫格的人切到英文时用的也是全键盘，一样要有「，。」键（0.97_4 用户反馈英文 26 键没有）。
+                               quickPunct: settings.quickPunctSide, pad: KeyboardMetrics.pad,
+                               nineOnLeft: settings.nineKeySide == .left, floating: KeyboardMetrics.floating,
+                               padLetterHints: settings.padLetterHints)
     }
 
     func perform(_ kind: KeyKind) {
@@ -467,7 +470,36 @@ extension KeyboardModel {
             if isComposing { returnKey() }
             openQuickPanel()
         case .globe: break
+        // iPad（PK1）：Tab 键打一个制表符；右下角收起键盘，正在打的拼音原样留下。
+        case .tab: typeSymbol("\t")
+        case .dismiss:
+            if isComposing, let raw = engine.commitComposition() { commit(raw) }
+            engine.reset()
+            syncEngine()
+            controller?.dismissKeyboard()
+        case .padSymbol(let base, let shifted):
+            let useShifted = shift == .locked || (shift == .on && shiftFromKey)
+            if shift == .on {
+                shift = .off
+                shiftFromKey = false
+            }
+            typeSymbol(pairedQuote(useShifted ? shifted : base))
         }
+    }
+
+    /// iPad 13 寸的引号键（PK2）：前面有没配对的左引号就打右引号，否则打左引号。只看光标前一段。
+    private func pairedQuote(_ symbol: String) -> String {
+        let pairs = ["‘": "’", "“": "”"]
+        guard let close = pairs[symbol] else { return symbol }
+        let before = target == .host ? (proxy?.documentContextBeforeInput ?? "") : ""
+        let opens = before.filter { String($0) == symbol }.count
+        let closes = before.filter { String($0) == close }.count
+        return opens > closes ? close : symbol
+    }
+
+    /// iPad 11 寸字母键往下滑过了 / 推回去了（PK1）：键帽上灰色小字换到正中，或者换回来。
+    func setFlicked(_ id: String, _ on: Bool) {
+        if on { keyPresses.flicked.insert(id) } else { keyPresses.flicked.remove(id) }
     }
 
     func keyPressed(_ key: KeySpec, feedback: Bool = true) {
@@ -481,6 +513,7 @@ extension KeyboardModel {
 
     func keyReleased(_ id: String) {
         pressedKeys.remove(id)
+        if keyPresses.flicked.contains(id) { keyPresses.flicked.remove(id) }
         // 自己打的字系统不一定发 textDidChange，松手时顺便更新发送键。
         refreshHostState()
     }
@@ -539,7 +572,7 @@ extension KeyboardModel {
         if settings.keySound {
             let sound: SystemSoundID
             switch kind {
-            case .letter, .symbol, .nine, .digitPunct, .quickPunct, .space: sound = 1104
+            case .letter, .symbol, .nine, .digitPunct, .quickPunct, .padSymbol, .space: sound = 1104
             case .delete: sound = 1155
             default: sound = 1156
             }
@@ -592,6 +625,7 @@ extension KeyboardModel {
         case .on: shift = now.timeIntervalSince(lastShiftTap) < 0.35 ? .locked : .off
         case .locked: shift = .off
         }
+        shiftFromKey = shift != .off
         lastShiftTap = now
     }
 
@@ -1386,7 +1420,10 @@ extension KeyboardModel {
         let hostWantsNone = proxy?.autocapitalizationType == UITextAutocapitalizationType.none
         let wanted: ShiftState = sentenceStart && !hostWantsNone ? .on : .off
         // 没变就不设（同 syncEngine），英文打字时每个键都会走到这里。
-        if shift != wanted { shift = wanted }
+        if shift != wanted {
+            shift = wanted
+            shiftFromKey = false
+        }
     }
 }
 
@@ -1451,6 +1488,13 @@ extension KeyboardModel {
             case "expanded": aiExpanded = true
             case "nine": if settings.keyboardLayout != .nineKey { setLayout(.nineKey) }
             case "qwerty": if settings.keyboardLayout != .qwerty { setLayout(.qwerty) }
+            // iPad 9 键在左（PK4）/ 在右（PK3）。
+            case "nineLeft": if settings.nineKeySide != .left { updateSettings { $0.nineKeySide = .left } }
+            case "nineRight": if settings.nineKeySide != .right { updateSettings { $0.nineKeySide = .right } }
+            // iPad 11 寸字母上的数字和符号（PK1）：letterHintsOff 关掉、letterHintsOn 打开；flick 画 q、g 往下滑过了的样子。
+            case "letterHintsOff": if settings.padLetterHints { updateSettings { $0.padLetterHints = false } }
+            case "letterHintsOn": if !settings.padLetterHints { updateSettings { $0.padLetterHints = true } }
+            case "flick": keyPresses.flicked = ["q", "g"]; pressedKeys = ["q", "g"]
             // 拼音显示（F12）：side 侧边、row 上方一行。
             case "side": setPinyinDisplay(.side)
             case "row": setPinyinDisplay(.row)
@@ -1482,11 +1526,17 @@ extension KeyboardModel {
             case "partialReplace": aiExpanded = true; debugUnblocked = true; loadDebugVersions(); debugShowNotes(partial: true)
             case "openAppFailed": debugShowNotes(partial: false)
             case "quotaUsed": debugShowGate(.quotaUsed)
+            // iPad 横排提示卡（PK12）截图用：没开完全访问、第一次发送确认（换了地址）。
+            case "gate:fullAccess": debugShowGate(.fullAccess)
+            case "gate:consent":
+                debugShowGate(.consent(endpoint: "https://api.example.com/v1", previous: "https://old.example.com/v1", purpose: .polish))
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
             case "quick:cycle": loadDebugQuickCycle()
             case "ask:cycle": loadDebugQuickCycle(answer: true)
+            // 截图用：没配接口的模拟器上也显示润色、问答键（看 AI 栏排得怎么样）。
+            case "ai": debugUnblocked = true
             // 截图用：输入框空着时点 ✨（NC1）：1 秒后点一次，再过 1 秒又点一次，看按钮晃。
             case "emptyTap":
                 debugUnblocked = true
@@ -1614,7 +1664,7 @@ extension KeyboardModel {
     /// 打完一个词（按了空格、标点、换行）：记住这个词，下次补全排前面。
     func learnCurrentEnglishWord(before kind: KeyKind) {
         switch kind {
-        case .space, .symbol, .quickPunct, .returnKey: break
+        case .space, .symbol, .quickPunct, .padSymbol, .tab, .returnKey: break
         default: return
         }
         guard target == .host else { return }

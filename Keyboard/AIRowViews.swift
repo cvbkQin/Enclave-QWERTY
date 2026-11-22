@@ -483,6 +483,12 @@ struct StyleDropdown: View {
 
     private var answer: Bool { row == .answerStyles }
 
+    /// 最矮能缩到多高：帮回一行（有的话）、标题、一条风格、「添加」、底下一行。再矮就要被裁了。
+    static func minimumHeight(model: KeyboardModel, row: KeyboardModel.AIRow) -> CGFloat {
+        let helpHeight = row != .answerStyles && model.helpReplyAvailable ? itemHeight + 7 : 0
+        return headerHeight + itemHeight + addHeight + footerHeight + 12 + helpHeight
+    }
+
     var body: some View {
         let styles = answer ? model.settings.answerStyles : model.settings.styles
         let selectedID = answer ? model.settings.selectedAnswerStyle?.id : model.settings.selectedStyle?.id
@@ -531,8 +537,7 @@ struct StyleDropdown: View {
                 .frame(maxWidth: .infinity, minHeight: Self.footerHeight, maxHeight: Self.footerHeight, alignment: .leading)
         }
         .padding(6)
-        .frame(width: Self.width, height: max(Self.headerHeight + Self.itemHeight + Self.addHeight + Self.footerHeight + 12 + helpHeight,
-                                              min(natural, maxHeight)), alignment: .top)
+        .frame(width: Self.width, height: max(Self.minimumHeight(model: model, row: row), min(natural, maxHeight)), alignment: .top)
         .background(shape.fill(DropdownStyle.fill)
             .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8))
         // 深色下和按键颜色接近：加一圈细边（和拼音键弹框一样）。
@@ -673,6 +678,8 @@ private enum DropdownStyle {
 /// 抽屉展开时键盘打的字进这里，打拼音时候选栏照常出在 AI 栏；重新展开时整段全选，直接打字覆盖。
 struct AskField: View {
     @ObservedObject var model: KeyboardModel
+    /// iPad 回答卡右边的识意框（PadAskArea）：字从左上角起、最多两行；「点这里输入」和联网键不放在框里（联网在框右边）。
+    var boxed = false
 
     private static let caret: UIImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 19)).image { _ in
         UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 2, height: 19), cornerRadius: 1).fill()
@@ -680,7 +687,7 @@ struct AskField: View {
 
     var body: some View {
         let editing = model.target == .instruction
-        HStack(spacing: 8) {
+        HStack(alignment: boxed ? .top : .center, spacing: 8) {
             Group {
                 if editing {
                     TimelineView(.periodic(from: .now, by: 0.5)) { context in
@@ -702,7 +709,7 @@ struct AskField: View {
             .accessibilityAddTraits(editing ? [.isButton, .isSelected] : .isButton)
             .accessibilityAction { model.focusAsk() }
             // 未激活、空着：右边 12pt「点这里输入」（有帮回按钮时不写）。
-            if !editing, model.instruction.isEmpty, model.helpAskButton == nil {
+            if !boxed, !editing, model.instruction.isEmpty, model.helpAskButton == nil {
                 Text(L("点这里输入", "Tap to type", "タップして入力"))
                     .font(.system(size: 12))
                     .foregroundStyle(Brand.askFaint)
@@ -711,14 +718,15 @@ struct AskField: View {
                     .onTapGesture { model.focusAsk() }
                     .accessibilityHidden(true)
             }
-            searchButton
+            if !boxed { searchButton }
             // 有待回的复制（帮回并入润色 §2 入口②）：最右边一颗「帮回」，离右边 8。
             if let look = model.helpAskButton { HelpAskButton(model: model, look: look) }
         }
-        .padding(.leading, 12)
-        .padding(.trailing, model.helpAskButton != nil ? 8 : 12)
+        .padding(.leading, boxed ? 10 : 12)
+        .padding(.trailing, model.helpAskButton != nil ? 8 : (boxed ? 10 : 12))
+        .padding(.vertical, boxed ? 7 : 0)
         .font(.system(size: 15))
-        .frame(maxHeight: .infinity)
+        .frame(maxHeight: .infinity, alignment: boxed ? .top : .center)
     }
 
     /// 「使用联网查询」（MG6）：28 高、圆角 14，问答浅蓝底、1pt 天蓝 40% 内描边；联网过的回答换成灰字「已联网 · Kimi」（MG7）。
@@ -775,7 +783,7 @@ struct AskField: View {
         if text.isEmpty && composing.isEmpty {
             Text(placeholder)
                 .foregroundStyle(caretVisible == nil ? Brand.askFaint : Brand.askPlaceholderActive)
-                .lineLimit(1)
+                .lineLimit(boxed ? 2 : 1)
                 .minimumScaleFactor(model.helpAskButton != nil ? 0.75 : 1)
                 .overlay(alignment: .leading) {
                     if let caretVisible { caretImage(caretVisible).offset(x: -2) }
@@ -798,7 +806,7 @@ struct AskField: View {
                 + Text(text[split...]))
                 // 未激活时留着的字变灰。
                 .foregroundStyle(caretVisible == nil ? Brand.askSub : Brand.askText)
-                .lineLimit(1)
+                .lineLimit(boxed ? 2 : 1)
                 .truncationMode(atEnd ? .head : .tail)
         }
     }
@@ -808,6 +816,87 @@ struct AskField: View {
     }
 }
 
+
+/// iPad 回答卡右边的识意区（PK7 ②、PK15，16:01）：约四成宽。识意框两行高、填满卡片，白底圆角，打字时紫框；
+/// 「🌐 联网」「✨ 再改」收起（卡高 80）时上下叠在最右边，展开（120）时并排放在识意框下面，不留空白。
+/// 再改 = 点回车的识意（交给 AI 判断改写还是回答，执行中点了是停止）；联网 = 识意框右边那颗「使用联网查询」（MG6），
+/// 不能用时变淡，联网过的回答写「已联网」。
+struct PadAskArea: View {
+    @ObservedObject var model: KeyboardModel
+    let tall: Bool
+
+    private var box: RoundedRectangle { RoundedRectangle(cornerRadius: 9, style: .continuous) }
+
+    var body: some View {
+        let active = model.target == .instruction
+        let field = AskField(model: model, boxed: true)
+            .background(box.fill(KeyStyle.charKey))
+            .overlay(box.strokeBorder(active ? Brand.askCaret : Brand.blockHair, lineWidth: active ? 1.5 : 0.5))
+        Group {
+            if tall {
+                VStack(spacing: 6) {
+                    field
+                    HStack(spacing: 6) {
+                        searchButton
+                        rerunButton
+                    }
+                    .frame(height: 30)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    field
+                    VStack(spacing: 6) {
+                        searchButton
+                        rerunButton
+                    }
+                    .frame(width: 66)
+                }
+            }
+        }
+        .padding(8)
+    }
+
+    private var searchButton: some View {
+        let searched = model.session?.currentIsAnswer == true && model.session?.currentSearchedBy != nil && !model.isRunning
+        let enabled = model.canForceSearch
+        return Button { model.forceWebSearch() } label: {
+            Label(searched ? L("已联网", "Searched", "検索済み") : L("联网", "Web", "ウェブ"), systemImage: "globe")
+                .font(.system(size: 12.5, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(searched ? Color.secondary : Brand.modeAnswerText)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.modeAnswerFill))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Brand.answerBorder.opacity(0.4), lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+        .disabled(!enabled)
+        .opacity(enabled || searched ? 1 : 0.4)
+        .accessibilityLabel(searched ? L("已联网", "Searched the web", "検索済み") : L("使用联网查询", "Search the web", "ウェブで調べる"))
+    }
+
+    private var rerunButton: some View {
+        let running = model.isRunning
+        return Button { model.enterAskTapped() } label: {
+            HStack(spacing: 3) {
+                Image(systemName: running ? "stop.fill" : "sparkles")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(running ? L("停止", "Stop", "停止") : L("再改", "Redo", "再生成"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(Color.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.purple))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(running ? L("停止", "Stop", "停止") : L("识意：按框里写的再改或回答", "Ask: redo or answer with what you typed", "入力内容でやり直すか回答"))
+    }
+}
 
 // MARK: - 停止图标（PS6）
 

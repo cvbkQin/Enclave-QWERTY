@@ -20,11 +20,15 @@ enum KeyKind: Equatable {
     /// 全键盘空格旁的「，。」键（对齐清单第 80 条）：点一下逗号，往上划句号，长按一排标点（QuickPunct）。
     /// chinese：中文时全角，英文时半角。
     case quickPunct(chinese: Bool)
+    /// iPad 全宽键盘（PK1、PK2）：Tab 键、右下角「收起键盘」。
+    case tab, dismiss
+    /// iPad 全宽键盘的标点、数字键（PK1、PK2）：按了 ⇧ 打 shifted（键帽上的灰色小字），平时打 base。
+    case padSymbol(String, shifted: String)
 
     /// 会打出字符的键：按下时显示放大气泡，另一根手指按下时先上屏。
     var typesCharacter: Bool {
         switch self {
-        case .letter, .symbol, .nine, .digitPunct, .quickPunct: return true
+        case .letter, .symbol, .nine, .digitPunct, .quickPunct, .padSymbol: return true
         default: return false
         }
     }
@@ -50,6 +54,8 @@ struct KeySpec: Identifiable, Equatable {
     /// 格子里按键四周留的间隙。
     var insetX = KeyboardMetrics.keyInsetX
     var insetY = KeyboardMetrics.keyInsetY
+    /// 往下滑打出的字（iPad 11 寸字母键上的灰色小字，PK1）；nil 不能下滑。
+    var flick: String?
 
     init(id: String, kind: KeyKind, frame: CGRect, visual: CGRect? = nil) {
         self.id = id
@@ -70,6 +76,10 @@ struct KeyLayoutResult: Equatable {
     var operatorColumn: CGRect?
     /// 横屏九宫格（LN1）中间那块：上面 AI 栏、下面联想 / 候选 / 结果卡（LandscapeNineMiddle），不归触摸层管。
     var middle: CGRect?
+    /// iPad 全宽 9 键（PK3、PK4）：功能键一列（回答卡开关、润色、问答、钉住的风格、撤销重做）和中间的联想 / 候选，
+    /// 都不归触摸层管。
+    var padFunctions: CGRect?
+    var padMiddle: CGRect?
 }
 
 /// 按当前状态算出所有按键的位置，参照 iOS 自带键盘的比例。
@@ -90,6 +100,15 @@ enum KeyLayout {
         /// 全键盘字母页空格旁的「，。」键放哪边，中文、英文的全键盘都有（中文布局选九宫格时，英文的全键盘也有）；nil 不放。
         /// 只用英文时底栏已经有逗号键，不放。
         var quickPunct: QuickPunctSide?
+        /// iPad 全宽键盘（PK1、PK2、PK9）：26 键和数字符号页按 iPad 原生排（KeyLayout+Pad）。
+        /// 9 键开着回答卡时是压扁的那份（PK15）。
+        var pad: PadMetrics?
+        /// iPad 全宽 9 键：九键在左边（PK4），默认右边（PK3）。
+        var nineOnLeft = false
+        /// iPad 浮动键盘（PK13、PK14）：9 键数字页左列一直是运算符号，最下面一行 返回、☺、0、空格（浮动时 🌐 在系统下面那一排，字母页左下还是 ☺）。
+        var floating = false
+        /// iPad 11 寸 26 键字母上的灰色小字、往下滑打出来（设置「字母上的数字和符号」，默认开）。
+        var padLetterHints = true
     }
 
     /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。
@@ -119,7 +138,7 @@ enum KeyLayout {
     }
 
     static let letterRows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map { $0.map(String.init) }
-    private static let digits = "1234567890".map(String.init)
+    static let digits = "1234567890".map(String.init)
 
     private static var lastBuild: (state: State, size: CGSize, result: KeyLayoutResult)?
 
@@ -132,11 +151,17 @@ enum KeyLayout {
     }
 
     static func build(_ state: State, size: CGSize) -> KeyLayoutResult {
+        if let pad = state.pad, state.nineKey, state.layer == .letters || state.layer == .digits {
+            return padNine(state, size: size, pad: pad)
+        }
         if state.layer == .letters && state.nineKey {
             return nineKey(state, size: size)
         }
         if state.layer == .digits {
             return digitPad(state, size: size)
+        }
+        if let pad = state.pad {
+            return padBoard(state, size: size, pad: pad)
         }
         let unit = size.width / 10
         let slot = KeyboardMetrics.slotHeight
@@ -321,6 +346,17 @@ enum KeyLayout {
             }
         }
         var operatorColumn: CGRect?
+        if state.floating {
+            let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
+            add("layer", .layer(.letters), col: 0, row: 3)
+            add("emoji", .emoji, col: 1, row: 3)
+            add("d0", .symbol("0"), col: 2, row: 3)
+            add("space", .space, col: 3, row: 3)
+            add("delete", .delete, col: 4, row: 0)
+            add("dot", .digitPunct, col: 4, row: 1)
+            add("return", .returnKey, col: 4, row: 2, rows: 2)
+            return KeyLayoutResult(keys: keys, operatorColumn: CGRect(x: x, y: top, width: width, height: slot * 3))
+        }
         if state.digitsMore {
             let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
             operatorColumn = CGRect(x: x, y: top, width: width, height: slot * 3)

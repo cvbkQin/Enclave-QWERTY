@@ -246,19 +246,24 @@ struct PromptListSections: View {
     private var styles: Binding<[StylePreset]> { answer ? $settings.answerStyles : $settings.styles }
     private var defaultID: UUID? { answer ? settings.selectedAnswerStyle?.id : settings.selectedStyle?.id }
     @State private var pinFull = false
+    /// iPad 两栏（PA2 ③）：右边正在编辑的那条紫底白字。
+    @Environment(\.selectedPromptID) private var selectedID
 
     var body: some View {
         Section {
             ForEach(styles.wrappedValue) { style in
+                let selected = style.id == selectedID
                 HStack(spacing: 2) {
-                    PromptPinButton(pinned: settings.isPinned(style.id)) {
+                    PromptPinButton(pinned: settings.isPinned(style.id), selected: selected) {
                         if !settings.togglePin(style.id) { pinFull = true }
                     }
                     PromptListRow(name: style.displayName, summary: summary(style), isDefault: style.id == defaultID,
-                                  count: UsageStats.week((answer ? "answer.style." : "polish.style.") + style.id.uuidString)) {
+                                  count: UsageStats.week((answer ? "answer.style." : "polish.style.") + style.id.uuidString),
+                                  selected: selected) {
                         edit(style.id)
                     }
                 }
+                .listRowBackground(selected ? HIG.accentFill : nil)
             }
             .onDelete(perform: delete)
             .onMove(perform: move)
@@ -349,6 +354,7 @@ struct DeletedPresetsSection: View {
 /// 每行左边的图钉（AK5、R2b）：空心灰没固定，实心主色已固定；点一下切换。编辑状态不显示。
 private struct PromptPinButton: View {
     let pinned: Bool
+    var selected = false
     let toggle: () -> Void
     @Environment(\.editMode) private var editMode
 
@@ -358,7 +364,7 @@ private struct PromptPinButton: View {
                 Image(systemName: pinned ? "pin.fill" : "pin")
                     .font(.system(size: 15, weight: .semibold))
                     .rotationEffect(.degrees(45))
-                    .foregroundStyle(pinned ? DashColor.ai : Color(.tertiaryLabel))
+                    .foregroundStyle(selected ? Color.white.opacity(pinned ? 1 : 0.55) : pinned ? DashColor.ai : Color(.tertiaryLabel))
                     .frame(width: 32, height: 44)
                     .contentShape(Rectangle())
             }
@@ -374,34 +380,37 @@ private struct PromptListRow: View {
     let summary: String
     let isDefault: Bool
     let count: Int
+    /// iPad 两栏里右边正在编辑的这条：紫底白字（PA2 ③）。
+    var selected = false
     let open: () -> Void
     @Environment(\.editMode) private var editMode
 
     private var editing: Bool { editMode?.wrappedValue.isEditing == true }
 
     var body: some View {
+        let secondary = selected ? Color.white.opacity(0.8) : Color.secondary
         Button { if !editing { open() } } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 7) {
-                        Text(name).foregroundStyle(Color.primary).lineLimit(1)
+                        Text(name).foregroundStyle(selected ? Color.white : Color.primary).lineLimit(1)
                         if isDefault {
                             Text(L("默认", "Default", "デフォルト"))
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(secondary)
                         }
                     }
-                    Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                    Text(summary).font(.subheadline).foregroundStyle(secondary).lineLimit(2)
                 }
                 Spacer(minLength: 8)
                 if !editing {
                     Text(L("\(count) 次", "\(count)×", "\(count) 回"))
                         .font(.subheadline)
                         .monospacedDigit()
-                        .foregroundStyle(count == 0 ? Color(.tertiaryLabel) : Color.secondary)
+                        .foregroundStyle(selected ? secondary : count == 0 ? Color(.tertiaryLabel) : Color.secondary)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(.tertiaryLabel))
+                        .foregroundStyle(selected ? secondary : Color(.tertiaryLabel))
                 }
             }
             .frame(minHeight: 50)

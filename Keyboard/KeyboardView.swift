@@ -12,6 +12,9 @@ struct KeyboardView: View {
         VStack(spacing: 0) {
             // 横屏九宫格（LN1）：提示卡、回答卡、AI 栏、候选都在按键中间那块里（LandscapeNineMiddle），上面什么都不加。
             let split = model.landscapeSplit
+            // iPad 全宽 9 键（PK3）：AI 键、联想、候选、拼音都在按键旁边，没有拼音行和整行顶栏；回答卡、提示卡照样在上面。
+            let padNine = model.padNine
+            let _ = model.syncPadMetrics()
             if !split, let gate = model.gate {
                 // 提示卡单独占上方，结果卡片和展开的一行先让开。
                 GateCard(model: model, gate: gate)
@@ -30,9 +33,8 @@ struct KeyboardView: View {
                     }
                     ResultCard(model: model)
                 }
-                .frame(height: freeEdit
-                       ? KeyboardMetrics.cardHeight(tall: model.freeEditTall, aiLabel: model.showsAILabel) + KeyboardMetrics.freeEditExtra
-                       : KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel) + KeyboardMetrics.askBoxHeight)
+                .frame(height: KeyboardMetrics.panelCardHeight(tall: freeEdit ? model.freeEditTall : model.cardTall,
+                                                               freeEdit: freeEdit, aiLabel: model.showsAILabel))
                 .overlay(alignment: .top) {
                     if model.freeEditToast {
                         FreeEditToast().offset(y: -2).transition(.opacity).allowsHitTesting(false)
@@ -50,7 +52,7 @@ struct KeyboardView: View {
             }
             // 拼音行一直占位，平时空着；打字时出拼音和细线，键盘高度不变（PY7）。
             // 拼音显示在侧边（F12）时没有这一行，拼音在九宫格左列 / 全键盘候选栏左边的拼音键里。
-            if !model.pinyinSide {
+            if !model.pinyinSide && !padNine {
                 ZStack {
                     if model.pinyinRowShown {
                         PinyinRow(model: model)
@@ -59,7 +61,7 @@ struct KeyboardView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: KeyboardMetrics.pinyinRowHeight)
             }
-            if !split {
+            if !split && !padNine {
                 ZStack {
                     // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
                     candidateBar
@@ -118,6 +120,8 @@ struct KeyboardView: View {
         .padding(.top, KeyboardMetrics.boardTop)
         // 横屏九宫格和全键盘高度不一样（九宫格不带 AI 栏那一行）：中 / 英、换布局时跟着改高度。
         .onChange(of: model.landscapeSplit) { _ in model.heightMayChange?() }
+        // iPad 9 键没有顶栏，切到符号页（全宽 26 键那种）、换布局时高度跟着变。
+        .onChange(of: model.padNine) { _ in model.heightMayChange?() }
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .background(boardBackground)
@@ -127,8 +131,14 @@ struct KeyboardView: View {
         .overlay(alignment: .topLeading) {
             if let row = model.aiRow, let chip = chipFrames[row] {
                 GeometryReader { geo in
-                    let x = min(max(chip.minX, 4), geo.size.width - StyleDropdown.width - 4)
-                    let y = chip.maxY + 4
+                    // iPad 9 键（PK3）：风格键竖排在一边，下拉框挨着那颗键往中间弹。
+                    let sideways = model.padNine
+                    let toLeft = model.settings.nineKeySide == .left
+                    let rawX = sideways ? (toLeft ? chip.minX - StyleDropdown.width - 6 : chip.maxX + 6) : chip.minX
+                    let x = min(max(rawX, 4), geo.size.width - StyleDropdown.width - 4)
+                    // 9 键整个键盘只有按键那么高：往下放不下最矮的框（一条风格 + 底下两行）时整个往上挪，不被键盘底边裁掉。
+                    let lowest = geo.size.height - StyleDropdown.minimumHeight(model: model, row: row) - 6
+                    let y = sideways ? max(min(chip.minY, lowest), 4) : chip.maxY + 4
                     ZStack(alignment: .topLeading) {
                         Color.black.opacity(0.001)
                             .onTapGesture { model.aiRow = nil }
@@ -446,11 +456,17 @@ struct PanelToggleButton: View {
 /// 撤销和重做拼成一个胶囊，中间一条细线。AI 栏最右边，收起和展开都在。
 struct UndoRedoPair: View {
     @ObservedObject var model: KeyboardModel
+    /// iPad 9 键功能键一列：撑满这一列（竖屏 86、横屏 94），两个箭头各占一半。
+    var fillWidth: CGFloat?
 
     /// 高 34、圆角 17（和栏里别的键一样高，v307）。方案 A（v309）缩成小胶囊：左右内边 9、16pt 箭头、中间 1×16 细竖线，总宽 64。
     static let halfWidth: CGFloat = 31.5
     static var width: CGFloat { halfWidth * 2 + 1 }
-    static var height: CGFloat { KeyboardMetrics.chipHeight }
+    /// iPad 9 键功能键一列最下面（16:01 重定）：竖屏 26、横屏 30 高。
+    static var height: CGFloat {
+        if let pad = KeyboardMetrics.pad, KeyboardMetrics.padNine { return pad.landscape ? 30 : 26 }
+        return KeyboardMetrics.chipHeight
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -458,9 +474,11 @@ struct UndoRedoPair: View {
             Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 16)
             half("arrow.uturn.forward", enabled: model.canRedo, leading: false) { model.redo() }
         }
-        .frame(width: Self.width, height: Self.height)
+        .frame(width: fillWidth ?? Self.width, height: Self.height)
         .background(Capsule().fill(KeyStyle.charKey))
     }
+
+    private var arrowWidth: CGFloat { fillWidth.map { ($0 - 1) / 2 } ?? Self.halfWidth }
 
     private func half(_ systemImage: String, enabled: Bool, leading: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -468,7 +486,7 @@ struct UndoRedoPair: View {
                 .font(.system(size: 16, weight: .medium))
                 // 箭头离外边 9，两个箭头靠向中间的竖线。
                 .padding(leading ? .leading : .trailing, 9)
-                .frame(width: Self.halfWidth, height: Self.height, alignment: leading ? .leading : .trailing)
+                .frame(width: arrowWidth, height: Self.height, alignment: leading ? .leading : .trailing)
                 .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.6))
                 .contentShape(Rectangle())
         }
@@ -488,12 +506,13 @@ struct GateCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             switch gate {
-            case .fullAccess: fullAccess
+            case .fullAccess: if pad { padFullAccess } else { fullAccess }
             case .privacy: privacy
             case .noKey: noKey
             case .keyPending: keyPending
-            case .consent(let endpoint, let previous, let purpose): consent(endpoint, previous: previous, purpose: purpose)
-            case .quotaUsed: quotaUsed
+            case .consent(let endpoint, let previous, let purpose):
+                if pad { padConsent(endpoint, previous: previous, purpose: purpose) } else { consent(endpoint, previous: previous, purpose: purpose) }
+            case .quotaUsed: if pad { padQuotaUsed } else { quotaUsed }
             }
         }
         .padding(12)
@@ -536,6 +555,135 @@ struct GateCard: View {
             Spacer(minLength: 4)
             GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
         }
+    }
+
+    // MARK: iPad 横排（PK12，11-22 14:41 cvbk「pk12的提示卡要重新适配，不用搞的这么高」）
+    // 左边图标、标题和说明，中间灰底框写路径（横屏 330 宽、竖屏 230 宽），右边按钮，铺满键盘宽。
+    // 卡片横屏高约 80、竖屏约 96（KeyboardMetrics.gateHeight）；字多的（第一次发送确认）正文最多 3 行，不超过 116。
+    // 没同意隐私、没填接口、Key 在同步这三张本来就是横排，iPad 上照用。
+
+    private var pad: Bool { KeyboardMetrics.pad != nil }
+    private var padPathWidth: CGFloat { KeyboardMetrics.pad?.landscape == true ? 330 : 230 }
+
+    private func lockBadge() -> some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(Brand.deepPurple)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(Brand.returnSoftFill))
+    }
+
+    private func padRow<Middle: View, Trailing: View>(title: String, detail: String,
+                                                      @ViewBuilder middle: () -> Middle,
+                                                      @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    lockBadge()
+                    Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Text(detail)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Brand.cardBody)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            middle()
+            trailing()
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private func padPathBox<Path: View>(label: String, @ViewBuilder path: () -> Path) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label).font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            path().font(.system(size: 13)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 11)
+        .frame(width: padPathWidth, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
+    }
+
+    private var padFullAccess: some View {
+        // 文字照 iPhone（PK12 ①）。
+        padRow(title: L("AI 润色需要开启「允许完全访问」", "AI Polish needs Allow Full Access", "AI 機能には「フルアクセスを許可」が必要です"),
+               detail: L("打字不受影响。开启后才能用 AI 润色，App 里的键盘设置也会同步过来。", "Typing still works. Turn it on to use AI Polish and to sync keyboard settings from the app.", "入力はそのまま使えます。オンにすると AI 機能が使え、アプリのキーボード設定も同期されます。")) {
+            padPathBox(label: L("在系统设置里开启", "Turn it on in Settings", "設定でオンにする")) { settingsPath }
+        } trailing: {
+            GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
+        }
+    }
+
+    private var padQuotaUsed: some View {
+        let uses = AIAccess.dailyFreeUses
+        return padRow(title: L("今天的 \(uses) 次用完了", "You’ve used today’s \(uses) free uses", "今日の無料分（\(uses) 回）を使い切りました"),
+                      detail: L("AI 每天可以免费用 \(uses) 次，明天 0 点恢复。打字、拼音、常用词一直可以用，不受影响。",
+                                "AI has \(uses) free uses a day, reset at midnight. Typing, pinyin and My Words keep working as usual.",
+                                "AI は 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。入力・ピンイン・ユーザ辞書はそのまま使えます。")) {
+            padPathBox(label: L("详细说明", "Details", "詳しくは")) {
+                Text(L("打开飞地输入法", "Open Enclave", "Enclave を開く")).foregroundColor(Brand.cardBody)
+                    + Text(" › ").foregroundColor(Brand.pathSeparator)
+                    + Text(L("设置", "Settings", "設定")).foregroundColor(Brand.cardBody)
+                    + Text(" › ").foregroundColor(Brand.pathSeparator)
+                    + Text("AI").fontWeight(.semibold).foregroundColor(Brand.deepPurple)
+            }
+        } trailing: {
+            GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
+        }
+    }
+
+    /// 第一次发送前确认（RG9）横排：标题和地址一行，下面原来的地址（换了地址时）和说明（最多 3 行），右边按钮和隐私政策。
+    private func padConsent(_ endpoint: String, previous: String?, purpose: KeyboardModel.GatePurpose) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    SparkleMark(size: 14, color: Brand.tagSelectedText)
+                    Text(previous == nil ? Self.consentTitle(purpose) : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    Text(L("文字会发送到", "Text will be sent to", "文章の送信先")).font(.system(size: 13)).foregroundStyle(Brand.cardBody)
+                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe").font(.system(size: 11, weight: .semibold))
+                        Text(endpoint).font(.system(size: 12.5, weight: .semibold, design: .monospaced)).lineLimit(1)
+                    }
+                    .foregroundStyle(Brand.deepPurple)
+                    .padding(.horizontal, 9)
+                    .frame(height: 24)
+                    .background(Capsule().fill(Brand.returnSoftFill))
+                }
+                if let previous {
+                    (Text(L("原来是 ", "Was ", "以前は ")) + Text(previous).strikethrough())
+                        .font(.system(size: 12))
+                        .foregroundStyle(Brand.panelLabel.opacity(0.7))
+                        .lineLimit(1)
+                }
+                Text(Self.consentNote(purpose))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Brand.cardNote)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
+                    GateButton(title: L("取消", "Cancel", "キャンセル"), primary: false) { model.dismissGate() }
+                    GateButton(title: Self.consentAgree(purpose), primary: true) { model.acceptConsent() }
+                }
+                Button { model.showAppHint(.privacyPolicy) } label: {
+                    Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12))
+                        .foregroundStyle(Brand.tagSelectedText)
+                }
+                .buttonStyle(.plain)
+            }
+            .fixedSize()
+        }
+        .frame(maxHeight: .infinity)
     }
 
     /// 仅基础功能时点 ✨ /「执行」（CP7）：不发请求，说明去 App 里同意。点卡片或开始打字就收起。
@@ -862,6 +1010,50 @@ struct ResultCard: View {
 
     var body: some View {
         let look = look
+        if KeyboardMetrics.pad != nil, !compact {
+            padBody(look)
+        } else {
+            phoneBody(look)
+        }
+    }
+
+    /// iPad 宽版（PK7、PK15）：正文在左，识意区在右约四成宽（PadAskArea），中间一条细线；没有下半格。
+    /// 自由编辑时编辑框占满整张卡。
+    private func padBody(_ look: Look) -> some View {
+        GeometryReader { geo in
+            let showsAsk = model.target != .card
+            let active = askActive
+            let askWidth = showsAsk ? (geo.size.width * 0.38).rounded() : 0
+            HStack(spacing: 0) {
+                content(look)
+                if showsAsk {
+                    Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair)
+                        .frame(width: active ? 1 : 0.5)
+                    PadAskArea(model: model, tall: model.cardTall)
+                        .frame(width: askWidth - (active ? 1 : 0.5))
+                }
+            }
+            .background {
+                if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
+                shape.fill(KeyStyle.charKey)
+                if showsAsk, !active {
+                    Brand.askInactiveFill
+                        .frame(width: askWidth)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .clipShape(shape)
+                }
+                if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
+            }
+            .overlay {
+                if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
+            }
+            .overlay {
+                border(look).allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func phoneBody(_ look: Look) -> some View {
         VStack(spacing: 0) {
             if compact, model.target != .card {
                 HStack(spacing: 0) {

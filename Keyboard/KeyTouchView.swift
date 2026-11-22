@@ -25,6 +25,8 @@ final class KeyTouchView: UIView {
         var enterCross = false
         /// 按下的位置，九宫格按住直接往外划用。
         var start: CGPoint = .zero
+        /// iPad 11 寸字母键往下滑过了（PK1），松手打键帽上的灰色小字。
+        var flickDown = false
 
         init(key: KeySpec) { self.key = key }
     }
@@ -39,6 +41,9 @@ final class KeyTouchView: UIView {
     /// 原来固定 16pt，打得快时手指往下一个键带一下就超过，打出的是划出来的字母而不是数字。
     private static let flickMinDistance: CGFloat = 24
     private static let flickWidthRatio: CGFloat = 0.4
+    /// iPad 字母键往下滑多远算下滑：至少 14pt，键帽高的三成（竖屏 15、横屏 17），和原生差不多轻轻一拉。
+    private static let padFlickMinDistance: CGFloat = 14
+    private static let padFlickRatio: CGFloat = 0.3
     /// 回车弹出十字：按住 0.3 秒，或手指移动超过 16pt（和 ABC 键、逗号键一样，第 70 条）。
     private static let enterCrossDelay: TimeInterval = 0.3
     private static let enterCrossDistance: CGFloat = 16
@@ -112,8 +117,7 @@ final class KeyTouchView: UIView {
             for (_, other) in tracking where !other.fired && other.key.kind.typesCharacter {
                 other.fired = true
                 model.keyEventTime = touch.timestamp
-                noteFired(other.key, at: other.start)
-                model.perform(other.key.kind)
+                fire(other)
                 model.keyReleased(other.key.id)
             }
             guard let key = key(at: touch.location(in: self)) else { continue }
@@ -205,6 +209,19 @@ final class KeyTouchView: UIView {
                 model.moveEnterCross(to: point)
                 continue
             }
+            // iPad 11 寸字母键（PK1）：往下拉过一小段，灰色小字换到正中，松手打它；推回去还是原来的字。
+            // 往下拉的时候不换到下面一排的键上。
+            if !state.fired, state.key.flick != nil {
+                let dy = point.y - state.start.y
+                let dx = abs(point.x - state.start.x)
+                let down = dy > max(Self.padFlickMinDistance, state.key.cap.height * Self.padFlickRatio) && dy > dx
+                if down != state.flickDown {
+                    state.flickDown = down
+                    if down { state.timer?.invalidate() }
+                    model.setFlicked(state.key.id, down)
+                }
+                if down || (dy > 0 && dy >= dx) { continue }
+            }
             // 九宫格和原生一样：按住直接往上下左右划，不用等长按，十字马上出来并选中那个方向。
             if !state.fired, state.key.kind.flicks(composing: model.isComposing),
                hypot(point.x - state.start.x, point.y - state.start.y)
@@ -270,8 +287,7 @@ final class KeyTouchView: UIView {
                 model.setTrackpad(false)
             } else if !state.fired {
                 model.keyEventTime = touch.timestamp
-                noteFired(state.key, at: state.start)
-                model.perform(state.key.kind)
+                fire(state)
                 // 从 123 滑过来打的符号，打完回到字母。
                 if state.slidFromLayer { model.switchLayer(.letters) }
             }
@@ -292,6 +308,19 @@ final class KeyTouchView: UIView {
             }
             if state.enterCross { model.enterCross = nil }
             model.keyReleased(state.key.id)
+        }
+    }
+
+    /// 松手（或另一根手指按下）时打出这个键：往下滑过了的打灰色小字，当一个标点算（不记进手指习惯）。
+    private func fire(_ state: Tracking) {
+        guard let model else { return }
+        if state.flickDown, let flick = state.key.flick {
+            let symbol = KeySpec(id: state.key.id, kind: .padSymbol(flick, shifted: flick), frame: state.key.frame)
+            noteFired(symbol, at: state.start)
+            model.perform(symbol.kind)
+        } else {
+            noteFired(state.key, at: state.start)
+            model.perform(state.key.kind)
         }
     }
 

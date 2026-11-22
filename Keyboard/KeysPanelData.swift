@@ -15,15 +15,21 @@ struct AlternatesPopup: Equatable {
     let containerWidth: CGFloat
     var selected = 0
 
-    static let cellWidth: CGFloat = 34
-    static let height: CGFloat = 48
+    /// iPad 全宽键盘（PK8 ①）：每格 56×60，跟着 iPad 的键大一号。
+    static var cellWidth: CGFloat { KeyboardMetrics.pad == nil ? 34 : 56 }
+    static var height: CGFloat { KeyboardMetrics.pad == nil ? 48 : 60 }
 
     /// 从按键正上方往右排，排不下就整体往左挪。
+    /// iPad：不出键盘顶（26 键上面有顶栏，9 键上面什么都没有），太靠上时往下压。
     var frame: CGRect {
         let width = Self.cellWidth * CGFloat(options.count)
         var x = key.cap.midX - Self.cellWidth / 2
         x = min(max(x, 0), max(containerWidth - width, 0))
-        return CGRect(x: x, y: key.cap.minY - Self.height - 4, width: width, height: Self.height)
+        var y = key.cap.minY - Self.height - 4
+        if KeyboardMetrics.pad != nil {
+            y = max(y, 2 - (KeyboardMetrics.padNine ? 0 : KeyboardMetrics.topRow))
+        }
+        return CGRect(x: x, y: y, width: width, height: Self.height)
     }
 
     func index(atX x: CGFloat) -> Int {
@@ -57,6 +63,14 @@ struct LayoutMenuPopup: Equatable {
     static var height: CGFloat { padding * 2 + titleHeight * 2 + dividerHeight + rowHeight * CGFloat(options.count) }
 
     var frame: CGRect {
+        // iPad（PK8 ②）：「中/英」在第二排（9 键在最下面一排），上面放不下，菜单挂在按键右边（右边放不下挂左边），
+        // 上下以按键为中心、不出按键区，不盖住手指。
+        if KeyboardMetrics.pad != nil {
+            var x = key.cap.maxX + 8
+            if x + Self.width > containerWidth - 4 { x = key.cap.minX - 8 - Self.width }
+            let y = min(max(key.cap.midY - Self.height / 2, 0), max(KeyboardMetrics.keysHeight - Self.height, 0))
+            return CGRect(x: x, y: y, width: Self.width, height: Self.height)
+        }
         let x = min(max(key.cap.minX, 4), max(containerWidth - Self.width - 4, 0))
         // 两组放不下时往上伸到候选栏 / AI 栏那一排（按键区这时整块盖在最上层）。
         return CGRect(x: x, y: max(key.cap.minY - Self.height - 6, -KeyboardMetrics.topRow), width: Self.width, height: Self.height)
@@ -100,19 +114,25 @@ struct CrossPopup: Equatable {
     var origin: CGPoint?
     var selected: Direction?
 
-    /// 每格 = 一个键加一条缝。
+    /// 每格 = 一个键加一条缝。iPad 全宽 9 键（PK8 ③）键帽 64（比 iPhone 大一点，跟着 iPad 的键高），不跟着键宽。
     var cellSize: CGSize {
-        CGSize(width: key.cap.width + KeyboardMetrics.nineColumnGap, height: KeyboardMetrics.nineRowPitch)
+        if let pad = KeyboardMetrics.pad { return CGSize(width: 64 + pad.gap, height: 64 + pad.gap) }
+        return CGSize(width: key.cap.width + KeyboardMetrics.nineColumnGap, height: KeyboardMetrics.nineRowPitch)
     }
 
     /// 中间那格：以按下的键为中心；贴边时整个十字往里收，离屏幕边至少 4pt。
+    /// iPad 9 键上面没有 AI 栏可以伸：上下也往里收，整个十字留在按键区里。
     var center: CGRect {
         let size = cellSize
         var x = key.cap.midX - size.width / 2
         // 按键区离屏幕边 sidePadding，换算成离屏幕边 4pt。
         let margin = 4 - KeyboardMetrics.sidePadding
         x = min(max(x, margin + size.width), containerWidth - margin - size.width * 2)
-        return CGRect(x: x, y: key.cap.midY - size.height / 2, width: size.width, height: size.height)
+        var y = key.cap.midY - size.height / 2
+        if KeyboardMetrics.pad != nil {
+            y = min(max(y, 2 + size.height), KeyboardMetrics.keysHeight - 2 - size.height * 2)
+        }
+        return CGRect(x: x, y: y, width: size.width, height: size.height)
     }
 
     func frame(for direction: Direction) -> CGRect {
