@@ -129,15 +129,21 @@ struct EnclaveApp: App {
     }
 }
 
-/// 底部五个标签：首页、键盘、AI、历史、设置。
+/// 底部五个标签：首页、接口和提示词、历史、键盘、设置。
+/// iPad 宽屏（横向 regular：全屏、半屏）六个标签，接口和提示词分开（PA1 ③）；窄到 iPhone 那么宽时回到五个。
 struct RootView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    private var wide: Bool { UIDevice.current.userInterfaceIdiom == .pad && sizeClass == .regular }
 
     var body: some View {
         tabs
-            // 首次打开先看隐私说明（CP1），不能下滑关掉。
-            .fullScreenCover(isPresented: $router.showsPrivacyWelcome, onDismiss: {
+            .onAppear { router.setWideLayout(wide) }
+            .onChange(of: wide) { router.setWideLayout($0) }
+            // 首次打开先看隐私说明（CP1），不能下滑关掉。iPad 宽屏时是居中的表单窗口（PA4 ⑦）。
+            .padCover(isPresented: $router.showsPrivacyWelcome, wide: wide, onDismiss: {
                 router.showSetupGuideIfNeeded(configured: store.settings.isConfigured)
             }) {
                 PrivacyWelcomeView()
@@ -145,7 +151,7 @@ struct RootView: View {
                     .environment(\.locale, Loc.locale)
             }
             // 连上 AI 接口的引导（OB1–OB7）。
-            .fullScreenCover(item: $router.setupGuide) { start in
+            .padCover(item: $router.setupGuide, wide: wide) { start in
                 SetupGuideView(start: start)
                     .environmentObject(router)
                     .environmentObject(store)
@@ -175,9 +181,19 @@ struct RootView: View {
                 .tabItem { Label(L("首页", "Home", "ホーム"), systemImage: "house") }
                 .tag(AppRouter.Tab.home)
             // 顺序（R0，11-22）：首页 / 接口和提示词 / 历史 / 键盘 / 设置，常用的放左边，键盘设置装好后很少再动。
-            AITab()
-                .tabItem { Label(AppRouter.aiTabTitle, systemImage: "text.bubble") }
-                .tag(AppRouter.Tab.ai)
+            if router.wideLayout {
+                // iPad 宽屏：接口、提示词各一个标签（11-22 cvbk「ipad空间足够，接口和提示词可以做成2个页面」）。
+                AITab(segment: .api)
+                    .tabItem { Label(L("接口", "API", "API"), systemImage: "text.bubble") }
+                    .tag(AppRouter.Tab.ai)
+                PromptsSplitView()
+                    .tabItem { Label(L("提示词", "Prompts", "プロンプト"), systemImage: "text.quote") }
+                    .tag(AppRouter.Tab.prompts)
+            } else {
+                AITab()
+                    .tabItem { Label(AppRouter.aiTabTitle, systemImage: "text.bubble") }
+                    .tag(AppRouter.Tab.ai)
+            }
             HistoryTab()
                 .tabItem { Label(L("历史", "History", "履歴"), systemImage: "clock") }
                 .tag(AppRouter.Tab.history)
@@ -188,6 +204,7 @@ struct RootView: View {
                 .tabItem { Label(L("设置", "Settings", "設定"), systemImage: "gearshape") }
                 .tag(AppRouter.Tab.settings)
         }
+        .padTabStyle()
     }
 }
 
@@ -196,7 +213,44 @@ struct RootView: View {
 final class AppRouter: ObservableObject {
     static let shared = AppRouter()
 
-    enum Tab: Hashable { case home, keyboard, ai, history, settings }
+    /// prompts 只在 iPad 宽屏时有（接口、提示词分两个标签）；窄屏时提示词在 ai 标签的「提示词」分段里。
+    enum Tab: Hashable { case home, keyboard, ai, prompts, history, settings }
+
+    /// iPad 宽屏（横向 regular）：六个标签，提示词、历史、设置左右两栏（PA1–PA4）。RootView 按尺寸类设。
+    @Published private(set) var wideLayout = false
+
+    /// 宽窄切换时标签对上：宽屏「提示词」标签 ↔ 窄屏「接口和提示词」的提示词分段；
+    /// 设置、历史两栏右边打开的那一页，变窄后就是一列里推进去的那一页（路径是同一份）。
+    func setWideLayout(_ wide: Bool) {
+        guard wide != wideLayout else { return }
+        wideLayout = wide
+        if wide, tab == .ai, aiSegment == .prompts {
+            tab = .prompts
+        } else if !wide, tab == .prompts {
+            aiSegment = .prompts
+            tab = .ai
+        }
+        if !wide, let id = historySelection {
+            // 窄屏时详情在一列里往里推一页。
+            var path = NavigationPath()
+            path.append(HistoryPage.detail(id))
+            historyPath = path
+        }
+        historySelection = nil
+    }
+
+    /// 历史两栏（PA2 ④）右边正在看的那条；窄屏时不用（详情推进 historyPath）。
+    @Published var historySelection: String?
+
+    /// 打开一条历史记录：宽屏换右边，窄屏往里推一页。
+    func openHistory(_ id: String) {
+        if wideLayout {
+            historySelection = id
+            historyPath = NavigationPath()
+        } else {
+            historyPath.append(HistoryPage.detail(id))
+        }
+    }
 
     /// 原来的「AI」标签（R0，11-22 改名）：接口和提示词两件事放在一个标签里。
     static var aiTabTitle: String { L("接口和提示词", "API & Prompts", "API とプロンプト") }
@@ -274,7 +328,7 @@ final class AppRouter: ObservableObject {
     /// 内测版诊断记录用的「当时界面」：哪个标签、设置里哪一页。
     func markScreen(_ detail: String? = nil) {
         guard CrashLog.isEnabled else { return }
-        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "接口和提示词", .history: "历史", .settings: "设置"]
+        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "接口和提示词", .prompts: "提示词", .history: "历史", .settings: "设置"]
         var parts = [names[tab] ?? ""]
         if tab == .settings, let page = settingsPath.last { parts.append(page.rawValue) }
         if let detail { parts.append(detail) }
@@ -416,7 +470,7 @@ final class AppRouter: ObservableObject {
         if prompts { promptKind = answerStyles ? .answer : .polish }
         aiPath = NavigationPath()
         if detail { aiPath.append(AIPage.api(answer: answer && !sharedAnswer)) }
-        tab = .ai
+        tab = prompts && wideLayout ? .prompts : .ai
     }
 
     /// 从首页接口卡、欢迎页、解锁页跳到 AI 标签（填 Key 的进润色接口详情）。

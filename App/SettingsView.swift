@@ -125,150 +125,192 @@ struct SettingsView: View {
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
-        NavigationStack(path: $router.settingsPath) {
-            List {
-                Section {
-                } header: {
-                    VStack(spacing: 12) {
-                        // 整张卡可点，不要列表行的箭头。
-                        // 内测版没有试用和解锁：换成内置接口今天的用量。
-                        if BuiltinAPI.isInternalBuild {
-                            BuiltinUsageCard()
-                        } else {
-                            Button { router.settingsPath.append(.unlock) } label: { EnclaveAICard() }
-                                .buttonStyle(.plain)
-                        }
-                        // 「App 与键盘共享配置」不再占一行，不可用时才显示横幅。
-                        if SharedStorage.usesClipboardConfig && !SharedStorage.isShared { SharedConfigBanner() }
-                    }
-                    .dashFormCard()
-                }
-                // 上手：首次设置（欢迎页四步）、功能演示、使用指引。
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.setup) {
-                        let left = setupStepsLeft
-                        HStack(spacing: 12) {
-                            TintIcon(systemName: "checklist", color: DashColor.ai)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L("首次设置", "First-time setup", "初期設定"))
-                                Text(L("输入法、完全访问、润色、问答", "Keyboard, Full Access, Polish, Q&A", "キーボード・フルアクセス・整える・質問"))
-                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            Spacer(minLength: 8)
-                            Text(left == 0 ? L("已完成", "Done", "完了") : L("还差 \(left) 步", "\(left) left", "あと \(left) ステップ"))
-                                .foregroundStyle(left == 0 ? Color.secondary : Color(hex: 0xD97706))
-                                .lineLimit(1)
-                        }
-                    }
-                    // 再玩一次首次打开时的功能演示（模拟键盘、预设结果，不调用 API）。
-                    Button { router.setupGuide = .tourReplay } label: {
-                        HStack(spacing: 12) {
-                            DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
-                                    value: L("约 4 分钟", "About 4 min", "約 4 分"))
-                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    NavigationLink(value: AppRouter.SettingsPage.playground) {
-                        DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
-                                value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
-                    }
-                } header: {
-                    Text(L("上手", "Getting started", "はじめに"))
-                }
-                // 正式版、公测版（FB1）；内测版换成「诊断与反馈」，两者不同时出现。
-                if CrashLog.isEnabled {
-                    Section {
-                        NavigationLink(value: AppRouter.SettingsPage.diagnostics) { DiagnosticsRow() }
-                    } header: {
-                        Text(L("反馈", "Feedback", "フィードバック"))
-                    } footer: {
-                        Text(L("内测版专有。闪退和异常退出的记录只存在手机上。", "Beta only. Crash and exit records stay on this iPhone.", "ベータ版のみ。クラッシュと異常終了の記録はこの iPhone にだけ保存されます。"))
-                    }
+        if router.wideLayout {
+            // iPad 宽屏（PA3 ⑤）：左边设置列表，右边打开选中的那一页；子页面内容照 iPhone，最宽 640（解锁页 560）。
+            SettingsSplitView {
+                settingsList
+            } destination: { page in
+                destination(page)
+                    .padReadable(maxWidth: page == .unlock ? PadWidth.unlock : PadWidth.content)
+            }
+        } else {
+            NavigationStack(path: $router.settingsPath) {
+                settingsList
+                    .navigationDestination(for: AppRouter.SettingsPage.self) { destination($0) }
+            }
+        }
+    }
+
+    /// iPad 两栏时左边选中的那一行：settingsPath 的第一项（NavigationLink(value:) 点了就换右边）。
+    private var sidebarSelection: Binding<AppRouter.SettingsPage?> {
+        Binding(get: { router.settingsPath.first }, set: { page in
+            router.settingsPath = page.map { [$0] } ?? []
+        })
+    }
+
+    @ViewBuilder
+    private var settingsList: some View {
+        Group {
+            if router.wideLayout {
+                List(selection: sidebarSelection) { sections }
+            } else {
+                List { sections }
+            }
+        }
+        .pinnedTabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
+        .navigationTitle(L("设置", "Settings", "設定"))
+        .tabRootPage()
+    }
+
+    @ViewBuilder
+    private func destination(_ page: AppRouter.SettingsPage) -> some View {
+        switch page {
+        case .setup: FirstSetupView()
+        case .playground: LabView()
+        case .firstScene: SceneView(index: 0)
+        case .testTools: TestToolsView()
+        case .privacy: PrivacyView()
+        case .about: AboutView()
+        case .unlock: UnlockView()
+        case .language: LanguageView()
+        case .privacyPolicy: PrivacyPolicyView()
+        case .licenses: LicensesView()
+        case .diagnostics: DiagnosticsView()
+        case .feedback: FeedbackFormView()
+        case .backup: BackupView()
+        }
+    }
+
+    @ViewBuilder
+    private var sections: some View {
+        Section {
+        } header: {
+            VStack(spacing: 12) {
+                // 整张卡可点，不要列表行的箭头。
+                // 内测版没有试用和解锁：换成内置接口今天的用量。
+                if BuiltinAPI.isInternalBuild {
+                    BuiltinUsageCard()
                 } else {
-                    Section {
-                        NavigationLink(value: AppRouter.SettingsPage.feedback) {
-                            DashRow(icon: "envelope", color: DashColor.ai, title: L("反馈问题", "Send Feedback", "フィードバック"))
-                        }
-                    } header: {
-                        Text(L("反馈", "Feedback", "フィードバック"))
-                    } footer: {
-                        Text(L("在 App 里填好直接提交给开发者，不用打开邮件。", "Fill it in and send it to the developer right here, no email needed.", "App 内で入力してそのまま開発者に送れます。メールは不要です。"))
-                    }
-                }
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.language) {
-                        DashRow(icon: "globe", color: DashColor.input, title: L("语言", "Language", "言語"),
-                                value: router.language == .system ? L("跟随 iPhone", "iPhone", "iPhone に従う") : router.language.nativeName)
-                    }
-                    Picker(selection: $store.settings.appearance) {
-                        ForEach(Appearance.allCases) { Text($0.title).tag($0) }
-                    } label: {
-                        DashRow(icon: "circle.lefthalf.filled", color: DashColor.input, title: L("日间 / 夜间", "Appearance", "外観"))
-                    }
-                    .pickerStyle(.menu)
-                } header: {
-                    Text(L("通用", "General", "一般"))
-                } footer: {
-                    Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
-                }
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
-                } header: {
-                    Text(L("数据", "Data", "データ"))
-                }
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.privacy) {
-                        DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
-                                value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
-                    }
-                    NavigationLink(value: AppRouter.SettingsPage.about) {
-                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.devLabel ?? AboutView.version)
-                    }
-                }
-                if AccessTestSection.shows {
-                    AccessTestSection()
-                }
-                if BuiltinAPI.showsTesterTools {
-                    Section {
-                        NavigationLink(value: AppRouter.SettingsPage.testTools) {
-                            HStack(spacing: 12) {
-                                TintIcon(systemName: "keyboard", color: DashColor.phrase)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack(spacing: 6) {
-                                        Text(L("测试工具", "Test tools", "テストツール"))
-                                        TestBadge()
-                                    }
-                                    Text(L("打字速度、压力测试", "Typing speed, stress test", "入力の速さ・負荷テスト"))
-                                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Button { router.settingsPath = [.unlock] } label: {
+                        EnclaveAICard()
+                            // iPad 两栏：右边是解锁页时卡片描一圈紫边（PA3 ⑤）。
+                            .overlay {
+                                if router.wideLayout && (router.settingsPath.first ?? .unlock) == .unlock {
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(HIG.accentFill, lineWidth: 2)
                                 }
                             }
-                        }
-                    } footer: {
-                        Text(L("只在内测版、公测版显示。", "Shown only in beta builds.", "ベータ版でのみ表示されます。"))
                     }
+                    .buttonStyle(.plain)
+                }
+                // 「App 与键盘共享配置」不再占一行，不可用时才显示横幅。
+                if SharedStorage.usesClipboardConfig && !SharedStorage.isShared { SharedConfigBanner() }
+            }
+            .dashFormCard()
+        }
+        // 上手：首次设置（欢迎页四步）、功能演示、使用指引。
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.setup) {
+                let left = setupStepsLeft
+                HStack(spacing: 12) {
+                    TintIcon(systemName: "checklist", color: DashColor.ai)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("首次设置", "First-time setup", "初期設定"))
+                        Text(L("输入法、完全访问、润色、问答", "Keyboard, Full Access, Polish, Q&A", "キーボード・フルアクセス・整える・質問"))
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Text(left == 0 ? L("已完成", "Done", "完了") : L("还差 \(left) 步", "\(left) left", "あと \(left) ステップ"))
+                        .foregroundStyle(left == 0 ? Color.secondary : Color(hex: 0xD97706))
+                        .lineLimit(1)
                 }
             }
-            .pinnedTabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
-            .navigationTitle(L("设置", "Settings", "設定"))
-            .tabRootPage()
-            .navigationDestination(for: AppRouter.SettingsPage.self) { page in
-                switch page {
-                case .setup: FirstSetupView()
-                case .playground: LabView()
-                case .firstScene: SceneView(index: 0)
-                case .testTools: TestToolsView()
-                case .privacy: PrivacyView()
-                case .about: AboutView()
-                case .unlock: UnlockView()
-                case .language: LanguageView()
-                case .privacyPolicy: PrivacyPolicyView()
-                case .licenses: LicensesView()
-                case .diagnostics: DiagnosticsView()
-                case .feedback: FeedbackFormView()
-                case .backup: BackupView()
+            // 再玩一次首次打开时的功能演示（模拟键盘、预设结果，不调用 API）。
+            Button { router.setupGuide = .tourReplay } label: {
+                HStack(spacing: 12) {
+                    DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
+                            value: L("约 4 分钟", "About 4 min", "約 4 分"))
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            NavigationLink(value: AppRouter.SettingsPage.playground) {
+                DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
+                        value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
+            }
+        } header: {
+            Text(L("上手", "Getting started", "はじめに"))
+        }
+        // 正式版、公测版（FB1）；内测版换成「诊断与反馈」，两者不同时出现。
+        if CrashLog.isEnabled {
+            Section {
+                NavigationLink(value: AppRouter.SettingsPage.diagnostics) { DiagnosticsRow() }
+            } header: {
+                Text(L("反馈", "Feedback", "フィードバック"))
+            } footer: {
+                Text(L("内测版专有。闪退和异常退出的记录只存在手机上。", "Beta only. Crash and exit records stay on this iPhone.", "ベータ版のみ。クラッシュと異常終了の記録はこの iPhone にだけ保存されます。"))
+            }
+        } else {
+            Section {
+                NavigationLink(value: AppRouter.SettingsPage.feedback) {
+                    DashRow(icon: "envelope", color: DashColor.ai, title: L("反馈问题", "Send Feedback", "フィードバック"))
+                }
+            } header: {
+                Text(L("反馈", "Feedback", "フィードバック"))
+            } footer: {
+                Text(L("在 App 里填好直接提交给开发者，不用打开邮件。", "Fill it in and send it to the developer right here, no email needed.", "App 内で入力してそのまま開発者に送れます。メールは不要です。"))
+            }
+        }
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.language) {
+                DashRow(icon: "globe", color: DashColor.input, title: L("语言", "Language", "言語"),
+                        value: router.language == .system ? L("跟随 \(DeviceName.current)", DeviceName.current, "\(DeviceName.current) に従う") : router.language.nativeName)
+            }
+            Picker(selection: $store.settings.appearance) {
+                ForEach(Appearance.allCases) { Text($0.title).tag($0) }
+            } label: {
+                DashRow(icon: "circle.lefthalf.filled", color: DashColor.input, title: L("日间 / 夜间", "Appearance", "外観"))
+            }
+            .pickerStyle(.menu)
+        } header: {
+            Text(L("通用", "General", "一般"))
+        } footer: {
+            Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
+        }
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
+        } header: {
+            Text(L("数据", "Data", "データ"))
+        }
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.privacy) {
+                DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
+                        value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
+            }
+            NavigationLink(value: AppRouter.SettingsPage.about) {
+                DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.devLabel ?? AboutView.version)
+            }
+        }
+        if AccessTestSection.shows {
+            AccessTestSection()
+        }
+        if BuiltinAPI.showsTesterTools {
+            Section {
+                NavigationLink(value: AppRouter.SettingsPage.testTools) {
+                    HStack(spacing: 12) {
+                        TintIcon(systemName: "keyboard", color: DashColor.phrase)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(L("测试工具", "Test tools", "テストツール"))
+                                TestBadge()
+                            }
+                            Text(L("打字速度、压力测试", "Typing speed, stress test", "入力の速さ・負荷テスト"))
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                }
+            } footer: {
+                Text(L("只在内测版、公测版显示。", "Shown only in beta builds.", "ベータ版でのみ表示されます。"))
             }
         }
     }
@@ -793,25 +835,32 @@ struct KeyboardTab: View {
     var body: some View {
         NavigationStack(path: $router.keyboardPath) {
             KeyboardSettingsView()
+                // 子页面内容照 iPhone，iPad 宽屏时最宽 640 居中。
                 .navigationDestination(for: AppRouter.KeyboardPage.self) { page in
-                    switch page {
-                    case .fuzzy: FuzzyPinyinView()
-                    case .doublePinyin: DoublePinyinView()
-                    case .doublePinyinPractice: DoublePinyinPracticeView()
-                    case .pinyin: PinyinView()
-                    case .commonWords: CommonWordsView()
-                    case .keyboardWords: KeyboardPhrasesView()
-                    case .touch: TouchCalibrationView()
+                    Group {
+                        switch page {
+                        case .fuzzy: FuzzyPinyinView()
+                        case .doublePinyin: DoublePinyinView()
+                        case .doublePinyinPractice: DoublePinyinPracticeView()
+                        case .pinyin: PinyinView()
+                        case .commonWords: CommonWordsView()
+                        case .keyboardWords: KeyboardPhrasesView()
+                        case .touch: TouchCalibrationView()
+                        }
                     }
+                    .padReadable(router.wideLayout)
                 }
                 .navigationDestination(for: AppRouter.ExtDictGroupPage.self) { group in
-                    switch group {
-                    case .hot: HotDictsView()
-                    case .imported: ImportedDictsView()
+                    Group {
+                        switch group {
+                        case .hot: HotDictsView()
+                        case .imported: ImportedDictsView()
+                        }
                     }
+                    .padReadable(router.wideLayout)
                 }
                 .navigationDestination(for: AppRouter.ExtDictPage.self) { page in
-                    ExtDictDetailView(id: page.id)
+                    ExtDictDetailView(id: page.id).padReadable(router.wideLayout)
                 }
         }
     }
@@ -830,7 +879,8 @@ struct KeyboardSettingsView: View {
     @State private var refresh = UUID()
 
     var body: some View {
-        Form {
+        // iPad 宽屏（PA3 ⑥）：两列。左边键盘状态、主要语言、中文布局，右边拼音、英文、按键、词库和常用词；竖屏一列、最宽 640。
+        PadColumns {
             // 读一下 refresh：从系统设置回来时 body 重算，完全访问的横幅跟着出现或消失。
             let _ = refresh
             // B 卡片放在 Section 的 header 里，分组的大圆角裁不到，四角完整（见 dashFormCard）。
@@ -933,6 +983,10 @@ struct KeyboardSettingsView: View {
                         }
                     }
                 }
+            }
+        } right: {
+            let _ = refresh
+            if store.settings.inputLanguage != .englishOnly {
                 // 拼音组最上面是拼音显示（F12，KS1 ②）：上方一行（默认，同 iOS 原生）/ 侧边。键盘上长按「中/英」也能切。
                 Section {
                 } header: {

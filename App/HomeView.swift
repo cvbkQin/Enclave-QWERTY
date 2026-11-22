@@ -99,9 +99,17 @@ private struct Dashboard: View {
         if !SharedStorage.isShared { SharedConfigBanner() }
         TrialBanner()
         if needsAISetup { AISetupCard() }
-        summaryCard
-        apiCard
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+        if router.wideLayout {
+            // iPad 宽屏（PA1 ①）：AI 卡和接口卡并排（2 : 1），下面四格一行。
+            RatioRow(ratios: [2, 1]) {
+                summaryCard
+                apiCard
+            }
+        } else {
+            summaryCard
+            apiCard
+        }
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: router.wideLayout ? 4 : 2), spacing: 12) {
             GridCard(icon: "keyboard", title: L("键盘", "Keyboard", "キーボード"), color: DashColor.input,
                      value: store.settings.keyboardLayout.shortTitle,
                      detail: store.settings.fuzzyPinyin.isEmpty ? L("模糊拼音未开", "Fuzzy pinyin off", "あいまい入力オフ") : L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "Fuzzy pinyin: \(store.settings.fuzzyPinyin.count)", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組")) { router.openKeyboard() }
