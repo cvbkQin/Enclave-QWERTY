@@ -41,7 +41,7 @@ struct PadNineFunctions: View {
                         .frame(height: Self.fade)
                 }
             }
-            UndoRedoPair(model: model)
+            UndoRedoPair(model: model, fillWidth: KeyboardMetrics.pad?.landscape == true ? 94 : 86)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: nineOnLeft ? .topTrailing : .topLeading)
         .opacity(model.isComposing ? 0.4 : 1)

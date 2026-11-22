@@ -137,7 +137,9 @@ struct KeyboardView: View {
                     let toLeft = model.settings.nineKeySide == .left
                     let rawX = sideways ? (toLeft ? chip.minX - StyleDropdown.width - 6 : chip.maxX + 6) : chip.minX
                     let x = min(max(rawX, 4), geo.size.width - StyleDropdown.width - 4)
-                    let y = sideways ? max(chip.minY, 4) : chip.maxY + 4
+                    // 9 键整个键盘只有按键那么高：往下放不下最矮的框（一条风格 + 底下两行）时整个往上挪，不被键盘底边裁掉。
+                    let lowest = geo.size.height - StyleDropdown.minimumHeight(model: model, row: row) - 6
+                    let y = sideways ? max(min(chip.minY, lowest), 4) : chip.maxY + 4
                     ZStack(alignment: .topLeading) {
                         Color.black.opacity(0.001)
                             .onTapGesture { model.aiRow = nil }
@@ -455,6 +457,8 @@ struct PanelToggleButton: View {
 /// 撤销和重做拼成一个胶囊，中间一条细线。AI 栏最右边，收起和展开都在。
 struct UndoRedoPair: View {
     @ObservedObject var model: KeyboardModel
+    /// iPad 9 键功能键一列：撑满这一列（竖屏 86、横屏 94），两个箭头各占一半。
+    var fillWidth: CGFloat?
 
     /// 高 34、圆角 17（和栏里别的键一样高，v307）。方案 A（v309）缩成小胶囊：左右内边 9、16pt 箭头、中间 1×16 细竖线，总宽 64。
     static let halfWidth: CGFloat = 31.5
@@ -471,9 +475,11 @@ struct UndoRedoPair: View {
             Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 16)
             half("arrow.uturn.forward", enabled: model.canRedo, leading: false) { model.redo() }
         }
-        .frame(width: Self.width, height: Self.height)
+        .frame(width: fillWidth ?? Self.width, height: Self.height)
         .background(Capsule().fill(KeyStyle.charKey))
     }
+
+    private var arrowWidth: CGFloat { fillWidth.map { ($0 - 1) / 2 } ?? Self.halfWidth }
 
     private func half(_ systemImage: String, enabled: Bool, leading: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -481,7 +487,7 @@ struct UndoRedoPair: View {
                 .font(.system(size: 16, weight: .medium))
                 // 箭头离外边 9，两个箭头靠向中间的竖线。
                 .padding(leading ? .leading : .trailing, 9)
-                .frame(width: Self.halfWidth, height: Self.height, alignment: leading ? .leading : .trailing)
+                .frame(width: arrowWidth, height: Self.height, alignment: leading ? .leading : .trailing)
                 .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.6))
                 .contentShape(Rectangle())
         }

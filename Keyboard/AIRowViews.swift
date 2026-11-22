@@ -483,6 +483,12 @@ struct StyleDropdown: View {
 
     private var answer: Bool { row == .answerStyles }
 
+    /// 最矮能缩到多高：帮回一行（有的话）、标题、一条风格、「添加」、底下一行。再矮就要被裁了。
+    static func minimumHeight(model: KeyboardModel, row: KeyboardModel.AIRow) -> CGFloat {
+        let helpHeight = row != .answerStyles && model.helpReplyAvailable ? itemHeight + 7 : 0
+        return headerHeight + itemHeight + addHeight + footerHeight + 12 + helpHeight
+    }
+
     var body: some View {
         let styles = answer ? model.settings.answerStyles : model.settings.styles
         let selectedID = answer ? model.settings.selectedAnswerStyle?.id : model.settings.selectedStyle?.id
@@ -531,8 +537,7 @@ struct StyleDropdown: View {
                 .frame(maxWidth: .infinity, minHeight: Self.footerHeight, maxHeight: Self.footerHeight, alignment: .leading)
         }
         .padding(6)
-        .frame(width: Self.width, height: max(Self.headerHeight + Self.itemHeight + Self.addHeight + Self.footerHeight + 12 + helpHeight,
-                                              min(natural, maxHeight)), alignment: .top)
+        .frame(width: Self.width, height: max(Self.minimumHeight(model: model, row: row), min(natural, maxHeight)), alignment: .top)
         .background(shape.fill(DropdownStyle.fill)
             .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8))
         // 深色下和按键颜色接近：加一圈细边（和拼音键弹框一样）。
