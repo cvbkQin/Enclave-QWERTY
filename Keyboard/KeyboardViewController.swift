@@ -168,7 +168,7 @@ final class KeyboardViewController: UIInputViewController {
         } else if isPad {
             let width = view.bounds.width
             let pad = width > 0 && width < 500 ? nil
-                : KeyboardMetrics.pad ?? PadMetrics.make(isPad: true, width: 820, screen: CGSize(width: 820, height: 1180))
+                : KeyboardMetrics.padBase ?? PadMetrics.make(isPad: true, width: 820, screen: CGSize(width: 820, height: 1180))
             model.setLandscape(false, pad: pad)
         } else {
             model.setLandscape(traitCollection.verticalSizeClass == .compact)
@@ -193,7 +193,7 @@ final class KeyboardViewController: UIInputViewController {
     private func scheduleOrientationCheck() {
         guard !orientationCheckScheduled, let geometry = currentGeometry(),
               geometry.landscape != model.landscape || geometry.landscape != KeyboardMetrics.landscape
-                || geometry.pad != model.pad || geometry.pad != KeyboardMetrics.pad
+                || geometry.pad != model.pad || geometry.pad != KeyboardMetrics.padBase
         else { return }
         orientationCheckScheduled = true
         DispatchQueue.main.async { [weak self] in

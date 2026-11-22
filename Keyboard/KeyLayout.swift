@@ -74,6 +74,10 @@ struct KeyLayoutResult: Equatable {
     var operatorColumn: CGRect?
     /// 横屏九宫格（LN1）中间那块：上面 AI 栏、下面联想 / 候选 / 结果卡（LandscapeNineMiddle），不归触摸层管。
     var middle: CGRect?
+    /// iPad 全宽 9 键（PK3、PK4）：功能键一列（回答卡开关、润色、问答、钉住的风格、撤销重做）和中间的联想 / 候选，
+    /// 都不归触摸层管。
+    var padFunctions: CGRect?
+    var padMiddle: CGRect?
 }
 
 /// 按当前状态算出所有按键的位置，参照 iOS 自带键盘的比例。
@@ -95,7 +99,10 @@ enum KeyLayout {
         /// 只用英文时底栏已经有逗号键，不放。
         var quickPunct: QuickPunctSide?
         /// iPad 全宽键盘（PK1、PK2、PK9）：26 键和数字符号页按 iPad 原生排（KeyLayout+Pad）。
+        /// 9 键开着回答卡时是压扁的那份（PK15）。
         var pad: PadMetrics?
+        /// iPad 全宽 9 键：九键在左边（PK4），默认右边（PK3）。
+        var nineOnLeft = false
     }
 
     /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。
@@ -138,6 +145,9 @@ enum KeyLayout {
     }
 
     static func build(_ state: State, size: CGSize) -> KeyLayoutResult {
+        if let pad = state.pad, state.nineKey, state.layer == .letters || state.layer == .digits {
+            return padNine(state, size: size, pad: pad)
+        }
         if state.layer == .letters && state.nineKey {
             return nineKey(state, size: size)
         }

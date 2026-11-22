@@ -58,6 +58,17 @@ struct KeysView: View {
                             .frame(width: middle.width, height: middle.height)
                             .offset(x: middle.minX, y: middle.minY)
                     }
+                    // iPad 全宽 9 键（PK3、PK4）：功能键一列和中间的联想 / 候选。
+                    if let rect = layout.padFunctions {
+                        PadNineFunctions(model: model, nineOnLeft: model.settings.nineKeySide == .left)
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                    }
+                    if let rect = layout.padMiddle {
+                        PadNineMiddle(model: model)
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                    }
                     // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选、「，。」键往上划出十字时也不显示）。
                     // iPad 全宽键盘也和原生一样不显示，按下的键变灰。
                     if !model.nineGrid && model.pad == nil {
@@ -356,7 +367,10 @@ struct KeyCapView: View, Equatable {
         case .symbols: return "#+="
         case .digits: return "123"
         // iPad 的数字符号页（PK9）回字母写 ABC，和原生一样。
-        case .letters: return (context.chineseMode || context.showsNineKey) && KeyboardMetrics.pad == nil ? "拼音" : "ABC"
+        // iPad 9 键数字页（PK9 右）左下是「返回」。
+        case .letters:
+            if KeyboardMetrics.pad != nil { return context.nineGrid ? "返回" : "ABC" }
+            return context.chineseMode || context.showsNineKey ? "拼音" : "ABC"
         }
     }
 }
@@ -365,7 +379,8 @@ extension KeyKind {
     /// iPad 全宽键盘上灰底的功能键（PK1 --fn）。空格、回车、「，。」和字符键是白的。
     var isPadFunction: Bool {
         switch self {
-        case .tab, .delete, .toggleChinese, .shift, .globe, .layer, .emoji, .dismiss: return true
+        // 9 键（PK3）的「常用」「^^」也是灰的。
+        case .tab, .delete, .toggleChinese, .shift, .globe, .layer, .emoji, .dismiss, .quickWords, .emoticon: return true
         default: return false
         }
     }

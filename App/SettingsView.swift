@@ -984,6 +984,26 @@ struct KeyboardSettingsView: View {
                     }
                 }
             }
+            // iPad 全宽 9 键（PA3 ⑥）：九键靠哪边，只在 iPad 上显示。
+            if UIDevice.current.userInterfaceIdiom == .pad && store.settings.inputLanguage != .englishOnly {
+                Section {
+                    HStack {
+                        Text(L("九键位置", "9-key side", "10キーの位置"))
+                        Spacer(minLength: 12)
+                        Picker(L("九键位置", "9-key side", "10キーの位置"), selection: $store.settings.nineKeySide) {
+                            ForEach(NineKeySide.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                    }
+                } header: {
+                    Text(L("9 键（iPad）", "9-key (iPad)", "10キー（iPad）"))
+                } footer: {
+                    Text(L("九键靠这一边，另一边是润色、问答和候选。浮动键盘不分左右。",
+                           "The 9-key pad sits on this side; styles and candidates go on the other. The floating keyboard is unaffected.",
+                           "10キーをこちら側に置き、反対側にスタイルと候補を表示します。フローティングキーボードには影響しません。"))
+                }
+            }
         } right: {
             let _ = refresh
             if store.settings.inputLanguage != .englishOnly {

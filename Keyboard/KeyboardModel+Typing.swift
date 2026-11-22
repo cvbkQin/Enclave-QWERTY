@@ -405,11 +405,13 @@ extension KeyboardModel {
     // MARK: - 按键触摸（由 KeyTouchView 调用）
 
     var layoutState: KeyLayout.State {
-        KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
-                        englishOnly: settings.inputLanguage == .englishOnly,
-                        composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape,
-                        // 中文布局选九宫格的人切到英文时用的也是全键盘，一样要有「，。」键（0.97_4 用户反馈英文 26 键没有）。
-                        quickPunct: settings.quickPunctSide, pad: pad)
+        syncPadMetrics()
+        return KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
+                               englishOnly: settings.inputLanguage == .englishOnly,
+                               composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape,
+                               // 中文布局选九宫格的人切到英文时用的也是全键盘，一样要有「，。」键（0.97_4 用户反馈英文 26 键没有）。
+                               quickPunct: settings.quickPunctSide, pad: KeyboardMetrics.pad,
+                               nineOnLeft: settings.nineKeySide == .left)
     }
 
     func perform(_ kind: KeyKind) {

@@ -12,6 +12,9 @@ struct KeyboardView: View {
         VStack(spacing: 0) {
             // 横屏九宫格（LN1）：提示卡、回答卡、AI 栏、候选都在按键中间那块里（LandscapeNineMiddle），上面什么都不加。
             let split = model.landscapeSplit
+            // iPad 全宽 9 键（PK3）：AI 键、联想、候选、拼音都在按键旁边，没有拼音行和整行顶栏；回答卡、提示卡照样在上面。
+            let padNine = model.padNine
+            let _ = model.syncPadMetrics()
             if !split, let gate = model.gate {
                 // 提示卡单独占上方，结果卡片和展开的一行先让开。
                 GateCard(model: model, gate: gate)
@@ -50,7 +53,7 @@ struct KeyboardView: View {
             }
             // 拼音行一直占位，平时空着；打字时出拼音和细线，键盘高度不变（PY7）。
             // 拼音显示在侧边（F12）时没有这一行，拼音在九宫格左列 / 全键盘候选栏左边的拼音键里。
-            if !model.pinyinSide {
+            if !model.pinyinSide && !padNine {
                 ZStack {
                     if model.pinyinRowShown {
                         PinyinRow(model: model)
@@ -59,7 +62,7 @@ struct KeyboardView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: KeyboardMetrics.pinyinRowHeight)
             }
-            if !split {
+            if !split && !padNine {
                 ZStack {
                     // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
                     candidateBar
@@ -118,6 +121,8 @@ struct KeyboardView: View {
         .padding(.top, KeyboardMetrics.boardTop)
         // 横屏九宫格和全键盘高度不一样（九宫格不带 AI 栏那一行）：中 / 英、换布局时跟着改高度。
         .onChange(of: model.landscapeSplit) { _ in model.heightMayChange?() }
+        // iPad 9 键没有顶栏，切到符号页（全宽 26 键那种）、换布局时高度跟着变。
+        .onChange(of: model.padNine) { _ in model.heightMayChange?() }
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .background(boardBackground)
@@ -127,8 +132,12 @@ struct KeyboardView: View {
         .overlay(alignment: .topLeading) {
             if let row = model.aiRow, let chip = chipFrames[row] {
                 GeometryReader { geo in
-                    let x = min(max(chip.minX, 4), geo.size.width - StyleDropdown.width - 4)
-                    let y = chip.maxY + 4
+                    // iPad 9 键（PK3）：风格键竖排在一边，下拉框挨着那颗键往中间弹。
+                    let sideways = model.padNine
+                    let toLeft = model.settings.nineKeySide == .left
+                    let rawX = sideways ? (toLeft ? chip.minX - StyleDropdown.width - 6 : chip.maxX + 6) : chip.minX
+                    let x = min(max(rawX, 4), geo.size.width - StyleDropdown.width - 4)
+                    let y = sideways ? max(chip.minY, 4) : chip.maxY + 4
                     ZStack(alignment: .topLeading) {
                         Color.black.opacity(0.001)
                             .onTapGesture { model.aiRow = nil }

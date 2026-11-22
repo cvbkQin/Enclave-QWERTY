@@ -203,11 +203,13 @@ struct EnclaveSettings: Codable, Equatable {
     var doublePinyinMixFull = false
     /// 全键盘空格旁的「，。」键放在哪边（对齐清单第 80 条），默认右边。只是键盘的排法，不同步、不用重新部署。
     var quickPunctSide: QuickPunctSide = .right
+    /// iPad 全宽 9 键的九键在左边还是右边（PK3、PK4），默认右边。只是排法，不同步、不用重新部署；iPhone 上不用。
+    var nineKeySide: NineKeySide = .right
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, nineKeySide, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
         case pinnedStyleIDs, helpPinned, helpAuto
     }
@@ -327,6 +329,7 @@ extension EnclaveSettings {
         }
         doublePinyinMixFull = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinMixFull)) ?? doublePinyinMixFull
         quickPunctSide = (try? c.decodeIfPresent(QuickPunctSide.self, forKey: .quickPunctSide)) ?? quickPunctSide
+        nineKeySide = (try? c.decodeIfPresent(NineKeySide.self, forKey: .nineKeySide)) ?? nineKeySide
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }

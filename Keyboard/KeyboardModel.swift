@@ -445,9 +445,9 @@ final class KeyboardModel: ObservableObject {
         // KeyboardMetrics.landscape 是整个键盘进程共用的，model.landscape 是每个页面自己的（新页面从 false 开始）。
         // 以前只比 model.landscape：横屏弹过一次以后，竖屏新页面 setLandscape(false) 直接返回，进程里的尺寸一直是横屏的，
         // 之后每次竖屏弹出都是扁按键、AI 栏上面空一大块，恢复不了（T82，11-18 真机）。两个都要对上。pad 同理。
-        let metricsChanged = KeyboardMetrics.landscape != value || KeyboardMetrics.pad != newPad
+        let metricsChanged = KeyboardMetrics.landscape != value || KeyboardMetrics.padBase != newPad
         KeyboardMetrics.landscape = value
-        KeyboardMetrics.pad = newPad
+        KeyboardMetrics.padBase = newPad
         guard metricsChanged || value != landscape || newPad != pad else { return }
         landscape = value
         pad = newPad
@@ -471,10 +471,23 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
+        syncPadMetrics()
+        return KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
                                freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide,
-                               split: landscapeSplit)
+                               split: landscapeSplit, padNine: padNine)
+    }
+
+    /// iPad 全宽 9 键（PK3、PK4）：字母页和 9 键数字页。符号页（#@¥）照 26 键的全宽符号页。
+    var padNine: Bool { pad != nil && nineGrid }
+
+    /// 9 键开着回答卡时按键压扁（PK15）。
+    var padNineCompressed: Bool { padNine && aiExpanded }
+
+    /// 把 9 键、压扁这两样同步到 KeyboardMetrics（尺寸都从那里读）。算高度、排按键、画键盘之前各调一次。
+    func syncPadMetrics() {
+        KeyboardMetrics.padNine = padNine
+        KeyboardMetrics.padCompressed = padNineCompressed
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。

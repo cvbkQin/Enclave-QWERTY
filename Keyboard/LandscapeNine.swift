@@ -125,8 +125,10 @@ struct LandscapeWordPanel: View {
     @ObservedObject var model: KeyboardModel
     let words: [String]
     let composing: Bool
+    /// iPad 全宽 9 键（PadNineMiddle）：一排的高度按那块分（联想 3 排、候选 4 排），字大一点。
+    var rowHeight: CGFloat = 36
+    var fontSize: CGFloat = 19
 
-    private static let rowHeight: CGFloat = 36
     private static let fade: CGFloat = 22
     private static let sidePadding: CGFloat = 4
 
@@ -134,7 +136,7 @@ struct LandscapeWordPanel: View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         GeometryReader { geo in
             let rows = CandidateRows.rows(words, width: max(geo.size.width - Self.sidePadding * 2, 1))
-            let overflows = CGFloat(rows.count) * Self.rowHeight > geo.size.height + 0.5
+            let overflows = CGFloat(rows.count) * rowHeight > geo.size.height + 0.5
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {
                     ForEach(rows) { row in
@@ -142,12 +144,12 @@ struct LandscapeWordPanel: View {
                             ForEach(row.cells, id: \.index) { cell in
                                 Button { select(cell.index) } label: {
                                     Text(cell.word)
-                                        .font(.system(size: 19))
+                                        .font(.system(size: fontSize))
                                         .foregroundStyle(Color.primary)
                                         .lineLimit(1)
                                         .minimumScaleFactor(0.5)
                                         .padding(.horizontal, CandidateRows.padding)
-                                        .frame(width: cell.width, height: Self.rowHeight)
+                                        .frame(width: cell.width, height: rowHeight)
                                         .background {
                                             if composing, cell.index == 0 {
                                                 RoundedRectangle(cornerRadius: 7, style: .continuous)
