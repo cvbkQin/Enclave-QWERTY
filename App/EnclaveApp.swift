@@ -408,7 +408,9 @@ final class AppRouter: ObservableObject {
             }
         }
         if let i = args.firstIndex(of: "-appTab"), args.indices.contains(i + 1) {
-            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "model": .ai, "history": .history, "settings": .settings][args[i + 1]] ?? .home
+            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "prompts": .ai, "model": .ai, "history": .history, "settings": .settings][args[i + 1]] ?? .home
+            // 提示词：窄屏是「接口和提示词」的提示词分段，iPad 宽屏换成「提示词」标签（setWideLayout）。
+            if ["styles", "prompts"].contains(args[i + 1]) { aiSegment = .prompts }
         }
         // -appPage keyboard / pinyin / api / api-answer / testTools / privacy/privacyPolicy：直接打开某一页。
         if let i = args.firstIndex(of: "-appPage"), args.indices.contains(i + 1) {
