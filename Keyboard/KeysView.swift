@@ -123,6 +123,8 @@ struct KeysToast: View {
 /// 正被按住的键。和 KeyboardModel 分开：按下、松开只让按键和气泡重画。
 final class KeyPresses: ObservableObject {
     @Published var pressed: Set<String> = []
+    /// iPad 11 寸往下滑过了的键（PK1）：键帽上灰色小字换到正中，松手打它。
+    @Published var flicked: Set<String> = []
 }
 
 /// 画键帽要用到的键盘状态。只有这些值变了才重画键帽，打拼音时候选、拼写变化不牵动按键。
@@ -176,7 +178,8 @@ struct KeyCapCell: View {
     let key: KeySpec
 
     var body: some View {
-        KeyCapView(context: context, key: key, pressed: presses.pressed.contains(key.id))
+        KeyCapView(context: context, key: key, pressed: presses.pressed.contains(key.id),
+                   flicked: key.flick != nil && presses.flicked.contains(key.id))
             .equatable()
     }
 }
@@ -204,6 +207,7 @@ struct KeyCapView: View, Equatable {
     let context: KeyCapContext
     let key: KeySpec
     let pressed: Bool
+    var flicked = false
 
     var body: some View {
         if let ai = returnLook?.ai {
@@ -265,6 +269,9 @@ struct KeyCapView: View, Equatable {
             if let scheme = context.hintScheme {
                 DoublePinyinKeyLabel(letter: letter, lines: scheme.hints(for: context.hintPhase)[Character(letter)] ?? [], dimmed: dimmed,
                                      weak: context.hintWeak)
+            } else if let flick = key.flick {
+                // iPad 11 寸（PK1）：上面灰色小字是往下滑打的数字和符号，和原生一样。
+                PadSymbolLabel(base: context.shift == .off ? letter : letter.uppercased(), shifted: flick, flicked: flicked)
             } else {
                 Text(context.shift == .off ? letter : letter.uppercased())
                     .font(KeyStyle.letterFont)
@@ -285,7 +292,7 @@ struct KeyCapView: View, Equatable {
         case .quickPunct(let chinese):
             QuickPunctLabel(chinese: chinese)
         case .padSymbol(let base, let shifted):
-            PadSymbolLabel(base: base, shifted: shifted)
+            PadSymbolLabel(base: base, shifted: shifted, flicked: flicked)
         case .tab:
             Image(systemName: "arrow.right.to.line").font(KeyStyle.iconFont)
         case .dismiss:
@@ -393,15 +400,18 @@ extension KeyKind {
 struct PadSymbolLabel: View {
     let base: String
     let shifted: String
+    /// 11 寸往下滑过了（PK1）：灰色小字换到下面正中、变大变黑，松手打它；上面空出来。
+    var flicked = false
 
-    private static let centered: Set<String> = ["，", "。", "、", "：", "；", "‘", "“"]
+    private static let centered: Set<String> = ["，", "。", "、", "：", "；", "‘", "“", "（", "）"]
 
     var body: some View {
         let size = KeyboardMetrics.pad?.fontSize ?? 22
         VStack(spacing: 1) {
             glyph(shifted, size: (size * 0.55).rounded())
                 .foregroundStyle(.secondary)
-            glyph(base, size: size)
+                .opacity(flicked ? 0 : 1)
+            glyph(flicked ? shifted : base, size: size)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(base)

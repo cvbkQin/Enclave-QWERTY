@@ -411,7 +411,8 @@ extension KeyboardModel {
                                composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape,
                                // 中文布局选九宫格的人切到英文时用的也是全键盘，一样要有「，。」键（0.97_4 用户反馈英文 26 键没有）。
                                quickPunct: settings.quickPunctSide, pad: KeyboardMetrics.pad,
-                               nineOnLeft: settings.nineKeySide == .left, floating: KeyboardMetrics.floating)
+                               nineOnLeft: settings.nineKeySide == .left, floating: KeyboardMetrics.floating,
+                               padLetterHints: settings.padLetterHints)
     }
 
     func perform(_ kind: KeyKind) {
@@ -496,6 +497,11 @@ extension KeyboardModel {
         return opens > closes ? close : symbol
     }
 
+    /// iPad 11 寸字母键往下滑过了 / 推回去了（PK1）：键帽上灰色小字换到正中，或者换回来。
+    func setFlicked(_ id: String, _ on: Bool) {
+        if on { keyPresses.flicked.insert(id) } else { keyPresses.flicked.remove(id) }
+    }
+
     func keyPressed(_ key: KeySpec, feedback: Bool = true) {
         // 开始打字就把提示卡收起来。
         if gate != nil { dismissGate() }
@@ -507,6 +513,7 @@ extension KeyboardModel {
 
     func keyReleased(_ id: String) {
         pressedKeys.remove(id)
+        if keyPresses.flicked.contains(id) { keyPresses.flicked.remove(id) }
         // 自己打的字系统不一定发 textDidChange，松手时顺便更新发送键。
         refreshHostState()
     }
@@ -1484,6 +1491,10 @@ extension KeyboardModel {
             // iPad 9 键在左（PK4）/ 在右（PK3）。
             case "nineLeft": if settings.nineKeySide != .left { updateSettings { $0.nineKeySide = .left } }
             case "nineRight": if settings.nineKeySide != .right { updateSettings { $0.nineKeySide = .right } }
+            // iPad 11 寸字母上的数字和符号（PK1）：letterHintsOff 关掉、letterHintsOn 打开；flick 画 q、g 往下滑过了的样子。
+            case "letterHintsOff": if settings.padLetterHints { updateSettings { $0.padLetterHints = false } }
+            case "letterHintsOn": if !settings.padLetterHints { updateSettings { $0.padLetterHints = true } }
+            case "flick": keyPresses.flicked = ["q", "g"]; pressedKeys = ["q", "g"]
             // 拼音显示（F12）：side 侧边、row 上方一行。
             case "side": setPinyinDisplay(.side)
             case "row": setPinyinDisplay(.row)

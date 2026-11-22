@@ -11,6 +11,8 @@ extension KeyLayout {
         let id: String
         let kind: KeyKind
         var units: CGFloat = 1
+        /// 往下滑打出的字（11 寸字母上的灰色小字）。
+        var flick: String?
     }
 
     static func padBoard(_ state: State, size: CGSize, pad: PadMetrics) -> KeyLayoutResult {
@@ -34,6 +36,7 @@ extension KeyLayout {
                                    visual: CGRect(x: x, y: y, width: width, height: height))
                 spec.insetX = pad.gap / 2
                 spec.insetY = pad.gap / 2
+                spec.flick = key.flick
                 keys.append(spec)
                 x += width
             }
@@ -60,17 +63,32 @@ extension KeyLayout {
     /// ⇧     z x c v b n m ，。    ⇧
     /// 🌐 123 ☺   空格   「，。」 123 ⌨↓
     private static func padLetters11(_ state: State, chinese: Bool) -> [[PadKey]] {
-        let letters = letterRows.map { $0.map { PadKey(id: $0, kind: .letter($0)) } }
-        let comma = chinese ? PadKey(id: "p-comma", kind: .padSymbol("，", shifted: "！"))
+        let hints = state.padLetterHints ? padLetterHints(chinese: chinese) : nil
+        let letters = letterRows.enumerated().map { row, keys in
+            keys.enumerated().map { i, letter in PadKey(id: letter, kind: .letter(letter), flick: hints?[row][i]) }
+        }
+        // 「，。」本来就画着 ⇧ 出的「！？」，开着下滑时往下滑也打它（和原生一样）。
+        var comma = chinese ? PadKey(id: "p-comma", kind: .padSymbol("，", shifted: "！"))
                             : PadKey(id: "p-comma", kind: .padSymbol(",", shifted: "!"))
-        let period = chinese ? PadKey(id: "p-period", kind: .padSymbol("。", shifted: "？"))
+        var period = chinese ? PadKey(id: "p-period", kind: .padSymbol("。", shifted: "？"))
                              : PadKey(id: "p-period", kind: .padSymbol(".", shifted: "?"))
+        if hints != nil {
+            comma.flick = chinese ? "！" : "!"
+            period.flick = chinese ? "？" : "?"
+        }
         return [
             [PadKey(id: "tab", kind: .tab, units: 1.4)] + letters[0] + [PadKey(id: "delete", kind: .delete, units: 1.4)],
             [languageKey(state, units: 1.9)] + letters[1] + [PadKey(id: "return", kind: .returnKey, units: 1.9)],
             [PadKey(id: "shift", kind: .shift, units: 1.9)] + letters[2] + [comma, period, PadKey(id: "shift2", kind: .shift, units: 1.9)],
             padBottomRow(state, total: 12.8, side: 1, layer: 1.4, letters: true),
         ]
+    }
+
+    /// 11 寸字母上的灰色小字（PK1，照 iPad 原生）：第一排数字，下面两排符号；中文模式是中文的 ¥（）‘“；：。
+    static func padLetterHints(chinese: Bool) -> [[String]] {
+        [digits,
+         chinese ? ["@", "#", "¥", "&", "*", "（", "）", "‘", "“"] : ["@", "#", "$", "&", "*", "(", ")", "'", "\""],
+         chinese ? ["%", "-", "+", "=", "/", "；", "："] : ["%", "-", "+", "=", "/", ";", ":"]]
     }
 
     /// 13 寸（PK2）：多一排数字，标点各有自己的键。中文时直接出中文标点，键帽上灰色小字是按 ⇧ 出的。

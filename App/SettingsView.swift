@@ -984,24 +984,39 @@ struct KeyboardSettingsView: View {
                     }
                 }
             }
-            // iPad 全宽 9 键（PA3 ⑥）：九键靠哪边，只在 iPad 上显示。
-            if UIDevice.current.userInterfaceIdiom == .pad && store.settings.inputLanguage != .englishOnly {
+            // iPad（PA3 ⑥）：九键靠哪边、11 寸字母上的数字和符号，只在 iPad 上显示。
+            if UIDevice.current.userInterfaceIdiom == .pad {
                 Section {
-                    HStack {
-                        Text(L("九键位置", "9-key side", "10キーの位置"))
-                        Spacer(minLength: 12)
-                        Picker(L("九键位置", "9-key side", "10キーの位置"), selection: $store.settings.nineKeySide) {
-                            ForEach(NineKeySide.allCases) { Text($0.title).tag($0) }
+                    if store.settings.inputLanguage != .englishOnly {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L("九键位置", "9-key side", "10キーの位置"))
+                                Text(L("九键靠哪边，另一边放 AI 栏、联想和候选", "Styles, suggestions and candidates go on the other side",
+                                       "反対側に AI バー、予測、候補を表示"))
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 12)
+                            Picker(L("九键位置", "9-key side", "10キーの位置"), selection: $store.settings.nineKeySide) {
+                                ForEach(NineKeySide.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .fixedSize()
                         }
-                        .pickerStyle(.segmented)
-                        .fixedSize()
+                    }
+                    Toggle(isOn: $store.settings.padLetterHints) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("字母上的数字和符号", "Numbers and symbols on letters", "文字キーの数字と記号"))
+                            Text(L("下滑输入，和 iPad 原生一样", "Swipe down to type them, like the iPad keyboard",
+                                   "下にスワイプして入力（iPad 標準と同じ）"))
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
                     }
                 } header: {
-                    Text(L("9 键（iPad）", "9-key (iPad)", "10キー（iPad）"))
+                    Text(store.settings.inputLanguage != .englishOnly ? L("9 键（iPad）", "9-key (iPad)", "10キー（iPad）") : "iPad")
                 } footer: {
-                    Text(L("九键靠这一边，另一边是润色、问答和候选。浮动键盘不分左右。",
-                           "The 9-key pad sits on this side; styles and candidates go on the other. The floating keyboard is unaffected.",
-                           "10キーをこちら側に置き、反対側にスタイルと候補を表示します。フローティングキーボードには影響しません。"))
+                    Text(L("只在 iPad 上显示。字母上的数字和符号只在 11 寸的 26 键上有（13 寸本来就有数字行）；浮动键盘不分左右、不画小字。",
+                           "iPad only. Numbers on letters appear on the 11-inch QWERTY layout (13-inch has a number row); the floating keyboard is unaffected.",
+                           "iPad のみ。文字キーの数字は 11 インチの QWERTY に表示されます（13 インチには数字列があります）。フローティングキーボードには影響しません。"))
                 }
             }
         } right: {

@@ -54,6 +54,8 @@ struct KeySpec: Identifiable, Equatable {
     /// 格子里按键四周留的间隙。
     var insetX = KeyboardMetrics.keyInsetX
     var insetY = KeyboardMetrics.keyInsetY
+    /// 往下滑打出的字（iPad 11 寸字母键上的灰色小字，PK1）；nil 不能下滑。
+    var flick: String?
 
     init(id: String, kind: KeyKind, frame: CGRect, visual: CGRect? = nil) {
         self.id = id
@@ -105,6 +107,8 @@ enum KeyLayout {
         var nineOnLeft = false
         /// iPad 浮动键盘（PK13、PK14）：9 键数字页左列一直是运算符号，最下面一行 返回、☺、0、空格（字母页左下 ☺ 让给了 🌐）。
         var floating = false
+        /// iPad 11 寸 26 键字母上的灰色小字、往下滑打出来（设置「字母上的数字和符号」，默认开）。
+        var padLetterHints = true
     }
 
     /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。

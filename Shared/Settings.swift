@@ -205,11 +205,14 @@ struct EnclaveSettings: Codable, Equatable {
     var quickPunctSide: QuickPunctSide = .right
     /// iPad 全宽 9 键的九键在左边还是右边（PK3、PK4），默认右边。只是排法，不同步、不用重新部署；iPhone 上不用。
     var nineKeySide: NineKeySide = .right
+    /// iPad 11 寸 26 键字母上的灰色小字（数字和符号），往下滑打出来，和 iPad 原生一样（PA3、PK1），默认开。
+    /// 只是键盘的显示和手势，不同步、不用重新部署；13 寸有数字行，不画。
+    var padLetterHints = true
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, nineKeySide, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, nineKeySide, padLetterHints, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
         case pinnedStyleIDs, helpPinned, helpAuto
     }
@@ -330,6 +333,7 @@ extension EnclaveSettings {
         doublePinyinMixFull = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinMixFull)) ?? doublePinyinMixFull
         quickPunctSide = (try? c.decodeIfPresent(QuickPunctSide.self, forKey: .quickPunctSide)) ?? quickPunctSide
         nineKeySide = (try? c.decodeIfPresent(NineKeySide.self, forKey: .nineKeySide)) ?? nineKeySide
+        padLetterHints = (try? c.decodeIfPresent(Bool.self, forKey: .padLetterHints)) ?? padLetterHints
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }

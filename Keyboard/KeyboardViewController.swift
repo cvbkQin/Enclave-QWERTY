@@ -626,6 +626,7 @@ final class KeyboardViewController: UIInputViewController {
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
         releaseEngine()
         model.pressedKeys = []
+        if !model.keyPresses.flicked.isEmpty { model.keyPresses.flicked = [] }
         model.trackpadActive = false
         model.dismissPredictions()
         Self.flushShared()

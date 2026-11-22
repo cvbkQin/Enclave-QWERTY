@@ -31,4 +31,23 @@ final class NineKeySideTests: XCTestCase {
         SyncMerge.EndpointProfile(settings: source, keys: [:]).apply(to: &other)
         XCTAssertEqual(other.nineKeySide, .left)
     }
+
+    /// iPad 11 寸「字母上的数字和符号」（PA3、PK1）：默认开，旧设置里没有也是开，关了能存住，不同步。
+    func testPadLetterHints() throws {
+        XCTAssertTrue(EnclaveSettings().padLetterHints)
+        XCTAssertTrue(try decode("{}").padLetterHints)
+        XCTAssertFalse(try decode("{\"padLetterHints\": false}").padLetterHints)
+        XCTAssertTrue(try decode("{\"padLetterHints\": \"no\"}").padLetterHints)
+
+        var settings = EnclaveSettings()
+        settings.padLetterHints = false
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertFalse(try JSONDecoder().decode(EnclaveSettings.self, from: data).padLetterHints)
+
+        var other = EnclaveSettings()
+        other.padLetterHints = false
+        SyncMerge.StyleProfile(settings: EnclaveSettings()).apply(to: &other)
+        SyncMerge.EndpointProfile(settings: EnclaveSettings(), keys: [:]).apply(to: &other)
+        XCTAssertFalse(other.padLetterHints)
+    }
 }
