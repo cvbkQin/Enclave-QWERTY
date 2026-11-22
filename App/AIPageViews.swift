@@ -1,7 +1,7 @@
 import SwiftUI
 
-// AI 标签「接口 | 提示词」的小部件和二级页（第 51、54 条，效果图 design/ai-page、design/prompts-tab）：
-// 段标题、最近 20 次的统计和小柱、「最近 20 次」页、提示词的「润色风格 | 问答风格」标签和列表。
+// 「接口和提示词」标签的小部件和二级页（第 51、54 条，R2 / R2b）：
+// 段标题、最近 20 次的统计和小柱、「最近 20 次」页、提示词的润色风格、问答风格两组和删掉的预设。
 
 /// 段标题：20 粗，黑字（放在列表分组的 header 里）。
 struct AISectionTitle: View {
@@ -228,63 +228,6 @@ private struct RecentRequestRow: View {
 
 // MARK: - 提示词：润色风格 / 问答风格（第 54 条，PT1–PT3）
 
-/// 「提示词」下面的两个大标签：各占一半宽、高 48、字 18（没选中常规灰、选中 700 主文字色），条数放在小圆角底里；
-/// 底下 1px 分隔线，选中的那个底部 3 高主色下划线（左右各缩 14），下面一行 13 灰字说明。
-struct PromptKindTabs: View {
-    @Binding var kind: AppRouter.PromptKind
-    var polishCount: Int
-    var answerCount: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 0) {
-                tab(.polish, title: L("润色风格", "Polish", "整える"), count: polishCount)
-                tab(.answer, title: L("问答风格", "Answer", "回答"), count: answerCount)
-            }
-            .background(alignment: .bottom) { Rectangle().fill(Color(.separator)).frame(height: 1) }
-            Text(kind == .polish
-                 // 帮回并入润色：帮回也用这里的润色风格（只取语气、用词、长度的要求）。
-                 ? L("润色时用「默认」那条；在键盘上点润色键的 ⌄ 换一条，默认也跟着换。帮回也用这条风格写回复。", "Polishing uses the Default one. Picking another from ⌄ on the polish key makes it the default. Help Reply writes in this style too.", "整えるときは「デフォルト」を使います。キーボードで整えるキーの ⌄ から選ぶと、それがデフォルトになります。返信アシストもこのスタイルで返信を作ります。")
-                 : L("点「问答」时用「默认」那种；在键盘上点「问答」的 ⌄ 换一种，默认也跟着换。", "Tapping Ask uses the Default one. Picking another from ⌄ on Ask makes it the default.", "「質問」では「デフォルト」を使います。キーボードの「質問」の ⌄ から選ぶと、それがデフォルトになります。"))
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .textCase(nil)
-        .padding(.bottom, 4)
-    }
-
-    private func tab(_ value: AppRouter.PromptKind, title: String, count: Int) -> some View {
-        let selected = kind == value
-        let accent = DashColor.ai
-        return Button { kind = value } label: {
-            HStack(spacing: 7) {
-                Text(title)
-                    .font(.system(size: 18, weight: selected ? .bold : .regular))
-                    .foregroundStyle(selected ? Color.primary : Color.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text("\(count)")
-                    .font(.system(size: 12.5, weight: .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(selected ? accent : Color.secondary)
-                    .padding(.horizontal, 7)
-                    .frame(minWidth: 22, minHeight: 20)
-                    .background(Capsule().fill(selected ? PromptListColor.chip : Color(.systemGray5)))
-            }
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .overlay(alignment: .bottom) {
-                if selected {
-                    RoundedRectangle(cornerRadius: 1.5).fill(accent).frame(height: 3).padding(.horizontal, 14)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-}
-
 enum PromptListColor {
     /// 条数小底、「默认」小标签：浅紫 #ECEAFD，深色 #2E2766。
     static let chip = Color(UIColor { $0.userInterfaceStyle == .dark
@@ -292,139 +235,43 @@ enum PromptListColor {
         : UIColor(red: 0xEC / 255, green: 0xEA / 255, blue: 0xFD / 255, alpha: 1) })
 }
 
-/// 一种风格的列表（照以前的行样式）：分组标题「全部润色风格」+ 右边「编辑 / 完成」；每行名称、「默认」、一句说明、本周次数、›；
-/// 「编辑」时就地拖动排序、点 − 删除（平时也能左滑删除）；下面「删掉的预设」带「↶ 加回」，最后「＋ 添加」。
+/// 一种风格的一组（R2b，11-22）：分组标题「润色风格 / 问答风格」；每行左边图钉（实心 = 固定在 AI 栏）、名称 +「默认」灰字、
+/// 一句说明、本周次数、›。右上系统「编辑」时就地拖动排序、点 − 删除（平时也能左滑删除）。
+/// 润色、问答两组上下排在同一页；「删掉的预设」和「＋」见 DeletedPresetsSection 和提示词页右上。
 struct PromptListSections: View {
     let answer: Bool
     @Binding var settings: EnclaveSettings
     var edit: (UUID) -> Void
-    var add: () -> Void
 
     private var styles: Binding<[StylePreset]> { answer ? $settings.answerStyles : $settings.styles }
     private var defaultID: UUID? { answer ? settings.selectedAnswerStyle?.id : settings.selectedStyle?.id }
     @State private var pinFull = false
 
     var body: some View {
-        // 固定在键盘 AI 栏上的风格（AK5）：润色、问答两种都在这里，拖动改 AI 栏上的顺序，左滑取消固定。
-        if !settings.pinnedStyles.isEmpty {
-            Section {
-                ForEach(settings.pinnedStyles, id: \.style.id) { pin in
-                    HStack(spacing: 10) {
-                        Group {
-                            if pin.answer {
-                                AskIcon(size: 18)
-                            } else {
-                                PolishStars(size: 18, running: false, glowing: false, doneAt: nil, tint: DashColor.ai)
-                            }
-                        }
-                        .frame(width: 22)
-                        Text(pin.style.displayName).font(.system(size: 17))
-                        Spacer(minLength: 8)
-                        Text(pin.answer ? L("问答", "Ask", "質問") : L("润色", "Polish", "整える"))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(minHeight: 44)
-                    // 左滑只是取消固定，不删风格：不用系统的「删除」，自己写「取消固定」；编辑状态下也不出 −。
-                    .deleteDisabled(true)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        Button {
-                            settings.pinnedStyleIDs.removeAll { $0 == pin.style.id }
-                        } label: {
-                            Label(L("取消固定", "Unpin", "固定を解除"), systemImage: "pin.slash")
-                        }
-                        .tint(.orange)
-                    }
-                }
-                .onMove { offsets, destination in
-                    settings.pinnedStyleIDs = settings.pinnedStyles.map(\.style.id)
-                    settings.pinnedStyleIDs.move(fromOffsets: offsets, toOffset: destination)
-                }
-            } header: {
-                Text(L("固定在 AI 栏（\(settings.pinnedStyles.count) / \(EnclaveSettings.maxPinnedStyles)）",
-                       "Pinned to the AI bar (\(settings.pinnedStyles.count) / \(EnclaveSettings.maxPinnedStyles))",
-                       "AI バーに固定（\(settings.pinnedStyles.count) / \(EnclaveSettings.maxPinnedStyles)）"))
-                    .font(.system(size: 13))
-                    .textCase(nil)
-            } footer: {
-                Text(L("顺序就是键盘 AI 栏上固定键的顺序，点「编辑」后拖动排序；向左滑取消固定。",
-                       "Same order as the pinned keys on the keyboard's AI bar. Tap Edit to reorder; swipe left to unpin.",
-                       "キーボードの AI バーと同じ順番です。「編集」で並べ替え、左にスワイプで固定を解除。"))
-            }
-        }
         Section {
             ForEach(styles.wrappedValue) { style in
-                HStack(spacing: 4) {
+                HStack(spacing: 2) {
+                    PromptPinButton(pinned: settings.isPinned(style.id)) {
+                        if !settings.togglePin(style.id) { pinFull = true }
+                    }
                     PromptListRow(name: style.displayName, summary: summary(style), isDefault: style.id == defaultID,
                                   count: UsageStats.week((answer ? "answer.style." : "polish.style.") + style.id.uuidString)) {
                         edit(style.id)
-                    }
-                    PromptPinButton(pinned: settings.isPinned(style.id)) {
-                        if !settings.togglePin(style.id) { pinFull = true }
                     }
                 }
             }
             .onDelete(perform: delete)
             .onMove(perform: move)
         } header: {
-            HStack(alignment: .firstTextBaseline) {
-                Text(answer ? L("全部问答风格", "All answer styles", "すべての回答スタイル") : L("全部润色风格", "All polish styles", "すべての整えるスタイル"))
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                // 系统的编辑按钮：自己管 editMode 时拖过一次后再拖、点 ⊖ 都没反应（PH2 的经验）。
-                EditButton()
-                    .font(.system(size: 16))
-                    .tint(DashColor.ai)
-                    .environment(\.locale, Loc.locale)
-            }
-            .textCase(nil)
+            Text(answer ? L("问答风格", "Answer styles", "回答スタイル") : L("润色风格", "Polish styles", "整えるスタイル"))
         } footer: {
             PromptListFooter(answer: answer)
         }
+        .id(answer ? "answerStyles" : "polishStyles")
         .alert(L("最多固定 5 个", "You can pin up to 5", "固定できるのは 5 つまで"), isPresented: $pinFull) {
             Button(L("好", "OK", "OK"), role: .cancel) {}
         } message: {
             Text(L("先取消一个再固定。", "Unpin one first.", "先にどれかの固定を解除してください。"))
-        }
-        if !missingDefaults.isEmpty {
-            Section {
-                ForEach(missingDefaults) { preset in
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(preset.displayName).font(.system(size: 17))
-                            Text(summary(preset)).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                        Spacer(minLength: 8)
-                        Button {
-                            // 换个新 id：本周次数从 0 算，不和删掉的那条混在一起。
-                            styles.wrappedValue.append(StylePreset(name: preset.name, prompt: preset.prompt))
-                        } label: {
-                            Label(L("加回", "Restore", "戻す"), systemImage: "arrow.uturn.backward")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(DashColor.ai)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                    .padding(.vertical, 4)
-                    .deleteDisabled(true)
-                    .moveDisabled(true)
-                }
-            } header: {
-                Text(L("删掉的预设", "Deleted presets", "削除したプリセット")).font(.system(size: 13)).textCase(nil)
-            } footer: {
-                Text(answer
-                     ? L("加回到列表最后，内容是默认的；你自己的问答风格不受影响。", "Adds it back at the end with its default text. Your own answer styles stay as they are.", "デフォルトの内容でリストの最後に戻します。自分の回答スタイルはそのままです。")
-                     : L("加回到列表最后，内容是默认的；你自己的润色风格不受影响。", "Adds it back at the end with its default text. Your own polish styles stay as they are.", "デフォルトの内容でリストの最後に戻します。自分の整えるスタイルはそのままです。"))
-            }
-        }
-        Section {
-            Button(action: add) {
-                Label(answer ? L("添加问答风格", "Add answer style", "回答スタイルを追加") : L("添加润色风格", "Add polish style", "整えるスタイルを追加"),
-                      systemImage: "plus")
-                    .font(.system(size: 17))
-                    .foregroundStyle(DashColor.ai)
-            }
         }
     }
 
@@ -433,10 +280,12 @@ struct PromptListSections: View {
     }
 
     /// 拖动只改顺序，不改默认：没选过默认时默认跟着第一条，拖之前先把它记下来，不然拖到最上面的那条就悄悄变成了默认。
+    /// AI 栏上固定键的顺序跟着列表走。
     private func move(_ offsets: IndexSet, _ destination: Int) {
         if answer, settings.selectedAnswerStyleID == nil { settings.selectedAnswerStyleID = defaultID }
         if !answer, settings.selectedStyleID == nil { settings.selectedStyleID = defaultID }
         styles.wrappedValue.move(fromOffsets: offsets, toOffset: destination)
+        settings.sortPinsByList()
     }
 
     /// 至少留一条；删掉的是默认那条就回到第一条。
@@ -447,17 +296,57 @@ struct PromptListSections: View {
         if answer, let id = settings.selectedAnswerStyleID, removed.contains(id) { settings.selectedAnswerStyleID = nil }
         if !answer, let id = settings.selectedStyleID, removed.contains(id) { settings.selectedStyleID = nil }
     }
+}
+
+/// 提示词页最下面「删掉的预设」（润色、问答两种一起）：每行名称、一句说明，右边「加回」。都没删时不显示。
+struct DeletedPresetsSection: View {
+    @Binding var settings: EnclaveSettings
+
+    var body: some View {
+        let polish = missing(answer: false), answer = missing(answer: true)
+        if !polish.isEmpty || !answer.isEmpty {
+            Section {
+                ForEach(polish) { row($0, answer: false) }
+                ForEach(answer) { row($0, answer: true) }
+            } header: {
+                Text(L("删掉的预设", "Deleted presets", "削除したプリセット"))
+            } footer: {
+                Text(L("加回到那一组的最后，内容是默认的；你自己的提示词不受影响。", "Adds it back at the end of its group with its default text. Your own prompts stay as they are.",
+                       "デフォルトの内容でそのグループの最後に戻します。自分のプロンプトはそのままです。"))
+            }
+        }
+    }
+
+    private func row(_ preset: StylePreset, answer: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(preset.displayName)
+                Text(answer ? (preset.prompt.isEmpty ? AnswerStyleSections.answerFallback : preset.prompt) : PolishPromptSections.summary(preset))
+                    .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button(L("加回", "Restore", "戻す")) {
+                // 换个新 id：本周次数从 0 算，不和删掉的那条混在一起。
+                let style = StylePreset(name: preset.name, prompt: preset.prompt)
+                if answer { settings.answerStyles.append(style) } else { settings.styles.append(style) }
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(DashColor.ai)
+        }
+        .padding(.vertical, 2)
+        .deleteDisabled(true)
+        .moveDisabled(true)
+    }
 
     /// 自带的里被删掉的：名字和内容都找不到了才算（改了名或改了内容的还在列表里）。
-    private var missingDefaults: [StylePreset] {
+    private func missing(answer: Bool) -> [StylePreset] {
         let defaults = answer ? StylePreset.answerDefaults : StylePreset.defaults
-        return defaults.filter { preset in
-            !styles.wrappedValue.contains { $0.name == preset.name || $0.prompt == preset.prompt }
-        }
+        let styles = answer ? settings.answerStyles : settings.styles
+        return defaults.filter { preset in !styles.contains { $0.name == preset.name || $0.prompt == preset.prompt } }
     }
 }
 
-/// 每行右边的图钉（AK5）：空心没固定，实心主色已固定；点一下切换。编辑状态不显示。
+/// 每行左边的图钉（AK5、R2b）：空心灰没固定，实心主色已固定；点一下切换。编辑状态不显示。
 private struct PromptPinButton: View {
     let pinned: Bool
     let toggle: () -> Void
@@ -470,7 +359,7 @@ private struct PromptPinButton: View {
                     .font(.system(size: 15, weight: .semibold))
                     .rotationEffect(.degrees(45))
                     .foregroundStyle(pinned ? DashColor.ai : Color(.tertiaryLabel))
-                    .frame(width: 36, height: 44)
+                    .frame(width: 32, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
@@ -495,22 +384,19 @@ private struct PromptListRow: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 7) {
-                        Text(name).font(.system(size: 17)).foregroundStyle(Color.primary).lineLimit(1)
+                        Text(name).foregroundStyle(Color.primary).lineLimit(1)
                         if isDefault {
                             Text(L("默认", "Default", "デフォルト"))
-                                .font(.system(size: 11.5, weight: .bold))
-                                .foregroundStyle(DashColor.ai)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 2)
-                                .background(Capsule().fill(PromptListColor.chip))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    Text(summary).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                 }
                 Spacer(minLength: 8)
                 if !editing {
                     Text(L("\(count) 次", "\(count)×", "\(count) 回"))
-                        .font(.system(size: 15))
+                        .font(.subheadline)
                         .monospacedDigit()
                         .foregroundStyle(count == 0 ? Color(.tertiaryLabel) : Color.secondary)
                     Image(systemName: "chevron.right")
@@ -537,9 +423,11 @@ private struct PromptListFooter: View {
         if editMode?.wrappedValue.isEditing == true {
             Text(L("按住右边 ≡ 拖动排序，点左边 − 删除；也可以在列表里向左滑删除。", "Drag ≡ on the right to reorder, tap − on the left to delete. You can also swipe left in the list.", "右の ≡ をドラッグで並べ替え、左の − で削除。リストで左にスワイプしても削除できます。"))
         } else if answer {
-            Text(L("顺序就是键盘「问答 ⌄」下拉里的顺序。次数是本周的。点一行编辑内容。", "Same order as the keyboard's Ask ⌄ menu. Counts are for this week. Tap a row to edit it.", "キーボードの「質問 ⌄」と同じ順番です。回数は今週の分です。行をタップすると編集できます。"))
+            Text(L("顺序就是键盘「问答 ⌄」里的顺序。", "Same order as the keyboard's Ask ⌄ menu.", "キーボードの「質問 ⌄」と同じ順番です。"))
         } else {
-            Text(L("顺序就是键盘「润色风格 ⌄」下拉里的顺序。次数是本周的。点一行编辑内容。", "Same order as the keyboard's polish style ⌄ menu. Counts are for this week. Tap a row to edit it.", "キーボードの「整えるスタイル ⌄」と同じ順番です。回数は今週の分です。行をタップすると編集できます。"))
+            Text(L("带图钉的固定在键盘 AI 栏（最多 \(EnclaveSettings.maxPinnedStyles) 个），顺序就是键盘里的顺序。点润色键时用「默认」那条。次数是本周的。",
+                   "Pinned styles sit on the keyboard's AI bar (up to \(EnclaveSettings.maxPinnedStyles)), in this order. The Polish key uses the Default one. Counts are for this week.",
+                   "ピン留めしたものはキーボードの AI バーに固定されます（最大 \(EnclaveSettings.maxPinnedStyles) 個）。順番もキーボードと同じです。整えるキーは「デフォルト」を使います。回数は今週の分です。"))
         }
     }
 }

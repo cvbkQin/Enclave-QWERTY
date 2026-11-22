@@ -790,9 +790,9 @@ private struct BackupResultView: View {
                 }
             } footer: {
                 if report.keysRestored == false {
-                    Text(L("Key 没有恢复：去「AI › 接口」重新填，或用带 Key 的备份再恢复一次。",
-                           "Keys weren't restored. Enter them again under AI › API, or restore again with the password.",
-                           "キーは復元していません。「AI › API」で入力し直すか、パスワードを入れてもう一度復元してください。"))
+                    Text(L("Key 没有恢复：去「接口和提示词 › 接口」重新填，或用带 Key 的备份再恢复一次。",
+                           "Keys weren't restored. Enter them again under API & Prompts › API, or restore again with the password.",
+                           "キーは復元していません。「API とプロンプト › API」で入力し直すか、パスワードを入れてもう一度復元してください。"))
                 }
             }
         }

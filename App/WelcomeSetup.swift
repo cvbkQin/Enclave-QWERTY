@@ -153,7 +153,7 @@ struct WelcomeSetupView: View {
                 if progress.state(3) == .current { answerHint }
                 if progress.state(3) == .done && inGuide {
                     Button { finish(); router.openAI(answer: true) } label: {
-                        Text(L("可在 AI 页改", "Change on the AI tab", "AI タブで変更できます"))
+                        Text(L("可在「接口和提示词」改", "Change under API & Prompts", "「API とプロンプト」で変更できます"))
                             .font(.system(size: 12, weight: .semibold)).foregroundStyle(GuideColor.chipText)
                             .padding(.horizontal, 8).frame(height: 22)
                             .background(Capsule().fill(GuideColor.chipFill))

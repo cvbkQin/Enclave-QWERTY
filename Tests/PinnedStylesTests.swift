@@ -1,6 +1,6 @@
 import XCTest
 
-/// AI 栏固定风格（AK5）：最多 5 个、按固定先后、删掉的风格不占名额、旧设置能解。
+/// AI 栏固定风格（AK5）：最多 5 个、顺序跟着提示词列表（R2b）、删掉的风格不占名额、旧设置能解。
 final class PinnedStylesTests: XCTestCase {
     func testPinOrderAndLimit() {
         var settings = EnclaveSettings()
@@ -15,6 +15,19 @@ final class PinnedStylesTests: XCTestCase {
         XCTAssertTrue(settings.togglePin(all[1].id))
         XCTAssertTrue(settings.togglePin(all[5].id))
         XCTAssertEqual(settings.pinnedStyles.last?.style.id, all[5].id)
+    }
+
+    /// R2b：AI 栏上的顺序跟着提示词列表走，先润色、再问答；拖动列表后重排。
+    func testPinsFollowListOrder() {
+        var settings = EnclaveSettings()
+        let answer = settings.answerStyles[0], first = settings.styles[0], second = settings.styles[1]
+        settings.togglePin(answer.id)
+        settings.togglePin(second.id)
+        settings.togglePin(first.id)
+        XCTAssertEqual(settings.pinnedStyleIDs, [first.id, second.id, answer.id])
+        settings.styles.swapAt(0, 1)
+        settings.sortPinsByList()
+        XCTAssertEqual(settings.pinnedStyleIDs, [second.id, first.id, answer.id])
     }
 
     func testAnswerFlagAndDeletedStyles() {

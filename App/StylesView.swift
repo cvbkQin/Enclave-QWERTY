@@ -1,10 +1,9 @@
 import StoreKit
 import SwiftUI
 
-/// 「AI」标签（第 51 条，效果图 design/ai-page/AT1–AT4）：顶上分段「接口 | 提示词」，每次冷启动停在「接口」。
-/// 接口：润色和问答两张接口卡（各带最近 20 次）→「和润色用同一个接口」→ 联网搜索 → 键盘里的 AI。
-/// 提示词（第 54 条，效果图 design/prompts-tab/PT1–PT4）：「润色风格 N | 问答风格 N」两个标签，各一个带本周次数的列表，
-/// 「编辑」就地排序、删除、加回预设；点一行进编辑页。
+/// 「接口和提示词」标签（原来的「AI」，R0、R2，11-22）：顶上系统分段「接口 | 提示词」，每次冷启动停在「接口」。
+/// 接口：润色、问答各一组系统列表（正在用的配置、最近 20 次、测试连接、在键盘上显示开关）→ 联网搜索 → 键盘里的 AI。
+/// 提示词（R2b）：润色风格、问答风格上下两组，带图钉和本周次数；右上「编辑」就地排序、删除，「＋」新建；最下面删掉的预设可加回。
 struct AITab: View {
     @EnvironmentObject private var router: AppRouter
 
@@ -43,6 +42,8 @@ struct AIView: View {
     /// 打开这一条的编辑页：「＋ 新建」之后、截图用（-promptsDebug）。
     @State private var debugEditing: UUID?
     @State private var editingAnswerStyle: UUID?
+    /// 右上「＋」：先问加润色风格还是问答风格。
+    @State private var choosesNewKind = false
 
     private struct ConsentPrompt: Identifiable {
         let endpoint: String
@@ -55,47 +56,47 @@ struct AIView: View {
         ScrollViewReader { proxy in
             List {
                 if router.aiSegment == .api {
-                    Section {
-                    } header: {
-                        VStack(alignment: .leading, spacing: 12) {
-                            AISectionTitle(text: L("润色和问答", "Polish and Q&A", "整える・質問"))
-                            apiCard(answer: false)
-                            apiCard(answer: true)
-                        }
-                        .dashFormCard()
-                    }
-                    Section {
-                        SameAPIToggle(locked: locked)
-                    }
+                    apiSection(answer: false)
+                    apiSection(answer: true)
                     webSearchSection
                     KeyboardAISection()
                 } else {
-                    Section {
-                    } header: {
-                        PromptKindTabs(kind: $router.promptKind,
-                                       polishCount: store.settings.styles.count,
-                                       answerCount: store.settings.answerStyles.count)
-                    }
-                    PromptListSections(answer: router.promptKind == .answer, settings: $store.settings) { id in
-                        if router.promptKind == .answer { editingAnswerStyle = id } else { debugEditing = id }
-                    } add: {
-                        addStyle(answer: router.promptKind == .answer)
-                    }
+                    // 提示词（R2b）：润色风格、问答风格上下两组，不再有第二层分段；右上「编辑」「＋」。
+                    PromptListSections(answer: false, settings: $store.settings) { debugEditing = $0 }
+                    PromptListSections(answer: true, settings: $store.settings) { editingAnswerStyle = $0 }
+                    DeletedPresetsSection(settings: $store.settings)
                 }
             }
             .tint(DashColor.ai)
             .onAppear { openAnswerWebSearch(proxy) }
             .onChange(of: router.showsAnswerWebSearch) { _ in openAnswerWebSearch(proxy) }
+            .onAppear { openAnswerStyles(proxy) }
+            .onChange(of: router.promptKind) { _ in openAnswerStyles(proxy) }
         }
-        .pinnedTabTitle(caption: caption, title: "AI") {
+        .pinnedTabTitle(caption: caption, title: AppRouter.aiTabTitle) {
             Picker("", selection: $router.aiSegment) {
                 Text(L("接口", "API", "API")).tag(AppRouter.AISegment.api)
                 Text(L("提示词", "Prompts", "プロンプト")).tag(AppRouter.AISegment.prompts)
             }
             .pickerStyle(.segmented)
             .frame(height: 34)
+        } trailing: {
+            if router.aiSegment == .prompts {
+                // 系统的编辑按钮：自己管 editMode 时拖过一次后再拖、点 ⊖ 都没反应（PH2 的经验）。
+                EditButton()
+                    .environment(\.locale, Loc.locale)
+                Button { choosesNewKind = true } label: {
+                    Image(systemName: "plus").font(.title3)
+                }
+                .accessibilityLabel(L("添加", "Add", "追加"))
+            }
         }
-        .navigationTitle("AI")
+        .tint(DashColor.ai)
+        .confirmationDialog(L("添加哪一种？", "Add which kind?", "どちらを追加しますか？"), isPresented: $choosesNewKind, titleVisibility: .visible) {
+            Button(L("润色风格", "Polish style", "整えるスタイル")) { addStyle(answer: false) }
+            Button(L("问答风格", "Answer style", "回答スタイル")) { addStyle(answer: true) }
+        }
+        .navigationTitle(AppRouter.aiTabTitle)
         .tabRootPage()
         .onAppear {
             reloadRecent()
@@ -190,6 +191,15 @@ struct AIView: View {
         }
     }
 
+    /// enclave://prompts-answer：提示词页滚到「问答风格」那一组。
+    private func openAnswerStyles(_ proxy: ScrollViewProxy) {
+        guard router.aiSegment == .prompts, router.promptKind == .answer else { return }
+        router.promptKind = .polish
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            withAnimation { proxy.scrollTo("answerStyles", anchor: .top) }
+        }
+    }
+
     /// 标题上的灰字：「润色 DeepSeek · 问答 Kimi」，同一个接口时「润色、问答都用 DeepSeek」。
     private var caption: String {
         let polishOn = store.settings.polishEnabled, answerOn = store.settings.answerEnabled
@@ -216,186 +226,157 @@ struct AIView: View {
         return L("润色 \(main) · 问答 \(ask)", "Polish \(main) · Q&A \(ask)", "整える \(main)・質問 \(ask)")
     }
 
-    // MARK: 接口卡
+    // MARK: 接口（R2，11-22）
 
-    /// 接口卡（QE，11-03）：润色、问答两张同一个排法。
-    /// 卡片头：34pt 功能图标 + 名称 + 一行状态（● 正常 · 平均 1.0 秒 / ● 测试没通过 · Key 无效 / 已关闭 · 键盘上不显示润色键），右上开关。
-    /// 中间灰底一块是现用配置（logo、名称 + 等宽模型名、「19/20 成功 · 最近 20 次 ›」、12 根小条）；配置不能用时写「能用之前，键盘上先不显示…」。
-    /// 底下「测试连接」「接口配置 ›」。开关关掉时中间和底部像抽屉收进卡片头（0.45 秒）。内测版是「查看接口 ›」。
-    private func apiCard(answer: Bool) -> some View {
+    /// 润色、问答各一组系统列表（R2）。润色：正在用的配置 → 最近 20 次 → 测试连接 → 在键盘上显示润色键 → 帮回自动判断。
+    /// 问答：和润色用同一个配置 → 正在用的配置 → 最近 20 次 → 测试连接 → 在键盘上显示问答键；用同一个配置时不重复列配置和测试。
+    /// 「在键盘上显示…键」关掉时这一组只剩这一行（原来卡片的抽屉收起）。
+    @ViewBuilder
+    private func apiSection(answer: Bool) -> some View {
+        let enabled = answer ? store.settings.answerEnabled : store.settings.polishEnabled
+        let ownConfig = !answer || store.settings.separateAnswer
+        Section {
+            if answer && enabled { SameAPIToggle(locked: locked) }
+            if enabled {
+                if ownConfig { configRow(answer: answer) }
+                recentRow(answer: answer)
+                if ownConfig { testRow(answer: answer) }
+            }
+            Toggle(isOn: Binding(get: { enabled }, set: { on in
+                withAnimation {
+                    if answer { store.settings.answerEnabled = on } else { store.settings.polishEnabled = on }
+                }
+            })) {
+                Text(answer ? L("在键盘上显示问答键", "Show the Ask key", "キーボードに質問キーを表示")
+                            : L("在键盘上显示润色键", "Show the Polish key", "キーボードに整えるキーを表示"))
+            }
+            .tint(Color(.systemGreen))
+            if !answer && enabled { helpAutoToggle }
+        } header: {
+            Text(answer ? L("问答", "Q&A", "質問") : L("润色", "Polish", "整える"))
+        } footer: {
+            if !enabled {
+                // 润色关了帮回也一起没有（帮回开关方案第 7 节）。
+                Text(answer ? L("键盘上不显示问答键。", "The Ask key is hidden on the keyboard.", "キーボードに質問キーを表示しません。")
+                            : L("键盘上不显示润色键和帮回。", "The Polish key and Help Reply are hidden on the keyboard.",
+                                "キーボードに整えるキーと返信アシストを表示しません。"))
+            }
+        }
+    }
+
+    /// 正在用的配置：名称（服务商）、模型 · 地址，右边绿点「正常」；点进接口配置列表（可换、添加、从剪贴板导入）。
+    @ViewBuilder
+    private func configRow(answer: Bool) -> some View {
         let ownAnswer = answer && store.settings.separateAnswer
         let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
         let baseURL = ownAnswer ? store.settings.answerBaseURL : store.settings.baseURL
         let model = ownAnswer ? store.settings.answerModel : store.settings.model
-        let state = ownAnswer ? store.answerTest : store.test
-        let enabled = answer ? store.settings.answerEnabled : store.settings.polishEnabled
         let usable = answer ? store.settings.answerUsable : store.settings.polishUsable
-        let requests = answer ? answerRecent : recent
-        let status = cardStatus(answer: answer, ownAnswer: ownAnswer, configured: configured, enabled: enabled)
-        let missing = ownAnswer ? store.answerMissingModel : store.missingModel
+        let status = cardStatus(answer: answer, ownAnswer: ownAnswer, configured: configured, enabled: true, average: false)
         let keyName = answer ? L("问答键", "the Ask key", "質問キー") : L("润色键", "the Polish key", "整えるキー")
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                FeatureIcon(answer: answer)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(answer ? L("问答", "Q&A", "質問") : L("润色", "Polish", "整える"))
-                        .font(.system(size: 17, weight: .bold))
-                    HStack(spacing: 4) {
-                        if let color = status.dot { Circle().fill(color).frame(width: 7, height: 7) }
-                        Text(status.text).lineLimit(1).minimumScaleFactor(0.8)
+        let missing = ownAnswer ? store.answerMissingModel : store.missingModel
+        NavigationLink(value: AppRouter.AIPage.api(answer: ownAnswer)) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    if configured {
+                        Text(store.currentSavedAPI(answer: ownAnswer)?.name ?? ProviderName.of(baseURL, model: model)).lineLimit(1)
+                        Text([model, URL(string: baseURL)?.host ?? baseURL].filter { !$0.isEmpty }.joined(separator: " · "))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                        if !usable && !locked {
+                            Text(L("能用之前，键盘上先不显示\(keyName)", "\(keyName.prefix(1).uppercased() + keyName.dropFirst()) stays off the keyboard until this works",
+                                   "使えるようになるまで、キーボードに\(keyName)は表示しません"))
+                                .font(.footnote)
+                                .foregroundStyle(Color(.systemOrange))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else {
+                        Text(L("还没有配置", "Not set up yet", "まだ設定されていません")).foregroundStyle(.secondary)
+                        Text(locked ? L("查看接口", "View API", "API を見る") : L("去配置", "Set up", "設定する"))
+                            .font(.subheadline)
+                            .foregroundStyle(DashColor.ai)
                     }
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(status.color)
                 }
                 Spacer(minLength: 8)
-                Toggle("", isOn: Binding(get: { enabled }, set: { on in
-                    withAnimation(.easeInOut(duration: 0.45)) {
-                        if answer { store.settings.answerEnabled = on } else { store.settings.polishEnabled = on }
+                if configured {
+                    HStack(spacing: 5) {
+                        if let dot = status.dot { Circle().fill(dot).frame(width: 7, height: 7) }
+                        Text(status.text).lineLimit(1)
                     }
-                }))
-                .labelsHidden()
-                .tint(Color(hex: 0x34C759))
-                .accessibilityLabel(answer ? L("问答", "Q&A", "質問") : L("润色", "Polish", "整える"))
-            }
-            if enabled {
-                VStack(alignment: .leading, spacing: 12) {
-                    configBlock(answer: answer, configured: configured, usable: usable, baseURL: baseURL, model: model,
-                                requests: requests, keyName: keyName)
-                    if answer, !store.settings.separateAnswer {
-                        Text(L("和润色用同一个配置", "Same setup as Polish", "整えると同じ設定")).font(.footnote).foregroundStyle(.secondary)
-                    }
-                    if !configured && !locked && (!answer || store.settings.separateAnswer) {
-                        Button {
-                            router.aiPath.append(AppRouter.AIPage.api(answer: answer))
-                        } label: {
-                            Text(L("去配置 ›", "Set Up ›", "設定する ›"))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 42)
-                                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DashColor.ai))
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        HStack(spacing: 10) {
-                            cardButton {
-                                HStack(spacing: 6) {
-                                    if state == .running { ProgressView().controlSize(.small) }
-                                    Text(L("测试连接", "Test", "接続テスト"))
-                                }
-                            } action: {
-                                if router.privacyAgreed {
-                                    Task { ownAnswer ? await store.runAnswerTest() : await store.runTest() }
-                                } else {
-                                    needsPrivacy = true
-                                }
-                            }
-                            .disabled(!configured || state == .running)
-                            if !answer || store.settings.separateAnswer {
-                                cardButton {
-                                    Text(locked ? L("查看接口 ›", "View ›", "API を見る ›")
-                                         : L("接口配置 ›", "API Setup ›", "API 設定 ›"))
-                                } action: {
-                                    router.aiPath.append(AppRouter.AIPage.api(answer: answer))
-                                }
-                            }
-                        }
-                    }
-                    if !locked, let missing {
-                        missingModelTip(missing) { router.aiPath.append(AppRouter.AIPage.api(answer: ownAnswer)) }
-                    }
-                    if !answer {
-                        Rectangle().fill(Color(.separator)).frame(height: 0.5)
-                        helpAutoRow
-                    }
+                    .font(.subheadline)
+                    .foregroundStyle(status.color)
                 }
-                // 抽屉：往上收进卡片头，先淡出、内容上移 16。
-                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: -16)),
-                                        removal: .opacity.combined(with: .offset(y: -16))))
             }
+            .padding(.vertical, 2)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        if !locked, let missing {
+            missingModelTip(missing) { router.aiPath.append(AppRouter.AIPage.api(answer: ownAnswer)) }
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+        }
     }
 
-    /// 卡片中间灰底那块：现用配置 + 最近 20 次；不能用时橙字写键盘上先不显示这颗键。
-    private func configBlock(answer: Bool, configured: Bool, usable: Bool, baseURL: String, model: String,
-                             requests: [UsageStats.Request], keyName: String) -> some View {
-        let open = { router.aiPath.append(AppRouter.AIPage.recent(answer: answer)) }
-        let name = configured ? (store.currentSavedAPI(answer: answer && store.settings.separateAnswer)?.name ?? ProviderName.of(baseURL, model: model))
-            : L("还没有配置", "Not set up yet", "まだ設定されていません")
-        return HStack(spacing: 10) {
-            if configured {
-                ProviderLogo(provider: Provider.detect(baseURL), size: 26, corner: 7)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(name).font(.system(size: 16, weight: .bold)).lineLimit(1)
-                        .foregroundStyle(configured ? Color.primary : Color.secondary)
-                    if configured {
-                        Text(model).font(.system(size: 13, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                }
-                if usable || locked {
-                    Button(action: open) {
-                        let ok = requests.filter(\.ok).count
-                        Text((requests.isEmpty ? L("还没有调用记录", "No requests yet", "まだ呼び出しはありません")
-                              : L("\(ok)/\(requests.count) 成功", "\(ok)/\(requests.count) OK", "\(ok)/\(requests.count) 成功"))
-                             + " · " + L("最近 \(UsageStats.recentLimit) 次 ›", "Last \(UsageStats.recentLimit) ›", "直近 \(UsageStats.recentLimit) 回 ›"))
-                            .font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Text(L("能用之前，键盘上先不显示\(keyName)", "\(keyName.prefix(1).uppercased() + keyName.dropFirst()) stays off the keyboard until this works", "使えるようになるまで、キーボードに\(keyName)は表示しません"))
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(Color(hex: 0xEA580C))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: 6)
-            if (usable || locked), !requests.isEmpty {
-                MiniBars(requests: Array(requests.suffix(12)))
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: open)
-            }
+    /// 最近 20 次：「19 次成功 · 平均 1.0 秒」和小柱，点进「最近 20 次」页。
+    private func recentRow(answer: Bool) -> some View {
+        let requests = answer ? answerRecent : recent
+        let ok = requests.filter(\.ok)
+        let average = ok.isEmpty ? nil : Double(ok.reduce(0) { $0 + $1.ms }) / Double(ok.count) / 1000
+        var detail = requests.isEmpty ? L("还没有调用记录", "No requests yet", "まだ呼び出しはありません")
+            : L("\(ok.count) 次成功", "\(ok.count) OK", "\(ok.count) 回成功")
+        if let average {
+            detail += " · " + L("平均 \(String(format: "%.1f", average)) 秒", "avg \(String(format: "%.1f", average)) s", "平均 \(String(format: "%.1f", average)) 秒")
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(.tertiarySystemFill).opacity(0.6)))
+        return NavigationLink(value: AppRouter.AIPage.recent(answer: answer)) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("最近 \(UsageStats.recentLimit) 次", "Last \(UsageStats.recentLimit)", "直近 \(UsageStats.recentLimit) 回"))
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if !requests.isEmpty { MiniBars(requests: Array(requests.suffix(12))) }
+            }
+            .padding(.vertical, 2)
+        }
     }
 
-    /// 润色卡最下面「帮回 · 自动判断」（HA1，11-19 定稿）：左边 26pt 浅灰绿小方块里彩色帮回 logo，标题 15pt 中粗，
-    /// 说明 12pt 灰字（开、关一样），右边小一号的开关。润色关掉时和配置块一起收进卡片头。
-    private var helpAutoRow: some View {
-        HStack(alignment: .center, spacing: 10) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(HelpStyle.Key.fill)
-                .frame(width: 26, height: 26)
-                .overlay(HelpIcon(size: 17))
+    /// 「测试连接」文字按钮；没同意隐私政策时先去同意。
+    private func testRow(answer: Bool) -> some View {
+        let ownAnswer = answer && store.settings.separateAnswer
+        let configured = ownAnswer ? store.settings.usesAnswerEndpoint : store.settings.isConfigured
+        let state = ownAnswer ? store.answerTest : store.test
+        return Button {
+            if router.privacyAgreed {
+                Task { ownAnswer ? await store.runAnswerTest() : await store.runTest() }
+            } else {
+                needsPrivacy = true
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(L("测试连接", "Test Connection", "接続テスト"))
+                if state == .running { ProgressView().controlSize(.small) }
+            }
+        }
+        .disabled(!configured || state == .running)
+    }
+
+    /// 帮回自动判断（HA1）：跟在润色组里，润色关掉时一起收起。
+    private var helpAutoToggle: some View {
+        Toggle(isOn: $store.settings.helpAuto) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(L("帮回 · 自动判断", "Help Reply · Auto Detect", "返信アシスト・自動判断"))
-                    .font(.system(size: 15, weight: .semibold))
-                Text(L("刚复制一句话时，润色键变成帮回。关掉后从润色 ⌄ 最上面点帮回",
-                       "When you've just copied a message, the Polish key turns into Help Reply. When off, tap Help Reply at the top of the Polish ⌄ menu",
-                       "メッセージをコピーした直後は、整えるキーが返信アシストに変わります。オフにすると、整える ⌄ のいちばん上から返信アシストを使えます"))
-                    .font(.system(size: 12))
+                Text(L("帮回自动判断", "Help Reply auto detect", "返信アシストの自動判断"))
+                Text(L("刚复制别人的话、输入框空着时，润色键变成帮回。关掉后从润色 ⌄ 最上面点帮回。",
+                       "When you've just copied someone's message and the field is empty, the Polish key turns into Help Reply. When off, tap Help Reply at the top of the Polish ⌄ menu.",
+                       "相手のメッセージをコピーした直後で入力欄が空のとき、整えるキーが返信アシストに変わります。オフにすると、整える ⌄ のいちばん上から使えます。"))
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 8)
-            Toggle("", isOn: $store.settings.helpAuto)
-                .labelsHidden()
-                .tint(Color(hex: 0x34C759))
-                .scaleEffect(0.86)
-                .accessibilityLabel(L("帮回自动判断", "Help Reply auto detect", "返信アシストの自動判断"))
         }
+        .tint(Color(.systemGreen))
     }
 
     /// 卡片头的状态行。
-    private func cardStatus(answer: Bool, ownAnswer: Bool, configured: Bool, enabled: Bool) -> (text: String, color: Color, dot: Color?) {
+    private func cardStatus(answer: Bool, ownAnswer: Bool, configured: Bool, enabled: Bool, average showsAverage: Bool = true) -> (text: String, color: Color, dot: Color?) {
         let gray = Color.secondary, green = DashColor.ok, orange = Color(hex: 0xEA580C)
         guard enabled else {
             // 润色关了帮回也一起没有（帮回开关方案第 7 节）。
@@ -412,7 +393,7 @@ struct AIView: View {
         let config = answer ? store.settings.forAnswers : store.settings
         func normal(_ seconds: Double?) -> (String, Color, Color?) {
             let text = L("正常", "Working", "正常")
-            guard let seconds else { return (text, green, green) }
+            guard showsAverage, let seconds else { return (text, green, green) }
             return (text + " · " + L("平均 \(String(format: "%.1f", seconds)) 秒", "avg \(String(format: "%.1f", seconds)) s", "平均 \(String(format: "%.1f", seconds)) 秒"), green, green)
         }
         let average: Double? = {
@@ -471,18 +452,6 @@ struct AIView: View {
             }
         }
         .padding(.top, 2)
-    }
-
-    private func cardButton<Label: View>(@ViewBuilder label: () -> Label, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            label()
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DashColor.ai)
-                .frame(maxWidth: .infinity)
-                .frame(height: 38)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DashColor.ai.opacity(0.12)))
-        }
-        .buttonStyle(.plain)
     }
 
     /// 右上状态：● 连接正常 · 0.8 秒 / 连不上 / 还没测试。测试刚失败时下面红字写原因。
@@ -576,7 +545,7 @@ struct AIView: View {
             .disabled(provider == nil || !store.settings.answerEnabled)
             .animation(.easeInOut(duration: 0.45), value: store.settings.answerEnabled)
         } header: {
-            AISectionTitle(text: L("问答 · 联网搜索", "Q&A · Web search", "質問・ウェブ検索"))
+            Text(L("问答 · 联网搜索", "Q&A · Web search", "質問・ウェブ検索"))
         } footer: {
             if store.settings.answerEnabled {
                 Text(webSearchFooter(provider))
@@ -908,7 +877,7 @@ final class PromptOptimizer: ObservableObject {
         }
         guard settings.isConfigured else {
             // 键盘里那句是「请先打开飞地输入法 App」，这里已经在 App 里了，直接指到接口页。
-            error = L("还没有配置 API，请先在「AI › 接口」里填写。", "No API set up yet. Add one under AI › API.", "API が未設定です。「AI › API」で設定してください。")
+            error = L("还没有配置 API，请先在「接口和提示词 › 接口」里填写。", "No API set up yet. Add one under API & Prompts › API.", "API が未設定です。「API とプロンプト › API」で設定してください。")
             return
         }
         guard AIAccess.current.allowsAI else {

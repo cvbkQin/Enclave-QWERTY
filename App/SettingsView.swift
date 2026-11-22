@@ -645,9 +645,9 @@ struct InternalLockNotice: View {
                 .foregroundStyle(.white)
                 .frame(width: 26, height: 26)
                 .background(Circle().fill(Color(.systemGray)))
-            Text(L("内测版的接口由开发者统一提供，这一页只能查看，灰色带锁的地方都不能改。AI 页的「测试连接」、问答页的「联网调用」和「调用偏好」可以用。内置接口每天可以润色 100 次、问答 50 次。",
-                   "In the beta, the API is provided for you, so this page is view-only. Gray areas with a lock can't be changed. On the AI tab you can still tap Test, and change Web search and Search preference on the Q&A page. The built-in API allows 100 polishes and 50 answers a day.",
-                   "ベータ版では API はあらかじめ用意されているため、このページは表示のみです。鍵の付いたグレーの部分は変更できません。AI タブの「接続テスト」と、質問ページの「ウェブ検索」「検索の頻度」は使えます。内蔵 API は 1 日に整える 100 回・回答 50 回まで使えます。"))
+            Text(L("内测版的接口由开发者统一提供，这一页只能查看，灰色带锁的地方都不能改。「接口和提示词」页的「测试连接」「联网调用」和「调用偏好」可以用。内置接口每天可以润色 100 次、问答 50 次。",
+                   "In the beta, the API is provided for you, so this page is view-only. Gray areas with a lock can't be changed. On the API & Prompts tab you can still tap Test and change Web search and Search preference. The built-in API allows 100 polishes and 50 answers a day.",
+                   "ベータ版では API はあらかじめ用意されているため、このページは表示のみです。鍵の付いたグレーの部分は変更できません。「API とプロンプト」タブの「接続テスト」「ウェブ検索」「検索の頻度」は使えます。内蔵 API は 1 日に整える 100 回・回答 50 回まで使えます。"))
                 .font(.system(size: 13))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1164,7 +1164,7 @@ struct KeyboardAISection: View {
                 }
             }
         } header: {
-            AISectionTitle(text: L("键盘里的 AI", "AI on the keyboard", "キーボードの AI"))
+            Text(L("键盘里的 AI", "AI on the keyboard", "キーボードの AI"))
         } footer: {
             Text(L("没选中文字时，AI 只处理光标前约 100 字，按整句截取；打开「处理长文本」后约 200 字。文字越长越慢、越容易改错，替换前请看一遍结果。替换只换送去处理的那一段，其余不动；要处理整段，先全选再点 ✨。",
                    "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences; about 200 with Process long text on. Longer text is slower and easier to get wrong, so check the result first. Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",

@@ -252,7 +252,15 @@ struct EnclaveSettings: Codable, Equatable {
         pinnedStyleIDs = pinnedStyles.map(\.style.id)
         guard pinnedStyleIDs.count < Self.maxPinnedStyles else { return false }
         pinnedStyleIDs.append(id)
+        sortPinsByList()
         return true
+    }
+
+    /// 固定在 AI 栏上的顺序跟着提示词列表走（R2b，11-22）：先润色风格、再问答风格，各按列表里的顺序。
+    /// 提示词页不再单独列「固定在 AI 栏」一组，拖动列表就是改 AI 栏上的顺序。
+    mutating func sortPinsByList() {
+        let pinned = Set(pinnedStyleIDs)
+        pinnedStyleIDs = styles.map(\.id).filter(pinned.contains) + answerStyles.map(\.id).filter(pinned.contains)
     }
 }
 
