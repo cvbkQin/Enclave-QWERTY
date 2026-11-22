@@ -174,15 +174,16 @@ struct RootView: View {
             HomeView()
                 .tabItem { Label(L("首页", "Home", "ホーム"), systemImage: "house") }
                 .tag(AppRouter.Tab.home)
-            KeyboardTab()
-                .tabItem { Label(L("键盘", "Keyboard", "キーボード"), systemImage: "keyboard") }
-                .tag(AppRouter.Tab.keyboard)
+            // 顺序（R0，11-22）：首页 / 接口和提示词 / 历史 / 键盘 / 设置，常用的放左边，键盘设置装好后很少再动。
             AITab()
-                .tabItem { Label("AI", systemImage: "sparkles") }
+                .tabItem { Label(AppRouter.aiTabTitle, systemImage: "text.bubble") }
                 .tag(AppRouter.Tab.ai)
             HistoryTab()
                 .tabItem { Label(L("历史", "History", "履歴"), systemImage: "clock") }
                 .tag(AppRouter.Tab.history)
+            KeyboardTab()
+                .tabItem { Label(L("键盘", "Keyboard", "キーボード"), systemImage: "keyboard") }
+                .tag(AppRouter.Tab.keyboard)
             SettingsView()
                 .tabItem { Label(L("设置", "Settings", "設定"), systemImage: "gearshape") }
                 .tag(AppRouter.Tab.settings)
@@ -196,6 +197,9 @@ final class AppRouter: ObservableObject {
     static let shared = AppRouter()
 
     enum Tab: Hashable { case home, keyboard, ai, history, settings }
+
+    /// 原来的「AI」标签（R0，11-22 改名）：接口和提示词两件事放在一个标签里。
+    static var aiTabTitle: String { L("接口和提示词", "API & Prompts", "API とプロンプト") }
 
     /// 设置里的二级页。setup：首次设置（欢迎页四步）；firstScene：使用指引的第一个场景（enclave://playground）。
     enum SettingsPage: String, Hashable {
@@ -270,7 +274,7 @@ final class AppRouter: ObservableObject {
     /// 内测版诊断记录用的「当时界面」：哪个标签、设置里哪一页。
     func markScreen(_ detail: String? = nil) {
         guard CrashLog.isEnabled else { return }
-        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "AI", .history: "历史", .settings: "设置"]
+        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "接口和提示词", .history: "历史", .settings: "设置"]
         var parts = [names[tab] ?? ""]
         if tab == .settings, let page = settingsPath.last { parts.append(page.rawValue) }
         if let detail { parts.append(detail) }

@@ -291,7 +291,7 @@ private struct TourStep {
                                 detail: L("不用每次都写「翻成英文」。点击「✨ 润色」右边的 ⌄，再点击「＋ 添加润色风格」。", "No need to type \"Translate into Chinese\" every time. Tap the ⌄ next to ✨ Polish, then tap + Add Polish Style.", "毎回「英語に翻訳」と書かなくても大丈夫です。「✨ 整える」の右の ⌄ をタップし、「＋ 整えるスタイルを追加」をタップします。"))
         case 8: return TourStep(chapter: .prompt, index: 2, total: 5,
                                 title: L("在 App 里添加润色风格", "Add one in the app", "アプリで追加"),
-                                detail: L("润色风格都在 App 的「AI › 润色风格」里管理，可以改名、改内容、调顺序。点击「添加润色风格」。", "Polish styles are managed under AI › Polish styles in the app, where you can rename, edit and reorder them. Tap Add Polish Style.", "整えるスタイルはアプリの「AI › 整えるスタイル」で管理し、名前や内容、並び順を変えられます。「整えるスタイルを追加」をタップしてください。"))
+                                detail: L("润色风格都在 App 的「接口和提示词 › 提示词」里管理，可以改名、改内容、调顺序。点击「添加润色风格」。", "Polish styles are managed under API & Prompts › Prompts in the app, where you can rename, edit and reorder them. Tap Add Polish Style.", "整えるスタイルはアプリの「API とプロンプト › プロンプト」で管理し、名前や内容、並び順を変えられます。「整えるスタイルを追加」をタップしてください。"))
         case 9: return TourStep(chapter: .prompt, index: 3, total: 5,
                                 title: L("点建议标签，快速补充要求", "Tap a suggestion to add to it", "候補タグで指示をすばやく追加"),
                                 detail: L("名称和内容已填好。点一下建议标签，就接到内容后面；再点一下去掉。点击「保持原意」。", "The name and prompt are filled in. Tap a suggestion to add it to the prompt; tap again to remove it. Tap Keep the meaning.", "名前と内容は入力済みです。候補タグをタップするとプロンプトの後ろに付き、もう一度タップすると外れます。「意味はそのまま」をタップしてください。"))

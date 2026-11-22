@@ -287,8 +287,22 @@ extension View {
     /// 底色和分组页一样，内容滚上去时从标题下面穿过。
     func pinnedTabTitle<Extra: View>(caption: String, title: String, showsBuildBadge: Bool = false,
                                      @ViewBuilder extra: () -> Extra) -> some View {
+        pinnedTabTitle(caption: caption, title: title, showsBuildBadge: showsBuildBadge, extra: extra) { EmptyView() }
+    }
+
+    /// trailing：标题右上角的系统按钮（R2b 提示词的「编辑」「＋」、R3 历史的筛选菜单），在导航栏的位置。
+    func pinnedTabTitle<Extra: View, Trailing: View>(caption: String, title: String, showsBuildBadge: Bool = false,
+                                                     @ViewBuilder extra: () -> Extra,
+                                                     @ViewBuilder trailing: () -> Trailing) -> some View {
         let header = VStack(alignment: .leading, spacing: 12) {
-            TabTitle(caption: caption, title: title, showsBuildBadge: showsBuildBadge)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 16) {
+                    Spacer(minLength: 0)
+                    trailing()
+                }
+                .frame(minHeight: 0)
+                TabTitle(caption: caption, title: title, showsBuildBadge: showsBuildBadge)
+            }
             extra()
         }
         return safeAreaInset(edge: .top, spacing: 0) {

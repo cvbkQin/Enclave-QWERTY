@@ -1,7 +1,7 @@
 import Foundation
 
 /// 键盘里要去飞地输入法 App 设置的地方。键盘扩展不能打开别的 App（审核指南 4.4.1），只提示去 App 的哪一页（05 上架风险报告高 1）。
-/// 路径照 App 的标签和页面名写：AI 标签里分「接口」「提示词」两段，隐私政策在「设置 › 隐私」里。
+/// 路径照 App 的标签和页面名写：「接口和提示词」标签里分「接口」「提示词」两段，隐私政策在「设置 › 隐私」里。
 enum AppPlace: Equatable {
     /// 出错卡「去设置」：接口地址、模型、Key。
     case api
@@ -14,9 +14,9 @@ enum AppPlace: Equatable {
 
     var path: String {
         switch self {
-        case .api: return L("AI › 接口", "AI › API", "AI › API")
-        case .webSearch: return L("AI › 接口 › 联网搜索", "AI › API › Web search", "AI › API › ウェブ検索")
-        case .prompts: return L("AI › 提示词", "AI › Prompts", "AI › プロンプト")
+        case .api: return L("接口和提示词 › 接口", "API & Prompts › API", "API とプロンプト › API")
+        case .webSearch: return L("接口和提示词 › 接口 › 联网搜索", "API & Prompts › API › Web search", "API とプロンプト › API › ウェブ検索")
+        case .prompts: return L("接口和提示词 › 提示词", "API & Prompts › Prompts", "API とプロンプト › プロンプト")
         case .privacyPolicy: return L("设置 › 隐私 › 隐私政策", "Settings › Privacy › Privacy Policy", "設定 › プライバシー › プライバシーポリシー")
         }
     }

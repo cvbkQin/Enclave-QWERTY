@@ -199,45 +199,28 @@ struct HistoryListView: View {
     @EnvironmentObject private var router: AppRouter
     @ObservedObject private var store = HistoryStore.shared
     @State private var query = ""
-    @State private var filter: AIHistoryEntry.Kind?
+    @State private var filter: HistoryFilter = .all
     /// 一次显示 50 条，滑到底再加载。
     @State private var limit = 50
     @State private var confirmsClear = false
 
     private var filtered: [AIHistoryEntry] {
         // 「帮回」= 有帮回写的版本的记录（帮回并入润色后，帮回的版本和润色、问答在同一条里）。
-        store.entries.filter { entry in
-            let kindMatches: Bool
-            switch filter {
-            case nil: kindMatches = true
-            case .reply?: kindMatches = entry.hasReply
-            case let kind?: kindMatches = entry.kind == kind
-            }
-            return kindMatches && entry.matches(query)
-        }
+        store.entries.filter { filter.matches($0) && $0.matches(query) }
     }
 
     var body: some View {
         content
             .pinnedTabTitle(caption: store.caption, title: L("历史", "History", "履歴")) {
+                // R3：列表上面只留搜索框和一行图例，筛选收进右上菜单。
                 if store.enabled || !store.entries.isEmpty {
-                    VStack(spacing: 12) {
-                        HStack(spacing: 10) {
-                            searchField
-                            moreMenu
-                        }
-                        Picker("", selection: $filter) {
-                            Text(L("全部", "All", "すべて")).tag(AIHistoryEntry.Kind?.none)
-                            Text(L("润色", "Polish", "整える")).tag(AIHistoryEntry.Kind?.some(.polish))
-                            Text(L("问答", "Q&A", "質問")).tag(AIHistoryEntry.Kind?.some(.answer))
-                            Text(L("帮回", "Help Reply", "返信アシスト")).tag(AIHistoryEntry.Kind?.some(.reply))
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(height: 34)
+                    VStack(alignment: .leading, spacing: 10) {
+                        searchField
+                        HistoryLegend()
                     }
-                } else {
-                    HStack { Spacer(); moreMenu }
                 }
+            } trailing: {
+                moreMenu
             }
             .navigationTitle(L("历史", "History", "履歴"))
             .tabRootPage()
@@ -352,6 +335,9 @@ struct HistoryListView: View {
 
     private var moreMenu: some View {
         Menu {
+            Picker(L("筛选", "Filter", "絞り込み"), selection: $filter) {
+                ForEach(HistoryFilter.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
             Button { router.historyPath.append(AppRouter.HistoryPage.settings) } label: {
                 Label(L("历史记录设置", "History Settings", "履歴の設定"), systemImage: "gearshape")
             }
@@ -360,69 +346,186 @@ struct HistoryListView: View {
             }
             .disabled(store.entries.isEmpty)
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(AppColor.purple)
-                .frame(width: 32, height: 36)
+            Image(systemName: filter == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                .font(.title3)
+                .foregroundStyle(DashColor.ai)
+                .frame(minWidth: 44, minHeight: 44)
         }
-        .accessibilityLabel(L("更多", "More", "その他"))
+        .accessibilityLabel(L("筛选和更多", "Filter and more", "絞り込みとその他"))
     }
 }
 
-/// 一条记录两行（HC1）：「润 / 问」小方块 + 结果一行 + 时间；灰字 🌐 原文（问答写「问：」）+ 右边「风格 · N 版 · 已替换」。
+/// 历史的筛选（R3 右上菜单）：全部 / 润色 / 问答 / 帮回 / 只看用过的。
+enum HistoryFilter: CaseIterable {
+    case all, polish, answer, reply, used
+
+    var title: String {
+        switch self {
+        case .all: return L("全部", "All", "すべて")
+        case .polish: return L("润色", "Polish", "整える")
+        case .answer: return L("问答", "Q&A", "質問")
+        case .reply: return L("帮回", "Help Reply", "返信アシスト")
+        case .used: return L("只看用过的", "Used only", "使ったものだけ")
+        }
+    }
+
+    /// 「帮回」= 有帮回写的版本的记录（帮回并入润色后，帮回的版本和润色、问答在同一条里）。
+    func matches(_ entry: AIHistoryEntry) -> Bool {
+        switch self {
+        case .all: return true
+        case .polish: return entry.kind == .polish && !entry.hasReply
+        case .answer: return entry.kind == .answer
+        case .reply: return entry.hasReply
+        case .used: return entry.usedIndex != nil
+        }
+    }
+}
+
+/// 历史里的功能色和状态色（R3，DESIGN.md「功能识别色」）：和键盘 AI 栏一致；颜色之外都有图标和字。
+enum HistoryColor {
+    static let polish = Color(light: 0x5B4BE8, dark: 0x7D70F5)
+    static let answer = Color(light: 0x007AFF, dark: 0x0A84FF)
+    static let reply = Color(light: 0x34A853, dark: 0x30B158)
+    static let replaced = Color(light: 0x248A3D, dark: 0x30D158)
+    static let inserted = Color(light: 0x0E7C8C, dark: 0x5AC8D8)
+    static let editedReplaced = Color(light: 0xC93400, dark: 0xFF9F0A)
+
+    enum Feature { case polish, answer, reply }
+
+    static func feature(_ entry: AIHistoryEntry) -> Feature {
+        if entry.hasReply { return .reply }
+        return entry.kind == .answer ? .answer : .polish
+    }
+}
+
+/// 功能小方块：28×28 圆角 7，功能色底 + 白色 SF 图标（润色 ✦、问答问号气泡、帮回回复箭头）。
+struct HistoryFeatureIcon: View {
+    let feature: HistoryColor.Feature
+    var size: CGFloat = 28
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: size * 0.5, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size / 4, style: .continuous).fill(color))
+            .accessibilityHidden(true)
+    }
+
+    private var icon: String {
+        switch feature {
+        case .polish: return "sparkles"
+        case .answer: return "questionmark.bubble"
+        case .reply: return "arrowshape.turn.up.left"
+        }
+    }
+
+    private var color: Color {
+        switch feature {
+        case .polish: return HistoryColor.polish
+        case .answer: return HistoryColor.answer
+        case .reply: return HistoryColor.reply
+        }
+    }
+}
+
+/// 搜索框下面一行图例：润色、问答、帮回。
+private struct HistoryLegend: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            item(.polish, L("润色", "Polish", "整える"))
+            item(.answer, L("问答", "Q&A", "質問"))
+            item(.reply, L("帮回", "Help Reply", "返信アシスト"))
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+    }
+
+    private func item(_ feature: HistoryColor.Feature, _ title: String) -> some View {
+        HStack(spacing: 6) {
+            HistoryFeatureIcon(feature: feature, size: 20)
+            Text(title)
+        }
+    }
+}
+
+/// 一条记录两行（R3）：左边功能色小方块；第一行结果 + 时间；第二行灰字（联网过的前面一个地球）原文（问答写「问：」）
+/// + 风格 · N 版，右边状态：已替换（绿 ⇄）、已插入（青 ＋）、改过后替换（橙 ✎）、没用（灰字）。
 private struct HistoryRow: View {
     let entry: AIHistoryEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                HistoryKindMark(kind: entry.kind)
-                Text(entry.shown).font(.system(size: 15.5)).foregroundStyle(.primary).lineLimit(1)
-                Spacer(minLength: 6)
-                Text(HistoryFormat.time(entry.date)).font(.system(size: 12.5)).foregroundStyle(.secondary).monospacedDigit()
+        HStack(alignment: .top, spacing: 12) {
+            HistoryFeatureIcon(feature: HistoryColor.feature(entry))
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(entry.shown.replacingOccurrences(of: "\n", with: " ")).foregroundStyle(.primary).lineLimit(1)
+                    Spacer(minLength: 6)
+                    Text(HistoryFormat.time(entry.date)).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    HStack(spacing: 3) {
+                        if entry.searched {
+                            Image(systemName: "globe").imageScale(.small)
+                                .accessibilityLabel(L("联网", "Web", "ウェブ"))
+                        }
+                        Text(prefix + entry.original.replacingOccurrences(of: "\n", with: " ")).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    // 右边这段不截断，空间不够先截原文。
+                    trailing.lineLimit(1).fixedSize().layoutPriority(1)
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             }
-            HStack(spacing: 8) {
-                Text((entry.searched ? "🌐 " : "") + prefix + entry.original.replacingOccurrences(of: "\n", with: " "))
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                // 右边这段不截断，空间不够先截原文。
-                metaLine.lineLimit(1).fixedSize().layoutPriority(1)
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
         }
         .contentShape(Rectangle())
     }
 
     /// 第二行开头：问答「问：」，帮回「回：」（对方的名字读不到，不写）。
     private var prefix: String {
-        switch entry.kind {
-        case .answer: return L("问：", "Q: ", "問：")
-        case .reply: return L("回：", "Re: ", "返信先：")
-        case .polish: return ""
+        if entry.kind == .answer { return L("问：", "Q: ", "問：") }
+        if entry.hasReply { return L("回：", "Re: ", "返信先：") }
+        return ""
+    }
+
+    /// 「正式 · 3 版」灰字 + 状态彩色字。帮回旧记录：「客气 · 委婉拒绝」+ 已上屏 / 没用。
+    private var trailing: some View {
+        HStack(spacing: 8) {
+            if !meta.isEmpty { Text(meta) }
+            status
         }
     }
 
-    /// 「正式 · 3 版 · 已替换」：风格只写润色的，N 版只在多于 1 版时写，已替换 / 已插入绿字。
-    /// 帮回：「客气 · 委婉拒绝 · 已上屏」（语气、方向、上屏了没有）。
-    private var metaLine: Text {
+    private var meta: String {
         if entry.isLegacyReply {
             let shown = entry.versions.indices.contains(entry.shownIndex) ? entry.versions[entry.shownIndex] : nil
-            let parts = [shown?.style, shown?.direction].compactMap { $0 }
-            var line = Text(parts.joined(separator: " · "))
-            if entry.usedIndex != nil {
-                line = line + Text(parts.isEmpty ? "" : " · ") + Text(L("已上屏", "Inserted", "入力済み")).foregroundColor(HistoryFormat.green)
-            }
-            return line
+            return [shown?.style, shown?.direction].compactMap { $0 }.joined(separator: " · ")
         }
         var parts: [String] = []
         if entry.kind != .answer, let style = entry.meta.style { parts.append(style) }
         if entry.versions.count > 1 { parts.append(L("\(entry.versions.count) 版", "\(entry.versions.count) versions", "\(entry.versions.count) 版")) }
-        var line = Text(parts.joined(separator: " · "))
-        if let index = entry.usedIndex, let use = entry.versions[index].use {
-            line = line + Text(parts.isEmpty ? "" : " · ") + Text(HistoryFormat.useTitle(use)).foregroundColor(HistoryFormat.green)
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if let index = entry.usedIndex, entry.versions.indices.contains(index) {
+            let version = entry.versions[index]
+            if entry.isLegacyReply || version.use == .inserted {
+                Label(entry.isLegacyReply ? L("已上屏", "Inserted", "入力済み") : HistoryFormat.useTitle(.inserted), systemImage: "plus")
+                    .foregroundStyle(HistoryColor.inserted)
+            } else if version.edited || version.editedFrom != nil {
+                Label(L("改过后替换", "Edited, replaced", "手直しして置き換え"), systemImage: "pencil")
+                    .foregroundStyle(HistoryColor.editedReplaced)
+            } else {
+                Label(HistoryFormat.useTitle(.replaced), systemImage: "arrow.left.arrow.right")
+                    .foregroundStyle(HistoryColor.replaced)
+            }
+        } else {
+            Text(L("没用", "Not used", "未使用"))
         }
-        return line
     }
 }
 
