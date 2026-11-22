@@ -50,8 +50,10 @@ struct PopupRecord: Codable, Identifiable {
     var snapshotSwap: Double?
     var snapshotMiss: String?
     var snapshotCapture: Double?
+    /// 判断用不用截图以后 0.4 秒内哪几样变了（判断时读到的还没定下来，或者用户这时换了什么）。
+    var snapshotDrift: String?
     /// 建键盘后到存这条记录前，键盘视图的高度每变一次记一段（「第 N 毫秒 高度」，用 → 连起来），和我们要的高度。
-    /// 查「开着截图时，第一次下拉搜索框先停低了约 24pt、0.4 秒后才跳上去」：系统是不是到动画结束才定下键盘高度。
+    /// 查「桌面下拉搜索第一次弹出，搜索框先停低约 24pt、0.4 秒后才跳上去」：系统是不是到动画结束才定下键盘高度。
     var heights: String?
     var wantedHeight: Double?
     /// viewDidAppear 里同步做的事：剪贴板 / 帮回检测、常用词。
@@ -150,6 +152,7 @@ struct PopupRecord: Codable, Identifiable {
         if let snapshotSwap { shot.append("先显示上次的截图，第 \(Self.ms(snapshotSwap)) 毫秒换成真键盘") }
         if let snapshotMiss { shot.append("截图开关开着，这次没用截图：\(snapshotMiss)") }
         if let snapshotCapture { shot.append("这次截了一张图留给下次，用了 \(Self.ms(snapshotCapture)) 毫秒") }
+        if let snapshotDrift { shot.append("判断用不用截图以后，0.4 秒内又变了：\(snapshotDrift)") }
         if !shot.isEmpty { lines.append(shot.joined(separator: "；")) }
         if let heights {
             lines.append("键盘高度：\(heights)\(wantedHeight.map { "（我们要的 \(Self.ms($0))）" } ?? "")")
@@ -446,6 +449,8 @@ final class PopupMarks {
     var firstFrame: CFTimeInterval?
     var snapshotSwap: CFTimeInterval?
     var snapshotCapture: Double?
+    /// 判断用不用截图以后 0.4 秒内哪几样变了。
+    var snapshotDrift: String?
     /// 键盘视图高度每变一次记一条。
     var heights: [(at: CFTimeInterval, height: Double)] = []
 

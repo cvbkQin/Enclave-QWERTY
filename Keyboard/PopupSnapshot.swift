@@ -4,7 +4,7 @@ import UIKit
 ///
 /// 系统一来要键盘就开始往上推底板，不等我们；我们建整棵 SwiftUI 键盘要几十毫秒，这段时间底板是空的，
 /// 键画好了才一下子跳出来（11-19 录屏：微信、小红书空底板滑了 50–70 毫秒，正好是建键盘到显示出来的时间）。
-/// 开了开关：弹出前准备做完后，样子和上次一样（宽高、深浅色、回车键、九宫格 / 全键盘、中英、横竖屏、设置都对得上），
+/// 开了开关：进了窗口、第一帧交出去之前，样子和上次一样（宽高、深浅色、回车键、九宫格 / 全键盘、哪一页、中英、横竖屏、设置都对得上），
 /// 就先放一张上次截下的图，第一帧马上交出去；第一帧交出去以后的下一轮再建真键盘，真键盘盖在图上面，也交出一帧以后再把图拿掉。
 /// 对不上就照旧直接建真键盘。图只存在内存里（热启动才有，冷启动照旧），最多两张（回车键不同的框来回切）。
 enum PopupSnapshot {
@@ -18,6 +18,8 @@ enum PopupSnapshot {
         var returnKey: UIReturnKeyType
         var hasText: Bool
         var nineKey: Bool
+        /// 字母、数字、符号哪一页：数字框直接出数字页。原来没比这一样，在数字框里截的图，下次弹到普通框也会先露出数字页。
+        var layer: KeyboardModel.KeyLayer
         var chinese: Bool
         var landscape: Bool
         var settings: EnclaveSettings
@@ -33,6 +35,7 @@ enum PopupSnapshot {
             if returnKey != other.returnKey { names.append("回车键") }
             if hasText != other.hasText { names.append("输入框有没有字") }
             if nineKey != other.nineKey { names.append("九宫格 / 全键盘") }
+            if layer != other.layer { names.append("字母 / 数字 / 符号页") }
             if chinese != other.chinese { names.append("中英") }
             if landscape != other.landscape { names.append("横竖屏") }
             if settings != other.settings { names.append("设置") }

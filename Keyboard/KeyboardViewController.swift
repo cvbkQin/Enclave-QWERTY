@@ -21,7 +21,7 @@ final class KeyboardViewController: UIInputViewController {
         defer { loadMs = (CACurrentMediaTime() - loadStart) * 1000 }
         snapshotOn = PopupSnapshot.enabled
         // 宿主（连同它的约束）一开始就装上，键盘的视图结构从第一帧起就定了，开不开截图都一样。
-        // 「先显示截图」开着时宿主里先放空占位，真键盘的内容留到弹出前准备做完再定（见 viewWillAppear）。
+        // 「先显示截图」开着时宿主里先放空占位，真键盘的内容留到进了窗口再定（见 viewIsAppearing）。
         installHost(placeholder: snapshotOn)
 
         // 键盘高度只由这一条必需约束决定。allowsSelfSizing 让系统按我们的约束算高度，
@@ -339,6 +339,10 @@ final class KeyboardViewController: UIInputViewController {
     private var snapshotView: UIImageView?
     /// 截图放上时还没进窗口：第一帧交不出去，等进了窗口再排建真键盘。
     private var snapshotWaitingWindow = false
+    /// 用不用截图还没判断（viewWillAppear 里先不判断，等进了窗口）。
+    private var snapshotDecisionPending = false
+    /// 判断时的样子：0.4 秒后截图前再比一次，看判断时读到的是不是还没定下来的值（写进弹出记录）。
+    private var decidedSnapshotKey: PopupSnapshot.Key?
 
     /// 现在键盘长什么样（宽、高、深浅色、回车键……），和截图时的对得上才用那张图。
     private func snapshotKey() -> PopupSnapshot.Key? {
@@ -348,8 +352,38 @@ final class KeyboardViewController: UIInputViewController {
                                  style: traitCollection.userInterfaceStyle,
                                  appearance: textDocumentProxy.keyboardAppearance ?? .default,
                                  returnKey: model.hostReturnKey, hasText: model.hostHasText,
-                                 nineKey: model.showsNineKey, chinese: model.chineseMode,
+                                 nineKey: model.showsNineKey, layer: model.layer, chinese: model.chineseMode,
                                  landscape: model.landscape, settings: model.settings)
+    }
+
+    /// 用不用截图在进了窗口（viewIsAppearing）时才判断：viewWillAppear 时往往还没进窗口，深浅色还是系统的，
+    /// 不是对方 App 的（小红书这类固定浅色的 App，系统深色时就对不上）；输入框的回车键、外观也可能还没换成这个框的。
+    /// 0.97_7 的记录里，没用上截图的多半写着深浅色、回车键、输入框要的键盘外观「和上次不一样」，
+    /// 可其中不少 0.4 秒后并没有再截新图，说明那时样子又和已有的图对上了：是判断得太早。
+    /// 进了窗口、第一帧交出去之前，深浅色已经跟着对方 App 换了，这时再读一遍输入框（回车键、有没有字、数字框），然后判断。
+    private func decideSnapshot() {
+        guard snapshotDecisionPending else { return }
+        snapshotDecisionPending = false
+        guard snapshotOn, !hostFilled else { return }
+        model.refreshHostState()
+        let key = snapshotKey()
+        decidedSnapshotKey = key
+        if let key, let image = PopupSnapshot.image(for: key) {
+            showSnapshot(image)
+        } else {
+            if !popupRecorded { popupRecord?.snapshotMiss = key.map(PopupSnapshot.missReason) ?? "键盘宽度还是 0，没法比" }
+            fillHost()
+            view.layoutIfNeeded()
+        }
+    }
+
+    /// 截图前看一眼：现在的样子和判断时的比，变了说明判断时有的值还没定（或者用户这 0.4 秒里换了什么）。
+    private func checkSnapshotDrift() {
+        guard let decided = decidedSnapshotKey else { return }
+        decidedSnapshotKey = nil
+        guard PopupLog.enabled, let now = snapshotKey() else { return }
+        let names = now.differences(from: decided)
+        if !names.isEmpty { marks.snapshotDrift = names.joined(separator: "、") }
     }
 
     private func showSnapshot(_ image: UIImage) {
@@ -429,7 +463,8 @@ final class KeyboardViewController: UIInputViewController {
         let willStart = CACurrentMediaTime()
         // 收起时拆掉了宿主，同一个控制器再弹出时重新装上。
         installHost(placeholder: snapshotOn)
-        // 「先显示截图」：样子和上次截的图对得上，就先放图、下一轮再把真键盘填进宿主；对不上照旧在这里填。
+        // 「先显示截图」：进了窗口再判断（viewIsAppearing）。样子和上次截的图对得上，就先放图、下一轮再把真键盘填进宿主；
+        // 对不上就在那时填。
         let deferHost = snapshotOn && !hostFilled
         let hostDone = CACurrentMediaTime()
         // 先定下有没有地球键，免得键盘滑出来的途中按键再换一次排法。
@@ -457,28 +492,20 @@ final class KeyboardViewController: UIInputViewController {
         let layoutStart = CACurrentMediaTime()
         updateHeight()
         view.layoutIfNeeded()
-        var snapshotMiss: String?
-        if deferHost {
-            let key = snapshotKey()
-            if let key, let image = PopupSnapshot.image(for: key) {
-                showSnapshot(image)
-            } else {
-                snapshotMiss = key.map(PopupSnapshot.missReason) ?? "键盘宽度还是 0，没法比"
-                fillHost()
-                view.layoutIfNeeded()
-            }
-        } else {
-            removeSnapshot()
-        }
+        decidedSnapshotKey = nil
+        if deferHost { snapshotDecisionPending = true } else { removeSnapshot() }
         #if DEBUG
         heightLog("willAppear")
         #endif
-        startPopupRecord(willStart: willStart, hostDone: hostDone, reload: reloadDone - reloadStart, layoutStart: layoutStart,
-                         snapshotMiss: snapshotMiss)
+        startPopupRecord(willStart: willStart, hostDone: hostDone, reload: reloadDone - reloadStart, layoutStart: layoutStart)
     }
 
-    private func startPopupRecord(willStart: CFTimeInterval, hostDone: CFTimeInterval, reload: CFTimeInterval, layoutStart: CFTimeInterval,
-                                  snapshotMiss: String?) {
+    override func viewIsAppearing(_ animated: Bool) {
+        super.viewIsAppearing(animated)
+        decideSnapshot()
+    }
+
+    private func startPopupRecord(willStart: CFTimeInterval, hostDone: CFTimeInterval, reload: CFTimeInterval, layoutStart: CFTimeInterval) {
         guard PopupLog.enabled, !popupRecorded, popupRecord == nil else { return }
         let now = CACurrentMediaTime()
         // 这一圈主线程睡下时，Core Animation 已经把第一帧提交了：记下来，看系统那边空底板等的是不是我们。
@@ -502,7 +529,7 @@ final class KeyboardViewController: UIInputViewController {
             lastTeardownBefore: PopupLog.lastTeardownDone.map { (createdAt - $0) * 1000 },
             load: loadMs, willAppear: (now - willStart) * 1000, willHost: (hostDone - willStart) * 1000,
             willReload: reload * 1000, willLayout: (now - layoutStart) * 1000,
-            loadToAppear: 0, snapshotMiss: snapshotMiss, didClipboard: 0, didCommonWords: 0, engineReady: nil, memoryMB: nil,
+            loadToAppear: 0, snapshotMiss: nil, didClipboard: 0, didCommonWords: 0, engineReady: nil, memoryMB: nil,
             sinceHide: hide.map { Date().timeIntervalSince($0.at) },
             sameProcess: hide.map { $0.pid == ProcessInfo.processInfo.processIdentifier },
             lastCleanup: hide?.cleanup, nineKey: model.showsNineKey)
@@ -533,6 +560,7 @@ final class KeyboardViewController: UIInputViewController {
             record.firstFrame = marks.firstFrame.map(since)
             record.snapshotSwap = marks.snapshotSwap.map(since)
             record.snapshotCapture = marks.snapshotCapture
+            record.snapshotDrift = marks.snapshotDrift
             record.heights = marks.heightsText(from: loadStart)
             record.wantedHeight = model.map { Double($0.keyboardHeight) }
             if let ready = model?.engineReadyAt, ready >= loadStart { record.engineReady = since(ready) }
@@ -567,10 +595,19 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        // 万一没走 viewIsAppearing、还没判断：第一帧已经交出去了，不用截图，直接填真键盘。
+        if snapshotDecisionPending {
+            snapshotDecisionPending = false
+            fillHost()
+            view.layoutIfNeeded()
+        }
         // 截图还挂着（下一轮还没轮到）：现在就换成真键盘，后面的事都要用到它。
         replaceSnapshot()
         if snapshotOn {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.captureSnapshotIfNeeded() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.checkSnapshotDrift()
+                self?.captureSnapshotIfNeeded()
+            }
         }
         #if DEBUG
         heightLog("didAppear")
