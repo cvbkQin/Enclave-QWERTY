@@ -869,7 +869,7 @@ final class KeyboardModel: ObservableObject {
         errorMessage = nil
         notice = nil
         guard hasFullAccess else {
-            errorMessage = L("需要在 设置 › 通用 › 键盘 › 键盘 › 飞地输入法 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › Enclave to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › Enclave で「フルアクセスを許可」をオンにしてください。")
+            errorMessage = L("需要在 设置 › 通用 › 键盘 › 键盘 › \(Loc.nameInSettings) 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › \(Loc.nameInSettings) to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › \(Loc.nameInSettings) で「フルアクセスを許可」をオンにしてください。")
             return false
         }
         guard settings.isConfigured else {
