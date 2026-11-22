@@ -5,6 +5,8 @@ import UIKit
 /// 键盘尺寸，按 iOS 26 自带简体拼音键盘在 402pt 宽的 iPhone 上量出来的。键盘高度也从这里算。
 /// iPad 全宽键盘的尺寸（PK1、PK2，照 iPad 原生）。浮动键盘（宽约 320）和 iPhone 一样排，没有这一份。
 /// 每个键之间隔 gap，按键区离键盘左右边 edge、离上边 top、离下边 bottom；最下面一排矮 15%（11-22 cvbk「下巴感觉都很大」）。
+/// 11-22 16:01 重定（design/ipad/交接.md「键盘高度」，对齐清单第 83 条）：iPadOS 在第三方键盘上面固定画一条快捷栏（约 55）、
+/// 下面留 home 横条区（约 20），算上这两条重新分高度：11、13 寸一样，竖屏键高 50、横屏 58，键距 8，上下边 6。
 struct PadMetrics: Equatable {
     var keyHeight: CGFloat
     var gap: CGFloat
@@ -17,7 +19,7 @@ struct PadMetrics: Equatable {
     var big: Bool
     var landscape: Bool
 
-    /// 最下面一排：键高 50 以上的矮 15%（48 / 63 / 49 / 61）。
+    /// 最下面一排：键高 50 以上的矮 15%（竖屏 43、横屏 49；9 键压扁后横屏 50 → 43，竖屏 44 不再矮）。
     var bottomKeyHeight: CGFloat { keyHeight >= 50 ? (keyHeight * 0.85).rounded() : keyHeight }
     var functionFontSize: CGFloat { (fontSize * 0.72).rounded() }
     /// 26 键字母页的行数。数字符号页也按这个高度排，切过去键盘不跳。
@@ -26,12 +28,12 @@ struct PadMetrics: Equatable {
     /// 全宽 9 键（PK3）一直是 4 排，13 寸也是。
     func keysHeight(rows: Int) -> CGFloat { top + bottom + CGFloat(rows - 1) * (keyHeight + gap) + bottomKeyHeight }
 
-    /// 9 键开着回答卡时按键压扁（PK15，11-22 cvbk「底下这里可以压缩么」）：每排横屏 58、竖屏 48，字小一号；
-    /// 竖屏 48 不到 50，最下面一排不再矮 15%。
+    /// 9 键开着回答卡时按键压扁（PK15，11-22 cvbk「底下这里可以压缩么」；16:01 重定）：每排横屏 50、竖屏 44，字小一号。
+    /// 按键区竖屏 212、横屏 229，加上卡片收起 88 是 300 / 317（交接.md）。
     var compressed: PadMetrics {
         var metrics = self
-        metrics.keyHeight = landscape ? 58 : 48
-        metrics.fontSize = landscape ? 24 : 22
+        metrics.keyHeight = landscape ? 50 : 44
+        metrics.fontSize -= 1
         return metrics
     }
 
@@ -41,10 +43,8 @@ struct PadMetrics: Equatable {
         let landscape = screen.width > screen.height
         let big = max(screen.width, screen.height) >= 1300
         switch (big, landscape) {
-        case (false, false): return PadMetrics(keyHeight: 56, gap: 8, edge: 6, top: 8, bottom: 8, fontSize: 23, big: false, landscape: false)
-        case (false, true): return PadMetrics(keyHeight: 74, gap: 10, edge: 8, top: 9, bottom: 9, fontSize: 26, big: false, landscape: true)
-        case (true, false): return PadMetrics(keyHeight: 58, gap: 8, edge: 6, top: 8, bottom: 8, fontSize: 23, big: true, landscape: false)
-        case (true, true): return PadMetrics(keyHeight: 72, gap: 10, edge: 8, top: 9, bottom: 9, fontSize: 26, big: true, landscape: true)
+        case (_, false): return PadMetrics(keyHeight: 50, gap: 8, edge: 6, top: 6, bottom: 6, fontSize: 22, big: big, landscape: false)
+        case (_, true): return PadMetrics(keyHeight: 58, gap: 8, edge: 8, top: 6, bottom: 6, fontSize: 24, big: big, landscape: true)
         }
     }
 }
@@ -103,15 +103,19 @@ enum KeyboardMetrics {
 
     /// 候选栏 / AI 栏上面的拼音行（照 iOS 原生，PY7）：一直占位 36 高（横屏 28，和原生差不多），平时空着，键盘总高不随打字变化。
     /// 竖屏收着时总高 36 + 44 + 216 = 296。
-    /// iPad 38（PK1）。
-    static var pinyinRowHeight: CGFloat { pad != nil ? 38 : (landscape ? 28 : 36) }
+    /// iPad 28（16:01 重定）。
+    static var pinyinRowHeight: CGFloat { pad != nil ? 28 : (landscape ? 28 : 36) }
 
     /// AI 栏：展开键、✨ 润色、风格菜单、撤销重做，收起和展开都是这一行，紧贴按键上方。
     /// 横屏 38：键 32 居中，上面再加 boardTop 4，键盘上边到 AI 栏 7、AI 栏到第一行键 6（LN2）。
-    /// iPad 52（PK1 顶栏）。
-    static var topRow: CGFloat { pad != nil ? 52 : (landscape ? 38 : 44) }
+    /// iPad 44（16:01 重定，原来 52）。
+    static var topRow: CGFloat { pad != nil ? 44 : (landscape ? 38 : 44) }
     /// AI 栏里按钮的高度；✨ 润色按钮 84×34（横屏 32）。
-    static var chipHeight: CGFloat { landscape ? 32 : 34 }
+    /// iPad 9 键的功能键一列（PK3 ①，16:01 重定）：竖屏 86×32、横屏 94×36。
+    static var chipHeight: CGFloat {
+        if let pad, padNine { return pad.landscape ? 36 : 32 }
+        return landscape ? 32 : 34
+    }
     /// 横屏键盘最上面多留的一截：加上按键自己的上缝 3，第一行离键盘上边 7。竖屏 0。
     static var boardTop: CGFloat { landscape ? 4 : 0 }
     /// AI 栏的键上下各剩多少（滑动区会裁掉伸出去的投影）。
@@ -571,12 +575,14 @@ struct RepeatingKey: View {
     var systemImage: String
     var insetX = KeyboardMetrics.keyInsetX
     var insetY = KeyboardMetrics.keyInsetY
+    /// iPad 上和功能键一样灰底（KeyStyle.padFunctionKey）。
+    var fill = KeyStyle.functionKey
     var action: () -> Void
     @State private var timer: Timer?
     @State private var pressed = false
 
     var body: some View {
-        KeyCap(fill: pressed ? KeyStyle.pressedKey : KeyStyle.functionKey, insetX: insetX, insetY: insetY) {
+        KeyCap(fill: pressed ? KeyStyle.pressedKey : fill, insetX: insetX, insetY: insetY) {
             Image(systemName: systemImage).font(KeyStyle.iconFont).foregroundStyle(Color.primary)
         }
         .gesture(

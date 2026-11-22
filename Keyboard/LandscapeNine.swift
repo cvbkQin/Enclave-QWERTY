@@ -128,6 +128,8 @@ struct LandscapeWordPanel: View {
     /// iPad 全宽 9 键（PadNineMiddle）：一排的高度按那块分（联想 3 排、候选 4 排），字大一点。
     var rowHeight: CGFloat = 36
     var fontSize: CGFloat = 19
+    /// 一格最小多宽：iPad 9 键中间那块竖屏 52、横屏 58（PK6：竖屏一排 6 个左右、横屏 9 个左右）。
+    var minimumCell: CGFloat = 64
 
     private static let fade: CGFloat = 22
     private static let sidePadding: CGFloat = 4
@@ -135,7 +137,9 @@ struct LandscapeWordPanel: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
         GeometryReader { geo in
-            let rows = CandidateRows.rows(words, width: max(geo.size.width - Self.sidePadding * 2, 1))
+            // iPhone 照旧按 20 号字量宽；iPad 按实际字号量。
+            let rows = CandidateRows.rows(words, width: max(geo.size.width - Self.sidePadding * 2, 1), minimumCell: minimumCell,
+                                          fontSize: KeyboardMetrics.pad == nil ? CandidateRows.fontSize : fontSize)
             let overflows = CGFloat(rows.count) * rowHeight > geo.size.height + 0.5
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVStack(spacing: 0) {

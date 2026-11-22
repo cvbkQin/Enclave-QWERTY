@@ -835,7 +835,7 @@ struct AlternatesView: View {
         HStack(spacing: 0) {
             ForEach(Array(popup.options.enumerated()), id: \.offset) { index, option in
                 Text(option)
-                    .font(.system(size: 22))
+                    .font(.system(size: KeyboardMetrics.pad == nil ? 22 : 26))
                     .foregroundStyle(index == popup.selected ? Color.white : Color.primary)
                     .frame(width: AlternatesPopup.cellWidth, height: AlternatesPopup.height - 8)
                     .background(RoundedRectangle(cornerRadius: 6, style: .continuous)

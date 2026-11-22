@@ -51,7 +51,7 @@ struct PadNineFunctions: View {
 }
 
 /// 回答卡开关（PK15）：▭ 在外侧（靠屏幕边）、箭头在内侧。卡片从键盘上面出来，所以没开时箭头朝上，开着时朝下（收回）；
-/// 开着时浅紫底、紫边、紫图标，和 iPhone AI 栏最左边那颗一样。和润色键一样大（竖屏 86×34）。
+/// 开着时浅紫底、紫边、紫图标，和 iPhone AI 栏最左边那颗一样。和润色键一样大（竖屏 86×32、横屏 94×36）。
 struct PadCardToggle: View {
     @ObservedObject var model: KeyboardModel
     /// 九键在左：功能键一列在最右，▭ 在右边、箭头在左边。
@@ -105,12 +105,18 @@ struct PadNineMiddle: View {
     var body: some View {
         GeometryReader { geo in
             let font = KeyboardMetrics.pad.map { $0.fontSize - 3 } ?? 20
+            let cell: CGFloat = KeyboardMetrics.pad?.landscape == true ? 58 : 52
+            let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
             if model.isComposing {
                 let rowHeight = geo.size.height / 4
+                // 拼音那一行和候选在同一张白卡里（PK6），中间一条细线。
                 VStack(spacing: 0) {
                     if !model.pinyinSide {
                         PinyinRow(model: model)
                             .frame(height: rowHeight)
+                            .overlay(alignment: .bottom) {
+                                Rectangle().fill(Color(UIColor.separator)).frame(height: 0.5)
+                            }
                     } else if let pinyin = model.offFieldPinyin {
                         // 输入框不认标记文字（NM2）时拼音没处显示：候选上面加一行灰色拼音。
                         OffFieldPinyinText(text: pinyin, size: 15)
@@ -119,8 +125,10 @@ struct PadNineMiddle: View {
                             .frame(height: 24)
                     }
                     LandscapeWordPanel(model: model, words: model.displayWords(model.candidates), composing: true,
-                                       rowHeight: rowHeight, fontSize: font)
+                                       rowHeight: rowHeight, fontSize: font, minimumCell: cell)
                 }
+                .background(shape.fill(KeyStyle.charKey))
+                .clipShape(shape)
             } else {
                 VStack(spacing: 6) {
                     if model.target == .card {
@@ -128,7 +136,7 @@ struct PadNineMiddle: View {
                             .frame(height: KeyboardMetrics.chipHeight + 8)
                     }
                     LandscapeWordPanel(model: model, words: model.showsPredictions ? model.displayWords(model.predictions) : [],
-                                       composing: false, rowHeight: geo.size.height / 3, fontSize: font)
+                                       composing: false, rowHeight: geo.size.height / 3, fontSize: font, minimumCell: cell)
                 }
             }
         }

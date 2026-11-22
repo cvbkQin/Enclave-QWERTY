@@ -735,38 +735,52 @@ struct CandidateReveal: ViewModifier, Animatable {
 
 /// 候选词展开后铺满按键区，和系统键盘一样可以上下滑着挑。
 /// 每格最小 64pt；长词按字数占两三格甚至整行，不截断成省略号（排法见 CandidateRows）。
+/// iPad 全宽 26 键（PK5 中）：候选放在一张白底圆角卡里，和按键一样离边；一格最小 86（11 寸横屏一行 12 个、竖屏 8 个），
+/// 一排的高度把按键区分成字母页那么多排（11 寸 4 排、13 寸 5 排），排间细线；右边一列 ⌫、重输、确认，和功能键一样灰底。
 struct CandidateGrid: View {
     @ObservedObject var model: KeyboardModel
     /// 左边让给九宫格拼音栏的宽度。
     var leading: CGFloat = 0
 
     var body: some View {
+        let pad = KeyboardMetrics.pad
+        let half = (pad?.gap ?? 0) / 2
+        let fontSize = pad.map { $0.fontSize - 2 } ?? CandidateRows.fontSize
+        let shape = RoundedRectangle(cornerRadius: pad == nil ? 0 : KeyStyle.cornerRadius, style: .continuous)
         HStack(alignment: .top, spacing: 0) {
             GeometryReader { geo in
+                let rowHeight = pad.map { geo.size.height / CGFloat($0.rows) } ?? 46
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        ForEach(CandidateRows.rows(model.displayWords(model.candidates), width: geo.size.width)) { row in
+                        ForEach(CandidateRows.rows(model.displayWords(model.candidates), width: geo.size.width,
+                                                   minimumCell: pad == nil ? 64 : 86, fontSize: fontSize)) { row in
                             HStack(spacing: 0) {
                                 ForEach(row.cells, id: \.index) { cell in
                                     Button { model.selectCandidate(cell.index) } label: {
                                         Text(cell.word)
-                                            .font(.system(size: CandidateRows.fontSize))
+                                            .font(.system(size: fontSize))
                                             .foregroundStyle(Color.primary)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.5)
                                             .padding(.horizontal, CandidateRows.padding)
                                             .frame(width: cell.width)
-                                            .frame(minHeight: 46)
+                                            .frame(minHeight: rowHeight)
                                             .contentShape(Rectangle())
                                     }
                                     .buttonStyle(KeyPressStyle())
                                 }
                                 Spacer(minLength: 0)
                             }
+                            .overlay(alignment: .bottom) {
+                                if pad != nil { Rectangle().fill(Color(UIColor.separator)).frame(height: 0.5) }
+                            }
                         }
                     }
                 }
             }
+            .background(shape.fill(pad == nil ? Color.clear : KeyStyle.charKey))
+            .clipShape(shape)
+            .padding(half)
             .padding(.leading, leading)
             .frame(maxWidth: .infinity)
             .hidingScrollEdgeEffect()
@@ -781,16 +795,48 @@ struct CandidateGrid: View {
                 }
             }
             .onChange(of: model.composition) { _ in model.loadMoreCandidates() }
-            // 收起用候选栏右边的箭头；这里只放退格和重输，上下平分整列。
-            VStack(spacing: 0) {
-                RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                    .frame(maxHeight: .infinity)
-                FunctionKey(title: "重输") { model.clearComposition() }
-                    .frame(maxHeight: .infinity)
+            if let pad {
+                padSideColumn(pad)
+            } else {
+                // 收起用候选栏右边的箭头；这里只放退格和重输，上下平分整列。
+                VStack(spacing: 0) {
+                    RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
+                        .frame(maxHeight: .infinity)
+                    FunctionKey(title: "重输") { model.clearComposition() }
+                        .frame(maxHeight: .infinity)
+                }
+                .frame(width: 64)
+                .frame(maxHeight: .infinity)
             }
-            .frame(width: 64)
+        }
+        // iPad：上下和按键一样离边（按键格子从 top − gap/2 起，键帽再缩进半条缝）。
+        .padding(.top, pad.map { $0.top - $0.gap / 2 } ?? 0)
+        .padding(.bottom, pad.map { $0.bottom - $0.gap / 2 } ?? 0)
+    }
+
+    /// iPad 右边一列（PK5 中）：⌫、重输、确认（把字母原样上屏，浅紫底紫字，和打字中的回车一样），三颗一样高。
+    private func padSideColumn(_ pad: PadMetrics) -> some View {
+        let half = pad.gap / 2
+        return VStack(spacing: 0) {
+            RepeatingKey(systemImage: "delete.left", insetX: half, insetY: half, fill: KeyStyle.padFunctionKey) { model.deleteKey() }
+                .frame(maxHeight: .infinity)
+            Button { model.clearComposition() } label: {
+                KeyCap(fill: KeyStyle.padFunctionKey, insetX: half, insetY: half) {
+                    Text("重输").font(KeyStyle.functionFont).foregroundStyle(Color.primary)
+                }
+            }
+            .buttonStyle(KeyPressStyle())
+            .frame(maxHeight: .infinity)
+            Button { if model.isComposing { model.returnKey() } } label: {
+                KeyCap(fill: Brand.returnSoftFill, insetX: half, insetY: half) {
+                    Text("确认").font(KeyStyle.functionFont).foregroundStyle(Brand.deepPurple)
+                }
+            }
+            .buttonStyle(KeyPressStyle())
             .frame(maxHeight: .infinity)
         }
+        .frame(width: pad.landscape ? 120 : 96)
+        .frame(maxHeight: .infinity)
     }
 }
 
@@ -800,8 +846,6 @@ struct CandidateGrid: View {
 enum CandidateRows {
     static let fontSize: CGFloat = 20
     static let padding: CGFloat = 6
-    private static let minimumCell: CGFloat = 64
-    private static let font = UIFont.systemFont(ofSize: fontSize)
     private static var widthCache: [String: CGFloat] = [:]
 
     struct Cell {
@@ -815,7 +859,8 @@ enum CandidateRows {
         let cells: [Cell]
     }
 
-    static func rows(_ words: [String], width: CGFloat) -> [Row] {
+    /// minimumCell、fontSize：iPad 上格子和字都大一点（展开候选 86、9 键中间那块 52 / 58），量字宽用同一个字号。
+    static func rows(_ words: [String], width: CGFloat, minimumCell: CGFloat = 64, fontSize: CGFloat = CandidateRows.fontSize) -> [Row] {
         guard width > 0 else { return [] }
         let columns = max(1, Int(width / minimumCell))
         let unit = width / CGFloat(columns)
@@ -832,7 +877,7 @@ enum CandidateRows {
             used = 0
         }
         for (index, word) in words.enumerated() {
-            let span = min(columns, max(1, Int(ceil(textWidth(word) / unit))))
+            let span = min(columns, max(1, Int(ceil(textWidth(word, fontSize: fontSize) / unit))))
             if used + span > columns { flush(stretch: true) }
             pending.append((index, word, span))
             used += span
@@ -841,11 +886,13 @@ enum CandidateRows {
         return rows
     }
 
-    private static func textWidth(_ word: String) -> CGFloat {
-        if let cached = widthCache[word] { return cached }
+    private static func textWidth(_ word: String, fontSize: CGFloat) -> CGFloat {
+        let key = fontSize == Self.fontSize ? word : "\(fontSize)|\(word)"
+        if let cached = widthCache[key] { return cached }
         if widthCache.count > 1000 { widthCache.removeAll() }
+        let font = UIFont.systemFont(ofSize: fontSize)
         let width = ceil((word as NSString).size(withAttributes: [.font: font]).width) + padding * 2
-        widthCache[word] = width
+        widthCache[key] = width
         return width
     }
 }

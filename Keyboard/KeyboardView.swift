@@ -459,7 +459,11 @@ struct UndoRedoPair: View {
     /// 高 34、圆角 17（和栏里别的键一样高，v307）。方案 A（v309）缩成小胶囊：左右内边 9、16pt 箭头、中间 1×16 细竖线，总宽 64。
     static let halfWidth: CGFloat = 31.5
     static var width: CGFloat { halfWidth * 2 + 1 }
-    static var height: CGFloat { KeyboardMetrics.chipHeight }
+    /// iPad 9 键功能键一列最下面（16:01 重定）：竖屏 26、横屏 30 高。
+    static var height: CGFloat {
+        if let pad = KeyboardMetrics.pad, KeyboardMetrics.padNine { return pad.landscape ? 30 : 26 }
+        return KeyboardMetrics.chipHeight
+    }
 
     var body: some View {
         HStack(spacing: 0) {
