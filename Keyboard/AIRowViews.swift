@@ -596,7 +596,7 @@ struct StyleDropdown: View {
     private var addRow: some View {
         Button {
             model.aiRow = nil
-            model.openContainingApp(answer ? "enclave://prompts-answer" : "enclave://prompts")
+            model.showAppHint(.prompts)
         } label: {
             Label(answer ? L("添加问答风格", "Add answer style", "回答スタイルを追加") : L("添加润色风格", "Add polish style", "整えるスタイルを追加"),
                   systemImage: "plus")

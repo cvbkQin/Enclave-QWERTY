@@ -188,7 +188,7 @@ struct ExtDictCatalog: Codable, Equatable {
         var size: Int64
         var version: String
         var sha256: String?
-        /// 空着表示还没上线：显示「准备中」，不能下载。
+        /// 空着表示拿不到下载地址：显示「暂时无法下载」，不能下载。
         var url: String?
 
         /// 大陆界面「百科词库」，其他地区「维基百科词库」（05 许可结论）。

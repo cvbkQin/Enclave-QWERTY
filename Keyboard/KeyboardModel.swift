@@ -29,8 +29,10 @@ final class KeyboardModel: ObservableObject {
     enum ReplaceNote { case partial, mismatch }
     /// 发给 AI 的那段输入框文字在哪（不是选中时）。替换照它删，不在按替换时重算。
     private var readSpan: FieldSpan?
-    /// 键盘里拉起 App 失败：顶上提示 4 秒，请人自己打开 App。
-    @Published private(set) var openAppFailed = false
+    /// 键盘里要去 App 某一页时（出错卡「去设置」、隐私政策、添加风格、联网「去开启」）：顶上提示 5 秒，写明去 App 的哪一页。
+    /// 键盘扩展不能打开别的 App（审核指南 4.4.1），也不能调私有接口去拉起（2.5.1），见 05 上架风险报告高 1。
+    @Published private(set) var appHint: AppPlace?
+    private var appHintTimer: DispatchWorkItem?
     /// 结果卡片展开到五行。
     @Published var cardExpanded = false { didSet { heightMayChange?() } }
     /// AI 栏上方展开的一行：「润色 ▴」的提示词标签，或「识意 ▾」的输入框（QA2、QA14）。两者互斥。
@@ -404,9 +406,9 @@ final class KeyboardModel: ObservableObject {
     /// 截图用：直接显示某张提示卡（quotaUsed：次数用完）。
     func debugShowGate(_ gate: AIGate) { self.gate = gate }
 
-    /// 截图用：结果卡上的部分替换提示、顶上的打不开 App 提示，一直显示。
+    /// 截图用：结果卡上的部分替换提示、顶上的去 App 设置提示，一直显示。
     func debugShowNotes(partial: Bool) {
-        if partial { replaceNote = .partial } else { openAppFailed = true }
+        if partial { replaceNote = .partial } else { appHint = .api }
     }
 
     /// 截图用：不经过 App 改结果卡左边那颗键的设置。
@@ -745,42 +747,16 @@ final class KeyboardModel: ObservableObject {
         gate = .fullAccess
     }
 
-    /// 键盘里打开主 App 的某个页面。扩展不能直接调 open(_:)，沿响应链找到 UIApplication 再调它。
-    /// 找不到、或系统回报没打开时，提示人自己去主屏幕打开 App。
-    func openContainingApp(_ link: String) {
-        guard let url = NSURL(string: link) else { return }
-        // 先沿响应链找，找不到再用 sharedApplication；两种在不同系统版本上各有失灵的时候。
-        var responder: UIResponder? = controller?.view ?? controller
-        var application: NSObject?
-        while let current = responder {
-            if current is UIApplication { application = current; break }
-            responder = current.next
+    /// 请人自己打开飞地输入法 App，去 place 那一页。不再从键盘里拉起 App：以前沿响应链找 UIApplication、
+    /// 再绕过扩展的限制去调 App 的打开链接接口，属于私有用法（05 上架风险报告高 1，已去掉）。
+    func showAppHint(_ place: AppPlace) {
+        appHintTimer?.cancel()
+        withAnimation(.easeOut(duration: 0.15)) { appHint = place }
+        let timer = DispatchWorkItem { [weak self] in
+            withAnimation(.easeIn(duration: 0.2)) { self?.appHint = nil }
         }
-        if application == nil {
-            application = UIApplication.value(forKey: "sharedApplication") as? NSObject
-        }
-        guard let application else { showOpenAppFailed(); return }
-        let modern = NSSelectorFromString("openURL:options:completionHandler:")
-        if application.responds(to: modern) {
-            typealias Open = @convention(c) (NSObject, Selector, NSURL, NSDictionary, AnyObject?) -> Void
-            let open = unsafeBitCast(application.method(for: modern), to: Open.self)
-            let completion: @convention(block) (Bool) -> Void = { [weak self] success in
-                guard !success else { return }
-                DispatchQueue.main.async { self?.showOpenAppFailed() }
-            }
-            open(application, modern, url, NSDictionary(), completion as AnyObject)
-        } else if application.responds(to: NSSelectorFromString("openURL:")) {
-            application.perform(NSSelectorFromString("openURL:"), with: url)
-        } else {
-            showOpenAppFailed()
-        }
-    }
-
-    private func showOpenAppFailed() {
-        withAnimation(.easeOut(duration: 0.15)) { openAppFailed = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-            withAnimation(.easeIn(duration: 0.2)) { self?.openAppFailed = false }
-        }
+        appHintTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timer)
     }
 
     // MARK: - 在卡片里改结果
@@ -1205,9 +1181,9 @@ final class KeyboardModel: ObservableObject {
         start(from: last.origin) { run(last.messages, pending: last.pending, ask: last.ask, reply: last.reply) }
     }
 
-    /// 出错卡的「去设置」：打开 App 接口页（问答接口出的错打开问答页）。
+    /// 出错卡的「去设置」：提示去 App 的接口页。
     func openAPISettings() {
-        openContainingApp(failureOnAnswerAPI ? "enclave://api-answer" : "enclave://api")
+        showAppHint(.api)
     }
 
     /// 点了「润色」或「再润」：记下是哪个按钮，没开始生成（提示、出错）就清掉。

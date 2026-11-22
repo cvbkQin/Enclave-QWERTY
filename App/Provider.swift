@@ -218,7 +218,10 @@ enum ConfigTemplate: String, CaseIterable, Identifiable {
         case .qwenAI: return "maas.qianwenaiapi.com · " + model
         case .glm: return L("智谱开放平台", "Z.ai platform", "Z.ai") + " · " + model
         case .hunyuan: return L("腾讯云 TokenHub", "Tencent Cloud TokenHub", "Tencent Cloud TokenHub") + " · " + model
-        case .custom: return L("Ollama、vLLM、LM Studio，或任何 OpenAI 兼容地址", "Ollama, vLLM, LM Studio, or any OpenAI-compatible URL", "Ollama、vLLM、LM Studio、または OpenAI 互換の URL")
+        // 中国大陆店面不出现 OpenAI 字样（05 上架风险报告低 7）。
+        case .custom: return Storefront.isMainlandChina
+            ? L("Ollama、vLLM、LM Studio，或任何兼容地址", "Ollama, vLLM, LM Studio, or any compatible URL", "Ollama、vLLM、LM Studio、または互換の URL")
+            : L("Ollama、vLLM、LM Studio，或任何 OpenAI 兼容地址", "Ollama, vLLM, LM Studio, or any OpenAI-compatible URL", "Ollama、vLLM、LM Studio、または OpenAI 互換の URL")
         }
     }
 

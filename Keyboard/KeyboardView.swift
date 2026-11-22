@@ -163,10 +163,10 @@ struct KeyboardView: View {
                 }
             }
         }
-        // 键盘里拉不起 App 时（有的系统版本、有的 App 里不让）：请人自己打开。
+        // 键盘不能打开 App（4.4.1）：要去 App 里设置的地方，写明去哪一页，请人自己打开。
         .overlay(alignment: .top) {
-            if model.openAppFailed {
-                Text(L("打不开飞地输入法 App，请回到主屏幕手动打开它", "Couldn't open the Enclave app. Open it from the Home Screen.", "Enclave アプリを開けませんでした。ホーム画面から開いてください。"))
+            if let place = model.appHint {
+                Text(place.hint)
                     .font(.system(size: 12.5, weight: .semibold))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
@@ -688,7 +688,7 @@ struct GateCard: View {
             .fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 0)
         HStack(spacing: 8) {
-            Button { model.openContainingApp("enclave://privacy-policy") } label: {
+            Button { model.showAppHint(.privacyPolicy) } label: {
                 Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12))
                     .foregroundStyle(Brand.tagSelectedText)
             }
@@ -1105,7 +1105,7 @@ struct ResultCard: View {
             }
             .buttonStyle(.plain)
             Button {
-                if prompt.disabled { model.openContainingApp("enclave://api-answer") } else { model.resolveSearchPrompt(allow: true) }
+                if prompt.disabled { model.showAppHint(.webSearch) } else { model.resolveSearchPrompt(allow: true) }
             } label: {
                 Text(accept)
                     .font(.system(size: 14, weight: .semibold))
