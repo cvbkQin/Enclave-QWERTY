@@ -119,12 +119,14 @@ extension KeyLayout {
         let outer: [(String, KeyKind)] = [("globe", .globe), ("dismiss", .dismiss)]
         let swap: (String, KeyKind) = ("swapSide", .swapNineSide)
         let bottom: [(String, KeyKind)] = state.nineOnLeft ? [swap] + markKeys + Array(outer.reversed()) : outer + markKeys + [swap]
+        // 1.4 倍是按键帽比（设计稿 flex:1.4）：每格 = 键帽 + 一条缝，竖屏 ⇆ 键帽约 67、标点 48，横屏约 84、60。
         let weights: [CGFloat] = bottom.map { $0.0 == swap.0 ? 1.4 : 1 }
-        let cell = areaWidth / weights.reduce(0, +)
+        let capUnit = (areaWidth - gap * CGFloat(bottom.count)) / weights.reduce(0, +)
         var bottomX = areaX
         for (item, weight) in zip(bottom, weights) {
-            add(item.0, item.1, x: bottomX, width: cell * weight, row: 3)
-            bottomX += cell * weight
+            let width = capUnit * weight + gap
+            add(item.0, item.1, x: bottomX, width: width, row: 3)
+            bottomX += width
         }
 
         // 上面三排高：功能键一列靠屏幕边，中间那块夹在它和九键之间。两块都按键帽算（离格子边半条缝）。
