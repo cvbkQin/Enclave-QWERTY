@@ -79,7 +79,7 @@ extension KeyLayout {
         }
         return [
             [PadKey(id: "tab", kind: .tab, units: 1.4)] + letters[0] + [PadKey(id: "delete", kind: .delete, units: 1.4)],
-            [languageKey(state, units: 1.9)] + letters[1] + [PadKey(id: "return", kind: .returnKey, units: 1.9)],
+            [secondRowKey(state, units: 1.9)] + letters[1] + [PadKey(id: "return", kind: .returnKey, units: 1.9)],
             [PadKey(id: "shift", kind: .shift, units: 1.9)] + letters[2] + [comma, period, PadKey(id: "shift2", kind: .shift, units: 1.9)],
             padBottomRow(state, total: 12.8, side: 1, layer: 1.4, letters: true),
         ]
@@ -109,7 +109,7 @@ extension KeyLayout {
             [PadKey(id: "tab", kind: .tab, units: 1.6)] + letters[0]
                 + [punct("p-lbracket", ("【", "「"), ("[", "{")), punct("p-rbracket", ("】", "」"), ("]", "}")),
                    punct("p-backslash", ("、", "｜"), ("\\", "|"))],
-            [languageKey(state, units: 1.9)] + letters[1]
+            [secondRowKey(state, units: 1.9)] + letters[1]
                 + [punct("p-semicolon", ("；", "："), (";", ":")), punct("p-quote", ("‘", "“"), ("'", "\"")),
                    PadKey(id: "return", kind: .returnKey, units: 1.7)],
             [PadKey(id: "shift", kind: .shift, units: 2.3)] + letters[2]
@@ -133,26 +133,38 @@ extension KeyLayout {
         return row
     }
 
-    /// 「中/英」放在原生大写锁定的位置。只用英文时没有中文可切，这里放一颗 ⇧。
-    private static func languageKey(_ state: State, units: CGFloat) -> PadKey {
-        state.englishOnly ? PadKey(id: "shift3", kind: .shift, units: units) : PadKey(id: "chinese", kind: .toggleChinese, units: units)
+    /// 第二排最左：「中/英」放在原生大写锁定的位置。只用英文时没有中文可切，这里放一颗 ⇧。
+    /// 9 键模式下的英文（PK20、PK21，11-23 cvbk 选）：中/英挪到最下面一排和九键对位置，这里换成「常用 剪贴板」，
+    /// 点了打开常用语和剪贴板面板（盖住按键区，键盘不变高）。
+    private static func secondRowKey(_ state: State, units: CGFloat) -> PadKey {
+        if state.englishOnly { return PadKey(id: "shift3", kind: .shift, units: units) }
+        if state.nineEnglish { return PadKey(id: "quickWords", kind: .quickWords, units: units) }
+        return PadKey(id: "chinese", kind: .toggleChinese, units: units)
     }
 
     /// 最下面一排：🌐 123 ☺ 空格（「，。」）123 ⌨↓。「，。」键宽一格，从空格里让出来，跟着设置放空格左边或右边；
     /// 只在字母页有（数字符号页的第一个 123 是 ABC，回字母）。
+    /// 9 键模式下的英文（PK20、PK21，11-23 cvbk「在空格的部和9键对应的位置做个中英切换按钮」）：从空格里再让出一颗中/英，
+    /// 和 123 一样宽，手不用挪就点得到九键那颗的位置：
+    /// - 九键在右：放在空格右头（🌐 123 ☺ 空格 中/英 「，。」 123 ⌨↓）；
+    /// - 九键在左：放在 🌐 右边原来 123 的位置，123、☺ 往右让（🌐 中/英 123 ☺ 空格 「，。」 123 ⌨↓）。
+    /// 数字符号页的最下面一排也和字母页一样，有「，。」和这颗中/英。
     private static func padBottomRow(_ state: State, total: CGFloat, side: CGFloat, layer: CGFloat, letters: Bool) -> [PadKey] {
         let target: KeyboardModel.KeyLayer = letters ? .numbers : .letters
-        let punct = letters ? state.quickPunct : nil
+        let punct = letters || state.nineEnglish ? state.quickPunct : nil
         let punctKey = PadKey(id: "quickPunct", kind: .quickPunct(chinese: state.chineseMode))
-        let fixed = side * 2 + layer * 3 + (punct == nil ? 0 : 1)
+        let toggle = state.nineEnglish ? PadKey(id: "chinese", kind: .toggleChinese, units: layer) : nil
+        let fixed = side * 2 + layer * 3 + (punct == nil ? 0 : 1) + (toggle == nil ? 0 : layer)
         let space = PadKey(id: "space", kind: .space, units: total - fixed)
-        var row = [PadKey(id: "globe", kind: .globe, units: side),
-                   PadKey(id: "layer", kind: .layer(target), units: layer),
-                   PadKey(id: "emoji", kind: .emoji, units: side)]
+        var row = [PadKey(id: "globe", kind: .globe, units: side)]
+        if let toggle, state.nineOnLeft { row.append(toggle) }
+        row += [PadKey(id: "layer", kind: .layer(target), units: layer),
+                PadKey(id: "emoji", kind: .emoji, units: side)]
+        let spaceGroup = [space] + (state.nineOnLeft ? [] : [toggle].compactMap { $0 })
         switch punct {
-        case .left?: row += [punctKey, space]
-        case .right?: row += [space, punctKey]
-        case nil: row.append(space)
+        case .left?: row += [punctKey] + spaceGroup
+        case .right?: row += spaceGroup + [punctKey]
+        case nil: row += spaceGroup
         }
         row += [PadKey(id: "layer2", kind: .layer(target), units: layer), PadKey(id: "dismiss", kind: .dismiss, units: layer)]
         return row
@@ -174,7 +186,7 @@ extension KeyLayout {
             rows[row].enumerated().map { PadKey(id: "s\(row)-\($0.offset)", kind: .symbol($0.element)) }
         }
         let switchTarget: KeyboardModel.KeyLayer = symbols ? .numbers : .symbols
-        let language = state.englishOnly ? PadKey(id: "abc", kind: .layer(.letters), units: 1.9) : languageKey(state, units: 1.9)
+        let language = state.englishOnly ? PadKey(id: "abc", kind: .layer(.letters), units: 1.9) : secondRowKey(state, units: 1.9)
         let first: [PadKey]
         if big {
             if symbols {

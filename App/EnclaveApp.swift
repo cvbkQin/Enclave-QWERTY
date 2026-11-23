@@ -72,6 +72,8 @@ struct EnclaveApp: App {
                     if store.settings.webSearchMode == nil { store.settings.webSearchMode = Storefront.isMainlandChina ? .off : .on }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                    // 键盘里改的设置（iPad 9 键换边、长按中/英换布局）存在共用设置里：回到前台重读一次（第 86 条）。
+                    store.reloadSettings()
                     Task { await UnlockStore.shared.refresh() }
                     // iCloud 同步（关着时什么都不做）：打开 App、回到前台时同步一次，一分钟内回来多次只算一次。
                     Task { await ICloudSync.syncNow(minimumInterval: 60) }
@@ -697,6 +699,16 @@ final class AppStore: ObservableObject {
         apiKey = SettingsStore.apiKey ?? ""
         answerApiKey = SettingsStore.answerApiKey ?? ""
         test = .idle
+    }
+
+    /// 键盘自己存进共用设置的改动（iPad 9 键换边 swapNineSide、长按中/英换布局）：App 回到前台、键盘设置页出现时重读（第 86 条）。
+    /// 只读设置、只更新界面、不写回；不动 Key 和接口测试的状态（和 reload 不同，回前台时不该清掉）。
+    func reloadSettings() {
+        let latest = SettingsStore.load()
+        guard latest != settings else { return }
+        loading = true
+        defer { loading = false }
+        settings = latest
     }
 
     /// 恢复备份后重新读 Key（同 reload，不写回）。

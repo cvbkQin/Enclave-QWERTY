@@ -1136,6 +1136,8 @@ struct KeyboardSettingsView: View {
         .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .tabRootPage()
         .onAppear {
+            // 键盘里改的（iPad 9 键换边、长按中/英换布局）存在共用设置里，进这一页时重读一次（第 86 条）。
+            store.reloadSettings()
             words.reload()
             phrases.reload()
             touchEnabled = TouchCalibration.isEnabled

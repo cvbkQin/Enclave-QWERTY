@@ -5,7 +5,7 @@ import CoreGraphics
 ///  功能键 │ 联想 / 候选（3 排高）      │ 123   ，。?!  ABC   DEF   ⌫
 ///  一列   │                           │ #@¥   GHI   JKL   MNO   ^^
 ///         │                           │ 常用  PQRS  TUV   WXYZ  发送
-///  🌐 ⌨↓ ， 。 ？ ！（横屏多 、：） ⇆    │ ☺     中/英  空格（两格）    （发送占两排）
+///  🌐 ⌨↓ ， 。 ？ ！（横屏多 、：） ← 切换左布局 │ ☺  中/英  空格（两格）  （发送占两排）
 ///
 /// 九键五列靠一边（竖屏占一半宽，横屏 46%），另一边上面三排高是功能键一列和中间那块（都不归触摸层管，
 /// 见 PadNineFunctions、PadNineMiddle），最下面一排横跨这两块：🌐 ⌨↓ 在外侧，⇆（九键换边）挨着九键。
@@ -109,8 +109,9 @@ extension KeyLayout {
             nine("return", .returnKey, col: 4, row: 2, rows: 2)
         }
 
-        // 另一边最下面一排（PK17，11-23 cvbk「收起键盘快捷键挪到切换键盘按钮边上去」）：🌐 ⌨↓ ， 。 ？ ！（横屏多 、 ：） ⇆，等宽。
+        // 另一边最下面一排（PK17，11-23 cvbk「收起键盘快捷键挪到切换键盘按钮边上去」）：🌐 ⌨↓ ， 。 ？ ！（横屏多 、 ：） ⇆。
         // 🌐 ⌨↓ 一直在外侧，⇆ 一直挨着九键：九键在左时整排反过来（⇆ 标点 ⌨↓ 🌐），标点顺序不变。
+        // ⇆ 写着「← 切换左布局」/「→ 切换右布局」（第 86 条），比别的键宽 1.4 倍，别的键平分剩下的。
         let chinese = state.chineseMode
         let marks = chinese ? ["，", "。", "？", "！", "、", "："] : [",", ".", "?", "!", "'", ":"]
         let shown = pad.landscape ? marks : Array(marks.prefix(4))
@@ -118,9 +119,14 @@ extension KeyLayout {
         let outer: [(String, KeyKind)] = [("globe", .globe), ("dismiss", .dismiss)]
         let swap: (String, KeyKind) = ("swapSide", .swapNineSide)
         let bottom: [(String, KeyKind)] = state.nineOnLeft ? [swap] + markKeys + Array(outer.reversed()) : outer + markKeys + [swap]
-        let cell = areaWidth / CGFloat(bottom.count)
-        for (index, item) in bottom.enumerated() {
-            add(item.0, item.1, x: areaX + CGFloat(index) * cell, width: cell, row: 3)
+        // 1.4 倍是按键帽比（设计稿 flex:1.4）：每格 = 键帽 + 一条缝，竖屏 ⇆ 键帽约 67、标点 48，横屏约 84、60。
+        let weights: [CGFloat] = bottom.map { $0.0 == swap.0 ? 1.4 : 1 }
+        let capUnit = (areaWidth - gap * CGFloat(bottom.count)) / weights.reduce(0, +)
+        var bottomX = areaX
+        for (item, weight) in zip(bottom, weights) {
+            let width = capUnit * weight + gap
+            add(item.0, item.1, x: bottomX, width: width, row: 3)
+            bottomX += width
         }
 
         // 上面三排高：功能键一列靠屏幕边，中间那块夹在它和九键之间。两块都按键帽算（离格子边半条缝）。
