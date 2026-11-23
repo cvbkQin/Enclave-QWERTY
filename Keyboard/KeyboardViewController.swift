@@ -442,6 +442,8 @@ final class KeyboardViewController: UIInputViewController {
         model.stoppedAnswer = nil
         // 上一个框留下的联想不带到这个框。
         model.dismissPredictions()
+        // iPad 9 键中间那块（PK17）每次弹出都回到联想。
+        model.padMiddle = nil
         model.lastMarkedText = ""
         // 弹出时系统会通知一次文字变了，那次不算点了输入框：先不记光标，下一次通知只记下来。
         model.hostCaret = nil

@@ -18,12 +18,18 @@ struct PadMetrics: Equatable {
     /// 13 寸（长边 1300 以上）：多一排数字，标点各有自己的键，26 键是 5 行。
     var big: Bool
     var landscape: Bool
+    /// 最下面一排单独给的高（9 键模式下的全宽英文 37 / 42，PK19）；nil 时按下面的规矩算。
+    var bottomOverride: CGFloat?
+    /// 9 键模式下的全宽英文（PK19）：13 寸也照 11 寸排 4 行（不要数字行），键高、总高和 11 寸一样。
+    var fourRows = false
 
-    /// 最下面一排：键高 50 以上的矮 15%（竖屏 43、横屏 49；9 键压扁后横屏 50 → 43，竖屏 44 不再矮）。
-    var bottomKeyHeight: CGFloat { keyHeight >= 50 ? (keyHeight * 0.85).rounded() : keyHeight }
+    /// 最下面一排：键高 50 以上的矮 15%（竖屏 43、横屏 49；9 键 56 / 62 → 48 / 53；9 键压扁后横屏 50 → 43，竖屏 44 不再矮）。
+    var bottomKeyHeight: CGFloat { bottomOverride ?? (keyHeight >= 50 ? (keyHeight * 0.85).rounded() : keyHeight) }
     var functionFontSize: CGFloat { (fontSize * 0.72).rounded() }
+    /// 按 13 寸原生排（多一排数字，标点各有自己的键）。
+    var wide: Bool { big && !fourRows }
     /// 26 键字母页的行数。数字符号页也按这个高度排，切过去键盘不跳。
-    var rows: Int { big ? 5 : 4 }
+    var rows: Int { wide ? 5 : 4 }
     var keysHeight: CGFloat { keysHeight(rows: rows) }
     /// 全宽 9 键（PK3）一直是 4 排，13 寸也是。
     func keysHeight(rows: Int) -> CGFloat { top + bottom + CGFloat(rows - 1) * (keyHeight + gap) + bottomKeyHeight }
@@ -34,6 +40,25 @@ struct PadMetrics: Equatable {
         var metrics = self
         metrics.keyHeight = landscape ? 50 : 44
         metrics.fontSize -= 1
+        return metrics
+    }
+
+    /// 全宽 9 键（PK3、PK19，11-23 加高）：键高竖屏 56、横屏 62，最下面一排 48 / 53，键距、上下边不变；
+    /// 键盘竖屏 252、横屏 275，和 9 键模式下切过去的英文一样高。11、13 寸一样。
+    var nine: PadMetrics {
+        var metrics = self
+        metrics.keyHeight = landscape ? 62 : 56
+        return metrics
+    }
+
+    /// 9 键模式下切到英文（PK19，11-23 cvbk「9键模式下英文还是全宽的，只不过高度看能不能和9键一直」）：照旧全宽 26 键，
+    /// 不留拼音行，键高竖屏 45、横屏 51，最下面一排 37 / 42，字小一号。AI 栏 44 + 按键 208 / 231 = 252 / 275。
+    var nineEnglish: PadMetrics {
+        var metrics = self
+        metrics.keyHeight = landscape ? 51 : 45
+        metrics.bottomOverride = landscape ? 42 : 37
+        metrics.fontSize = landscape ? 23 : 21
+        metrics.fourRows = true
         return metrics
     }
 
@@ -57,10 +82,15 @@ enum KeyboardMetrics {
     /// KeyboardModel.syncPadMetrics 按键盘状态设。
     static var padNine = false
     static var padCompressed = false
-    /// 现在按键用的尺寸：平时就是 padBase，9 键开着回答卡时是压扁的那份。各尺寸按这一份算。
+    /// 9 键模式下切到英文（PK19）：全宽 26 键压矮到和 9 键一样高，不留拼音行。
+    static var padNineEnglish = false
+    /// 现在按键用的尺寸：26 键就是 padBase；9 键是加高的那份，开着回答卡时是压扁的那份；9 键模式下的英文是压矮的那份。
+    /// 各尺寸按这一份算。
     static var pad: PadMetrics? {
         guard let padBase else { return nil }
-        return padNine && padCompressed ? padBase.compressed : padBase
+        if padNine { return padCompressed ? padBase.compressed : padBase.nine }
+        if padNineEnglish { return padBase.nineEnglish }
+        return padBase
     }
 
     /// 横屏（LN1、LN2，11-18 定稿，照 iOS 原生）：按键高 32、行距 6，AI 栏的键也高 32；按键区铺满键盘宽（系统横屏给键盘的宽
@@ -535,13 +565,16 @@ struct KeyCap<Content: View>: View {
     var fill: Color
     var insetX = KeyboardMetrics.keyInsetX
     var insetY = KeyboardMetrics.keyInsetY
+    /// 描边（iPad 9 键左列开着的那颗：浅紫底紫边，PK17）；nil 不描。
+    var stroke: Color?
     var content: Content
 
     init(fill: Color, insetX: CGFloat = KeyboardMetrics.keyInsetX, insetY: CGFloat = KeyboardMetrics.keyInsetY,
-         @ViewBuilder content: () -> Content) {
+         stroke: Color? = nil, @ViewBuilder content: () -> Content) {
         self.fill = fill
         self.insetX = insetX
         self.insetY = insetY
+        self.stroke = stroke
         self.content = content()
     }
 
@@ -552,6 +585,12 @@ struct KeyCap<Content: View>: View {
                 RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous)
                     .fill(fill)
             )
+            .overlay {
+                if let stroke {
+                    RoundedRectangle(cornerRadius: KeyStyle.cornerRadius, style: .continuous)
+                        .strokeBorder(stroke, lineWidth: 1.5)
+                }
+            }
             .padding(.horizontal, insetX)
             .padding(.vertical, insetY)
             .contentShape(Rectangle())

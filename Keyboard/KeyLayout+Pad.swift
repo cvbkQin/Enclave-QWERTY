@@ -49,9 +49,10 @@ extension KeyLayout {
         let chinese = state.chineseMode
         switch state.layer {
         case .letters, .digits:
-            return pad.big ? padLetters13(state, chinese: chinese) : padLetters11(state, chinese: chinese)
+            // 9 键模式下的英文（PK19）13 寸也照 11 寸排 4 行，和 9 键一样高。
+            return pad.wide ? padLetters13(state, chinese: chinese) : padLetters11(state, chinese: chinese)
         case .numbers, .symbols:
-            return padSymbolPage(state, chinese: chinese, big: pad.big)
+            return padSymbolPage(state, chinese: chinese, big: pad.wide)
         }
     }
 

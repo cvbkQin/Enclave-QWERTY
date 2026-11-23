@@ -239,6 +239,9 @@ final class KeyboardModel: ObservableObject {
             if keysPanel != oldValue { markScreen() }
         }
     }
+    /// iPad 全宽 9 键中间那块现在放什么（PK17、PK18）：#@¥ 的符号、常用语和剪贴板；nil 是平时的联想 / 候选。
+    /// 123 照旧是数字页（layer == .digits），见 padMiddleShown。
+    @Published var padMiddle: PadMiddle? { didSet { if padMiddle != oldValue { markScreen() } } }
     /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
     @Published var wordPanelText = ""
     @Published var wordPanelFading = false
@@ -478,12 +481,18 @@ final class KeyboardModel: ObservableObject {
         syncPadMetrics()
         return KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
-                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide,
+                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide && !padNineEnglish,
                                split: landscapeSplit, padNine: padNine)
     }
 
-    /// iPad 全宽 9 键（PK3、PK4）：字母页和 9 键数字页。符号页（#@¥）照 26 键的全宽符号页。
+    /// iPad 全宽 9 键（PK3、PK4）：字母页和 9 键数字页（123）。#@¥、常用剪贴板只换中间那块（PK17），不换页。
     var padNine: Bool { pad != nil && nineGrid }
+
+    /// iPad 全宽、中文布局选九宫格、切到了英文（PK19）：照旧全宽 26 键（123、#+=、表情这些全宽的页也一样），
+    /// 压矮到和 9 键一样高，不留拼音行。只用英文的人没有 9 键，照 26 键。
+    var padNineEnglish: Bool {
+        pad != nil && settings.keyboardLayout == .nineKey && !chineseMode && settings.inputLanguage != .englishOnly
+    }
 
     /// 9 键开着回答卡时按键压扁（PK15）。
     var padNineCompressed: Bool { padNine && aiExpanded }
@@ -492,6 +501,7 @@ final class KeyboardModel: ObservableObject {
     func syncPadMetrics() {
         KeyboardMetrics.padNine = padNine
         KeyboardMetrics.padCompressed = padNineCompressed
+        KeyboardMetrics.padNineEnglish = padNineEnglish
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
@@ -1468,6 +1478,14 @@ final class KeyboardModel: ObservableObject {
         change(&updated)
         settings = updated
         SettingsStore.save(updated)
+    }
+
+    /// iPad 9 键最下面一排的 ⇆（PK17）：九键整块换到另一边，功能键一列和中间那块跟着镜像（0.25 秒）。
+    /// 记住选择，和 App 设置 › 键盘 › 9 键（iPad）›「九键位置」是同一个设置。
+    func swapNineSide() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            updateSettings { $0.nineKeySide = $0.nineKeySide == .left ? .right : .left }
+        }
     }
 
     // MARK: - 要求栏

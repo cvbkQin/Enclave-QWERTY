@@ -8,6 +8,8 @@ extension KeyboardModel {
     enum InputTarget { case host, instruction, card }
     /// digits 是九宫格的数字键盘；numbers、symbols 是全键盘那样的数字符号页（九宫格的 #@¥ 也进这里）。
     enum KeyLayer { case letters, numbers, symbols, digits }
+    /// iPad 全宽 9 键中间那块放什么（PK17、PK18）：123 的运算符号（九键同时换成 1–9）、#@¥ 的符号、常用语和剪贴板。
+    enum PadMiddle { case digits, symbols, quick }
     enum ShiftState { case off, on, locked }
 
     /// 正在拼，或者还有字母在后台引擎里排着（结果还没回来）。
@@ -448,7 +450,10 @@ extension KeyboardModel {
         switch kind {
         case .letter(let letter): typeLetter(letter)
         case .symbol(let symbol): typeSymbol(symbol)
-        case .nine(let key): typeNineKey(key)
+        case .nine(let key):
+            // iPad 9 键中间那块开着符号或常用剪贴板（PK17）：按九键打字就回到联想 / 候选。
+            if padMiddle != nil { padMiddle = nil }
+            typeNineKey(key)
         case .shift: shiftKey()
         case .delete: deleteKey()
         case .space: spaceKey()
@@ -484,6 +489,27 @@ extension KeyboardModel {
                 shiftFromKey = false
             }
             typeSymbol(pairedQuote(useShifted ? shifted : base))
+        case .padMiddle(let mode): togglePadMiddle(mode)
+        case .swapNineSide: swapNineSide()
+        }
+    }
+
+    /// iPad 9 键中间那块现在放的是什么：123 是数字页（layer），#@¥、常用剪贴板是 padMiddle。
+    var padMiddleShown: PadMiddle? { layer == .digits ? .digits : padMiddle }
+
+    /// iPad 9 键左列 123、#@¥、常用剪贴板（PK17、PK18）：只换中间那块，键盘不变高，不换整页、不开面板。
+    /// 三样同时只开一样；再点开着的那颗收回到联想 / 候选。打字时先把拼音原样上屏（同「确认」），和原来一样。
+    func togglePadMiddle(_ mode: PadMiddle) {
+        let open = padMiddleShown == mode
+        if isComposing { returnKey() }
+        switch mode {
+        case .digits:
+            if padMiddle != nil { padMiddle = nil }
+            switchLayer(open ? .letters : .digits)
+        case .symbols, .quick:
+            if layer == .digits { switchLayer(.letters) }
+            if mode == .quick && !open { loadQuickWords() }
+            padMiddle = open ? nil : mode
         }
     }
 
@@ -557,7 +583,9 @@ extension KeyboardModel {
         case .numberPad, .phonePad, .decimalPad, .asciiCapableNumberPad:
             if layer != .digits { switchLayer(.digits) }
         case .numbersAndPunctuation:
-            if layer != .numbers { switchLayer(.numbers) }
+            // iPad 9 键（PK17）：数字和符号的框直接出 9 键的 123（1–9 加中间那块的运算符号），不跳全宽符号页。
+            let target: KeyLayer = pad != nil && showsNineKey ? .digits : .numbers
+            if layer != target { switchLayer(target) }
         default:
             if layer == .digits || layer == .numbers || layer == .symbols { switchLayer(.letters) }
         }
@@ -639,6 +667,9 @@ extension KeyboardModel {
         chineseMode.toggle()
         // 九宫格数字键盘上切英文：回到英文字母。
         if layer == .digits { switchLayer(.letters) }
+        if padMiddle != nil { padMiddle = nil }
+        // iPad 9 键模式下从英文的 123 / #+= 页切回中文：回到 9 键（中文不再有全宽符号页，符号在中间那块，PK17）。
+        if chineseMode, pad != nil, settings.keyboardLayout == .nineKey, layer != .letters { switchLayer(.letters) }
         selectEngine()
         if chineseMode { shift = .off } else { updateAutoShift() }
     }
@@ -678,6 +709,7 @@ extension KeyboardModel {
 
     func setLayout(_ layout: KeyboardLayout) {
         updateSettings { $0.keyboardLayout = layout }
+        if padMiddle != nil { padMiddle = nil }
         selectEngine()
     }
 
@@ -1546,6 +1578,10 @@ extension KeyboardModel {
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
             case "quickWords": openQuickPanel()
+            // iPad 9 键中间那块（PK17、PK18）：mid:digits 数字和运算符号、mid:symbols 符号、mid:quick 常用语和剪贴板。
+            case "mid:digits": togglePadMiddle(.digits)
+            case "mid:symbols": togglePadMiddle(.symbols)
+            case "mid:quick": togglePadMiddle(.quick)
             case "undo": loadDebugUndo()
             case "memtest": runMemoryTest()
             // 打字性能基准（scripts/bench/run-bench.sh 拉起）：每个进程只跑一次，结果写系统日志和 bench.json。
