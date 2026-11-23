@@ -24,6 +24,11 @@ enum KeyKind: Equatable {
     case tab, dismiss
     /// iPad 全宽键盘的标点、数字键（PK1、PK2）：按了 ⇧ 打 shifted（键帽上的灰色小字），平时打 base。
     case padSymbol(String, shifted: String)
+    /// iPad 全宽 9 键左列的 123、#@¥、常用剪贴板（PK17、PK18）：只换中间那块的内容，键盘不变高，开着的那颗浅紫底紫边；
+    /// 再点一次收回。123 时九键 3×3 换成 1–9。
+    case padMiddle(KeyboardModel.PadMiddle)
+    /// iPad 全宽 9 键最下面一排挨着九键的 ⇆（PK17）：九键整块换到另一边，和 App 设置「九键位置」是同一个设置。
+    case swapNineSide
 
     /// 会打出字符的键：按下时显示放大气泡，另一根手指按下时先上屏。
     var typesCharacter: Bool {

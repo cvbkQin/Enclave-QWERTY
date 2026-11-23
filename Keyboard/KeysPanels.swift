@@ -513,22 +513,28 @@ struct PhraseColumn: View {
     @ObservedObject var model: KeyboardModel
     /// 这一栏占整个面板宽的比例。
     var fraction: CGFloat
+    /// iPad 9 键中间那块（PK17）上面已经有「常用语 / 剪贴板」两个标签，不再要栏头。
+    var showsHeader = true
+    /// 栏宽到这么宽时卡片排两列（面板 540；iPad 9 键中间那块横屏就排两列，PK17）。
+    var twoColumnWidth: CGFloat = 540
     /// 这一栏多宽：iPad 上够宽（540 以上）时卡片排两列（PK10 ③，一次看 6 条）。
     @State private var columnWidth: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 4) {
-                Text(L("常用语", "Phrases", "定型文")).font(.system(size: 14, weight: .semibold))
-                if !model.quickPhrases.isEmpty {
-                    Text("\(model.quickPhrases.count)").font(.system(size: 13)).foregroundStyle(Color.secondary)
+            if showsHeader {
+                HStack(spacing: 4) {
+                    Text(L("常用语", "Phrases", "定型文")).font(.system(size: 14, weight: .semibold))
+                    if !model.quickPhrases.isEmpty {
+                        Text("\(model.quickPhrases.count)").font(.system(size: 13)).foregroundStyle(Color.secondary)
+                    }
+                    Spacer(minLength: 4)
+                    if fraction >= 0.2 { displayButton(iconOnly: fraction < 0.45) }
                 }
-                Spacer(minLength: 4)
-                if fraction >= 0.2 { displayButton(iconOnly: fraction < 0.45) }
+                .lineLimit(1)
+                .padding(.leading, 2)
+                .frame(height: QuickWordsPanel.headerHeight)
             }
-            .lineLimit(1)
-            .padding(.leading, 2)
-            .frame(height: QuickWordsPanel.headerHeight)
             if model.quickPhrases.isEmpty {
                 emptyCard
             } else {
@@ -566,7 +572,7 @@ struct PhraseColumn: View {
                                 .buttonStyle(KeyPressStyle())
                         }
                     }
-                } else if KeyboardMetrics.pad != nil, columnWidth >= 540 {
+                } else if KeyboardMetrics.pad != nil, columnWidth >= twoColumnWidth {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 5), GridItem(.flexible(), spacing: 5)], spacing: 5) {
                         ForEach(model.quickPhrases) { phrase in
                             Button { model.pickQuickWord(phrase.text) } label: {

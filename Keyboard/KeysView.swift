@@ -145,6 +145,8 @@ struct KeyCapContext: Equatable {
     var hintPhase: DoublePinyin.HintPhase = .all
     /// 「跟着按键变」里写深一点、排在前面的（练习里老按错的，SP10）。
     var hintWeak: Set<String> = []
+    /// iPad 9 键中间那块开着的是哪一样（PK17）：左列对应那颗浅紫底紫边。
+    var padMiddle: KeyboardModel.PadMiddle? = nil
 }
 
 extension KeyboardModel {
@@ -152,7 +154,7 @@ extension KeyboardModel {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
                       spaceTitle: spaceTitle, returnLook: returnLook, hintScheme: keyHintScheme, hintPhase: keyHintPhase,
-                      hintWeak: keyHintPhase == .all ? [] : doublePinyinWeakUnits)
+                      hintWeak: keyHintPhase == .all ? [] : doublePinyinWeakUnits, padMiddle: padMiddleShown)
     }
 
     /// 只在全键盘中文、字母页、没按 shift、键上提示没关时写（全拼、九宫格、英文都不写）。
@@ -218,12 +220,19 @@ struct KeyCapView: View, Equatable {
                 .padding(.vertical, key.insetY)
                 .contentShape(Rectangle())
         } else {
-            KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY) {
+            KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY,
+                   stroke: middleOpen ? Brand.toggleOpenStroke : nil) {
                 label
                     .foregroundStyle(foreground)
                     .opacity(context.trackpadActive ? 0 : 1)
             }
         }
+    }
+
+    /// iPad 9 键左列开着的那颗（PK17）：浅紫底紫边紫字，和回答卡开关开着时一样。
+    private var middleOpen: Bool {
+        if case .padMiddle(let mode) = key.kind { return context.padMiddle == mode }
+        return false
     }
 
     private var returnLook: KeyboardModel.ReturnLook? {
@@ -238,6 +247,7 @@ struct KeyCapView: View, Equatable {
         if let look = returnLook {
             return look.solid ? Brand.purple.opacity(pressed ? 0.75 : 1) : Brand.returnSoftFill.opacity(pressed ? 0.7 : 1)
         }
+        if middleOpen { return Brand.toggleOpenFill.opacity(pressed ? 0.7 : 1) }
         let showsPopup = key.kind.typesCharacter && !context.nineGrid && KeyboardMetrics.pad == nil
         // iPad 全宽键盘的功能键是灰底（PK1），按下和 ⇧ 打开时变白，和原生一样。
         if KeyboardMetrics.pad != nil, key.kind.isPadFunction {
@@ -257,6 +267,7 @@ struct KeyCapView: View, Equatable {
 
     private var foreground: Color {
         if let look = returnLook { return look.solid ? .white : Brand.deepPurple }
+        if middleOpen { return Brand.toggleOpenIcon }
         return .primary
     }
 
@@ -348,6 +359,16 @@ struct KeyCapView: View, Equatable {
             Image(systemName: "face.smiling").font(KeyStyle.iconFont)
         case .quickWords:
             QuickKeyLabel()
+        case .padMiddle(let mode):
+            switch mode {
+            case .digits: Text("123").font(KeyStyle.nineKeyFont).tracking(1)
+            case .symbols: SymbolsKeyLabel()
+            case .quick: QuickKeyLabel()
+            }
+        case .swapNineSide:
+            Image(systemName: "arrow.left.arrow.right")
+                .font(KeyStyle.iconFont)
+                .accessibilityLabel(L("九键换边", "Move keypad to other side", "テンキーを反対側へ"))
         case .layer(let target):
             if context.nineGrid {
                 if key.id == "symbols" {
@@ -389,7 +410,8 @@ extension KeyKind {
     var isPadFunction: Bool {
         switch self {
         // 9 键（PK3）的「常用」「^^」也是灰的。
-        case .tab, .delete, .toggleChinese, .shift, .globe, .layer, .emoji, .dismiss, .quickWords, .emoticon: return true
+        case .tab, .delete, .toggleChinese, .shift, .globe, .layer, .emoji, .dismiss, .quickWords, .emoticon,
+             .padMiddle, .swapNineSide: return true
         default: return false
         }
     }

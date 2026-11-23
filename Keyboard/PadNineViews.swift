@@ -99,6 +99,7 @@ struct PadCardToggle: View {
 /// 中间那块（PK3 ②、PK6）：平时 3 排联想（按宽度排满，格子拉伸到整排），刚弹出还没打字时空着；
 /// 打字中 4 排候选，上下滑看更多，不用点 ⌄ 展开。拼音在上方一行时，第一排是拼音（ni hao ｜ ni mi n m），下面 3 排候选；
 /// 在侧边时拼音在九键左列，这里 4 排都是候选。在卡片里改结果时（FE3）最上面是「正在修改」那一行。
+/// 左列点了 123、#@¥、常用剪贴板时换成运算符号、符号、常用语和剪贴板（PK17、PK18），键盘不变高。
 struct PadNineMiddle: View {
     @ObservedObject var model: KeyboardModel
 
@@ -107,7 +108,18 @@ struct PadNineMiddle: View {
             let font = KeyboardMetrics.pad.map { $0.fontSize - 3 } ?? 20
             let cell: CGFloat = KeyboardMetrics.pad?.landscape == true ? 58 : 52
             let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-            if model.isComposing {
+            let keyFont = KeyboardMetrics.pad?.fontSize ?? 22
+            if model.layer == .digits {
+                // 123（PK17 第三张）：一格一个，竖屏一行 4 个、横屏 7 个左右。
+                PadMiddleGrid(model: model, items: PadMiddleGrid.operators,
+                              columns: max(4, Int(geo.size.width / 66)), fontSize: keyFont)
+            } else if model.padMiddle == .symbols, !model.isComposing {
+                // #@¥（PK17 第二张、PK18 左）：竖屏一行 5 个、横屏 8 个左右。
+                PadMiddleGrid(model: model, items: PadMiddleGrid.symbols,
+                              columns: max(5, Int(geo.size.width / 62)), fontSize: (keyFont * 0.92).rounded())
+            } else if model.padMiddle == .quick, !model.isComposing {
+                PadQuickMiddle(model: model)
+            } else if model.isComposing {
                 let rowHeight = geo.size.height / 4
                 // 拼音那一行和候选在同一张白卡里（PK6），中间一条细线。
                 VStack(spacing: 0) {
@@ -139,6 +151,154 @@ struct PadNineMiddle: View {
                                        composing: false, rowHeight: geo.size.height / 3, fontSize: font, minimumCell: cell)
                 }
             }
+        }
+    }
+}
+
+/// iPad 9 键中间那块一格一个（PK17、PK18）：#@¥ 的符号、123 的运算符号。白卡、细线分格，露出 3 行多一点，
+/// 上下滑看更多，最下面渐隐。点一个上屏，这块不收（再点左列那颗、或者按九键打字才回到联想）。
+struct PadMiddleGrid: View {
+    @ObservedObject var model: KeyboardModel
+    let items: [String]
+    let columns: Int
+    let fontSize: CGFloat
+
+    /// #@¥：中文标点在前，再是常用符号，内容和 iPhone 两页符号一样（PK17 第二张）。
+    static let symbols = ["，", "。", "？", "！", "、", "：", "；", "“", "”", "（", "）", "《", "》", "…", "—", "·", "～",
+                          "@", "#", "%", "&", "*", "+", "=", "-", "/", "＼", "|", "_", "<", ">", "【", "】", "{", "}",
+                          "¥", "$", "€", "£", "^", "•", "‘", "’"]
+    /// 123：运算符号和跟着数字打的符号（PK17 第三张）。
+    static let operators = ["+", "−", "×", "÷", "=", "%", ".", ",", ":", "/", "-", "(", ")", "¥", "$", "€", "°", "~",
+                            "#", "@", "^", "√", "π", "±"]
+
+    /// 全角标点画在视觉正中（照 PadSymbolLabel）。
+    private static let centered: Set<String> = ["，", "。", "、", "：", "；", "‘", "’", "“", "”", "（", "）"]
+    private static let fade: CGFloat = 18
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        GeometryReader { geo in
+            let width = geo.size.width / CGFloat(max(columns, 1))
+            // 露出 3 行，再露一点第 4 行，看得出还能往下滑。
+            let rowHeight = geo.size.height / 3.35
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(width), spacing: 0), count: max(columns, 1)), spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                        Button {
+                            model.keyFeedback(for: .symbol(item))
+                            model.perform(.symbol(item))
+                        } label: {
+                            glyph(item)
+                                .foregroundStyle(Color.primary)
+                                .frame(width: width, height: rowHeight)
+                                .overlay(alignment: .trailing) {
+                                    if index % columns < columns - 1 {
+                                        Rectangle().fill(Color(UIColor.separator)).frame(width: 0.5)
+                                    }
+                                }
+                                .overlay(alignment: .bottom) {
+                                    Rectangle().fill(Color(UIColor.separator)).frame(height: 0.5)
+                                }
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(KeyPressStyle())
+                        .accessibilityLabel(item)
+                    }
+                }
+                .padding(.bottom, Self.fade)
+            }
+            .hidingScrollEdgeEffect()
+            .mask {
+                VStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: Self.fade)
+                }
+            }
+        }
+        .background(shape.fill(KeyStyle.charKey))
+        .clipShape(shape)
+    }
+
+    @ViewBuilder
+    private func glyph(_ text: String) -> some View {
+        if Self.centered.contains(text) {
+            CenteredGlyph(text, size: fontSize)
+        } else {
+            Text(text).font(.system(size: fontSize))
+        }
+    }
+}
+
+/// iPad 9 键中间那块的常用语和剪贴板（PK17 第四张、PK18 右）：上面两个标签「常用语 / 剪贴板」（高 32），
+/// 下面一条一条，横屏常用语排两列。点常用语上屏；剪贴板点一条粘贴、长按菜单，都照 iPhone 的「常用 / 剪贴板」面板。
+/// 9 键时不再开盖住整个键盘的面板。
+struct PadQuickMiddle: View {
+    @ObservedObject var model: KeyboardModel
+    @State private var clipboard = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                tab(L("常用语", "Phrases", "定型文"), selected: !clipboard) { clipboard = false }
+                tab(L("剪贴板", "Clipboard", "クリップボード"), selected: clipboard) { clipboard = true }
+                Spacer(minLength: 4)
+                trailing
+            }
+            .lineLimit(1)
+            .padding(.horizontal, 4)
+            .frame(height: 32)
+            Group {
+                if clipboard {
+                    ClipboardList(model: model)
+                } else {
+                    PhraseColumn(model: model, fraction: 1, showsHeader: false, twoColumnWidth: 420)
+                }
+            }
+            .padding(.top, 4)
+            .frame(maxHeight: .infinity)
+        }
+    }
+
+    private func tab(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            model.clipMenu = nil
+            action()
+        } label: {
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundStyle(selected ? Brand.toggleOpenIcon : Color.secondary)
+                .padding(.horizontal, 12)
+                .frame(height: 24)
+                .background(Capsule().fill(selected ? Brand.toggleOpenFill : Color.clear))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// 右边：常用语写几条；剪贴板写几条，有记录时多一个「清空」（点两下才清，和 iPhone 一样）。
+    @ViewBuilder
+    private var trailing: some View {
+        if clipboard {
+            if model.hasFullAccess, !model.clipItems.isEmpty {
+                Text(L("\(model.clipItems.count) 条", "\(model.clipItems.count)", "\(model.clipItems.count) 件"))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Color.secondary)
+                Button { model.tapClearClips() } label: {
+                    Text(model.clipClearArmed ? L("确认清空", "Clear all?", "すべて消去？") : L("清空", "Clear", "消去"))
+                        .font(.system(size: 12.5, weight: model.clipClearArmed ? .semibold : .regular))
+                        .foregroundStyle(model.clipClearArmed ? Color.red : Color.secondary)
+                        .padding(.horizontal, 4)
+                        .frame(height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        } else if !model.quickPhrases.isEmpty {
+            Text(L("\(model.quickPhrases.count) 条", "\(model.quickPhrases.count)", "\(model.quickPhrases.count) 件"))
+                .font(.system(size: 12.5))
+                .foregroundStyle(Color.secondary)
         }
     }
 }

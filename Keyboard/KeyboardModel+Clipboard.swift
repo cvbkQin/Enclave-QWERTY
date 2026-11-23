@@ -24,6 +24,12 @@ extension KeyboardModel {
 
     /// 打开「常用 / 剪贴板」（对齐清单第 62 条）：左常用语、右剪贴板，比例照上次。
     func openQuickPanel() {
+        loadQuickWords()
+        openPanel(.quickWords)
+    }
+
+    /// 读常用语、剪贴板记录：打开「常用 / 剪贴板」面板、iPad 9 键中间那块换成常用剪贴板（PK17）时各读一次。
+    func loadQuickWords() {
         checkClipboard()
         reloadClips()
         quickPhrases = CommonWordStore.keyboardPhrases
@@ -31,7 +37,6 @@ extension KeyboardModel {
         quickSplit = QuickSplit.stored(SharedStorage.defaults.object(forKey: Self.splitKey) as? Double)
         clipMenu = nil
         clipClearArmed = false
-        openPanel(.quickWords)
     }
 
     /// 常用语栏头的切换钮：标题和内容 → 标题 → 内容 → 标题和内容。和 App 共用一个值。

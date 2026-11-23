@@ -85,13 +85,13 @@ final class KeyTouchView: UIView {
         } else {
             switch key.kind {
             case .delete: TouchTrail.dropLast()
-            case .shift, .layer, .globe: break
+            case .shift, .layer, .globe, .padMiddle, .swapNineSide: break
             default: TouchTrail.clear()
             }
         }
         switch key.kind {
         case .delete: TouchCalibration.undo()
-        case .shift, .layer, .globe: break
+        case .shift, .layer, .globe, .padMiddle, .swapNineSide: break
         default:
             if let name = TouchPrior.calibrationKey(for: key) {
                 TouchCalibration.observe(key: name,
