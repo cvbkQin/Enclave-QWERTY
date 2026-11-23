@@ -117,6 +117,8 @@ enum KeyLayout {
         var floating = false
         /// iPad 11 寸 26 键字母上的灰色小字、往下滑打出来（设置「字母上的数字和符号」，默认开）。
         var padLetterHints = true
+        /// iPad 9 键模式下切出来的全宽英文（PK19–PK21）：最下面一排多一颗中/英、和九键的对位置，第二排最左是「常用 剪贴板」。
+        var nineEnglish = false
     }
 
     /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。

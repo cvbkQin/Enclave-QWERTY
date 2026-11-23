@@ -414,7 +414,7 @@ extension KeyboardModel {
                                // 中文布局选九宫格的人切到英文时用的也是全键盘，一样要有「，。」键（0.97_4 用户反馈英文 26 键没有）。
                                quickPunct: settings.quickPunctSide, pad: KeyboardMetrics.pad,
                                nineOnLeft: settings.nineKeySide == .left, floating: KeyboardMetrics.floating,
-                               padLetterHints: settings.padLetterHints)
+                               padLetterHints: settings.padLetterHints, nineEnglish: padNineEnglish)
     }
 
     func perform(_ kind: KeyKind) {

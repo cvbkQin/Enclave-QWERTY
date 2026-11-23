@@ -147,6 +147,8 @@ struct KeyCapContext: Equatable {
     var hintWeak: Set<String> = []
     /// iPad 9 键中间那块开着的是哪一样（PK17）：左列对应那颗浅紫底紫边。
     var padMiddle: KeyboardModel.PadMiddle? = nil
+    /// iPad 9 键在左边：换边键写「→ 切换右布局」，在右边写「← 切换左布局」（第 86 条）。
+    var nineOnLeft = false
 }
 
 extension KeyboardModel {
@@ -154,7 +156,8 @@ extension KeyboardModel {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
                       spaceTitle: spaceTitle, returnLook: returnLook, hintScheme: keyHintScheme, hintPhase: keyHintPhase,
-                      hintWeak: keyHintPhase == .all ? [] : doublePinyinWeakUnits, padMiddle: padMiddleShown)
+                      hintWeak: keyHintPhase == .all ? [] : doublePinyinWeakUnits, padMiddle: padMiddleShown,
+                      nineOnLeft: settings.nineKeySide == .left)
     }
 
     /// 只在全键盘中文、字母页、没按 shift、键上提示没关时写（全拼、九宫格、英文都不写）。
@@ -366,9 +369,7 @@ struct KeyCapView: View, Equatable {
             case .quick: QuickKeyLabel()
             }
         case .swapNineSide:
-            Image(systemName: "arrow.left.arrow.right")
-                .font(KeyStyle.iconFont)
-                .accessibilityLabel(L("九键换边", "Move keypad to other side", "テンキーを反対側へ"))
+            SwapSideLabel(toRight: context.nineOnLeft)
         case .layer(let target):
             if context.nineGrid {
                 if key.id == "symbols" {
@@ -996,6 +997,28 @@ struct LayoutMenuView: View {
 
 /// 九宫格左列「常 用 / 剪贴板」（对齐清单第 62 条，CW1 方案 a）：两行同字号 14.5pt、同颜色；
 /// 「常 用」两字两端对齐到和「剪贴板」一样宽（3 个字宽），两行整体在键里居中，行高 1.25。剪贴板有新内容不再出紫点。
+/// iPad 9 键的换边键（第 86 条，11-23 cvbk「再右侧就做一个向左的箭头，底下写上文字：切换左布局，再左侧同理」）：
+/// 上面箭头，下面小字（竖屏 11、横屏 12）。九键在右时「← 切换左布局」，在左时「→ 切换右布局」。
+struct SwapSideLabel: View {
+    /// 九键现在在左边，点了换到右边。
+    let toRight: Bool
+
+    var body: some View {
+        let landscape = KeyboardMetrics.pad?.landscape == true
+        VStack(spacing: 3) {
+            Image(systemName: toRight ? "arrow.right" : "arrow.left")
+                .font(.system(size: landscape ? 17 : 16, weight: .medium))
+            Text(toRight ? L("切换右布局", "To right", "右へ") : L("切换左布局", "To left", "左へ"))
+                .font(.system(size: landscape ? 12 : 11))
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(toRight ? L("九键换到右边", "Move keypad to the right", "テンキーを右へ")
+                                    : L("九键换到左边", "Move keypad to the left", "テンキーを左へ"))
+    }
+}
+
 struct QuickKeyLabel: View {
     private static let size: CGFloat = 14.5
 
