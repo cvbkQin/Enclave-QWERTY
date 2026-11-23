@@ -429,6 +429,11 @@ enum Brand {
         ? UIColor(white: 0.55, alpha: 1) : UIColor(red: 0xAE / 255, green: 0xAE / 255, blue: 0xB2 / 255, alpha: 1) })
     static let toggleSlash = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(white: 0.45, alpha: 1) : UIColor(red: 0xC7 / 255, green: 0xC7 / 255, blue: 0xCC / 255, alpha: 1) })
+    /// iPad 全宽键盘的「中/英」在灰底功能键上（PK1 --fn #ACB1BB）：另一个字和斜杠都用设计稿的 --sub，浅色 #8A8A8E、深色 #98989D。
+    /// 照搬 iPhone 白底键上的 #AEAEB2、#C7C7CC 会和灰底几乎一样，浅色时看不见（11-23 cvbk 真机）。
+    static let toggleInactivePad = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x98 / 255, green: 0x98 / 255, blue: 0x9D / 255, alpha: 1)
+        : UIColor(red: 0x8A / 255, green: 0x8A / 255, blue: 0x8E / 255, alpha: 1) })
     // MARK: AI 栏往上展开的一行（QA1–QA14）
 
     private static func rgb(_ hex: UInt32) -> UIColor {

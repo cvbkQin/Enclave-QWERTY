@@ -458,13 +458,17 @@ struct ToggleLabel: View {
     var body: some View {
         // 斜杠往「中」挪 1pt、「英」跟着挪 0.5pt（左右间距 2/2 → 1/2.5），抵消斜杠倾斜后看着偏「英」。
         let font = Font.system(size: size, weight: .medium)
+        // iPad 全宽键盘这颗键是灰底（PK1）：浅灰的字和斜杠换成设计稿的 --sub，不然和键底一个颜色。浮动键盘照 iPhone 白底。
+        let onGray = KeyboardMetrics.pad != nil
+        let inactive = onGray ? Brand.toggleInactivePad : Brand.toggleInactive
+        let slash = onGray ? Brand.toggleInactivePad : Brand.toggleSlash
         return HStack(alignment: .firstTextBaseline, spacing: 0) {
             Text("中").font(font)
-                .foregroundColor(chinese ? Brand.toggleActive : Brand.toggleInactive)
-            Text("/").font(font).foregroundColor(Brand.toggleSlash)
+                .foregroundColor(chinese ? Brand.toggleActive : inactive)
+            Text("/").font(font).foregroundColor(slash)
                 .padding(.leading, -1)
             Text("英").font(font)
-                .foregroundColor(chinese ? Brand.toggleInactive : Brand.toggleActive)
+                .foregroundColor(chinese ? inactive : Brand.toggleActive)
                 .padding(.leading, 0.5)
         }
     }
