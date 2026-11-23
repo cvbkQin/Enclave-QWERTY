@@ -52,7 +52,8 @@ struct KeyboardView: View {
             }
             // 拼音行一直占位，平时空着；打字时出拼音和细线，键盘高度不变（PY7）。
             // 拼音显示在侧边（F12）时没有这一行，拼音在九宫格左列 / 全键盘候选栏左边的拼音键里。
-            if !model.pinyinSide && !padNine {
+            // iPad 选了 9 键、切到英文全键盘时也没有这一行（PK19：和 9 键同高，高度里不算拼音行）。
+            if !model.pinyinSide && !padNine && !model.padNineEnglish {
                 ZStack {
                     if model.pinyinRowShown {
                         PinyinRow(model: model)
@@ -219,7 +220,7 @@ struct KeyboardView: View {
     }
 
     private var opaqueBackground: some View {
-        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder && !model.pinyinSide
+        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder && !model.pinyinSide && !model.padNineEnglish
         return VStack(spacing: 0) {
             LinearGradient(stops: [
                 .init(color: Brand.keyboardBack.opacity(0), location: 0),
