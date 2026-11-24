@@ -11,16 +11,17 @@ final class QuickPunctTests: XCTestCase {
         XCTAssertEqual(QuickPunct.up(chinese: true), "。")
         XCTAssertEqual(QuickPunct.tap(chinese: false), ",")
         XCTAssertEqual(QuickPunct.up(chinese: false), ".")
-        // 长按那一排：第一个是点一下打的那个（默认选中），第二个是往上划的那个。
+        // 长按那一排（T92）：点一下打的那个是默认那格，往右第一个是往上划的那个。
         for chinese in [true, false] {
             let row = QuickPunct.row(chinese: chinese)
-            XCTAssertEqual(row.count, 6)
-            XCTAssertEqual(row.first, QuickPunct.tap(chinese: chinese))
-            XCTAssertEqual(row[1], QuickPunct.up(chinese: chinese))
-            XCTAssertEqual(Set(row).count, row.count)
+            XCTAssertEqual(row.main, QuickPunct.tap(chinese: chinese))
+            XCTAssertEqual(row.right.first, QuickPunct.up(chinese: chinese))
+            let all = [row.main] + row.left + row.right
+            XCTAssertEqual(all.count, 6)
+            XCTAssertEqual(Set(all).count, all.count)
         }
-        XCTAssertEqual(QuickPunct.row(chinese: true), ["，", "。", "！", "？", "、", "；"])
-        XCTAssertEqual(QuickPunct.row(chinese: false), [",", ".", "!", "?", "'", ";"])
+        XCTAssertEqual(QuickPunct.row(chinese: true), AlternatesRow(main: "，", left: ["？", "！", "、"], right: ["。", "；"]))
+        XCTAssertEqual(QuickPunct.row(chinese: false), AlternatesRow(main: ",", left: ["?", "!", "'"], right: [".", ";"]))
     }
 
     /// 默认右边；旧版本的设置里没有这一项，读出来也是右边；认不得的值不让整份设置读坏。

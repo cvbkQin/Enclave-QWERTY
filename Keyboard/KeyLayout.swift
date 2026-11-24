@@ -422,17 +422,18 @@ enum KeyLayout {
         return Dictionary(uniqueKeysWithValues: zip(CrossPopup.Direction.allCases, options))
     }
 
-    /// 全键盘长按弹出的备选：第一行是数字，元音带声调和变音。
-    static func alternates(for kind: KeyKind, chinese: Bool) -> [String]? {
-        switch kind {
+    /// 全键盘长按弹出的备选（T92）：默认那格正对按键，左右两串见 AlternatesRow。
+    /// 字母：第一行带数字，元音带声调和变音；声调朝键盘中间排，数字朝外边排。
+    /// containerWidth：键区宽，用来看按键在左半边还是右半边。
+    static func alternates(for key: KeySpec, chinese: Bool, containerWidth: CGFloat) -> AlternatesRow? {
+        switch key.kind {
         case .letter(let letter):
-            var options: [String] = []
-            if let index = letterRows[0].firstIndex(of: letter) { options.append(digits[index]) }
-            options += accents[letter] ?? []
-            return options.isEmpty ? nil : [letter] + options
+            let digit = letterRows[0].firstIndex(of: letter).map { digits[$0] }
+            return AlternatesRow.letter(letter, digit: digit, accents: accents[letter] ?? [],
+                                        onLeftHalf: key.cap.midX < containerWidth / 2)
         case .symbol(","):
             // 只用英文时底栏的逗号键：长按出常用英文标点。
-            return [",", "'", "?", "!"]
+            return .englishComma
         case .quickPunct(let chinese):
             return QuickPunct.row(chinese: chinese)
         default:
@@ -440,6 +441,7 @@ enum KeyLayout {
         }
     }
 
+    /// 每个字母的声调 / 变音，从近到远（离按键最近的是一声）。
     private static let accents: [String: [String]] = [
         "a": ["ā", "á", "ǎ", "à"], "e": ["ē", "é", "ě", "è", "ê"], "i": ["ī", "í", "ǐ", "ì"],
         "o": ["ō", "ó", "ǒ", "ò"], "u": ["ū", "ú", "ǔ", "ù", "ü"], "v": ["ü", "ǖ", "ǘ", "ǚ", "ǜ"],

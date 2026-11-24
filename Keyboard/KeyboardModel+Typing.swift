@@ -1042,9 +1042,8 @@ extension KeyboardModel {
             keyFeedback(for: .space)
             return true
         }
-        guard let options = KeyLayout.alternates(for: key.kind, chinese: chineseMode) else { return false }
-        let shown = shift == .off ? options : options.map { $0.uppercased() }
-        alternates = AlternatesPopup(key: key, options: shown, containerWidth: containerWidth)
+        guard let row = KeyLayout.alternates(for: key, chinese: chineseMode, containerWidth: containerWidth) else { return false }
+        alternates = AlternatesPopup(key: key, row: shift == .off ? row : row.uppercased(), containerWidth: containerWidth)
         keyFeedback(for: .space)
         return true
     }
