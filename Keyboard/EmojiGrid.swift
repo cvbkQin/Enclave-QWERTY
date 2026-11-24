@@ -54,10 +54,10 @@ final class EmojiGridView: UIView, UICollectionViewDataSource, UICollectionViewD
     private var lastSample: (y: CGFloat, time: CFTimeInterval)?
     /// 每秒 100 点：60 帧下每帧不到 2 点，看着就是慢慢停下来的尾巴，手指点下去的那格不会跑掉。
     private static let stopSpeed: CGFloat = 100
-    /// 惯性滚动慢到每秒 30 点以下（60 帧下每帧半点）就直接停住。系统的惯性尾巴很长（模拟器上猛滑一下要 3–6 秒才完全不动），
+    /// 惯性滚动慢到每秒 50 点以下（60 帧下每帧不到 1 点）就直接停住。系统的惯性尾巴很长（模拟器上猛滑一下要 3–6 秒才完全不动），
     /// 看着已经停了其实还在挪，这时点下去系统只当「让它停」，格子收不到，点了没反应（11-24 模拟器 6 次里 5 次）。
-    /// 剩下那段本来也只再挪十几点，提前停住看不出来。
-    private static let settleSpeed: CGFloat = 30
+    /// 剩下那段本来也只再慢慢挪二十几点，提前停住看不出来（模拟器上 30 时停得很自然，1 秒时点还会被系统吞掉）。
+    private static let settleSpeed: CGFloat = 50
     /// 点底栏分类后正在滚过去：起点、终点、开始时刻。
     private var jumpAnimation: (from: CGFloat, to: CGFloat, began: CFTimeInterval)?
     private var jumpLink: CADisplayLink?
@@ -206,7 +206,8 @@ final class EmojiGridView: UIView, UICollectionViewDataSource, UICollectionViewD
         if let last, now - last.time > 0.0005 {
             let speed = abs(y - last.y) / CGFloat(now - last.time)
             if speed > Self.stopSpeed { lastFastMove = now }
-            if speed < Self.settleSpeed, scrollView.isDecelerating, !scrollView.isDragging { settle(scrollView) }
+            // 松手后的惯性里 isDragging 一直是 true（模拟器打日志确认），要看手指还在不在屏上（isTracking）。
+            if speed < Self.settleSpeed, scrollView.isDecelerating, !scrollView.isTracking { settle(scrollView) }
         }
         reportCurrent()
     }
