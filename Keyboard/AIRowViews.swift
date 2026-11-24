@@ -403,6 +403,10 @@ struct UnpinBubble: View {
 struct AIKeyStrip<Content: View>: View {
     /// 两头渐隐多宽；nil 是 AI 栏的约 9%。表情面板底栏的分类条用 22（EP1）。
     var fadeWidth: CGFloat? = nil
+    /// 要滚到看得见的那一项（它的 .id）；变了就 0.2 秒滚过去（表情面板分类条跟着选中项，EP1）。
+    /// 滚动代理要在 GeometryReader 里面、直接包着 ScrollView：原来从外面用 ScrollViewReader 叫 scrollTo，
+    /// onChange 每次都到了，分类条却一动不动（11-24 模拟器打日志确认，0.97_7 起就这样）。
+    var reveal: AnyHashable? = nil
     @ViewBuilder var content: Content
     @State private var offset: CGFloat = 0
     @State private var contentWidth: CGFloat = 0
@@ -416,22 +420,28 @@ struct AIKeyStrip<Content: View>: View {
             let fade = fadeWidth ?? max(12, width * 0.09)
             let left = offset > 0.5
             let right = offset + width < contentWidth - 0.5
-            ScrollView(.horizontal, showsIndicators: false) {
-                content
-                    // 小锁、执行中投影伸出键外 4–6pt：两头各留一点，不被裁掉。
-                    .padding(.horizontal, 5)
-                    .frame(height: geo.size.height)
-                    // 直接读内容在滚动区里的位置，不走 preference：ScrollView 里别的子视图会带默认值把它冲掉，渐隐就一直不出（0.95_14 验证）。
-                    .background(GeometryReader { inner in
-                        let frame = inner.frame(in: .named("aiStrip"))
-                        Color.clear
-                            .onAppear { track(frame) }
-                            .onChange(of: frame) { track($0) }
-                    })
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    content
+                        // 小锁、执行中投影伸出键外 4–6pt：两头各留一点，不被裁掉。
+                        .padding(.horizontal, 5)
+                        .frame(height: geo.size.height)
+                        // 直接读内容在滚动区里的位置，不走 preference：ScrollView 里别的子视图会带默认值把它冲掉，渐隐就一直不出（0.95_14 验证）。
+                        .background(GeometryReader { inner in
+                            let frame = inner.frame(in: .named("aiStrip"))
+                            Color.clear
+                                .onAppear { track(frame) }
+                                .onChange(of: frame) { track($0) }
+                        })
+                }
+                // iOS 26 给滚动区边缘加的渐变模糊：这条只有 34 高，会整排糊掉、发暗（真机 0.95_14），关掉，渐隐只用下面的遮罩。
+                .hidingScrollEdgeEffect()
+                .coordinateSpace(name: "aiStrip")
+                .onChange(of: reveal) { target in
+                    guard let target else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(target) }
+                }
             }
-            // iOS 26 给滚动区边缘加的渐变模糊：这条只有 34 高，会整排糊掉、发暗（真机 0.95_14），关掉，渐隐只用下面的遮罩。
-            .hidingScrollEdgeEffect()
-            .coordinateSpace(name: "aiStrip")
             .mask(HStack(spacing: 0) {
                 LinearGradient(colors: [.black.opacity(0), .black], startPoint: .leading, endPoint: .trailing)
                     .frame(width: left ? fade : 0)

@@ -71,6 +71,28 @@ final class CorrectorTests: XCTestCase {
         XCTAssertNil(TouchTrail.offsets(for: "niha"))
     }
 
+    /// 查过的串只记有限条（真机上打字久了这张表涨到 20 万条、二十多 MB）：查再多不同的串也不超过上限，清空后照样查得对。
+    func testMemoStaysBounded() throws {
+        let url = Self.root.appendingPathComponent("Vendor/KeyLM/t9.eklm")
+        guard let lm = KeyLM(url: url) else { throw XCTSkip("没有 \(url.path)，先运行 scripts/fetch-rime.sh") }
+        let digits = Array("23456789".utf8)
+        let probe = Array("94426".utf8)[...]
+        let expected = lm.lookup(probe)
+        var seed: UInt64 = 1
+        for _ in 0..<(KeyLM.memoLimit * 2 + 10) {
+            var key: [UInt8] = []
+            for _ in 0..<8 {
+                seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                key.append(digits[Int(seed >> 33) % digits.count])
+            }
+            _ = lm.lookup(key[...])
+            XCTAssertLessThanOrEqual(lm.memoCount, KeyLM.memoLimit)
+        }
+        let again = lm.lookup(probe)
+        XCTAssertEqual(again.exact, expected.exact)
+        XCTAssertEqual(again.prefix, expected.prefix)
+    }
+
     func testMergePlacesCorrection() {
         let first = CorrectionMerge.merge(["你好啊", "你", "泥"], input: "nihoa", guess: .init(corrected: "nihao", place: 1), correctedTop: "你好")
         XCTAssertEqual(first, .init(candidates: ["你好", "你好啊", "你", "泥"], index: 0, removed: nil))
