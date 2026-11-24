@@ -8,7 +8,7 @@ import UIKit
 /// 样子照原来：格子 40、表情 30pt（iPad 54、38）；一行放得下几个放几个，平均分；行距 2，左右各留 4；
 /// 每类上面一行 12pt 灰色小标题，滑到顶上钉住。
 /// 手感：按下马上变暗（同 KeyPressStyle），手指没滑走就在抬起时上屏；两只手交替点各算各的；
-/// 面板还在惯性滚动时点一下只是让它停住，不上屏（同系统表情键盘）。
+/// 面板还在较快地惯性滚动时点一下只是让它停住，不上屏（同系统表情键盘）；看着已经停了的慢尾巴里点，照常上屏。
 struct EmojiGrid: UIViewRepresentable {
     let sections: [EmojiPanelSection]
     let handle: EmojiGridHandle
@@ -47,8 +47,13 @@ final class EmojiGridView: UIView, UICollectionViewDataSource, UICollectionViewD
     private var topsWidth: CGFloat = -1
     /// 最后报给底栏的那一类。
     private var reported: String?
-    /// 手指拖动、惯性滚动最后一次挪动的时刻：这之后 0.1 秒内按下算「让它停住」，不算点表情。
-    private var lastMoved: CFTimeInterval = 0
+    /// 手指拖动、惯性滚动最后一次「还在快速移动」（每秒超过 stopSpeed 点）的时刻：这之后 0.05 秒内按下算「让它停住」，不算点表情。
+    /// 原来是「最后一次挪动」：惯性滚动看着已经停了，系统还会用不到一像素的步子挪上一两秒，这期间点了没反应（11-24 模拟器录屏）。
+    private var lastFastMove: CFTimeInterval = 0
+    /// 上一次滚动回调时的位置和时刻，用来算速度。
+    private var lastSample: (y: CGFloat, time: CFTimeInterval)?
+    /// 每秒 100 点：60 帧下每帧不到 2 点，看着就是慢慢停下来的尾巴，手指点下去的那格不会跑掉。
+    private static let stopSpeed: CGFloat = 100
     /// 点底栏分类后正在滚过去：起点、终点、开始时刻。
     private var jumpAnimation: (from: CGFloat, to: CGFloat, began: CFTimeInterval)?
     private var jumpLink: CADisplayLink?
@@ -156,8 +161,8 @@ final class EmojiGridView: UIView, UICollectionViewDataSource, UICollectionViewD
 
     // MARK: 点表情
 
-    /// 面板正在动（惯性滚动、点分类滚过去）时按下只是让它停住，不算点表情。手指拖动时系统会取消格子的触摸，不用这里管。
-    fileprivate var acceptsTap: Bool { jumpLink == nil && CACurrentMediaTime() - lastMoved > 0.1 }
+    /// 面板正在快速移动（惯性滚动、点分类滚过去）时按下只是让它停住，不算点表情。手指拖动时系统会取消格子的触摸，不用这里管。
+    fileprivate var acceptsTap: Bool { jumpLink == nil && CACurrentMediaTime() - lastFastMove > 0.05 }
 
     fileprivate func picked(_ item: String) { onPick?(item) }
 
@@ -188,9 +193,15 @@ final class EmojiGridView: UIView, UICollectionViewDataSource, UICollectionViewD
     // MARK: 跟着滑动选中底栏的分类
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        let now = CACurrentMediaTime()
+        let y = scrollView.contentOffset.y
+        let last = lastSample
+        lastSample = (y, now)
         // 只看手指拖动和惯性；点分类滚过去、重排布局挪的不算。
         guard scrollView.isDragging || scrollView.isDecelerating else { return }
-        lastMoved = CACurrentMediaTime()
+        if let last, now - last.time > 0.0005, abs(y - last.y) / CGFloat(now - last.time) > Self.stopSpeed {
+            lastFastMove = now
+        }
         reportCurrent()
     }
 
