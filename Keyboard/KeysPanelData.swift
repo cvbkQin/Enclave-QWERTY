@@ -9,27 +9,39 @@ enum KeysPanel: Equatable {
 }
 
 /// 长按按键弹出的一排备选，手指左右滑动来选，松手上屏。
+/// 默认那格正对按键中心、一弹出就选中，其余往两边排（T92，AlternatesRow）。
 struct AlternatesPopup: Equatable {
     let key: KeySpec
+    /// 从左到右。
     let options: [String]
     let containerWidth: CGFloat
-    var selected = 0
+    /// 一开始是默认那格。
+    var selected: Int
+    /// 整排左边的 x。
+    let minX: CGFloat
 
     /// iPad 全宽键盘（PK8 ①）：每格 56×60，跟着 iPad 的键大一号。
     static var cellWidth: CGFloat { KeyboardMetrics.pad == nil ? 34 : 56 }
     static var height: CGFloat { KeyboardMetrics.pad == nil ? 48 : 60 }
 
-    /// 从按键正上方往右排，排不下就整体往左挪。
+    init(key: KeySpec, row: AlternatesRow, containerWidth: CGFloat) {
+        let arranged = row.arranged(centerX: key.cap.midX, cellWidth: Self.cellWidth, containerWidth: containerWidth)
+        self.key = key
+        self.options = arranged.options
+        self.containerWidth = containerWidth
+        self.selected = arranged.selected
+        self.minX = arranged.minX
+    }
+
+    /// 按键正上方一排。
     /// iPad：不出键盘顶（26 键上面有顶栏，9 键上面什么都没有），太靠上时往下压。
     var frame: CGRect {
         let width = Self.cellWidth * CGFloat(options.count)
-        var x = key.cap.midX - Self.cellWidth / 2
-        x = min(max(x, 0), max(containerWidth - width, 0))
         var y = key.cap.minY - Self.height - 4
         if KeyboardMetrics.pad != nil {
             y = max(y, 2 - (KeyboardMetrics.padNine ? 0 : KeyboardMetrics.topRow))
         }
-        return CGRect(x: x, y: y, width: width, height: Self.height)
+        return CGRect(x: minX, y: y, width: width, height: Self.height)
     }
 
     func index(atX x: CGFloat) -> Int {

@@ -7,9 +7,12 @@ enum QuickPunct {
     static func tap(chinese: Bool) -> String { chinese ? "，" : "," }
     /// 往上划打出的（键上左上角的小字）。
     static func up(chinese: Bool) -> String { chinese ? "。" : "." }
-    /// 长按弹出的一排，第一个默认选中。
-    static func row(chinese: Bool) -> [String] {
-        chinese ? ["，", "。", "！", "？", "、", "；"] : [",", ".", "!", "?", "'", ";"]
+    /// 长按弹出的一排（T92）：点一下打的那个正对按键、默认选中，左边从近到远「？！、」，右边「。；」。
+    /// 弹出来从左到右是 、 ！ ？ ［，］ 。 ；（英文 ' ! ? ［,］ . ;），放在空格左边、右边都是这个顺序。
+    static func row(chinese: Bool) -> AlternatesRow {
+        chinese
+            ? AlternatesRow(main: "，", left: ["？", "！", "、"], right: ["。", "；"])
+            : AlternatesRow(main: ",", left: ["?", "!", "'"], right: [".", ";"])
     }
 }
 
