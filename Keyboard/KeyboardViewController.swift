@@ -5,6 +5,8 @@ import UIKit
 final class KeyboardViewController: UIInputViewController {
     private lazy var model = KeyboardModel(controller: self)
     private var heightConstraint: NSLayoutConstraint?
+    /// 根视图（UIInputView）。控制器释放后系统还一直留着它（见 tearDown），释放时要找得到它来清空。
+    private weak var rootForTeardown: UIView?
     private var cancellables = Set<AnyCancellable>()
 
 
@@ -31,6 +33,7 @@ final class KeyboardViewController: UIInputViewController {
         height.priority = .required
         height.isActive = true
         heightConstraint = height
+        rootForTeardown = view
 
         // 展开、卡片展开、风格菜单一改就同步改高度：等到下一轮的话，SwiftUI 先按旧高度画出新内容，
         // 系统再把高度变化做成动画，风格浮层展开时内容会错位、按键被挤到底下。
@@ -273,27 +276,36 @@ final class KeyboardViewController: UIInputViewController {
     private var hostFilled = false
 
     deinit {
-        let host = host, poll = clipboardPoll
+        let host = host, poll = clipboardPoll, root = rootForTeardown
         if Thread.isMainThread {
             // 不在这里关 Rime 会话：会话是整个进程共用的，收起后 1 秒内又弹出时新控制器已经开好了，这里一关就打不出候选。
-            MainActor.assumeIsolated { Self.tearDown(host: host, poll: poll) }
+            MainActor.assumeIsolated { Self.tearDown(host: host, poll: poll, root: root) }
         } else {
-            DispatchQueue.main.async { MainActor.assumeIsolated { Self.tearDown(host: host, poll: poll) } }
+            DispatchQueue.main.async { MainActor.assumeIsolated { Self.tearDown(host: host, poll: poll, root: root) } }
         }
     }
 
     /// 剪贴板轮询也要停：定时器在 RunLoop 里一直跑、一直被拿着（每个旧控制器多留一个）。
     /// 光换空视图不够：旧控制器的根视图 UIInputView 被系统留着，宿主视图挂在它下面，已经画好的图层、
     /// 键帽触摸层、候选条（它们的 SwiftUI 包装拿着 model）都跟着留下，每次还是 +1 MB。把宿主视图从旧根视图上摘掉。
-    private static func tearDown(host: UIHostingController<AnyView>?, poll: Timer?) {
+    ///
+    /// 旧根视图本身也被系统留着：iOS 用关联对象拿着每一次弹出的 UIInputView，空白键盘也一样（模拟器每弹一次约 50 KB，bug #38），
+    /// 我们改不掉。我们的根视图上还挂着高度约束和它带出来的布局引擎、图层，每次约 200 KB。控制器释放时根视图早已不在窗口里，
+    /// 把挂在它上面的约束、剩下的子视图都摘掉，系统留着的只剩个空壳。
+    private static func tearDown(host: UIHostingController<AnyView>?, poll: Timer?, root: UIView?) {
         poll?.invalidate()
-        guard let host else { return }
-        let start = CACurrentMediaTime()
-        host.rootView = AnyView(EmptyView())
-        host.view.removeFromSuperview()
-        let end = CACurrentMediaTime()
-        PopupLog.lastTeardownMs = (end - start) * 1000
-        PopupLog.lastTeardownDone = end
+        if let host {
+            let start = CACurrentMediaTime()
+            host.rootView = AnyView(EmptyView())
+            host.view.removeFromSuperview()
+            let end = CACurrentMediaTime()
+            PopupLog.lastTeardownMs = (end - start) * 1000
+            PopupLog.lastTeardownDone = end
+        }
+        if let root, root.window == nil {
+            NSLayoutConstraint.deactivate(root.constraints)
+            root.subviews.forEach { $0.removeFromSuperview() }
+        }
     }
 
     /// placeholder：先放空占位（「先显示截图」时），真键盘等 fillHost 再填。宿主视图和约束照样现在就装好。
