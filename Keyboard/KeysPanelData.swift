@@ -120,8 +120,14 @@ struct CrossPopup: Equatable {
         return CGSize(width: key.cap.width + KeyboardMetrics.nineColumnGap, height: KeyboardMetrics.nineRowPitch)
     }
 
+    /// iPad（第 87 条）：上、下那格出了按键区时最矮压到 40，离按键区边留 2。
+    static let padMinCell: CGFloat = 40
+    static let padEdge: CGFloat = 2
+
     /// 中间那格：以按下的键为中心；贴边时整个十字往里收，离屏幕边至少 4pt。
-    /// iPad 9 键上面没有 AI 栏可以伸：上下也往里收，整个十字留在按键区里。
+    /// iPad 9 键上面没有 AI 栏可以伸，十字留在按键区里（第 87 条，11-24 cvbk「弹出的应该在中间，这样一挪动就是从中间挪动」）：
+    /// 中间那格对准按键，上、下哪格出了按键区就压矮那一格（frame(for:)），最矮 40；
+    /// 压到 40 还放不下才整个十字往里挪，只有第一排往上会这样（上面只剩 4）。没有选项的那一边不算。
     var center: CGRect {
         let size = cellSize
         var x = key.cap.midX - size.width / 2
@@ -130,7 +136,11 @@ struct CrossPopup: Equatable {
         x = min(max(x, margin + size.width), containerWidth - margin - size.width * 2)
         var y = key.cap.midY - size.height / 2
         if KeyboardMetrics.pad != nil {
-            y = min(max(y, 2 + size.height), KeyboardMetrics.keysHeight - 2 - size.height * 2)
+            let top = Self.padEdge
+            let bottom = KeyboardMetrics.keysHeight - Self.padEdge
+            if options[.up] != nil, y - top < Self.padMinCell { y = top + size.height }
+            if options[.down] != nil, bottom - (y + size.height) < Self.padMinCell { y = bottom - size.height * 2 }
+            y = min(max(y, top), bottom - size.height)
         }
         return CGRect(x: x, y: y, width: size.width, height: size.height)
     }
@@ -142,10 +152,17 @@ struct CrossPopup: Equatable {
         case .right: return c.offsetBy(dx: c.width, dy: 0)
         case .up:
             // 第一行往上只有 AI 栏那么高，超出键盘顶会被裁平；顶到离键盘顶 2pt 为止，格子矮一点。
+            // iPad 留在按键区里，顶到离按键区顶 2 为止（center 保证不矮过 40）。
             let up = c.offsetBy(dx: 0, dy: -c.height)
-            let top = max(up.minY, 2 - KeyboardMetrics.topRow)
+            let limit = KeyboardMetrics.pad != nil ? Self.padEdge : 2 - KeyboardMetrics.topRow
+            let top = max(up.minY, limit)
             return CGRect(x: up.minX, y: top, width: up.width, height: up.maxY - top)
-        case .down: return c.offsetBy(dx: 0, dy: c.height)
+        case .down:
+            let down = c.offsetBy(dx: 0, dy: c.height)
+            // iPad 第三排往下：碰到按键区底（离边 2）就压矮这一格，竖屏约 52、键压扁时约 42（第 87 条）。
+            guard KeyboardMetrics.pad != nil else { return down }
+            let bottom = min(down.maxY, KeyboardMetrics.keysHeight - Self.padEdge)
+            return CGRect(x: down.minX, y: down.minY, width: down.width, height: bottom - down.minY)
         }
     }
 
