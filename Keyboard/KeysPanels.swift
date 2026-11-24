@@ -201,22 +201,16 @@ struct SymbolPanel: View {
             panelKey(width: 60, label: model.chineseMode ? L("返回", "Back", "戻る") : "ABC", action: { model.closePanel() }) {
                 Text(model.chineseMode ? "返回" : "ABC").font(.system(size: 17))
             }
-            ScrollViewReader { bar in
-                AIKeyStrip(fadeWidth: 22) {
-                    HStack(spacing: 2) {
-                        ForEach(tabs) { tab in
-                            Button { jump(tab.id) } label: { tabLabel(tab, on: tab.id == current) }
-                                .buttonStyle(KeyPressStyle())
-                                .accessibilityLabel(tab.title)
-                                .accessibilityAddTraits(tab.id == current ? .isSelected : [])
-                                .id("tab-" + tab.id)
-                        }
+            // 选中换了（点的、滑出来的）：分类条滚到能看全这一格。
+            AIKeyStrip(fadeWidth: 22, reveal: current.map { AnyHashable("tab-" + $0) }) {
+                HStack(spacing: 2) {
+                    ForEach(tabs) { tab in
+                        Button { jump(tab.id) } label: { tabLabel(tab, on: tab.id == current) }
+                            .buttonStyle(KeyPressStyle())
+                            .accessibilityLabel(tab.title)
+                            .accessibilityAddTraits(tab.id == current ? .isSelected : [])
+                            .id("tab-" + tab.id)
                     }
-                }
-                // 选中换了（点的、滑出来的）：分类条滚到能看全这一格。
-                .onChange(of: current) { id in
-                    guard let id else { return }
-                    withAnimation(.easeOut(duration: 0.2)) { bar.scrollTo("tab-" + id) }
                 }
             }
             .frame(maxWidth: .infinity)

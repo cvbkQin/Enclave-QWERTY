@@ -54,6 +54,10 @@ final class EmojiGridView: UIView, UICollectionViewDataSource, UICollectionViewD
     private var lastSample: (y: CGFloat, time: CFTimeInterval)?
     /// 每秒 100 点：60 帧下每帧不到 2 点，看着就是慢慢停下来的尾巴，手指点下去的那格不会跑掉。
     private static let stopSpeed: CGFloat = 100
+    /// 惯性滚动慢到每秒 30 点以下（60 帧下每帧半点）就直接停住。系统的惯性尾巴很长（模拟器上猛滑一下要 3–6 秒才完全不动），
+    /// 看着已经停了其实还在挪，这时点下去系统只当「让它停」，格子收不到，点了没反应（11-24 模拟器 6 次里 5 次）。
+    /// 剩下那段本来也只再挪十几点，提前停住看不出来。
+    private static let settleSpeed: CGFloat = 30
     /// 点底栏分类后正在滚过去：起点、终点、开始时刻。
     private var jumpAnimation: (from: CGFloat, to: CGFloat, began: CFTimeInterval)?
     private var jumpLink: CADisplayLink?
@@ -199,10 +203,24 @@ final class EmojiGridView: UIView, UICollectionViewDataSource, UICollectionViewD
         lastSample = (y, now)
         // 只看手指拖动和惯性；点分类滚过去、重排布局挪的不算。
         guard scrollView.isDragging || scrollView.isDecelerating else { return }
-        if let last, now - last.time > 0.0005, abs(y - last.y) / CGFloat(now - last.time) > Self.stopSpeed {
-            lastFastMove = now
+        if let last, now - last.time > 0.0005 {
+            let speed = abs(y - last.y) / CGFloat(now - last.time)
+            if speed > Self.stopSpeed { lastFastMove = now }
+            if speed < Self.settleSpeed, scrollView.isDecelerating, !scrollView.isDragging { settle(scrollView) }
         }
         reportCurrent()
+    }
+
+    /// 把惯性的慢尾巴停在最近的整像素上。滑过头正在回弹时不停，不然会停在边外面。
+    private func settle(_ scrollView: UIScrollView) {
+        let inset = scrollView.adjustedContentInset
+        let lowest = -inset.top
+        let highest = max(scrollView.contentSize.height + inset.bottom - scrollView.bounds.height, lowest)
+        let y = scrollView.contentOffset.y
+        guard y >= lowest, y <= highest else { return }
+        let scale = max(scrollView.traitCollection.displayScale, 1)
+        let settled = min(max((y * scale).rounded() / scale, lowest), highest)
+        scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: settled), animated: false)
     }
 
     func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
