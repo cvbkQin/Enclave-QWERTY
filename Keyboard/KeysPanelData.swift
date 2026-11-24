@@ -423,8 +423,7 @@ struct EmojiPanelSection: Identifiable {
     }()
 
     /// 有用过的表情时前面加「最近」。
-    static var all: [EmojiPanelSection] {
-        let recent = RecentEmoji.all
-        return (recent.isEmpty ? [] : [EmojiPanelSection(id: "最近", symbol: "clock", emoji: recent)]) + catalog
+    static func sections(recent: [String]) -> [EmojiPanelSection] {
+        (recent.isEmpty ? [] : [EmojiPanelSection(id: "最近", symbol: "clock", emoji: recent)]) + catalog
     }
 }

@@ -3,14 +3,22 @@ import SwiftUI
 /// 表情和颜文字面板，铺满按键区；底栏切换两者、返回键盘、删除。
 /// 底栏（EP1、EP2）：高 50，左右 4、间距 6；返回 60×40 ｜ 分类条（放不下横滑，两边 22 渐隐）｜ 表情 / 颜文字切换 44×40 ｜ 删除 60×40。
 /// 点分类：面板滚到那一类（0.2 秒），选中马上换；上下滑面板：顶上露出哪一类就选中哪一类，分类条跟着滚到看得见。
+/// 表情格子是 UIKit 的 EmojiGrid（只画看得见的几排，bug #39）；颜文字只有几十个，还用 SwiftUI。
+/// 「最近」在面板打开时（或表情、颜文字互相切换时）定下来，开着时点了不重排：原来点一下「最近」里的表情它就挪到最前，
+/// 后面的往后挤，连点两下第二下会点到别的。新点的下次打开面板再排进去。
 struct SymbolPanel: View {
     @ObservedObject var model: KeyboardModel
     /// 底栏选中的分类；nil 是第一个。
     @State private var selected: String?
     /// 各组小标题现在在面板里的位置（不触发重画，选中变了才改 selected）。
     @State private var tracker = SectionTracker()
-    /// 点了分类、面板正在滚过去：这期间不按滚动位置改选中。
+    /// 点了分类、面板正在滚过去：这期间不按滚动位置改选中（颜文字；表情格子自己管）。
     @State private var jumping = false
+    /// 叫表情格子跳到某一类。
+    @State private var emojiGrid = EmojiGridHandle()
+    /// 打开面板时的「最近」，见上。
+    @State private var recentEmoji = RecentEmoji.all
+    @State private var recentKaomoji = RecentKaomoji.all
 
     private var isEmoji: Bool { model.keysPanel == .emoji }
 
@@ -27,8 +35,8 @@ struct SymbolPanel: View {
     private static let space = "symbolPanel"
 
     var body: some View {
-        let emojiSections = isEmoji ? EmojiPanelSection.all : []
-        let kaomojiGroups = isEmoji ? [] : Self.kaomojiGroups
+        let emojiSections = isEmoji ? EmojiPanelSection.sections(recent: recentEmoji) : []
+        let kaomojiGroups = isEmoji ? [] : Self.kaomojiGroups(recent: recentKaomoji)
         let tabs: [Tab] = isEmoji
             ? emojiSections.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol) }
             : kaomojiGroups.map { Tab(id: $0.id, title: Kaomoji.title($0.id)) }
@@ -36,56 +44,43 @@ struct SymbolPanel: View {
         let current = selected.flatMap { order.contains($0) ? $0 : nil } ?? order.first
         return ScrollViewReader { proxy in
             VStack(spacing: 0) {
-                ScrollView(.vertical, showsIndicators: false) {
-                    if isEmoji { emojiGrid(emojiSections, order: order) } else { kaomojiGrid(kaomojiGroups, order: order) }
+                if isEmoji {
+                    EmojiGrid(sections: emojiSections, handle: emojiGrid, onPick: { model.pickFromPanel($0) }) { id in
+                        if id != (selected ?? order.first) { selected = id }
+                    }
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        kaomojiGrid(kaomojiGroups, order: order)
+                    }
+                    .hidingScrollEdgeEffect()
+                    .coordinateSpace(name: Self.space)
                 }
-                .hidingScrollEdgeEffect()
-                .coordinateSpace(name: Self.space)
                 bottomBar(tabs: tabs, current: current) { id in
                     selected = id
+                    if isEmoji {
+                        emojiGrid.view?.jump(to: id)
+                        return
+                    }
                     jumping = true
                     withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { jumping = false }
                 }
             }
-            // 表情和颜文字互相切换：选中回到第一组，面板回到顶上。
+            // 表情和颜文字互相切换：选中回到第一组，面板回到顶上，「最近」重新读。
             .onChange(of: model.keysPanel) { _ in
                 selected = nil
                 tracker.tops = [:]
+                recentEmoji = RecentEmoji.all
+                recentKaomoji = RecentKaomoji.all
                 if let first = order.first { proxy.scrollTo(first, anchor: .top) }
             }
         }
     }
 
-    // MARK: 表情
-
-    /// iPad（PK10 ①）：每格 54、字 38，11 寸横屏一行 20 个左右。
-    private func emojiGrid(_ sections: [EmojiPanelSection], order: [String]) -> some View {
-        let pad = KeyboardMetrics.pad != nil
-        let cell: CGFloat = pad ? 54 : 40
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: cell), spacing: 0)], spacing: 2,
-                  pinnedViews: [.sectionHeaders]) {
-            ForEach(sections) { section in
-                Section {
-                    ForEach(section.emoji, id: \.self) { item in
-                        Button { model.pickFromPanel(item) } label: {
-                            Text(item).font(.system(size: pad ? 38 : 30)).frame(width: cell, height: cell)
-                        }
-                        .buttonStyle(KeyPressStyle())
-                    }
-                } header: {
-                    header(section.id, title: section.title, order: order)
-                }
-            }
-        }
-        .padding(.horizontal, 4)
-    }
-
     // MARK: 颜文字
 
     /// 有用过的颜文字时前面加「最近」（最多 8 个）。
-    private static var kaomojiGroups: [Kaomoji.Mood] {
-        let recent = RecentKaomoji.all
+    private static func kaomojiGroups(recent: [String]) -> [Kaomoji.Mood] {
         return (recent.isEmpty ? [] : [Kaomoji.Mood(id: "最近", items: recent)]) + Kaomoji.groups
     }
 
