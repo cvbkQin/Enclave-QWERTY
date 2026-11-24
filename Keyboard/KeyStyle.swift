@@ -515,10 +515,27 @@ enum Brand {
     /// 生成中卡片里还没出字时的两条灰条 #F2F2F7 / #3A3A3C。
     static let skeleton = dynamic(0xF2F2F7, 0x3A3A3C)
 
-    /// 九宫格长按十字弹层中间那格 #E6E5EB。
-    static let crossCenterFill = Color(UIColor { $0.userInterfaceStyle == .dark
-        ? UIColor(white: 0.36, alpha: 1)
-        : UIColor(red: 0xE6 / 255, green: 0xE5 / 255, blue: 0xEB / 255, alpha: 1) })
+    // 长按弹出层（对齐清单第 88 条，design/popup-style）：要和键盘分得开，深色时比按键 #474749 亮一档。
+    private static func pick(_ light: UIColor, _ dark: UIColor) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
+    /// 长按一排的底板：白 / #6C6C71。
+    static let popupBoard = dynamic(0xFFFFFF, 0x6C6C71)
+    /// 底板描边 1pt：黑 18% / 白 20%。
+    static let popupBoardStroke = pick(UIColor(white: 0, alpha: 0.18), UIColor(white: 1, alpha: 0.20))
+    /// 底板和托盘的阴影（y 5、模糊 14）：黑 30% / 黑 62%。
+    static let popupShadow = pick(UIColor(white: 0, alpha: 0.30), UIColor(white: 0, alpha: 0.62))
+    /// 长按一排格子之间的细线：rgba(60,60,67,.13) / 白 14%。
+    static let popupDivider = pick(UIColor(red: 60 / 255, green: 60 / 255, blue: 67 / 255, alpha: 0.13),
+                                   UIColor(white: 1, alpha: 0.14))
+    /// 十字托盘：#EEEEF2 / #5B5B60；描边 黑 16% / 白 18%。
+    static let crossTray = dynamic(0xEEEEF2, 0x5B5B60)
+    static let crossTrayStroke = pick(UIColor(white: 0, alpha: 0.16), UIColor(white: 1, alpha: 0.18))
+    /// 托盘上的小按钮：白 / #7A7A80，底下 1pt 暗边 黑 14% / 黑 35%。
+    static let crossButton = dynamic(0xFFFFFF, 0x7A7A80)
+    static let crossButtonEdge = pick(UIColor(white: 0, alpha: 0.14), UIColor(white: 0, alpha: 0.35))
+    /// 托盘中间的按键名：#8A8A8E / #C7C7CC。
+    static let crossCenterText = dynamic(0x8A8A8E, 0xC7C7CC)
 }
 
 /// logo 那组星星：一颗大星、五颗小星。animating 时小星错开闪烁，大星轻轻放大带金色微光，周期 1.6 秒，不旋转。

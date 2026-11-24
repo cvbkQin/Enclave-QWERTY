@@ -869,34 +869,45 @@ struct OperatorColumn: View {
     }
 }
 
-/// 九宫格长按的十字：中间浅灰显示原键帽，四周白底圆角带阴影，选中那格内缩 4pt 填紫色、白字。
+/// 九宫格长按的十字（全键盘「，。」往上划也用它）：灰托盘、白色小按钮，选中变紫（第 88 条）。
 struct CrossView: View {
     @ObservedObject var model: KeyboardModel
     let popup: CrossPopup
 
+    private var isPad: Bool { KeyboardMetrics.pad != nil }
+
+    /// 托盘式（对齐清单第 88 条，design/popup-style 第 3 节）：一块十字形灰托盘（1pt 描边、阴影），
+    /// 有选项的方向放一颗白色小按钮，选中变紫；中间不放按钮，只写灰色小字的按键名，意思是滑回来松手就取消。
     var body: some View {
+        let outline = popup.trayOutline
+        let xs = outline.map(\.x), ys = outline.map(\.y)
+        let bounds = CGRect(x: xs.min() ?? 0, y: ys.min() ?? 0,
+                            width: (xs.max() ?? 0) - (xs.min() ?? 0), height: (ys.max() ?? 0) - (ys.min() ?? 0))
+        let tray = CrossTrayShape(points: outline.map { CGPoint(x: $0.x - bounds.minX, y: $0.y - bounds.minY) },
+                                  outer: isPad ? 14 : 12, inner: isPad ? 7 : 6)
         ZStack(alignment: .topLeading) {
-            let outer = CrossPopup.Direction.allCases.filter { popup.options[$0] != nil }
-            // 外圈先画一层带阴影的白底，四格连成一个十字。
-            ForEach(outer, id: \.self) { direction in
-                cell(popup.frame(for: direction)) {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(KeyStyle.charKey)
-                        .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 1)
-                }
-            }
+            tray.fill(Brand.crossTray)
+                .shadow(color: Brand.popupShadow, radius: 7, x: 0, y: 5)
+                .overlay(tray.stroke(Brand.crossTrayStroke, lineWidth: 1))
+                .frame(width: bounds.width, height: bounds.height)
+                .offset(x: bounds.minX, y: bounds.minY)
             cell(popup.center) {
-                Rectangle().fill(Brand.crossCenterFill)
-                    .overlay(centerLabel.foregroundStyle(Color.primary))
+                centerLabel
+                    .font(.system(size: isPad ? 15 : 13))
+                    .foregroundStyle(Brand.crossCenterText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
-            ForEach(outer, id: \.self) { direction in
+            ForEach(CrossPopup.Direction.allCases.filter { popup.options[$0] != nil }, id: \.self) { direction in
                 let selected = popup.selected == direction
+                let button = RoundedRectangle(cornerRadius: isPad ? 10 : 8, style: .continuous)
                 cell(popup.frame(for: direction)) {
                     ZStack {
-                        if selected {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.purple).padding(4)
-                        }
+                        // 底下一条 1pt 暗边，像按键的影子；选中时去掉。
+                        if !selected { button.fill(Brand.crossButtonEdge).offset(y: 1) }
+                        button.fill(selected ? Brand.purple : Brand.crossButton)
                         Text(popup.options[direction] ?? "")
-                            .font(.system(size: 26))
+                            .font(.system(size: isPad ? 26 : (KeyboardMetrics.landscape ? 18 : 22)))
                             .foregroundStyle(selected ? Color.white : Color.primary)
                     }
                 }
@@ -911,40 +922,67 @@ struct CrossView: View {
             .offset(x: frame.minX, y: frame.minY)
     }
 
-    @ViewBuilder
-    private var centerLabel: some View {
-        if popup.key.kind == .digitPunct {
-            Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
-        } else if case .quickPunct(let chinese) = popup.key.kind {
-            QuickPunctLabel(chinese: chinese)
-        } else if case .nine(let digit) = popup.key.kind, digit != "'" {
-            Text(KeyLayout.nineKeyLetters[digit] ?? digit).font(KeyStyle.nineKeyFont).tracking(1)
-        } else {
-            PunctuationLabel()
+    private var centerLabel: Text {
+        switch popup.key.kind {
+        case .digitPunct: return Text(".,:")
+        case .quickPunct(let chinese): return Text(chinese ? "，。" : ",.")
+        case .nine(let digit) where digit != "'": return Text(KeyLayout.nineKeyLetters[digit] ?? digit)
+        default: return Text("，。?!")
         }
     }
 }
 
-/// 长按弹出的备选条，选中的那格是蓝底白字。
+/// 十字托盘的外形：CrossTray 算出的多边形，外角 outer、里角 inner 圆角。
+struct CrossTrayShape: Shape {
+    let points: [CGPoint]
+    let outer: CGFloat
+    let inner: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path(CrossTray.path(points.map { CGPoint(x: $0.x + rect.minX, y: $0.y + rect.minY) }, outer: outer, inner: inner))
+    }
+}
+
+/// 长按弹出的备选条（对齐清单第 88 条，design/popup-style PS1 ②）：一整块底板（浅色白、深色 #6C6C71，比按键亮一档），
+/// 1pt 描边、较深的阴影，左右比格子多留 4（iPad 5）；格子之间 1pt 细线，挨着选中那格的不画。选中那格紫底白字。
 struct AlternatesView: View {
     let popup: AlternatesPopup
 
+    private var isPad: Bool { KeyboardMetrics.pad != nil }
+
     var body: some View {
         let frame = popup.frame
-        HStack(spacing: 0) {
-            ForEach(Array(popup.options.enumerated()), id: \.offset) { index, option in
-                Text(option)
-                    .font(.system(size: KeyboardMetrics.pad == nil ? 22 : 26))
-                    .foregroundStyle(index == popup.selected ? Color.white : Color.primary)
-                    .frame(width: AlternatesPopup.cellWidth, height: AlternatesPopup.height - 8)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(index == popup.selected ? Brand.purple : Color.clear))
+        let cell = AlternatesPopup.cellWidth
+        let side: CGFloat = isPad ? 5 : 4
+        let radius: CGFloat = isPad ? 14 : 12
+        let lineInset: CGFloat = isPad ? 12 : 9
+        let board = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        // 细线 i 在第 i 格和第 i+1 格之间。
+        let dividers = popup.options.indices.dropLast().filter { $0 != popup.selected - 1 && $0 != popup.selected }
+        ZStack(alignment: .topLeading) {
+            board.fill(Brand.popupBoard)
+                .shadow(color: Brand.popupShadow, radius: 7, x: 0, y: 5)
+                .overlay(board.strokeBorder(Brand.popupBoardStroke, lineWidth: 1))
+                .frame(width: frame.width + side * 2, height: frame.height)
+            ForEach(dividers, id: \.self) { index in
+                Rectangle().fill(Brand.popupDivider)
+                    .frame(width: 1, height: frame.height - lineInset * 2)
+                    .offset(x: side + cell * CGFloat(index + 1) - 0.5, y: lineInset)
             }
+            HStack(spacing: 0) {
+                ForEach(Array(popup.options.enumerated()), id: \.offset) { index, option in
+                    Text(option)
+                        .font(.system(size: isPad ? 26 : 22))
+                        .foregroundStyle(index == popup.selected ? Color.white : Color.primary)
+                        .frame(width: cell, height: AlternatesPopup.height - 8)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(index == popup.selected ? Brand.purple : Color.clear))
+                }
+            }
+            .frame(width: frame.width, height: frame.height)
+            .offset(x: side)
         }
-        .frame(width: frame.width, height: frame.height)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(KeyStyle.charKey)
-            .shadow(color: .black.opacity(0.28), radius: 3, x: 0, y: 1))
-        .offset(x: frame.minX, y: frame.minY)
+        .offset(x: frame.minX - side, y: frame.minY)
         .allowsHitTesting(false)
     }
 }
