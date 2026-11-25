@@ -24,7 +24,7 @@ struct PadNineFunctions: View {
                 VStack(alignment: alignment, spacing: 8) {
                     if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
                     if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
-                    if model.helpPinnedOnBar { PinnedHelpKey(model: model) }
+                    if model.helpKeyShown { HelpPopKey(model: model) }
                     ForEach(pins, id: \.style.id) { pin in
                         PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
                     }

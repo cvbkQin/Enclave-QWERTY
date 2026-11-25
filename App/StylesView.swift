@@ -253,7 +253,7 @@ struct AIView: View {
 
     // MARK: 接口（R2，11-22）
 
-    /// 润色、问答各一组系统列表（R2）。润色：正在用的配置 → 最近 20 次 → 测试连接 → 在键盘上显示润色键 → 帮回自动判断。
+    /// 润色、问答各一组系统列表（R2）。润色：正在用的配置 → 最近 20 次 → 测试连接 → 在键盘上显示润色键 → 复制后弹出帮回键。
     /// 问答：和润色用同一个配置 → 正在用的配置 → 最近 20 次 → 测试连接 → 在键盘上显示问答键；用同一个配置时不重复列配置和测试。
     /// 「在键盘上显示…键」关掉时这一组只剩这一行（原来卡片的抽屉收起）。
     @ViewBuilder
@@ -384,14 +384,15 @@ struct AIView: View {
         .disabled(!configured || state == .running)
     }
 
-    /// 帮回自动判断（HA1）：跟在润色组里，润色关掉时一起收起。
+    /// 复制后弹出帮回键（帮回入口 v2，原「帮回自动判断」）：跟在润色组里，润色关掉时一起收起。
+    /// 和键盘上润色 ⌄ 里帮回那行的📌是同一个开关。
     private var helpAutoToggle: some View {
         Toggle(isOn: $store.settings.helpAuto) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(L("帮回自动判断", "Help Reply auto detect", "返信アシストの自動判断"))
-                Text(L("刚复制别人的话、输入框空着时，润色键变成帮回。关掉后从润色 ⌄ 最上面点帮回。",
-                       "When you've just copied someone's message and the field is empty, the Polish key turns into Help Reply. When off, tap Help Reply at the top of the Polish ⌄ menu.",
-                       "相手のメッセージをコピーした直後で入力欄が空のとき、整えるキーが返信アシストに変わります。オフにすると、整える ⌄ のいちばん上から使えます。"))
+                Text(L("复制后弹出帮回键", "Show Help Reply key after copying", "コピー後に返信アシストキーを表示"))
+                Text(L("刚复制别人的话时，问答键右边弹出「帮回」。关掉后，润色键换成帮回图标，输入框空着时点润色就是帮回。",
+                       "Right after you copy someone's message, a Help Reply key pops up next to the Ask key. When off, the Polish key shows the Help Reply icon instead, and tapping it with an empty field starts Help Reply.",
+                       "相手のメッセージをコピーした直後、質問キーの右に「返信」キーが出ます。オフにすると、整えるキーが返信アシストのアイコンに変わり、入力欄が空のときにタップすると返信アシストになります。"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

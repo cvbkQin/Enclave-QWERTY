@@ -178,8 +178,8 @@ extension KeyboardModel {
         endCelebration()
         if isRunning { stop(); return }
         lastRunPin = nil
-        // 有待回的复制、输入框空（情况 ①③）：润色键整颗是「帮回」，点了就帮回。
-        if polishKeyIsHelp {
+        // 「复制后弹出帮回键」关着、有待回的复制、输入框空（T96 图 ⑤）：润色键换成了帮回图标，点了就帮回。
+        if polishKeyHelps {
             startHelpReply()
             return
         }

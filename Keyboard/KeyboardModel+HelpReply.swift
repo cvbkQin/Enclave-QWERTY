@@ -4,7 +4,8 @@ import UIKit
 /// AI 帮回（T16）并进润色（方案 D v6，design/help-reply/merge-polish/）：帮回就是润色的一种，原文换成剪贴板里对方的那句话（点了才读），
 /// 风格用当前润色风格，识意框里的字是要求，输入框里自己打的字当「我想说的意思」一起发。
 /// 接口、回答卡、时间线、替换键、确认卡、次数全和润色共用：请求走 run(_:pending:reply:)，结果是会话里的一版（标「回」）。
-/// 入口：润色 ⌄ 最上面一行、识意框右边的帮回按钮、刚复制时变绿的润色键、钉在 AI 栏的帮回键、剪贴板记录长按「帮回这条」。
+/// 入口（T96，design/help-reply/entry-v2）：润色 ⌄ 最上面一行、剪贴板记录长按「帮回这条」，再加一个开关「复制后弹出帮回键」（settings.helpAuto）：
+/// 开着时刚复制别人的话，问答键右边弹出帮回键；关着时润色键换成帮回图标，输入框空着时点润色就是帮回。
 /// 键盘每次弹出只看剪贴板的 changeCount（已有的轮询）和一次 detectPatterns，没有别的帮回状态和视图。
 extension KeyboardModel {
     private static let copyKey = "helpReply.copy.v2"
@@ -19,15 +20,17 @@ extension KeyboardModel {
         (hasFullAccess || debugUnblocked) && (settings.helpReplyUsable || debugUnblocked)
     }
 
-    /// 帮回「自动判断」开着：键盘自己看剪贴板有没有可以帮回的新复制。关着时润色键不变绿、识意框没有帮回按钮、没有红点，
-    /// 也不调 detectPatterns、不写 lookedAt、不起 1 分钟定时器；帮回照样从 ⌄ 最上面一行、钉住的键、「帮回这条」点。
+    /// 键盘看剪贴板有没有可以帮回的新复制（T96 起开关开着关着都看：关着时要给润色键换图标）。
     /// 规则在 EnclaveSettings.helpAutoDetects（有单测），这里再加上完全访问；截图调试时不看接口能不能用。
     var helpAutoOn: Bool {
-        (hasFullAccess || debugUnblocked) && (debugUnblocked ? settings.helpAuto : settings.helpAutoDetects)
+        (hasFullAccess || debugUnblocked) && (debugUnblocked || settings.helpAutoDetects)
     }
 
-    /// 有待回的复制，并且开着自动判断（⌄ 那一行的浅绿底和红点、钉住的帮回键上的红点）。
+    /// 有待回的复制（⌄ 里帮回那一行的浅绿底）。
     var helpShowsPending: Bool { helpPending && helpAutoOn }
+
+    /// 「复制后弹出帮回键」开着（⌄ 里帮回那一行的图钉）。
+    var helpPopupOn: Bool { helpReplyAvailable && settings.helpAuto }
 
     // MARK: 待回的复制
 
@@ -52,7 +55,6 @@ extension KeyboardModel {
         #endif
         guard hasFullAccess, helpAutoOn else {
             setHelpPending(false)
-            if helpTyped { helpTyped = false }
             helpExpiry?.cancel()
             helpExpiry = nil
             return
@@ -71,10 +73,9 @@ extension KeyboardModel {
 
     /// 键盘开着时剪贴板轮询每秒调一次、弹出查剪贴板时也调：记下键盘还看着剪贴板的时间。
     /// 键盘没开着时剪贴板换了，复制时间最早只能算到这里。各个 App 里的键盘进程共用，5 秒存一次。
-    /// 关着自动判断时不记：再打开时，关着那段时间里换的剪贴板复制时间按很久以前算，不会突然变绿（方案第 9 节）。
+    /// 润色关着（帮回用不了）时不记：再打开时，关着那段时间里换的剪贴板复制时间按很久以前算，不会突然弹出帮回键。
     func noteClipboardLook(now: Date = Date()) {
-        // 键盘开着时每秒调一次：先看开关本身，关着就不往下算（04 审查 #80 可选 4）。
-        guard settings.helpAuto, helpAutoOn else { return }
+        guard helpAutoOn else { return }
         Self.lastLook = now
         if let saved = Self.lastLookSaved, now.timeIntervalSince(saved) >= 0, now.timeIntervalSince(saved) < 5 { return }
         Self.lastLookSaved = now
@@ -111,8 +112,6 @@ extension KeyboardModel {
     private func applyHelpCopy(_ copy: HelpCopy) {
         let pending = copy.pending()
         setHelpPending(pending)
-        let typed = copy.typed == true
-        if helpTyped != typed { helpTyped = typed }
         helpExpiry?.cancel()
         helpExpiry = nil
         guard pending else { return }
@@ -121,8 +120,9 @@ extension KeyboardModel {
         DispatchQueue.main.asyncAfter(deadline: .now() + max(copy.expires.timeIntervalSinceNow, 0) + 0.05, execute: work)
     }
 
+    /// 不在这里包动画：弹出、收回的动画在视图上按 helpKeyShown 带（AI 栏横排、iPad 九宫格竖排让位方向不一样）。
     private func setHelpPending(_ value: Bool) {
-        if helpPending != value { withAnimation(.easeOut(duration: 0.2)) { helpPending = value } }
+        if helpPending != value { helpPending = value }
     }
 
     /// 帮回写好了：这份复制算用过。
@@ -137,14 +137,6 @@ extension KeyboardModel {
         applyHelpCopy(copy)
     }
 
-    /// 有待回的复制时输入框里有了字（refreshHostState 里调）：自己在回了，这份复制不再让润色键整颗变绿。
-    func noteHelpFieldText() {
-        guard helpPending, !helpTyped, var copy = Self.storedCopy, copy.pending() else { return }
-        copy.typed = true
-        Self.storedCopy = copy
-        withAnimation(.easeOut(duration: 0.2)) { helpTyped = true }
-    }
-
     /// 键盘自己写了剪贴板（复制结果、分词复制、复制一条记录）：不算新复制的内容，也不是待回的复制。
     func noteOwnCopy() {
         let count = UIPasteboard.general.changeCount
@@ -154,38 +146,42 @@ extension KeyboardModel {
         setHelpPending(false)
     }
 
-    // MARK: 润色键、识意框按钮的样子（§3 四种情况）
+    // MARK: 润色键、弹出的帮回键（T96）
 
     /// 输入框里有字（正在拼的拼音也算）。
-    private var helpFieldHasText: Bool { hostHasText || (target == .host && isComposing) }
+    var helpFieldHasText: Bool { hostHasText || (target == .host && isComposing) }
 
-    /// 润色键整颗变成绿色「↩ 帮回 ⌄」（情况 ①③）：有待回的复制、输入框空、之后没在框里打过字、帮回没钉到 AI 栏。
-    var polishKeyIsHelp: Bool {
-        helpPending && !helpTyped && !settings.helpPinned && !helpFieldHasText && helpAutoOn
+    /// 开关关着、有待回的复制：润色键的 ✦ 换成彩色帮回 logo，字不变（图 ⑤⑥）；输入框空着时点润色就是帮回。
+    var polishKeyHelpLogo: Bool { helpShowsPending && !settings.helpAuto }
+
+    /// 关着、有待回的复制、输入框空：点润色键是帮回。
+    var polishKeyHelps: Bool { polishKeyHelpLogo && !helpFieldHasText }
+
+    /// 问答键右边弹出的帮回键（开关开着，图 ②③）：有待回的复制时弹出；用过或复制满 1 分钟收回，
+    /// 但这颗键刚发起的帮回还在生成中、失败等着点重试、成功动效那两秒、回答卡开着正看着这一版时先不收。
+    /// iPhone AI 栏和 iPad 九宫格那一列都看它；弹出、收回的动画在视图上带（HelpKeyPop）。
+    var helpKeyShown: Bool {
+        guard helpPopupOn else { return false }
+        if helpShowsPending { return true }
+        guard lastRunPin == Self.helpPinID else { return false }
+        if isRunning || helpKeyCelebrating { return true }
+        if quickStatus == .failed { return true }
+        return aiExpanded && session?.currentIsReply == true
     }
 
-    /// 润色键还是紫色「润色」，只把 ✨ 换成降饱和的绿色帮回 logo（情况 ②④、钉住以后）。
-    var polishKeyHelpLogo: Bool { helpPending && !polishKeyIsHelp && helpAutoOn }
-
-    enum HelpAskButtonLook { case solid, outline }
-
-    /// 识意框右边的帮回按钮（回答卡展开、有待回的复制）：输入框空是绿色实心，有字是浅绿描边。生成中不出。
-    var helpAskButton: HelpAskButtonLook? {
-        guard aiExpanded, helpPending, helpAutoOn, !isRunning, target != .card else { return nil }
-        return helpFieldHasText ? .outline : .solid
+    /// 回答卡展开、弹出了帮回键、输入框空：卡里和识意框的灰字说说帮回怎么用（框里写的是怎么回）。生成中不出。
+    var helpReplyHint: Bool {
+        aiExpanded && helpPopupOn && helpShowsPending && !helpFieldHasText && !isRunning && target != .card
     }
 
     // MARK: 入口
 
-    /// AI 栏上固定帮回键的那颗「钉子」（长按弹的取消固定用 pinMenu 记它；生成中、成功动效也按它找键）。
+    /// 弹出的帮回键（生成中、成功动效按它找键；长按弹的「取消固定」用 pinMenu 记它）。
     static let helpPinID = UUID(uuidString: "00000000-0000-0000-0000-0000000000B1")!
 
-    /// 帮回键在 AI 栏上：帮回能用，且钉上了（默认不钉，全键盘和九宫格同一个设置）。
-    var helpPinnedOnBar: Bool { helpReplyAvailable && settings.helpPinned }
-
-    /// 润色 ⌄ 那一行的图钉、长按 AI 栏上帮回键的「取消固定」。框不收。
-    func toggleHelpPin() {
-        updateSettings { $0.helpPinned.toggle() }
+    /// 「复制后弹出帮回键」开关：润色 ⌄ 那一行的图钉、长按帮回键的「取消固定」、App 里的开关是同一个。框不收。
+    func toggleHelpPopup() {
+        updateSettings { $0.helpAuto.toggle() }
         if pinMenu != nil { pinMenu = nil }
     }
 
@@ -195,13 +191,8 @@ extension KeyboardModel {
         startHelpReply()
     }
 
-    /// 识意框右边的「帮回」按钮。
-    func helpAskButtonTapped() {
-        startHelpReply()
-    }
-
-    /// AI 栏上钉住的帮回键。生成中点了是停止。
-    func pinnedHelpTapped() {
+    /// 弹出的帮回键：帮回，输入框有没有字都一样。生成中点了是停止。
+    func helpKeyTapped() {
         pinMenu = nil
         startHelpReply(fromPin: true)
     }
@@ -287,7 +278,7 @@ extension KeyboardModel {
 #if DEBUG
 extension KeyboardModel {
     /// -keyboardDebug help:pending（有待回的复制）、help:typed（输入框里有字）、help:expanded（回答卡展开）、
-    /// help:result（展开，卡上是帮回写的一版，复制算用过）、help:pinned（钉到 AI 栏）、help:dropdown（打开润色 ⌄）、
+    /// help:result（展开，卡上是帮回写的一版，复制算用过）、help:off（关掉「复制后弹出帮回键」）、help:dropdown（打开润色 ⌄）、
     /// help:consent（润色确认卡）、help:qwerty（全键盘）、help:panel（剪贴板面板）。
     func applyHelpDebug(_ options: [String]) {
         guard !options.isEmpty else { return }
@@ -295,9 +286,8 @@ extension KeyboardModel {
         debugHelpClipboard = true
         let wanted: KeyboardLayout = options.contains("qwerty") ? .qwerty : .nineKey
         if settings.keyboardLayout != wanted { setLayout(wanted) }
-        if options.contains("pinned") != settings.helpPinned { updateSettings { $0.helpPinned = options.contains("pinned") } }
+        if options.contains("off") == settings.helpAuto { updateSettings { $0.helpAuto = !options.contains("off") } }
         helpPending = options.contains("pending") || options.contains("typed")
-        helpTyped = false
         let message = "这份方案明天能交吗？"
         let now = Date()
         clipItems = [

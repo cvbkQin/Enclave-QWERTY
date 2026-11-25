@@ -377,6 +377,7 @@ struct CardEditHint: View {
 struct AIBar: View {
     @ObservedObject var model: KeyboardModel
     var inset: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // 功能关掉或不能用时，它固定的风格键也不显示（QE）。
@@ -388,23 +389,29 @@ struct AIBar: View {
                 model.endCoach()
                 model.setAIExpanded(!model.aiExpanded)
             }
-            AIKeyStrip {
+            let helpShown = model.helpKeyShown
+            AIKeyStrip(reveal: helpShown ? HelpPopKey.revealID : nil) {
                 HStack(spacing: 5) {
                     // AI 页关掉了、或配置不能用（没配、测试没通过）：这颗键不显示，后面的往左补位（QE）。
                     if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
                     if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
-                    if !pins.isEmpty || model.helpPinnedOnBar {
-                        if model.settings.showsPolishKey || model.settings.showsAnswerKey || model.debugUnblocked {
+                    // 刚复制别人的话：问答键右边弹出帮回键（T96），后面的键往右让；用完或 1 分钟缩回去，后面的往左补位。不占「N / 5」。
+                    if helpShown {
+                        HelpPopKey(model: model)
+                            .id(HelpPopKey.revealID)
+                            .transition(HelpKeyPop.transition(reduceMotion: reduceMotion))
+                    }
+                    if !pins.isEmpty {
+                        if model.settings.showsPolishKey || model.settings.showsAnswerKey || model.debugUnblocked || helpShown {
                             Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
                                 .padding(.horizontal, -1)
                         }
-                        // 固定的帮回键：问答键后面、固定风格键前面，不占「N / 5」。
-                        if model.helpPinnedOnBar { PinnedHelpKey(model: model) }
                         ForEach(pins, id: \.style.id) { pin in
                             PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
                         }
                     }
                 }
+                .animation(HelpKeyPop.layout(showing: helpShown, reduceMotion: reduceMotion), value: helpShown)
             }
             .frame(height: KeyboardMetrics.topRow)
             UndoRedoPair(model: model)
@@ -1584,8 +1591,8 @@ struct ResultCard: View {
         VStack(alignment: .leading, spacing: 3) {
             if let notice {
                 Text(notice).font(.system(size: 13)).foregroundStyle(Color.primary)
-            } else if model.helpAskButton == .solid {
-                // 刚复制、输入框空（帮回并入润色 UI2 ②）：说说帮回怎么用。
+            } else if model.helpReplyHint {
+                // 弹出了帮回键、输入框空（帮回并入润色 UI2 ②，T96 起按钮在 AI 栏上）：说说帮回怎么用。
                 Text(L("刚复制了一句话。点「帮回」写回复；想怎么回可以先写在下面，也可以留空",
                        "You just copied a message. Tap Reply to write a reply; say how to reply below, or leave it blank",
                        "メッセージをコピーしました。「返信」で返信を作成。どう返すかは下に書いても、空欄でも OK"))

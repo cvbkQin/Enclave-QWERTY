@@ -318,7 +318,7 @@ final class SyncMergeTests: XCTestCase {
         var settings = EnclaveSettings()
         settings.polishEnabled = false
         settings.styles = Array(StylePreset.defaults.prefix(1))
-        settings.helpPinned = true
+        settings.helpAuto = false
         settings.baseURL = "https://a.example/v1"
         let profile = SyncMerge.StyleProfile(settings: settings)
 
@@ -330,7 +330,7 @@ final class SyncMergeTests: XCTestCase {
         profile.apply(to: &other)
         XCTAssertFalse(other.polishEnabled)
         XCTAssertEqual(other.styles, settings.styles)
-        XCTAssertTrue(other.helpPinned)
+        XCTAssertFalse(other.helpAuto)
         XCTAssertEqual(other.baseURL, "https://b.example/v1", "接口不跟着风格同步")
         XCTAssertEqual(other.keyboardLayout, .nineKey, "键盘布局不跟着同步")
         XCTAssertEqual(other.fuzzyPinyin, fuzzy, "模糊音不跟着同步")
@@ -354,6 +354,30 @@ final class SyncMergeTests: XCTestCase {
         local.helpAuto = false
         legacy.apply(to: &local)
         XCTAssertFalse(local.helpAuto, "旧记录不改本机的值")
+    }
+
+    /// T96：旧版本钉住了帮回（helpPinned = true）传过来，解的时候就算开着；新版本传出去的 helpPinned 一直是 false（旧版本要这一项）。
+    func testStyleProfileLegacyHelpPinned() throws {
+        var settings = EnclaveSettings()
+        settings.helpAuto = false
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(SyncMerge.StyleProfile(settings: settings))) as? [String: Any])
+        XCTAssertEqual(object["helpPinned"] as? Bool, false, "旧版本解这份记录少不了这一项")
+        XCTAssertEqual(object["helpAuto"] as? Bool, false)
+
+        object["helpPinned"] = true
+        let pinned = try JSONDecoder().decode(SyncMerge.StyleProfile.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertEqual(pinned.helpAuto, true, "钉住了也算开")
+        XCTAssertFalse(pinned.helpPinned)
+        var local = EnclaveSettings()
+        local.helpAuto = false
+        pinned.apply(to: &local)
+        XCTAssertTrue(local.helpAuto)
+
+        object["helpAuto"] = nil
+        let oldest = try JSONDecoder().decode(SyncMerge.StyleProfile.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertEqual(oldest.helpAuto, true, "没有自动判断开关、钉住了帮回：开")
+        object["helpPinned"] = false
+        XCTAssertNil(try JSONDecoder().decode(SyncMerge.StyleProfile.self, from: JSONSerialization.data(withJSONObject: object)).helpAuto)
     }
 
     /// 合并前补 helpAuto：别的设备的 nil 填成本机的值，本机同步状态里旧的 nil 当开，有值的不动。
@@ -502,7 +526,7 @@ final class SyncMergeTests: XCTestCase {
         settings.answerBaseURL = "https://b.example/v1"
         settings.answerModel = "m2"
         settings.answerMaxTokens = 2048
-        settings.helpPinned = true
+        settings.helpAuto = false
         let profile = SyncMerge.EndpointProfile(settings: settings, keys: ["apiKey": "f1", "apiKey.answer": "f2"])
 
         var other = EnclaveSettings()
@@ -512,7 +536,7 @@ final class SyncMergeTests: XCTestCase {
         XCTAssertFalse(other.sameEndpoint(as: settings))
         profile.apply(to: &other)
         XCTAssertTrue(other.sameEndpoint(as: settings))
-        XCTAssertFalse(other.helpPinned, "风格不跟着接口同步")
+        XCTAssertTrue(other.helpAuto, "风格不跟着接口同步")
         XCTAssertEqual(other.keyboardLayout, .nineKey)
         XCTAssertEqual(other.doublePinyin, scheme, "双拼不跟着同步")
     }
@@ -523,11 +547,11 @@ final class SyncMergeTests: XCTestCase {
         stored.baseURL = "https://a.example/v1"
         stored.answerTemperature = 0.9
         var keyboard = EnclaveSettings()
-        keyboard.helpPinned = true
+        keyboard.helpAuto = false
         keyboard.keyboardLayout = .nineKey
         keyboard.adoptEndpoint(from: stored)
         XCTAssertTrue(keyboard.sameEndpoint(as: stored))
-        XCTAssertTrue(keyboard.helpPinned)
+        XCTAssertFalse(keyboard.helpAuto)
         XCTAssertEqual(keyboard.keyboardLayout, .nineKey)
     }
 
