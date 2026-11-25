@@ -18,6 +18,13 @@ struct StylePreset: Codable, Identifiable, Hashable {
         case "详细": return L("详细", "Detailed", "詳しく")
         case "列要点": return L("列要点", "Key points", "要点を列挙")
         case "通俗": return L("通俗", "Plain words", "やさしく")
+        // 帮回风格（T16）
+        case "正常": return L("正常", "Natural", "ふつう")
+        case "客气": return L("客气", "Polite", "丁寧に")
+        case "高情商": return L("高情商", "Tactful", "気配り")
+        case "幽默": return L("幽默", "Playful", "ユーモア")
+        case "委婉拒绝": return L("委婉拒绝", "Say no nicely", "やんわり断る")
+        case "英文回复": return L("英文回复", "In English", "英語で")
         default:
             // 名字清空了也要能认出来：键盘面板里不能出现空的标签。
             return name.trimmingCharacters(in: .whitespaces).isEmpty ? L("未命名", "Untitled", "名前なし") : name
@@ -58,6 +65,16 @@ enum KeyboardLayout: String, Codable, CaseIterable, Identifiable {
     }
 
     var shortTitle: String { self == .qwerty ? L("全键盘", "QWERTY", "QWERTY") : L("九宫格", "10-key", "10キー") }
+}
+
+/// 中文打字时拼音显示在哪（F12）：上方一行（候选栏上面，照 iOS 原生，默认）；侧边（九宫格左列上三格换成拼音列，
+/// 全键盘候选栏最左边一颗拼音键）。侧边模式不留拼音行，键盘矮 36。
+enum PinyinDisplay: String, Codable, CaseIterable, Identifiable {
+    case row, side
+
+    var id: String { rawValue }
+
+    var title: String { self == .row ? L("上方一行", "Row above", "上の行") : L("侧边", "Side", "横") }
 }
 
 /// 日间 / 夜间：跟随 iPhone，或者固定浅色、深色。只管 App；键盘跟着正在打字的 App 走，和系统键盘一样。
@@ -127,10 +144,25 @@ struct EnclaveSettings: Codable, Equatable {
     var selectedAnswerStyleID: UUID?
     /// 联网倾向 0–4（问答提示词页那根条）：只管模型想不想联网，能不能联网仍看 webSearchMode。nil 当 2（适中）。
     var searchTendency: Int?
+    /// 固定到 AI 栏的风格（AK5）：改写风格或问答风格的 id，按固定的先后排，最多 5 个。
+    var pinnedStyleIDs: [UUID] = []
+    static let maxPinnedStyles = 5
+    /// AI 栏上固定的「帮回」键（帮回并入润色，方案 D）：全键盘和九宫格同一个设置，默认不固定，不占固定风格「N / 5」的名额。
+    /// 0.96_11 以前全键盘、九宫格各一个（helpPinnedQwerty / helpPinnedNine，全键盘默认固定），不再读。
+    var helpPinned = false
+    /// 帮回「自动判断」（帮回开关方案第 2 版）：开着时键盘看剪贴板有没有刚复制、可以帮回的话（只看变更标记和内容类型），
+    /// 有就让润色键变绿、识意框出帮回按钮、出红点。关着时不做这项判断，帮回照样能从润色 ⌄ 最上面一行、钉住的帮回键、
+    /// 剪贴板「帮回这条」点。新装开；0.97 以前没有这个设置（相当于开着），读不到也当开。
+    var helpAuto = true
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
     var keyboardLayout: KeyboardLayout = .qwerty
+    var pinyinDisplay: PinyinDisplay = .row
+    /// 键盘底色用系统毛玻璃（#19 测试版）：顶边、底边都和系统那截玻璃接上，不留硬线。关掉回到不透明底色。
+    var keyboardGlass: Bool = true
+    /// 繁体输出（B5）：候选、联想和上屏转成繁体；词库和学到的词照旧按简体存，AI 的结果不转。默认关。
+    var traditionalOutput: Bool = false
     /// 按键震动（需要打开完全访问）。
     var keyHaptics: Bool = true
     /// 按键声音（手机静音时不响）。
@@ -154,17 +186,38 @@ struct EnclaveSettings: Codable, Equatable {
     var separateAnswer: Bool = false
     var answerBaseURL: String = ""
     var answerModel: String = ""
+    /// AI 页「接口」上润色 / 问答两张卡右上的开关（QE）：关掉后键盘 AI 栏不显示这颗键，配置、提示词都保留。
+    var polishEnabled: Bool = true
+    var answerEnabled: Bool = true
+    /// 问答用的配置自己的温度、最多字数（接口配置跟着配置走）；nil 跟润色一样。
+    var answerTemperature: Double?
+    var answerMaxTokens: Int?
     /// 已经部署进词库的模糊拼音。改了要重新部署才生效。
     var fuzzyPinyin: Set<FuzzyPinyin> = []
+    /// 全键盘用的双拼方案，nil 是全拼。和模糊拼音一样改了要重新部署才生效。
+    var doublePinyin: DoublePinyin?
+    /// 双拼时全键盘的键上怎么写提示：不写、固定写韵母（SP1，默认）、跟着按键变（双拼调研 P2）。只是键盘的显示，不用重新部署。
+    /// 以前是开关 doublePinyinHints（开 = 固定，关 = 不写），读旧设置时换过来。
+    var doublePinyinHintMode: DoublePinyinHintMode = .fixed
+    /// 双拼时也能打全拼（双拼调研 P3，默认关）。改了要重新部署。
+    var doublePinyinMixFull = false
+    /// 全键盘空格旁的「，。」键放在哪边（对齐清单第 80 条），默认右边。只是键盘的排法，不同步、不用重新部署。
+    var quickPunctSide: QuickPunctSide = .right
+    /// iPad 全宽 9 键的九键在左边还是右边（PK3、PK4），默认右边。只是排法，不同步、不用重新部署；iPhone 上不用。
+    var nineKeySide: NineKeySide = .right
+    /// iPad 11 寸 26 键字母上的灰色小字（数字和符号），往下滑打出来，和 iPad 原生一样（PA3、PK1），默认开。
+    /// 只是键盘的显示和手势，不同步、不用重新部署；13 寸有数字行，不画。
+    var padLetterHints = true
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, appearance
-        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, nineKeySide, padLetterHints, appearance
+        case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
+        case pinnedStyleIDs, helpPinned, helpAuto
     }
 
-    private enum LegacyKeys: String, CodingKey { case webSearch }
+    private enum LegacyKeys: String, CodingKey { case webSearch, doublePinyinHints }
 
     var isConfigured: Bool {
         !baseURL.trimmingCharacters(in: .whitespaces).isEmpty
@@ -181,6 +234,39 @@ struct EnclaveSettings: Codable, Equatable {
 
     /// 联网倾向，0–4，没设过是 2。
     var tendency: Int { min(max(searchTendency ?? 2, 0), 4) }
+
+    /// 固定在 AI 栏的风格，按固定的先后；删掉了的风格跳过。answer：是问答风格。
+    var pinnedStyles: [(style: StylePreset, answer: Bool)] {
+        pinnedStyleIDs.compactMap { id in
+            if let style = styles.first(where: { $0.id == id }) { return (style, false) }
+            if let style = answerStyles.first(where: { $0.id == id }) { return (style, true) }
+            return nil
+        }
+    }
+
+    func isPinned(_ id: UUID) -> Bool { pinnedStyles.contains { $0.style.id == id } }
+
+    /// 固定 / 取消固定；满 5 个时不加，返回 false。
+    @discardableResult
+    mutating func togglePin(_ id: UUID) -> Bool {
+        if let index = pinnedStyleIDs.firstIndex(of: id) {
+            pinnedStyleIDs.remove(at: index)
+            return true
+        }
+        // 已经删掉的风格不占名额。
+        pinnedStyleIDs = pinnedStyles.map(\.style.id)
+        guard pinnedStyleIDs.count < Self.maxPinnedStyles else { return false }
+        pinnedStyleIDs.append(id)
+        sortPinsByList()
+        return true
+    }
+
+    /// 固定在 AI 栏上的顺序跟着提示词列表走（R2b，11-22）：先润色风格、再问答风格，各按列表里的顺序。
+    /// 提示词页不再单独列「固定在 AI 栏」一组，拖动列表就是改 AI 栏上的顺序。
+    mutating func sortPinsByList() {
+        let pinned = Set(pinnedStyleIDs)
+        pinnedStyleIDs = styles.map(\.id).filter(pinned.contains) + answerStyles.map(\.id).filter(pinned.contains)
+    }
 }
 
 extension EnclaveSettings {
@@ -211,6 +297,9 @@ extension EnclaveSettings {
         searchTendency = try? c.decodeIfPresent(Int.self, forKey: .searchTendency)
         inputLanguage = (try? c.decodeIfPresent(InputLanguage.self, forKey: .inputLanguage)) ?? inputLanguage
         keyboardLayout = (try? c.decodeIfPresent(KeyboardLayout.self, forKey: .keyboardLayout)) ?? keyboardLayout
+        pinyinDisplay = (try? c.decodeIfPresent(PinyinDisplay.self, forKey: .pinyinDisplay)) ?? pinyinDisplay
+        keyboardGlass = (try? c.decodeIfPresent(Bool.self, forKey: .keyboardGlass)) ?? keyboardGlass
+        traditionalOutput = (try? c.decodeIfPresent(Bool.self, forKey: .traditionalOutput)) ?? traditionalOutput
         keyHaptics = try c.decodeIfPresent(Bool.self, forKey: .keyHaptics) ?? keyHaptics
         keySound = try c.decodeIfPresent(Bool.self, forKey: .keySound) ?? keySound
         autoCapitalize = try c.decodeIfPresent(Bool.self, forKey: .autoCapitalize) ?? autoCapitalize
@@ -227,7 +316,24 @@ extension EnclaveSettings {
         separateAnswer = try c.decodeIfPresent(Bool.self, forKey: .separateAnswer) ?? separateAnswer
         answerBaseURL = try c.decodeIfPresent(String.self, forKey: .answerBaseURL) ?? answerBaseURL
         answerModel = try c.decodeIfPresent(String.self, forKey: .answerModel) ?? answerModel
+        answerTemperature = try c.decodeIfPresent(Double.self, forKey: .answerTemperature)
+        answerMaxTokens = try c.decodeIfPresent(Int.self, forKey: .answerMaxTokens)
+        polishEnabled = try c.decodeIfPresent(Bool.self, forKey: .polishEnabled) ?? polishEnabled
+        answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
+        pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
+        helpPinned = (try? c.decodeIfPresent(Bool.self, forKey: .helpPinned)) ?? helpPinned
+        helpAuto = (try? c.decodeIfPresent(Bool.self, forKey: .helpAuto)) ?? helpAuto
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
+        doublePinyin = try? c.decodeIfPresent(DoublePinyin.self, forKey: .doublePinyin)
+        if let mode = try? c.decodeIfPresent(DoublePinyinHintMode.self, forKey: .doublePinyinHintMode) {
+            doublePinyinHintMode = mode
+        } else if let hints = try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .doublePinyinHints) {
+            doublePinyinHintMode = hints ? .fixed : .off
+        }
+        doublePinyinMixFull = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinMixFull)) ?? doublePinyinMixFull
+        quickPunctSide = (try? c.decodeIfPresent(QuickPunctSide.self, forKey: .quickPunctSide)) ?? quickPunctSide
+        nineKeySide = (try? c.decodeIfPresent(NineKeySide.self, forKey: .nineKeySide)) ?? nineKeySide
+        padLetterHints = (try? c.decodeIfPresent(Bool.self, forKey: .padLetterHints)) ?? padLetterHints
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }
@@ -366,10 +472,11 @@ extension EnclaveSettings {
 extension EnclaveSettings {
     /// 键盘出错卡里写的服务商名字：认得出的写服务商，自定义的写主机名。
     var providerName: String {
+        if let saved = SavedAPIStore.name(baseURL: baseURL, model: model) { return saved }
         let base = baseURL.lowercased()
         if base.contains("api.deepseek.com") { return "DeepSeek" }
         if base.contains("moonshot.") { return "Kimi" }
-        if base.contains("dashscope") { return L("通义千问", "Qwen", "Qwen") }
+        if Self.isQwen(baseURL) { return L("通义千问", "Qwen", "Qwen") }
         if base.contains("bigmodel.cn") || base.contains("api.z.ai") { return L("智谱", "Zhipu", "Zhipu") }
         if base.contains("tokenhub.tencentmaas.com") { return L("腾讯混元", "Tencent Hunyuan", "Tencent Hunyuan") }
         if base.contains("api.openai.com") { return "OpenAI" }
@@ -380,12 +487,51 @@ extension EnclaveSettings {
     /// 连的是 Kimi（api.moonshot.cn / .ai）。
     var isKimi: Bool { baseURL.contains("moonshot.") }
     /// 这个接口能联网的话是哪一家：Kimi、千问（阿里云百炼）、智谱。别的服务商没有可用的联网接口，返回 nil。
-    var searchProvider: SearchProvider? {
-        if isKimi { return .kimi }
-        if baseURL.contains("dashscope.aliyuncs.com") || baseURL.contains("dashscope-intl.aliyuncs.com") { return .qwen }
+    var searchProvider: SearchProvider? { Self.searchProvider(baseURL: baseURL) }
+
+    // MARK: 键盘上显示不显示润色键 / 问答键（QE）
+
+    /// 「测试连接」记下的结果（App 写、键盘读）：这组地址 + 模型最近一次测试通过没有；没测过是 nil。
+    static func testOK(baseURL: String, model: String) -> Bool? {
+        SharedStorage.defaults.object(forKey: testKey(baseURL: baseURL, model: model)) as? Bool
+    }
+
+    static func testKey(baseURL: String, model: String) -> String { "test.ok.\(baseURL)|\(model)" }
+
+    /// 润色这一路能不能用：有配置、最近一次测试没失败。
+    var polishUsable: Bool { isConfigured && Self.testOK(baseURL: baseURL, model: model) != false }
+
+    /// 问答这一路能不能用（和润色用同一个时看润色那组）。
+    var answerUsable: Bool {
+        if separateAnswer && !usesAnswerEndpoint { return false }
+        let config = forAnswers
+        return config.isConfigured && Self.testOK(baseURL: config.baseURL, model: config.model) != false
+    }
+
+    /// 键盘 AI 栏显示润色键 / 问答键：开关开着、配置能用。关掉或不能用时这颗键不显示，固定键往左补位。
+    var showsPolishKey: Bool { polishEnabled && polishUsable }
+
+    /// 帮回能不能用：帮回走润色接口，润色开着、能用才有（关掉润色时钉住的帮回键、「帮回这条」、剪贴板判断都没有，bug #34）。
+    var helpReplyUsable: Bool { showsPolishKey }
+    /// 键盘要不要自己判断剪贴板里有没有可以帮回的新复制（润色键变绿、识意框帮回按钮、红点都靠它）。
+    var helpAutoDetects: Bool { helpReplyUsable && helpAuto }
+    var showsAnswerKey: Bool { answerEnabled && answerUsable }
+
+    static func searchProvider(baseURL: String) -> SearchProvider? {
+        if baseURL.contains("moonshot.") { return .kimi }
+        if isQwen(baseURL) { return .qwen }
         if baseURL.contains("bigmodel.cn") || baseURL.contains("api.z.ai") { return .glm }
         if baseURL.contains("tokenhub.tencentmaas.com") { return .hunyuan }
         return nil
+    }
+
+    /// 千问的接口地址：阿里云百炼（dashscope.aliyuncs.com、dashscope-intl.aliyuncs.com 等各地域、各工作空间的 dashscope 子域），
+    /// 以及千问 AI 平台（maas.qianwenaiapi.com、cn-beijing.maas.qianwenaiapi.com 等）。按主机名认，不看路径。
+    static func isQwen(_ baseURL: String) -> Bool {
+        let raw = baseURL.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let host = URL(string: raw)?.host ?? URL(string: "https://" + raw)?.host ?? raw
+        if host == "qianwenaiapi.com" || host.hasSuffix(".qianwenaiapi.com") { return true }
+        return host.hasSuffix(".aliyuncs.com") && host.contains("dashscope")
     }
     /// 联网确认卡上写的模型名：服务商预设的模型写模型名，自己改过的写「自定义模型」。
     var searchModelLabel: String {
@@ -395,6 +541,26 @@ extension EnclaveSettings {
     }
     /// 识意问答联网用哪一家：问答走的接口能联网就有（三档里选了禁止也有，要联网时提示去开启）。
     var answerSearch: SearchProvider? { forAnswers.searchProvider }
+
+    /// 接口那几项（地址、模型、参数）和另一份一样。iCloud 同步换了接口时，键盘发请求前对一下（Keychain 的「配对」）。
+    func sameEndpoint(as other: EnclaveSettings) -> Bool {
+        baseURL == other.baseURL && model == other.model && temperature == other.temperature && maxTokens == other.maxTokens
+            && separateAnswer == other.separateAnswer && answerBaseURL == other.answerBaseURL && answerModel == other.answerModel
+            && answerTemperature == other.answerTemperature && answerMaxTokens == other.answerMaxTokens
+    }
+
+    /// 换成另一份的接口那几项，别的不动。
+    mutating func adoptEndpoint(from other: EnclaveSettings) {
+        baseURL = other.baseURL
+        model = other.model
+        temperature = other.temperature
+        maxTokens = other.maxTokens
+        separateAnswer = other.separateAnswer
+        answerBaseURL = other.answerBaseURL
+        answerModel = other.answerModel
+        answerTemperature = other.answerTemperature
+        answerMaxTokens = other.answerMaxTokens
+    }
 
     /// 问答真的走另一个接口：开着、地址和模型都填了。
     var usesAnswerEndpoint: Bool {
@@ -408,6 +574,8 @@ extension EnclaveSettings {
         var copy = self
         copy.baseURL = answerBaseURL
         copy.model = answerModel
+        if let answerTemperature { copy.temperature = answerTemperature }
+        if let answerMaxTokens { copy.maxTokens = answerMaxTokens }
         // Kimi K3、智谱 GLM 会先思考，思考也算在最大输出里。
         if copy.usesFixedTemperature || copy.searchProvider == .glm { copy.maxTokens = max(copy.maxTokens, 4096) }
         return copy

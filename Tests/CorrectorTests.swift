@@ -37,6 +37,62 @@ final class CorrectorTests: XCTestCase {
         }
     }
 
+    /// 触点解码：按在正中间改成邻键罚得重，在两键中线上不变，偏向邻键罚得轻；九宫格同理。
+    func testTouchAdjustment() throws {
+        let qwerty = try corrector(nineKey: false)
+        let o = UInt8(ascii: "o"), i = UInt8(ascii: "i")
+        XCTAssertEqual(qwerty.touchAdjustment(o, to: i, at: .init(dx: 0, dy: 0)), Corrector.touchMaxExtra, accuracy: 1e-9)
+        XCTAssertEqual(qwerty.touchAdjustment(o, to: i, at: .init(dx: -0.5, dy: 0)), 0, accuracy: 1e-9)
+        XCTAssertLessThan(qwerty.touchAdjustment(o, to: i, at: .init(dx: -0.7, dy: 0)), -0.5)
+        // 偏向另一边（p）时改成 i 更难。
+        XCTAssertGreaterThan(qwerty.touchAdjustment(o, to: i, at: .init(dx: 0.4, dy: 0)), 1.5)
+        let nine = try corrector(nineKey: true)
+        XCTAssertEqual(nine.touchAdjustment(UInt8(ascii: "5"), to: UInt8(ascii: "6"), at: .init(dx: 0.5, dy: 0)), 0, accuracy: 1e-9)
+    }
+
+    /// 落点只影响「按到邻键」那种改法；没有落点时和参考实现一样。
+    func testTouchesKeepOtherEdits() throws {
+        let qwerty = try corrector(nineKey: false)
+        let centered = Array(repeating: TouchTrail.Offset(dx: 0, dy: 0), count: 5)
+        XCTAssertEqual(qwerty.guess("nihoa", touches: centered), qwerty.guess("nihoa"))
+        // 长度对不上的落点不用。
+        XCTAssertEqual(qwerty.guess("nihoa", touches: [.init(dx: 0, dy: 0)]), qwerty.guess("nihoa"))
+    }
+
+    func testTrailAlignment() {
+        TouchTrail.clear()
+        for char in "nihao" { TouchTrail.record(char, .init(dx: 0.1, dy: 0)) }
+        XCTAssertEqual(TouchTrail.offsets(for: "nihao")?.count, 5)
+        XCTAssertEqual(TouchTrail.offsets(for: "hao")?.count, 3)
+        XCTAssertNil(TouchTrail.offsets(for: "nihai"))
+        TouchTrail.dropLast()
+        XCTAssertEqual(TouchTrail.offsets(for: "niha")?.count, 4)
+        TouchTrail.clear()
+        XCTAssertNil(TouchTrail.offsets(for: "niha"))
+    }
+
+    /// 查过的串只记有限条（真机上打字久了这张表涨到 20 万条、二十多 MB）：查再多不同的串也不超过上限，清空后照样查得对。
+    func testMemoStaysBounded() throws {
+        let url = Self.root.appendingPathComponent("Vendor/KeyLM/t9.eklm")
+        guard let lm = KeyLM(url: url) else { throw XCTSkip("没有 \(url.path)，先运行 scripts/fetch-rime.sh") }
+        let digits = Array("23456789".utf8)
+        let probe = Array("94426".utf8)[...]
+        let expected = lm.lookup(probe)
+        var seed: UInt64 = 1
+        for _ in 0..<(KeyLM.memoLimit * 2 + 10) {
+            var key: [UInt8] = []
+            for _ in 0..<8 {
+                seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                key.append(digits[Int(seed >> 33) % digits.count])
+            }
+            _ = lm.lookup(key[...])
+            XCTAssertLessThanOrEqual(lm.memoCount, KeyLM.memoLimit)
+        }
+        let again = lm.lookup(probe)
+        XCTAssertEqual(again.exact, expected.exact)
+        XCTAssertEqual(again.prefix, expected.prefix)
+    }
+
     func testMergePlacesCorrection() {
         let first = CorrectionMerge.merge(["你好啊", "你", "泥"], input: "nihoa", guess: .init(corrected: "nihao", place: 1), correctedTop: "你好")
         XCTAssertEqual(first, .init(candidates: ["你好", "你好啊", "你", "泥"], index: 0, removed: nil))

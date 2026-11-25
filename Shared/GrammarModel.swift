@@ -5,8 +5,15 @@ import Foundation
 /// 引擎（librime-octagram）用 mmap 只读映射，只读用到的部分。键盘要开完全访问才读得到。
 enum GrammarModel {
     static let language = "wanxiang-lts-zh-hans"
-    /// 默认从万象的 GitHub 下载；大陆网络下常常很慢或打不开，App 里可以换成别的地址（镜像、自建服务器）。
-    static let defaultDownloadURL = URL(string: "https://github.com/amzxyz/rime-wanxiang-data/releases/download/LTS/wanxiang-lts-zh-hans.gram")!
+    /// 默认地址：中国大陆店面从自己的服务器 enclavekb.cn 下载（GitHub 在大陆常常很慢或打不开），
+    /// 其他地区从万象的 GitHub 下载。App 里还可以换成别的地址（镜像、自建服务器）。
+    static let githubDownloadURL = URL(string: "https://github.com/amzxyz/rime-wanxiang-data/releases/download/LTS/wanxiang-lts-zh-hans.gram")!
+    static let mainlandDownloadURL = URL(string: "https://enclavekb.cn/grammar/wanxiang-lts-zh-hans.gram")!
+
+    /// mainland：App Store 店面是不是中国大陆（Storefront.isMainlandChina，只有 App 里读得到）。
+    static func defaultDownloadURL(mainland: Bool) -> URL {
+        mainland ? mainlandDownloadURL : githubDownloadURL
+    }
     private static let downloadURLKey = "grammar.downloadURL"
 
     /// 自己填的下载地址，没填或不是 http(s) 地址时为 nil。
@@ -19,11 +26,11 @@ enum GrammarModel {
         }
     }
 
-    static var downloadURL: URL {
+    static func downloadURL(mainland: Bool) -> URL {
         if let text = customDownloadURL, let url = URL(string: text), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
             return url
         }
-        return defaultDownloadURL
+        return defaultDownloadURL(mainland: mainland)
     }
     /// 下载前显示的大概大小。
     static let approximateSize: Int64 = 380 * 1_000_000

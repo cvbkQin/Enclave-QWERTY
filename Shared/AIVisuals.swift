@@ -69,9 +69,9 @@ struct NebulaFill: View {
     }
 }
 
-/// 识意展开、自动时 ✨ 里的图标（方案 E3，design/ask-icon/ask-icon-e3.svg，24×24 画布）：
+/// 旧的放大镜图标（方案 E3，design/ask-icon/ask-icon-e3.svg，24×24 画布），键盘上已不用，功能演示里还在用（演示晚点再改）：
 /// 白色实心镜片的放大镜，镜片里一颗紫粉渐变四角星，右上、左上两颗小黄星。
-struct AskIcon: View {
+struct MagnifierIcon: View {
     /// 和 ✨ 同款的四角星，24×24 画布里的路径。
     static func star(_ path: inout Path, center: CGPoint, scale k: CGFloat) {
         func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: center.x + (x - 12) * k, y: center.y + (y - 12) * k) }
@@ -89,7 +89,7 @@ struct AskIcon: View {
         var scale: CGFloat
         func path(in rect: CGRect) -> Path {
             var path = Path()
-            AskIcon.star(&path, center: center, scale: scale)
+            MagnifierIcon.star(&path, center: center, scale: scale)
             return path.applying(CGAffineTransform(scaleX: rect.width / 24, y: rect.height / 24))
         }
     }
@@ -271,5 +271,139 @@ struct CoachHandShape: Shape {
             path.closeSubpath()
         }
         return path
+    }
+}
+
+/// 问答图标（v306，用户选 A）：金色对话气泡里一个白色问号，右下一颗四角星、右上一颗小星。
+/// 问答键 17pt、问答类固定键 16pt、回答卡标题 15pt。矢量源 design/answer-key/ask-icon.svg（24×24），颜色固定，不随底色变。
+/// 执行中（对齐清单第 61 条，照润色 ✨ 的路子）：气泡连问号 1→1.06 呼吸（1.6 秒）；问号下的点透明 .45↔1（相位错开 0.7）；
+/// 右下大星、右上小星照润色小星闪（0.6↔1.4 倍、35%↔100%、白色微光，相位 0.35 / 0.7）；左上偶尔冒一颗白色小星（透明 .2→.9）。
+/// glowing 为 false（关了发光动画、减弱动态效果）时只让两颗星轻微闪动。
+struct AskIcon: View {
+    var size: CGFloat
+    var running = false
+    var glowing = true
+    /// 成功时 logo 轻弹的倍数，乘在气泡和右下大星上。
+    var bounce: CGFloat = 1
+
+    static let gold = LinearGradient(colors: [Color(red: 1, green: 0xE2 / 255, blue: 0x7A / 255),
+                                              Color(red: 1, green: 0xB0 / 255, blue: 0x20 / 255)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing)
+
+    var body: some View {
+        if running {
+            TimelineView(.animation) { context in
+                icon(time: context.date.timeIntervalSinceReferenceDate)
+            }
+        } else {
+            icon(time: nil)
+        }
+    }
+
+    /// 1.6 秒一个周期的 0…1 波，phase 错开。
+    private static func wave(_ time: Double?, _ phase: Double) -> CGFloat {
+        guard let time else { return 0 }
+        return CGFloat((1 - cos(2 * .pi * (time / 1.6 + phase))) / 2)
+    }
+
+    private func icon(time: Double?) -> some View {
+        let w = Self.wave(time, 0), w2 = Self.wave(time, 0.35), w3 = Self.wave(time, 0.7)
+        let live = time != nil
+        let full = live && glowing
+        let bigScale = full ? 0.6 + 0.8 * w2 : 1
+        let smallScale = full ? 0.6 + 0.8 * w3 : 1
+        let bigOpacity = full ? 0.35 + 0.65 * w2 : (live ? 1 - 0.3 * w2 : 1)
+        let smallOpacity = full ? 0.35 + 0.65 * w3 : (live ? 1 - 0.3 * w3 : 1)
+        func anchor(_ x: CGFloat, _ y: CGFloat) -> UnitPoint { UnitPoint(x: x / 24, y: y / 24) }
+        return ZStack {
+            ZStack {
+                Bubble().fill(Self.gold)
+                Bubble().stroke(Color(red: 0xE8 / 255, green: 0x9A / 255, blue: 0), lineWidth: 0.6 * size / 24)
+                Question().stroke(Color.white, style: StrokeStyle(lineWidth: 1.6 * size / 24, lineCap: .round))
+                Dot().fill(Color.white).opacity(full ? 0.45 + 0.55 * Double(w3) : 1)
+            }
+            .scaleEffect((full ? 1 + 0.06 * w : 1) * bounce, anchor: anchor(11, 10.5))
+            Sparkle(cx: 20.2, cy: 15.8, r: 3.4).fill(Self.gold)
+                .scaleEffect(bigScale * bounce, anchor: anchor(20.2, 15.8))
+                .opacity(Double(bigOpacity))
+                .shadow(color: .white.opacity(full ? 0.9 * Double(w2) : 0), radius: 1.5)
+            Sparkle(cx: 21, cy: 3.6, r: 1.7).fill(Color(red: 1, green: 0xD5 / 255, blue: 0x4F / 255))
+                .scaleEffect(smallScale, anchor: anchor(21, 3.6))
+                .opacity(Double(smallOpacity))
+                .shadow(color: .white.opacity(full ? 0.9 * Double(w3) : 0), radius: 1.5)
+            if full {
+                Sparkle(cx: 2.2, cy: 3, r: 1.2).fill(Color.white)
+                    .scaleEffect(0.4 + 0.8 * w2, anchor: anchor(2.2, 3))
+                    .opacity(0.2 + 0.7 * Double(w2))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    /// 按 24×24 画布换算。
+    private static func scale(_ rect: CGRect) -> (CGFloat, CGFloat) -> CGPoint {
+        let k = min(rect.width, rect.height) / 24
+        return { x, y in CGPoint(x: rect.minX + x * k, y: rect.minY + y * k) }
+    }
+
+    private struct Bubble: Shape {
+        func path(in rect: CGRect) -> Path {
+            let p = AskIcon.scale(rect)
+            let k = min(rect.width, rect.height) / 24
+            var path = Path()
+            path.move(to: p(3.5, 5.5))
+            path.addArc(tangent1End: p(3.5, 2.5), tangent2End: p(6.5, 2.5), radius: 3 * k)
+            path.addArc(tangent1End: p(18.5, 2.5), tangent2End: p(18.5, 5.5), radius: 3 * k)
+            path.addArc(tangent1End: p(18.5, 15), tangent2End: p(15.5, 15), radius: 3 * k)
+            path.addLine(to: p(10, 15))
+            path.addLine(to: p(6, 18.6))
+            path.addLine(to: p(6, 15))
+            path.addQuadCurve(to: p(3.5, 12), control: p(3.5, 15))
+            path.closeSubpath()
+            return path
+        }
+    }
+
+    private struct Question: Shape {
+        func path(in rect: CGRect) -> Path {
+            let p = AskIcon.scale(rect)
+            var path = Path()
+            // 圆弧：圆心 (11.10, 7.43)、半径 1.9，从 -179° 顺时针（屏幕上）转到 68°。
+            let start = -178.98 * Double.pi / 180, end = 68.37 * Double.pi / 180
+            for i in 0...16 {
+                let a = start + (end - start) * Double(i) / 16
+                let point = p(11.0997 + 1.9 * CGFloat(cos(a)), 7.4338 + 1.9 * CGFloat(sin(a)))
+                if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+            path.addCurve(to: p(10.9, 10.5), control1: p(11.2, 9.5), control2: p(10.9, 9.8))
+            return path
+        }
+    }
+
+    private struct Dot: Shape {
+        func path(in rect: CGRect) -> Path {
+            let p = AskIcon.scale(rect)
+            let k = min(rect.width, rect.height) / 24
+            let c = p(10.9, 12.6)
+            return Path(ellipseIn: CGRect(x: c.x - 0.95 * k, y: c.y - 0.95 * k, width: 1.9 * k, height: 1.9 * k))
+        }
+    }
+
+    /// 四角星：上下左右四个尖，腰收到 18%（同 svg）。
+    private struct Sparkle: Shape {
+        var cx: CGFloat, cy: CGFloat, r: CGFloat
+        func path(in rect: CGRect) -> Path {
+            let p = AskIcon.scale(rect)
+            let w = r * 0.18
+            var path = Path()
+            path.move(to: p(cx, cy - r))
+            path.addCurve(to: p(cx + r, cy), control1: p(cx + w, cy - w), control2: p(cx + w, cy - w))
+            path.addCurve(to: p(cx, cy + r), control1: p(cx + w, cy + w), control2: p(cx + w, cy + w))
+            path.addCurve(to: p(cx - r, cy), control1: p(cx - w, cy + w), control2: p(cx - w, cy + w))
+            path.addCurve(to: p(cx, cy - r), control1: p(cx - w, cy - w), control2: p(cx - w, cy - w))
+            path.closeSubpath()
+            return path
+        }
     }
 }

@@ -1,0 +1,79 @@
+{
+ "dicts": [
+  {
+   "id": "baike",
+   "name": {
+    "zh": "百科词库",
+    "en": "Wikipedia",
+    "ja": "ウィキペディア辞書"
+   },
+   "summary": {
+    "zh": "人名、地名、作品、游戏角色",
+    "en": "People, places, works and game characters",
+    "ja": "人名、地名、作品、ゲームキャラクター"
+   },
+   "license": "wiki",
+   "entries": 200000,
+   "size": 5467811,
+   "version": "2026-10-31",
+   "sha256": "6833bbea59cc9e0c97744eea8fe6117da3ec197183bab4674e9826b73d699bb0",
+   "url": "ext_baike.dict.yaml"
+  },
+  {
+   "id": "medical",
+   "name": {
+    "zh": "医学",
+    "en": "Medicine",
+    "ja": "医学"
+   },
+   "license": "thuocl",
+   "entries": 18749,
+   "size": 621167,
+   "version": "2026-10-31",
+   "sha256": "153c8ba4c5838c437b6709ecda8bab73f06b840c389e254896e3c33f3cde1308",
+   "url": "ext_medical.dict.yaml"
+  },
+  {
+   "id": "law",
+   "name": {
+    "zh": "法律",
+    "en": "Law",
+    "ja": "法律"
+   },
+   "license": "thuocl",
+   "entries": 9896,
+   "size": 586974,
+   "version": "2026-10-31",
+   "sha256": "d2fab8b28a34ad14973878cac4c41a4652c1faf051b9a0698135387af7dcac10",
+   "url": "ext_law.dict.yaml"
+  },
+  {
+   "id": "poem",
+   "name": {
+    "zh": "诗词",
+    "en": "Poetry",
+    "ja": "詩詞"
+   },
+   "license": "thuocl",
+   "entries": 13703,
+   "size": 633781,
+   "version": "2026-10-31",
+   "sha256": "ec2a77293f093a8e4e9bdc2fec22343bfd7d4ed8373dc94d4b8d32f75a4c9d6e",
+   "url": "ext_poem.dict.yaml"
+  },
+  {
+   "id": "lishimingren",
+   "name": {
+    "zh": "历史名人",
+    "en": "Historical figures",
+    "ja": "歴史上の人物"
+   },
+   "license": "thuocl",
+   "entries": 13654,
+   "size": 305860,
+   "version": "2026-10-31",
+   "sha256": "2febbd243969069e02c40bf51b43d98567d8580479ed8810f0ec0e1c89a55d67",
+   "url": "ext_lishimingren.dict.yaml"
+  }
+ ]
+}

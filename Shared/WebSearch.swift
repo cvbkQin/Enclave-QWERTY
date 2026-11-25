@@ -56,7 +56,21 @@ struct WebSearch {
         return url
     }
 
-    /// 搜 query，最多 5 条。
+    /// Kimi 的搜索接口不改写搜索词，原样去搜（官方「联网搜索最佳实践」）。「新加坡今天天气怎么样」里的「今天」它不知道是哪天，
+    /// 常搜到没写日期的旧页面。问题里带「今天、现在、最新」这类说法时，在后面加上今天的日期再搜；只加日期，不带输入框里的字。
+    static func query(for question: String, now: Date = Date()) -> String {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        let relative = ["今天", "今日", "现在", "目前", "当前", "最新", "最近", "刚刚", "实时", "明天", "昨天", "后天", "本周", "这周", "下周", "今晚", "今年",
+                        "today", "latest", "tonight", "tomorrow", "yesterday"]
+        let lower = trimmed.lowercased()
+        guard relative.contains(where: { lower.contains($0) }) else { return trimmed }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年M月d日"
+        return trimmed + " " + formatter.string(from: now)
+    }
+
+    /// 搜 query，最多 8 条（按次收费，多拿几条不加钱）。
     func search(_ query: String) async throws -> [Result] {
         var request = URLRequest(url: try endpoint())
         request.httpMethod = "POST"
@@ -65,7 +79,7 @@ struct WebSearch {
         if let key = apiKey, !key.isEmpty {
             request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         }
-        request.httpBody = try JSONEncoder().encode(Request(text_query: query, limit: 5, timeout_seconds: 15))
+        request.httpBody = try JSONEncoder().encode(Request(text_query: query, limit: 8, timeout_seconds: 15))
         let (data, response) = try await BuiltinAPI.session(for: apiKey).data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw LLMError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
@@ -73,13 +87,17 @@ struct WebSearch {
         return try JSONDecoder().decode(Response.self, from: data).search_results ?? []
     }
 
-    /// 交给模型的资料：最多 3 条，每条标题、来源、日期、摘要，摘要截到 200 字，免得上下文太长、回答跟着啰嗦。
+    /// 交给模型的资料：最多 5 条，每条标题、来源、日期、摘要，摘要截到 400 字。写了日期的排前面（问今天的事，没日期的页面多半是旧的）。
+    /// 之前只给 3 条、每条 200 字，天气这类问题常常只剩一条没日期的，模型只好说资料不够。
     static func digest(_ results: [Result]) -> String {
-        results.prefix(3).enumerated().map { index, item in
+        let useful = results.filter { !($0.snippet ?? "").isEmpty || !($0.title ?? "").isEmpty }
+        let dated = useful.filter { !($0.date ?? "").isEmpty }
+        let ordered = dated + useful.filter { ($0.date ?? "").isEmpty }
+        return ordered.prefix(5).enumerated().map { index, item in
             var lines = ["[\(index + 1)] \(item.title ?? "")"]
             let source = [item.site_name, item.date].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
             if !source.isEmpty { lines.append(source) }
-            if let snippet = item.snippet, !snippet.isEmpty { lines.append(String(snippet.prefix(200))) }
+            if let snippet = item.snippet, !snippet.isEmpty { lines.append(String(snippet.prefix(400))) }
             return lines.joined(separator: "\n")
         }.joined(separator: "\n\n")
     }

@@ -11,7 +11,17 @@ final class KeyLM {
     private let blockCount: Int
     private let dataStart: Int
     /// 查过的串（≤ 12 个键时压成一个整数做键），一次按键里各种改法会反复查同样的段。
+    /// 最多记 memoLimit 条，满了清空重来，见 memoLimit。
     private var memo: [UInt64: Entry] = [:]
+    var memoCount: Int { memo.count }
+
+    /// memo 的上限。原来是 20 万条，清的时候还留着容量：Swift 字典按 2 的幂扩容，每格 40 字节（键 8 + Entry 32），
+    /// 20 万条要 52 万格，约 21 MB，清空后也一直占着。打字越久、打过的拼音越杂，表越大，九宫格、全键盘各一份。
+    /// 真机上一个键盘进程用了一小时从 48 MB 涨到 65 MB；模拟器上打 300 句不同的话，这张表 100 句时 13 MB、200 句时 24 MB（bug #38）。
+    /// 4.9 万条正好装进 6.5 万格（字典最多装到 3/4），约 2.6 MB。一次按键里重复查的段远少于这个数；
+    /// 试过 2.4 万条（约 1.3 MB）：打不重复的话看不出慢，但打字基准把 10 句话反复打，要查的段在 2.4 万到 4.9 万条之间，
+    /// 一轮里表就满了清空，按键耗时中位数比原来多 1.3 毫秒；4.9 万条装得下，基准和原来一样比。
+    static let memoLimit = 49_000
 
     struct Entry {
         /// 这个串本身是一个词的键时的 cost，不是时为 nil。
@@ -94,7 +104,7 @@ final class KeyLM {
         if let packed, let hit = memo[packed] { return hit }
         let found = find(key)
         if let packed {
-            if memo.count > 200_000 { memo.removeAll(keepingCapacity: true) }
+            if memo.count >= Self.memoLimit { memo.removeAll(keepingCapacity: true) }
             memo[packed] = found
         }
         return found

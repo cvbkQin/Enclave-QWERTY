@@ -17,7 +17,9 @@ struct PrivacyWelcomeView: View {
                 VStack(spacing: 0) {
                     if updated {
                         // 隐私政策更新后再弹（同意过旧版的人才看到），首次安装不显示。
-                        Text(L("隐私说明有更新：识意问答联网新增腾讯混元", "Privacy notice updated: Ask web search now also supports Tencent Hunyuan", "プライバシーの説明を更新しました：質問のウェブ検索に Tencent Hunyuan を追加"))
+                        Text(ICloudSync.isAvailable
+                             ? L("隐私说明有更新：新增 iCloud 同步的说明", "Privacy notice updated: added iCloud Sync", "プライバシーの説明を更新しました：iCloud 同期の説明を追加")
+                             : L("隐私说明有更新：补充了备份文件存到 iCloud 云盘的说明", "Privacy notice updated: added a note on saving backups to iCloud Drive", "プライバシーの説明を更新しました：バックアップを iCloud Drive に保存する場合の説明を追加"))
                             .font(.system(size: 13))
                             .foregroundStyle(Color(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255))
                             .padding(.vertical, 8)
@@ -41,15 +43,19 @@ struct PrivacyWelcomeView: View {
                         .multilineTextAlignment(.center)
                         .padding(.top, 12)
                     VStack(alignment: .leading, spacing: 20) {
-                        point(Image(systemName: "iphone"), color: .blue,
-                              L("打字只在手机上", "Typing stays on your iPhone", "入力は iPhone の中だけ"),
-                              L("打字和候选全部在手机上完成，不联网。", "Typing and candidates are all handled on your iPhone, offline.", "入力も候補もすべて iPhone 上で処理し、通信しません。"))
+                        // iPad 上说「iPad」（PA4 ⑦）。
+                        let pad = UIDevice.current.userInterfaceIdiom == .pad
+                        point(Image(systemName: pad ? "ipad" : "iphone"), color: .blue,
+                              pad ? L("打字只在 iPad 上", "Typing stays on your iPad", "入力は iPad の中だけ")
+                                  : L("打字只在手机上", "Typing stays on your iPhone", "入力は iPhone の中だけ"),
+                              pad ? L("打字和候选全部在 iPad 上完成，不联网。", "Typing and candidates are all handled on your iPad, offline.", "入力も候補もすべて iPad 上で処理し、通信しません。")
+                                  : L("打字和候选全部在手机上完成，不联网。", "Typing and candidates are all handled on your iPhone, offline.", "入力も候補もすべて iPhone 上で処理し、通信しません。"))
                         point(Image(systemName: "link"), color: AppColor.purple,
                               L("AI 只连你自己的接口", "AI only talks to your own API", "AI はあなたの API にだけ接続"),
                               L("只有你主动用 AI 时，选中的文字才会发到你自己填写的模型接口。", "Only when you use AI is the selected text sent, to the model API you set up yourself.", "AI を使ったときだけ、選んだ文章をあなたが設定したモデルの API に送ります。"))
                         point(Image(systemName: "server.rack"), color: .green, slashed: true,
-                              L("我们没有服务器", "We have no servers", "サーバーはありません"),
-                              L("开发者不收集你输入的任何内容。", "The developer collects nothing you type.", "開発者は入力内容を一切収集しません。"))
+                              L("无第三方中转", "No third-party relay", "第三者の中継なし"),
+                              L("AI 请求直接发给你选的服务商，开发者不收集你输入的任何内容。", "AI requests go straight to the provider you chose. The developer collects nothing you type.", "AI へのリクエストは選んだサービスへ直接送られます。開発者は入力内容を一切収集しません。"))
                         point(Image(systemName: "key"), color: .orange,
                               L("「允许完全访问」只用来", "Allow Full Access is only for", "「フルアクセスを許可」の用途"),
                               L("联网调用你配置的接口、按键震动、和 App 共享设置。", "Calling the API you set up, key haptics, and sharing settings with the app.", "設定した API への接続、キーの振動、アプリとの設定共有だけです。"))
@@ -126,7 +132,7 @@ struct PrivacyWelcomeView: View {
                 .font(.system(size: 19))
                 .foregroundStyle(color)
                 .overlay {
-                    // 「没有服务器」：服务器图标上画一道斜线。
+                    // 「无第三方中转」：服务器图标上画一道斜线。
                     if slashed {
                         Capsule().fill(color).frame(width: 2, height: 26).rotationEffect(.degrees(-45))
                     }

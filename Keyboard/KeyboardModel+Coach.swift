@@ -53,7 +53,7 @@ extension KeyboardModel {
         }
         if step + 1 < coach.steps.count {
             self.coach?.index = step + 1
-        } else if target == .sparkle || target == .run {
+        } else if target == .sparkle || target == .run || target == .ask {
             self.coach?.finishing = true
         } else {
             endCoach()

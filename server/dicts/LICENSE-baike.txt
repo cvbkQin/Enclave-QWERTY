@@ -1,0 +1,11 @@
+百科词库（ext_baike.dict.yaml）许可说明
+
+来源：中文维基百科条目标题（zh.wikipedia.org），词条由维基百科各位贡献者（Wikipedia contributors）撰写。
+标题表取自 fcitx5-pinyin-zhwiki 项目（https://github.com/felixonmars/fcitx5-pinyin-zhwiki，zhwiki-20261018.dict.yaml）。
+飞地输入法转换为 Rime 格式：重新标注拼音，并按敏感词表过滤、精简到 20 万条。
+
+许可：CC BY-SA 4.0（知识共享 署名-相同方式共享 4.0 国际）
+https://creativecommons.org/licenses/by-sa/4.0/
+维基媒体的许可说明：https://dumps.wikimedia.org/legal.html
+
+本词库按同一许可分发：可以自由使用、修改和再分发，但需要署名，修改后的版本也要用 CC BY-SA 4.0 发布。

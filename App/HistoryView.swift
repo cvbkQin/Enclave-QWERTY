@@ -1,0 +1,984 @@
+import SwiftUI
+import UIKit
+
+// 「历史」标签（第 48 条，效果图 design/ai-history/HI1–HI8）：键盘里润色和问答的原文、每一版结果，只存在本机。
+
+/// 历史标签：列表 → 详情、历史记录设置。
+struct HistoryTab: View {
+    @EnvironmentObject private var router: AppRouter
+
+    var body: some View {
+        if router.wideLayout {
+            // iPad 宽屏（PA2 ④）：左边列表、右边详情。
+            HistorySplitView()
+        } else {
+            stack
+        }
+    }
+
+    private var stack: some View {
+        NavigationStack(path: $router.historyPath) {
+            HistoryListView()
+                .navigationDestination(for: AppRouter.HistoryPage.self) { page in
+                    switch page {
+                    case .detail(let id): HistoryDetailView(id: id)
+                    case .settings: HistorySettingsView()
+                    }
+                }
+        }
+    }
+}
+
+/// 历史的数据：App 打开、回到前台、进历史页时从文件重读（键盘随时在写）。
+@MainActor
+final class HistoryStore: ObservableObject {
+    static let shared = HistoryStore()
+
+    @Published private(set) var entries: [AIHistoryEntry] = []
+    @Published var enabled = AIHistory.isEnabled {
+        didSet { AIHistory.isEnabled = enabled }
+    }
+    @Published var retention = AIHistory.retention {
+        didSet {
+            AIHistory.retention = retention
+            Task { await reload() }
+        }
+    }
+
+    func reload() async {
+        enabled = AIHistory.isEnabled
+        entries = await Task.detached(priority: .userInitiated) { () -> [AIHistoryEntry] in
+            AIHistory.prune()
+            return AIHistory.load()
+        }.value
+    }
+
+    func delete(_ id: String) {
+        AIHistory.delete(id)
+        entries.removeAll { $0.id == id }
+    }
+
+    func clear() {
+        AIHistory.clear()
+        entries = []
+    }
+
+    func entry(_ id: String) -> AIHistoryEntry? { entries.first { $0.id == id } }
+
+    /// 首页、列表顶上的那行小字。
+    var caption: String {
+        let device = DeviceName.current
+        let here = L("只存在这台 \(device) 上", "Only on this \(device)", "この \(device) にだけ保存")
+        guard enabled else { return here }
+        switch retention {
+        case .forever: return here
+        default: return here + L(" · 保留 ", " · Kept ", " · 保存 ") + retention.title
+        }
+    }
+
+    #if DEBUG
+    /// 截图用（-historyDemo）：写几条和效果图一样的记录。
+    func seedDemo() {
+        let now = Date()
+        let calendar = Calendar.current
+        func at(_ dayOffset: Int, _ hour: Int, _ minute: Int) -> Date {
+            let day = calendar.date(byAdding: .day, value: -dayOffset, to: now) ?? now
+            return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? now
+        }
+        /// styles：每一版的风格；gaps：每一版离开始几秒（最后多一个是替换 / 插入的时间）；legacy：像更新前那样只记开始时间。
+        func polish(_ original: String, _ versions: [String], styles: [String], used: Int?, use: String?, edited: Int? = nil,
+                    date: Date, gaps: [Double] = [], legacy: Bool = false) {
+            var session = EditSession(mode: .polish, original: original)
+            session.startedAt = date
+            func gap(_ index: Int) -> Double { gaps.indices.contains(index) ? gaps[index] : Double(index + 1) * 3 }
+            for (index, text) in versions.enumerated() {
+                session.append(text, edited: index == edited)
+                let style = styles[min(index, styles.count - 1)]
+                if legacy {
+                    session.versionInfo = (session.versionInfo ?? [:]).merging([String(index): .init(style: style, provider: "DeepSeek")]) { $1 }
+                } else if index == edited {
+                    session.noteEdit(from: index - 1, at: date.addingTimeInterval(gap(index)))
+                } else {
+                    session.noteCurrent(style: style, provider: "DeepSeek", source: EditSession.VersionSource.polish,
+                                        ms: 800 + index * 100, at: date.addingTimeInterval(gap(index)))
+                }
+            }
+            if let used {
+                session.currentIndex = used
+                session.markCurrentUsed(use, at: date.addingTimeInterval(gap(versions.count)))
+                if legacy { session.usedTimes = nil }
+            }
+            AIHistory.record(session)
+        }
+        func answer(_ question: String, context: String, _ text: String, searched: Bool, use: String? = nil, date: Date) {
+            var session = EditSession(mode: .polish, original: context)
+            session.startedAt = date
+            session.appendAsk(text, answer: true, replacingLast: false, source: .init(question: question, context: context))
+            session.noteCurrent(style: "直击要害", provider: "Kimi", source: EditSession.VersionSource.ask, ms: searched ? 3100 : 1600,
+                                searchAt: searched ? date.addingTimeInterval(1) : nil, searchAuto: searched ? false : nil,
+                                at: date.addingTimeInterval(4))
+            if searched { session.markSearched(by: "Kimi") }
+            if let use { session.markCurrentUsed(use, at: date.addingTimeInterval(49)) }
+            AIHistory.record(session)
+        }
+        // 帮回并入润色：帮回写了一版，又 ✨ 润色了一版，用的润色那版（一条记录里标「回」「润」）。
+        do {
+            let date = at(0, 10, 12)
+            var session = EditSession(mode: .polish, original: "")
+            session.startedAt = date
+            session.append("方案细节我再完善一下，后天上午发给您可以吗？")
+            session.noteCurrent(style: "正式", provider: "DeepSeek", source: EditSession.VersionSource.reply, ms: 1200,
+                                at: date.addingTimeInterval(3))
+            session.markReply(EditSession.ReplySource(message: "这份方案明天能交吗？", request: "说要后天"))
+            session.append("您好，方案细节我想再完善一下，预计后天上午发给您，您看可以吗？")
+            session.noteCurrent(style: "正式", provider: "DeepSeek", source: EditSession.VersionSource.polish, ms: 900,
+                                at: date.addingTimeInterval(20))
+            session.markCurrentUsed("replaced", at: date.addingTimeInterval(31))
+            AIHistory.record(session)
+        }
+        answer("冗余怎么读", context: "", "「冗余」读 rǒng yú，意思是多余的、重复的部分。", searched: false, date: at(1, 15, 2))
+        polish("收到 晚点整理好发你", ["收到，我晚点把资料整理好发你。"], styles: ["润色"], used: 0, use: "replaced", date: at(1, 17, 40))
+        polish("不好意思今天去不了了家里有点事", ["抱歉，今天家里临时有事，去不了了，改天再约。", "不好意思，今天家里有点事去不了，下次再约。"],
+               styles: ["口语"], used: 0, use: "replaced", date: at(1, 18, 3), legacy: true)
+        answer("RAG 和微调有什么区别", context: "", "RAG 是查资料再回答，知识随时可换；微调是把知识练进模型里，改起来要重新训练。", searched: false, date: at(1, 22, 14))
+        answer("第三方键盘没开完全访问能联网吗", context: "", "可以。iPhone 键盘扩展在完全访问打开前不能联网，打开后才能调用 AI 接口。", searched: false, date: at(0, 8, 41))
+        polish("thanks for ur help yesterday really appreciate", ["Thank you so much for your help yesterday. I really appreciate it."],
+               styles: ["翻成英文"], used: 0, use: "inserted", date: at(0, 9, 20))
+        polish("这个方案我觉得还行但是预算有点超了", ["这个方案整体可行，不过预算略超，能否再压缩一些？"], styles: ["润色"], used: 0, use: "replaced", date: at(0, 11, 48))
+        answer("今天上海天气怎么样，要带伞吗", context: "下午去外滩拍照，几点出发比较好", "多云转小雨，14–19°C，下午 3 点后降雨概率 70%，建议带伞。想拍外滩的话最好 2 点前到。",
+               searched: true, use: "inserted", date: at(0, 13, 4).addingTimeInterval(12))
+        polish("明天开会的事情我再跟你确认下时间哈", ["明天开会的时间，我再跟你确认一下。", "明天会议的具体时间，我稍后再和您确认一下。", "明天会议的具体时间，我下午再和您确认。"],
+               styles: ["润色", "正式"], used: 1, use: "replaced", edited: 2, date: at(0, 14, 31).addingTimeInterval(5), gaps: [2, 15, 36, 57])
+    }
+    #endif
+}
+
+extension AIHistoryEntry {
+    var kindTitle: String {
+        switch kind {
+        case .polish: return L("润色", "Polish", "整える")
+        case .answer: return L("问答", "Q&A", "質問")
+        case .reply: return L("帮回", "Help Reply", "返信アシスト")
+        }
+    }
+
+    /// 风格和服务商：用过的那版的，没有就找一版有的。
+    var meta: (style: String?, provider: String?) {
+        let info = versions.indices.contains(shownIndex) ? versions[shownIndex] : nil
+        let style = info?.style ?? versions.lazy.compactMap(\.style).first
+        let provider = info?.provider ?? versions.lazy.compactMap(\.provider).first
+        return (style, provider)
+    }
+
+    var searchedBy: String? { versions.lazy.compactMap(\.searchedBy).first }
+}
+
+enum HistoryFormat {
+    static func day(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return L("今天", "Today", "今日") }
+        if calendar.isDateInYesterday(date) { return L("昨天", "Yesterday", "昨日") }
+        return Loc.monthDay(date)
+    }
+
+    static func time(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    /// 时间线每一步右边：「14:31:05」。
+    static func seconds(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
+    }
+
+    static func useTitle(_ use: AIHistoryEntry.Use) -> String {
+        use == .replaced ? L("已替换", "Replaced", "置き換え済み") : L("已插入", "Inserted", "挿入済み")
+    }
+
+    static let green = Color(light: 0x22A45D, dark: 0x4CD38A)
+}
+
+// MARK: - 列表（HI1、HI7、HI8）
+
+struct HistoryListView: View {
+    @EnvironmentObject private var router: AppRouter
+    @Environment(\.padSplit) private var padSplit
+    @ObservedObject private var store = HistoryStore.shared
+    @State private var query = ""
+    @State private var filter: HistoryFilter = .all
+    /// 一次显示 50 条，滑到底再加载。
+    @State private var limit = 50
+    @State private var confirmsClear = false
+
+    private var filtered: [AIHistoryEntry] {
+        // 「帮回」= 有帮回写的版本的记录（帮回并入润色后，帮回的版本和润色、问答在同一条里）。
+        store.entries.filter { filter.matches($0) && $0.matches(query) }
+    }
+
+    var body: some View {
+        content
+            .pinnedTabTitle(caption: store.caption, title: L("历史", "History", "履歴")) {
+                // R3：列表上面只留搜索框和一行图例，筛选收进右上菜单。
+                if store.enabled || !store.entries.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        searchField
+                        HistoryLegend()
+                    }
+                }
+            } trailing: {
+                moreMenu
+            }
+            .navigationTitle(L("历史", "History", "履歴"))
+            .tabRootPage()
+            .task {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-historyDemo"), AIHistory.load().isEmpty { store.seedDemo() }
+                #endif
+                await store.reload()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                Task { await store.reload() }
+            }
+            .onChange(of: query) { _ in limit = 50 }
+            .onChange(of: filter) { _ in limit = 50 }
+            .alert(L("清空全部历史？", "Clear all history?", "履歴をすべて消去しますか？"), isPresented: $confirmsClear) {
+                Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+                Button(L("清空", "Clear", "消去"), role: .destructive) { store.clear() }
+            } message: {
+                Text(L("这台 \(DeviceName.current) 上的润色和问答记录都会删除。", "All polish and Q&A records on this \(DeviceName.current) will be deleted.", "この \(DeviceName.current) の整える・質問の記録がすべて削除されます。"))
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        let list = filtered
+        if !store.enabled && store.entries.isEmpty {
+            HistoryEmptyView(title: L("记录已关闭", "History is off", "記録はオフです"),
+                             message: L("打开后，键盘里润色和问答的原文和结果会存在这里，方便以后找回、复制。",
+                                        "Turn it on to keep the original text and results of polish and Q&A from the keyboard here, so you can find and copy them later.",
+                                        "オンにすると、キーボードでの整える・質問の元の文と結果がここに保存され、あとで探したりコピーしたりできます。"),
+                             button: L("打开记录", "Turn On", "記録をオンにする")) { store.enabled = true }
+        } else if store.entries.isEmpty {
+            HistoryEmptyView(title: L("还没有记录", "No history yet", "まだ記録はありません"),
+                             message: L("在键盘里点 ✨ 润色或问答，结果会出现在这里", "Tap ✨ on the keyboard to polish or ask, and the results show up here.", "キーボードで ✨ をタップして整えたり質問したりすると、結果がここに表示されます。"))
+        } else {
+            // 搜不到时 List 也留着，「没有找到」盖在上面：换掉 List 会让顶上的搜索框重建、丢焦点，
+            // 打到一半的字（还有没选的拼音）就没了（waitan 只剩 wa）。
+            List {
+                ForEach(groups(Array(list.prefix(limit))), id: \.title) { group in
+                    Section(group.title) {
+                        ForEach(group.entries) { entry in
+                            Button { router.openHistory(entry.id) } label: {
+                                HistoryRow(entry: entry)
+                            }
+                            .buttonStyle(.plain)
+                            // iPad 两栏：右边正在看的那一行浅紫底（PA2 ④）。
+                            .listRowBackground(padSplit && router.historySelection == entry.id ? AppColor.chipSelectedFill : nil)
+                            .listRowInsets(EdgeInsets(top: 9, leading: 16, bottom: 9, trailing: 16))
+                            .swipeActions(edge: .trailing) {
+                                Button(L("删除", "Delete", "削除"), role: .destructive) { store.delete(entry.id) }
+                            }
+                            .contextMenu {
+                                Button { UIPasteboard.general.string = entry.shown } label: {
+                                    Label(L("复制结果", "Copy Result", "結果をコピー"), systemImage: "doc.on.doc")
+                                }
+                                Button { UIPasteboard.general.string = entry.original } label: {
+                                    Label(L("复制原文", "Copy Original", "元の文をコピー"), systemImage: "text.quote")
+                                }
+                                Button(role: .destructive) { store.delete(entry.id) } label: {
+                                    Label(L("删除", "Delete", "削除"), systemImage: "trash")
+                                }
+                            }
+                            .onAppear {
+                                if entry.id == list.prefix(limit).last?.id, list.count > limit { limit += 50 }
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .overlay {
+                if list.isEmpty {
+                    HistoryEmptyView(title: L("没有找到「\(query)」", "No results for \"\(query)\"", "「\(query)」は見つかりません"), message: nil)
+                }
+            }
+        }
+    }
+
+    private struct DayGroup {
+        let title: String
+        let entries: [AIHistoryEntry]
+    }
+
+    /// 按天分组，新的在上（entries 已经是新的在前）。
+    private func groups(_ entries: [AIHistoryEntry]) -> [DayGroup] {
+        var result: [DayGroup] = []
+        for entry in entries {
+            let title = HistoryFormat.day(entry.date)
+            if result.last?.title == title {
+                result[result.count - 1] = DayGroup(title: title, entries: result[result.count - 1].entries + [entry])
+            } else {
+                result.append(DayGroup(title: title, entries: [entry]))
+            }
+        }
+        return result
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField(L("搜索原文和结果", "Search originals and results", "元の文と結果を検索"), text: $query)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !query.isEmpty {
+                Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary) }
+                    .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 36)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(.tertiarySystemFill)))
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            Picker(L("筛选", "Filter", "絞り込み"), selection: $filter) {
+                ForEach(HistoryFilter.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            Button { router.historyPath.append(AppRouter.HistoryPage.settings) } label: {
+                Label(L("历史记录设置", "History Settings", "履歴の設定"), systemImage: "gearshape")
+            }
+            Button(role: .destructive) { confirmsClear = true } label: {
+                Label(L("清空全部历史", "Clear All History", "履歴をすべて消去"), systemImage: "trash")
+            }
+            .disabled(store.entries.isEmpty)
+        } label: {
+            Image(systemName: filter == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                .font(.title3)
+                .foregroundStyle(DashColor.ai)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+        .accessibilityLabel(L("筛选和更多", "Filter and more", "絞り込みとその他"))
+    }
+}
+
+/// 历史的筛选（R3 右上菜单）：全部 / 润色 / 问答 / 帮回 / 只看用过的。
+enum HistoryFilter: CaseIterable {
+    case all, polish, answer, reply, used
+
+    var title: String {
+        switch self {
+        case .all: return L("全部", "All", "すべて")
+        case .polish: return L("润色", "Polish", "整える")
+        case .answer: return L("问答", "Q&A", "質問")
+        case .reply: return L("帮回", "Help Reply", "返信アシスト")
+        case .used: return L("只看用过的", "Used only", "使ったものだけ")
+        }
+    }
+
+    /// 「帮回」= 有帮回写的版本的记录（帮回并入润色后，帮回的版本和润色、问答在同一条里）。
+    func matches(_ entry: AIHistoryEntry) -> Bool {
+        switch self {
+        case .all: return true
+        case .polish: return entry.kind == .polish && !entry.hasReply
+        case .answer: return entry.kind == .answer
+        case .reply: return entry.hasReply
+        case .used: return entry.usedIndex != nil
+        }
+    }
+}
+
+/// 历史里的功能色和状态色（R3，DESIGN.md「功能识别色」）：和键盘 AI 栏一致；颜色之外都有图标和字。
+enum HistoryColor {
+    static let polish = Color(light: 0x5B4BE8, dark: 0x7D70F5)
+    static let answer = Color(light: 0x007AFF, dark: 0x0A84FF)
+    static let reply = Color(light: 0x34A853, dark: 0x30B158)
+    static let replaced = Color(light: 0x248A3D, dark: 0x30D158)
+    static let inserted = Color(light: 0x0E7C8C, dark: 0x5AC8D8)
+    static let editedReplaced = Color(light: 0xC93400, dark: 0xFF9F0A)
+
+    enum Feature { case polish, answer, reply }
+
+    static func feature(_ entry: AIHistoryEntry) -> Feature {
+        if entry.hasReply { return .reply }
+        return entry.kind == .answer ? .answer : .polish
+    }
+}
+
+/// 功能小方块：28×28 圆角 7，功能色底 + 白色 SF 图标（润色 ✦、问答问号气泡、帮回回复箭头）。
+struct HistoryFeatureIcon: View {
+    let feature: HistoryColor.Feature
+    var size: CGFloat = 28
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: size * 0.5, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size / 4, style: .continuous).fill(color))
+            .accessibilityHidden(true)
+    }
+
+    private var icon: String {
+        switch feature {
+        case .polish: return "sparkles"
+        case .answer: return "questionmark.bubble"
+        case .reply: return "arrowshape.turn.up.left"
+        }
+    }
+
+    private var color: Color {
+        switch feature {
+        case .polish: return HistoryColor.polish
+        case .answer: return HistoryColor.answer
+        case .reply: return HistoryColor.reply
+        }
+    }
+}
+
+/// 搜索框下面一行图例：润色、问答、帮回。
+private struct HistoryLegend: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            item(.polish, L("润色", "Polish", "整える"))
+            item(.answer, L("问答", "Q&A", "質問"))
+            item(.reply, L("帮回", "Help Reply", "返信アシスト"))
+        }
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+    }
+
+    private func item(_ feature: HistoryColor.Feature, _ title: String) -> some View {
+        HStack(spacing: 6) {
+            HistoryFeatureIcon(feature: feature, size: 20)
+            Text(title)
+        }
+    }
+}
+
+/// 一条记录两行（R3）：左边功能色小方块；第一行结果 + 时间；第二行灰字（联网过的前面一个地球）原文（问答写「问：」）
+/// + 风格 · N 版，右边状态：已替换（绿 ⇄）、已插入（青 ＋）、改过后替换（橙 ✎）、没用（灰字）。
+private struct HistoryRow: View {
+    let entry: AIHistoryEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            HistoryFeatureIcon(feature: HistoryColor.feature(entry))
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(entry.shown.replacingOccurrences(of: "\n", with: " ")).foregroundStyle(.primary).lineLimit(1)
+                    Spacer(minLength: 6)
+                    Text(HistoryFormat.time(entry.date)).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    HStack(spacing: 3) {
+                        if entry.searched {
+                            Image(systemName: "globe").imageScale(.small)
+                                .accessibilityLabel(L("联网", "Web", "ウェブ"))
+                        }
+                        Text(prefix + entry.original.replacingOccurrences(of: "\n", with: " ")).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    // 右边这段不截断，空间不够先截原文。
+                    trailing.lineLimit(1).fixedSize().layoutPriority(1)
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// 第二行开头：问答「问：」，帮回「回：」（对方的名字读不到，不写）。
+    private var prefix: String {
+        if entry.kind == .answer { return L("问：", "Q: ", "問：") }
+        if entry.hasReply { return L("回：", "Re: ", "返信先：") }
+        return ""
+    }
+
+    /// 「正式 · 3 版」灰字 + 状态彩色字。帮回旧记录：「客气 · 委婉拒绝」+ 已上屏 / 没用。
+    private var trailing: some View {
+        HStack(spacing: 8) {
+            if !meta.isEmpty { Text(meta) }
+            status
+        }
+    }
+
+    private var meta: String {
+        if entry.isLegacyReply {
+            let shown = entry.versions.indices.contains(entry.shownIndex) ? entry.versions[entry.shownIndex] : nil
+            return [shown?.style, shown?.direction].compactMap { $0 }.joined(separator: " · ")
+        }
+        var parts: [String] = []
+        if entry.kind != .answer, let style = entry.meta.style { parts.append(style) }
+        if entry.versions.count > 1 { parts.append(L("\(entry.versions.count) 版", "\(entry.versions.count) versions", "\(entry.versions.count) 版")) }
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if let index = entry.usedIndex, entry.versions.indices.contains(index) {
+            let version = entry.versions[index]
+            if entry.isLegacyReply || version.use == .inserted {
+                Label(entry.isLegacyReply ? L("已上屏", "Inserted", "入力済み") : HistoryFormat.useTitle(.inserted), systemImage: "plus")
+                    .foregroundStyle(HistoryColor.inserted)
+            } else if version.edited || version.editedFrom != nil {
+                Label(L("改过后替换", "Edited, replaced", "手直しして置き換え"), systemImage: "pencil")
+                    .foregroundStyle(HistoryColor.editedReplaced)
+            } else {
+                Label(HistoryFormat.useTitle(.replaced), systemImage: "arrow.left.arrow.right")
+                    .foregroundStyle(HistoryColor.replaced)
+            }
+        } else {
+            Text(L("没用", "Not used", "未使用"))
+        }
+    }
+}
+
+/// 润色「润」主色浅底，问答「问」蓝色浅底：20×20、圆角 6、字 11.5 粗。
+private struct HistoryKindMark: View {
+    let kind: AIHistoryEntry.Kind
+    var size: CGFloat = 20
+
+    var body: some View {
+        let color = kind == .polish ? AppColor.purple : (kind == .reply ? HelpStyle.title : DashColor.input)
+        Text(kind == .polish ? L("润", "P", "整") : (kind == .reply ? L("回", "R", "返") : L("问", "Q", "問")))
+            .font(.system(size: size * 0.575, weight: .bold))
+            .foregroundStyle(color)
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(color.opacity(0.12)))
+    }
+}
+
+private struct HistoryEmptyView: View {
+    let title: String
+    let message: String?
+    var button: String?
+    var action: () -> Void = {}
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Spacer()
+            Image(systemName: "clock").font(.system(size: 44)).foregroundStyle(Color(.systemGray2))
+            Text(title).font(.system(size: 20, weight: .semibold)).multilineTextAlignment(.center)
+            if let message {
+                Text(message).font(.system(size: 15)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            }
+            if let button {
+                Button(button, action: action)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(AppColor.purple)
+                    .frame(maxWidth: 260, minHeight: 46)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(AppColor.softFill))
+                    .padding(.top, 4)
+            }
+            Spacer()
+            Spacer()
+        }
+        .padding(.horizontal, 40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(DashColor.page)
+    }
+}
+
+// MARK: - 详情：时间线（HC2、HC3、HC4）
+
+struct HistoryDetailView: View {
+    let id: String
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var store = HistoryStore.shared
+    @State private var confirmsDelete = false
+
+    var body: some View {
+        Group {
+            if let entry = store.entry(id) {
+                DashPage {
+                    Text(entry.summary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                    VStack(alignment: .leading, spacing: 0) {
+                        let steps = entry.timeline
+                        ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                            HistoryStepRow(step: step, isLast: index == steps.count - 1, showsTime: !entry.isLegacy)
+                        }
+                    }
+                    .padding(.top, 4)
+                    if entry.isLegacy {
+                        Text(L("这条是更新前记的，只有开始时间，每一步按先后排、不写时间。",
+                               "Recorded before this update: only the start time was kept, so the steps are in order without times.",
+                               "この記録は更新前のもので、開始時刻しかありません。各ステップは順番どおりで時刻はありません。"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
+                    }
+                    Button(role: .destructive) { confirmsDelete = true } label: {
+                        Text(L("删除这条记录", "Delete This Record", "この記録を削除"))
+                            .font(.body)
+                            .foregroundStyle(Color(hex: 0xFF3B30))
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(DashColor.card))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 12)
+                }
+                .navigationTitle(entry.kindTitle + " · " + Loc.monthDay(entry.date))
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Menu {
+                            Button { UIPasteboard.general.string = entry.shown } label: {
+                                Label(L("复制用过的那版", "Copy the Version Used", "使った版をコピー"), systemImage: "doc.on.doc")
+                            }
+                            Button(role: .destructive) { confirmsDelete = true } label: {
+                                Label(L("删除", "Delete", "削除"), systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis").foregroundStyle(AppColor.purple)
+                        }
+                    }
+                }
+            } else {
+                Color.clear
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .alert(L("删除这条记录？", "Delete this record?", "この記録を削除しますか？"), isPresented: $confirmsDelete) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+            Button(L("删除", "Delete", "削除"), role: .destructive) {
+                store.delete(id)
+                dismiss()
+            }
+        }
+    }
+}
+
+/// 时间线的一步：圆点 + 标题行（粗标题、灰字说明、右边时间到秒）+ 下面的白卡片（有才画）。
+struct HistoryStep {
+    enum Dot { case gray, purple, blue, green, greenRing }
+
+    var dot: Dot
+    var title: String
+    var note: String?
+    var time: Date?
+    var text: String?
+    var secondary = false
+    var highlighted = false
+    /// 帮回（T16）：正文前的语气小标签；用了的那条绿框。
+    var tag: String?
+    var greenFrame = false
+    /// 这一版是润色、问答还是帮回（标题前的小方块）。旧记录没有。
+    var mark: AIHistoryEntry.Kind?
+}
+
+extension AIHistoryEntry {
+    /// 顶上一行汇总：「14:31 – 14:32 · DeepSeek · 用了第 2 版」；问答写「· 联网 N 次」；旧记录写「18:03 开始」。
+    var summary: String {
+        var parts: [String] = []
+        let start = HistoryFormat.time(date)
+        if isLegacy {
+            parts.append(L("\(start) 开始", "Started \(start)", "\(start) 開始"))
+        } else if let end = endDate.map(HistoryFormat.time), end != start {
+            parts.append(start + " – " + end)
+        } else {
+            parts.append(start)
+        }
+        if let provider = meta.provider { parts.append(provider) }
+        if isLegacyReply {
+            if replyRounds > 0 { parts.append(L("写了 \(replyRounds) 轮", "\(replyRounds) rounds", "\(replyRounds) 回作成")) }
+            if let index = usedIndex, let style = versions[index].style {
+                parts.append(L("用了「\(style)」", "Used \"\(style)\"", "「\(style)」を使用"))
+            }
+            return parts.joined(separator: " · ")
+        }
+        let searches = versions.filter { $0.searchedBy != nil }.count
+        if kind == .answer, searches > 0 {
+            parts.append(L("联网 \(searches) 次", "Web \(searches)×", "ウェブ検索 \(searches) 回"))
+        }
+        if let index = usedIndex, versions.count > 1 || kind != .answer {
+            parts.append(L("用了第 \(index + 1) 版", "Used version \(index + 1)", "第 \(index + 1) 版を使用"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 从上到下按时间排的每一步（HC2、HC3）；旧记录照样排，只是不写时间和来源（HC4）。
+    var timeline: [HistoryStep] {
+        if isLegacyReply { return replyTimeline }
+        var steps: [HistoryStep] = []
+        let legacy = isLegacy
+        if kind == .reply {
+            // 帮回并入润色：第一版是帮回写的，开头是对方的话；输入框里自己打的意思接在后面。
+            steps.append(HistoryStep(dot: .gray, title: L("对方的话", "Their message", "相手のメッセージ"),
+                                     note: L("从剪贴板", "From the clipboard", "クリップボードから"), time: date, text: original))
+            if let meaning = versions.first?.meaning {
+                steps.append(HistoryStep(dot: .gray, title: L("你想说的", "What you wanted to say", "伝えたいこと"),
+                                         note: L("输入框里打的", "Typed in the field", "入力欄に入力"), time: date, text: meaning, secondary: true))
+            }
+        } else if kind == .polish {
+            steps.append(HistoryStep(dot: .gray, title: L("原文", "Original", "元の文"), note: legacy ? nil : L("你打的", "You typed", "入力した文"),
+                                     time: date, text: original))
+        } else {
+            steps.append(HistoryStep(dot: .gray, title: L("问题", "Question", "質問"), note: legacy ? nil : L("你问的", "You asked", "あなたの質問"),
+                                     time: date, text: original))
+            if !context.isEmpty {
+                steps.append(HistoryStep(dot: .gray, title: L("一起发送的上下文", "Context sent with it", "一緒に送った文脈"),
+                                         note: legacy ? nil : L("光标前的文字", "Text before the cursor", "カーソルの前の文"),
+                                         time: date, text: context, secondary: true))
+            }
+        }
+        for (index, version) in versions.enumerated() {
+            if let searchAt = version.searchAt {
+                let how = version.searchAuto == true ? L("自动", "Automatic", "自動") : L("你点了「允许」", "You tapped Allow", "「許可」をタップ")
+                steps.append(HistoryStep(dot: .blue, title: L("联网搜索", "Web search", "ウェブ検索"),
+                                         note: [how, version.searchedBy].compactMap { $0 }.joined(separator: " · "), time: searchAt))
+            }
+            var step = HistoryStep(dot: .purple, title: versionTitle(index), note: versionNote(index, legacy: legacy),
+                                   time: version.at, text: version.text, highlighted: usedIndex == index)
+            // 每版标「润 / 问 / 回」（润色、问答、帮回共用一条时间线）。
+            if !legacy { step.mark = versionKind(index) }
+            steps.append(step)
+        }
+        if let index = usedIndex, let use = versions[index].use {
+            steps.append(HistoryStep(dot: .green,
+                                     title: use == .replaced ? L("替换了输入框", "Replaced the text", "入力欄を置き換え") : L("插入到光标处", "Inserted at the cursor", "カーソル位置に挿入"),
+                                     note: versions.count > 1 ? L("用的第 \(index + 1) 版", "Version \(index + 1)", "第 \(index + 1) 版") : nil,
+                                     time: versions[index].usedAt))
+        }
+        return steps
+    }
+
+    /// 帮回（HB3 第 3 格）：对方的话（灰点）→ 每一轮（绿圈，重写的一轮写方向）和这一轮的几条（带语气标签，每条能复制）
+    /// → 上屏了哪条（绿实点）。用了的那条绿框。
+    private var replyTimeline: [HistoryStep] {
+        var steps = [HistoryStep(dot: .gray, title: L("对方的话", "Their message", "相手のメッセージ"),
+                                 note: L("从剪贴板", "From the clipboard", "クリップボードから"), time: date, text: original)]
+        var round: Int?
+        for (index, version) in versions.enumerated() {
+            if version.round != round {
+                round = version.round
+                let count = versions.filter { $0.round == version.round }.count
+                let number = version.round ?? 1
+                var title = L("第 \(number) 轮", "Round \(number)", "第 \(number) 回")
+                if let direction = version.direction {
+                    title += " · " + L("方向「\(direction)」", "Aim \"\(direction)\"", "方向「\(direction)」")
+                } else {
+                    title += " · " + L("\(count) 条", "\(count) replies", "\(count) 件")
+                }
+                steps.append(HistoryStep(dot: .greenRing, title: title, time: version.at))
+            }
+            steps.append(HistoryStep(dot: .greenRing, title: "", text: version.text, tag: version.style,
+                                     greenFrame: usedIndex == index))
+        }
+        if let index = usedIndex {
+            let style = versions[index].style ?? ""
+            steps.append(HistoryStep(dot: .green, title: L("上屏了「\(style)」", "Inserted \"\(style)\"", "「\(style)」を入力"),
+                                     note: versions[index].round.map { L("第 \($0) 轮", "Round \($0)", "第 \($0) 回") },
+                                     time: versions[index].usedAt))
+        }
+        return steps
+    }
+
+    private func versionTitle(_ index: Int) -> String {
+        if kind == .answer && versions.count == 1 { return L("回答", "Answer", "回答") }
+        if kind == .reply && versions.count == 1 { return L("回复", "Reply", "返信") }
+        return L("第 \(index + 1) 版", "Version \(index + 1)", "第 \(index + 1) 版")
+    }
+
+    /// 说明这一版怎么来的：「✨ 润色」「换成『正式』」「你手改了第 2 版」「⇄ 切换重做」「直击要害 · Kimi」，再加「· 0.8 秒」。
+    /// 旧记录不写来源，只照常标手改和联网。
+    private func versionNote(_ index: Int, legacy: Bool) -> String? {
+        let version = versions[index]
+        var parts: [String] = []
+        if legacy {
+            if version.edited { parts.append(L("你手改的", "Edited by you", "手で編集")) }
+            if let searchedBy = version.searchedBy { parts.append("🌐 " + L("已联网", "Web", "ウェブ検索済み") + " · " + searchedBy) }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        }
+        switch version.source {
+        case EditSession.VersionSource.reply:
+            // 「↩ 帮回 · 正式」；回的不是这条开头那句时写上对方的话，有要求写要求。
+            parts.append("↩ " + L("帮回", "Help Reply", "返信アシスト"))
+            if let style = version.style { parts.append(style) }
+            if let message = version.message, message != original || kind != .reply {
+                parts.append("「" + message.replacingOccurrences(of: "\n", with: " ") + "」")
+            }
+            if let request = version.direction { parts.append(L("要求「\(request)」", "Request \"\(request)\"", "指示「\(request)」")) }
+        case EditSession.VersionSource.edit:
+            let from = (version.editedFrom ?? max(index - 1, 0)) + 1
+            parts.append(L("你手改了第 \(from) 版", "You edited version \(from)", "第 \(from) 版を手で編集"))
+        case EditSession.VersionSource.redo:
+            parts.append(L("⇄ 切换重做", "⇄ Switched and redone", "⇄ 切り替えてやり直し"))
+        case EditSession.VersionSource.write:
+            parts.append(L("✨ 帮我写", "✨ Write for me", "✨ 書いてもらう"))
+        case EditSession.VersionSource.ask:
+            if kind == .answer {
+                parts += [version.style, version.provider].compactMap { $0 }
+            } else {
+                parts.append(L("✨ 识意改写", "✨ Smart rewrite", "✨ 意図を読んで書き直し"))
+            }
+        default:
+            let previous = index > 0 ? versions[index - 1].style : nil
+            if index > 0, let style = version.style, style != previous {
+                parts.append(L("换成「\(style)」", "Switched to \"\(style)\"", "「\(style)」に変更"))
+            } else {
+                parts.append(L("✨ 润色", "✨ Polish", "✨ 整える"))
+            }
+        }
+        if let ms = version.ms {
+            parts.append(String(format: "%.1f", Double(ms) / 1000) + L(" 秒", " s", " 秒"))
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+private struct HistoryStepRow: View {
+    let step: HistoryStep
+    let isLast: Bool
+    let showsTime: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // 左边竖线：从这一点画到下一点（每一行画自己到底的那一段，行之间不留空）。
+            ZStack(alignment: .top) {
+                if !isLast {
+                    Rectangle().fill(Color(.systemGray4)).frame(width: 2).frame(maxHeight: .infinity).padding(.top, 10)
+                }
+                dot.padding(.top, 3)
+            }
+            .frame(width: 14)
+            VStack(alignment: .leading, spacing: 8) {
+                if !step.title.isEmpty || step.text == nil {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if let mark = step.mark {
+                        HistoryKindMark(kind: mark, size: 16)
+                    }
+                    Text(step.title).font(.system(size: 13.5, weight: .bold)).foregroundStyle(.primary).fixedSize()
+                    if let note = step.note {
+                        Text(note).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    if showsTime, let time = step.time {
+                        Text(HistoryFormat.seconds(time)).font(.system(size: 12.5)).foregroundStyle(.secondary).monospacedDigit().fixedSize()
+                    }
+                }
+                }
+                if let text = step.text {
+                    HStack(alignment: .top, spacing: 10) {
+                        (tagText + Text(text))
+                            .font(.system(size: step.secondary ? 14.5 : 15.5))
+                            .foregroundStyle(step.secondary ? .secondary : .primary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HistoryCopyButton(text: text)
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DashColor.card))
+                    .overlay {
+                        if step.highlighted {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(AppColor.purple, lineWidth: 2)
+                        } else if step.greenFrame {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(HelpStyle.green, lineWidth: 2)
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, isLast ? 0 : 18)
+        }
+    }
+
+    /// 帮回的语气标签：绿字，接在正文前。
+    private var tagText: Text {
+        guard let tag = step.tag else { return Text("") }
+        return Text(tag + "  ").font(.system(size: 13, weight: .bold)).foregroundColor(HelpStyle.title)
+    }
+
+    @ViewBuilder private var dot: some View {
+        switch step.dot {
+        case .green:
+            Circle().fill(HistoryFormat.green).frame(width: 12, height: 12)
+        case .greenRing:
+            Circle().strokeBorder(HelpStyle.green, lineWidth: 2.5).background(Circle().fill(DashColor.page)).frame(width: 12, height: 12)
+        case .gray, .purple, .blue:
+            let color: Color = step.dot == .gray ? Color(.systemGray2) : (step.dot == .blue ? DashColor.input : AppColor.purple)
+            Circle().strokeBorder(color, lineWidth: 2.5).background(Circle().fill(DashColor.page)).frame(width: 12, height: 12)
+        }
+    }
+}
+
+private struct HistoryCopyButton: View {
+    let text: String
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            UIPasteboard.general.string = text
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+        } label: {
+            Text(copied ? L("已复制", "Copied", "コピーしました") : L("复制", "Copy", "コピー"))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppColor.purple)
+        }
+        .buttonStyle(.borderless)
+    }
+}
+
+// MARK: - 历史记录设置（HI6）
+
+struct HistorySettingsView: View {
+    @ObservedObject private var store = HistoryStore.shared
+    @State private var confirmsClear = false
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle(L("记录润色和问答", "Keep Polish and Q&A History", "整える・質問を記録"), isOn: $store.enabled)
+            } footer: {
+                Text(L("关掉后不再记录新的，已有的留着，可以手动清空。键盘里正在用的这一轮（结果卡上的几版）不受影响。",
+                       "When off, nothing new is recorded; existing records stay until you clear them. The round in use on the keyboard (the versions on the result card) isn't affected.",
+                       "オフにすると新しい記録はされません。既存の記録は残り、手動で消去できます。キーボードで使用中の回（結果カードの各版）には影響しません。"))
+            }
+            Section {
+                ForEach(AIHistory.Retention.allCases) { option in
+                    Button { store.retention = option } label: {
+                        HStack {
+                            Text(option.title).foregroundStyle(.primary)
+                            Spacer()
+                            if store.retention == option {
+                                Image(systemName: "checkmark").font(.body.weight(.semibold)).foregroundStyle(AppColor.purple)
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text(L("保留时间", "Keep For", "保存期間"))
+            } footer: {
+                Text(L("超过时间的自动删除。最多存 1,000 条，满了先删最早的。", "Older records are deleted automatically. Up to 1,000 records are kept; when full, the oldest go first.", "期間を過ぎた記録は自動で削除されます。最大 1,000 件で、いっぱいになると古いものから削除されます。"))
+            }
+            Section {
+                Button { confirmsClear = true } label: {
+                    Text(L("清空全部历史", "Clear All History", "履歴をすべて消去"))
+                        .foregroundStyle(Color(hex: 0xFF3B30))
+                        .frame(maxWidth: .infinity)
+                }
+            } footer: {
+                Text(L("历史只存在这台 iPhone 上，不上传，也不会发给 AI 服务商。删除 App 会一起删掉。",
+                       "History stays on this iPhone. It's never uploaded or sent to AI providers. Deleting the app deletes it too.",
+                       "履歴はこの iPhone にだけ保存され、アップロードも AI サービスへの送信もされません。アプリを削除すると一緒に削除されます。"))
+            }
+        }
+        .navigationTitle(L("历史记录设置", "History Settings", "履歴の設定"))
+        .navigationBarTitleDisplayMode(.inline)
+        .alert(L("清空全部历史？", "Clear all history?", "履歴をすべて消去しますか？"), isPresented: $confirmsClear) {
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+            Button(L("清空", "Clear", "消去"), role: .destructive) { store.clear() }
+        } message: {
+            Text(L("这台 \(DeviceName.current) 上的润色和问答记录都会删除。", "All polish and Q&A records on this \(DeviceName.current) will be deleted.", "この \(DeviceName.current) の整える・質問の記録がすべて削除されます。"))
+        }
+    }
+}

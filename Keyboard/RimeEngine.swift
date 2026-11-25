@@ -10,9 +10,13 @@ final class RimeEngine: InputEngine {
     private(set) var selections: [InputSelection] = []
     /// 分段选词后接着整句的剩下部分（见 select），排在候选第一个；Rime 自己的候选从 candidates[hintOffset] 开始。
     private var remainder: String?
+    /// 候选能不能插 emoji：没有分段选过的词、首选不是整句剩下的部分（选首选就是整段上屏）。
+    var offersEmoji: Bool { remainder == nil && selections.isEmpty }
     private var hintOffset: Int { remainder == nil ? 0 : 1 }
     /// 纠错层（0.94）插进候选的纠正词；选它时把输入换成改过的串再选（见 selectCorrection）。
     private var correction: Correction?
+    /// 填了简码的键盘常用语（候选里的样子）：打简码时排第一，纠错不把它挤下去（九宫格 4739 会被猜成别的串）。
+    private var priorityPhrases: Set<String> = []
     private struct Correction {
         /// 在 candidates 里的位置。
         var index: Int
@@ -28,6 +32,15 @@ final class RimeEngine: InputEngine {
     /// 全键盘、九宫格各一个纠错器（词库自带的表没生成时为 nil，就不纠）。
     private lazy var letterCorrector: Corrector? = Corrector.bundled(nineKey: false)
     private lazy var digitCorrector: Corrector? = Corrector.bundled(nineKey: true)
+    /// 双拼的纠错器：和全拼共用那份表，换方案时重建。
+    private var pairCorrector: (scheme: DoublePinyin, corrector: Corrector?)?
+    private var doublePinyinCorrector: Corrector? {
+        guard let doublePinyin else { return nil }
+        if let pairCorrector, pairCorrector.scheme == doublePinyin { return pairCorrector.corrector }
+        let made = Corrector.bundled(nineKey: false, doublePinyin: doublePinyin)
+        pairCorrector = (doublePinyin, made)
+        return made
+    }
     /// 纠错时用来问「改过的串打出什么」的第二个会话，不动用户正在打的那个。
     private var probe: UInt64 = 0
     private var probeSchema = ""
@@ -41,6 +54,9 @@ final class RimeEngine: InputEngine {
     private var session: UInt64 = 0
     private var loadedVersion: String?
     private var schema = RimeStore.schemaID
+    /// 加载的词库全键盘是双拼（App 里选了双拼部署的）：纠错层按键对纠（Corrector.doublePinyin）；也认全拼时分不清按的是哪种，不纠。
+    private var doublePinyin: DoublePinyin?
+    private var doublePinyinMixFull = false
 
     /// 每次按键只取够候选栏第一屏的数量，取得越多 Rime 要往后查得越深；滑到头或展开整页时再补到 candidateLimit。
     static let firstPage = 30
@@ -51,8 +67,11 @@ final class RimeEngine: InputEngine {
     /// useShared：开了完全访问时用 App 部署到共享目录的词库（带模糊拼音）；否则用键盘自带的那份。
     func prepare(schema wanted: String, useShared: Bool) -> Bool {
         self.useShared = useShared
+        prepareSteps = []
+        defer { lastPrepareWork = prepareSteps.isEmpty ? "现成的" : prepareSteps.joined(separator: "、") }
         guard prepare() else { return false }
         if wanted != schema {
+            prepareSteps.append("换方案")
             reset()
             guard enclave_rime_select_schema(session, wanted) else { return false }
             enclave_rime_set_option(session, "ascii_mode", false)
@@ -62,21 +81,28 @@ final class RimeEngine: InputEngine {
         return true
     }
 
+    /// 最近一次 prepare(schema:) 做了什么（弹出记录用）：启动 / 重新加载词库、新建会话、换方案，都没做是「现成的」。
+    private(set) var lastPrepareWork = ""
+    private var prepareSteps: [String] = []
+
     /// 有没有能加载的词库（只看文件，不启动引擎），用来在引擎准备好之前先决定用不用拼音。
     static func hasDictionary(useShared: Bool) -> Bool {
         (useShared && RimeStore.isDeployed) || RimeStore.bundled != nil
     }
 
     /// 把常用词写成两份短语表（全拼、九宫格数字）放进现在用的用户目录。内容变了就重建会话，让引擎重新读。
-    func updatePhrases(_ entries: [(text: String, code: String)]) {
-        guard let (paths, _) = location() else { return }
+    /// priority：填了简码的键盘常用语，权重高一点，同一个编码排在常用词前面。
+    func updatePhrases(_ entries: [(text: String, code: String)], priority: [(text: String, code: String)] = []) {
+        priorityPhrases = Set(priority.map(\.text))
+        guard let (paths, version) = location() else { return }
         var changed = false
         let files = [
-            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false)),
-            ("enclave_phrase_t9", CommonWordStore.phraseTable(entries, nineKey: true)),
+            ("enclave_phrase", CommonWordStore.phraseTable(entries, nineKey: false, priority: priority,
+                                                           doublePinyin: DoublePinyin(versionString: version))),
+            ("enclave_phrase_t9", CommonWordStore.phraseTable(entries, nineKey: true, priority: priority)),
             // 九宫格拼写栏显示常用词的拼音用（enclave_t9_preedit.lua 读）。
             // 同一个词有全拼和简码时只记第一个（全拼）。
-            ("enclave_phrase_t9_pinyin", firstCodes(entries).map { "\($0.text)\t\($0.code)" }.joined(separator: "\n") + "\n"),
+            ("enclave_phrase_t9_pinyin", firstCodes(priority + entries).map { "\($0.text)\t\($0.code)" }.joined(separator: "\n") + "\n"),
         ]
         for (name, table) in files {
             let url = paths.user.appendingPathComponent(name + ".txt")
@@ -119,11 +145,16 @@ final class RimeEngine: InputEngine {
             }
             // 内测包自带整句模型：App 升级后包路径变了，先把用户目录里的链接指回来。
             if version.hasPrefix("shared:") { GrammarModel.linkBundled() }
+            // 换了词库（App 重新部署过，或者开关完全访问时在共享和自带两份之间换）。
+            prepareSteps.append(loadedVersion == nil ? "启动词库" : "重新加载词库")
             guard enclave_rime_start(paths.shared.path, paths.user.path, nil) else { return false }
             loadedVersion = version
+            doublePinyin = DoublePinyin(versionString: version)
+            doublePinyinMixFull = DoublePinyin.mixesFull(versionString: version)
             source = version
         }
         if !enclave_rime_session_alive(session) {
+            prepareSteps.append("新建会话")
             session = enclave_rime_create_session(schema)
             guard session != 0 else { return false }
             enclave_rime_set_option(session, "ascii_mode", false)
@@ -328,12 +359,13 @@ final class RimeEngine: InputEngine {
     /// 输入像打错了：纠正的词插进候选（拼不成时放首选，拼得成但改一处像话得多时放第二位），按的键不改。
     /// 分段选过词、带分词符的不纠（Corrector 里也挡了分词符；九宫格选过拼音的，输入里有字母，也不纠）。
     private func applyCorrection() {
-        guard !correcting, selections.isEmpty, !candidates.isEmpty else { return }
+        guard !correcting, selections.isEmpty, let top = candidates.first, !priorityPhrases.contains(top) else { return }
         let nineKey = schema == RimeStore.nineKeySchemaID
-        guard nineKey ? Self.correctsNineKey : Self.correctsQwerty,
-              let corrector = nineKey ? digitCorrector : letterCorrector else { return }
+        guard nineKey ? Self.correctsNineKey : (Self.correctsQwerty && !doublePinyinMixFull),
+              let corrector = nineKey ? digitCorrector : doublePinyin != nil ? doublePinyinCorrector : letterCorrector else { return }
         let raw = rawInput
-        guard !CorrectionMemory.isRejected(raw), let guess = corrector.guess(raw, extraMargin: CorrectionMemory.bias(raw)) else { return }
+        guard !CorrectionMemory.isRejected(raw),
+              let guess = corrector.guess(raw, extraMargin: CorrectionMemory.bias(raw), touches: TouchTrail.offsets(for: raw)) else { return }
         let probed = probeInput(guess.corrected)
         guard let merged = CorrectionMerge.merge(candidates, input: raw, guess: guess, correctedTop: probed?.top) else { return }
         candidates = merged.candidates

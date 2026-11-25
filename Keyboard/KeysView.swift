@@ -20,23 +20,59 @@ struct KeysView: View {
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
                 } else if model.candidatesExpanded {
-                    // 九宫格的拼音行在候选栏上面，展开时也留着；整页候选铺满按键区。
-                    CandidateGrid(model: model)
+                    // 拼音在上方一行时那一行展开时也留着，整页候选铺满按键区；
+                    // 在侧边（F12）时九宫格左边的拼音列保持住、拉长到 4 行，候选铺在中间三列。
+                    let column = model.pinyinSide && model.showsNineKey ? layout.pinyinColumn : nil
+                    // 和系统键盘一样：从候选栏下面往下拉开，收起时往上卷回去（见 CandidateReveal）。
+                    CandidateGrid(model: model, leading: column?.maxX ?? 0)
                         .frame(width: geo.size.width, height: geo.size.height)
+                        .transition(.modifier(active: CandidateReveal(progress: 0), identity: CandidateReveal(progress: 1)))
+                    // 拼音列不跟着卷：按键页那份和这份同一刻换掉，开收途中不会叠出两列。
+                    if let column {
+                        SidePinyinColumn(model: model, frame: CGRect(x: column.minX, y: column.minY,
+                                                                     width: column.width, height: column.height / 3 * 4))
+                            .transition(.identity)
+                    }
                 } else {
                     ForEach(layout.keys) { key in
                         KeyCapCell(presses: model.keyPresses, context: context, key: key)
                             .frame(width: key.visual.width, height: key.visual.height)
                             .offset(x: key.visual.minX, y: key.visual.minY)
+                            // 帮回键的外圈画在键外，压在旁边键上面。zIndex 1 会把它抬到下面的触摸层上面，
+                            // 键帽自己就接住了点按（0.96_5、0.96_6 点帮回没反应），所以这颗键帽不接触摸，点按还交给触摸层。
+                            .zIndex(key.kind == .emoticon ? 1 : 0)
+                            .allowsHitTesting(key.kind != .emoticon)
                     }
                     KeyTouchLayer(model: model, layout: layout)
                         .frame(width: geo.size.width, height: geo.size.height)
+                    if let column = layout.pinyinColumn {
+                        SidePinyinColumn(model: model, frame: column)
+                            .transition(.identity)
+                    }
                     if let column = layout.operatorColumn {
                         OperatorColumn(model: model, frame: column)
                     }
-                    // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选时也不显示）。
-                    if !model.nineGrid {
-                        KeyPopupLayer(presses: model.keyPresses, keys: layout.keys, hiddenKey: model.alternates?.key.id,
+                    // 横屏九宫格中间那块（LN1）：AI 栏 + 联想 / 候选 / 结果卡。放在长按十字下面，十字伸过来时盖得住。
+                    if let middle = layout.middle {
+                        LandscapeNineMiddle(model: model)
+                            .frame(width: middle.width, height: middle.height)
+                            .offset(x: middle.minX, y: middle.minY)
+                    }
+                    // iPad 全宽 9 键（PK3、PK4）：功能键一列和中间的联想 / 候选。
+                    if let rect = layout.padFunctions {
+                        PadNineFunctions(model: model, nineOnLeft: model.settings.nineKeySide == .left)
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                    }
+                    if let rect = layout.padMiddle {
+                        PadNineMiddle(model: model)
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                    }
+                    // 字符键按下时的放大气泡（九宫格和系统一样不显示；弹出长按备选、「，。」键往上划出十字时也不显示）。
+                    // iPad 全宽键盘也和原生一样不显示，按下的键变灰。
+                    if !model.nineGrid && model.pad == nil {
+                        KeyPopupLayer(presses: model.keyPresses, keys: layout.keys, hiddenKey: model.alternates?.key.id ?? model.cross?.key.id,
                                       uppercase: model.shift != .off, containerWidth: geo.size.width)
                             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
                             .allowsHitTesting(false)
@@ -47,6 +83,9 @@ struct KeysView: View {
                     if let popup = model.cross {
                         CrossView(model: model, popup: popup)
                     }
+                    if let popup = model.enterCross, let ai = context.returnLook.ai {
+                        EnterCrossView(popup: popup, ai: ai)
+                    }
                     if let menu = model.layoutMenu {
                         LayoutMenuView(menu: menu)
                     }
@@ -54,12 +93,38 @@ struct KeysView: View {
             }
         }
         .frame(height: KeyboardMetrics.keysHeight)
+        // 「★ 已加到常用语…」「只能粘贴文字」这类小提示：盖在按键区顶上，不挡手指。
+        .overlay(alignment: .top) {
+            if let toast = model.keysToast {
+                KeysToast(text: toast).padding(.top, 4).transition(.opacity).allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+/// 按键区顶上的深色小胶囊，样子和自由编辑的提示一样。
+struct KeysToast: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13.5, weight: .semibold))
+            .foregroundStyle(Brand.candidateMenuText)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(Capsule().fill(Brand.candidateMenuFill))
+            .shadow(color: .black.opacity(0.22), radius: 9, y: 6)
+            .padding(.horizontal, 12)
     }
 }
 
 /// 正被按住的键。和 KeyboardModel 分开：按下、松开只让按键和气泡重画。
 final class KeyPresses: ObservableObject {
     @Published var pressed: Set<String> = []
+    /// iPad 11 寸往下滑过了的键（PK1）：键帽上灰色小字换到正中，松手打它。
+    @Published var flicked: Set<String> = []
 }
 
 /// 画键帽要用到的键盘状态。只有这些值变了才重画键帽，打拼音时候选、拼写变化不牵动按键。
@@ -74,13 +139,40 @@ struct KeyCapContext: Equatable {
     var trackpadActive: Bool
     var spaceTitle: String
     var returnLook: KeyboardModel.ReturnLook
+    /// 双拼时字母键上写韵母小字（SP1）；不写时为 nil。
+    var hintScheme: DoublePinyin? = nil
+    /// 写哪些小字：固定档总是 .all；「跟着按键变」档按已打的键变（只有这一档会随每次按键重画键帽）。
+    var hintPhase: DoublePinyin.HintPhase = .all
+    /// 「跟着按键变」里写深一点、排在前面的（练习里老按错的，SP10）。
+    var hintWeak: Set<String> = []
+    /// iPad 9 键中间那块开着的是哪一样（PK17）：左列对应那颗浅紫底紫边。
+    var padMiddle: KeyboardModel.PadMiddle? = nil
+    /// iPad 9 键在左边：换边键写「→ 切换右布局」，在右边写「← 切换左布局」（第 86 条）。
+    var nineOnLeft = false
 }
 
 extension KeyboardModel {
     var keyCapContext: KeyCapContext {
         KeyCapContext(shift: shift, layer: layer, composing: isComposing, nineGrid: nineGrid, showsNineKey: showsNineKey,
                       chineseMode: chineseMode, digitsMore: digitsMore, trackpadActive: trackpadActive,
-                      spaceTitle: spaceTitle, returnLook: returnLook)
+                      spaceTitle: spaceTitle, returnLook: returnLook, hintScheme: keyHintScheme, hintPhase: keyHintPhase,
+                      hintWeak: keyHintPhase == .all ? [] : doublePinyinWeakUnits, padMiddle: padMiddleShown,
+                      nineOnLeft: settings.nineKeySide == .left)
+    }
+
+    /// 只在全键盘中文、字母页、没按 shift、键上提示没关时写（全拼、九宫格、英文都不写）。
+    private var keyHintScheme: DoublePinyin? {
+        guard let doublePinyin, settings.doublePinyinHintMode != .off, chineseMode, !showsNineKey, layer == .letters, shift == .off
+        else { return nil }
+        return doublePinyin
+    }
+
+    /// 「跟着按键变」：分段选过的字后面的键两两配对，最后单下一个键就是该按韵母。
+    private var keyHintPhase: DoublePinyin.HintPhase {
+        guard settings.doublePinyinHintMode == .dynamic, keyHintScheme != nil else { return .all }
+        if practiceActive { return practiceContextPhase }
+        guard isComposing else { return .initial }
+        return DoublePinyin.hintPhase(raw: engine.rawInput, from: engine.selections.last?.end ?? 0)
     }
 }
 
@@ -91,7 +183,8 @@ struct KeyCapCell: View {
     let key: KeySpec
 
     var body: some View {
-        KeyCapView(context: context, key: key, pressed: presses.pressed.contains(key.id))
+        KeyCapView(context: context, key: key, pressed: presses.pressed.contains(key.id),
+                   flicked: key.flick != nil && presses.flicked.contains(key.id))
             .equatable()
     }
 }
@@ -119,13 +212,30 @@ struct KeyCapView: View, Equatable {
     let context: KeyCapContext
     let key: KeySpec
     let pressed: Bool
+    var flicked = false
 
     var body: some View {
-        KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY) {
-            label
-                .foregroundStyle(foreground)
+        if let ai = returnLook?.ai {
+            // 回答卡展开、焦点在识意框：三段式识意（第 70 条）。
+            EnterAskKey(ai: ai, pressed: pressed)
                 .opacity(context.trackpadActive ? 0 : 1)
+                .padding(.horizontal, key.insetX)
+                .padding(.vertical, key.insetY)
+                .contentShape(Rectangle())
+        } else {
+            KeyCap(fill: fill(pressed: pressed), insetX: key.insetX, insetY: key.insetY,
+                   stroke: middleOpen ? Brand.toggleOpenStroke : nil) {
+                label
+                    .foregroundStyle(foreground)
+                    .opacity(context.trackpadActive ? 0 : 1)
+            }
         }
+    }
+
+    /// iPad 9 键左列开着的那颗（PK17）：浅紫底紫边紫字，和回答卡开关开着时一样。
+    private var middleOpen: Bool {
+        if case .padMiddle(let mode) = key.kind { return context.padMiddle == mode }
+        return false
     }
 
     private var returnLook: KeyboardModel.ReturnLook? {
@@ -140,12 +250,27 @@ struct KeyCapView: View, Equatable {
         if let look = returnLook {
             return look.solid ? Brand.purple.opacity(pressed ? 0.75 : 1) : Brand.returnSoftFill.opacity(pressed ? 0.7 : 1)
         }
-        let showsPopup = key.kind.typesCharacter && !context.nineGrid
-        return pressed && !showsPopup ? KeyStyle.pressedKey : KeyStyle.charKey
+        if middleOpen { return Brand.toggleOpenFill.opacity(pressed ? 0.7 : 1) }
+        let showsPopup = key.kind.typesCharacter && !context.nineGrid && KeyboardMetrics.pad == nil
+        // iPad 全宽键盘的功能键是灰底（PK1），按下和 ⇧ 打开时变白，和原生一样。
+        if KeyboardMetrics.pad != nil, key.kind.isPadFunction {
+            let lit = pressed || (key.kind == .shift && context.shift != .off)
+            return lit ? KeyStyle.charKey : KeyStyle.padFunctionKey
+        }
+        if pressed && !showsPopup { return KeyStyle.pressedKey }
+        // 「跟着按键变」拼不上的键：键底往键盘底色压一点（SP7 约 30%）。
+        return dimmed ? KeyStyle.charKey.opacity(0.7) : KeyStyle.charKey
+    }
+
+    /// 双拼「跟着按键变」该按韵母时，和前一个键拼不上的字母键（SP7）。
+    private var dimmed: Bool {
+        guard case .letter(let letter) = key.kind, let scheme = context.hintScheme, let char = letter.first else { return false }
+        return !scheme.keyFits(char, in: context.hintPhase)
     }
 
     private var foreground: Color {
         if let look = returnLook { return look.solid ? .white : Brand.deepPurple }
+        if middleOpen { return Brand.toggleOpenIcon }
         return .primary
     }
 
@@ -153,9 +278,19 @@ struct KeyCapView: View, Equatable {
     private var label: some View {
         switch key.kind {
         case .letter(let letter):
-            Text(context.shift == .off ? letter : letter.uppercased())
-                .font(KeyStyle.letterFont)
-                .offset(y: -1)
+            // 开着双拼提示时所有字母键一个排法（字母贴下边），没有韵母小字的键（小鹤、自然码的 a、e）上面空着，
+            // 不再单独居中放大，免得和别的键对不齐（11-16 用户反馈）。
+            if let scheme = context.hintScheme {
+                DoublePinyinKeyLabel(letter: letter, lines: scheme.hints(for: context.hintPhase)[Character(letter)] ?? [], dimmed: dimmed,
+                                     weak: context.hintWeak)
+            } else if let flick = key.flick {
+                // iPad 11 寸（PK1）：上面灰色小字是往下滑打的数字和符号，和原生一样。
+                PadSymbolLabel(base: context.shift == .off ? letter : letter.uppercased(), shifted: flick, flicked: flicked)
+            } else {
+                Text(context.shift == .off ? letter : letter.uppercased())
+                    .font(KeyStyle.letterFont)
+                    .offset(y: -1)
+            }
         case .symbol(let symbol):
             if context.layer == .digits {
                 Text(symbol).font(.system(size: 24))
@@ -168,6 +303,14 @@ struct KeyCapView: View, Equatable {
             }
         case .digitPunct:
             Text(".,:").font(KeyStyle.nineKeyFont).tracking(1)
+        case .quickPunct(let chinese):
+            QuickPunctLabel(chinese: chinese)
+        case .padSymbol(let base, let shifted):
+            PadSymbolLabel(base: base, shifted: shifted, flicked: flicked)
+        case .tab:
+            Image(systemName: "arrow.right.to.line").font(KeyStyle.iconFont)
+        case .dismiss:
+            Image(systemName: "keyboard.chevron.compact.down").font(KeyStyle.iconFont)
         case .digitsMore:
             if context.digitsMore {
                 Text("返回").font(.system(size: 16, weight: .semibold)).foregroundStyle(Brand.deepPurple)
@@ -197,7 +340,7 @@ struct KeyCapView: View, Equatable {
         case .returnKey:
             let look = context.returnLook
             if let title = look.title {
-                Text(title).font(.system(size: 17, weight: look.bold ? .semibold : .regular))
+                Text(title).font(.system(size: KeyboardMetrics.pad?.functionFontSize ?? 17, weight: look.bold ? .semibold : .regular))
             } else {
                 Image(systemName: "return.left").font(KeyStyle.iconFont)
             }
@@ -218,7 +361,15 @@ struct KeyCapView: View, Equatable {
         case .emoji:
             Image(systemName: "face.smiling").font(KeyStyle.iconFont)
         case .quickWords:
-            Text("常用").font(KeyStyle.nineKeyFont).tracking(1)
+            QuickKeyLabel()
+        case .padMiddle(let mode):
+            switch mode {
+            case .digits: Text("123").font(KeyStyle.nineKeyFont).tracking(1)
+            case .symbols: SymbolsKeyLabel()
+            case .quick: QuickKeyLabel()
+            }
+        case .swapNineSide:
+            SwapSideLabel(toRight: context.nineOnLeft)
         case .layer(let target):
             if context.nineGrid {
                 if key.id == "symbols" {
@@ -244,7 +395,57 @@ struct KeyCapView: View, Equatable {
         case .numbers: return "123"
         case .symbols: return "#+="
         case .digits: return "123"
-        case .letters: return context.chineseMode || context.showsNineKey ? "拼音" : "ABC"
+        // iPad 的数字符号页（PK9）回字母写 ABC，和原生一样。
+        // iPad 9 键数字页（PK9 右）左下是「返回」。
+        case .letters:
+            if KeyboardMetrics.pad != nil { return context.nineGrid ? "返回" : "ABC" }
+            // iPad 浮动 9 键数字页（PK14）左下也是「返回」。
+            if KeyboardMetrics.floating && context.nineGrid { return "返回" }
+            return context.chineseMode || context.showsNineKey ? "拼音" : "ABC"
+        }
+    }
+}
+
+extension KeyKind {
+    /// iPad 全宽键盘上灰底的功能键（PK1 --fn）。空格、回车、「，。」和字符键是白的。
+    var isPadFunction: Bool {
+        switch self {
+        // 9 键（PK3）的「常用」「^^」也是灰的。
+        case .tab, .delete, .toggleChinese, .shift, .globe, .layer, .emoji, .dismiss, .quickWords, .emoticon,
+             .padMiddle, .swapNineSide: return true
+        default: return false
+        }
+    }
+}
+
+/// iPad 的标点、数字键（PK2）：上面灰色小字是按 ⇧ 出的，下面是平时打的。全角 ，。、：； 画成居中的字形（CenteredGlyph），
+/// 视觉上在键帽正中，不偏左下（11-22 cvbk「注意里面文字的大小居中（视觉上）」）。
+struct PadSymbolLabel: View {
+    let base: String
+    let shifted: String
+    /// 11 寸往下滑过了（PK1）：灰色小字换到下面正中、变大变黑，松手打它；上面空出来。
+    var flicked = false
+
+    private static let centered: Set<String> = ["，", "。", "、", "：", "；", "‘", "“", "（", "）"]
+
+    var body: some View {
+        let size = KeyboardMetrics.pad?.fontSize ?? 22
+        VStack(spacing: 1) {
+            glyph(shifted, size: (size * 0.55).rounded())
+                .foregroundStyle(.secondary)
+                .opacity(flicked ? 0 : 1)
+            glyph(flicked ? shifted : base, size: size)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(base)
+    }
+
+    @ViewBuilder
+    private func glyph(_ text: String, size: CGFloat) -> some View {
+        if Self.centered.contains(text) {
+            CenteredGlyph(text, size: size)
+        } else {
+            Text(text == "……" ? "…" : text).font(.system(size: size))
         }
     }
 }
@@ -258,13 +459,17 @@ struct ToggleLabel: View {
     var body: some View {
         // 斜杠往「中」挪 1pt、「英」跟着挪 0.5pt（左右间距 2/2 → 1/2.5），抵消斜杠倾斜后看着偏「英」。
         let font = Font.system(size: size, weight: .medium)
+        // iPad 全宽键盘这颗键是灰底（PK1）：浅灰的字和斜杠换成设计稿的 --sub，不然和键底一个颜色。浮动键盘照 iPhone 白底。
+        let onGray = KeyboardMetrics.pad != nil
+        let inactive = onGray ? Brand.toggleInactivePad : Brand.toggleInactive
+        let slash = onGray ? Brand.toggleInactivePad : Brand.toggleSlash
         return HStack(alignment: .firstTextBaseline, spacing: 0) {
             Text("中").font(font)
-                .foregroundColor(chinese ? Brand.toggleActive : Brand.toggleInactive)
-            Text("/").font(font).foregroundColor(Brand.toggleSlash)
+                .foregroundColor(chinese ? Brand.toggleActive : inactive)
+            Text("/").font(font).foregroundColor(slash)
                 .padding(.leading, -1)
             Text("英").font(font)
-                .foregroundColor(chinese ? Brand.toggleInactive : Brand.toggleActive)
+                .foregroundColor(chinese ? inactive : Brand.toggleActive)
                 .padding(.leading, 0.5)
         }
     }
@@ -402,6 +607,44 @@ private enum ChinesePunctShape {
     }
 }
 
+/// 全键盘空格旁的「，。」键（PU2）：大字逗号居中偏下，左上角小灰字句号，提示可以往上划。英文时是「,」和「.」。
+struct QuickPunctLabel: View {
+    let chinese: Bool
+
+    var body: some View {
+        // 横屏键只有 32 高，小字往里收一点，不贴键帽上沿。
+        let landscape = KeyboardMetrics.landscape
+        if let pad = KeyboardMetrics.pad {
+            // iPad（PK1）：「，」在键帽正中，「。」小字在左上。
+            ZStack {
+                if chinese {
+                    CenteredGlyph("，", size: pad.fontSize)
+                } else {
+                    Text(",").font(KeyStyle.symbolFont)
+                }
+                CenteredGlyph(QuickPunct.up(chinese: chinese), size: (pad.fontSize * 0.5).rounded())
+                    .foregroundStyle(.secondary)
+                    .offset(x: -(pad.fontSize * 0.45).rounded(), y: -(pad.fontSize * 0.5).rounded())
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(chinese ? "，。" : ",.")
+        } else {
+            ZStack {
+                if chinese {
+                    ChinesePunctMark(kind: .comma)
+                } else {
+                    Text(",").font(KeyStyle.symbolFont)
+                }
+                CenteredGlyph(QuickPunct.up(chinese: chinese), size: landscape ? 10 : 11)
+                    .foregroundStyle(.secondary)
+                    .offset(x: -9, y: landscape ? -8 : -11)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(chinese ? "，。" : ",.")
+        }
+    }
+}
+
 /// 全角标点的字形偏在字框左下角，直接用 Text 排出来会散。这里取 PingFang SC 的字形外框，
 /// 把外框中心画到图的中心，再按 drop 往下偏。模板图，颜色跟着前景色。
 struct CenteredGlyph: View {
@@ -471,6 +714,7 @@ struct KeyPopup: View {
         switch key.kind {
         case .letter(let letter): return uppercase ? letter.uppercased() : letter
         case .symbol(let symbol): return symbol
+        case .quickPunct(let chinese): return QuickPunct.tap(chinese: chinese)
         default: return ""
         }
     }
@@ -506,56 +750,133 @@ struct PopupShape: Shape {
     }
 }
 
+/// 展开整页候选的开收：像卷帘一样从顶上往下露出来（收起时往上卷回去），内容跟着往下滑一小段、淡入。
+/// 只在点候选栏箭头时带动画（KeyboardView 里 withAnimation），选词、打字时收起直接切换。
+struct CandidateReveal: ViewModifier, Animatable {
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: -18 * (1 - progress))
+            .opacity(Double(min(1, progress * 1.6)))
+            .mask(alignment: .top) {
+                GeometryReader { geo in
+                    Rectangle().frame(height: geo.size.height * progress + 18 * (1 - progress))
+                }
+            }
+    }
+}
+
 /// 候选词展开后铺满按键区，和系统键盘一样可以上下滑着挑。
 /// 每格最小 64pt；长词按字数占两三格甚至整行，不截断成省略号（排法见 CandidateRows）。
+/// iPad 全宽 26 键（PK5 中）：候选放在一张白底圆角卡里，和按键一样离边；一格最小 86（11 寸横屏一行 12 个、竖屏 8 个），
+/// 一排的高度把按键区分成字母页那么多排（11 寸 4 排、13 寸 5 排），排间细线；右边一列 ⌫、重输、确认，和功能键一样灰底。
 struct CandidateGrid: View {
     @ObservedObject var model: KeyboardModel
     /// 左边让给九宫格拼音栏的宽度。
     var leading: CGFloat = 0
 
     var body: some View {
+        let pad = KeyboardMetrics.pad
+        let half = (pad?.gap ?? 0) / 2
+        let fontSize = pad.map { $0.fontSize - 2 } ?? CandidateRows.fontSize
+        let shape = RoundedRectangle(cornerRadius: pad == nil ? 0 : KeyStyle.cornerRadius, style: .continuous)
         HStack(alignment: .top, spacing: 0) {
             GeometryReader { geo in
+                let rowHeight = pad.map { geo.size.height / CGFloat($0.rows) } ?? 46
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        ForEach(CandidateRows.rows(model.candidates, width: geo.size.width)) { row in
+                        ForEach(CandidateRows.rows(model.displayWords(model.candidates), width: geo.size.width,
+                                                   minimumCell: pad == nil ? (KeyboardMetrics.floating ? 50 : 64) : 86,
+                                                   fontSize: fontSize)) { row in
                             HStack(spacing: 0) {
                                 ForEach(row.cells, id: \.index) { cell in
                                     Button { model.selectCandidate(cell.index) } label: {
                                         Text(cell.word)
-                                            .font(.system(size: CandidateRows.fontSize))
+                                            .font(.system(size: fontSize))
                                             .foregroundStyle(Color.primary)
                                             .lineLimit(1)
                                             .minimumScaleFactor(0.5)
                                             .padding(.horizontal, CandidateRows.padding)
                                             .frame(width: cell.width)
-                                            .frame(minHeight: 46)
+                                            .frame(minHeight: rowHeight)
                                             .contentShape(Rectangle())
                                     }
                                     .buttonStyle(KeyPressStyle())
                                 }
                                 Spacer(minLength: 0)
                             }
+                            .overlay(alignment: .bottom) {
+                                if pad != nil { Rectangle().fill(Color(UIColor.separator)).frame(height: 0.5) }
+                            }
                         }
                     }
                 }
             }
+            .background(shape.fill(pad == nil ? Color.clear : KeyStyle.charKey))
+            .clipShape(shape)
+            .padding(half)
             .padding(.leading, leading)
             .frame(maxWidth: .infinity)
             .hidingScrollEdgeEffect()
-            // 平时只取了第一屏候选，展开整页时补全；展开着选拼音、分段选词后候选换了，也再补全。
-            .onAppear { model.loadMoreCandidates() }
-            .onChange(of: model.composition) { _ in model.loadMoreCandidates() }
-            // 收起用候选栏右边的箭头；这里只放退格和重输，上下平分整列。
-            VStack(spacing: 0) {
-                RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
-                    .frame(maxHeight: .infinity)
-                FunctionKey(title: "重输") { model.clearComposition() }
-                    .frame(maxHeight: .infinity)
+            // 候选换了（补全、选拼音）时格子直接换，不跟着开收的动画一格格飞（会看到字往别的格子挪）。
+            .transaction { $0.animation = nil }
+            // 平时只取了第一屏候选（30 个，够铺满第一屏），展开整页时补全；放到展开动画之后再取，取的时候主线程要等引擎，
+            // 放在出现的那一下会卡住动画、连点箭头也像没反应。展开着选拼音、分段选词后候选换了，也再补全。
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak model] in
+                    guard let model, model.candidatesExpanded else { return }
+                    model.loadMoreCandidates()
+                }
             }
-            .frame(width: 64)
+            .onChange(of: model.composition) { _ in model.loadMoreCandidates() }
+            if let pad {
+                padSideColumn(pad)
+            } else {
+                // 收起用候选栏右边的箭头；这里只放退格和重输，上下平分整列。
+                VStack(spacing: 0) {
+                    RepeatingKey(systemImage: "delete.left") { model.deleteKey() }
+                        .frame(maxHeight: .infinity)
+                    FunctionKey(title: "重输") { model.clearComposition() }
+                        .frame(maxHeight: .infinity)
+                }
+                .frame(width: 64)
+                .frame(maxHeight: .infinity)
+            }
+        }
+        // iPad：上下和按键一样离边（按键格子从 top − gap/2 起，键帽再缩进半条缝）。
+        .padding(.top, pad.map { $0.top - $0.gap / 2 } ?? 0)
+        .padding(.bottom, pad.map { $0.bottom - $0.gap / 2 } ?? 0)
+    }
+
+    /// iPad 右边一列（PK5 中）：⌫、重输、确认（把字母原样上屏，浅紫底紫字，和打字中的回车一样），三颗一样高。
+    private func padSideColumn(_ pad: PadMetrics) -> some View {
+        let half = pad.gap / 2
+        return VStack(spacing: 0) {
+            RepeatingKey(systemImage: "delete.left", insetX: half, insetY: half, fill: KeyStyle.padFunctionKey) { model.deleteKey() }
+                .frame(maxHeight: .infinity)
+            Button { model.clearComposition() } label: {
+                KeyCap(fill: KeyStyle.padFunctionKey, insetX: half, insetY: half) {
+                    Text("重输").font(KeyStyle.functionFont).foregroundStyle(Color.primary)
+                }
+            }
+            .buttonStyle(KeyPressStyle())
+            .frame(maxHeight: .infinity)
+            Button { if model.isComposing { model.returnKey() } } label: {
+                KeyCap(fill: Brand.returnSoftFill, insetX: half, insetY: half) {
+                    Text("确认").font(KeyStyle.functionFont).foregroundStyle(Brand.deepPurple)
+                }
+            }
+            .buttonStyle(KeyPressStyle())
             .frame(maxHeight: .infinity)
         }
+        .frame(width: pad.landscape ? 120 : 96)
+        .frame(maxHeight: .infinity)
     }
 }
 
@@ -565,8 +886,6 @@ struct CandidateGrid: View {
 enum CandidateRows {
     static let fontSize: CGFloat = 20
     static let padding: CGFloat = 6
-    private static let minimumCell: CGFloat = 64
-    private static let font = UIFont.systemFont(ofSize: fontSize)
     private static var widthCache: [String: CGFloat] = [:]
 
     struct Cell {
@@ -580,7 +899,8 @@ enum CandidateRows {
         let cells: [Cell]
     }
 
-    static func rows(_ words: [String], width: CGFloat) -> [Row] {
+    /// minimumCell、fontSize：iPad 上格子和字都大一点（展开候选 86、9 键中间那块 52 / 58），量字宽用同一个字号。
+    static func rows(_ words: [String], width: CGFloat, minimumCell: CGFloat = 64, fontSize: CGFloat = CandidateRows.fontSize) -> [Row] {
         guard width > 0 else { return [] }
         let columns = max(1, Int(width / minimumCell))
         let unit = width / CGFloat(columns)
@@ -597,7 +917,7 @@ enum CandidateRows {
             used = 0
         }
         for (index, word) in words.enumerated() {
-            let span = min(columns, max(1, Int(ceil(textWidth(word) / unit))))
+            let span = min(columns, max(1, Int(ceil(textWidth(word, fontSize: fontSize) / unit))))
             if used + span > columns { flush(stretch: true) }
             pending.append((index, word, span))
             used += span
@@ -606,11 +926,13 @@ enum CandidateRows {
         return rows
     }
 
-    private static func textWidth(_ word: String) -> CGFloat {
-        if let cached = widthCache[word] { return cached }
+    private static func textWidth(_ word: String, fontSize: CGFloat) -> CGFloat {
+        let key = fontSize == Self.fontSize ? word : "\(fontSize)|\(word)"
+        if let cached = widthCache[key] { return cached }
         if widthCache.count > 1000 { widthCache.removeAll() }
+        let font = UIFont.systemFont(ofSize: fontSize)
         let width = ceil((word as NSString).size(withAttributes: [.font: font]).width) + padding * 2
-        widthCache[word] = width
+        widthCache[key] = width
         return width
     }
 }
@@ -627,25 +949,13 @@ struct LayoutMenuView: View {
                 .frame(width: menu.key.cap.width, height: menu.key.cap.height)
                 .offset(x: menu.key.cap.minX, y: menu.key.cap.minY)
             VStack(alignment: .leading, spacing: 0) {
-                Text(L("拼音布局", "Pinyin layout", "ピンインの配列"))
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
-                    .padding(.leading, 10)
-                    .frame(height: LayoutMenuPopup.titleHeight, alignment: .center)
-                ForEach(LayoutMenuPopup.options, id: \.self) { option in
-                    let selected = menu.selected == option
-                    HStack {
-                        Text(option == .nineKey ? L("九宫格", "10-key", "10キー") : L("全键盘", "QWERTY", "QWERTY"))
-                            .font(.system(size: 15, weight: selected ? .semibold : .regular))
-                        Spacer()
-                        if selected { Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)) }
-                    }
-                    .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
-                    .padding(.horizontal, 10)
-                    .frame(height: LayoutMenuPopup.rowHeight)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(selected ? Brand.returnSoftFill : Color.clear))
-                }
+                title(L("拼音布局", "Pinyin layout", "ピンインの配列"))
+                ForEach(0..<2, id: \.self) { row($0) }
+                Rectangle().fill(Color(UIColor.separator)).frame(height: 0.5)
+                    .padding(.vertical, (LayoutMenuPopup.dividerHeight - 0.5) / 2)
+                    .padding(.horizontal, 4)
+                title(L("拼音显示", "Pinyin display", "ピンインの表示"))
+                ForEach(2..<4, id: \.self) { row($0) }
             }
             .padding(LayoutMenuPopup.padding)
             .frame(width: frame.width, height: frame.height, alignment: .topLeading)
@@ -655,5 +965,134 @@ struct LayoutMenuView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(false)
+    }
+
+    private func title(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11.5))
+            .foregroundStyle(Color(red: 0x8E / 255, green: 0x8E / 255, blue: 0x93 / 255))
+            .padding(.leading, 10)
+            .frame(height: LayoutMenuPopup.titleHeight, alignment: .center)
+    }
+
+    private func row(_ index: Int) -> some View {
+        let option = LayoutMenuPopup.options[index]
+        let selected = menu.isChecked(option)
+        let name: String
+        switch option {
+        case .layout(let layout): name = layout == .nineKey ? L("九宫格", "10-key", "10キー") : L("全键盘", "QWERTY", "QWERTY")
+        case .display(let display): name = display.title
+        }
+        return HStack {
+            Text(name).font(.system(size: 15, weight: selected ? .semibold : .regular))
+            Spacer()
+            if selected { Image(systemName: "checkmark").font(.system(size: 13, weight: .semibold)) }
+        }
+        .foregroundStyle(selected ? Brand.deepPurple : Color.primary)
+        .padding(.horizontal, 10)
+        .frame(height: LayoutMenuPopup.rowHeight)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(selected ? Brand.returnSoftFill : Color.clear))
+    }
+}
+
+/// 九宫格左列「常 用 / 剪贴板」（对齐清单第 62 条，CW1 方案 a）：两行同字号 14.5pt、同颜色；
+/// 「常 用」两字两端对齐到和「剪贴板」一样宽（3 个字宽），两行整体在键里居中，行高 1.25。剪贴板有新内容不再出紫点。
+/// iPad 9 键的换边键（第 86 条，11-23 cvbk「再右侧就做一个向左的箭头，底下写上文字：切换左布局，再左侧同理」）：
+/// 上面箭头，下面小字（竖屏 11、横屏 12）。九键在右时「← 切换左布局」，在左时「→ 切换右布局」。
+struct SwapSideLabel: View {
+    /// 九键现在在左边，点了换到右边。
+    let toRight: Bool
+
+    var body: some View {
+        let landscape = KeyboardMetrics.pad?.landscape == true
+        VStack(spacing: 3) {
+            Image(systemName: toRight ? "arrow.right" : "arrow.left")
+                .font(.system(size: landscape ? 17 : 16, weight: .medium))
+            Text(toRight ? L("切换右布局", "To right", "右へ") : L("切换左布局", "To left", "左へ"))
+                .font(.system(size: landscape ? 12 : 11))
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(toRight ? L("九键换到右边", "Move keypad to the right", "テンキーを右へ")
+                                    : L("九键换到左边", "Move keypad to the left", "テンキーを左へ"))
+    }
+}
+
+struct QuickKeyLabel: View {
+    private static let size: CGFloat = 14.5
+
+    var body: some View {
+        VStack(spacing: Self.size * 0.25 - 2) {
+            HStack(spacing: 0) {
+                Text("常")
+                Spacer(minLength: 0)
+                Text("用")
+            }
+            .frame(width: Self.size * 3)
+            Text("剪贴板")
+        }
+        .font(.system(size: Self.size))
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L("常用和剪贴板", "Phrases and clipboard", "定型文とクリップボード"))
+    }
+}
+
+/// 双拼键上的提示（SP2 样式 A）：韵母小字在键帽上方居中，离顶 3pt，最多两行；zh/ch/sh 主题紫、加粗，排第一行。
+/// 有小字的键字母缩小一点、贴下边，和小字不挤。按下时的气泡只放大字母（KeyPopup 不变）。
+struct DoublePinyinKeyLabel: View {
+    let letter: String
+    let lines: [String]
+    /// 「跟着按键变」拼不上的键：字母透明度 28%（SP7）。
+    var dimmed = false
+    /// 练习里老按错的韵母（和 zh / ch / sh）：排在前面、字深一点（SP10）。
+    var weak: Set<String> = []
+
+    /// 小字和字母都挂在键上（overlay），不撑键的高度：以前是 VStack，两行小字的键（s、k、l、x、v）比键高，
+    /// 竖屏往下伸出来、和别的键对不齐（T18，IMG_2005）；横屏键只有 29 高，撑得更多，整排错位、互相压住（IMG_2006）。
+    /// 按键高 43（横屏 32）排：竖屏两行时小字小一号；横屏只留一行小字。
+    var body: some View {
+        let style = Self.style(lines: shownLines.count, landscape: KeyboardMetrics.landscape)
+        Color.clear
+            .overlay(alignment: .top) {
+                VStack(spacing: 0) {
+                    ForEach(shownLines, id: \.self) { line in
+                        let initial = ["zh", "ch", "sh"].contains(line)
+                        let isWeak = weak.contains(line)
+                        Text(line)
+                            .font(.system(size: style.hintSize, weight: initial || isWeak ? .bold : .medium))
+                            .foregroundStyle(initial ? Brand.purpleText : isWeak ? Color.primary : Color.secondary)
+                            .frame(height: style.hintLine)
+                    }
+                }
+                .padding(.top, style.top)
+            }
+            .overlay(alignment: .bottom) {
+                Text(letter)
+                    .font(.system(size: style.letterSize))
+                    .opacity(dimmed ? 0.28 : 1)
+                    .padding(.bottom, style.bottom)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private struct Style {
+        var hintSize: CGFloat, hintLine: CGFloat, top: CGFloat, letterSize: CGFloat, bottom: CGFloat
+    }
+
+    /// 字母大小、离底边的距离每个键都一样（同一排对得齐）；只有小字的排法看行数。
+    /// 竖屏键高 43：字母 21 离底 2.5，基线约在 36，l、k 的头顶约 21。一行小字 3 + 8.6；两行小一号 2 + 8×2 = 18，不碰字母。
+    /// 横屏键高 32（LN2）：照竖屏字母 19 贴下边、离底 1.5，头顶约 12；两行小字放不下，只留一行 1.5 + 7.5。
+    private static func style(lines: Int, landscape: Bool) -> Style {
+        if landscape { return Style(hintSize: 7, hintLine: 7.5, top: 1.5, letterSize: 19, bottom: 1.5) }
+        if lines >= 2 { return Style(hintSize: 7.5, hintLine: 8, top: 2, letterSize: 21, bottom: 2.5) }
+        return Style(hintSize: 8, hintLine: 8.6, top: 3, letterSize: 21, bottom: 2.5)
+    }
+
+    private var shownLines: [String] {
+        let limit = KeyboardMetrics.landscape ? 1 : 2
+        guard !weak.isEmpty else { return Array(lines.prefix(limit)) }
+        return Array((lines.filter { weak.contains($0) } + lines.filter { !weak.contains($0) }).prefix(limit))
     }
 }

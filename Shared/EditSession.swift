@@ -19,8 +19,92 @@ struct EditSession: Codable, Equatable {
     var answerVersions: [Int]?
     /// 「识意」每一版是哪句话、带着什么原文问的（按版本序号存），结果卡左边「⇄ 切换」换方式重做时用。旧数据里没有。
     var askSources: [String: AskSource]?
+    /// 帮回写的版本（版本序号 → 对方的话、要求、想表达的意思）：卡头「回」小标和原话，历史页标「回」。0.96_12 起记。
+    var replySources: [String: ReplySource]?
     /// 联网回答过的版本序号 → 服务商名字（「🌐 已联网 · Kimi」）。旧数据里没有。
     var searchedVersions: [String: String]?
+    /// 历史记录（AIHistory）里这一轮的编号和开始时间。新开一轮时生成；旧数据里没有，就不进历史。
+    var historyID: String? = UUID().uuidString
+    var startedAt: Date? = Date()
+    /// 每一版用的风格和服务商（版本序号 → ），历史页显示。旧数据里没有。
+    var versionInfo: [String: VersionInfo]?
+    /// 替换 / 插入进输入框的版本序号 → "replaced" / "inserted"，历史页标「已替换」「已插入」。旧数据里没有。
+    var usedVersions: [String: String]?
+    /// 替换 / 插入的时间（版本序号 → ），历史详情时间线最后一步。0.95_7 起记。
+    var usedTimes: [String: Date]?
+
+    struct VersionInfo: Codable, Equatable {
+        var style: String?
+        var provider: String?
+        /// 下面几项 0.95_7 起记（历史详情的时间线），旧数据里没有。
+        /// 这一版出来的时间。
+        var at: Date?
+        /// 怎么来的：见 VersionSource。存成字符串，以后加了新的种类旧版本也解得开。
+        var source: String?
+        /// 请求用了多久（毫秒）；手改的没有。
+        var ms: Int?
+        /// 手改的：改的是第几版（序号）。
+        var editedFrom: Int?
+        /// 问答联网：开始搜索的时间、是不是自动联网的（false：键盘上问了，你点了「允许」）。
+        var searchAt: Date?
+        var searchAuto: Bool?
+    }
+
+    /// VersionInfo.source 的取值。
+    enum VersionSource {
+        /// 点 ✨ 润色（同一风格重来也是这个；换了风格时历史页写「换成『X』」）。
+        static let polish = "polish"
+        /// 帮我写。
+        static let write = "write"
+        /// 按住 ✨ 识意 / 问答。
+        static let ask = "ask"
+        /// 结果卡「⇄ 切换」换方式重做。
+        static let redo = "redo"
+        /// 在卡片里手改。
+        static let edit = "edit"
+        /// 帮回：回复复制的那句话（用当前润色风格）。
+        static let reply = "reply"
+    }
+
+    /// 帮回的一版回的是哪句话。request：识意框里的要求；meaning：输入框里自己打的字（想表达的意思）。
+    struct ReplySource: Codable, Equatable {
+        var message: String
+        var request: String?
+        var meaning: String?
+    }
+
+    /// 正在显示的这一版是帮回写的：回的那句话。
+    var currentReplySource: ReplySource? { replySources?[String(currentIndex)] }
+    var currentIsReply: Bool { currentReplySource != nil }
+
+    /// 刚出的这一版是帮回写的。
+    mutating func markReply(_ source: ReplySource) {
+        replySources = (replySources ?? [:]).merging([String(currentIndex): source]) { $1 }
+    }
+
+    /// 刚出的这一版是用哪个风格、哪家服务商生成的，怎么来的、用了多久。
+    mutating func noteCurrent(style: String?, provider: String?, source: String? = nil, ms: Int? = nil,
+                              searchAt: Date? = nil, searchAuto: Bool? = nil, at: Date = Date()) {
+        let info = VersionInfo(style: style, provider: provider, at: at, source: source, ms: ms,
+                               searchAt: searchAt, searchAuto: searchAuto)
+        versionInfo = (versionInfo ?? [:]).merging([String(currentIndex): info]) { $1 }
+    }
+
+    /// 刚手改存下的这一版：改的是第几版。
+    mutating func noteEdit(from index: Int, at: Date = Date()) {
+        let info = VersionInfo(at: at, source: VersionSource.edit, editedFrom: index)
+        versionInfo = (versionInfo ?? [:]).merging([String(currentIndex): info]) { $1 }
+    }
+
+    /// 正在显示的这版替换或插入进了输入框；撤销时 use 传 nil。
+    mutating func markCurrentUsed(_ use: String?, at: Date = Date()) {
+        var used = usedVersions ?? [:]
+        used[String(currentIndex)] = use
+        usedVersions = used
+        var times = usedTimes ?? [:]
+        times[String(currentIndex)] = use == nil ? nil : at
+        usedTimes = times
+    }
 
     /// 正在显示的回答是联网查过的：哪一家。
     var currentSearchedBy: String? { searchedVersions?[String(currentIndex)] }
@@ -31,6 +115,7 @@ struct EditSession: Codable, Equatable {
         versions[currentIndex] = version
         editedVersions?.removeAll { $0 == currentIndex }
         searchedVersions = (searchedVersions ?? [:]).merging([String(currentIndex): provider]) { $1 }
+        replySources?[String(currentIndex)] = nil
     }
 
     mutating func markSearched(by provider: String) {
@@ -69,6 +154,7 @@ struct EditSession: Codable, Equatable {
             editedVersions?.removeAll { $0 == last }
             answerVersions?.removeAll { $0 == last }
             searchedVersions?[String(last)] = nil
+            replySources?[String(last)] = nil
             currentIndex = last
         } else {
             versions.append(version)
@@ -99,9 +185,11 @@ enum SessionStore {
         return try? JSONDecoder().decode(EditSession.self, from: data)
     }
 
+    /// 存一份正在用的会话；同时把这一轮更新进历史记录（关着记录时不写）。
     static func save(_ session: EditSession?) {
         if let session, let data = try? JSONEncoder().encode(session) {
             SharedStorage.defaults.set(data, forKey: key)
+            AIHistory.record(session)
         } else {
             SharedStorage.defaults.removeObject(forKey: key)
         }

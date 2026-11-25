@@ -214,9 +214,8 @@ struct LLMClient {
         }
     }
 
-    /// 发一次请求。旁边一个看门狗：连上后 firstDataLimit 内没收到任何数据、或之后 stallLimit 没有新数据，就抛 timeout。
-    /// 推理模型先发思考内容（这里不显示），也算收到数据，免得被误判超时。
-    private func streamOnce(_ messages: [ChatMessage], onText: @escaping @Sendable (String) -> Void) async throws {
+    /// 拼好一次 /chat/completions 请求（流式问答和「测试联网」共用，按服务商带上联网字段）。
+    func makeRequest(_ messages: [ChatMessage], stream: Bool) throws -> URLRequest {
         guard settings.isConfigured else { throw LLMError.notConfigured }
         var request = URLRequest(url: try endpoint())
         request.httpMethod = "POST"
@@ -229,7 +228,7 @@ struct LLMClient {
         request.httpBody = try JSONEncoder().encode(RequestBody(
             model: settings.model.trimmingCharacters(in: .whitespaces),
             messages: messages,
-            stream: true,
+            stream: stream,
             temperature: kimiModel == nil ? settings.temperature : nil,
             max_tokens: settings.maxTokens,
             // 混元 hy3 默认会先思考：键盘里要快，发 no_think。
@@ -239,6 +238,24 @@ struct LLMClient {
             tools: webSearch && settings.searchProvider == .glm ? [Tool()] : nil,
             web_search_options: webSearch && settings.searchProvider == .hunyuan ? HunyuanSearch() : nil
         ))
+        return request
+    }
+
+    /// 不流式发一次，原样返回响应体（「测试联网」要看返回里有没有搜索结果）。非 2xx 抛 LLMError.http。
+    func completeRaw(_ messages: [ChatMessage], timeout: TimeInterval = 40) async throws -> Data {
+        var request = try makeRequest(messages, stream: false)
+        request.timeoutInterval = timeout
+        let (data, response) = try await BuiltinAPI.session(for: apiKey).data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            throw LLMError.http(http.statusCode, String(decoding: data.prefix(500), as: UTF8.self))
+        }
+        return data
+    }
+
+    /// 发一次请求。旁边一个看门狗：连上后 firstDataLimit 内没收到任何数据、或之后 stallLimit 没有新数据，就抛 timeout。
+    /// 推理模型先发思考内容（这里不显示），也算收到数据，免得被误判超时。
+    private func streamOnce(_ messages: [ChatMessage], onText: @escaping @Sendable (String) -> Void) async throws {
+        let request = try makeRequest(messages, stream: true)
 
         let activity = Activity()
         let firstLimit = firstDataLimit

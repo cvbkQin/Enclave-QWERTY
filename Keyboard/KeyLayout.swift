@@ -17,20 +17,32 @@ enum KeyKind: Equatable {
     case digitPunct
     /// 九宫格数字键盘的「更多」：左列换成运算符，再点是「返回」。
     case digitsMore
+    /// 全键盘空格旁的「，。」键（对齐清单第 80 条）：点一下逗号，往上划句号，长按一排标点（QuickPunct）。
+    /// chinese：中文时全角，英文时半角。
+    case quickPunct(chinese: Bool)
+    /// iPad 全宽键盘（PK1、PK2）：Tab 键、右下角「收起键盘」。
+    case tab, dismiss
+    /// iPad 全宽键盘的标点、数字键（PK1、PK2）：按了 ⇧ 打 shifted（键帽上的灰色小字），平时打 base。
+    case padSymbol(String, shifted: String)
+    /// iPad 全宽 9 键左列的 123、#@¥、常用剪贴板（PK17、PK18）：只换中间那块的内容，键盘不变高，开着的那颗浅紫底紫边；
+    /// 再点一次收回。123 时九键 3×3 换成 1–9。
+    case padMiddle(KeyboardModel.PadMiddle)
+    /// iPad 全宽 9 键最下面一排挨着九键的 ⇆（PK17）：九键整块换到另一边，和 App 设置「九键位置」是同一个设置。
+    case swapNineSide
 
     /// 会打出字符的键：按下时显示放大气泡，另一根手指按下时先上屏。
     var typesCharacter: Bool {
         switch self {
-        case .letter, .symbol, .nine, .digitPunct: return true
+        case .letter, .symbol, .nine, .digitPunct, .quickPunct, .padSymbol: return true
         default: return false
         }
     }
 
-    /// 按住直接往四个方向划就出十字（打拼音时的分词键除外）。
+    /// 按住直接往四个方向划就出十字（打拼音时的分词键除外）。「，。」键和九宫格标点键同一种判定，只有往上有字。
     func flicks(composing: Bool) -> Bool {
         switch self {
         case .nine(let digit): return !(digit == "'" && composing)
-        case .digitPunct: return true
+        case .digitPunct, .quickPunct: return true
         default: return false
         }
     }
@@ -47,6 +59,8 @@ struct KeySpec: Identifiable, Equatable {
     /// 格子里按键四周留的间隙。
     var insetX = KeyboardMetrics.keyInsetX
     var insetY = KeyboardMetrics.keyInsetY
+    /// 往下滑打出的字（iPad 11 寸字母键上的灰色小字，PK1）；nil 不能下滑。
+    var flick: String?
 
     init(id: String, kind: KeyKind, frame: CGRect, visual: CGRect? = nil) {
         self.id = id
@@ -65,6 +79,15 @@ struct KeyLayoutResult: Equatable {
     var pinyinColumn: CGRect?
     /// 九宫格数字键盘点了「更多」：左列上三格换成运算符列表，同样不归触摸层管。
     var operatorColumn: CGRect?
+    /// 横屏九宫格（LN1）中间那块：上面 AI 栏、下面联想 / 候选 / 结果卡（LandscapeNineMiddle），不归触摸层管。
+    var middle: CGRect?
+    /// iPad 全宽 9 键（PK3、PK4）：功能键一列（回答卡开关、润色、问答、钉住的风格、撤销重做）和中间的联想 / 候选，
+    /// 都不归触摸层管。
+    var padFunctions: CGRect?
+    var padMiddle: CGRect?
+    /// iPad 全宽 9 键：九键另一边上面三排高的整块（功能键一列 + 中间那块，连它们四周半条缝、一直到按键区顶边）。
+    /// 触摸层这里不接：不然点在缝里会按「最近的键」算，功能键一列最近的是左下的 🌐，一点就切到别的键盘。
+    var padUpper: CGRect?
 }
 
 /// 按当前状态算出所有按键的位置，参照 iOS 自带键盘的比例。
@@ -78,10 +101,54 @@ enum KeyLayout {
         var englishOnly = false
         var composing = false
         var digitsMore = false
+        /// 拼音显示在侧边（F12）：九宫格打字时左列上三格让给拼音列。
+        var pinyinSide = false
+        /// 横屏（LN1、LN2）：九宫格分左中右，全键盘底排照系统横屏的宽度。
+        var landscape = false
+        /// 全键盘字母页空格旁的「，。」键放哪边，中文、英文的全键盘都有（中文布局选九宫格时，英文的全键盘也有）；nil 不放。
+        /// 只用英文时底栏已经有逗号键，不放。
+        var quickPunct: QuickPunctSide?
+        /// iPad 全宽键盘（PK1、PK2、PK9）：26 键和数字符号页按 iPad 原生排（KeyLayout+Pad）。
+        /// 9 键开着回答卡时是压扁的那份（PK15）。
+        var pad: PadMetrics?
+        /// iPad 全宽 9 键：九键在左边（PK4），默认右边（PK3）。
+        var nineOnLeft = false
+        /// iPad 浮动键盘（PK13、PK14）：9 键数字页左列一直是运算符号，最下面一行 返回、☺、0、空格（浮动时 🌐 在系统下面那一排，字母页左下还是 ☺）。
+        var floating = false
+        /// iPad 11 寸 26 键字母上的灰色小字、往下滑打出来（设置「字母上的数字和符号」，默认开）。
+        var padLetterHints = true
+        /// iPad 9 键模式下切出来的全宽英文（PK19–PK21）：最下面一排多一颗中/英、和九键的对位置，第二排最左是「常用 剪贴板」。
+        var nineEnglish = false
+    }
+
+    /// 横屏九宫格（LN1）：按 iPhone 16 Pro 横屏按键外沿 714 宽排，别的宽度按比例缩放。
+    /// 左列 68 ｜ 8 ｜ 中间 340 ｜ 8 ｜ 右边四列各 68、列距 6。九宫格的五列里第 0 列放左边，第 1–4 列放右边。
+    enum LandscapeNine {
+        static let designWidth: CGFloat = 714
+        /// 键帽离按键区边上多远：和竖屏九宫格一样，离屏幕边 7。
+        static var capEdge: CGFloat { KeyboardMetrics.nineSideMargin - KeyboardMetrics.sidePadding }
+
+        static func scale(_ width: CGFloat) -> CGFloat { max(width - capEdge * 2, 1) / designWidth }
+
+        /// 第 col 列起、占 cols 列的键帽左边和宽度。
+        static func cap(col: Int, cols: Int = 1, width: CGFloat) -> (x: CGFloat, width: CGFloat) {
+            let s = scale(width)
+            if col == 0 { return (capEdge, 68 * s) }
+            let x = 424 + 74 * CGFloat(col - 1)
+            return (capEdge + x * s, (68 * CGFloat(cols) + 6 * CGFloat(cols - 1)) * s)
+        }
+
+        /// 中间那块（键帽那么高：四行键加三条缝）。
+        static func middle(width: CGFloat) -> CGRect {
+            let s = scale(width)
+            let inset = KeyboardMetrics.nineKeyInsetY
+            return CGRect(x: capEdge + 76 * s, y: KeyboardMetrics.nineTopOffset + inset,
+                          width: 340 * s, height: KeyboardMetrics.nineRowPitch * 4 - inset * 2)
+        }
     }
 
     static let letterRows = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map { $0.map(String.init) }
-    private static let digits = "1234567890".map(String.init)
+    static let digits = "1234567890".map(String.init)
 
     private static var lastBuild: (state: State, size: CGSize, result: KeyLayoutResult)?
 
@@ -94,11 +161,17 @@ enum KeyLayout {
     }
 
     static func build(_ state: State, size: CGSize) -> KeyLayoutResult {
+        if let pad = state.pad, state.nineKey, state.layer == .letters || state.layer == .digits {
+            return padNine(state, size: size, pad: pad)
+        }
         if state.layer == .letters && state.nineKey {
             return nineKey(state, size: size)
         }
         if state.layer == .digits {
             return digitPad(state, size: size)
+        }
+        if let pad = state.pad {
+            return padBoard(state, size: size, pad: pad)
         }
         let unit = size.width / 10
         let slot = KeyboardMetrics.slotHeight
@@ -144,8 +217,9 @@ enum KeyLayout {
                 visualX: size.width - wideKey, visualWidth: wideKey)
         }
 
-        let returnWidth = unit * 2.5
-        let toggle = KeyboardMetrics.toggleKeyWidth + KeyboardMetrics.keyInsetX * 2
+        // 横屏（LN2）照系统：123、表情、中/英各 1.25 格，回车 2 格，空格占剩下的。
+        let returnWidth = unit * (state.landscape ? 2 : 2.5)
+        let toggle = state.landscape ? unit * 1.25 : KeyboardMetrics.toggleKeyWidth + KeyboardMetrics.keyInsetX * 2
         // 中文的数字和符号页：底栏是「拼音」、中/英、空格、换行，不放表情。
         // 留着中/英，才能从中文符号直接切到英文符号。
         if state.layer != .letters && (state.chineseMode || state.nineKey) {
@@ -179,7 +253,19 @@ enum KeyLayout {
         }
         add(state.englishOnly ? "comma" : "chinese", state.englishOnly ? .symbol(",") : .toggleChinese, x: x, row: 3, width: toggle)
         x += toggle
-        add("space", .space, x: x, row: 3, width: size.width - returnWidth - x)
+        // 「，。」键（PU4、PU3）：宽一格、和字母键一样，只从空格里让出来，123、表情、中/英、回车的位置和宽度都不动。
+        // 放左边时夹在中/英和空格中间，放右边时夹在空格和回车中间。
+        let punct = state.layer == .letters && !state.englishOnly ? state.quickPunct : nil
+        let punctKind = KeyKind.quickPunct(chinese: state.chineseMode)
+        if punct == .left {
+            add("quickPunct", punctKind, x: x, row: 3, width: unit)
+            x += unit
+        }
+        let spaceEnd = size.width - returnWidth - (punct == .right ? unit : 0)
+        add("space", .space, x: x, row: 3, width: spaceEnd - x)
+        if punct == .right {
+            add("quickPunct", punctKind, x: spaceEnd, row: 3, width: unit)
+        }
         add("return", .returnKey, x: size.width - returnWidth, row: 3, width: returnWidth)
         return KeyLayoutResult(keys: keys)
     }
@@ -198,9 +284,10 @@ enum KeyLayout {
         let column = (size.width - edge * 2) / 5
         var keys: [KeySpec] = []
         func add(_ id: String, _ kind: KeyKind, col: Int, row: Int, cols: Int = 1, rows: Int = 1) {
+            let (x, width) = columnSpan(state, col: col, cols: cols, edge: edge, column: column, width: size.width)
             var key = KeySpec(id: id, kind: kind,
-                              frame: CGRect(x: edge + CGFloat(col) * column, y: top + CGFloat(row) * slot,
-                                            width: column * CGFloat(cols), height: slot * CGFloat(rows)))
+                              frame: CGRect(x: x, y: top + CGFloat(row) * slot,
+                                            width: width, height: slot * CGFloat(rows)))
             key.insetX = KeyboardMetrics.nineKeyInsetX
             key.insetY = KeyboardMetrics.nineKeyInsetY
             keys.append(key)
@@ -212,17 +299,33 @@ enum KeyLayout {
                 add("n\(digit)", .nine(digit == "1" ? "'" : digit), col: col + 1, row: row)
             }
         }
-        // 打拼音时左列照平时留着，拼音选择在候选栏上面一行（PY1）。
-        add("layer", .layer(.digits), col: 0, row: 0)
-        add("symbols", .layer(.numbers), col: 0, row: 1)
-        add("quickWords", .quickWords, col: 0, row: 2)
+        // 拼音在上方一行时左列照平时留着（PY1）；在侧边（F12）时打字中左列上三格换成拼音列。
+        var pinyinColumn: CGRect?
+        if state.composing && state.pinyinSide {
+            let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
+            pinyinColumn = CGRect(x: x, y: top, width: width, height: slot * 3)
+        } else {
+            add("layer", .layer(.digits), col: 0, row: 0)
+            add("symbols", .layer(.numbers), col: 0, row: 1)
+            add("quickWords", .quickWords, col: 0, row: 2)
+        }
         add(state.needsGlobeKey ? "globe" : "emoji", state.needsGlobeKey ? .globe : .emoji, col: 0, row: 3)
         add("chinese", .toggleChinese, col: 1, row: 3)
         add("space", .space, col: 2, row: 3, cols: 2)
         add("delete", .delete, col: 4, row: 0)
         add("emoticon", .emoticon, col: 4, row: 1)
         add("return", .returnKey, col: 4, row: 2, rows: 2)
-        return KeyLayoutResult(keys: keys, pinyinColumn: nil)
+        return KeyLayoutResult(keys: keys, pinyinColumn: pinyinColumn,
+                               middle: state.landscape ? LandscapeNine.middle(width: size.width) : nil)
+    }
+
+    /// 九宫格第 col 列起、占 cols 列的触摸范围（左边、宽）。竖屏五列等宽；横屏照 LandscapeNine 分左右，
+    /// 触摸范围是键帽左右各加半条缝。
+    private static func columnSpan(_ state: State, col: Int, cols: Int, edge: CGFloat, column: CGFloat, width: CGFloat) -> (CGFloat, CGFloat) {
+        guard state.landscape else { return (edge + CGFloat(col) * column, column * CGFloat(cols)) }
+        let cap = LandscapeNine.cap(col: col, cols: cols, width: width)
+        let inset = KeyboardMetrics.nineKeyInsetX
+        return (cap.x - inset, cap.width + inset * 2)
     }
 
     /// 九宫格数字键盘，照 iOS 26：
@@ -238,9 +341,10 @@ enum KeyLayout {
         let column = (size.width - edge * 2) / 5
         var keys: [KeySpec] = []
         func add(_ id: String, _ kind: KeyKind, col: Int, row: Int, rows: Int = 1) {
+            let (x, width) = columnSpan(state, col: col, cols: 1, edge: edge, column: column, width: size.width)
             var key = KeySpec(id: id, kind: kind,
-                              frame: CGRect(x: edge + CGFloat(col) * column, y: top + CGFloat(row) * slot,
-                                            width: column, height: slot * CGFloat(rows)))
+                              frame: CGRect(x: x, y: top + CGFloat(row) * slot,
+                                            width: width, height: slot * CGFloat(rows)))
             key.insetX = KeyboardMetrics.nineKeyInsetX
             key.insetY = KeyboardMetrics.nineKeyInsetY
             keys.append(key)
@@ -252,8 +356,20 @@ enum KeyLayout {
             }
         }
         var operatorColumn: CGRect?
+        if state.floating {
+            let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
+            add("layer", .layer(.letters), col: 0, row: 3)
+            add("emoji", .emoji, col: 1, row: 3)
+            add("d0", .symbol("0"), col: 2, row: 3)
+            add("space", .space, col: 3, row: 3)
+            add("delete", .delete, col: 4, row: 0)
+            add("dot", .digitPunct, col: 4, row: 1)
+            add("return", .returnKey, col: 4, row: 2, rows: 2)
+            return KeyLayoutResult(keys: keys, operatorColumn: CGRect(x: x, y: top, width: width, height: slot * 3))
+        }
         if state.digitsMore {
-            operatorColumn = CGRect(x: edge, y: top, width: column, height: slot * 3)
+            let (x, width) = columnSpan(state, col: 0, cols: 1, edge: edge, column: column, width: size.width)
+            operatorColumn = CGRect(x: x, y: top, width: width, height: slot * 3)
         } else {
             add("layer", .layer(.letters), col: 0, row: 0)
             add("symbols", .layer(.numbers), col: 0, row: 1)
@@ -266,7 +382,8 @@ enum KeyLayout {
         add("delete", .delete, col: 4, row: 0)
         add("more", .digitsMore, col: 4, row: 1)
         add("return", .returnKey, col: 4, row: 2, rows: 2)
-        return KeyLayoutResult(keys: keys, operatorColumn: operatorColumn)
+        return KeyLayoutResult(keys: keys, operatorColumn: operatorColumn,
+                               middle: state.landscape ? LandscapeNine.middle(width: size.width) : nil)
     }
 
     /// 数字键盘「更多」里的运算符。
@@ -292,6 +409,8 @@ enum KeyLayout {
     /// 九宫格长按的十字：标点键左「，」上「。」右「？」下「！」；字母键 DEF 是左 D 上 E 右 F，四字母键第四个在下。
     static func cross(for kind: KeyKind, chinese: Bool) -> [CrossPopup.Direction: String]? {
         if kind == .digitPunct { return [.left: ",", .up: ":"] }
+        // 「，。」键往上划出句号（长按是一排，见 alternates）。
+        if case .quickPunct(let chinese) = kind { return [.up: QuickPunct.up(chinese: chinese)] }
         guard case .nine(let digit) = kind else { return nil }
         let options: [String]
         if digit == "'" {
@@ -303,22 +422,26 @@ enum KeyLayout {
         return Dictionary(uniqueKeysWithValues: zip(CrossPopup.Direction.allCases, options))
     }
 
-    /// 全键盘长按弹出的备选：第一行是数字，元音带声调和变音。
-    static func alternates(for kind: KeyKind, chinese: Bool) -> [String]? {
-        switch kind {
+    /// 全键盘长按弹出的备选（T92）：默认那格正对按键，左右两串见 AlternatesRow。
+    /// 字母：第一行带数字，元音带声调和变音；声调朝键盘中间排，数字朝外边排。
+    /// containerWidth：键区宽，用来看按键在左半边还是右半边。
+    static func alternates(for key: KeySpec, chinese: Bool, containerWidth: CGFloat) -> AlternatesRow? {
+        switch key.kind {
         case .letter(let letter):
-            var options: [String] = []
-            if let index = letterRows[0].firstIndex(of: letter) { options.append(digits[index]) }
-            options += accents[letter] ?? []
-            return options.isEmpty ? nil : [letter] + options
+            let digit = letterRows[0].firstIndex(of: letter).map { digits[$0] }
+            return AlternatesRow.letter(letter, digit: digit, accents: accents[letter] ?? [],
+                                        onLeftHalf: key.cap.midX < containerWidth / 2)
         case .symbol(","):
             // 只用英文时底栏的逗号键：长按出常用英文标点。
-            return [",", "'", "?", "!"]
+            return .englishComma
+        case .quickPunct(let chinese):
+            return QuickPunct.row(chinese: chinese)
         default:
             return nil
         }
     }
 
+    /// 每个字母的声调 / 变音，从近到远（离按键最近的是一声）。
     private static let accents: [String: [String]] = [
         "a": ["ā", "á", "ǎ", "à"], "e": ["ē", "é", "ě", "è", "ê"], "i": ["ī", "í", "ǐ", "ì"],
         "o": ["ō", "ó", "ǒ", "ò"], "u": ["ū", "ú", "ǔ", "ù", "ü"], "v": ["ü", "ǖ", "ǘ", "ǚ", "ǜ"],

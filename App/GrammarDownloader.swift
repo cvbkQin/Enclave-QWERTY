@@ -1,4 +1,5 @@
 import Foundation
+import StoreKit
 import SwiftUI
 
 /// 下载、删除整句模型。下载完校验文件头，放进 Rime 用户目录后重新部署词库。
@@ -69,7 +70,7 @@ final class GrammarDownloader: NSObject, ObservableObject {
         if let data = resumeData {
             task = session.downloadTask(withResumeData: data)
         } else {
-            task = session.downloadTask(with: GrammarModel.downloadURL)
+            task = session.downloadTask(with: GrammarModel.downloadURL(mainland: Storefront.isMainlandChina))
         }
         self.task = task
         task.resume()

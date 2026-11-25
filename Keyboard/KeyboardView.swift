@@ -10,16 +10,22 @@ struct KeyboardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let gate = model.gate {
+            // 横屏九宫格（LN1）：提示卡、回答卡、AI 栏、候选都在按键中间那块里（LandscapeNineMiddle），上面什么都不加。
+            let split = model.landscapeSplit
+            // iPad 全宽 9 键（PK3）：AI 键、联想、候选、拼音都在按键旁边，没有拼音行和整行顶栏；回答卡、提示卡照样在上面。
+            let padNine = model.padNine
+            let _ = model.syncPadMetrics()
+            if !split, let gate = model.gate {
                 // 提示卡单独占上方，结果卡片和展开的一行先让开。
                 GateCard(model: model, gate: gate)
                     .frame(height: KeyboardMetrics.gateHeight(gate))
                     .padding(.horizontal, inset)
                     .padding(.top, KeyboardMetrics.panelTop)
-            } else if model.aiExpanded {
+            } else if !split, model.aiExpanded {
                 // 替换 / 插入键在结果卡左边，和卡片一样高；弹出方式的另一个按钮浮在下面一行上，所以这一块叠在最上层。
                 // 自由编辑时左边的键收起，编辑框占满整行、连识意框那块一起用（FE3）。
                 let freeEdit = model.target == .card
+                // AI 帮回（帮回并入润色）也是这一张回答卡和替换键，卡片照旧是润色紫。
                 HStack(spacing: KeyboardMetrics.resultKeyGap) {
                     if !freeEdit {
                         ResultKey(model: model)
@@ -27,34 +33,16 @@ struct KeyboardView: View {
                     }
                     ResultCard(model: model)
                 }
-                .frame(height: freeEdit
-                       ? KeyboardMetrics.cardHeight(tall: model.freeEditTall, aiLabel: model.showsAILabel) + KeyboardMetrics.freeEditExtra
-                       : KeyboardMetrics.cardHeight(tall: model.cardTall, aiLabel: model.showsAILabel) + KeyboardMetrics.askBoxHeight)
+                .frame(height: KeyboardMetrics.panelCardHeight(tall: freeEdit ? model.freeEditTall : model.cardTall,
+                                                               freeEdit: freeEdit, aiLabel: model.showsAILabel))
                 .overlay(alignment: .top) {
                     if model.freeEditToast {
                         FreeEditToast().offset(y: -2).transition(.opacity).allowsHitTesting(false)
                     }
                 }
-                // 风格一排开着：整块底边伸出小尖角，指着下面被点的那颗风格键（MG5）。
-                .overlay(alignment: .bottomLeading) {
-                    if !freeEdit, let row = model.aiRow, let x = chipEdges[row] {
-                        StyleNotch(answer: row == .answerStyles)
-                            .frame(width: 20, height: 9)
-                            .offset(x: x - inset - 10, y: 9 - 0.75)
-                            .allowsHitTesting(false)
-                    }
-                }
                 .padding(.horizontal, inset)
                 .padding(.top, KeyboardMetrics.panelTop)
                 .zIndex(2)
-            }
-            if model.gate == nil, !model.aiExpanded, let row = model.aiRow {
-                // 尖角对准下面那颗风格键的中线。
-                AIRowPanel(model: model, row: row, arrowX: (chipEdges[row] ?? 0) - inset)
-                    .frame(height: KeyboardMetrics.aiRowHeight)
-                    .padding(.horizontal, inset)
-                    .padding(.top, KeyboardMetrics.panelTop)
-                    .padding(.bottom, KeyboardMetrics.aiRowGap)
             }
             if model.showsTrialReminder {
                 TrialReminderStrip(model: model)
@@ -63,39 +51,53 @@ struct KeyboardView: View {
                     .padding(.top, KeyboardMetrics.panelTop)
             }
             // 拼音行一直占位，平时空着；打字时出拼音和细线，键盘高度不变（PY7）。
-            ZStack {
-                if model.pinyinRowShown { PinyinRow(model: model) }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: KeyboardMetrics.pinyinRowHeight)
-            ZStack {
-                // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
-                candidateBar
-                    .opacity(showsCandidateBar ? 1 : 0)
-                    .allowsHitTesting(showsCandidateBar)
-                    .accessibilityHidden(!showsCandidateBar)
-                if !showsCandidateBar {
-                    if model.target == .card {
-                        cardEditHint
-                    } else {
-                        aiBar
+            // 拼音显示在侧边（F12）时没有这一行，拼音在九宫格左列 / 全键盘候选栏左边的拼音键里。
+            // iPad 选了 9 键、切到英文全键盘时也没有这一行（PK19：和 9 键同高，高度里不算拼音行）。
+            if !model.pinyinSide && !padNine && !model.padNineEnglish {
+                ZStack {
+                    if model.pinyinRowShown {
+                        PinyinRow(model: model)
                     }
                 }
+                .frame(maxWidth: .infinity)
+                .frame(height: KeyboardMetrics.pinyinRowHeight)
             }
-            .frame(height: KeyboardMetrics.topRow)
-            // 长按候选的小气泡朝下，盖在按键上（键盘画不到候选栏上面）。
-            .overlay(alignment: .topLeading) {
-                if let menu = model.candidateMenu {
-                    GeometryReader { geo in
-                        CandidateMenuBubble(model: model, menu: menu, barWidth: geo.size.width)
+            if !split && !padNine {
+                ZStack {
+                    // 候选栏一直留着、不打字时藏起来：放在 if 里的话每打完一个词它就被拆掉，下一个字母再整个重建（连同里面的滚动视图）。
+                    candidateBar
+                        .opacity(showsCandidateBar ? 1 : 0)
+                        .allowsHitTesting(showsCandidateBar)
+                        .accessibilityHidden(!showsCandidateBar)
+                    if !showsCandidateBar {
+                        if model.target == .card {
+                            CardEditHint(model: model, inset: inset)
+                        } else {
+                            AIBar(model: model, inset: inset)
+                        }
                     }
                 }
+                .frame(height: KeyboardMetrics.topRow)
+                // 长按候选的小气泡朝下，盖在按键上（键盘画不到候选栏上面）。
+                .overlay(alignment: .topLeading) {
+                    if let menu = model.candidateMenu {
+                        GeometryReader { geo in
+                            CandidateMenuBubble(model: model, menu: menu, barWidth: geo.size.width)
+                        }
+                    }
+                }
+                // 拼音键的弹框（F12）：往下盖在按键上（键盘收着时上面没有地方可画），选完或点框外收起。
+                .overlay(alignment: .topLeading) {
+                    if model.pinyinPopoverOpen, model.pinyinKeyTitle != nil {
+                        PinyinKeyPopover(model: model)
+                            .padding(.leading, 4)
+                            .offset(y: KeyboardMetrics.topRow + 4)
+                    }
+                }
+                // 按住 ✨ 弹出的「问答」盖在按键上面；弹出时「改写」还要盖在回答卡（zIndex 2）上面。
+                .zIndex(model.askHoldShowing || model.pinyinPopoverOpen ? 3 : 1)
             }
-            // 按住 ✨ 弹出的「问答」盖在按键上面；弹出时「改写」还要盖在回答卡（zIndex 2）上面。
-            .zIndex(model.askHoldShowing ? 3 : 1)
             KeysView(model: model)
-                // 横屏九宫格居中 420 宽，不拉宽。
-                .frame(maxWidth: model.landscape && model.nineGrid ? KeyboardMetrics.landscapeNineWidth : .infinity)
                 .padding(.horizontal, KeyboardMetrics.sidePadding)
                 .layoutPriority(1)
                 // 气泡开着时点按键区别处只关气泡，不打字。
@@ -103,21 +105,79 @@ struct KeyboardView: View {
                     if model.candidateMenu != nil {
                         Color.black.opacity(0.001).onTapGesture { model.dismissCandidateMenu() }
                     }
+                    if model.pinyinPopoverOpen {
+                        Color.black.opacity(0.001).onTapGesture { model.pinyinPopoverOpen = false }
+                    }
                 }
                 // 长按弹出的十字 / 备选 / 布局菜单会伸到上面一排：这时按键区整块盖在 AI 栏和回答卡上面，不被 ✨、风格键压住。
-                .zIndex(model.cross != nil || model.alternates != nil || model.layoutMenu != nil ? 4 : 0)
+                // 剪贴板的长按菜单也一样（往上可以盖到 AI 栏）。
+                // 按住字符键时，第一排的放大气泡会伸到 AI 栏、候选栏上面：这时按键区也要盖在上面，不然气泡里的字母被润色键、候选词挡住。
+                // 单独看 keyPresses（PressedKeysZ），按下松开不让整个键盘重画。
+                .modifier(PressedKeysZ(presses: model.keyPresses,
+                                       base: model.cross != nil || model.enterCross != nil || model.alternates != nil || model.layoutMenu != nil || model.clipMenu != nil ? 4 : 0,
+                                       raises: !model.nineGrid && model.candidateMenu == nil && !model.askHoldShowing && !model.pinyinPopoverOpen))
         }
-        // 横屏两边各留 48 给刘海 / 灵动岛。
-        .padding(.horizontal, model.landscape ? KeyboardMetrics.landscapeSideMargin : 0)
+        // 横屏第一行离键盘上边 7（LN1、LN2）。左右不再另外留：系统横屏给键盘的宽已经让开了地球、话筒那两块。
+        .padding(.top, KeyboardMetrics.boardTop)
+        // 横屏九宫格和全键盘高度不一样（九宫格不带 AI 栏那一行）：中 / 英、换布局时跟着改高度。
+        .onChange(of: model.landscapeSplit) { _ in model.heightMayChange?() }
+        // iPad 9 键没有顶栏，切到符号页（全宽 26 键那种）、换布局时高度跟着变。
+        .onChange(of: model.padNine) { _ in model.heightMayChange?() }
         // 系统给的高度不够时从顶上裁，按键始终完整贴在底部。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .background(boardBackground)
         // 使用指引「一键应用」后的小手指，画在键盘里面。
         .coachHandOverlay(model)
-        // 键盘里拉不起 App 时（有的系统版本、有的 App 里不让）：请人自己打开。
+        // 润色风格 / 问答风格的下拉框（KB1、KB2）：从被点的那颗键下面往下弹，盖在按键上；点框外收起，被盖住的键不响应。
+        .overlay(alignment: .topLeading) {
+            if let row = model.aiRow, let chip = chipFrames[row] {
+                GeometryReader { geo in
+                    // iPad 9 键（PK3）：风格键竖排在一边，下拉框挨着那颗键往中间弹。
+                    let sideways = model.padNine
+                    let toLeft = model.settings.nineKeySide == .left
+                    let rawX = sideways ? (toLeft ? chip.minX - StyleDropdown.width - 6 : chip.maxX + 6) : chip.minX
+                    let x = min(max(rawX, 4), geo.size.width - StyleDropdown.width - 4)
+                    // 9 键整个键盘只有按键那么高：往下放不下最矮的框（一条风格 + 底下两行）时整个往上挪，不被键盘底边裁掉。
+                    let lowest = geo.size.height - StyleDropdown.minimumHeight(model: model, row: row) - 6
+                    let y = sideways ? max(min(chip.minY, lowest), 4) : chip.maxY + 4
+                    ZStack(alignment: .topLeading) {
+                        Color.black.opacity(0.001)
+                            .onTapGesture { model.aiRow = nil }
+                        StyleDropdown(model: model, row: row, maxHeight: geo.size.height - y - 6)
+                            .offset(x: x, y: y)
+                    }
+                }
+            }
+        }
+        // 长按固定键弹的「取消固定」（AK5）：从那颗键下面弹出，点框外收起。
+        .overlay(alignment: .topLeading) {
+            if model.pinMenu == KeyboardModel.helpPinID, let frame = pinFrames[KeyboardModel.helpPinID] {
+                // 长按 AI 栏上的帮回键（11.4）：同样弹「取消固定」。
+                GeometryReader { geo in
+                    ZStack(alignment: .topLeading) {
+                        Color.black.opacity(0.001)
+                            .onTapGesture { model.pinMenu = nil }
+                        UnpinBubble(model: model, style: nil)
+                            .fixedSize()
+                            .offset(x: min(max(frame.minX, 4), geo.size.width - 130), y: frame.maxY + 4)
+                    }
+                }
+            } else if let id = model.pinMenu, let pin = model.settings.pinnedStyles.first(where: { $0.style.id == id }), let frame = pinFrames[id] {
+                GeometryReader { geo in
+                    ZStack(alignment: .topLeading) {
+                        Color.black.opacity(0.001)
+                            .onTapGesture { model.pinMenu = nil }
+                        UnpinBubble(model: model, style: pin.style)
+                            .fixedSize()
+                            .offset(x: min(max(frame.minX, 4), geo.size.width - 130), y: frame.maxY + 4)
+                    }
+                }
+            }
+        }
+        // 键盘不能打开 App（4.4.1）：要去 App 里设置的地方，写明去哪一页，请人自己打开。
         .overlay(alignment: .top) {
-            if model.openAppFailed {
-                Text(L("打不开飞地输入法 App，请回到主屏幕手动打开它", "Couldn't open the Enclave app. Open it from the Home Screen.", "Enclave アプリを開けませんでした。ホーム画面から開いてください。"))
+            if let place = model.appHint {
+                Text(place.hint)
                     .font(.system(size: 12.5, weight: .semibold))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
@@ -131,18 +191,36 @@ struct KeyboardView: View {
             }
         }
         .coordinateSpace(name: "keyboard")
-        .onPreferenceChange(RowChipEdgeKey.self) { edges in
+        .onPreferenceChange(PinFrameKey.self) { frames in
+            if frames != pinFrames { pinFrames = frames }
+        }
+        .onPreferenceChange(RowChipFrameKey.self) { frames in
             // 打拼音时 AI 栏换成候选栏、按钮不在了，沿用上次的位置。
-            if !edges.isEmpty, edges != chipEdges { chipEdges = edges }
+            if !frames.isEmpty, frames != chipFrames { chipFrames = frames }
         }
         .clipped()
     }
 
-    /// 键盘底色。拼音行在最上面时，这一截（连同系统多给的高度）从上往下由透明渐变到不透明，
-    /// 接上系统键盘顶上那截液态玻璃，不留硬边；拼音行以下全是不透明底色，盖住 Chrome 切回时系统按键的残影（GL1）。
+    /// 键盘底色。拼音行在最上面时，键盘最顶上一截（拼音行那么高）从上往下由透明渐变到不透明，
+    /// 接上系统键盘顶上那截液态玻璃，不留硬边；再往下全是不透明底色，盖住 Chrome 切回时系统按键的残影（GL1）。
+    /// 系统给的高度比 keyboardHeight 多时，渐变不跟着拉长：多出来的那截和拼音行一样是不透明底色，不露一截渐变空白。
     /// 回答卡、风格一排、提示卡在最上面时整块不透明。
+    @ViewBuilder
     private var boardBackground: some View {
-        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder
+        // #19（对齐清单 53）：键盘自己不画底色，露出系统给键盘的毛玻璃（和顶上 17 的系统条、地球键那条是同一块），
+        // 顶边、底边都没有线，也不用渐变。按键、回答卡、识意框、拼音列、下拉框、菜单和面板各自的底色照旧。
+        // 测试开关关掉时（Chrome 切回有系统按键残影）退回原来的不透明底色。
+        // 不能用 .clear：完全透明的地方系统不把触摸交给键盘（同 KeyTouchView），候选栏 ⌄ 只有箭头线条点得中，
+        // 整页候选只有按在字上才滑得动。垫一层 0.001 透明度的底，看起来照样透出毛玻璃，整块键盘都接触摸。
+        if model.settings.keyboardGlass {
+            Color.black.opacity(0.001)
+        } else {
+            opaqueBackground
+        }
+    }
+
+    private var opaqueBackground: some View {
+        let fades = model.gate == nil && !model.aiExpanded && model.aiRow == nil && !model.showsTrialReminder && !model.pinyinSide && !model.padNineEnglish
         return VStack(spacing: 0) {
             LinearGradient(stops: [
                 .init(color: Brand.keyboardBack.opacity(0), location: 0),
@@ -152,20 +230,109 @@ struct KeyboardView: View {
             ], startPoint: .top, endPoint: .bottom)
             .opacity(fades ? 1 : 0)
             .background(fades ? Color.clear : Brand.keyboardBack)
+            .frame(height: KeyboardMetrics.pinyinRowHeight)
             Brand.keyboardBack
-                .frame(height: max(0, model.keyboardHeight - (fades ? KeyboardMetrics.pinyinRowHeight : model.keyboardHeight)))
         }
         .ignoresSafeArea()
     }
 
-    /// 两颗风格键中线在键盘里的位置，尖角按它对齐。
-    @State private var chipEdges: [KeyboardModel.AIRow: CGFloat] = [:]
+    /// 两颗风格键在键盘里的位置，下拉框从它下面弹出。
+    @State private var chipFrames: [KeyboardModel.AIRow: CGRect] = [:]
+    /// 固定键在键盘里的位置，「取消固定」从它下面弹出。
+    @State private var pinFrames: [UUID: CGRect] = [:]
 
     // MARK: - AI 栏
 
-    /// 在卡片里改结果时 AI 栏换成提示。
-    /// 自由编辑中（FE3）：左边「✎ 正在修改 AI 结果」，右边「取消修改」「✓ 完成修改」，完成在最右。
-    private var cardEditHint: some View {
+    /// 打拼音、或者上屏后有联想时显示候选栏。
+    private var showsCandidateBar: Bool { model.isComposing || model.showsPredictions }
+
+    /// 「✓ 已删除「xx」」+ 右边「撤销」胶囊。
+    private func candidateUndoBar(_ undo: KeyboardModel.CandidateUndo) -> some View {
+        let word = model.outputText(undo.word)
+        return HStack(spacing: 8) {
+            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Brand.success)
+            Text(undo.restored
+                 ? L("已恢复默认位置「\(word)」", "“\(word)” back to its default spot", "「\(word)」を元の位置に戻しました")
+                 : L("已删除「\(word)」", "Deleted “\(word)”", "「\(word)」を削除しました"))
+                .font(.system(size: 15))
+                .foregroundStyle(Color.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 8)
+            Button { model.undoCandidateDelete() } label: {
+                Text(L("撤销", "Undo", "取り消す"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Brand.deepPurple)
+                    .padding(.horizontal, 14)
+                    .frame(height: 28)
+                    .background(Capsule().fill(Brand.returnSoftFill))
+            }
+            .buttonStyle(KeyPressStyle())
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .transition(.opacity)
+    }
+
+    /// 打拼音时的候选栏，右边的箭头展开整页候选；显示联想时箭头换成关闭。
+    private var candidateBar: some View {
+        let predicting = !model.isComposing
+        return HStack(spacing: 0) {
+            // 全键盘拼音在侧边（F12）：最左边一颗拼音键显示现在的切法，点开选切法 / 纠正读法。
+            if let title = model.pinyinKeyTitle {
+                PinyinKey(model: model, title: title)
+                Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 22)
+            } else if model.pinyinSide, model.showsNineKey, let pinyin = model.offFieldPinyin {
+                // 侧边九宫格、输入框不认标记文字（NM2）：整串拼音放在候选栏最左边，后面一条竖线再接候选。
+                OffFieldPinyinText(text: pinyin, size: 16)
+                    .padding(.leading, KeyboardMetrics.nineSideMargin + 10)
+                    .padding(.trailing, 10)
+                    .frame(maxWidth: 170, alignment: .leading)
+                    .layoutPriority(1)
+                Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 22)
+            }
+            // 点击判定在 UIKit 里做，见 CandidateStrip。删了候选后 3 秒内换成撤销条（CL4）。
+            ZStack {
+                CandidateStrip(model: model)
+                    .opacity(model.candidateUndo == nil ? 1 : 0)
+                    .allowsHitTesting(model.candidateUndo == nil)
+                if let undo = model.candidateUndo {
+                    candidateUndoBar(undo)
+                }
+            }
+            Divider().frame(height: 22)
+            Button {
+                if predicting {
+                    model.dismissPredictions()
+                } else {
+                    // 照系统键盘：展开从候选栏下面往下拉开，收起往上卷回，弹性很小、不拖泥带水；动画中途再点立刻反向。
+                    withAnimation(.spring(response: 0.26, dampingFraction: 0.92)) { model.candidatesExpanded.toggle() }
+                }
+            } label: {
+                // 展开、收起是同一个箭头转半圈，不换图。
+                Image(systemName: predicting ? "xmark" : "chevron.down")
+                    .rotationEffect(.degrees(!predicting && model.candidatesExpanded ? 180 : 0))
+                    // 联想时的关闭键小一号、灰色：联想只是建议，关闭键不和字抢眼（UI 稿 KP1）。
+                    .font(.system(size: predicting ? 15 : 17, weight: predicting ? .medium : .regular))
+                    .foregroundStyle(predicting ? Color.secondary : Color.primary)
+                    // 放宽到 54pt，靠右边缘也好按。
+                    .frame(width: 54)
+                    .frame(maxHeight: .infinity)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(KeyPressStyle())
+        }
+    }
+}
+
+/// 在卡片里改结果时 AI 栏换成提示。
+/// 自由编辑中（FE3）：左边「✎ 正在修改 AI 结果」，右边「取消修改」「✓ 完成修改」，完成在最右。
+/// 横屏九宫格放在按键中间那块的第一行（LN1），inset 传 0。
+struct CardEditHint: View {
+    @ObservedObject var model: KeyboardModel
+    var inset: CGFloat
+
+    var body: some View {
         HStack(spacing: 8) {
             Label(L("正在修改 AI 结果", "Editing AI result", "AI の結果を編集中"), systemImage: "pencil")
                 .font(.system(size: 13, weight: .semibold))
@@ -200,366 +367,53 @@ struct KeyboardView: View {
         .padding(.horizontal, inset)
     }
 
-    /// 收着（AB1）：抽屉、合成的一颗、空白、撤销 | 重做；展开（AB2）：抽屉、放大镜、润色 ▾、直击要害 ▾。
-    /// 开收时中间这几颗换成 AIBarMorph 画 250 ms 的分裂 / 融合，画完再露出真按钮。
-    private var aiBar: some View {
-        let hidden = barMorphing || barExpanded != model.aiExpanded
-        return HStack(spacing: 6) {
+}
+
+/// 收起和展开同一排（AK4、AK5）：▭ 抽屉（固定）｜ 中间滑动区：润色键、问答键、1×20 竖线、固定的风格键 ｜ 撤销 / 重做（固定）。
+/// 放不下就左右滑，哪边还有被遮住的内容哪边渐隐（AIKeyStrip）。没固定任何风格时不显示竖线。
+/// 方案 A（v309）：间距 5、▭ 宽 36、撤销重做小胶囊约 64，402 宽的屏上至少完整露出一颗两字固定键。
+/// 滑动区自带左右 5 的内边（给亮边留地方），所以它和 ▭、撤销重做之间不再加间距，看上去也是 5。
+/// 横屏九宫格放在按键中间那块的第一行（LN1），inset 传 0。
+struct AIBar: View {
+    @ObservedObject var model: KeyboardModel
+    var inset: CGFloat
+
+    var body: some View {
+        // 功能关掉或不能用时，它固定的风格键也不显示（QE）。
+        let pins = model.settings.pinnedStyles.filter {
+            model.debugUnblocked || ($0.answer ? model.settings.showsAnswerKey : model.settings.showsPolishKey)
+        }
+        return HStack(spacing: 0) {
             PanelToggleButton(expanded: model.aiExpanded, hasNew: model.showsNewResult) {
                 model.endCoach()
                 model.setAIExpanded(!model.aiExpanded)
             }
-            HStack(spacing: 6) {
-                if model.aiExpanded {
-                    PolishButton(model: model)
-                    StyleKey(model: model, row: .prompts).layoutPriority(1)
-                    StyleKey(model: model, row: .answerStyles)
-                } else {
-                    PolishButton(model: model)
-                        .modifier(EmptyTapShake(trigger: model.emptyTapShake))
-                    // 没字时点 ✨：右边「未检测到内容」，从左边 6pt 滑出（NC1、NC2）。
-                    if model.emptyTapHint {
-                        EmptyTapHint()
-                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(x: -6)))
-                    }
-                    // 快速模式替换成功后 3 秒，旁边出「AI 生成 · 已替换」（CP9），点它展开看结果。
-                    if model.quickStatus == .done, model.aiRow == nil {
-                        ReplacedPill { model.setAIExpanded(true) }
-                            .layoutPriority(1)
-                            .transition(.opacity)
-                    }
-                    if model.quickStatus == .failed {
-                        QuickRetryLabel(model: model)
+            AIKeyStrip {
+                HStack(spacing: 5) {
+                    // AI 页关掉了、或配置不能用（没配、测试没通过）：这颗键不显示，后面的往左补位（QE）。
+                    if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
+                    if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
+                    if !pins.isEmpty || model.helpPinnedOnBar {
+                        if model.settings.showsPolishKey || model.settings.showsAnswerKey || model.debugUnblocked {
+                            Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 20)
+                                .padding(.horizontal, -1)
+                        }
+                        // 固定的帮回键：问答键后面、固定风格键前面，不占「N / 5」。
+                        if model.helpPinnedOnBar { PinnedHelpKey(model: model) }
+                        ForEach(pins, id: \.style.id) { pin in
+                            PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
+                        }
                     }
                 }
             }
-            .opacity(hidden && !reduceMotion ? 0 : 1)
-            // 减弱动态效果：不分裂，直接交叉淡入。
-            .animation(reduceMotion ? .easeInOut(duration: 0.25) : nil, value: model.aiExpanded)
-            Spacer(minLength: 0)
+            .frame(height: KeyboardMetrics.topRow)
             UndoRedoPair(model: model)
         }
         .padding(.horizontal, inset)
-        .overlay(alignment: .leading) {
-            if hidden && !reduceMotion {
-                AIBarMorph(u: barMorphU,
-                           closing: !model.aiExpanded,
-                           rewriteTitle: StyleKey.title(model, answer: false),
-                           answerTitle: StyleKey.title(model, answer: true))
-                    .padding(.leading, inset + 44 + 6)
-                    .allowsHitTesting(false)
-            }
-        }
-        .onAppear { barExpanded = model.aiExpanded; barMorphU = model.aiExpanded ? AIBarMorph.end : 0 }
-        .onChange(of: model.aiExpanded) { expanded in morphBar(expanded) }
-    }
-
-    /// AI 栏上次画完停在哪个样子；和 model.aiExpanded 不一样时说明正在开收。
-    @State private var barExpanded = false
-    @State private var barMorphing = false
-    @State private var barMorphU: CGFloat = 0
-    @State private var barMorphToken = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// 和回答卡同一条 ease-out：动画本身按时间匀速推进，曲线在 AIBarMorph 里算。
-    /// 展开多跑 60 ms 给「直击要害」回弹；收起合上那一下轻触感一次（三颗刚好并成一颗时），展开不震。
-    private func morphBar(_ expanded: Bool) {
-        barMorphToken += 1
-        let token = barMorphToken
-        guard !reduceMotion, !model.isRunning else {
-            barMorphing = false
-            barExpanded = expanded
-            barMorphU = expanded ? AIBarMorph.end : 0
-            return
-        }
-        barMorphing = true
-        let target: CGFloat = expanded ? AIBarMorph.end : 0
-        let duration = expanded ? 0.31 : 0.25
-        withAnimation(.linear(duration: duration)) { barMorphU = target }
-        if !expanded {
-            DispatchQueue.main.asyncAfter(deadline: .now() + duration - 0.03) {
-                guard token == barMorphToken, model.hasFullAccess else { return }
-                model.haptic.impactOccurred()
-            }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.02) {
-            guard token == barMorphToken else { return }
-            barMorphing = false
-            barExpanded = expanded
-        }
-    }
-
-    /// 打拼音、或者上屏后有联想时显示候选栏。
-    private var showsCandidateBar: Bool { model.isComposing || model.showsPredictions }
-
-    /// 「✓ 已删除「xx」」+ 右边「撤销」胶囊。
-    private func candidateUndoBar(_ undo: KeyboardModel.CandidateUndo) -> some View {
-        let word = undo.word
-        return HStack(spacing: 8) {
-            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Brand.success)
-            Text(undo.restored
-                 ? L("已恢复默认位置「\(word)」", "“\(word)” back to its default spot", "「\(word)」を元の位置に戻しました")
-                 : L("已删除「\(word)」", "Deleted “\(word)”", "「\(word)」を削除しました"))
-                .font(.system(size: 15))
-                .foregroundStyle(Color.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer(minLength: 8)
-            Button { model.undoCandidateDelete() } label: {
-                Text(L("撤销", "Undo", "取り消す"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Brand.deepPurple)
-                    .padding(.horizontal, 14)
-                    .frame(height: 28)
-                    .background(Capsule().fill(Brand.returnSoftFill))
-            }
-            .buttonStyle(KeyPressStyle())
-        }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .transition(.opacity)
-    }
-
-    /// 打拼音时的候选栏，右边的箭头展开整页候选；显示联想时箭头换成关闭。
-    private var candidateBar: some View {
-        let predicting = !model.isComposing
-        return HStack(spacing: 0) {
-            // 点击判定在 UIKit 里做，见 CandidateStrip。删了候选后 3 秒内换成撤销条（CL4）。
-            ZStack {
-                CandidateStrip(model: model)
-                    .opacity(model.candidateUndo == nil ? 1 : 0)
-                    .allowsHitTesting(model.candidateUndo == nil)
-                if let undo = model.candidateUndo {
-                    candidateUndoBar(undo)
-                }
-            }
-            Divider().frame(height: 22)
-            Button {
-                if predicting { model.dismissPredictions() } else { model.candidatesExpanded.toggle() }
-            } label: {
-                // 展开、收起是同一个箭头转半圈，不换图。
-                Image(systemName: predicting ? "xmark" : "chevron.down")
-                    .rotationEffect(.degrees(!predicting && model.candidatesExpanded ? 180 : 0))
-                    .animation(.easeInOut(duration: 0.2), value: model.candidatesExpanded)
-                    // 联想时的关闭键小一号、灰色：联想只是建议，关闭键不和字抢眼（UI 稿 KP1）。
-                    .font(.system(size: predicting ? 15 : 17, weight: predicting ? .medium : .regular))
-                    .foregroundStyle(predicting ? Color.secondary : Color.primary)
-                    // 放宽到 54pt，靠右边缘也好按。
-                    .frame(width: 54)
-                    .frame(maxHeight: .infinity)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(KeyPressStyle())
-        }
-    }
-}
-
-// MARK: - AI 栏分裂 / 融合（AB3、AB4、joinbar-anim）
-
-/// 抽屉开收时，合成的一颗和展开后的三颗（放大镜、润色、直击要害）之间的过渡。只在开收那一下画，平时是真按钮。
-/// u 是时间进度：0 收着，1 是 250 ms，展开时跑到 end（310 ms）给「直击要害」冲过头再回弹的尾巴。
-/// 形状不用模糊滤镜：相邻两颗胶囊之间连一截颈，颈的半高从 17 掐到 0（约 150 ms 断开），两边各画半截。
-/// 收起不是把展开倒着放（那样头 60 ms 只有回弹在倒退，接着又是先慢后快，比回答卡收起慢半拍）：
-/// 三颗从第一帧就一起往回收、先快后慢，颈、星星、文字按位置对回展开时同一刻的样子。
-struct AIBarMorph: View, Animatable {
-    static let end: CGFloat = 1.24
-
-    var u: CGFloat
-    var closing = false
-    var rewriteTitle: String
-    var answerTitle: String
-
-    var animatableData: CGFloat {
-        get { u }
-        set { u = newValue }
-    }
-
-    private struct Span {
-        var minX: CGFloat
-        var maxX: CGFloat
-        var width: CGFloat { maxX - minX }
-        var midX: CGFloat { (minX + maxX) / 2 }
-        static func lerp(_ a: Span, _ b: Span, _ k: CGFloat) -> Span {
-            Span(minX: a.minX + (b.minX - a.minX) * k, maxX: a.maxX + (b.maxX - a.maxX) * k)
-        }
-    }
-
-    private static func clamp(_ x: CGFloat) -> CGFloat { min(max(x, 0), 1) }
-    private static func smooth(_ x: CGFloat) -> CGFloat { let k = clamp(x); return k * k * (3 - 2 * k) }
-
-    /// 「直击要害」最后冲过头 5pt 再回 −1.5pt 落定（弹簧 response 0.3、阻尼 0.6 的样子）。
-    private static func overshoot(_ ms: CGFloat) -> CGFloat {
-        if ms < 150 { return 0 }
-        if ms < 220 { return 5 * smooth((ms - 150) / 70) }
-        if ms < 280 { return 5 - 6.5 * smooth((ms - 220) / 60) }
-        return -1.5 + 1.5 * smooth((ms - 280) / 30)
-    }
-
-    var body: some View {
-        let h = KeyboardMetrics.chipHeight
-        // 收起：t 是走过的时间比例，位置 e = (1 − t)²；ms 换算成展开时位置相同的那一刻。
-        let e: CGFloat, ms: CGFloat
-        if closing {
-            let left = Self.clamp(u / Self.end)
-            e = left * left
-            ms = 250 * (1 - pow(1 - e, 1.0 / 3))
-        } else {
-            ms = u * 250
-            e = 1 - pow(1 - Self.clamp(u), 3)
-        }
-        let gap: CGFloat = 6
-        let wJ = PolishButton.joinedWidth(rewriteTitle)
-        let wM = KeyboardMetrics.polishButtonWidth
-        let wR = StyleKey.width(rewriteTitle), wA = StyleKey.width(answerTitle)
-        let split = PolishButton.joinedSplit
-        let m = Span.lerp(Span(minX: 0, maxX: split), Span(minX: 0, maxX: wM), e)
-        let r = Span.lerp(Span(minX: split, maxX: wJ), Span(minX: wM + gap, maxX: wM + gap + wR), e)
-        let a0 = Span(minX: wJ - h, maxX: wJ), a1 = Span(minX: wM + 2 * gap + wR, maxX: wM + 2 * gap + wR + wA)
-        let bounce = closing ? 0 : Self.overshoot(ms)
-        var a = Span.lerp(a0, a1, e)
-        a.minX += bounce
-        a.maxX += bounce
-        let aScale = 1 + 0.04 * max(bounce, 0) / 5
-        // 颈：半高从 h/2 掐到 0。
-        let neck = h / 2 * (1 - Self.smooth(ms / 150))
-        let mr = (m.maxX + r.minX) / 2, ra = (r.maxX + a.minX) / 2
-        let total = max(wJ, a1.maxX + 6)
-        // ✨：先被往右扯长（横向最多 1.7 倍、右移 12），掐断后弹回放大镜中间，一边转一边缩小淡出。
-        let pull = Self.clamp(ms / 150), back = Self.clamp((ms - 150) / 80)
-        let starX = 22 + 12 * pull + (m.midX - 34) * back
-        let reveal = Self.clamp((ms - 150) / 80)
-        let pen = Self.clamp((ms - 150) / 80)
-        let textStart = 39 + (wM + gap + 7 + 16 + 3 - 39) * e
-        let answerText = Self.clamp((ms - 60) / 100)
-
-        return ZStack(alignment: .topLeading) {
-            // 直击要害：在最下面，一开始藏在润色右端。
-            blob(a, h: h, total: total, left: (ra, neck), right: nil, palette: .answer)
-                .scaleEffect(aScale, anchor: UnitPoint(x: a.midX / total, y: 0.5))
-            StyleKey.face(answer: true, title: answerTitle, filled: false)
-                .opacity(answerText)
-                .position(x: a.minX + a1.width / 2, y: h / 2)
-                .frame(width: total, height: h, alignment: .topLeading)
-                .mask(Capsule().frame(width: a.width, height: h).position(x: a.midX, y: h / 2)
-                    .frame(width: total, height: h, alignment: .topLeading))
-                .scaleEffect(aScale, anchor: UnitPoint(x: a.midX / total, y: 0.5))
-            // 放大镜、润色：开始都是紫色，靠形状分开；放大镜的蓝紫混色从星星的位置用圆形遮罩扩开。
-            blob(m, h: h, total: total, left: nil, right: (mr, neck), palette: .rewrite)
-            NebulaFill(palette: .ask)
-                .frame(width: m.width, height: h)
-                .mask(Circle().frame(width: 2 * wM * reveal, height: 2 * wM * reveal).position(x: starX - m.minX, y: h / 2))
-                .clipShape(Capsule())
-                .position(x: m.midX, y: h / 2)
-            blob(r, h: h, total: total, left: (mr, neck), right: (ra, neck), palette: .rewrite)
-            // 收着那一颗的 join 底，头 100 ms 淡掉。
-            ZStack(alignment: .topLeading) {
-                blob(m, h: h, total: total, left: nil, right: (mr, neck), palette: .join)
-                blob(r, h: h, total: total, left: (mr, neck), right: nil, palette: .join)
-            }
-            .opacity(1 - Self.clamp(ms / 100))
-            PolishButton.askLabel(nil, starSize: 20)
-                .frame(width: m.width, height: h)
-                .mask(Circle().frame(width: 2 * wM * reveal, height: 2 * wM * reveal).position(x: starX - m.minX, y: h / 2))
-                .position(x: m.midX, y: h / 2)
-            PolishStars(size: 20, running: false, glowing: false, doneAt: nil, tint: Brand.gold)
-                .scaleEffect(x: (1 + 0.7 * pull) * (1 - back), y: 1 - back)
-                .rotationEffect(.degrees(180 * back))
-                .opacity(1 - back)
-                .position(x: starX, y: h / 2)
-            HStack(spacing: 3) {
-                Text(rewriteTitle)
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .lineLimit(1)
-                    .frame(width: StyleKey.textWidth(rewriteTitle))
-                StyleKey.chevronDivider
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .frame(width: 10)
-            }
-            .foregroundStyle(.white)
-            .position(x: textStart + (StyleKey.textWidth(rewriteTitle) + 17) / 2, y: h / 2)
-            Image(systemName: "pencil")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .scaleEffect(pen)
-                .opacity(pen)
-                .position(x: textStart - 11, y: h / 2)
-        }
-        .frame(width: total, height: h, alignment: .topLeading)
-    }
-
-    /// 一颗胶囊加两边的半截颈，填对应的混色底。颈从胶囊端头圆心伸到两颗中间那条线。坐标都按整块的左上角算。
-    private func blob(_ span: Span, h: CGFloat, total: CGFloat, left: (x: CGFloat, half: CGFloat)?, right: (x: CGFloat, half: CGFloat)?,
-                      palette: NebulaFill.Palette) -> some View {
-        NebulaFill(palette: palette)
-            .frame(width: max(span.width, h) + 8, height: h)
-            .position(x: span.midX, y: h / 2)
-            .frame(width: total, height: h, alignment: .topLeading)
-            .mask(ZStack(alignment: .topLeading) {
-                Capsule().frame(width: max(span.width, h), height: h).position(x: span.midX, y: h / 2)
-                if let left, left.half > 0.3 {
-                    HalfNeck(from: span.minX + h / 2, to: left.x, half: left.half, height: h)
-                }
-                if let right, right.half > 0.3 {
-                    HalfNeck(from: span.maxX - h / 2, to: right.x, half: right.half, height: h)
-                }
-            }
-            .frame(width: total, height: h, alignment: .topLeading))
-    }
-}
-
-/// 半截颈：从胶囊端头圆心（满高）用 cubic 收到两颗中间那条线（半高 half）。
-private struct HalfNeck: Shape {
-    var from: CGFloat
-    var to: CGFloat
-    var half: CGFloat
-    var height: CGFloat
-
-    func path(in rect: CGRect) -> Path {
-        let cy = height / 2, r = height / 2
-        let d = to - from
-        var path = Path()
-        path.move(to: CGPoint(x: from, y: cy - r))
-        path.addCurve(to: CGPoint(x: to, y: cy - half),
-                      control1: CGPoint(x: from + d * 0.5, y: cy - r), control2: CGPoint(x: to - d * 0.35, y: cy - half))
-        path.addLine(to: CGPoint(x: to, y: cy + half))
-        path.addCurve(to: CGPoint(x: from, y: cy + r),
-                      control1: CGPoint(x: to - d * 0.35, y: cy + half), control2: CGPoint(x: from + d * 0.5, y: cy + r))
-        path.closeSubpath()
-        return path
     }
 }
 
 // MARK: - AI 栏的按钮
-
-/// 风格一排开着时整块底边的小尖角：20×9，块的底色填充、模式色 1.5pt 描边，上边和块的底边接在一起不描。
-struct StyleNotch: View {
-    var answer: Bool
-
-    var body: some View {
-        let ring = answer ? Brand.answerBorder : Brand.rewriteRing
-        ZStack {
-            NotchShape(closed: true).fill(KeyStyle.charKey)
-            NotchShape(closed: false).stroke(ring, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-        }
-    }
-
-    private struct NotchShape: Shape {
-        var closed: Bool
-        func path(in rect: CGRect) -> Path {
-            var path = Path()
-            let mid = rect.midX
-            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            path.addCurve(to: CGPoint(x: mid - 1.8, y: rect.maxY - 1),
-                          control1: CGPoint(x: rect.minX + 5, y: rect.minY), control2: CGPoint(x: mid - 3.4, y: rect.maxY - 3))
-            path.addQuadCurve(to: CGPoint(x: mid + 1.8, y: rect.maxY - 1), control: CGPoint(x: mid, y: rect.maxY + 0.8))
-            path.addCurve(to: CGPoint(x: rect.maxX, y: rect.minY),
-                          control1: CGPoint(x: mid + 3.4, y: rect.maxY - 3), control2: CGPoint(x: rect.maxX - 5, y: rect.minY))
-            if closed { path.closeSubpath() }
-            return path
-        }
-    }
-}
 
 /// 展开/收起 AI 面板（回答卡和识意框一整块 + 替换 / 插入），AI 栏最左边 44×34 的面板图标胶囊（方案 B）。
 /// 收起时有没看过的新结果：图标变紫、右上角紫点；展开时浅紫底紫描边，和选择器打开时一样。
@@ -573,7 +427,7 @@ struct PanelToggleButton: View {
             Image(systemName: "rectangle.tophalf.inset.filled")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(expanded ? Brand.toggleOpenIcon : (hasNew ? Brand.newResultIcon : Color.primary))
-                .frame(width: 44, height: KeyboardMetrics.chipHeight)
+                .frame(width: 36, height: KeyboardMetrics.chipHeight)
                 .background(Capsule().fill(expanded ? Brand.toggleOpenFill : KeyStyle.charKey))
                 .overlay(Capsule().strokeBorder(Brand.toggleOpenStroke, lineWidth: expanded ? 1.5 : 0))
                 .overlay(alignment: .topTrailing) {
@@ -600,434 +454,46 @@ struct PanelToggleButton: View {
     }
 }
 
-/// 「✨」主按钮（D1）：只放图标，58×34 渐变胶囊，按当前提示词改输入框里的话；收起和展开都是这一颗。
-/// 生成中同位置变成深灰底白色方块「停止」，再点一下取消；流光描边、闪光照旧放在这颗按钮上。
-/// 识意展开时（QA4、QA11）：按识意框里的话执行。自动是紫粉渐变只有星星，手动选的改写 / 问答带字；
-/// 按住会在正上方弹出「改写」、正下方弹出「问答」，滑到哪个松手就按哪种，不滑松手是自动。框里没字时半透明、点了没反应。
-struct PolishButton: View {
-    @ObservedObject var model: KeyboardModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var doneAt: Date?
-    /// 识意展开时按住 ✨：弹出两个选项，手指现在指着哪个。
-    @State private var holding = false
-    @State private var pick: KeyboardModel.AskMode?
-    @State private var pressed = false
-    @State private var holdTimer: DispatchWorkItem?
-
-    /// 这次是点 ✨ 开始的：收起和展开都在按钮上放特效。
-    private var quickRunning: Bool { model.isRunning && model.runOrigin != nil }
-    /// 关了发光动画或开了减弱动态效果：只留星星轻微闪动。
-    private var fullMotion: Bool { model.settings.polishAnimation && !reduceMotion }
-    /// 抽屉展开时 ✨ 是放大镜（识意）；收着时是快速润色（MG1、MG2）。
-    private var asking: Bool { model.aiExpanded }
-
-    var body: some View {
-        if asking {
-            askButton
-        } else {
-            joinedButton
-        }
-    }
-
-    // MARK: 收着：✨ 和润色合成一颗（AB1）
-
-    /// 收着时 AI 栏里只有这一颗：join 混色底，左边黄色 ✨ 20pt，右边白字风格名 + ▾。
-    /// 点 ✨ 那半边（到 x≈46）快速润色；点「润色 ▾」那半边打开改写风格一排。生成中整颗点了都是停止。
-    private var joinedButton: some View {
-        let title = StyleKey.title(model, answer: false)
-        let width = Self.joinedWidth(title)
-        let locked = !model.hasFullAccess
-        let open = !locked && model.aiRow == .prompts
-        return decorated(width: width, ZStack(alignment: .leading) {
-            Self.joinedFace(title: title, open: open, stop: model.isRunning, faded: model.aiBlocked || model.aiQuotaUsed,
-                            star: PolishStars(size: 20, running: false, glowing: fullMotion, doneAt: fullMotion ? doneAt : nil, tint: Brand.gold))
-                .overlay {
-                    if open { Capsule().strokeBorder(StyleKey.rewriteBorder, lineWidth: 1.5) }
-                }
-                .overlay {
-                    if quickRunning && fullMotion {
-                        PolishButtonGlow(ring: Brand.gradient).clipShape(Capsule())
-                    }
-                }
-            HStack(spacing: 0) {
-                Button {
-                    model.isRunning ? model.stop() : model.sparkleTapped()
-                } label: {
-                    Color.clear.frame(width: Self.joinedSplit).contentShape(Rectangle())
-                }
-                .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル") : L("执行当前提示词", "Run prompt", "プロンプトを実行"))
-                .coachTarget(.sparkle, active: model.coachDisplay?.target == .sparkle)
-                Button {
-                    if model.isRunning { model.stop() } else if locked { model.showFullAccessTip() } else { model.toggleRow(.prompts) }
-                } label: {
-                    Color.clear.contentShape(Rectangle())
-                }
-                .accessibilityLabel(L("改写风格", "Rewrite style", "書き換えスタイル") + "：" + title)
-                .accessibilityValue(open ? L("已展开", "Expanded", "展開中") : L("已收起", "Collapsed", "折りたたみ"))
-                .background(GeometryReader { geometry in
-                    // 风格一排的尖角对准「润色 ▾」这半边。
-                    Color.clear.preference(key: RowChipEdgeKey.self, value: [.prompts: geometry.frame(in: .named("keyboard")).midX])
-                })
-            }
-            .buttonStyle(KeyPressStyle())
-        }
-        .frame(width: width, height: KeyboardMetrics.chipHeight))
-        .onChange(of: model.finished) { finished in flashDone(at: finished?.at) }
-    }
-
-    /// 点 ✨ 和点「润色 ▾」的分界：✨ 右边缘。
-    static let joinedSplit: CGFloat = 46
-
-    /// 12 + ✨ 20 + 7 + 字 + 3 + 竖线 1 + 3 + ▾ 10 + 9（FB1）。
-    static func joinedWidth(_ title: String) -> CGFloat { 65 + StyleKey.textWidth(title) }
-
-    /// 合成那一颗的样子（AI 栏分裂动画的第一帧也用它）。
-    static func joinedFace<Star: View>(title: String, open: Bool = false, stop: Bool = false, faded: Bool = false, star: Star) -> some View {
-        HStack(spacing: 0) {
-            Group {
-                if stop {
-                    RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(Color.white).frame(width: 12, height: 12)
-                } else {
-                    star
-                }
-            }
-            .frame(width: 20, height: 20)
-            .padding(.trailing, 7)
-            Text(title)
-                .font(.system(size: 13.5, weight: .semibold))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(width: StyleKey.textWidth(title))
-            StyleKey.chevronDivider.padding(.horizontal, 3)
-            Image(systemName: open ? "chevron.up" : "chevron.down")
-                .font(.system(size: 10, weight: .semibold))
-                .frame(width: 10)
-        }
-        .foregroundStyle(.white)
-        .padding(.leading, 12)
-        .padding(.trailing, 9)
-        .frame(width: joinedWidth(title), height: KeyboardMetrics.chipHeight)
-        .background(NebulaFill(palette: .join).clipShape(Capsule()).opacity(faded ? 0.35 : 1))
-    }
-
-    // MARK: 识意展开时
-
-    private var askButton: some View {
-        let mode = model.askButtonMode
-        // 识意框空着也能点：按当前改写风格改输入框里的话，结果进回答卡（MG2）。
-        let enabled = !(model.aiBlocked || model.aiQuotaUsed) || model.isRunning
-        let showsHold = holding || debugHold
-        return decorated(face(fill: AnyShapeStyle(Self.askGradient(mode)), nebula: mode == nil && !model.isRunning,
-                              ring: (model.askKind ?? mode) == .answer ? Brand.answerRing : Brand.nebulaRing) {
-            Self.askLabel(mode, starSize: mode == nil ? 20 : 11, doneAt: fullMotion ? doneAt : nil, glowing: fullMotion)
-        })
-        .opacity(enabled ? 1 : 0.45)
-        .scaleEffect(pressed && !showsHold ? 0.96 : 1)
-        .overlay {
-            if showsHold {
-                ZStack {
-                    AskOption(mode: .rewrite, highlighted: pick == .rewrite).offset(y: -40)
-                    AskOption(mode: .answer, highlighted: pick == .answer).offset(y: 40)
-                }
-                .transition(.scale(scale: 0.6).combined(with: .opacity))
-                .allowsHitTesting(false)
-            }
-        }
-        .contentShape(Rectangle())
-        .gesture(DragGesture(minimumDistance: 0)
-            .onChanged { value in
-                let canHold = model.canAsk && !model.isRunning
-                if !pressed {
-                    pressed = true
-                    guard canHold else { return }
-                    // 按住不动 0.3 秒也弹出两个选项。
-                    let timer = DispatchWorkItem { showHold() }
-                    holdTimer = timer
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: timer)
-                }
-                let dy = value.translation.height
-                // 手指离开按下点超过 16pt 立刻弹出并选中那一个，不用先等。
-                if !holding, canHold, hypot(value.translation.width, dy) > Self.flickDistance {
-                    holdTimer?.cancel()
-                    holdTimer = nil
-                    showHold()
-                }
-                guard holding else { return }
-                let next: KeyboardModel.AskMode? = dy < -Self.flickDistance ? .rewrite : (dy > Self.flickDistance ? .answer : nil)
-                if next != pick {
-                    pick = next
-                    if next != nil { model.keyFeedback(for: .space) }
-                }
-            }
-            .onEnded { _ in
-                holdTimer?.cancel()
-                holdTimer = nil
-                let wasHolding = holding
-                let choice = pick
-                pressed = false
-                pick = nil
-                withAnimation(.easeOut(duration: 0.15)) { holding = false }
-                model.askHoldShowing = false
-                if model.isRunning {
-                    model.stop()
-                } else if model.canAsk {
-                    // 按住不滑松手是自动；点一下按 ✨ 现在显示的方式（上次手动选的，字没改的话）。
-                    model.askTapped(wasHolding ? choice : model.askButtonMode)
-                } else {
-                    model.sparkleTapped()
-                }
-            })
-        .accessibilityElement()
-        .accessibilityLabel(model.isRunning ? L("正在生成，轻点取消", "Working. Tap to cancel", "生成中。タップでキャンセル")
-                            : L("执行识意，按住上滑改写、下滑问答", "Run Ask. Hold and slide up to edit, down for Q&A", "たずねるを実行。長押しで上にスライドすると修正、下で質問"))
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
-            if model.isRunning { model.stop() } else if model.canAsk { model.askTapped(model.askButtonMode) } else { model.sparkleTapped() }
-        }
-        .accessibilityAction(named: L("改写", "Rewrite", "書き換え")) { model.askTapped(.rewrite) }
-        .accessibilityAction(named: L("问答", "Answer", "回答")) { model.askTapped(.answer) }
-        .coachTarget(.run, active: model.coachDisplay?.target == .run)
-        .onChange(of: model.finished) { finished in flashDone(at: finished?.at) }
-    }
-
-    /// 和九宫格按住划出方向的距离一样。
-    private static let flickDistance: CGFloat = 16
-
-    private func showHold() {
-        guard !holding else { return }
-        model.askHoldShowing = true
-        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { holding = true }
-        model.keyFeedback(for: .space)
-    }
-
-    private var debugHold: Bool {
-        #if DEBUG
-        return model.debugAskHold
-        #else
-        return false
-        #endif
-    }
-
-    /// 自动、改写、问答三种底色。
-    static func askGradient(_ mode: KeyboardModel.AskMode?) -> LinearGradient {
-        let colors: [Color]
-        switch mode {
-        case nil: colors = Brand.askAutoColors
-        case .rewrite: colors = Brand.askRewriteColors
-        case .answer: colors = Brand.askAnswerColors
-        }
-        return LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
-    }
-
-    /// 自动只有星星；改写 / 问答是 11pt 星星加 13.5pt 粗体白字。
-    @ViewBuilder
-    static func askLabel(_ mode: KeyboardModel.AskMode?, starSize: CGFloat, doneAt: Date? = nil, glowing: Bool = false) -> some View {
-        if let mode {
-            HStack(spacing: 3) {
-                PolishStars(size: starSize, running: false, glowing: glowing, doneAt: doneAt)
-                Text(mode == .rewrite ? L("改写", "Edit", "修正") : L("问答", "Q&A", "質問"))
-                    .font(.system(size: 13.5, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .padding(.horizontal, 4)
-        } else {
-            // 自动（10-27 定，方案 E3）：识意图标 | 细竖线 | 上下箭头，提示可以上滑改写、下滑问答。
-            HStack(spacing: 5) {
-                AskIcon().frame(width: 18, height: 18)
-                Rectangle().fill(Color.white.opacity(0.45)).frame(width: 1, height: 14)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-        }
-    }
-
-    // MARK: 外观
-
-    /// 58×34 的胶囊：生成中深灰底白色方块，流光描边按这次的颜色。
-    /// nebula：识意自动时的蓝紫柔和混色底（MG2、FB）。
-    private func face<Label: View>(fill: AnyShapeStyle, nebula: Bool = false, ring: [Color], @ViewBuilder label: () -> Label) -> some View {
-        let shape = Capsule()
-        return Group {
-            if model.isRunning {
-                RoundedRectangle(cornerRadius: 2.5, style: .continuous).fill(Color.white).frame(width: 12, height: 12)
-            } else {
-                label()
-            }
-        }
-        .frame(width: KeyboardMetrics.polishButtonWidth, height: KeyboardMetrics.chipHeight)
-        .background {
-            // 生成中外面 3pt 淡外圈 rgba(99,102,241,.25)（FB，取代左右两团彩色光）。
-            if model.isRunning {
-                shape.fill(Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255).opacity(0.25)).padding(-3)
-            }
-        }
-        .background {
-            if nebula {
-                NebulaFill().clipShape(shape)
-            } else {
-                shape.fill(model.isRunning ? AnyShapeStyle(Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)) : fill)
-            }
-        }
-        .overlay {
-            if quickRunning && fullMotion {
-                PolishButtonGlow(ring: ring).clipShape(shape)
-            }
-        }
-    }
-
-    /// 小锁、剩余次数，点按区上下各扩 5pt。
-    private func decorated<Content: View>(width: CGFloat = KeyboardMetrics.polishButtonWidth, _ content: Content) -> some View {
-        content
-            .overlay(alignment: .topLeading) {
-                // 没开完全访问、试用结束后今天的次数用完：右上角一个小锁（P01）。
-                if !model.hasFullAccess || model.aiQuotaUsed {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 18, height: 18)
-                        .background(Circle().fill(Brand.lockFill))
-                        .overlay(Circle().strokeBorder(Brand.lockRing, lineWidth: 2))
-                        .offset(x: width - 12, y: -4)
-                        .accessibilityLabel(model.aiQuotaUsed
-                            ? L("今天的免费次数用完了", "No free uses left today", "今日の無料分は終了")
-                            : L("需要允许完全访问", "Needs Allow Full Access", "フルアクセスの許可が必要"))
-                }
-            }
-            .overlay(alignment: .topTrailing) {
-                // 试用结束、今天还有免费次数：右上角显示剩几次（K4）。
-                if let left = freeUsesLeft {
-                    Text("\(left)")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255))
-                        .padding(.horizontal, 6)
-                        .frame(minWidth: 20, minHeight: 20)
-                        .background(Capsule().fill(Color.white))
-                        .overlay(Capsule().strokeBorder(Brand.lockRing, lineWidth: 2))
-                        .offset(x: 6, y: -7)
-                        .accessibilityLabel(L("今天还剩 \(left) 次", "\(left) free uses left today", "今日あと \(left) 回"))
-                }
-            }
-            // 点按区上下各扩 5pt，至少 58×44。
-            .padding(.vertical, 5)
-            .contentShape(Rectangle())
-            .padding(.vertical, -5)
-    }
-
-    /// 完成时星星闪金 1.2 秒，之后清掉：doneAt 一直留着的话，星星里的 TimelineView 会一直按屏幕刷新率重画，打字时也在耗电、抢主线程。
-    private func flashDone(at date: Date?) {
-        doneAt = date
-        guard let date else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
-            if doneAt == date { doneAt = nil }
-        }
-    }
-
-    /// 试用结束、今天还有次数时的剩余次数；试用中、已购买、用完时为 nil。
-    private var freeUsesLeft: Int? {
-        guard model.hasFullAccess, !model.debugUnblocked, let left = model.aiUsesLeft else { return nil }
-        return left > 0 ? left : nil
-    }
-}
-
-/// 按住 ✨ 时弹出的「改写」「问答」（QA11）：58×34、各自的渐变、前面同款星星；手指指着的加 2pt 白描边和阴影。
-struct AskOption: View {
-    var mode: KeyboardModel.AskMode
-    var highlighted: Bool
-
-    var body: some View {
-        PolishButton.askLabel(mode, starSize: 11)
-            .frame(width: KeyboardMetrics.polishButtonWidth, height: KeyboardMetrics.chipHeight)
-            .background(Capsule().fill(PolishButton.askGradient(mode)))
-            .overlay(Capsule().strokeBorder(Color.white, lineWidth: highlighted ? 2 : 0))
-            .shadow(color: .black.opacity(highlighted ? 0.28 : 0.14), radius: highlighted ? 8 : 4, y: 3)
-            .scaleEffect(highlighted ? 1.06 : 1)
-            .animation(.easeOut(duration: 0.12), value: highlighted)
-    }
-}
-
-/// 生成中按钮里的动画：1.5pt 流光描边（1.6 秒一圈，外面不加光晕）、60pt 白色光带扫过、一圈白色小闪光。
-/// 描边按 ✨ 当时的颜色：润色和改写是品牌色，识意自动是粉紫，问答是天蓝。
-struct PolishButtonGlow: View {
-    typealias Sparkle = (x: CGFloat, y: CGFloat, d: CGFloat, period: Double, offset: Double)
-
-    /// 小闪光的位置（相对 84×34 的按钮，x、y、大小）和周期。
-    static let polishSparkles: [Sparkle] = [
-        (4, 8, 6, 1.5, 0.0), (9, 22, 5, 1.7, 0.6), (21, 2, 6, 1.9, 1.1), (29, 26, 5, 1.6, 0.3), (39, 1, 5, 1.8, 0.9),
-        (52, 27, 6, 1.5, 1.3), (60, 1, 5, 1.7, 0.2), (72, 6, 6, 1.9, 0.7), (76, 20, 6, 1.6, 1.5), (65, 26, 5, 1.8, 0.4),
-    ]
-    /// 粉紫描边（识意自动）：#A855F7 → #EC4899 → #FDE68A → #F0ABFC。
-    static let rerunRing: [Color] = [
-        Color(red: 0xA8 / 255, green: 0x55 / 255, blue: 0xF7 / 255),
-        Color(red: 0xEC / 255, green: 0x48 / 255, blue: 0x99 / 255),
-        Color(red: 0xFD / 255, green: 0xE6 / 255, blue: 0x8A / 255),
-        Color(red: 0xF0 / 255, green: 0xAB / 255, blue: 0xFC / 255),
-    ]
-
-    var ring: [Color] = Brand.gradient
-    var sparkles: [Sparkle] = Self.polishSparkles
-    /// 闪光坐标对应的按钮大小。
-    var designSize = CGSize(width: 84, height: 34)
-
-    var body: some View {
-        GeometryReader { geo in
-            TimelineView(.animation) { context in
-                let time = context.date.timeIntervalSinceReferenceDate
-                let phase = time.truncatingRemainder(dividingBy: 1.6) / 1.6
-                let sx = geo.size.width / designSize.width, sy = geo.size.height / designSize.height
-                ZStack(alignment: .topLeading) {
-                    LinearGradient(colors: [.white.opacity(0), .white.opacity(0.32), .white.opacity(0)],
-                                   startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 60, height: geo.size.height)
-                        .blur(radius: 4)
-                        .offset(x: -60 + (geo.size.width + 60) * phase)
-                    ForEach(Array(sparkles.enumerated()), id: \.offset) { _, s in
-                        let t = (time + s.offset).truncatingRemainder(dividingBy: s.period) / s.period
-                        let scale = sin(.pi * t)
-                        FourPointStar()
-                            .fill(Color.white)
-                            .frame(width: s.d, height: s.d)
-                            .scaleEffect(scale)
-                            .rotationEffect(.degrees(20 * t))
-                            .shadow(color: .white.opacity(0.8), radius: 1.5)
-                            .position(x: (s.x + s.d / 2) * sx, y: (s.y + s.d / 2) * sy)
-                    }
-                    Capsule().strokeBorder(AngularGradient(colors: ring + [ring[0]], center: .center,
-                                                           angle: .degrees(phase * 360)),
-                                           lineWidth: 1.5)
-                }
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
-
 /// 撤销和重做拼成一个胶囊，中间一条细线。AI 栏最右边，收起和展开都在。
 struct UndoRedoPair: View {
     @ObservedObject var model: KeyboardModel
+    /// iPad 9 键功能键一列：撑满这一列（竖屏 86、横屏 94），两个箭头各占一半。
+    var fillWidth: CGFloat?
+
+    /// 高 34、圆角 17（和栏里别的键一样高，v307）。方案 A（v309）缩成小胶囊：左右内边 9、16pt 箭头、中间 1×16 细竖线，总宽 64。
+    static let halfWidth: CGFloat = 31.5
+    static var width: CGFloat { halfWidth * 2 + 1 }
+    /// iPad 9 键功能键一列最下面（16:01 重定）：竖屏 26、横屏 30 高。
+    static var height: CGFloat {
+        if let pad = KeyboardMetrics.pad, KeyboardMetrics.padNine { return pad.landscape ? 30 : 26 }
+        return KeyboardMetrics.chipHeight
+    }
 
     var body: some View {
         HStack(spacing: 0) {
-            half("arrow.uturn.backward", enabled: model.canUndo) { model.undo() }
-            Rectangle().fill(Color.secondary.opacity(0.35)).frame(width: 1).padding(.vertical, 9)
-            half("arrow.uturn.forward", enabled: model.canRedo) { model.redo() }
+            half("arrow.uturn.backward", enabled: model.canUndo, leading: true) { model.undo() }
+            Rectangle().fill(Color(UIColor.separator)).frame(width: 1, height: 16)
+            half("arrow.uturn.forward", enabled: model.canRedo, leading: false) { model.redo() }
         }
-        .frame(width: 76, height: KeyboardMetrics.chipHeight)
+        .frame(width: fillWidth ?? Self.width, height: Self.height)
         .background(Capsule().fill(KeyStyle.charKey))
     }
 
-    private func half(_ systemImage: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private var arrowWidth: CGFloat { fillWidth.map { ($0 - 1) / 2 } ?? Self.halfWidth }
+
+    private func half(_ systemImage: String, enabled: Bool, leading: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .medium))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .font(.system(size: 16, weight: .medium))
+                // 箭头离外边 9，两个箭头靠向中间的竖线。
+                .padding(leading ? .leading : .trailing, 9)
+                .frame(width: arrowWidth, height: Self.height, alignment: leading ? .leading : .trailing)
                 .foregroundStyle(enabled ? Color.primary : Color.secondary.opacity(0.6))
                 .contentShape(Rectangle())
         }
         .buttonStyle(KeyPressStyle())
         .disabled(!enabled)
+        .accessibilityLabel(leading ? L("撤销", "Undo", "取り消す") : L("重做", "Redo", "やり直す"))
     }
 }
 
@@ -1041,11 +507,13 @@ struct GateCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             switch gate {
-            case .fullAccess: fullAccess
+            case .fullAccess: if pad { padFullAccess } else { fullAccess }
             case .privacy: privacy
             case .noKey: noKey
-            case .consent(let endpoint, let previous): consent(endpoint, previous: previous)
-            case .quotaUsed: quotaUsed
+            case .keyPending: keyPending
+            case .consent(let endpoint, let previous, let purpose):
+                if pad { padConsent(endpoint, previous: previous, purpose: purpose) } else { consent(endpoint, previous: previous, purpose: purpose) }
+            case .quotaUsed: if pad { padQuotaUsed } else { quotaUsed }
             }
         }
         .padding(12)
@@ -1090,6 +558,135 @@ struct GateCard: View {
         }
     }
 
+    // MARK: iPad 横排（PK12，11-22 14:41 cvbk「pk12的提示卡要重新适配，不用搞的这么高」）
+    // 左边图标、标题和说明，中间灰底框写路径（横屏 330 宽、竖屏 230 宽），右边按钮，铺满键盘宽。
+    // 卡片横屏高约 80、竖屏约 96（KeyboardMetrics.gateHeight）；字多的（第一次发送确认）正文最多 3 行，不超过 116。
+    // 没同意隐私、没填接口、Key 在同步这三张本来就是横排，iPad 上照用。
+
+    private var pad: Bool { KeyboardMetrics.pad != nil }
+    private var padPathWidth: CGFloat { KeyboardMetrics.pad?.landscape == true ? 330 : 230 }
+
+    private func lockBadge() -> some View {
+        Image(systemName: "lock.fill")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(Brand.deepPurple)
+            .frame(width: 22, height: 22)
+            .background(Circle().fill(Brand.returnSoftFill))
+    }
+
+    private func padRow<Middle: View, Trailing: View>(title: String, detail: String,
+                                                      @ViewBuilder middle: () -> Middle,
+                                                      @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 7) {
+                    lockBadge()
+                    Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                Text(detail)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Brand.cardBody)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            middle()
+            trailing()
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    private func padPathBox<Path: View>(label: String, @ViewBuilder path: () -> Path) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label).font(.system(size: 11.5)).foregroundStyle(Brand.disabledText)
+            path().font(.system(size: 13)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 11)
+        .frame(width: padPathWidth, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Brand.tagFill))
+    }
+
+    private var padFullAccess: some View {
+        // 文字照 iPhone（PK12 ①）。
+        padRow(title: L("AI 润色需要开启「允许完全访问」", "AI Polish needs Allow Full Access", "AI 機能には「フルアクセスを許可」が必要です"),
+               detail: L("打字不受影响。开启后才能用 AI 润色，App 里的键盘设置也会同步过来。", "Typing still works. Turn it on to use AI Polish and to sync keyboard settings from the app.", "入力はそのまま使えます。オンにすると AI 機能が使え、アプリのキーボード設定も同期されます。")) {
+            padPathBox(label: L("在系统设置里开启", "Turn it on in Settings", "設定でオンにする")) { settingsPath }
+        } trailing: {
+            GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
+        }
+    }
+
+    private var padQuotaUsed: some View {
+        let uses = AIAccess.dailyFreeUses
+        return padRow(title: L("今天的 \(uses) 次用完了", "You’ve used today’s \(uses) free uses", "今日の無料分（\(uses) 回）を使い切りました"),
+                      detail: L("AI 每天可以免费用 \(uses) 次，明天 0 点恢复。打字、拼音、常用词一直可以用，不受影响。",
+                                "AI has \(uses) free uses a day, reset at midnight. Typing, pinyin and My Words keep working as usual.",
+                                "AI は 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。入力・ピンイン・ユーザ辞書はそのまま使えます。")) {
+            padPathBox(label: L("详细说明", "Details", "詳しくは")) {
+                Text(L("打开飞地输入法", "Open Enclave", "Enclave を開く")).foregroundColor(Brand.cardBody)
+                    + Text(" › ").foregroundColor(Brand.pathSeparator)
+                    + Text(L("设置", "Settings", "設定")).foregroundColor(Brand.cardBody)
+                    + Text(" › ").foregroundColor(Brand.pathSeparator)
+                    + Text("AI").fontWeight(.semibold).foregroundColor(Brand.deepPurple)
+            }
+        } trailing: {
+            GateButton(title: L("知道了", "Got it", "OK"), primary: true) { model.dismissGate() }
+        }
+    }
+
+    /// 第一次发送前确认（RG9）横排：标题和地址一行，下面原来的地址（换了地址时）和说明（最多 3 行），右边按钮和隐私政策。
+    private func padConsent(_ endpoint: String, previous: String?, purpose: KeyboardModel.GatePurpose) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    SparkleMark(size: 14, color: Brand.tagSelectedText)
+                    Text(previous == nil ? Self.consentTitle(purpose) : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    Text(L("文字会发送到", "Text will be sent to", "文章の送信先")).font(.system(size: 13)).foregroundStyle(Brand.cardBody)
+                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe").font(.system(size: 11, weight: .semibold))
+                        Text(endpoint).font(.system(size: 12.5, weight: .semibold, design: .monospaced)).lineLimit(1)
+                    }
+                    .foregroundStyle(Brand.deepPurple)
+                    .padding(.horizontal, 9)
+                    .frame(height: 24)
+                    .background(Capsule().fill(Brand.returnSoftFill))
+                }
+                if let previous {
+                    (Text(L("原来是 ", "Was ", "以前は ")) + Text(previous).strikethrough())
+                        .font(.system(size: 12))
+                        .foregroundStyle(Brand.panelLabel.opacity(0.7))
+                        .lineLimit(1)
+                }
+                Text(Self.consentNote(purpose))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Brand.cardNote)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .trailing, spacing: 8) {
+                HStack(spacing: 8) {
+                    GateButton(title: L("取消", "Cancel", "キャンセル"), primary: false) { model.dismissGate() }
+                    GateButton(title: Self.consentAgree(purpose), primary: true) { model.acceptConsent() }
+                }
+                Button { model.showAppHint(.privacyPolicy) } label: {
+                    Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12))
+                        .foregroundStyle(Brand.tagSelectedText)
+                }
+                .buttonStyle(.plain)
+            }
+            .fixedSize()
+        }
+        .frame(maxHeight: .infinity)
+    }
+
     /// 仅基础功能时点 ✨ /「执行」（CP7）：不发请求，说明去 App 里同意。点卡片或开始打字就收起。
     private var privacy: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -1120,6 +717,20 @@ struct GateCard: View {
 
     /// 还没填 API Key 时点 ✨ /「执行」（OB9）：不发请求，引导去 App 首页跟着教程设置。点卡片或开始打字就收起。
     private var noKey: some View {
+        keyCard(title: L("AI 要先填你自己的 API Key", "Add your own API key to use AI", "AI を使うには自分の API キーが必要です"),
+                detail: L("打开「飞地输入法」App，首页点「跟着教程设置」，大约 3 分钟。拼音输入不受影响。",
+                        "Open the Enclave app and tap Follow the Guide on Home. About 3 minutes. Pinyin input still works.",
+                        "Enclave アプリのホームで「ガイドで設定」をタップ。約 3 分です。ピンイン入力はそのまま使えます。"))
+    }
+
+    /// Key 还在从 iCloud 钥匙串同步过来（02 复审第二轮）：和没填 Key 同一张卡，换一句话。
+    private var keyPending: some View {
+        keyCard(title: L("Key 还在从 iCloud 同步", "Your key is still syncing from iCloud", "キーはまだ iCloud から同期中です"),
+                detail: L("稍等几分钟再试，或者去 App 里填上。", "Try again in a few minutes, or enter it in the app.",
+                        "数分待ってからもう一度試すか、アプリで入力してください。"))
+    }
+
+    private func keyCard(title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "sparkle")
                 .font(.system(size: 14, weight: .semibold))
@@ -1129,13 +740,11 @@ struct GateCard: View {
                     colors: [Color(red: 0x8A / 255, green: 0x7B / 255, blue: 1), Brand.purple],
                     startPoint: .topLeading, endPoint: .bottomTrailing)))
             VStack(alignment: .leading, spacing: 2) {
-                Text(L("AI 要先填你自己的 API Key", "Add your own API key to use AI", "AI を使うには自分の API キーが必要です"))
+                Text(title)
                     .font(.system(size: 14, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                Text(L("打开「飞地输入法」App，首页点「跟着教程设置」，大约 3 分钟。拼音输入不受影响。",
-                       "Open the Enclave app and tap Follow the Guide on Home. About 3 minutes. Pinyin input still works.",
-                       "Enclave アプリのホームで「ガイドで設定」をタップ。約 3 分です。ピンイン入力はそのまま使えます。"))
+                Text(detail)
                     .font(.system(size: 12.5))
                     .foregroundStyle(Brand.cardBody)
                     .lineLimit(2)
@@ -1148,7 +757,7 @@ struct GateCard: View {
         .onTapGesture { model.dismissGate() }
     }
 
-    /// 试用结束后今天的免费次数用完（K2）：打字照常，明天 0 点恢复。
+    /// 今天的免费次数用完（K2，没开始试用或试用结束时）：打字照常，明天 0 点恢复。
     /// 审核 4.4.1：键盘里不提购买、不引导去买，只说明情况和在 App 哪里能看到详情。
     @ViewBuilder
     private var quotaUsed: some View {
@@ -1162,9 +771,9 @@ struct GateCard: View {
             Text(L("今天的 \(uses) 次用完了", "You’ve used today’s \(uses) free uses", "今日の無料分（\(uses) 回）を使い切りました"))
                 .font(.system(size: 14, weight: .semibold))
         }
-        Text(L("试用结束后每天可以免费用 \(uses) 次，明天 0 点恢复。打字、拼音、常用词一直可以用，不受影响。",
-               "After the trial you get \(uses) free uses a day, reset at midnight. Typing, pinyin and My Words keep working as usual.",
-               "無料体験のあとも 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。入力・ピンイン・ユーザ辞書はそのまま使えます。"))
+        Text(L("AI 每天可以免费用 \(uses) 次，明天 0 点恢复。打字、拼音、常用词一直可以用，不受影响。",
+               "AI has \(uses) free uses a day, reset at midnight. Typing, pinyin and My Words keep working as usual.",
+               "AI は 1 日 \(uses) 回まで無料で使えます（0 時にリセット）。入力・ピンイン・ユーザ辞書はそのまま使えます。"))
             .font(.system(size: 13))
             .foregroundStyle(Brand.cardBody)
             .fixedSize(horizontal: false, vertical: true)
@@ -1188,9 +797,11 @@ struct GateCard: View {
         }
     }
 
-    /// 设置 › 通用 › 键盘 › 键盘 › Enclave › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
+    /// 设置 › 通用 › 键盘 › 键盘 › 飞地输入法 › 允许完全访问：分隔符浅灰，最后一项深紫加粗。
+    /// 键盘那一项写系统设置键盘列表里显示的名字（Loc.nameInSettings，跟 iPhone 的语言：中文系统是「飞地输入法」，不是「Enclave」）；
+    /// 其他几段照旧跟 App 的语言（02 定，design/fix/系统设置里的键盘名.md）。
     private var settingsPath: Text {
-        let steps = [L("设置", "Settings", "設定"), L("通用", "General", "一般"), L("键盘", "Keyboard", "キーボード"), L("键盘", "Keyboards", "キーボード"), "Enclave"]
+        let steps = [L("设置", "Settings", "設定"), L("通用", "General", "一般"), L("键盘", "Keyboard", "キーボード"), L("键盘", "Keyboards", "キーボード"), Loc.nameInSettings]
         var text = Text("")
         for step in steps {
             text = text + Text(step).foregroundColor(Brand.cardBody) + Text(" > ").foregroundColor(Brand.pathSeparator)
@@ -1198,11 +809,13 @@ struct GateCard: View {
         return text + Text(L("允许完全访问", "Allow Full Access", "フルアクセスを許可")).fontWeight(.semibold).foregroundColor(Brand.deepPurple)
     }
 
+    /// 第一次发送前确认（RG9）：润色（帮回也用这张）、问答各一张，标题、说明、按钮跟着换。
     @ViewBuilder
-    private func consent(_ endpoint: String, previous: String?) -> some View {
+    private func consent(_ endpoint: String, previous: String?, purpose: KeyboardModel.GatePurpose) -> some View {
+        let accent = Brand.deepPurple
         HStack(spacing: 6) {
             SparkleMark(size: 14, color: Brand.tagSelectedText)
-            Text(previous == nil ? L("润色前确认一下", "Before you polish", "整える前に確認") : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください")).font(.system(size: 14, weight: .semibold))
+            Text(previous == nil ? Self.consentTitle(purpose) : L("接口地址变了，再确认一次", "The API URL changed. Please confirm again", "API の URL が変わりました。もう一度確認してください")).font(.system(size: 14, weight: .semibold))
         }
         HStack(spacing: 6) {
             Text(L("文字会发送到", "Text will be sent to", "文章の送信先")).font(.system(size: 13)).foregroundStyle(Brand.cardBody)
@@ -1210,7 +823,7 @@ struct GateCard: View {
                 Image(systemName: "globe").font(.system(size: 11, weight: .semibold))
                 Text(endpoint).font(.system(size: 12.5, weight: .semibold, design: .monospaced)).lineLimit(1)
             }
-            .foregroundStyle(Brand.deepPurple)
+            .foregroundStyle(accent)
             .padding(.horizontal, 9)
             .frame(height: 26)
             .background(Capsule().fill(Brand.returnSoftFill))
@@ -1220,19 +833,45 @@ struct GateCard: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Brand.panelLabel.opacity(0.7))
         }
-        Text(L("只在你点「✨」或「执行」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求。由这个接口处理后返回结果；飞地输入法没有自己的服务器，也不保存你的文字。", "Sent only when you tap ✨ or Run: the text in the field (just the selection, if any) and your prompt. This API processes it and returns the result. Enclave has no servers and doesn't keep your text.", "「✨」か「実行」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。この API が処理して結果を返します。Enclave はサーバーを持たず、文章を保存しません。"))
+        Text(Self.consentNote(purpose))
             .font(.system(size: 12))
             .foregroundStyle(Brand.cardNote)
             .fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 0)
         HStack(spacing: 8) {
-            Button { model.openContainingApp("enclave://privacy-policy") } label: {
-                Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12)).foregroundStyle(Brand.tagSelectedText)
+            Button { model.showAppHint(.privacyPolicy) } label: {
+                Text(L("隐私政策", "Privacy Policy", "プライバシーポリシー")).font(.system(size: 12))
+                    .foregroundStyle(Brand.tagSelectedText)
             }
             .buttonStyle(.plain)
             Spacer()
             GateButton(title: L("取消", "Cancel", "キャンセル"), primary: false) { model.dismissGate() }
-            GateButton(title: L("同意并润色", "Agree and Polish", "同意して整える"), primary: true) { model.acceptConsent() }
+            GateButton(title: Self.consentAgree(purpose), primary: true) { model.acceptConsent() }
+        }
+    }
+
+    private static func consentTitle(_ purpose: KeyboardModel.GatePurpose) -> String {
+        switch purpose {
+        case .polish: return L("润色前确认一下", "Before you polish", "整える前に確認")
+        case .answer: return L("问答前确认一下", "Before you ask", "質問の前に確認")
+        }
+    }
+
+    /// 说明文字 05 审过（11-08）：飞地输入法「收不到」你的文字（AI 历史、剪贴板记录存在本机，不能说「不保存」）。
+    private static func consentNote(_ purpose: KeyboardModel.GatePurpose) -> String {
+        switch purpose {
+        case .polish:
+            // 帮回并入润色（05 定稿，11-14）：帮回也用这张，说明里写上复制的那段文字。
+            return L("只在你点「润色」、润色风格或「帮回」时发送：输入框里的文字（选中时只发选中的部分）和你写的要求；帮回时还会发送你复制的那段文字。由这个接口处理后返回结果；无第三方中转，飞地输入法收不到你的文字。", "Sent only when you tap Polish, a polish style or Help Reply: the text in the field (just the selection, if any) and your prompt; Help Reply also sends the text you copied. This API processes it and returns the result. No third-party relay; Enclave never receives your text.", "「整える」、スタイル、「返信アシスト」をタップしたときだけ、入力欄の文章（選択時はその部分だけ）と指示を送ります。返信アシストではコピーした文章も送ります。この API が処理して結果を返します。第三者の中継はなく、Enclave が文章を受け取ることはありません。")
+        case .answer:
+            return L("只在你提问时发送：你写的问题和输入框里的文字（选中时只发选中的部分）。由这个接口处理后返回回答；无第三方中转，飞地输入法收不到你的文字。联网搜索会另外问你。", "Sent only when you ask: your question and the text in the field (just the selection, if any). This API processes it and returns the answer. No third-party relay; Enclave never receives your text. Web search asks you separately.", "質問したときだけ、質問と入力欄の文章（選択時はその部分だけ）を送ります。この API が処理して回答を返します。第三者の中継はなく、Enclave が文章を受け取ることはありません。ウェブ検索は別に確認します。")
+        }
+    }
+
+    private static func consentAgree(_ purpose: KeyboardModel.GatePurpose) -> String {
+        switch purpose {
+        case .polish: return L("同意并润色", "Agree and Polish", "同意して整える")
+        case .answer: return L("同意并提问", "Agree and Ask", "同意して質問")
         }
     }
 }
@@ -1345,6 +984,9 @@ struct ResultCard: View {
     @ObservedObject var model: KeyboardModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    /// 横屏九宫格（LN1 ④）：卡片放在按键中间那块，不带下半格的识意框，左边一条 34 宽的模式列（LandscapeModeColumn），
+    /// 点里面的「切换」换成识意框。
+    var compact = false
     /// 文字区宽度，点文字时换算成第几个字。
     @State private var textWidth: CGFloat = 200
 
@@ -1357,6 +999,7 @@ struct ResultCard: View {
         if let error = model.errorMessage { return .error(error) }
         if let prompt = model.searchPrompt { return .search(prompt) }
         if model.isRunning { return .running }
+        if model.stoppedAnswer != nil { return .fresh }
         if model.session?.current != nil {
             return model.resultUse != nil || model.resultStale ? .faded : .fresh
         }
@@ -1370,13 +1013,65 @@ struct ResultCard: View {
 
     var body: some View {
         let look = look
+        if KeyboardMetrics.pad != nil, !compact {
+            padBody(look)
+        } else {
+            phoneBody(look)
+        }
+    }
+
+    /// iPad 宽版（PK7、PK15）：正文在左，识意区在右约四成宽（PadAskArea），中间一条细线；没有下半格。
+    /// 自由编辑时编辑框占满整张卡。
+    private func padBody(_ look: Look) -> some View {
+        GeometryReader { geo in
+            let showsAsk = model.target != .card
+            let active = askActive
+            let askWidth = showsAsk ? (geo.size.width * 0.38).rounded() : 0
+            HStack(spacing: 0) {
+                content(look)
+                if showsAsk {
+                    Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair)
+                        .frame(width: active ? 1 : 0.5)
+                    PadAskArea(model: model, tall: model.cardTall)
+                        .frame(width: askWidth - (active ? 1 : 0.5))
+                }
+            }
+            .background {
+                if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
+                shape.fill(KeyStyle.charKey)
+                if showsAsk, !active {
+                    Brand.askInactiveFill
+                        .frame(width: askWidth)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .clipShape(shape)
+                }
+                if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
+            }
+            .overlay {
+                if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
+            }
+            .overlay {
+                border(look).allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func phoneBody(_ look: Look) -> some View {
         VStack(spacing: 0) {
-            content(look)
+            if compact, model.target != .card {
+                HStack(spacing: 0) {
+                    LandscapeModeColumn(model: model, ask: false)
+                    content(look)
+                }
+            } else {
+                content(look)
+            }
             // 下半格是识意框（MG3）；自由编辑时整块变成编辑框。
-            if model.target != .card {
+            if model.target != .card, !compact {
                 // 激活（打字进识意框）：顶上 1pt 紫线；未激活：0.5pt 细线，下半格浅灰底（FC1–FC4）。
                 let active = askActive
-                Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair).frame(height: active ? 1 : 0.5)
+                Rectangle().fill(active ? Brand.askActiveLine : Brand.blockHair)
+                    .frame(height: active ? 1 : 0.5)
                 lowerHalf.frame(height: KeyboardMetrics.askBoxHeight - (active ? 1 : 0.5))
             }
         }
@@ -1384,7 +1079,7 @@ struct ResultCard: View {
             // 修改中：外面一圈 4pt 淡紫光。
             if case .editing = look { shape.inset(by: -4).fill(editStroke.opacity(0.15)) }
             shape.fill(KeyStyle.charKey)
-            if model.target != .card, !askActive {
+            if model.target != .card, !askActive, !compact {
                 Brand.askInactiveFill
                     .frame(height: KeyboardMetrics.askBoxHeight)
                     .frame(maxHeight: .infinity, alignment: .bottom)
@@ -1395,20 +1090,16 @@ struct ResultCard: View {
         .overlay {
             if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
         }
-        .overlay { border(look).allowsHitTesting(false) }
+        .overlay {
+            border(look).allowsHitTesting(false)
+        }
     }
 
-    /// 识意框，或者点了风格键时这一种的风格一排（MG5）。
-    /// 识意框激活：打字进识意框；风格一排开着时那一格也算激活（白底）。
-    private var askActive: Bool { model.target == .instruction || model.aiRow != nil }
+    /// 识意框激活：打字进识意框。选风格改成下拉框（KB2）后下半格一直是识意框。
+    private var askActive: Bool { model.target == .instruction }
 
-    @ViewBuilder
     private var lowerHalf: some View {
-        if let row = model.aiRow {
-            StyleRow(model: model, row: row)
-        } else {
-            AskField(model: model)
-        }
+        AskField(model: model)
     }
 
     /// 上半格：回答卡。
@@ -1459,36 +1150,36 @@ struct ResultCard: View {
 
     // MARK: 结果
 
-    /// 识意的结果（和识意生成中）：结果卡最左边是模式控件（SW4），代替正文开头的「AI 生成」标签；润色的结果照旧用标签。
     /// 自由编辑框描边：当前模式的颜色（问答天蓝，其余紫）。
     private var editStroke: Color { model.session?.currentIsAnswer == true ? Brand.answerBorder : Brand.tagSelectedText }
 
-    private var showsModeSwitch: Bool {
-        model.isRunning ? model.askRunning : model.session?.currentIsAsk == true
-    }
-
-    /// 正文左边距：有模式控件时控件占左边（卡片左内边距 6、控件 34、间距 8），正文贴着它。
-    private var textLeading: CGFloat { showsModeSwitch ? 0 : 10 }
+    /// 正文左边距 14（AK2：左边模式格去掉，正文往左占满）。
+    private var textLeading: CGFloat { 14 }
 
     private func resultView(faded: Bool) -> some View {
         HStack(alignment: .top, spacing: 2) {
-            HStack(alignment: .top, spacing: 8) {
-            if showsModeSwitch {
-                // 生成中还不知道方式：上半「AI」+ 流光，下半变淡不能点。
-                let pending = model.isRunning && model.askKind == nil
-                let answer = model.isRunning ? model.askKind == .answer : model.session?.currentIsAnswer == true
-                ModeSwitch(answer: answer, pending: pending, enabled: !model.isRunning && model.session?.currentAskSource != nil) {
-                    model.switchAskMode()
-                }
-                .padding(.leading, 6)
-                .padding(.vertical, 6)
-            }
             VStack(alignment: .leading, spacing: 0) {
+            // 出结果后正文上面一行标题（AK2）：改写「✨ AI 改写 · 正式」主色，问答「[问答图标] AI 回答 · 直击要害」蓝色 + 联网标签。
+            if !model.isRunning, model.stoppedAnswer != nil {
+                // 问答中途停了（PS6）：「AI 回答 · 已停止」。
+                ResultHeader(answer: true, style: nil, searched: false, stopped: true)
+                    .padding(.leading, textLeading)
+                    .padding(.top, 8)
+            } else if !model.isRunning, let session = model.session, session.current != nil {
+                ResultHeader(answer: session.currentIsAnswer,
+                             style: session.versionInfo?[String(session.currentIndex)]?.style,
+                             searched: session.currentSearchedBy != nil,
+                             reply: session.currentReplySource?.message)
+                    .padding(.leading, textLeading)
+                    .padding(.top, 8)
+                    .opacity(faded ? 0.6 : 1)
+            }
             // 生成中第一行是流光小字「AI 正在改写… / 正在回答…」（QA10），出结果后这行字消失，
             // 「AI 生成」标签（CP8）放在正文第一行开头，只在界面上标，不往正文里插任何标记。
             if model.isRunning {
                 HStack(spacing: 6) {
-                    RunningLabel(text: runningTitle, color: runningColor, animating: animating)
+                    RunningLabel(text: runningTitle, color: runningColor, animating: animating,
+                                 icon: model.askRunning && model.askAuto ? "magnifyingglass" : "sparkle")
                     // 8 秒还没出第一个字（ER4）：后面加灰字「模型响应较慢」，右边小「取消」。
                     if model.responseSlow {
                         Text(L("模型响应较慢", "Slow to respond", "応答が遅れています"))
@@ -1512,7 +1203,7 @@ struct ResultCard: View {
             }
             resultText(faded: faded)
                 .padding(.leading, textLeading)
-                .padding(.top, model.isRunning ? 4 : 8)
+                .padding(.top, model.isRunning || model.session?.current != nil ? 4 : 8)
                 .padding(.bottom, 8)
                 .contentShape(Rectangle())
                 // 文字区上下滑留给滚动（展开、收起都一样），翻版本在右边的 ▲▼ 上滑；只有收起时生成中整块滑动翻版本。长按复制。
@@ -1524,7 +1215,7 @@ struct ResultCard: View {
                 .simultaneousGesture(SpatialTapGesture(count: 3).onEnded { value in
                     guard model.hasResult, let text = model.session?.current else { return }
                     // 减掉文字区的内边距；展开卡片滚动过时按未滚动估算，进入后可以再点一次调整。
-                    let point = CGPoint(x: value.location.x - textLeading, y: value.location.y - (model.isRunning ? 4 : 8))
+                    let point = CGPoint(x: value.location.x - textLeading, y: value.location.y - 4)
                     model.beginFreeEdit(caret: CardTextHit.index(at: point, in: text, width: textWidth))
                 })
                 // VoiceOver 用不了滑动、长按、连点三下：上下轻扫（可调整）翻版本，「操作」里有分词和修改。
@@ -1541,7 +1232,6 @@ struct ResultCard: View {
                 .accessibilityAction(named: L("修改", "Edit", "編集")) {
                     if model.hasResult, let text = model.session?.current { model.beginFreeEdit(caret: text.count) }
                 }
-            }
             }
             iconColumn(faded: faded)
                 .padding(.vertical, 5)
@@ -1610,7 +1300,7 @@ struct ResultCard: View {
             }
             .buttonStyle(.plain)
             Button {
-                if prompt.disabled { model.openContainingApp("enclave://api-answer") } else { model.resolveSearchPrompt(allow: true) }
+                if prompt.disabled { model.showAppHint(.webSearch) } else { model.resolveSearchPrompt(allow: true) }
             } label: {
                 Text(accept)
                     .font(.system(size: 14, weight: .semibold))
@@ -1629,10 +1319,19 @@ struct ResultCard: View {
     }
 
     private var runningTitle: String {
+        if model.replyRunning { return L("AI 正在帮回…", "AI is writing a reply…", "AI が返信を作成しています…") }
         guard model.askRunning else { return L("AI 正在润色…", "AI is polishing…", "AI が整えています…") }
         if model.askSearching {
             let name = model.settings.answerSearch?.name ?? ""
             return L("正在用 \(name) 联网搜索…", "Searching the web with \(name)…", "\(name) でウェブを検索しています…")
+        }
+        // 回车里的识意（第 70 条）：AI 自己判断，先「识意 · 判断中」，判断出来后写判断结果。
+        if model.askAuto {
+            switch model.askKind {
+            case .answer: return L("识意 · 判断为回答", "Smart Ask · Answering", "意図を読む・回答")
+            case .rewrite: return L("识意 · 判断为改写", "Smart Ask · Rewriting", "意図を読む・書き換え")
+            case nil: return L("识意 · 判断中", "Smart Ask · Deciding…", "意図を読む・判断中")
+            }
         }
         switch model.askKind {
         case .answer: return L("AI 正在回答…", "AI is answering…", "AI が回答しています…")
@@ -1645,8 +1344,8 @@ struct ResultCard: View {
 
     @ViewBuilder
     private func resultText(faded: Bool) -> some View {
-        let tag = model.isRunning || showsModeSwitch ? Text("") : Text(Image(uiImage: AIGeneratedTag.image(dark: colorScheme == .dark)))
-        let text = tag + Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(runningColor)
+        // 「AI 生成」小标签不再放正文开头：出结果后正文上面有标题行（ResultHeader）。
+        let text = Text(model.displayText) + Text(model.isRunning ? "▍" : "").foregroundColor(runningColor)
         Group {
             if model.isRunning && model.displayText.isEmpty {
                 // 还没出字：灰条占位，两行高的卡片里一条，展开时两条。
@@ -1885,9 +1584,18 @@ struct ResultCard: View {
         VStack(alignment: .leading, spacing: 3) {
             if let notice {
                 Text(notice).font(.system(size: 13)).foregroundStyle(Color.primary)
+            } else if model.helpAskButton == .solid {
+                // 刚复制、输入框空（帮回并入润色 UI2 ②）：说说帮回怎么用。
+                Text(L("刚复制了一句话。点「帮回」写回复；想怎么回可以先写在下面，也可以留空",
+                       "You just copied a message. Tap Reply to write a reply; say how to reply below, or leave it blank",
+                       "メッセージをコピーしました。「返信」で返信を作成。どう返すかは下に書いても、空欄でも OK"))
+                    .font(.system(size: 13.5))
+                    .foregroundStyle(Brand.askPlaceholder)
             } else {
                 // 还没结果（MG2）：灰字说明，结果出来后整块高度不变。
-                Text(L("点 ✨：自动判断是改这段话，还是回答问题；结果出现在这里", "Tap ✨: it works out whether to edit your text or answer your question. The result shows here", "✨ をタップ：文章を直すか質問に答えるかを自動で判断します。結果はここに表示されます"))
+                Text(L("点润色键，按当前风格改输入框里的话；点「问答」，回答下面写的问题。结果出现在这里",
+                     "Tap the polish key to edit your text in the current style; tap Ask to answer the question below. The result shows here",
+                     "整えるキーで入力欄の文章を今のスタイルで直し、「質問」で下に書いた質問に答えます。結果はここに表示されます"))
                     .font(.system(size: 13.5))
                     .foregroundStyle(Brand.askPlaceholder)
             }
@@ -1971,9 +1679,6 @@ struct ResultCard: View {
         let partial = model.partialResult
         return HStack(alignment: .top, spacing: 2) {
             HStack(alignment: .top, spacing: 8) {
-                if let partial, let answer = partial.answer {
-                    ModeSwitch(answer: answer, pending: false, enabled: false) {}
-                }
                 VStack(alignment: .leading, spacing: 4) {
                     Group {
                         if partial?.answer == nil {
@@ -2111,27 +1816,6 @@ struct FlowingBorder: View {
     }
 }
 
-/// 快速模式出错：AI 栏风格按钮右边「润色失败，点重试」。
-struct QuickRetryLabel: View {
-    @ObservedObject var model: KeyboardModel
-
-    var body: some View {
-        Button { model.sparkleTapped() } label: {
-            ViewThatFits(in: .horizontal) {
-                Text(L("润色失败，点重试", "Polish failed. Tap to retry", "失敗しました。タップで再試行"))
-                Text(L("失败，重试", "Failed, retry", "失敗・再試行"))
-                Image(systemName: "arrow.clockwise")
-                    .accessibilityLabel(L("失败，重试", "Failed, retry", "失敗・再試行"))
-            }
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Brand.deepPurple)
-            .lineLimit(1)
-        }
-        .buttonStyle(KeyPressStyle())
-        .padding(.leading, 2)
-    }
-}
-
 /// 卡片里的扫光：约 300pt 宽的斜向光带从左往右匀速扫过，中间最深（#7C3AED 16%），一趟 1.6 秒，和边框同步。
 struct SweepBand: View {
     var body: some View {
@@ -2216,84 +1900,80 @@ struct FreeEditToast: View {
     }
 }
 
-/// 结果卡左边的模式控件（P1-4b 方案④）：宽 34、圆角 7。上半是当前方式「AI改写 / AI问答」，
-/// 下半「⇄ 切换」用要切过去那种方式的底色和字色，点一下按另一种方式重做（新版本）。
-/// 生成中还没定方式（pending）时上半只写「AI」加流光，下半变淡不能点；出错或取消后留着半截字时照样写全称。
-struct ModeSwitch: View {
+/// 回答卡正文上面一行标题（AK2，取代左边的模式格）：13pt 粗体。
+/// 改写「✨ AI 改写 · 正式」主色；问答「[问答图标] AI 回答 · 直击要害」蓝色，后面跟联网标签（只是状态，不能点）。
+/// 手改的那版没有风格名，只写「AI 改写」。
+struct ResultHeader: View {
     var answer: Bool
-    var pending: Bool
-    var enabled: Bool
-    var action: () -> Void
-    @Environment(\.colorScheme) private var colorScheme
-
-    private func fill(_ answer: Bool) -> Color { answer ? Brand.modeAnswerFill : Brand.modeRewriteFill }
-    private func text(_ answer: Bool) -> Color { answer ? Brand.modeAnswerText : Brand.modeRewriteText }
-
-    /// 一行写完：9.5pt 粗体放不下就用 8.5pt，不换行、不省略（UI 设计 10-28）。
-    private func fitted(_ label: String) -> some View {
-        ViewThatFits(in: .horizontal) {
-            Text(label).font(.system(size: 9.5, weight: .bold)).fixedSize()
-            Text(label).font(.system(size: 8.5, weight: .bold)).fixedSize()
-        }
-        .frame(width: 32)
-    }
+    var style: String?
+    var searched: Bool
+    var stopped = false
+    /// 帮回写的一版（帮回并入润色 §4）：对方的话。卡头换成「回」小标 +「AI 帮回 · 正式」+ 灰色「原话」，点卡头展开整句。
+    var reply: String? = nil
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
-        let stroke = answer ? Brand.answerBorder : Brand.rowStroke
-        Button(action: action) {
-            VStack(spacing: 0) {
-                ZStack {
-                    fill(answer)
-                    if pending {
-                        Text("AI").font(.system(size: 11, weight: .bold)).foregroundStyle(text(answer))
-                            .overlay {
-                                TimelineView(.animation) { context in
-                                    let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
-                                    LinearGradient(colors: [.white.opacity(0), .white.opacity(0.8), .white.opacity(0)],
-                                                   startPoint: .leading, endPoint: .trailing)
-                                        .frame(width: 14)
-                                        .offset(x: -24 + 48 * phase)
-                                }
-                                .mask(Text("AI").font(.system(size: 11, weight: .bold)))
-                                .allowsHitTesting(false)
-                            }
-                    } else {
-                        fitted(answer ? L("AI问答", "AI Q&A", "AI回答") : L("AI改写", "AI edit", "AI書換"))
-                            .foregroundStyle(text(answer))
-                    }
-                }
-                Rectangle().fill(stroke.opacity(0.5)).frame(height: 1)
-                ZStack {
-                    fill(!answer)
-                    VStack(spacing: 1) {
-                        Image(systemName: "arrow.left.arrow.right").font(.system(size: 9, weight: .semibold))
-                        fitted(L("切换", "Switch", "切替"))
-                    }
-                    .foregroundStyle(text(!answer))
-                }
-                .opacity(pending || !enabled ? 0.4 : 1)
-            }
-            .frame(width: 34)
-            .clipShape(shape)
-            .overlay(shape.strokeBorder(stroke.opacity(0.33), lineWidth: 1))
+        if let reply {
+            ReplyResultHeader(style: style, message: reply)
+        } else {
+            plain
         }
-        .buttonStyle(ModeSwitchStyle(dark: colorScheme == .dark))
-        .disabled(pending || !enabled)
-        .accessibilityLabel(answer
-            ? L("AI问答，点按切换成改写重做", "AI answer, tap to redo as a rewrite", "AI回答、タップで書き換えとしてやり直す")
-            : L("AI改写，点按切换成问答重做", "AI rewrite, tap to redo as an answer", "AI書き換え、タップで回答としてやり直す"))
+    }
+
+    @ViewBuilder
+    private var plain: some View {
+        let color = answer ? Brand.answerText : Brand.purpleText
+        let head = answer ? L("AI 回答", "AI answer", "AI の回答") : L("AI 改写", "AI rewrite", "AI 書き換え")
+        HStack(spacing: 0) {
+            Group {
+                if answer {
+                    AskIcon(size: 15)
+                } else {
+                    PolishStars(size: 15, running: false, glowing: false, doneAt: nil, tint: color)
+                        .frame(width: 15, height: 15)
+                }
+            }
+            .padding(.trailing, 4)
+            Text((style.map { "\(head) · \($0)" } ?? head) + (stopped ? L(" · 已停止", " · Stopped", "・停止") : ""))
+                .font(.system(size: 13, weight: .bold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if answer, !stopped {
+                WebTag(on: searched).padding(.leading, 6).fixedSize()
+            }
+        }
+        .foregroundStyle(color)
+        .frame(height: 18)
+        .accessibilityElement(children: .combine)
     }
 }
 
-private struct ModeSwitchStyle: ButtonStyle {
-    var dark: Bool
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(configuration.isPressed ? (dark ? Color.white.opacity(0.14) : Color.black.opacity(0.10)) : .clear)
-                .allowsHitTesting(false))
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+/// 问答标题后面的联网标签：高 18、圆角 9、11pt 600、前面 11pt 地球线框。
+/// 已联网浅蓝底蓝字（深色 #1d2a44 / #5EA0FF），未联网浅灰底灰字（深色 #2c2c30 / #98989d）。
+struct WebTag: View {
+    var on: Bool
+
+    private static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
+        func color(_ hex: UInt32) -> UIColor {
+            UIColor(red: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) })
+    }
+    static let onFill = dynamic(0xE3EEFE, 0x1D2A44)
+    static let onText = dynamic(0x2F7BF6, 0x5EA0FF)
+    static let offFill = dynamic(0xEEEEF1, 0x2C2C30)
+    static let offText = dynamic(0x8A8A8E, 0x98989D)
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "globe").font(.system(size: 11, weight: .regular))
+            Text(on ? L("已联网", "Web", "ウェブ検索済み") : L("未联网", "No web", "ウェブなし"))
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(on ? Self.onText : Self.offText)
+        .padding(.horizontal, 7)
+        .frame(height: 18)
+        .background(Capsule().fill(on ? Self.onFill : Self.offFill))
     }
 }
 
@@ -2302,10 +1982,12 @@ struct RunningLabel: View {
     var text: String
     var color: Color
     var animating: Bool
+    /// 识意判断时是放大镜（第 70 条）。
+    var icon = "sparkle"
 
     var body: some View {
         let label = HStack(spacing: 5) {
-            Image(systemName: "sparkle").font(.system(size: 11, weight: .semibold))
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
             Text(text).font(.system(size: 13, weight: .semibold)).lineLimit(1)
         }
         .foregroundStyle(color)
@@ -2330,29 +2012,7 @@ struct RunningLabel: View {
     }
 }
 
-/// 快速模式替换后 AI 栏上的浅紫胶囊（CP9）：高 28、圆角 14，紫色四角星 +「AI 改写 · 已替换」。
-/// 「ⓘ 未检测到内容」：高 28、圆角 14、左 8 右 10，按键底色，13pt 500 次要色（NC1）。只是提示，点不了。
-struct EmptyTapHint: View {
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "info.circle").font(.system(size: 13, weight: .semibold))
-            Text(L("未检测到内容", "No text detected", "テキストがありません"))
-                .font(.system(size: 13, weight: .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .foregroundStyle(.secondary)
-        .padding(.leading, 8)
-        .padding(.trailing, 10)
-        .frame(height: 28)
-        .background(Capsule().fill(KeyStyle.charKey))
-        .allowsHitTesting(false)
-        // 出现时已经用 announcement 读过一次，这里不再重复读。
-        .accessibilityHidden(true)
-    }
-}
-
-/// 没字时点 ✨ 的按钮动效（NC2）：按下缩到 96%，60 ms 后回弹，同时左右 ±3pt 晃两下共 240 ms。减弱动态效果时不动。
+/// 没字时点 ✨、快速模式失败时被点那颗键的动效（NC2、对齐清单第 61 条）：按下缩到 96%，60 ms 后回弹，同时左右 ±3pt 晃两下共 240 ms。减弱动态效果时不动。
 struct EmptyTapShake: ViewModifier {
     var trigger: Int
     @State private var scale: CGFloat = 1
@@ -2379,24 +2039,14 @@ struct EmptyTapShake: ViewModifier {
     }
 }
 
-struct ReplacedPill: View {
-    var action: () -> Void
+/// 有键按着时把按键区抬到 AI 栏、候选栏上面（zIndex 2），让放大气泡完整露出来；长按菜单那几种照旧用更高的 4。
+/// 只改 zIndex 的值、不换视图结构，按键区不会因为按下松开被重建。
+private struct PressedKeysZ: ViewModifier {
+    @ObservedObject var presses: KeyPresses
+    let base: Double
+    let raises: Bool
 
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: "sparkle").font(.system(size: 11, weight: .semibold))
-                Text(L("AI 改写 · 已替换", "AI rewrite · Replaced", "AI 書き換え・置き換え済み"))
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .foregroundStyle(Brand.replacedPillText)
-            .padding(.horizontal, 11)
-            .frame(height: 28)
-            .background(Capsule().fill(Brand.replacedPillFill))
-        }
-        .buttonStyle(.plain)
-        .accessibilityHint(L("展开看结果", "Shows the result", "結果を表示"))
+    func body(content: Content) -> some View {
+        content.zIndex(raises && !presses.pressed.isEmpty ? max(base, 2) : base)
     }
 }

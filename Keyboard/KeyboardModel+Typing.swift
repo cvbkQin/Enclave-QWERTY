@@ -8,6 +8,8 @@ extension KeyboardModel {
     enum InputTarget { case host, instruction, card }
     /// digits 是九宫格的数字键盘；numbers、symbols 是全键盘那样的数字符号页（九宫格的 #@¥ 也进这里）。
     enum KeyLayer { case letters, numbers, symbols, digits }
+    /// iPad 全宽 9 键中间那块放什么（PK17、PK18）：123 的运算符号（九键同时换成 1–9）、#@¥ 的符号、常用语和剪贴板。
+    enum PadMiddle { case digits, symbols, quick }
     enum ShiftState { case off, on, locked }
 
     /// 正在拼，或者还有字母在后台引擎里排着（结果还没回来）。
@@ -16,6 +18,13 @@ extension KeyboardModel {
     var nineGrid: Bool { showsNineKey && (layer == .letters || layer == .digits) }
 
     func typeLetter(_ letter: String) {
+        // App 里的双拼练习：字母原样上屏，练习页看按的是哪个键（键上提示照常，见 practiceContextPhase）。
+        if practiceActive {
+            if shift == .on { shift = .off }
+            commit(letter.lowercased())
+            objectWillChange.send()
+            return
+        }
         let text = shift == .off ? letter : letter.uppercased()
         if shift == .on { shift = .off }
         // 大写字母不进拼音组字，直接上屏（先把排着的字母处理完，顺序才对）。
@@ -33,10 +42,12 @@ extension KeyboardModel {
         dismissCandidateMenu()
         closeCandidateUndo()
         guard let queued = engine as? QueuedEngine else {
-            if let output = engine.input(key) { commit(output) }
+            if let output = engine.input(key) { commit(outputText(output)) }
             syncEngine()
             return
         }
+        // 能按到键的就是看得见的那个页面：结果交给它（见 bindEngine）。
+        bindEngine()
         queued.inputLater(key, since: keyEventTime)
         keyEventTime = nil
     }
@@ -47,7 +58,7 @@ extension KeyboardModel {
         let results = wait ? queued.drain() : queued.takeResults()
         guard !results.isEmpty else { return }
         for result in results {
-            if let text = result.commit { commit(text) }
+            if let text = result.commit { commit(outputText(text)) }
         }
         syncEngine()
         // 下一轮主循环时界面已经按新候选画完，这时记耗时。
@@ -67,12 +78,34 @@ extension KeyboardModel {
         if engine.candidates.count != candidates.count { candidates = engine.candidates }
     }
 
-    /// 数字、标点等非字母键：先把正在组的字上屏。
+    /// 拼写是 v（或 v 后已接了数字）：切到 123 页时不上屏。
+    private var keepsNumberComposition: Bool {
+        guard let queued = engine as? QueuedEngine else { return false }
+        applyEngineResults(wait: true)
+        return queued.acceptsNumberKey("0")
+    }
+
+    /// 数字、标点等非字母键：先把正在组的字上屏。全键盘打了 v 之后的数字接在拼写后面（快捷输入的大写金额，见 QuickInput）。
+    /// 打完「1+2=」这样的算式，候选栏给出结果。
     func typeSymbol(_ symbol: String) {
-        if isComposing, let first = engine.select(0) { commit(first) }
+        if isComposing, let queued = engine as? QueuedEngine {
+            applyEngineResults(wait: true)
+            if queued.acceptsNumberKey(symbol) {
+                queued.inputNumberKey(symbol)
+                syncEngine()
+                return
+            }
+        }
+        // 首选和符号一起上屏：分两次（先把标记区换成首选、马上再 insertText 符号）时，输入框会把符号插到首选前面（「。壹元整」）。
+        var text = symbol
+        if isComposing, let first = engine.select(0) { text = outputText(expandPhrase(first)) + symbol }
+        commit(text)
         engine.reset()
         syncEngine()
-        commit(symbol)
+        if symbol == "=" || symbol == "＝", chineseMode, target == .host,
+           let before = proxy?.documentContextBeforeInput, let result = QuickInput.calculate(before: before) {
+            predictions = [result]
+        }
     }
 
     func deleteKey() {
@@ -115,7 +148,7 @@ extension KeyboardModel {
         if layer != .letters && layer != .digits { layer = .letters }
     }
 
-    /// 组字时回车把字母原样上屏；在识意框里回车就是 ✨。
+    /// 组字时回车把字母原样上屏；回答卡展开、在识意框里时回车是「识意」（第 70 条）：AI 自己判断改写还是回答，执行中点了是停止。
     func returnKey() {
         if isComposing {
             if let raw = engine.commitComposition() { commit(raw) }
@@ -125,10 +158,37 @@ extension KeyboardModel {
         switch target {
         case .host: editProxy?.insertText("\n")
         case .instruction:
-            askTapped(askButtonMode)
+            if enterAI != nil { enterAskTapped() } else { commit("\n") }
         case .card:
             commit("\n")
         }
+    }
+
+    /// 双拼：点拼写栏（或侧边拼音键）上的全拼，上屏全拼字母（ni hao → nihao），搜人名、填拼音时用；回车照旧上屏按的键（双拼调研 P1）。
+    /// 分段选过的字原样带上。
+    var canCommitFullPinyin: Bool {
+        doublePinyin != nil && !showsNineKey && isComposing && composition.contains(where: { $0.isASCII && $0.isLetter })
+    }
+
+    /// 点了上屏的全拼：拼写去掉空格和分隔符。
+    var fullPinyinText: String { composition.filter { $0 != " " && $0 != "'" } }
+
+    func commitFullPinyin() {
+        guard canCommitFullPinyin else { return }
+        let text = fullPinyinText
+        showsFullPinyinTip = false
+        _ = engine.commitComposition()
+        commit(text)
+        syncEngine()
+    }
+
+    private static let fullPinyinTipKey = "doublePinyin.fullPinyinTipShown"
+
+    /// 双拼下第一次组字：说一次全拼能点（记在键盘自己的存储里，没开完全访问也记得住）。
+    private func noteFullPinyinTip() {
+        guard canCommitFullPinyin, !UserDefaults.standard.bool(forKey: Self.fullPinyinTipKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.fullPinyinTipKey)
+        showsFullPinyinTip = true
     }
 
     func selectCandidate(_ index: Int) {
@@ -137,7 +197,7 @@ extension KeyboardModel {
         let before = choiceState
         let segmented = !engine.selections.isEmpty
         let text = engine.select(index)
-        if let text { commit(text) }
+        if let text { commit(outputText(expandPhrase(text))) }
         if let text, commonWordTexts.contains(text) { UsageStats.wordCommitted(text) }
         syncEngine()
         recordChoice(from: before)
@@ -311,7 +371,7 @@ extension KeyboardModel {
     }
 
     /// 常用词短语表重写后引擎会重建会话，拼了一半的字母要原样再输一遍。
-    private func refreshCandidatesAfterPhraseChange() {
+    func refreshCandidatesAfterPhraseChange() {
         applyEngineResults(wait: true)
         let raw = engine.rawInput
         let kept = engine.selections
@@ -333,7 +393,7 @@ extension KeyboardModel {
         guard predictions.indices.contains(index) else { return }
         if !chineseMode { return selectEnglishSuggestion(index) }
         let word = predictions[index]
-        commit(word)
+        commit(outputText(word))
         // 点联想词省掉的字数（首页「联想帮你少打了 N 个字」）。
         DailyStats.add("prediction.tapped")
         DailyStats.add("prediction.chars", word.count)
@@ -347,9 +407,14 @@ extension KeyboardModel {
     // MARK: - 按键触摸（由 KeyTouchView 调用）
 
     var layoutState: KeyLayout.State {
-        KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
-                        englishOnly: settings.inputLanguage == .englishOnly,
-                        composing: isComposing, digitsMore: digitsMore)
+        syncPadMetrics()
+        return KeyLayout.State(layer: layer, nineKey: showsNineKey, chineseMode: chineseMode, needsGlobeKey: needsGlobeKey,
+                               englishOnly: settings.inputLanguage == .englishOnly,
+                               composing: isComposing, digitsMore: digitsMore, pinyinSide: pinyinSide, landscape: landscape,
+                               // 中文布局选九宫格的人切到英文时用的也是全键盘，一样要有「，。」键（0.97_4 用户反馈英文 26 键没有）。
+                               quickPunct: settings.quickPunctSide, pad: KeyboardMetrics.pad,
+                               nineOnLeft: settings.nineKeySide == .left, floating: KeyboardMetrics.floating,
+                               padLetterHints: settings.padLetterHints, nineEnglish: padNineEnglish)
     }
 
     func perform(_ kind: KeyKind) {
@@ -385,26 +450,82 @@ extension KeyboardModel {
         switch kind {
         case .letter(let letter): typeLetter(letter)
         case .symbol(let symbol): typeSymbol(symbol)
-        case .nine(let key): typeNineKey(key)
+        case .nine(let key):
+            // iPad 9 键中间那块开着符号或常用剪贴板（PK17）：按九键打字就回到联想 / 候选。
+            if padMiddle != nil { padMiddle = nil }
+            typeNineKey(key)
         case .shift: shiftKey()
         case .delete: deleteKey()
         case .space: spaceKey()
         case .returnKey: returnKey()
         case .toggleChinese: toggleChinese()
         // 打字时左列 123 / #@¥ 还在：先把拼音原样上屏（同「确认」），再切过去。
+        // 全键盘打了 v 再切到 123 页：留着拼写，接着打的数字出大写金额（见 QuickInput）。
         case .layer(let layer):
-            if isComposing { returnKey() }
+            if isComposing && !(layer == .numbers && keepsNumberComposition) { returnKey() }
             switchLayer(layer)
         case .digitPunct: typeSymbol(".")
+        // 「，。」键：打拼音时先上屏第一个候选，再出逗号（typeSymbol 一起上屏）。
+        case .quickPunct(let chinese): typeSymbol(QuickPunct.tap(chinese: chinese))
         case .digitsMore: digitsMore.toggle()
         case .emoticon: isComposing ? clearComposition() : openPanel(.kaomoji)
         case .emoji: openPanel(.emoji)
         // 「常用」打字时也在：先把拼音原样上屏，再打开。
         case .quickWords:
             if isComposing { returnKey() }
-            openPanel(.quickWords)
+            openQuickPanel()
         case .globe: break
+        // iPad（PK1）：Tab 键打一个制表符；右下角收起键盘，正在打的拼音原样留下。
+        case .tab: typeSymbol("\t")
+        case .dismiss:
+            if isComposing, let raw = engine.commitComposition() { commit(raw) }
+            engine.reset()
+            syncEngine()
+            controller?.dismissKeyboard()
+        case .padSymbol(let base, let shifted):
+            let useShifted = shift == .locked || (shift == .on && shiftFromKey)
+            if shift == .on {
+                shift = .off
+                shiftFromKey = false
+            }
+            typeSymbol(pairedQuote(useShifted ? shifted : base))
+        case .padMiddle(let mode): togglePadMiddle(mode)
+        case .swapNineSide: swapNineSide()
         }
+    }
+
+    /// iPad 9 键中间那块现在放的是什么：123 是数字页（layer），#@¥、常用剪贴板是 padMiddle。
+    var padMiddleShown: PadMiddle? { layer == .digits ? .digits : padMiddle }
+
+    /// iPad 9 键左列 123、#@¥、常用剪贴板（PK17、PK18）：只换中间那块，键盘不变高，不换整页、不开面板。
+    /// 三样同时只开一样；再点开着的那颗收回到联想 / 候选。打字时先把拼音原样上屏（同「确认」），和原来一样。
+    func togglePadMiddle(_ mode: PadMiddle) {
+        let open = padMiddleShown == mode
+        if isComposing { returnKey() }
+        switch mode {
+        case .digits:
+            if padMiddle != nil { padMiddle = nil }
+            switchLayer(open ? .letters : .digits)
+        case .symbols, .quick:
+            if layer == .digits { switchLayer(.letters) }
+            if mode == .quick && !open { loadQuickWords() }
+            padMiddle = open ? nil : mode
+        }
+    }
+
+    /// iPad 13 寸的引号键（PK2）：前面有没配对的左引号就打右引号，否则打左引号。只看光标前一段。
+    private func pairedQuote(_ symbol: String) -> String {
+        let pairs = ["‘": "’", "“": "”"]
+        guard let close = pairs[symbol] else { return symbol }
+        let before = target == .host ? (proxy?.documentContextBeforeInput ?? "") : ""
+        let opens = before.filter { String($0) == symbol }.count
+        let closes = before.filter { String($0) == close }.count
+        return opens > closes ? close : symbol
+    }
+
+    /// iPad 11 寸字母键往下滑过了 / 推回去了（PK1）：键帽上灰色小字换到正中，或者换回来。
+    func setFlicked(_ id: String, _ on: Bool) {
+        if on { keyPresses.flicked.insert(id) } else { keyPresses.flicked.remove(id) }
     }
 
     func keyPressed(_ key: KeySpec, feedback: Bool = true) {
@@ -412,13 +533,13 @@ extension KeyboardModel {
         if gate != nil { dismissGate() }
         // 开始打字，小手指引导就结束。
         endCoach()
-        hideEmptyTapHint()
         pressedKeys.insert(key.id)
         if feedback { keyFeedback(for: key.kind) }
     }
 
     func keyReleased(_ id: String) {
         pressedKeys.remove(id)
+        if keyPresses.flicked.contains(id) { keyPresses.flicked.remove(id) }
         // 自己打的字系统不一定发 textDidChange，松手时顺便更新发送键。
         refreshHostState()
     }
@@ -431,6 +552,13 @@ extension KeyboardModel {
         if KeyboardDebug.options.contains("send") { returnKey = .send }
         #endif
         if hasText != hostHasText { hostHasText = hasText }
+        if hasText { noteHelpFieldText() }
+        // 换了输入框、挪了光标：光标前已经不是刚上屏的那个词，联想就不带过去（不然新框里第一下删除只是收起联想，看着像删不动）。
+        if chineseMode, showsPredictions, target == .host, !lastHostCommit.isEmpty,
+           // 空框、光标在最前时系统给 nil，当空的算。
+           !(proxy?.documentContextBeforeInput ?? "").hasSuffix(lastHostCommit) {
+            dismissPredictions()
+        }
         if returnKey != hostReturnKey { hostReturnKey = returnKey }
         let keyboardType = proxy?.keyboardType ?? .default
         if keyboardType != hostKeyboardType {
@@ -440,13 +568,24 @@ extension KeyboardModel {
     }
 
     /// 数字、电话、金额输入框直接出数字键盘；数字和标点框出数字符号页；其他输入框回到字母（正在组字时不动）。
+    /// 邮箱、网址框像系统键盘一样直接用英文；离开这类框回到别的框时，再切回中文（用户在框里自己切过就不管）。
     private func applyLayer(for keyboardType: UIKeyboardType) {
         guard target == .host, !isComposing else { return }
+        let englishField = keyboardType == .emailAddress || keyboardType == .URL
+        if englishField, chineseMode {
+            toggleChinese()
+            autoEnglishField = true
+        } else if !englishField, autoEnglishField {
+            autoEnglishField = false
+            if !chineseMode { toggleChinese() }
+        }
         switch keyboardType {
         case .numberPad, .phonePad, .decimalPad, .asciiCapableNumberPad:
             if layer != .digits { switchLayer(.digits) }
         case .numbersAndPunctuation:
-            if layer != .numbers { switchLayer(.numbers) }
+            // iPad 9 键（PK17）：数字和符号的框直接出 9 键的 123（1–9 加中间那块的运算符号），不跳全宽符号页。
+            let target: KeyLayer = pad != nil && showsNineKey ? .digits : .numbers
+            if layer != target { switchLayer(target) }
         default:
             if layer == .digits || layer == .numbers || layer == .symbols { switchLayer(.letters) }
         }
@@ -461,7 +600,7 @@ extension KeyboardModel {
         if settings.keySound {
             let sound: SystemSoundID
             switch kind {
-            case .letter, .symbol, .nine, .digitPunct, .space: sound = 1104
+            case .letter, .symbol, .nine, .digitPunct, .quickPunct, .padSymbol, .space: sound = 1104
             case .delete: sound = 1155
             default: sound = 1156
             }
@@ -514,17 +653,23 @@ extension KeyboardModel {
         case .on: shift = now.timeIntervalSince(lastShiftTap) < 0.35 ? .locked : .off
         case .locked: shift = .off
         }
+        shiftFromKey = shift != .off
         lastShiftTap = now
     }
 
     func toggleChinese() {
         // 只用英文时没有中文；九宫格布局菜单之类的入口也不切过去。
         if !chineseMode && settings.inputLanguage == .englishOnly { return }
+        // 在邮箱框里自己切了中英：之后按用户的来，不再自动切回。
+        autoEnglishField = false
         if isComposing, let raw = engine.commitComposition() { commit(raw) }
         engine.reset()
         chineseMode.toggle()
         // 九宫格数字键盘上切英文：回到英文字母。
         if layer == .digits { switchLayer(.letters) }
+        if padMiddle != nil { padMiddle = nil }
+        // iPad 9 键模式下从英文的 123 / #+= 页切回中文：回到 9 键（中文不再有全宽符号页，符号在中间那块，PK17）。
+        if chineseMode, pad != nil, settings.keyboardLayout == .nineKey, layer != .letters { switchLayer(.letters) }
         selectEngine()
         if chineseMode { shift = .off } else { updateAutoShift() }
     }
@@ -549,8 +694,22 @@ extension KeyboardModel {
 
     var showsNineKey: Bool { activeLayout == .nineKey && pinyinReady }
 
+    /// 换拼音显示方式（长按中/英的菜单、或 App 键盘页）：高度跟着变（侧边不留拼音行）。
+    func setPinyinDisplay(_ display: PinyinDisplay) {
+        guard display != settings.pinyinDisplay else { return }
+        updateSettings { $0.pinyinDisplay = display }
+        closePinyinPickers()
+        heightMayChange?()
+    }
+
+    /// 收起侧边模式全键盘拼音键的下拉框。
+    func closePinyinPickers() {
+        if pinyinPopoverOpen { pinyinPopoverOpen = false }
+    }
+
     func setLayout(_ layout: KeyboardLayout) {
         updateSettings { $0.keyboardLayout = layout }
+        if padMiddle != nil { padMiddle = nil }
         selectEngine()
     }
 
@@ -595,14 +754,10 @@ extension KeyboardModel {
     func pickFromPanel(_ text: String) {
         typeSymbol(text)
         if keysPanel == .emoji { RecentEmoji.add(text) }
+        if keysPanel == .kaomoji { RecentKaomoji.add(text) }
     }
 
-    /// 「常用」面板里的词句：App 里的键盘常用语，按用户排的顺序。
-    var quickWords: [String] {
-        CommonWordStore.keyboardTexts
-    }
-
-    /// 「常用」面板里点了一个：上屏，回到九宫格。
+    /// 「常用 / 剪贴板」左栏里点了一条常用语：上屏，回到九宫格。
     func pickQuickWord(_ text: String) {
         typeSymbol(text)
         closePanel()
@@ -651,7 +806,8 @@ extension KeyboardModel {
     /// 全键盘：正在拼的拼音有几种切法时并列（xi'an、xian），现在这种在前；只有一种就只显示这一种。
     /// 分段选过词（拼写栏开头是汉字）时不列，免得重输把选过的词冲掉。
     var pinyinSegmentations: [String] {
-        guard !showsNineKey, isComposing, composition.allSatisfy(\.isASCII) else { return [] }
+        // 双拼的按键串没有别的切法。
+        guard !showsNineKey, doublePinyin == nil, isComposing, composition.allSatisfy(\.isASCII) else { return [] }
         let letters = engine.rawInput.filter(\.isLetter).lowercased()
         let current = composition.split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'").lowercased()
         guard !letters.isEmpty, letters.count <= 16 else { return current.isEmpty ? [] : [current] }
@@ -673,6 +829,10 @@ extension KeyboardModel {
         guard isComposing, let correction = engine.pendingCorrection else { return nil }
         let spelled = correction.reading.lowercased().split(whereSeparator: { $0 == " " || $0 == "'" }).joined(separator: "'")
         let letters = spelled.filter { $0 != "'" }
+        // 双拼按的是键对：读法是改过的键对拼出的全拼（ni'hui），改过的键所在的音节整个标出来（SP9）。
+        if !showsNineKey, let scheme = doublePinyin {
+            return doublePinyinCorrectedReading(correction, spelled: spelled, scheme: scheme)
+        }
         let text: String
         if showsNineKey {
             guard !letters.isEmpty, letters.allSatisfy({ $0.isASCII && $0.isLetter }),
@@ -683,13 +843,7 @@ extension KeyboardModel {
         } else {
             text = PinyinSyllables.segmentations(correction.corrected, limit: 1).first ?? correction.corrected
         }
-        // 改过的键：去掉和原样相同的开头、结尾，剩下的就是按反、换掉、补进的字母（多打删掉的没法标）。
-        let typed = Array(correction.typed), fixed = Array(correction.corrected)
-        var head = 0
-        while head < min(typed.count, fixed.count), typed[head] == fixed[head] { head += 1 }
-        var tail = 0
-        while tail < min(typed.count, fixed.count) - head, typed[typed.count - 1 - tail] == fixed[fixed.count - 1 - tail] { tail += 1 }
-        let changed = head..<max(head, fixed.count - tail)
+        let changed = Self.changedKeys(correction)
         var marked = Set<Int>()
         var key = 0
         for (offset, char) in text.enumerated() where char != "'" {
@@ -697,6 +851,50 @@ extension KeyboardModel {
             key += 1
         }
         return CorrectedReading(text: text, marked: marked, place: correction.place)
+    }
+
+    /// 改过的键在改过的串里的位置：去掉和原样相同的开头、结尾，剩下的就是按反、换掉、补进的字母（多打删掉的没法标）。
+    static func changedKeys(_ correction: PendingCorrection) -> Range<Int> {
+        let typed = Array(correction.typed), fixed = Array(correction.corrected)
+        var head = 0
+        while head < min(typed.count, fixed.count), typed[head] == fixed[head] { head += 1 }
+        var tail = 0
+        while tail < min(typed.count, fixed.count) - head, typed[typed.count - 1 - tail] == fixed[fixed.count - 1 - tail] { tail += 1 }
+        return head..<max(head, fixed.count - tail)
+    }
+
+    private func doublePinyinCorrectedReading(_ correction: PendingCorrection, spelled: String, scheme: DoublePinyin) -> CorrectedReading {
+        let groups = DoublePinyin.pairs(in: correction.corrected)
+        var syllables = spelled.split(separator: "'").map(String.init)
+        if syllables.count != groups.count {
+            syllables = groups.map { group in
+                scheme.readings[group.keys] ?? DoublePinyin.retroflexKeys.first { String($0.value) == group.keys }?.key ?? group.keys
+            }
+        }
+        let changed = Self.changedKeys(correction)
+        var marked = Set<Int>()
+        var offset = 0
+        for (index, syllable) in syllables.enumerated() {
+            if index > 0 { offset += 1 }
+            if index < groups.count, groups[index].range.overlaps(changed) || (changed.isEmpty && groups[index].range.contains(changed.lowerBound)) {
+                marked.formUnion(offset..<(offset + syllable.count))
+            }
+            offset += syllable.count
+        }
+        return CorrectedReading(text: syllables.joined(separator: "'"), marked: marked, place: correction.place)
+    }
+
+    /// 双拼拼写栏按键后面的灰字（SP9）：换了一个键写「v 改成 c」，别的照全拼的说法。
+    var doublePinyinCorrectionNote: String? {
+        guard let correction = engine.pendingCorrection else { return nil }
+        let typed = Array(correction.typed), fixed = Array(correction.corrected)
+        if typed.count == fixed.count {
+            let diffs = zip(typed, fixed).filter { $0.0 != $0.1 }
+            if diffs.count == 1, let diff = diffs.first {
+                return L("\(diff.0) 改成 \(diff.1)", "\(diff.0) → \(diff.1)", "\(diff.0) → \(diff.1)")
+            }
+        }
+        return correctionNote
     }
 
     /// 全键盘拼音行的各项：原样的切法，加上纠正读法（拼不成时排第一，拼得成时排第二）。
@@ -710,18 +908,27 @@ extension KeyboardModel {
 
     /// 点了纠正读法：按改过的串重输，候选换成按它出（九宫格记一步，按删除能退回）。
     func chooseCorrectedReading(_ reading: String) {
+        // 双拼列的是全拼读法，重输要用改过的键对。
+        let input = !showsNineKey && doublePinyin != nil ? engine.pendingCorrection?.corrected ?? reading : reading
+        // 和点候选一样：轻触震动和按键音（设置里开着才有）。
+        keyFeedback(for: .space)
         applyEngineResults(wait: true)
         let before = choiceState
-        engine.replaceInput(reading, keeping: [])
+        engine.replaceInput(input, keeping: [])
         syncEngine()
         recordChoice(from: before)
     }
 
     /// 全键盘点了一种切法：按这种切法重输。
     func chooseSegmentation(_ segmentation: String) {
+        // 和点候选一样：轻触震动和按键音（设置里开着才有）。
+        keyFeedback(for: .space)
         applyEngineResults(wait: true)
+        let before = choiceState
         engine.replaceInput(segmentation, keeping: [])
         syncEngine()
+        // 删除先撤回这次切法（和九宫格选拼音一样），不是删掉最后一个字母。
+        recordChoice(from: before)
     }
 
     /// 首选候选在第一个没定的字上的读法：拼写栏是首选的拼音（「你好ma」「mi hao」），去掉前面选过的词和已经定下的音节。
@@ -742,6 +949,8 @@ extension KeyboardModel {
 
     /// 选定一个音节：把对应的数字换成字母交回引擎，后面的数字接着拼；分段选过的词重输后选回来。
     func choosePinyin(_ syllable: String) {
+        // 和点候选一样：轻触震动和按键音（设置里开着才有）。
+        keyFeedback(for: .space)
         // 拼音栏按的是已经算完的输入，后面还排着的数字先算完再拆。
         applyEngineResults(wait: true)
         let kept = engine.selections
@@ -770,9 +979,10 @@ extension KeyboardModel {
         var after: ChoiceState
     }
 
-    /// 九宫格组字时现在的状态；不是九宫格或没在组字时为 nil。
+    /// 组字时现在的状态；没在组字时为 nil。全键盘也记：分段选词后删除，按原来的键重输再选回去，
+    /// 不交给 Rime 自己退格（那样拼写会变成「ni haoshijie」，后面的音节连在一起）。
     private var choiceState: ChoiceState? {
-        guard showsNineKey, isComposing else { return nil }
+        guard isComposing else { return nil }
         applyEngineResults(wait: true)
         return ChoiceState(raw: engine.rawInput, selections: engine.selections)
     }
@@ -791,7 +1001,7 @@ extension KeyboardModel {
     /// Rime 自己的退格在分段选词后又打过键时会直接删掉前面的数字，不会取消选词，所以撤回由这里按记下的状态重输。
     private func undoLastChoice() -> Bool {
         // 还有键排着没算完：最后一步是打键，照常删键。
-        guard QueuedEngine.shared.pending == 0 else { return false }
+        guard QueuedEngine.shared.pending == 0, !choiceSteps.isEmpty else { return false }
         guard let current = choiceState else {
             choiceSteps = []
             return false
@@ -810,6 +1020,8 @@ extension KeyboardModel {
 
     /// 拼音栏顶上点已选的词：取消最后选的那个词（选过的拼音留着）。
     func unselectLastWord() {
+        // 和点候选一样：轻触震动和按键音（设置里开着才有）。
+        keyFeedback(for: .space)
         applyEngineResults(wait: true)
         let selections = engine.selections
         guard !selections.isEmpty else { return }
@@ -819,30 +1031,35 @@ extension KeyboardModel {
 
     // MARK: - 长按备选
 
-    func showAlternates(for key: KeySpec, containerWidth: CGFloat, origin: CGPoint? = nil) -> Bool {
-        if let options = KeyLayout.cross(for: key.kind, chinese: chineseMode) {
+    /// held：按住到时间弹出的（不是划出来的）。「，。」键按住弹一排标点，往上划才是十字。
+    func showAlternates(for key: KeySpec, containerWidth: CGFloat, origin: CGPoint? = nil, held: Bool = false) -> Bool {
+        let prefersRow: Bool = {
+            if held, case .quickPunct = key.kind { return true }
+            return false
+        }()
+        if !prefersRow, let options = KeyLayout.cross(for: key.kind, chinese: chineseMode) {
             cross = CrossPopup(key: key, options: options, containerWidth: containerWidth, origin: origin)
             keyFeedback(for: .space)
             return true
         }
-        guard let options = KeyLayout.alternates(for: key.kind, chinese: chineseMode) else { return false }
-        let shown = shift == .off ? options : options.map { $0.uppercased() }
-        alternates = AlternatesPopup(key: key, options: shown, containerWidth: containerWidth)
+        guard let row = KeyLayout.alternates(for: key, chinese: chineseMode, containerWidth: containerWidth) else { return false }
+        alternates = AlternatesPopup(key: key, row: shift == .off ? row : row.uppercased(), containerWidth: containerWidth)
         keyFeedback(for: .space)
         return true
     }
 
     /// 长按「中/英」：弹出拼音布局菜单，先选中当前的布局。
     func showLayoutMenu(for key: KeySpec, containerWidth: CGFloat) {
-        layoutMenu = LayoutMenuPopup(key: key, containerWidth: containerWidth, selected: settings.keyboardLayout)
+        layoutMenu = LayoutMenuPopup(key: key, containerWidth: containerWidth,
+                                     currentLayout: settings.keyboardLayout, currentDisplay: settings.pinyinDisplay)
         keyFeedback(for: .space)
     }
 
     func moveAlternates(to point: CGPoint) {
         if var menu = layoutMenu {
             let option = menu.option(at: point)
-            if option != menu.selected {
-                menu.selected = option
+            if option != menu.hover {
+                menu.hover = option
                 layoutMenu = menu
                 if option != nil { keyFeedback(for: .space) }
             }
@@ -870,9 +1087,16 @@ extension KeyboardModel {
         if let menu = layoutMenu {
             layoutMenu = nil
             // 布局存在键盘这边，开了完全访问时和 App 里的设置是同一份，以最后一次改的为准。
-            if let layout = menu.selected, layout != settings.keyboardLayout {
-                if !chineseMode { toggleChinese() }
-                setLayout(layout)
+            switch menu.hover {
+            case .layout(let layout)?:
+                if layout != settings.keyboardLayout {
+                    if !chineseMode { toggleChinese() }
+                    setLayout(layout)
+                }
+            case .display(let display)?:
+                setPinyinDisplay(display)
+            case nil:
+                break
             }
             return
         }
@@ -901,11 +1125,7 @@ extension KeyboardModel {
     /// 模拟器测内存（debug 选项 memtest）：打一组整句，记下首选、耗时和内存，
     /// 结果写到共享目录 Library/Diagnostics/memtest-gram.json（有整句模型）或 memtest-plain.json。
     func runMemoryTest() {
-        let sentences = [
-            "woxiangqugongsishangban", "jintiantianqizhenhao", "womenyiqiquchifanba", "zhegewentiwomenmingtianzaitaolun",
-            "tazuotianwanshangmeiyouhuijia", "qingbangwochayixiahuochepiao", "zhejianshiqingbiwoxiangdeyaofuza",
-            "nikanjianwodeshoujilema", "xiawusandianzaihuiyishikaihui", "zhegexiangmudejindubijiaoman",
-        ]
+        let sentences = Self.benchSentences
         let engine = QueuedEngine.shared
         guard self.engine === engine else { return }
         var report: [String: Any] = ["model": TypingStats.modelInUse, "startMB": TypingStats.footprintMB() ?? -1]
@@ -942,9 +1162,14 @@ extension KeyboardModel {
 
     /// 动态热区用的拼音上下文：中文全键盘字母页、拼音引擎在用、没按 Shift 时才有。
     var pinyinContextForTouch: String? {
-        guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared else { return nil }
+        // 双拼按键对来挪（见 touchDoublePinyin）；也认全拼时按键不一定成对，只按手指习惯校准。
+        guard chineseMode, layer == .letters, shift == .off, engine === QueuedEngine.shared,
+              showsNineKey || doublePinyin == nil || !doublePinyinMixFull else { return nil }
         return QueuedEngine.shared.expectedRawInput
     }
+
+    /// 动态热区按哪套双拼算（全键盘、双拼词库时）：按了声母键后，能和它拼上的键更容易按中（双拼调研 P2）。
+    var touchDoublePinyin: DoublePinyin? { showsNineKey ? nil : doublePinyin }
 
     /// 九宫格「重输」：清掉正在拼的内容。
     func clearComposition() {
@@ -957,8 +1182,16 @@ extension KeyboardModel {
     func selectEngine() {
         engine.reset()
         let queued = QueuedEngine.shared
+        bindEngine()
+        // 拼音引擎是整个键盘进程共用的，不跟着键盘页面走（#21）：宿主 App 在前台被直接杀掉时，系统不调 viewDidDisappear、
+        // 也不发退后台通知，上一个页面没机会清，里面还留着没选字的拼音；新页面接过来再 syncEngine 就把旧拼音放回输入框。
+        // 当前用的不是它时它里面的东西都不是这个页面的，先清掉。
+        if engine !== queued { queued.reset() }
         let useShared = hasFullAccess
         pinyinReady = RimeEngine.hasDictionary(useShared: useShared)
+        doublePinyin = useShared && RimeStore.isDeployed ? DoublePinyin.deployed : nil
+        doublePinyinMixFull = doublePinyin != nil && DoublePinyin.deployedMixesFull
+        doublePinyinWeakUnits = doublePinyin != nil ? DoublePinyinPracticeStore.weakUnits : []
         TypingStats.modelInUse = useShared && RimeStore.isDeployed
             && (RimeStore.deployedVersion?.hasSuffix(GrammarModel.versionTag(installed: true)) ?? false)
         engine = chineseMode && pinyinReady ? queued : DirectEngine()
@@ -970,6 +1203,8 @@ extension KeyboardModel {
             // 联想数据等拼音引擎启动完再读：冷启动时两边一起读词库，抢 CPU 和磁盘，键盘出来得慢。
             if ok {
                 TypingStats.noteLaunchEngineReady()
+                // 只记第一次好的时刻：之后再准备（切中英、换布局、回前台）不改它，不然「拼音能打」会被后来的准备拉长。
+                if self?.engineReadyAt == nil { self?.engineReadyAt = CACurrentMediaTime() }
                 Predictor.prepare()
             }
             guard let self, !ok, self.pinyinReady else { return }
@@ -992,12 +1227,18 @@ extension KeyboardModel {
 
     /// ✨：展开时照常生成到卡片里；收起时是快速模式，润完直接替换输入框，撤销能退回原文。
     func sparkleTapped() {
-        // 快速模式、输入框里没字：不展开回答卡、不调接口、不计次数，也不先弹提示卡；按钮晃一下、右边提示「未检测到内容」（NC1）。
+        // 快速模式、输入框里没字：不展开回答卡、不调接口、不计次数，也不先弹提示卡；被点的键晃一下（NC1，右边不再出字）。
         if !aiExpanded, target == .host, !isComposing, !isRunning, fieldIsBlank {
-            showEmptyTapHint()
+            emptyTapped()
             return
         }
-        guard passGate(then: { [weak self] in self?.sparkleTapped() }) else { return }
+        // 点固定键发起的：提示卡点完再接着做时也按那个风格。
+        let style = runStyleOverride
+        guard passGate(then: { [weak self] in
+            self?.runStyleOverride = style
+            self?.sparkleTapped()
+            self?.runStyleOverride = nil
+        }) else { return }
         #if DEBUG
         if debugFakeRun { coachTapped(.sparkle); fakeCoachRun(); return }
         #endif
@@ -1008,7 +1249,6 @@ extension KeyboardModel {
             return
         }
         finishComposition()
-        hideEmptyTapHint()
         beginQuickMode(source: readField().text)
         start(from: .polish) { execute() }
         // 没开始生成（空输入框提示、没配置、没开完全访问）就展开，把原因显示出来。
@@ -1024,7 +1264,7 @@ extension KeyboardModel {
         // 收起就看不到卡片了，改到一半的先存下来。
         if target == .card { finishCardEdit() }
         finishComposition()
-        if expanded { clearQuickStatus(); hideEmptyTapHint() }
+        if expanded { clearQuickStatus() }
         aiExpanded = expanded
     }
 
@@ -1035,6 +1275,19 @@ extension KeyboardModel {
         syncEngine()
     }
 
+    // MARK: - 繁体输出（B5）
+
+    /// 开了繁体输出时，拼音打出的字转成繁体再上屏；引擎、学到的词、联想都还按简体走（传给它们的仍是简体）。
+    /// 只用在拼音候选、联想上屏的地方，AI 的结果、英文、符号不经过这里。
+    func outputText(_ text: String) -> String {
+        settings.traditionalOutput ? TraditionalChinese.convert(text) : text
+    }
+
+    /// 候选栏、整页候选显示用：和 candidates 一一对应（下标不变），只是换成繁体。
+    func displayWords(_ words: [String]) -> [String] {
+        settings.traditionalOutput ? words.map(TraditionalChinese.convert) : words
+    }
+
     // MARK: - 内部
 
     func commit(_ text: String) {
@@ -1043,13 +1296,16 @@ extension KeyboardModel {
         recentCorrection = nil
         switch target {
         case .host:
+            lastHostCommit = text
             // 有组字时把标记区直接换成要上屏的字再 unmark，不 insertText：
-            // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下（「hao de好的」）；
-            // 非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
+            // 闲鱼等 Flutter 输入框里，insertText 和空的 setMarkedText 都不会替换标记区，拼音会当正文留下、字还会丢（「hao de好的」，
+            // 11-11 闲鱼录屏：选「你好」后框里只剩「ni」）；非空的 setMarkedText 各家都会老实替换（打拼音时一直靠它更新），unmark 后就是正文。
+            // 代价：这条路不经过对方的 shouldChangeCharactersIn，用它限字数的框管不住（T9）。7294146 试过先清拼音再 insertText，闲鱼打不了字，已撤回。
             if hasMarkedText, !text.isEmpty {
                 editProxy?.setMarkedText(text, selectedRange: NSRange(location: (text as NSString).length, length: 0))
                 editProxy?.unmarkText()
                 hasMarkedText = false
+                lastMarkedText = ""
             } else {
                 clearMarkedText()
                 editProxy?.insertText(text)
@@ -1066,24 +1322,119 @@ extension KeyboardModel {
         if !isComposing && !choiceSteps.isEmpty { choiceSteps = [] }
         // 没变的不设：@Published 设一次就让整个键盘重画一遍。
         let newComposition = engine.composition
-        if newComposition != composition { composition = newComposition }
-        let row = layer == .letters && !composition.isEmpty
-        if row != pinyinRowShown { pinyinRowShown = row }
+        let compositionChanged = newComposition != composition
+        if compositionChanged { composition = newComposition }
+        // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
+        let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
+        if row != pinyinRowShown {
+            pinyinRowShown = row
+            if row { noteFullPinyinTip() } else if showsFullPinyinTip { showsFullPinyinTip = false }
+        }
+        if !row { closePinyinPickers() }
         let newCandidates = engine.candidates
         let candidatesChanged = newCandidates != candidates
         if candidatesChanged { candidates = newCandidates }
         if candidates.isEmpty && candidatesExpanded { candidatesExpanded = false }
         // 拼音像系统输入法一样带下划线显示在输入框里；打进要求框时不显示。
-        if target == .host && isComposing {
-            editProxy?.setMarkedText(composition, selectedRange: NSRange(location: (composition as NSString).length, length: 0))
+        if target == .host && isComposing && inlinePinyinOff {
+            // 输入框不认标记文字：拼音只在键盘上显示，不往输入框里写。
+        } else if target == .host && isComposing {
+            let previous = hasMarkedText ? lastMarkedText : ""
+            // 九宫格：输入框里只写按了的键（一个键一个字母），不写首选补全出来的字母（按一下 4 显示 g，不是 gao），和系统九宫格一样。
+            let marked = showsNineKey ? Self.nineKeyTyped(composition: composition, raw: engine.rawInput,
+                                                           from: engine.selections.last?.end ?? 0) : composition
+            editProxy?.setMarkedText(marked, selectedRange: NSRange(location: (marked as NSString).length, length: 0))
             hasMarkedText = true
+            lastMarkedText = marked
+            if !previous.isEmpty, previous != marked { checkMarkedTextReplaced(previous: previous, current: marked) }
         } else {
             clearMarkedText()
         }
         if candidatesChanged { forgetRejectedPick() }
+        let raw = engine.rawInput
+        if raw != syncedRawInput {
+            syncedRawInput = raw
+            // 拼写栏和候选都没变（选的拼音就是原来首选的读法）：拼音栏、侧边拼音照样要换成下一个音节的选项。
+            if !compositionChanged, !candidatesChanged { objectWillChange.send() }
+        }
+    }
+
+    /// 换拼音以后看一眼输入框：正常的输入框里光标前是「…现在的拼音」；不认标记文字的输入框（亚朵）
+    /// 会把上一次的拼音当正文留下、再插一遍新的，光标前变成「…上一次的拼音 + 现在的拼音」。
+    /// 发现了就把这两段都删掉，这个输入框里改成只在键盘上显示拼音。对方输入框更新有时慢一拍，所以稍等再看。
+    func checkMarkedTextReplaced(previous: String, current: String) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+            guard let self, !self.inlinePinyinOff, self.hasMarkedText, self.target == .host,
+                  self.lastMarkedText == current else { return }
+            let before = self.proxy?.documentContextBeforeInput ?? ""
+            guard Self.markedTextWasKept(before: before, previous: previous, current: current) else { return }
+            self.inlinePinyinOff = true
+            self.editProxy?.unmarkText()
+            self.hasMarkedText = false
+            self.lastMarkedText = ""
+            for _ in 0..<(previous.count + current.count) { self.editProxy?.deleteBackward() }
+        }
+    }
+
+    /// 九宫格的拼写（首选词的整拼，比如按了 4 是「gao」）截成真正按了的键：每个数字键配一个字母，补全出来的字母不要。
+    /// 分段选过的字（汉字）原样留着，它们用掉的键从 from（最后一个分段的结束位置）往后算；选过的拼音（raw 里的字母）照抄。
+    /// 纯函数，单元测试用。
+    static func nineKeyTyped(composition: String, raw: String, from: Int) -> String {
+        let keys = Array(raw.lowercased())
+        var p = min(max(from, 0), keys.count)
+        var out = ""
+        func digit(of letter: Character) -> Character? {
+            switch letter {
+            case "a"..."c": return "2"
+            case "d"..."f": return "3"
+            case "g"..."i": return "4"
+            case "j"..."l": return "5"
+            case "m"..."o": return "6"
+            case "p"..."s": return "7"
+            case "t"..."v": return "8"
+            case "w"..."z": return "9"
+            default: return nil
+            }
+        }
+        for c in composition {
+            if c.isASCII, c.isLetter {
+                let lower = Character(c.lowercased())
+                guard p < keys.count else { continue }
+                if keys[p] == "'" { p += 1 }
+                guard p < keys.count else { continue }
+                if keys[p] == lower || (keys[p].isNumber && digit(of: lower) == keys[p]) {
+                    out.append(c)
+                    p += 1
+                }
+                // 不对上就是补全出来的字母：不写，等下一个音节。
+            } else if c == " " || c == "'" {
+                if p < keys.count, keys[p] == "'" { p += 1 }
+                if p < keys.count, let last = out.last, last != " ", last != "'" { out.append(c) }
+            } else {
+                out.append(c)
+            }
+        }
+        // 对不上的键（拼写和按键不一致，不该出现）：别把按了的吞掉，退回原来的拼写。
+        let typedLetters = keys[min(max(from, 0), keys.count)...].filter { $0 != "'" }.count
+        let shownLetters = out.filter { $0.isASCII && $0.isLetter }.count
+        return shownLetters == typedLetters ? out.trimmingCharacters(in: .whitespaces) : composition
+    }
+
+    /// 换到对方另一个输入框（键盘没收起）：上一个框「不认标记文字」的记号不带过去。组字中不换，免得拼音一半换了写法。
+    func noteHostDocument(_ id: UUID?) {
+        guard let id, id != hostDocumentID, !isComposing else { return }
+        hostDocumentID = id
+        if inlinePinyinOff { inlinePinyinOff = false }
+    }
+
+    /// 光标前是不是「上一次的拼音 + 现在的拼音」（上一次的没被换掉）。纯函数，单元测试用。
+    static func markedTextWasKept(before: String, previous: String, current: String) -> Bool {
+        guard !previous.isEmpty, !current.isEmpty, previous != current else { return false }
+        return before.hasSuffix(previous + current)
     }
 
     func clearMarkedText() {
+        lastMarkedText = ""
         guard hasMarkedText else { return }
         editProxy?.setMarkedText("", selectedRange: NSRange(location: 0, length: 0))
         editProxy?.unmarkText()
@@ -1097,9 +1448,14 @@ extension KeyboardModel {
         let trimmed = before.trimmingCharacters(in: .whitespaces)
         let sentenceStart = trimmed.isEmpty || before.hasSuffix("\n")
             || (before.hasSuffix(" ") && [".", "?", "!"].contains(trimmed.last.map(String.init) ?? ""))
-        let wanted: ShiftState = sentenceStart ? .on : .off
+        // 邮箱、网址、用户名这类输入框说了不要自动大写（autocapitalizationType = .none）：照它的来。
+        let hostWantsNone = proxy?.autocapitalizationType == UITextAutocapitalizationType.none
+        let wanted: ShiftState = sentenceStart && !hostWantsNone ? .on : .off
         // 没变就不设（同 syncEngine），英文打字时每个键都会走到这里。
-        if shift != wanted { shift = wanted }
+        if shift != wanted {
+            shift = wanted
+            shiftFromKey = false
+        }
     }
 }
 
@@ -1120,11 +1476,14 @@ extension KeyboardModel {
         var title: String?
         var solid: Bool
         var bold = false
+        /// 回答卡展开、焦点在识意框：三段式识意（第 70 条），这时 title / solid 不用。
+        var ai: EnterAI?
     }
 
     var returnLook: ReturnLook {
         if isComposing { return ReturnLook(title: "确认", solid: false) }
-        if target == .instruction { return ReturnLook(title: L("执行", "Go", "実行"), solid: true) }
+        if let ai = enterAI { return ReturnLook(title: nil, solid: true, ai: ai) }
+        if target == .instruction { return ReturnLook(title: nil, solid: false) }
         if target == .card { return ReturnLook(title: nil, solid: false) }
         if let title = sendTitle { return ReturnLook(title: title, solid: hostHasText, bold: true) }
         return ReturnLook(title: nil, solid: false)
@@ -1161,6 +1520,16 @@ extension KeyboardModel {
             case "expanded": aiExpanded = true
             case "nine": if settings.keyboardLayout != .nineKey { setLayout(.nineKey) }
             case "qwerty": if settings.keyboardLayout != .qwerty { setLayout(.qwerty) }
+            // iPad 9 键在左（PK4）/ 在右（PK3）。
+            case "nineLeft": if settings.nineKeySide != .left { updateSettings { $0.nineKeySide = .left } }
+            case "nineRight": if settings.nineKeySide != .right { updateSettings { $0.nineKeySide = .right } }
+            // iPad 11 寸字母上的数字和符号（PK1）：letterHintsOff 关掉、letterHintsOn 打开；flick 画 q、g 往下滑过了的样子。
+            case "letterHintsOff": if settings.padLetterHints { updateSettings { $0.padLetterHints = false } }
+            case "letterHintsOn": if !settings.padLetterHints { updateSettings { $0.padLetterHints = true } }
+            case "flick": keyPresses.flicked = ["q", "g"]; pressedKeys = ["q", "g"]
+            // 拼音显示（F12）：side 侧边、row 上方一行。
+            case "side": setPinyinDisplay(.side)
+            case "row": setPinyinDisplay(.row)
             case "numbers": layer = .numbers
             case "symbols": layer = .symbols
             case "digits": layer = .digits
@@ -1180,30 +1549,42 @@ extension KeyboardModel {
             case "running": aiExpanded = true; debugUnblocked = true; loadDebugRunning()
             case "ask", "askEmpty", "askSelected", "askRewrite", "askAnswerMode", "askAnswer", "askRewriteResult", "askRunning":
                 loadDebugAsk(option)
-            case "askHold": debugAskHold = true; askHoldShowing = true
             // 结果卡左边的键：key:insert 默认插入，key:down 滚轮下滑，key:pop 弹出；key:rolled / key:popped 停在换过去的样子。
             case "key:insert": debugResultKey(primary: .insert)
             case "key:down": debugResultKey(swipe: .wheel, wheelUp: false)
             case "key:pop": debugResultKey(swipe: .pop)
             case "key:rolled", "key:popped": debugResultKeyPose = String(option.dropFirst(4))
-            // 截图用：替换后「只替换了读到的一段」、拉起 App 失败的提示，停住不消失。
+            // 截图用：替换后「只替换了读到的一段」、去 App 设置的提示，停住不消失。
             case "partialReplace": aiExpanded = true; debugUnblocked = true; loadDebugVersions(); debugShowNotes(partial: true)
             case "openAppFailed": debugShowNotes(partial: false)
             case "quotaUsed": debugShowGate(.quotaUsed)
+            // iPad 横排提示卡（PK12）截图用：没开完全访问、第一次发送确认（换了地址）。
+            case "gate:fullAccess": debugShowGate(.fullAccess)
+            case "gate:consent":
+                debugShowGate(.consent(endpoint: "https://api.example.com/v1", previous: "https://old.example.com/v1", purpose: .polish))
             case "quick:running": loadDebugQuick(.running)
             case "quick:done": loadDebugQuick(.done)
             case "quick:failed": loadDebugQuick(.failed)
             case "quick:cycle": loadDebugQuickCycle()
-            // 截图用：输入框空着时点 ✨ 的「未检测到内容」（NC1）；1 秒后点一次，再过 1 秒又点一次看重新计时。
+            case "ask:cycle": loadDebugQuickCycle(answer: true)
+            // 截图用：没配接口的模拟器上也显示润色、问答键（看 AI 栏排得怎么样）。
+            case "ai": debugUnblocked = true
+            // 截图用：输入框空着时点 ✨（NC1）：1 秒后点一次，再过 1 秒又点一次，看按钮晃。
             case "emptyTap":
                 debugUnblocked = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.sparkleTapped() }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.sparkleTapped() }
             case "emoji": keysPanel = .emoji
             case "kaomoji": keysPanel = .kaomoji
-            case "quickWords": keysPanel = .quickWords
+            case "quickWords": openQuickPanel()
+            // iPad 9 键中间那块（PK17、PK18）：mid:digits 数字和运算符号、mid:symbols 符号、mid:quick 常用语和剪贴板。
+            case "mid:digits": togglePadMiddle(.digits)
+            case "mid:symbols": togglePadMiddle(.symbols)
+            case "mid:quick": togglePadMiddle(.quick)
             case "undo": loadDebugUndo()
             case "memtest": runMemoryTest()
+            // 打字性能基准（scripts/bench/run-bench.sh 拉起）：每个进程只跑一次，结果写系统日志和 bench.json。
+            case "bench": startBenchmark()
             // 小手指引导：quick / quickrun 是快速模式（收起），其余展开。
             case "coach:quick": debugCoach([.sparkle], expanded: false, menuOpen: false)
             case "coach:quickrun": debugCoach([.run], expanded: false, menuOpen: true)
@@ -1225,6 +1606,35 @@ extension KeyboardModel {
         }
         if options.contains("candidates") && !candidates.isEmpty { candidatesExpanded = true }
         #if DEBUG
+        // 「常用 / 剪贴板」面板（第 62 条）：quickWords:title / content 换显示方式，quickWords:0.33 定比例（0、1 收成竖条）。
+        for option in options where option.hasPrefix("quickWords:") {
+            let value = String(option.dropFirst("quickWords:".count))
+            if keysPanel != .quickWords { openQuickPanel() }
+            if let display = PhraseDisplay(rawValue: value) { phraseDisplay = display }
+            if let split = Double(value) { quickSplit = QuickSplit.stored(split) }
+        }
+        // 回车里的识意（第 70 条）：enter:ask 识意准备；enter:empty 框空着；enter:running 判断中；
+        // enter:center / enter:up / enter:left 按住回车弹出十字、选中中间 / 润色 / 问答；enter:noAsk / enter:noPolish 当作那个功能关掉。
+        let enterOptions = options.filter { $0.hasPrefix("enter:") }.map { String($0.dropFirst("enter:".count)) }
+        if !enterOptions.isEmpty {
+            loadDebugAsk(enterOptions.contains("empty") ? "askEmpty" : "ask")
+            if enterOptions.contains("noAsk") { debugEnterHides.insert(.answer) }
+            if enterOptions.contains("noPolish") { debugEnterHides.insert(.rewrite) }
+            hostFocused = false
+            target = .instruction
+            if enterOptions.contains("running") {
+                loadDebugAskRunning(nil, auto: true)
+            }
+            let choices: [String: EnterCrossPopup.Choice] = ["center": .auto, "up": .polish, "left": .ask]
+            if let choice = enterOptions.compactMap({ choices[$0] }).first {
+                let width = UIScreen.main.bounds.width - KeyboardMetrics.sidePadding * 2
+                let layout = KeyLayout.build(layoutState, size: CGSize(width: width, height: KeyboardMetrics.keysHeight))
+                if let key = layout.keys.first(where: { $0.kind == .returnKey }),
+                   showEnterCross(for: key, containerWidth: width, origin: CGPoint(x: key.cap.midX, y: key.cap.midY)) {
+                    enterCross?.selected = choice
+                }
+            }
+        }
         // cross:1:right 按住「,｡?!」往右滑；cross:3:up 按住 DEF 往上滑。
         for option in options where option.hasPrefix("cross:") {
             let parts = option.split(separator: ":").map(String.init)
@@ -1236,6 +1646,8 @@ extension KeyboardModel {
             let directions: [String: CrossPopup.Direction] = ["left": .left, "up": .up, "right": .right, "down": .down]
             if parts.count > 2 { cross?.selected = directions[parts[2]] }
         }
+        // AI 帮回（帮回并入润色）：help:pending / help:typed / help:expanded / help:result / help:pinned / help:dropdown / help:panel。
+        applyHelpDebug(options.filter { $0.hasPrefix("help:") }.map { String($0.dropFirst("help:".count)) })
         #endif
     }
 }
@@ -1288,7 +1700,7 @@ extension KeyboardModel {
     /// 打完一个词（按了空格、标点、换行）：记住这个词，下次补全排前面。
     func learnCurrentEnglishWord(before kind: KeyKind) {
         switch kind {
-        case .space, .symbol, .returnKey: break
+        case .space, .symbol, .quickPunct, .padSymbol, .tab, .returnKey: break
         default: return
         }
         guard target == .host else { return }
@@ -1307,5 +1719,24 @@ private extension StringProtocol {
             start = previous
         }
         return self[start...]
+    }
+}
+
+// MARK: - App 里的双拼练习（双拼调研 P3-11，设计稿 SP10）
+extension KeyboardModel {
+    /// 正在 App 的双拼练习页里打：双拼、全键盘中文、对方是练习页那种输入框（英文键盘类型、回车是「前往」、里面最多两个字母），
+    /// 而且 App 说练习页开着（DoublePinyinPracticeLink）。这时字母不进拼音引擎。
+    var practiceActive: Bool {
+        guard doublePinyin != nil, chineseMode, !showsNineKey, target == .host, !isComposing,
+              let proxy, proxy.keyboardType == .asciiCapable, proxy.returnKeyType == .go,
+              (proxy.documentContextBeforeInput ?? "").count <= 2, (proxy.documentContextAfterInput ?? "").isEmpty
+        else { return false }
+        return DoublePinyinPracticeLink.isActive
+    }
+
+    /// 练习时「跟着按键变」看练习框里已经按对的键：空着该按声母，有一个字母该按韵母。
+    var practiceContextPhase: DoublePinyin.HintPhase {
+        let before = (proxy?.documentContextBeforeInput ?? "").lowercased().filter { $0.isLetter && $0.isASCII }
+        return DoublePinyin.hintPhase(raw: String(before))
     }
 }
