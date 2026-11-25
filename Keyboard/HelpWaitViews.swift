@@ -11,8 +11,8 @@ import SwiftUI
 enum HelpWaitInk {
     /// 帮回绿 #10B981。
     static let green = (r: 16.0, g: 185.0, b: 129.0)
-    /// 绿的亮度，去饱和时往它靠。
-    static let gray = 0.2126 * 16 + 0.7152 * 185 + 0.0722 * 129
+    /// 打断时褪成的中性灰 #8E8E93（只按亮度去饱和还偏青，在 18–24% 的透明度下看不出变灰）。
+    static let gray = (r: 142.0, g: 142.0, b: 147.0)
     static let glow = HelpStyle.hex(0x34D399)
     static let purple = HelpStyle.hex(0x8B7CF6)
 
@@ -26,10 +26,10 @@ enum HelpWaitInk {
         dark ? (110, 231, 183, 0.09) : (4, 120, 87, 0.11)
     }
 
-    /// 帮回绿往灰靠：amount 0 原色，1 去饱和 65%。
+    /// 帮回绿往中性灰靠：amount 0 原色，1 是灰。
     static func tint(desaturated amount: Double) -> (r: Double, g: Double, b: Double) {
-        let k = 0.65 * min(max(amount, 0), 1)
-        return (green.r + (gray - green.r) * k, green.g + (gray - green.g) * k, green.b + (gray - green.b) * k)
+        let k = min(max(amount, 0), 1)
+        return (green.r + (gray.r - green.r) * k, green.g + (gray.g - green.g) * k, green.b + (gray.b - green.b) * k)
     }
 }
 
@@ -92,8 +92,9 @@ struct HelpWaitPainter {
         guard let wait else { return }
         if let stopped = wait.interruptedAt {
             // 打断：顿住，0.06 秒起 0.3 秒褪成灰，同时往回收 70pt（0.64 秒），0.76 秒淡掉。没有闪光和光点。
+            // 先不透明地变灰，灰了再淡（0.3–0.76 秒），不然没看清变灰就没了（06 iPad 核对 11-25）。
             let d = now.timeIntervalSince(stopped) - 0.06
-            let alpha = 1 - clamp(d / 0.76)
+            let alpha = 1 - clamp((d - 0.3) / 0.46)
             guard alpha > 0 else { return }
             let reached = (wait.interruptProgress ?? 0) * width
             let back = 70 * CubicBezier.retract.value(at: clamp(d / 0.64))
