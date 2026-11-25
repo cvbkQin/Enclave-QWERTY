@@ -301,6 +301,8 @@ extension KeyboardModel {
         let work = DispatchWorkItem { [weak self] in self?.landHelpWait() }
         helpWaitTimer = work
         DispatchQueue.main.asyncAfter(deadline: .now() + HelpWait.duration, execute: work)
+        // 第一次读钥匙串慢（06 iPad 核对约 140ms）：趁等的时候在后台先读一次，走满那一刻不卡。
+        DispatchQueue.global(qos: .userInitiated).async { _ = SettingsStore.apiKey }
         UIAccessibility.post(notification: .announcement,
                              argument: L("2 秒后自动帮回，点识意框可以先写要求", "Replying in 2 seconds. Tap the box to add a request first.",
                                          "2 秒後に自動で返信します。欄をタップすると先に指示を書けます"))
@@ -321,7 +323,12 @@ extension KeyboardModel {
             self.helpWaitBrushOn = false
             self.helpWaitLanded = nil
         }
-        runHelpWait(landed: true)
+        // 先让闪光那一帧画出来，下一帧再发请求（建请求在主线程上，第一次慢时会把闪光压住）。
+        let started = wait.startedAt
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 60) { [weak self] in
+            guard let self, self.helpWait?.startedAt == started else { return }
+            self.runHelpWait(landed: true)
+        }
     }
 
     /// 不等了，用等着的那句回（走满、再点帮回键、停下后写好要求点帮回或回车、写了要求点润色）。
