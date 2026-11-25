@@ -432,7 +432,8 @@ private struct TourChat: View {
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            // minHeight: 0 不能省：不写的话 frame 最矮就是消息本来的高，回答卡一展开（或菜单让出一格）整页就比屏幕高。
+            .frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .bottomLeading)
             .clipped()
             .overlay(alignment: .top) {
                 LinearGradient(colors: [TourUI.group, TourUI.group.opacity(0)], startPoint: .top, endPoint: .bottom)
