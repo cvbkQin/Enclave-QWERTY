@@ -318,9 +318,12 @@ private struct TourStepPage: View {
                     TourAppPage(model: model)
                         .transition(.move(edge: .bottom))
                 } else {
+                    // 对话卡先拿到它要的高，剩下的才留空。不加的话 VStack 把剩下的高对半分给对话卡和 Spacer：
+                    // 对话一长，消息只露出一半，中间却空着一大块（0.97_13 真机）。
                     TourChat(model: model, compact: compact)
                         .padding(.horizontal, 16)
                         .padding(.top, compact ? 8 : 14)
+                        .layoutPriority(1)
                     Spacer(minLength: 8)
                     TourKeyboard(model: model)
                         .offset(y: keyboardShown || reduceMotion ? 0 : 360)
@@ -440,13 +443,13 @@ private struct TourChat: View {
                 Color.clear.onAppear { messagesShown = geo.size.height }
                     .onChange(of: geo.size.height) { messagesShown = $0 }
             })
-            // 菜单弹在气泡上方：不裁，靠遮罩只把顶边 18pt 渐隐。
+            // 放不下时顶边 18pt 渐隐。编辑菜单占着气泡上方自己那一格，在消息区里面，不用把遮罩往上放
+            // （往上放会把已经出去的早先几条也露出来，压在说明上）。
             .mask(VStack(spacing: 0) {
                 LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
                     .frame(height: messagesHeight > messagesShown + 0.5 ? min(18, messagesShown) : 0)
                 Color.black
-            }
-            .padding(.top, model.bubbleMenu ? -60 : 0))
+            })
             hostField
         }
         .padding(12)
@@ -522,24 +525,30 @@ private struct TourBubble: View {
         }
     }
 
+    /// 编辑菜单高 40，和气泡隔 8。
+    private static let menuSpace: CGFloat = 48
+
     private var peerBubble: some View {
         let selecting = isLast && model.bubbleMenu
         let holdable = isLast && model.target == .peerBubble
         let pressedDemo = holdable && model.demoDown && model.pressed == nil
+        // 长按只认气泡本身。菜单不能放进长按那一层里：长按层的 contentShape 只有气泡那么大，
+        // 菜单在气泡外面，点上去收不到（0.97_13 真机「拷贝」点不动、按下也不变暗）。
+        // 菜单出来时气泡上方让出一格放菜单（OG3 ④），不盖住上面那条。
         return Text(message.text)
             .font(.system(size: 15)).foregroundStyle(.primary)
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourColor.bubble))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(TourUI.accent, lineWidth: selecting ? 2 : 0))
             .scaleEffect(model.pressed == .peerBubble && isLast ? 0.97 : pressedDemo ? 0.985 : 1)
+            .modifier(TourHoldable(enabled: isLast, target: .peerBubble, model: model))
+            .padding(.top, selecting ? Self.menuSpace : 0)
             .overlay(alignment: .topLeading) {
                 if selecting {
                     TourEditMenu(model: model)
-                        .offset(y: -50)
                         .transition(.scale(scale: 0.85, anchor: .bottomLeading).combined(with: .opacity))
                 }
             }
-            .modifier(TourHoldable(enabled: isLast, target: .peerBubble, model: model))
     }
 }
 
@@ -549,7 +558,9 @@ private struct TourEditMenu: View {
 
     var body: some View {
         HStack(spacing: 0) {
+            // 按下时整格变灰，同系统菜单；只靠 tourPress 的缩放和变暗，黑字上几乎看不出来。
             Text(L("拷贝", "Copy", "コピー")).padding(.horizontal, 14).frame(height: 40)
+                .background(model.pressed == .copy ? Color(.systemFill) : .clear)
                 .tourPress(.copy, model: model)
             Divider().frame(height: 40)
             Text(L("翻译", "Translate", "翻訳")).padding(.horizontal, 14).frame(height: 40)
@@ -561,6 +572,7 @@ private struct TourEditMenu: View {
         .font(.system(size: 15))
         .foregroundStyle(.primary)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(.tertiarySystemBackground)))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color(.separator), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         .fixedSize()
