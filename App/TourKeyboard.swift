@@ -9,7 +9,6 @@ import SwiftUI
 enum TourColor {
     static let keyboard = Color(light: 0xD9DAE0, dark: 0x2B2B2D)
     static let key = Color(light: 0xFFFFFF, dark: 0x5A5A5E)
-    static let pressedKey = Color(light: 0xB9BCC6, dark: 0x3F3F43)
     static let returnFill = Color(light: 0xE8E5FB, dark: 0x3A3550)
     static let purple = Color(light: 0x5B4BE8, dark: 0x8B80F9)
     static let purpleText = Color(light: 0x5B4BE8, dark: 0xB4A9FF)
@@ -134,11 +133,9 @@ struct TourKeyboard: View {
         .coordinateSpace(name: "tourKeyboard")
         .background(
             TourColor.keyboard
-                .overlay(Color.gray.opacity(model.trackpad ? 0.18 : 0))
                 .clipShape(TopRounded(radius: compact ? 22 : 26))
                 .contentShape(Rectangle())
                 .onTapGesture { model.wrong() })
-        .animation(.easeOut(duration: 0.2), value: model.trackpad)
     }
 
     // MARK: 风格
@@ -265,7 +262,14 @@ struct TourKeyboard: View {
                     guard let target, [TourTarget.sparkle, .askKey, .helpKey, .pinned, .chevron].contains(target) else { return }
                     withAnimation(.easeOut(duration: 0.25)) { reader.scrollTo(target == .chevron ? TourTarget.sparkle : target) }
                 }
-                .onChange(of: model.step) { _ in reader.scrollTo(TourTarget.sparkle, anchor: .leading) }
+                // 换步时：帮回键在的时候（帮回 2、3）停在帮回键，窄屏英文「Reply」不被撤销重做挡住；否则回到最左（compact/说明.md 第六节）。
+                .onChange(of: model.step) { _ in
+                    if model.helpShown {
+                        reader.scrollTo(TourTarget.helpKey, anchor: .trailing)
+                    } else {
+                        reader.scrollTo(TourTarget.sparkle, anchor: .leading)
+                    }
+                }
             }
             .frame(height: 44)
             undoRedo
@@ -385,7 +389,6 @@ struct TourKeyboard: View {
                 } else {
                     qwertyKeys(width: width)
                 }
-                TourPopupView(model: model, containerWidth: width, keyHeight: keyHeight)
             }
             .frame(width: width, height: proxy.size.height, alignment: .topLeading)
         }
@@ -403,17 +406,17 @@ struct TourKeyboard: View {
         let space = max(width - fixed, letter * 3)
         return VStack(spacing: gap) {
             HStack(spacing: gap) {
-                ForEach(rows[0], id: \.self) { letterKey($0, width: letter, containerWidth: width) }
+                ForEach(rows[0], id: \.self) { letterKey($0, width: letter) }
             }
             HStack(spacing: gap) {
-                ForEach(rows[1], id: \.self) { letterKey($0, width: letter, containerWidth: width) }
+                ForEach(rows[1], id: \.self) { letterKey($0, width: letter) }
             }
             .frame(maxWidth: .infinity)
             HStack(spacing: gap) {
                 plainKey(Image(systemName: "shift"), width: letter * 1.3)
                 Spacer(minLength: 0)
                 HStack(spacing: gap) {
-                    ForEach(rows[2], id: \.self) { letterKey($0, width: letter, containerWidth: width) }
+                    ForEach(rows[2], id: \.self) { letterKey($0, width: letter) }
                 }
                 Spacer(minLength: 0)
                 plainKey(Image(systemName: "delete.left"), width: letter * 1.3)
@@ -422,32 +425,21 @@ struct TourKeyboard: View {
                 plainKey(Text("123"), width: letter * 1.3, font: 15)
                 plainKey(Image(systemName: "face.smiling"), width: letter * 1.1)
                 plainKey(Text(L("中/英", "中/EN", "中/英")), width: letter * 1.1, font: 14)
-                if punctLeft { punctKey(width: letter * 1.1, containerWidth: width) }
-                TourSpaceKey(model: model, title: L("空格", "space", "空白"), height: keyHeight)
-                    .frame(width: space)
-                if !punctLeft { punctKey(width: letter * 1.1, containerWidth: width) }
+                if punctLeft { punctKey(width: letter * 1.1) }
+                plainKey(Text(L("空格", "space", "空白")), width: space, font: 15)
+                if !punctLeft { punctKey(width: letter * 1.1) }
                 returnKey.frame(width: letter * 1.9, height: keyHeight)
             }
         }
     }
 
-    @ViewBuilder
-    private func letterKey(_ letter: String, width: CGFloat, containerWidth: CGFloat) -> some View {
-        if letter == "e" {
-            TourHoldKey(hit: .letter, model: model, height: keyHeight, containerWidth: containerWidth) {
-                Text(letter).font(.system(size: 22))
-            }
-            .frame(width: width)
-        } else {
-            plainKey(Text(letter), width: width, font: 22)
-        }
+    private func letterKey(_ letter: String, width: CGFloat) -> some View {
+        plainKey(Text(letter), width: width, font: 22)
     }
 
-    private func punctKey(width: CGFloat, containerWidth: CGFloat) -> some View {
-        TourHoldKey(hit: .punct, model: model, height: keyHeight, containerWidth: containerWidth) {
-            Text(punctLabel).font(.system(size: 17)).tracking(-1)
-        }
-        .frame(width: width)
+    /// 底行的「，。」键（位置跟设置走，默认空格右边）。演示里不讲打字，只画出来。
+    private func punctKey(width: CGFloat) -> some View {
+        plainKey(Text(punctLabel).tracking(-1), width: width)
     }
 
     private func plainKey<Label: View>(_ label: Label, width: CGFloat, font: CGFloat = 17) -> some View {
@@ -456,7 +448,6 @@ struct TourKeyboard: View {
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             .foregroundStyle(.primary)
-            .opacity(model.trackpad ? 0 : 1)
             .frame(width: width, height: keyHeight)
             .background(TourKeyCap())
             .contentShape(Rectangle())
@@ -467,42 +458,30 @@ struct TourKeyboard: View {
 
     private func nineKeys(width: CGFloat) -> some View {
         HStack(alignment: .top, spacing: gap) {
-            if model.clipboardOpen {
-                TourClipboardPanel(model: model)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: keysHeight)
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
-            } else {
-                Grid(horizontalSpacing: gap, verticalSpacing: gap) {
-                    GridRow {
-                        gridKey(Text("123"))
-                        TourHoldKey(hit: .punct, model: model, height: keyHeight, containerWidth: width) {
-                            Text(model.script.chinesePunct ? "，。?!" : ",.?!").font(.system(size: 17))
-                        }
-                        gridKey(Text("ABC"))
-                        TourHoldKey(hit: .letter, model: model, height: keyHeight, containerWidth: width) {
-                            Text("DEF").font(.system(size: 17))
-                        }
-                    }
-                    GridRow {
-                        gridKey(Text("#@¥"))
-                        gridKey(Text("GHI"))
-                        gridKey(Text("JKL"))
-                        gridKey(Text("MNO"))
-                    }
-                    GridRow {
-                        clipKey
-                        gridKey(Text("PQRS"))
-                        gridKey(Text("TUV"))
-                        gridKey(Text("WXYZ"))
-                    }
-                    GridRow {
-                        gridKey(Image(systemName: "face.smiling"))
-                        gridKey(Text(L("中/英", "中/EN", "中/英")))
-                        gridKey(Text(L("空 格", "space", "空白"))).gridCellColumns(2)
-                    }
+            Grid(horizontalSpacing: gap, verticalSpacing: gap) {
+                GridRow {
+                    gridKey(Text("123"))
+                    gridKey(Text(model.script.chinesePunct ? "，。?!" : ",.?!"))
+                    gridKey(Text("ABC"))
+                    gridKey(Text("DEF"))
                 }
-                .transition(.opacity)
+                GridRow {
+                    gridKey(Text("#@¥"))
+                    gridKey(Text("GHI"))
+                    gridKey(Text("JKL"))
+                    gridKey(Text("MNO"))
+                }
+                GridRow {
+                    clipKey
+                    gridKey(Text("PQRS"))
+                    gridKey(Text("TUV"))
+                    gridKey(Text("WXYZ"))
+                }
+                GridRow {
+                    gridKey(Image(systemName: "face.smiling"))
+                    gridKey(Text(L("中/英", "中/EN", "中/英")))
+                    gridKey(Text(L("空 格", "space", "空白"))).gridCellColumns(2)
+                }
             }
             VStack(spacing: gap) {
                 gridKey(Image(systemName: "delete.left"))
@@ -513,7 +492,7 @@ struct TourKeyboard: View {
         }
     }
 
-    /// 「常 用 / 剪贴板」两行（和真键盘一致）：打开左边常用语、右边剪贴板的面板。
+    /// 「常 用 / 剪贴板」两行（和真键盘一致）。演示里不讲，只画出来。
     private var clipKey: some View {
         VStack(spacing: 0) {
             Text(L("常 用", "Saved", "定 型")).font(.system(size: 14))
@@ -525,7 +504,8 @@ struct TourKeyboard: View {
         .frame(maxWidth: .infinity)
         .frame(height: keyHeight)
         .background(TourKeyCap())
-        .tourPress(.clipKey, model: model)
+        .contentShape(Rectangle())
+        .onTapGesture { model.wrong() }
     }
 
     private func gridKey<Label: View>(_ label: Label) -> some View {
@@ -563,7 +543,6 @@ struct TourKeyboard: View {
             Image(systemName: "return")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(TourColor.purpleText)
-                .opacity(model.trackpad ? 0 : 1)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(TourColor.returnFill))
                 .contentShape(Rectangle())
@@ -666,20 +645,31 @@ private struct TourAnswerCard: View {
         model.versions.indices.contains(model.versionIndex) ? model.versions[model.versionIndex] : nil
     }
 
-    /// 卡头跟着哪一种：有结果看结果，生成中看哪颗键在跑。
+    /// 卡头跟着哪一种：有结果看结果，生成中看哪颗键在跑；帮回等待条走的时候、帮回生成中（含带要求重写）是帮回。
     private var mode: TourModel.CardMode? {
+        if model.helpRunning || (model.helpWaitStart != nil && version == nil) { return .help }
         if model.regenerating || (model.sparkRunning && version == nil) { return .rewrite }
-        if model.helpRunning && version == nil { return .help }
         if (model.askRunning || model.searching) && version == nil { return .answer }
         return version?.mode
     }
 
+    /// 卡边：问答蓝，其余紫（帮回卡也是紫边，到位时绿光一闪，OM2）。
     private var ring: Color {
-        switch mode {
-        case .answer: return TourColor.answerRing
-        case .help: return HelpStyle.green
-        default: return TourColor.ring
+        mode == .answer ? TourColor.answerRing : TourColor.ring
+    }
+
+    /// 帮回等待条走的时候（还没到位）。
+    private var helpWaiting: Bool { model.helpWaitStart != nil && model.helpArrived == nil }
+
+    /// 识意框空着时的灰字：帮回等的时候、帮回出了一版以后各有一句（help-reply/again 第二节、二之二）。
+    private var askPlaceholder: String {
+        if helpWaiting {
+            return L("先说要求？点这里，不点就自动回", "Add a request first? Tap here, or wait", "指示を書くならタップ。待つと自動で返信。")
         }
+        if version?.mode == .help && !model.helpRunning {
+            return L("补充要求，再点「帮回」重写", "Add a request, then tap Reply again", "指示を書いて、もう一度「返信」")
+        }
+        return L("写下要求或问题", "Type a request or question", "要望や質問を入力")
     }
 
     var body: some View {
@@ -688,13 +678,25 @@ private struct TourAnswerCard: View {
             VStack(spacing: 0) {
                 top
                     .frame(height: model.cardTall ? 120 : 82)
+                    // 帮回等待条：上半格（识意框以上）的绿色笔刷，在字的下面。减弱动态效果时不画，卡头右边写「2 秒后自动回」。
+                    .background {
+                        if let start = model.helpWaitStart, !reduceMotion {
+                            TourHelpBrush(start: start, arrived: model.helpArrived)
+                        }
+                    }
                     .modifier(TourHoldable(enabled: true, target: .card, model: model))
                 Rectangle().fill(model.askEditing ? TourColor.purple : TourColor.askLine).frame(height: 1)
                 askRow.frame(height: 40)
             }
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourColor.cardFill))
+            .overlay {
+                if let arrived = model.helpArrived, !reduceMotion { TourCardSheen(start: arrived) }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(ring, lineWidth: 1.5))
+            .overlay {
+                if let arrived = model.helpArrived, !reduceMotion { TourCardGlow(start: arrived) }
+            }
             .animation(.easeInOut(duration: 0.25), value: mode)
         }
         .frame(height: model.cardTall ? 161 : 123)
@@ -733,7 +735,18 @@ private struct TourAnswerCard: View {
 
     @ViewBuilder
     private var bodyText: some View {
-        if model.generating {
+        if version == nil && (model.helpWaitStart != nil || model.helpRunning) {
+            // 帮回还没出字：正文是要回的那句原话，灰字、左边 2pt 绿竖线，最多两行；开始帮回后虚掉。
+            // 竖线放在 overlay 里，跟字一样高。
+            Text(model.script.helpQuestion).foregroundStyle(.secondary).lineLimit(2)
+                .padding(.leading, 10)
+                .overlay(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 1, style: .continuous).fill(HelpStyle.green).frame(width: 2)
+                }
+            .opacity(model.helpRunning ? 0.35 : 1)
+            .animation(.easeOut(duration: 0.2), value: model.helpRunning)
+            .transition(.opacity)
+        } else if model.generating {
             HStack(spacing: 6) {
                 ProgressView().scaleEffect(0.7)
                 Text(L("生成中…", "Generating…", "生成中…")).foregroundStyle(.secondary)
@@ -764,8 +777,8 @@ private struct TourAnswerCard: View {
         }
     }
 
-    /// 卡头：改写「✦ AI 改写 · 润色」，帮回「回 AI 帮回 · 润色」，问答「AI 回答 · 直击要害」+ 联网标签。
-    /// 重新生成时换成「AI 正在改写…」，轻轻呼吸。
+    /// 卡头：改写「✦ AI 改写 · 润色」，帮回「回 AI 帮回 · 正式」（出了结果后面跟对方原话），问答「AI 回答 · 直击要害」+ 联网标签。
+    /// 重新生成时换成「AI 正在改写…」，帮回生成中「AI 正在帮回…」，轻轻呼吸。
     private func header(_ mode: TourModel.CardMode) -> some View {
         HStack(spacing: 4) {
             switch mode {
@@ -776,14 +789,37 @@ private struct TourAnswerCard: View {
                     .foregroundStyle(TourColor.answerBlue)
                 webTag.padding(.leading, 2)
             case .help:
-                Text(L("回", "R", "返"))
-                    .font(.system(size: 10.5, weight: .bold))
-                    .foregroundStyle(HelpStyle.badgeText)
-                    .frame(width: 16, height: 16)
-                    .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(HelpStyle.badgeFill))
-                Text(L("AI 帮回", "AI reply", "AI 返信") + " · " + styleName)
-                    .font(.system(size: 13, weight: .bold)).lineLimit(1)
-                    .foregroundStyle(TourColor.purpleText)
+                if model.helpRunning {
+                    PolishStars(size: 15, running: false, glowing: false, doneAt: nil, tint: TourColor.purple).frame(width: 15, height: 15)
+                    TourBreathing(reduceMotion: reduceMotion) {
+                        Text(L("AI 正在帮回…", "AI is replying…", "AI が返信中…"))
+                            .font(.system(size: 13, weight: .bold)).lineLimit(1)
+                            .foregroundStyle(TourColor.purpleText)
+                    }
+                } else {
+                    Text(L("回", "R", "返"))
+                        .font(.system(size: 10.5, weight: .bold))
+                        .foregroundStyle(HelpStyle.badgeText)
+                        .frame(width: 16, height: 16)
+                        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(HelpStyle.badgeFill))
+                    // 帮回用自己的语气「正式」，不跟润色键选的风格走（说明.md 第三节帮回 2、3）。
+                    Text(L("AI 帮回 · 正式", "AI reply · Formal", "AI 返信 · 丁寧"))
+                        .font(.system(size: 13, weight: .bold)).lineLimit(1)
+                        .foregroundStyle(TourColor.purpleText)
+                        .fixedSize()
+                    if version != nil {
+                        // 出了结果：卡头后面跟对方原话（一行，放不下截断）。
+                        Text(quoted(model.script.helpQuestion))
+                            .font(.system(size: 13)).lineLimit(1).truncationMode(.tail)
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 4)
+                    } else if helpWaiting && reduceMotion {
+                        Spacer(minLength: 4)
+                        Text(L("2 秒后自动回", "Replies in 2 s", "2 秒後に自動で返信"))
+                            .font(.system(size: 12)).lineLimit(1)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             case .rewrite:
                 PolishStars(size: 15, running: false, glowing: false, doneAt: nil, tint: TourColor.purple).frame(width: 15, height: 15)
                 if model.regenerating {
@@ -801,6 +837,10 @@ private struct TourAnswerCard: View {
         }
         .frame(height: 18)
         .animation(.easeOut(duration: 0.2), value: model.searched)
+    }
+
+    private func quoted(_ text: String) -> String {
+        L("「\(text)」", "“\(text)”", "「\(text)」")
     }
 
     /// 问答标题后面的联网标签：联网前「未联网」浅灰，联网后「已联网」浅蓝。
@@ -847,8 +887,10 @@ private struct TourAnswerCard: View {
         HStack(spacing: 8) {
             Group {
                 if model.ask.isEmpty && !model.askEditing {
-                    Text(L("写下要求或问题", "Type a request or question", "要望や質問を入力"))
+                    Text(askPlaceholder)
                         .foregroundStyle(TourColor.askLine)
+                        .truncationMode(.tail)
+                        .minimumScaleFactor(0.75)
                 } else {
                     HStack(spacing: 0) {
                         Text(model.ask)
@@ -884,6 +926,196 @@ private struct TourAnswerCard: View {
     }
 }
 
+// MARK: - 帮回等待条（帮回第 2 步，OM2；真键盘的样子见 design/help-reply/again 二之二、HW1–HW3）
+
+/// 三次贝塞尔缓动：x 是时间、y 是进度，牛顿法反解（iOS 16 没有 UnitCurve）。
+struct TourBezier {
+    let x1: Double, y1: Double, x2: Double, y2: Double
+
+    func callAsFunction(_ x: Double) -> Double {
+        let x = min(max(x, 0), 1)
+        var t = x
+        for _ in 0..<8 {
+            let error = Self.sample(t, x1, x2) - x
+            let slope = Self.slope(t, x1, x2)
+            if abs(error) < 1e-5 || abs(slope) < 1e-6 { break }
+            t = min(max(t - error / slope, 0), 1)
+        }
+        return Self.sample(t, y1, y2)
+    }
+
+    private static func sample(_ t: Double, _ a: Double, _ b: Double) -> Double {
+        let u = 1 - t
+        return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t
+    }
+
+    private static func slope(_ t: Double, _ a: Double, _ b: Double) -> Double {
+        let u = 1 - t
+        return 3 * u * u * a + 6 * u * t * (b - a) + 3 * t * t * (1 - b)
+    }
+}
+
+/// 固定的伪随机数（0…1）：同一个 i、salt 每帧都一样，笔触和光点不会乱跳。
+private func tourNoise(_ i: Int, _ salt: Double) -> Double {
+    let a = sin(Double(i) * 12.9898 + salt * 78.233) * 43758.5453
+    return a - a.rounded(.down)
+}
+
+/// 上半格的绿色像干笔刷一样从左往右扫开（14:11 参考影之刃零加点）：一行行横向笔触长短不齐，前沿没有清楚的边，
+/// 前面跑着一层更淡更糊的深色墨晕。2 秒碰到右边（cubic-bezier(.3,.45,.6,.92)，接近右边才放慢），碰到就触发。
+/// 到位后：尽头一亮（0.46 秒），碎成 28 个绿色光点往右上散开（0.52–0.94 秒，起点错开 0.2 秒）；绿色 0.26 秒后 0.56 秒淡掉。
+private struct TourHelpBrush: View {
+    let start: Date
+    let arrived: Date?
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let start = self.start, arrived = self.arrived, dark = scheme == .dark
+        return TimelineView(.animation) { timeline in
+            let now = timeline.date
+            Canvas { context, size in
+                drawHelpBrush(&context, size: size, now: now, start: start, arrived: arrived, dark: dark)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 笔刷的节奏：cubic-bezier(.3,.45,.6,.92)，一半时间走到 68%，3/4 时间 90%，最后 1/4 慢慢挨近右边。
+private let helpBrushCurve = TourBezier(x1: 0.3, y1: 0.45, x2: 0.6, y2: 0.92)
+private let helpBrushRow: CGFloat = 2.5
+
+/// 画一帧笔刷（放在文件层，Canvas 的画法闭包里不碰 View 自己的属性）。
+private func drawHelpBrush(_ context: inout GraphicsContext, size: CGSize, now: Date, start: Date, arrived: Date?, dark: Bool) {
+    let green = HelpStyle.green
+    let width = size.width, height = size.height
+    guard width > 0, height > 0 else { return }
+    let elapsed = now.timeIntervalSince(start)
+    let front = width * CGFloat(helpBrushCurve(elapsed / FeatureTour.helpWait))
+    // 起步时整层 0.16 秒淡入；到位 0.26 秒后 0.56 秒淡掉。
+    var layer = min(max(elapsed / 0.16, 0), 1)
+    var after = -1.0
+    if let arrived {
+        after = now.timeIntervalSince(arrived)
+        if after > 0.26 { layer *= max(0, 1 - (after - 0.26) / 0.56) }
+    }
+
+    if layer > 0 {
+        // 墨晕：浅色 #047857 11%，深色 #6EE7B7 9%，比笔刷超前 40pt，糊 10pt。
+        var ink = context
+        ink.opacity = layer
+        ink.addFilter(.blur(radius: 10))
+        let inkColor = dark ? Color(hex: 0x6EE7B7).opacity(0.09) : Color(hex: 0x047857).opacity(0.11)
+        let inkStart = max(0, front - 160), inkEnd = front + 40
+        ink.fill(Path(CGRect(x: inkStart, y: 0, width: inkEnd - inkStart, height: height)),
+                 with: .linearGradient(Gradient(stops: [.init(color: .clear, location: 0),
+                                                        .init(color: inkColor, location: 0.7),
+                                                        .init(color: .clear, location: 1)]),
+                                       startPoint: CGPoint(x: inkStart, y: 0), endPoint: CGPoint(x: inkEnd, y: 0)))
+
+        // 笔刷：一行一条笔触，每行的尽头在前沿前后错开、跟着进度慢慢变；行与行浓淡不一（66%–92%）。
+        // 颜色帮回绿，左 18% → 右 24%（深色 24% → 32%），前沿后面 250pt 再浓 16%（深色 20%），尖上 30pt 淡出。
+        var brush = context
+        brush.opacity = layer
+        brush.addFilter(.blur(radius: 1.2))
+        let left = dark ? 0.24 : 0.18, right = dark ? 0.32 : 0.24, dense = dark ? 0.20 : 0.16
+        let rows = Int((height / helpBrushRow).rounded(.up))
+        for row in 0..<rows {
+            let jitter = (tourNoise(row, 1) - 0.5) * 52 + 8 * sin(Double(front) / 37 + tourNoise(row, 2) * 2 * .pi)
+            let end = max(0, front + CGFloat(jitter))
+            guard end > 2 else { continue }
+            let y = CGFloat(row) * helpBrushRow
+            let strength = 0.66 + 0.26 * tourNoise(row, 3)
+            let base = (left + (right - left) * Double(min(end / width, 1))) * strength
+            let start250 = max(0, (end - 250) / end)
+            let start30 = max(start250, (end - 30) / end)
+            let stops: [Gradient.Stop] = [
+                .init(color: green.opacity(left * strength), location: 0),
+                .init(color: green.opacity(base), location: start250),
+                .init(color: green.opacity(base + dense * strength), location: start30),
+                .init(color: green.opacity(0), location: 1)]
+            brush.fill(Path(CGRect(x: 0, y: y, width: end, height: helpBrushRow + 0.6)),
+                       with: .linearGradient(Gradient(stops: stops), startPoint: CGPoint(x: 0, y: y), endPoint: CGPoint(x: end, y: y)))
+        }
+    }
+
+    guard after >= 0 else { return }
+    // 尽头一亮：右边一团白到绿的光晕，0.46 秒亮起又散掉。
+    if after < 0.46 {
+        let p = after / 0.46
+        let glow = p < 0.25 ? p / 0.25 : 1 - (p - 0.25) / 0.75
+        let radius = CGFloat(36 + 30 * p)
+        let center = CGPoint(x: width - 6, y: height / 2)
+        var flash = context
+        flash.opacity = glow
+        flash.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
+                   with: .radialGradient(Gradient(colors: [.white.opacity(0.95), green.opacity(0.5), green.opacity(0)]),
+                                         center: center, startRadius: 0, endRadius: radius))
+    }
+    // 碎成光点：白芯绿光晕，从笔刷后半段往右上飘 18–88pt，先放大再缩小消失。
+    for i in 0..<28 {
+        let delay = 0.2 * tourNoise(i, 11)
+        let duration = 0.52 + 0.42 * tourNoise(i, 12)
+        let u = (after - delay) / duration
+        guard u > 0, u < 1 else { continue }
+        let eased = 1 - (1 - u) * (1 - u)
+        let distance = 18 + 70 * tourNoise(i, 13)
+        let angle = (18 + 54 * tourNoise(i, 14)) * Double.pi / 180
+        let x = width * CGFloat(0.5 + 0.5 * tourNoise(i, 15)) + CGFloat(cos(angle) * distance * eased)
+        let y = height * CGFloat(tourNoise(i, 16)) - CGFloat(sin(angle) * distance * eased)
+        let grow = u < 0.35 ? 1 + 0.6 * u / 0.35 : 1.6 * (1 - (u - 0.35) / 0.65)
+        let dot = CGFloat((1.6 + 2.6 * tourNoise(i, 17)) * grow)
+        let fade = 1 - u * u
+        context.fill(Path(ellipseIn: CGRect(x: x - dot * 1.4, y: y - dot * 1.4, width: dot * 2.8, height: dot * 2.8)),
+                     with: .color(green.opacity(0.4 * fade)))
+        context.fill(Path(ellipseIn: CGRect(x: x - dot / 2, y: y - dot / 2, width: dot, height: dot)),
+                     with: .color(.white.opacity(0.95 * fade)))
+    }
+}
+
+/// 到位时一道白色斜光带从左往右刷过整张卡：宽 96、斜 16°，中间白 78%（深色 26%），0.76 秒 cubic-bezier(.45,0,.25,1)。
+private struct TourCardSheen: View {
+    let start: Date
+    @Environment(\.colorScheme) private var scheme
+
+    private static let curve = TourBezier(x1: 0.45, y1: 0, x2: 0.25, y2: 1)
+
+    var body: some View {
+        GeometryReader { proxy in
+            TimelineView(.animation) { timeline in
+                let t = timeline.date.timeIntervalSince(start) / 0.76
+                let p = CGFloat(Self.curve(t))
+                LinearGradient(colors: [.white.opacity(0), .white.opacity(scheme == .dark ? 0.26 : 0.78), .white.opacity(0)],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 96, height: proxy.size.height * 1.6)
+                    .rotationEffect(.degrees(16))
+                    .position(x: -96 + (proxy.size.width + 192) * p, y: proxy.size.height / 2)
+                    .opacity(t >= 1 ? 0 : 1)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 到位时卡边从紫变绿 #34D399 再变回，外面一圈 22pt 绿色柔光，0.9 秒。
+private struct TourCardGlow: View {
+    let start: Date
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let t = min(max(timeline.date.timeIntervalSince(start) / 0.9, 0), 1)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color(hex: 0x34D399), lineWidth: 1.5)
+                .shadow(color: Color(hex: 0x34D399).opacity(0.8), radius: 11)
+                .opacity(t >= 1 ? 0 : sin(t * .pi))
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 /// 光标：1 秒一闪，打字时常亮。
 private struct TourCaret: View {
     let color: Color
@@ -913,210 +1145,6 @@ private struct TourBreathing<Content: View>: View {
             let t = context.date.timeIntervalSince(start)
             content.opacity(reduceMotion ? 1 : 0.65 + 0.35 * cos(t * 2 * .pi / 0.6))
         }
-    }
-}
-
-// MARK: - 打字一章：按住的键、空格触控板、弹出层、常用与剪贴板
-
-/// 按住才弹出的键（全键盘「，。」、e；九宫格「，。?!」、DEF）：按下 → holdBegan，滑 → holdMoved，松手 → holdEnded。
-private struct TourHoldKey<Label: View>: View {
-    let hit: TourTarget
-    @ObservedObject var model: TourModel
-    let height: CGFloat
-    /// 键区的宽：弹出的一排不出键区。
-    let containerWidth: CGFloat
-    @ViewBuilder var label: Label
-
-    @State private var frame: CGRect = .zero
-    @State private var began = false
-
-    var body: some View {
-        let demo = model.demoDown && model.target == hit && model.pressed == nil && model.popup == nil
-        let holding = began && model.popup != nil
-        label
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .foregroundStyle(.primary)
-            .opacity(model.trackpad || holding ? 0 : 1)
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .background(TourKeyCap(fill: holding ? TourColor.pressedKey : TourColor.key))
-            .scaleEffect(demo ? 0.97 : 1)
-            .brightness(demo ? -0.04 : 0)
-            .background(GeometryReader { geo in
-                Color.clear
-                    .onAppear { frame = geo.frame(in: .named("tourKeys")) }
-                    .onChange(of: geo.frame(in: .named("tourKeys"))) { frame = $0 }
-            })
-            .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    if !began {
-                        began = true
-                        model.holdBegan(hit, key: frame, containerWidth: containerWidth)
-                    } else {
-                        model.holdMoved(value.translation, containerWidth: containerWidth)
-                    }
-                }
-                .onEnded { _ in
-                    began = false
-                    model.holdEnded(containerWidth: containerWidth)
-                })
-            .tourTarget(hit)
-    }
-}
-
-/// 全键盘按住空格：键盘变灰成触控板，左右滑挪光标。
-private struct TourSpaceKey: View {
-    @ObservedObject var model: TourModel
-    let title: String
-    let height: CGFloat
-    @State private var began = false
-
-    var body: some View {
-        let demo = model.demoDown && model.target == .space && model.pressed == nil && !model.trackpad
-        Text(title)
-            .font(.system(size: 15))
-            .foregroundStyle(.primary)
-            .lineLimit(1)
-            .opacity(model.trackpad ? 0 : 1)
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .background(TourKeyCap(fill: model.trackpad ? TourColor.pressedKey : TourColor.key))
-            .scaleEffect(demo ? 0.98 : 1)
-            .brightness(demo ? -0.04 : 0)
-            .contentShape(Rectangle())
-            .gesture(DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    if !began {
-                        began = true
-                        model.trackpadBegan()
-                    } else {
-                        model.trackpadMoved(value.translation.width)
-                    }
-                }
-                .onEnded { _ in
-                    began = false
-                    model.trackpadEnded()
-                })
-            .tourTarget(.space)
-    }
-}
-
-/// 按住弹出来的：全键盘一排（第 88 条：默认那格正对按键、一弹出就选中），九宫格十字（左上右下，中间松手取消）。
-private struct TourPopupView: View {
-    @ObservedObject var model: TourModel
-    let containerWidth: CGFloat
-    let keyHeight: CGFloat
-
-    var body: some View {
-        if let popup = model.popup {
-            switch popup.kind {
-            case .row(let row):
-                rowView(row, popup: popup)
-                    .transition(.scale(scale: 0.9, anchor: .bottom).combined(with: .opacity))
-            case .cross(let options, let center):
-                crossView(options, center: center, popup: popup)
-                    .transition(.scale(scale: 0.85).combined(with: .opacity))
-            }
-        }
-    }
-
-    private func rowView(_ row: AlternatesRow, popup: TourModel.Popup) -> some View {
-        let key = popup.key
-        let arranged = row.arranged(centerX: key.midX, cellWidth: key.width, containerWidth: containerWidth)
-        let height = keyHeight + 4
-        return HStack(spacing: 0) {
-            ForEach(Array(arranged.options.enumerated()), id: \.offset) { index, option in
-                let on = index == popup.index
-                Text(option)
-                    .font(.system(size: 22))
-                    .foregroundStyle(on ? Color.white : Color.primary)
-                    .frame(width: key.width, height: height - 8)
-                    .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(on ? TourColor.purple : .clear))
-            }
-        }
-        .padding(4)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(TourColor.key)
-            .shadow(color: .black.opacity(0.25), radius: 6, y: 2))
-        .offset(x: arranged.minX - 4, y: key.minY - height - 6)
-        .accessibilityHidden(true)
-    }
-
-    private func crossView(_ options: [TourModel.CrossArm: String], center: String, popup: TourModel.Popup) -> some View {
-        let key = popup.key
-        let w = key.width, h = key.height
-        return ZStack {
-            // 托盘：中间那格加四个方向。
-            ForEach([TourModel.CrossArm.left, .up, .right, .down], id: \.self) { arm in
-                if let text = options[arm] {
-                    let on = popup.arm == arm
-                    Text(text)
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(on ? Color.white : Color.primary)
-                        .frame(width: w - 4, height: h - 4)
-                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? TourColor.purple : TourColor.key)
-                            .shadow(color: .black.opacity(0.2), radius: 4, y: 1))
-                        .offset(x: offset(arm).width * w, y: offset(arm).height * h)
-                }
-            }
-            Text(center)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .frame(width: w - 4, height: h - 4)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(TourColor.pressedKey))
-        }
-        .frame(width: w, height: h)
-        .offset(x: key.minX, y: key.minY)
-        .accessibilityHidden(true)
-    }
-
-    private func offset(_ arm: TourModel.CrossArm) -> CGSize {
-        switch arm {
-        case .left: return CGSize(width: -1, height: 0)
-        case .up: return CGSize(width: 0, height: -1)
-        case .right: return CGSize(width: 1, height: 0)
-        case .down: return CGSize(width: 0, height: 1)
-        }
-    }
-}
-
-/// 九宫格「常用 / 剪贴板」面板：左边常用语，右边最近拷贝的内容，点一条即上屏。
-private struct TourClipboardPanel: View {
-    @ObservedObject var model: TourModel
-
-    var body: some View {
-        let script = model.script
-        HStack(spacing: 6) {
-            column(L("常用", "Saved", "定型"), items: script.phrases, anchorFirst: false)
-            column(L("剪贴板", "Clipboard", "クリップボード"), items: script.clips, anchorFirst: true)
-        }
-        .padding(6)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(light: 0xF1F0FA, dark: 0x232325)))
-    }
-
-    private func column(_ title: String, items: [String], anchorFirst: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
-                .padding(.leading, 4)
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                let row = Text(item)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(TourColor.key))
-                    .contentShape(Rectangle())
-                if anchorFirst && index == 0 {
-                    row.onTapGesture { model.pickClip(item) }.tourTarget(.clipItem)
-                } else {
-                    row.onTapGesture { model.pickClip(item) }
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
