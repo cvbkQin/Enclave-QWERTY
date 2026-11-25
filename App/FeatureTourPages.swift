@@ -236,7 +236,7 @@ private struct TourWelcomePage: View {
                 .padding(.top, compact ? 14 : 22)
                 .tourEntrance(1, shown)
                 VStack(alignment: .leading, spacing: 6) {
-                    TourGroupNote(text: L("6 个章节 · 16 步", "6 chapters · 16 steps", "6 章 · 16 ステップ"))
+                    TourGroupNote(text: L("6 个章节 · 17 步", "6 chapters · 17 steps", "6 章 · 17 ステップ"))
                     TourGroup {
                         ForEach(TourChapter.allCases) { chapter in
                             if chapter != .polish { TourRowDivider() }
@@ -309,21 +309,23 @@ private struct TourStepPage: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            progressLine
             header
                 .padding(.horizontal, 20)
-                .padding(.top, compact ? 4 : 12)
+                .padding(.top, 12)
             Group {
                 if model.appPage {
                     Spacer(minLength: 8)
                     TourAppPage(model: model)
                         .transition(.move(edge: .bottom))
                 } else {
-                    // 对话卡占满说明和键盘之间的地方（像聊天窗口：消息贴着输入框往上排）。
+                    // 对话卡占满说明和键盘之间的地方（像聊天窗口：消息贴着输入框往上排），离说明 10、离键盘 8（OC1 ⑥）。
+                    // 回答卡展开时键盘变高，对话卡底边跟着键盘顶一起上去，顶边不动（OC2）。
                     // 原来对话卡按消息多高就多高、下面放 Spacer：消息区量不出高，只剩 1pt，卡片下面却空一大块
                     // （0.97_13 真机、SE 模拟器）。
-                    TourChat(model: model, compact: compact)
+                    TourChat(model: model)
                         .padding(.horizontal, 16)
-                        .padding(.top, compact ? 8 : 14)
+                        .padding(.top, 10)
                         .padding(.bottom, 8)
                     TourKeyboard(model: model)
                         .offset(y: keyboardShown || reduceMotion ? 0 : 360)
@@ -344,57 +346,77 @@ private struct TourStepPage: View {
         }
     }
 
-    /// 顶上一行：左「‹」返回、中间系统进度条、右「跳过」。
+    /// 顶上一行：左「‹」返回，中间章节（小方块 20 +「帮回 · 2 / 3」14pt 中粗），右「跳过」（OC1 ①）。
     private var topBar: some View {
-        HStack(spacing: 14) {
-            Button { model.back() } label: {
-                Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(TourUI.accentText)
-                    .frame(width: 44, height: 44)
+        let chapter = model.chapter
+        let index = model.step - chapter.steps.lowerBound + 1
+        return ZStack {
+            HStack(spacing: 0) {
+                Button { model.back() } label: {
+                    Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(TourUI.accentText)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(L("返回", "Back", "戻る"))
+                Spacer(minLength: 8)
+                Button(L("跳过", "Skip", "スキップ")) { model.skip() }
+                    .font(.system(size: 17)).foregroundStyle(TourUI.accentText)
+                    .frame(minHeight: 44)
             }
-            .accessibilityLabel(L("返回", "Back", "戻る"))
-            ProgressView(value: model.progress)
-                .tint(TourUI.accent)
-                .animation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.8), value: model.progress)
-            Button(L("跳过", "Skip", "スキップ")) { model.skip() }
-                .font(.system(size: 17)).foregroundStyle(TourUI.accentText)
-                .frame(minHeight: 44)
+            HStack(spacing: 6) {
+                TourChapterIcon(chapter: chapter, size: 20)
+                ZStack {
+                    Text(chapter.name + " · " + L("\(index) / \(chapter.stepCount)", "\(index) of \(chapter.stepCount)", "\(index) / \(chapter.stepCount)"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .id("n-\(model.step)")
+                        .transition(.tourSwap(reduceMotion: reduceMotion))
+                }
+            }
+            .padding(.horizontal, 64)
+            .accessibilityElement(children: .combine)
+            .animation(.default, value: model.step)
         }
         .buttonStyle(.plain)
         .padding(.leading, 6)
         .padding(.trailing, 20)
     }
 
+    /// 进度：顶栏下沿一条 3pt 的线，左右各留 16，每过一步弹簧推进（OC1 ①）。
+    private var progressLine: some View {
+        Capsule().fill(Color(.systemFill))
+            .frame(height: 3)
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    Capsule().fill(TourUI.accent)
+                        .frame(width: proxy.size.width * min(max(model.progress, 0), 1))
+                }
+            }
+            .animation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.8), value: model.progress)
+            .padding(.horizontal, 16)
+            .accessibilityElement()
+            .accessibilityLabel(L("进度", "Progress", "進捗"))
+            .accessibilityValue(Text("\(Int((model.progress * 100).rounded()))%"))
+    }
+
+    /// 标题 20 粗、说明 14 灰，隔 3；说明最多两行，矮屏一行（OC1 ②）。
     private var header: some View {
-        let chapter = model.chapter
         let text = TourStepText.of(model.step, layout: model.layout)
-        let index = model.step - chapter.steps.lowerBound + 1
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                TourChapterIcon(chapter: chapter, size: 22)
-                ZStack(alignment: .leading) {
-                    Text(chapter.name + " · " + L("\(index) / \(chapter.stepCount)", "\(index) of \(chapter.stepCount)", "\(index) / \(chapter.stepCount)"))
-                        .font(.system(size: 13)).foregroundStyle(.secondary)
-                        .id("n-\(model.step)")
-                        .transition(.tourSwap(reduceMotion: reduceMotion))
-                }
+        return ZStack(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(text.title)
+                    .font(.system(size: 20, weight: .bold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(text.detail)
+                    .font(.system(size: 14)).foregroundStyle(.secondary)
+                    .lineLimit(compact ? 1 : 2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            ZStack(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(text.title)
-                        .font(.system(size: 22, weight: .bold))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(text.detail)
-                        .font(.system(size: 15)).foregroundStyle(.secondary)
-                        .lineLimit(compact ? 2 : nil)
-                        .fixedSize(horizontal: false, vertical: !compact)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .id("t-\(model.step)")
-                .transition(.tourSwap(reduceMotion: reduceMotion))
-            }
-            .accessibilityElement(children: .combine)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .id("t-\(model.step)")
+            .transition(.tourSwap(reduceMotion: reduceMotion))
         }
+        .accessibilityElement(children: .combine)
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(.default, value: model.step)
     }
@@ -402,27 +424,21 @@ private struct TourStepPage: View {
 
 // MARK: - 对话卡
 
-/// 白色圆角 12 的卡片：联系人一行、右上「演示内容 · 不会发送」，下面消息和宿主输入框（绿色光标）。
+/// 白色圆角 12 的卡片，内边距 10：消息（最上面一行「演示内容 · 不会发送」小字，跟着消息滚出去），
+/// 下面宿主输入框（绿色光标）。没有联系人一行，小林的头像在他每条气泡左下（OC1 ③④）。
 private struct TourChat: View {
     @ObservedObject var model: TourModel
-    let compact: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let script = model.script
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text(script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 22, height: 22)
-                    .background(Circle().fill(Color(.systemOrange)))
-                Text(script.contact).font(.system(size: 13)).foregroundStyle(.secondary)
-                Spacer(minLength: 8)
-                Text(L("演示内容 · 不会发送", "Demo content · Not sent", "デモ内容 · 送信されません"))
-                    .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
-            }
             // 消息贴底，放不下时最早的从顶上出去并裁掉；顶边 18pt 用卡片底色渐隐（放得下时那里是空的，看不出来）。
             // 消息区本身占满卡片里剩下的高，不量消息多高。编辑菜单占着气泡上方自己那一格，在消息区里面。
             VStack(alignment: .leading, spacing: 8) {
+                Text(L("演示内容 · 不会发送", "Demo content · Not sent", "デモ内容 · 送信されません"))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 4)
                 ForEach(model.messages) { message in
                     TourBubble(model: model, message: message,
                                isLast: message.id == model.messages.last(where: { !$0.mine && !$0.typing })?.id)
@@ -442,7 +458,7 @@ private struct TourChat: View {
             }
             hostField
         }
-        .padding(12)
+        .padding(10)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourUI.group))
     }
 
@@ -494,25 +510,37 @@ private struct TourBubble: View {
                     .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourUI.accent))
             }
         } else if message.typing {
-            HStack {
+            HStack(alignment: .bottom, spacing: 6) {
+                avatar
                 TourTypingDots()
                     .padding(.horizontal, 14).frame(height: 34)
                     .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourColor.bubble))
                 Spacer()
             }
         } else {
-            HStack(spacing: 8) {
+            HStack(alignment: .bottom, spacing: 6) {
+                avatar
                 peerBubble
                 if message.copied {
                     Text(L("已拷贝", "Copied", "コピー済み"))
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
                         .padding(.horizontal, 8).frame(height: 22)
                         .background(Capsule().fill(Color(.darkGray)))
+                        .padding(.leading, 2)
+                        .padding(.bottom, 6)
                         .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
                 Spacer(minLength: 32)
             }
         }
+    }
+
+    /// 小林的头像：24 圆，橙底白字，在气泡左下，和气泡隔 6。
+    private var avatar: some View {
+        Text(model.script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+            .frame(width: 24, height: 24)
+            .background(Circle().fill(Color(.systemOrange)))
+            .accessibilityHidden(true)
     }
 
     /// 编辑菜单高 40，和气泡隔 8。
@@ -888,7 +916,7 @@ struct TourCheckShape: Shape {
 
 // MARK: - OG2 ③ 设置 › 功能演示
 
-/// 和首次打开同样 6 章：点一章只看这一章，看完回到这页；「从头播放」放全部 16 步。这里不改设置，键盘只显示。
+/// 和首次打开同样 6 章：点一章只看这一章，看完回到这页；「从头播放」放全部 17 步。这里不改设置，键盘只显示。
 struct TourChaptersView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter

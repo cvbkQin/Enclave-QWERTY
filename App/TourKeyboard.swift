@@ -97,6 +97,7 @@ struct TourKeyboard: View {
     private var compact: Bool { UIScreen.main.bounds.height < 700 }
     private var keyHeight: CGFloat { compact ? 36 : 42 }
     private var keysHeight: CGFloat { keyHeight * 4 + gap * 3 }
+    private var bottomInset: CGFloat { compact ? 4 : 24 }
 
     /// 润色键在键盘里的位置，风格下拉和它左对齐。
     @State private var polishFrame: CGRect = .zero
@@ -122,24 +123,11 @@ struct TourKeyboard: View {
                 }
             }
             .zIndex(2)
-            // 地球、话筒这一行只有全面屏 iPhone 的系统键盘才有；矮屏（SE 等有 Home 键的）真键盘没有这一行，这里也不画。
-            // 画了的话 SE 上回答卡一展开，整页比屏幕高，顶上返回和「跳过」被顶到状态栏里。
-            if !compact {
-                HStack {
-                    Image(systemName: "globe")
-                    Spacer()
-                    Image(systemName: "mic")
-                }
-                .font(.system(size: 22))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 24)
-                .frame(height: 40)
-                .padding(.bottom, 22)
-                .opacity(model.trackpad ? 0.3 : 1)
-            }
         }
         .padding(.top, 8)
-        .padding(.bottom, compact ? 4 : 0)
+        // 不画地球、话筒那一行（演示里用不到），底下只留 24 给 Home 条，省出来的高给对话卡（OC1 ⑤）。
+        // 矮屏（SE 等有 Home 键的）没有 Home 条，留 4。
+        .padding(.bottom, bottomInset)
         .frame(maxWidth: .infinity)
         .coordinateSpace(name: "tourKeyboard")
         .background(
@@ -168,10 +156,18 @@ struct TourKeyboard: View {
     private var dropdown: some View {
         if model.promptsOpen {
             let x = min(max(4, polishFrame.minX - side), UIScreen.main.bounds.width - 230)
+            // 从润色键下面往下弹；按键下面放不下（矮屏、多了一条「英文」）就整个往上挪到放得下，盖住 AI 栏也行，
+            // 不能掉出屏幕：SE 上「＋ 添加润色风格」原来在屏幕外，润色风格第 2 步点不到。
+            let room = keysHeight + bottomInset - 4
             styleMenu
-                .offset(x: x, y: 4)
+                .offset(x: x, y: min(4, room - styleMenuHeight))
                 .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
         }
+    }
+
+    /// 下拉的高：上下各 5、小标题一行、每个风格一行、「＋ 添加润色风格」一行。
+    private var styleMenuHeight: CGFloat {
+        10 + (compact ? 20 : 24) + menuRow * CGFloat(styleNames.count + 1)
     }
 
     /// 宽 216、圆角 12：小标题，每条右边一颗图钉（演示里只有新加的那条的能点），当前那条打勾；最底下「＋ 添加润色风格」。
