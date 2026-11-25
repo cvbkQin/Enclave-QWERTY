@@ -412,6 +412,9 @@ final class TourModel: ObservableObject {
         var text: String
         var mine = false
         var typing = false
+        /// 能拷贝的那条（帮回第 1 步）：右边一直留着「已拷贝」的位置，拷贝后只是显出来。
+        /// 原来拷贝后才插进去，气泡变窄要重新折行，和菜单淡出叠在一起闪一下（PR #109 模拟器）。
+        var copyable = false
         /// 旁边的「已拷贝」。
         var copied = false
     }
@@ -471,6 +474,8 @@ final class TourModel: ObservableObject {
     @Published var sendReady = false
     /// 长按对方那条：描边、上面弹出编辑菜单。
     @Published var bubbleMenu = false
+    /// 气泡上方让出放菜单的那一格。和 bubbleMenu 分开：拷贝后菜单先原地淡出，再收这一格。
+    @Published var bubbleLifted = false
 
     // 回答卡和识意框
     @Published var expanded = false
@@ -764,7 +769,7 @@ final class TourModel: ObservableObject {
         let s = script
         var list = [Message(text: s.opener)]
         if n >= 3 { list.append(Message(text: s.polished, mine: true)) }
-        if n >= 4 { list.append(Message(text: s.helpMessage, copied: n <= 5)) }
+        if n >= 4 { list.append(Message(text: s.helpMessage, copyable: true, copied: n <= 5)) }
         if n >= 6 { list.append(Message(text: s.helpReply2, mine: true)) }
         if n >= 7 { list.append(Message(text: s.requestMessage)) }
         if n >= 9 { list.append(Message(text: s.requestResult2, mine: true)) }
@@ -790,6 +795,7 @@ final class TourModel: ObservableObject {
         caretBack = 0
         sendReady = false
         bubbleMenu = false
+        bubbleLifted = false
 
         expanded = [5, 7, 8, 9, 10, 11].contains(n)
         switch n {
@@ -870,15 +876,22 @@ final class TourModel: ObservableObject {
             try await send()
         case 3:
             try await pause(0.3)
-            try await incoming(s.helpMessage)
+            try await incoming(s.helpMessage, copyable: true)
             try await wait(.peerBubble)
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.72)) { bubbleMenu = true }
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.72)) {
+                bubbleMenu = true
+                bubbleLifted = true
+            }
             try await wait(.copy)
-            withAnimation(.easeOut(duration: 0.2)) {
+            // 先让菜单在原地淡出、「已拷贝」显出来，再收回菜单那一格。原来三件事挤在一个 0.2 秒动画里：
+            // 菜单一边淡出一边跟着气泡往下滑，「已拷贝」插进来把气泡挤得重新折行，叠在一起闪一下（PR #109 模拟器）。
+            withAnimation(.easeOut(duration: 0.15)) {
                 bubbleMenu = false
                 if let last = messages.indices.last { messages[last].copied = true }
             }
-            try await pause(0.45)
+            try await pause(0.15)
+            withAnimation(.easeInOut(duration: reduceMotion ? 0.2 : 0.25)) { bubbleLifted = false }
+            try await pause(0.3)
             // 刚复制：问答右边弹出帮回键（第 89 条）。
             withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.42, dampingFraction: 0.8)) { helpShown = true }
             try await pause(0.6)
@@ -1213,12 +1226,12 @@ final class TourModel: ObservableObject {
     }
 
     /// 对方发来新消息：先出「正在输入」三个点，再弹出气泡。
-    private func incoming(_ text: String) async throws {
+    private func incoming(_ text: String, copyable: Bool = false) async throws {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) { messages.append(Message(text: "", typing: true)) }
         try await pause(reduceMotion ? 0.4 : 0.8)
         withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.42, dampingFraction: 0.72)) {
             messages.removeAll { $0.typing }
-            messages.append(Message(text: text))
+            messages.append(Message(text: text, copyable: copyable))
         }
         try await pause(0.4)
     }

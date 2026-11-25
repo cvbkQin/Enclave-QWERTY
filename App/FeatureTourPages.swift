@@ -521,14 +521,17 @@ private struct TourBubble: View {
             HStack(alignment: .bottom, spacing: 6) {
                 avatar
                 peerBubble
-                if message.copied {
+                // 位置一直占着，拷贝前看不见：拷贝后气泡不用重新折行。
+                if message.copyable {
                     Text(L("已拷贝", "Copied", "コピー済み"))
                         .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
                         .padding(.horizontal, 8).frame(height: 22)
                         .background(Capsule().fill(Color(.darkGray)))
+                        .scaleEffect(message.copied ? 1 : 0.8)
+                        .opacity(message.copied ? 1 : 0)
+                        .accessibilityHidden(!message.copied)
                         .padding(.leading, 2)
                         .padding(.bottom, 6)
-                        .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
                 Spacer(minLength: 32)
             }
@@ -548,6 +551,7 @@ private struct TourBubble: View {
 
     private var peerBubble: some View {
         let selecting = isLast && model.bubbleMenu
+        let lifted = isLast && model.bubbleLifted
         let holdable = isLast && model.target == .peerBubble
         let pressedDemo = holdable && model.demoDown && model.pressed == nil
         // 长按只认气泡本身。菜单不能放进长按那一层里：长按层的 contentShape 只有气泡那么大，
@@ -560,7 +564,7 @@ private struct TourBubble: View {
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(TourUI.accent, lineWidth: selecting ? 2 : 0))
             .scaleEffect(model.pressed == .peerBubble && isLast ? 0.97 : pressedDemo ? 0.985 : 1)
             .modifier(TourHoldable(enabled: isLast, target: .peerBubble, model: model))
-            .padding(.top, selecting ? Self.menuSpace : 0)
+            .padding(.top, lifted ? Self.menuSpace : 0)
             .overlay(alignment: .topLeading) {
                 if selecting {
                     TourEditMenu(model: model)
@@ -952,7 +956,7 @@ struct TourChaptersView: View {
                     .buttonStyle(.plain)
                 }
             } header: {
-                Text(L("6 个章节 · 约 3 分钟", "6 chapters · About 3 min", "6 章 · 約 3 分"))
+                Text(L("6 个章节 · 17 步 · 约 3 分钟", "6 chapters · 17 steps · About 3 min", "6 章 · 17 ステップ · 約 3 分"))
             }
         }
         .listStyle(.insetGrouped)
