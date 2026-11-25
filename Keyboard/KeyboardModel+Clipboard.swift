@@ -4,6 +4,7 @@ import UIKit
 // 剪贴板（B1，CB1–CB4；T97 点开就存，design/clipboard-autosave CA1）：判断有没有新复制的内容只看 changeCount 和 hasStrings，
 // 不读内容（系统不弹提示）。剪贴板一栏露出来时（打开面板、点竖条恢复、iPad 切到剪贴板标签）才读 UIPasteboard.general.string，
 // 存成第一条、不粘贴，系统这时在顶部弹「粘贴自…」横幅。像密码或验证码的不读不存，留一行「点一下粘贴」。
+// 「自动保存复制的内容」开着时（方案 B，CA2）：键盘出现、每秒轮询发现换过就读出来存，面板没开时出「已存进剪贴板记录」。
 extension KeyboardModel {
     private static let splitKey = "quick.split"
 
@@ -28,6 +29,19 @@ extension KeyboardModel {
     /// 剪贴板一栏露出来了（ClipboardList 出现）：记录开着、有新复制的文字就读出来存成第一条，不粘贴（方案 A）。
     /// 收起成竖条时这一栏不在，不读；点竖条恢复后才读。像密码或验证码的不读，留虚线行等用户点。
     func clipboardColumnShown() {
+        captureNewClipboard(auto: false)
+    }
+
+    /// 「自动保存复制的内容」开着（方案 B，CA2）：键盘出现时、每秒轮询发现 changeCount 变了时调用，
+    /// 有新复制的文字就读出来存，面板没开着时出小提示「已存进剪贴板记录」。键盘收起时不轮询，不读。
+    func autoSaveClipboard() {
+        guard ClipboardHistory.autoSaveActive else { return }
+        captureNewClipboard(auto: true)
+    }
+
+    /// 两种读法共用：先只看元数据（changeCount、hasStrings、条目类型、detectPatterns，系统不弹提示），
+    /// 像密码或验证码的不读，其余读出来存成第一条。auto 为 false 时只在剪贴板一栏还开着时存。
+    private func captureNewClipboard(auto: Bool) {
         #if DEBUG
         if debugHelpClipboard { return }
         #endif
@@ -37,12 +51,21 @@ extension KeyboardModel {
         guard ClipboardHistory.shouldCapture(enabled: ClipboardHistory.isEnabled, columnVisible: true, changeCount: count,
                                              hasStrings: board.hasStrings, last: ClipboardHistory.lastChangeCount) else { return }
         if ClipboardHistory.isConcealed(types: board.types) { return markClipboardSensitive(count) }
+        // 同一次复制已经在查了（轮询和打开面板撞在一起）：不重复查。
+        guard clipboardChecking != count else { return }
+        clipboardChecking = count
         // 纯数字（验证码、手机号）：系统判断，不读内容、不弹横幅。查不出来就当能存。
         board.detectPatterns(for: [.number]) { [weak self] result in
             let digits = (try? result.get())?.contains(.number) == true
             Task { @MainActor in
-                guard let self, UIPasteboard.general.changeCount == count, self.clipboardPanelShowing else { return }
-                if digits { self.markClipboardSensitive(count) } else { self.captureClipboard(count: count) }
+                guard let self else { return }
+                if self.clipboardChecking == count { self.clipboardChecking = nil }
+                let stillThere = auto ? ClipboardHistory.autoSaveActive : self.clipboardPanelShowing
+                guard UIPasteboard.general.changeCount == count, stillThere else { return }
+                if digits { return self.markClipboardSensitive(count) }
+                let saved = self.captureClipboard(count: count)
+                // 面板开着时不出提示：新的一条直接出现在列表最上面，标「新」。
+                if saved, auto, !self.clipboardPanelShowing { self.showClipSavedToast() }
             }
         }
     }
@@ -55,14 +78,30 @@ extension KeyboardModel {
         if !clipboardSensitive { clipboardSensitive = true }
     }
 
-    /// 读出新复制的文字，存成第一条（和已有的一条相同时挪到最前），记下 changeCount。不上屏。
-    private func captureClipboard(count: Int) {
+    /// 读出新复制的文字，存成第一条（和已有的一条相同时挪到最前），记下 changeCount。不上屏。图片之类不存。
+    @discardableResult
+    private func captureClipboard(count: Int) -> Bool {
         let board = UIPasteboard.general
         ClipboardHistory.lastChangeCount = count
         clipboardHasNew = false
         clipboardSensitive = false
-        guard let text = board.string, !text.isEmpty else { return }
+        guard let text = board.string, !text.isEmpty else { return false }
         withAnimation(.easeOut(duration: 0.25)) { clipItems = ClipboardHistory.add(text) }
+        return true
+    }
+
+    /// 自动存下一条：AI 栏左边浮出「✓ 已存进剪贴板记录」，1.5 秒淡出；连着存几条只显示最后一次。
+    /// iPad 9 键、横屏分开时没有整行 AI 栏，改用按键区顶上的小提示。
+    private func showClipSavedToast() {
+        let text = L("已存进剪贴板记录", "Saved to clipboard history", "クリップボード履歴に保存しました")
+        guard !padNine, !landscapeSplit else { return showKeysToast("✓ " + text) }
+        withAnimation(.easeOut(duration: 0.15)) { clipSavedToast = true }
+        clipSavedToastTimer?.cancel()
+        let timer = DispatchWorkItem { [weak self] in
+            withAnimation(.easeIn(duration: 0.25)) { self?.clipSavedToast = false }
+        }
+        clipSavedToastTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: timer)
     }
 
     /// 离开面板（返回、点常用语上屏、收起键盘）：记下时间，之后再存的下次标「新」。

@@ -74,4 +74,25 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertTrue(SettingsStore.isExportString("  enclave-config:eyJ9"))
         XCTAssertFalse(SettingsStore.isExportString("普通的一段话 enclave-config:"))
     }
+
+    // MARK: T97 方案 B「自动保存复制的内容」
+
+    func testTurningHistoryOffAlsoTurnsAutoSaveOff() {
+        let wasEnabled = ClipboardHistory.isEnabled, wasAuto = ClipboardHistory.autoSave
+        defer { ClipboardHistory.isEnabled = wasEnabled; ClipboardHistory.autoSave = wasAuto }
+        ClipboardHistory.isEnabled = true
+        ClipboardHistory.autoSave = true
+        XCTAssertTrue(ClipboardHistory.autoSaveActive)
+        ClipboardHistory.isEnabled = false
+        XCTAssertFalse(ClipboardHistory.autoSave)
+        XCTAssertFalse(ClipboardHistory.autoSaveActive)
+        // 再打开记录，自动保存还是关，要用户自己再开。
+        ClipboardHistory.isEnabled = true
+        XCTAssertFalse(ClipboardHistory.autoSave)
+    }
+
+    func testConsentSheetOnlyFirstTime() {
+        XCTAssertTrue(ClipboardHistory.needsAutoSaveConsent(consentAt: nil))
+        XCTAssertFalse(ClipboardHistory.needsAutoSaveConsent(consentAt: now))
+    }
 }
