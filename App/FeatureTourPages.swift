@@ -424,23 +424,47 @@ private struct TourStepPage: View {
 
 // MARK: - 对话卡
 
-/// 白色圆角 12 的卡片，内边距 10：三人群聊「项目组」的消息（最上面一行「项目组（3 人）· 演示内容，不会发送」小字，跟着消息滚出去），
-/// 下面宿主输入框（绿色光标，占位「发到 项目组」）。没有联系人一行，别人的气泡上面一行小字名字、左下头像（第五节）。
+/// 对话卡的尺寸。屏高 < 700（和 TourStepPage、TourKeyboard 的 compact 同一个判断）时收紧，大屏不变
+/// （design/onboard-v2/compact/说明.md 第五节）：SE 上回答卡展开后，拷贝的那条问题和下面那句回答都要放得下。
+private struct TourChatMetrics {
+    let compact: Bool
+
+    /// 矮屏靠头像认人，别人的气泡和「正在输入」都不出名字行。
+    var showsNames: Bool { !compact }
+    var font: CGFloat { compact ? 14 : 15 }
+    var bubbleV: CGFloat { compact ? 6 : 8 }
+    var bubbleH: CGFloat { compact ? 10 : 12 }
+    var typingHeight: CGFloat { compact ? 30 : 34 }
+    var spacing: CGFloat { compact ? 6 : 8 }
+    /// 别人那边右侧、你那边左侧最少留白。
+    var peerTrailing: CGFloat { compact ? 16 : 32 }
+    var mineLeading: CGFloat { compact ? 32 : 48 }
+    var fade: CGFloat { compact ? 12 : 18 }
+    var cardPadding: CGFloat { compact ? 8 : 10 }
+    var fieldGap: CGFloat { compact ? 8 : 10 }
+    var fieldV: CGFloat { compact ? 7 : 9 }
+}
+
+/// 白色圆角 12 的卡片，内边距 10（矮屏 8）：三人群聊「项目组」的消息（最上面一行「项目组（3 人）· 演示内容，不会发送」小字，跟着消息滚出去），
+/// 下面宿主输入框（绿色光标，占位「发到 项目组」）。没有联系人一行，别人的气泡上面一行小字名字（矮屏不出）、左下头像。
 private struct TourChat: View {
     @ObservedObject var model: TourModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var metrics: TourChatMetrics { TourChatMetrics(compact: UIScreen.main.bounds.height < 700) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // 消息贴底，放不下时最早的从顶上出去并裁掉；顶边 18pt 用卡片底色渐隐（放得下时那里是空的，看不出来）。
+        let metrics = self.metrics
+        return VStack(alignment: .leading, spacing: metrics.fieldGap) {
+            // 消息贴底，放不下时最早的从顶上出去并裁掉；顶边 18pt（矮屏 12）用卡片底色渐隐（放得下时那里是空的，看不出来）。
             // 消息区本身占满卡片里剩下的高，不量消息多高。编辑菜单占着气泡上方自己那一格，在消息区里面。
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: metrics.spacing) {
                 Text(model.script.group + " · " + L("演示内容，不会发送", "Demo content, not sent", "デモ内容、送信されません"))
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
                     .frame(maxWidth: .infinity)
                     .padding(.bottom, 4)
                 ForEach(model.messages) { message in
-                    TourBubble(model: model, message: message)
+                    TourBubble(model: model, message: message, metrics: metrics)
                         .transition(message.mine
                             ? .scale(scale: 0.94, anchor: .bottomTrailing).combined(with: .opacity)
                             : .scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
@@ -452,17 +476,17 @@ private struct TourChat: View {
             .clipped()
             .overlay(alignment: .top) {
                 LinearGradient(colors: [TourUI.group, TourUI.group.opacity(0)], startPoint: .top, endPoint: .bottom)
-                    .frame(height: 18)
+                    .frame(height: metrics.fade)
                     .allowsHitTesting(false)
             }
-            hostField
+            hostField(metrics)
         }
-        .padding(10)
+        .padding(metrics.cardPadding)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourUI.group))
     }
 
     /// 宿主输入框：绿色光标在末尾；识意框在编辑时宿主没有光标。
-    private var hostField: some View {
+    private func hostField(_ metrics: TourChatMetrics) -> some View {
         let script = model.script
         let caret = !model.askEditing && !model.expanded
         let text = model.field
@@ -484,7 +508,7 @@ private struct TourChat: View {
         .frame(maxHeight: 66, alignment: .bottom)
         .fixedSize(horizontal: false, vertical: true)
         .clipped()
-        .padding(.horizontal, 14).padding(.vertical, 9)
+        .padding(.horizontal, 14).padding(.vertical, metrics.fieldV)
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(.systemBackground)))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(.separator), lineWidth: 1))
     }
@@ -495,6 +519,7 @@ private struct TourChat: View {
 private struct TourBubble: View {
     @ObservedObject var model: TourModel
     let message: TourModel.Message
+    let metrics: TourChatMetrics
 
     private var person: TourPerson {
         message.from == .foreign ? model.script.foreign : model.script.local
@@ -503,10 +528,10 @@ private struct TourBubble: View {
     var body: some View {
         if message.mine {
             HStack {
-                Spacer(minLength: 48)
+                Spacer(minLength: metrics.mineLeading)
                 Text(message.text)
-                    .font(.system(size: 15)).foregroundStyle(.white)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .font(.system(size: metrics.font)).foregroundStyle(.white)
+                    .padding(.horizontal, metrics.bubbleH).padding(.vertical, metrics.bubbleV)
                     .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourUI.accent))
             }
         } else if message.typing {
@@ -514,9 +539,9 @@ private struct TourBubble: View {
                 avatar
                 // 名字跟着「正在输入」一起出来，换成气泡时那一行不跳。
                 VStack(alignment: .leading, spacing: 2) {
-                    nameLabel
+                    if metrics.showsNames { nameLabel }
                     TourTypingDots()
-                        .padding(.horizontal, 14).frame(height: 34)
+                        .padding(.horizontal, 14).frame(height: metrics.typingHeight)
                         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourColor.bubble))
                 }
                 Spacer()
@@ -537,7 +562,7 @@ private struct TourBubble: View {
                         .padding(.leading, 2)
                         .padding(.bottom, 6)
                 }
-                Spacer(minLength: 32)
+                Spacer(minLength: metrics.peerTrailing)
             }
         }
     }
@@ -566,7 +591,7 @@ private struct TourBubble: View {
         let selecting = copyTarget && model.bubbleMenu
         let lifted = copyTarget && model.bubbleLifted
         return VStack(alignment: .leading, spacing: 2) {
-            nameLabel
+            if metrics.showsNames { nameLabel }
             peerBubble(selecting: selecting)
         }
         .padding(.top, lifted ? Self.menuSpace : 0)
@@ -585,8 +610,8 @@ private struct TourBubble: View {
         // 长按只认气泡本身。菜单不能放进长按那一层里：长按层的 contentShape 只有气泡那么大，
         // 菜单在气泡外面，点上去收不到（0.97_13 真机「拷贝」点不动、按下也不变暗）。
         return Text(message.text)
-            .font(.system(size: 15)).foregroundStyle(.primary)
-            .padding(.horizontal, 12).padding(.vertical, 8)
+            .font(.system(size: metrics.font)).foregroundStyle(.primary)
+            .padding(.horizontal, metrics.bubbleH).padding(.vertical, metrics.bubbleV)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourColor.bubble))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(TourUI.accent, lineWidth: selecting ? 2 : 0))
             .scaleEffect(model.pressed == .peerBubble && copyTarget ? 0.97 : pressedDemo ? 0.985 : 1)
