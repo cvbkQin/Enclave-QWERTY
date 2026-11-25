@@ -115,7 +115,8 @@ enum ClipboardHistory {
     /// 存一条放在最前；和已有的一条相同时不重复存，把那条挪到最前（时间换成现在）。关着开关时不存。
     @discardableResult
     static func add(_ text: String, now: Date = Date()) -> [ClipItem] {
-        guard isEnabled, !text.isEmpty else { return load(now: now) }
+        // 「复制配置」那段带 API Key，不进记录（点开就存、自动保存都会读到它）。
+        guard isEnabled, !text.isEmpty, !SettingsStore.isExportString(text) else { return load(now: now) }
         return queue.sync {
             let items = inserting(text, into: read(), now: now)
             write(items)

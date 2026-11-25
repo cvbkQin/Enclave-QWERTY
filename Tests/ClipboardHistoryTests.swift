@@ -69,4 +69,9 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertFalse(ClipboardHistory.shouldCapture(enabled: true, columnVisible: true, changeCount: 5, hasStrings: true, last: 5))
         XCTAssertFalse(ClipboardHistory.shouldCapture(enabled: true, columnVisible: true, changeCount: 5, hasStrings: false, last: 4))
     }
+
+    func testConfigExportWithApiKeyIsNotKept() {
+        XCTAssertTrue(SettingsStore.isExportString("  enclave-config:eyJ9"))
+        XCTAssertFalse(SettingsStore.isExportString("普通的一段话 enclave-config:"))
+    }
 }

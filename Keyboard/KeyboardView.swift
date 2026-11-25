@@ -1671,7 +1671,11 @@ struct ResultCard: View {
                 .padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.aiTagFill))
                 .contextMenu {
-                    Button(L("复制", "Copy", "コピー")) { UIPasteboard.general.string = detail }
+                    Button(L("复制", "Copy", "コピー")) {
+                        UIPasteboard.general.string = detail
+                        // 自己写进去的不算新复制的，不进剪贴板记录。
+                        model.noteOwnCopy()
+                    }
                 }
             }
         }
