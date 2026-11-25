@@ -50,6 +50,15 @@ final class KeyboardModel: ObservableObject {
     @Published var askRunning = false
     /// 正在帮回（生成中的小字写「AI 正在帮回…」）。
     @Published var replyRunning = false
+    /// 帮回开始前的 2 秒等待（对齐清单第 94 条，HW1–HW3）：开新的一句、识意框空着时先等，中途点识意框就停下等要求。
+    @Published var helpWait: HelpWait?
+    /// 等待条走满、开始帮回的那一刻：尽头闪光、光点按它算（HelpWaitBrush）。
+    @Published var helpWaitLanded: Date?
+    /// 走满后 0.9 秒内：白光刷过整张卡、卡边绿光一闪；这段时间生成中的流光边框和扫光先不画，两样不叠在一起。
+    @Published var helpWaitFlashing = false
+    /// 笔刷要不要画（等着、打断后回收淡掉的 0.9 秒、走满后闪光的 1.2 秒）；画完就关，TimelineView 不再一直走。
+    @Published var helpWaitBrushOn = false
+    var helpWaitTimer: DispatchWorkItem?
     @Published var askKind: AskMode?
     /// 这次识意是回车发起、让 AI 自己判断的（第 70 条）：生成中那一行写「识意 · 判断中 / 判断为改写」。
     @Published var askAuto = false
@@ -177,6 +186,8 @@ final class KeyboardModel: ObservableObject {
                     if askSelected { askSelected = false }
                     target = .host
                 }
+                // 帮回等着的时候收起回答卡：取消，不回，也不算次数。
+                if !aiExpanded { cancelHelpWait() }
             }
             heightMayChange?()
         }
@@ -184,7 +195,12 @@ final class KeyboardModel: ObservableObject {
     /// 收起时生成了结果（快速模式替换成功）还没展开看过：展开键变紫、右上角加紫点。
     @Published private(set) var unseenResult = false
     var showsNewResult: Bool { unseenResult && !aiExpanded && hasResult }
-    @Published var composition = ""
+    @Published var composition = "" {
+        didSet {
+            // 帮回等着的时候在识意框里打拼音：算是开始写要求，停下来不自动回（HW2）。
+            if helpWait?.interrupted == false, target == .instruction, !composition.isEmpty { interruptHelpWait() }
+        }
+    }
     /// 上次 syncEngine 时引擎的原始输入（不发布）。拼音栏的选项按它算：选了一个拼音而拼写栏、候选正好没变时，
     /// 靠它变了来重画，不然拼音栏还停在上一个音节（选拼音「没反应」，再点就点到了后面那个音节上）。
     var syncedRawInput = ""
@@ -1243,6 +1259,8 @@ final class KeyboardModel: ObservableObject {
     /// 点了「润色」或「再润」：记下是哪个按钮，没开始生成（提示、出错）就清掉。
     func start(from origin: RunOrigin, _ action: () -> Void) {
         endCelebration()
+        // 帮回还在等，又点了别的（问答、润色）：不等了，照新点的做。
+        cancelHelpWait()
         runOrigin = origin
         action()
         if !isRunning { runOrigin = nil }
@@ -1553,6 +1571,8 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func storeInstruction(_ text: String, caret: Int) {
+        // 帮回等着的时候往识意框里写字：停下来，等写好要求再点帮回（HW2）。
+        if helpWait?.interrupted == false, text != instruction { interruptHelpWait() }
         // 字改了，手动选的改写 / 问答就不再跟着。
         if askChoice != nil, text != askChoiceText { askChoice = nil }
         instruction = text

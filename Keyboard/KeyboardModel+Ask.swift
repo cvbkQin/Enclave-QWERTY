@@ -65,6 +65,8 @@ extension KeyboardModel {
 
     /// 点识意框：打字回到框里，取消全选；开着的风格一排收回去。
     func focusAsk() {
+        // 帮回等着的时候点识意框：计时停下，等用户写要求（HW2）。
+        if helpWait?.interrupted == false { interruptHelpWait() }
         if target == .card { finishCardEdit() }
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
@@ -194,6 +196,16 @@ extension KeyboardModel {
         if target == .card { finishCardEdit() }
         finishComposition()
         if aiRow != nil { aiRow = nil }
+        var extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 识意框里是点「问答」时自动填进去的那句（问题本身），不是要求：只改写输入框里的话（v308，FT13）。
+        if let auto = askAutoFill, extra == auto { extra = "" }
+        // 帮回加要求（HR1 第 3 条，cvbk 12:41 选「也当帮回重写」）：卡上是帮回写的一版、或帮回停下来等要求，
+        // 识意框又写了要求：点润色也当帮回，回同一句、照要求写，执行动效在被点的这颗润色键上。没写要求照旧只润字。
+        if !extra.isEmpty, helpWait != nil || session?.currentIsReply == true {
+            let style = runStyleOverride
+            startHelpReply(keepPin: true, style: style)
+            return
+        }
         let parsed = CommandParser.parse(readField().text)
         // 卡上是手改过的一版、帮回写的一版（还没放进输入框）：润色它。
         if parsed.content.isEmpty, parsed.instruction.isEmpty, session?.currentIsEdited != true, session?.currentIsReply != true {
@@ -212,9 +224,6 @@ extension KeyboardModel {
         #endif
         coachTapped(.run)
         if askSelected { askSelected = false }
-        var extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        // 识意框里是点「问答」时自动填进去的那句（问题本身），不是要求：只改写输入框里的话（v308，FT13）。
-        if let auto = askAutoFill, extra == auto { extra = "" }
         start(from: .polish) { execute(extraInstruction: extra) }
     }
 
@@ -330,6 +339,12 @@ extension KeyboardModel {
     func enterAskTapped() {
         endCelebration()
         if isRunning { stop(); return }
+        // 帮回等着、或停下来写好了要求：识意框里的回车就是「帮回」（HW1 ④）。
+        if helpWait != nil {
+            lastRunPin = nil
+            runHelpWait()
+            return
+        }
         guard canAsk else {
             showKeysToast(L("先在框里写下要求或问题", "Type a request or question in the box first.", "先に欄に依頼か質問を書いてください"))
             return

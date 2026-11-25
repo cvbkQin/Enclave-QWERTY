@@ -1006,11 +1006,13 @@ struct ResultCard: View {
     /// 文字区宽度，点文字时换算成第几个字。
     @State private var textWidth: CGFloat = 200
 
-    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded, editing, search(KeyboardModel.SearchPrompt), partial }
+    private enum Look { case checklist, error(String), hint(String?), running, fresh, faded, editing, search(KeyboardModel.SearchPrompt), partial, waiting(HelpWait) }
 
     private var look: Look {
         if model.aiBlocked { return .checklist }
         if model.target == .card { return .editing }
+        // 帮回开始前等着、或停下来等要求（HW1）：卡上是要回的那句原话。
+        if let wait = model.helpWait { return .waiting(wait) }
         if model.partialResult != nil, !model.isRunning { return .partial }
         if let error = model.errorMessage { return .error(error) }
         if let prompt = model.searchPrompt { return .search(prompt) }
@@ -1025,7 +1027,10 @@ struct ResultCard: View {
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 12, style: .continuous) }
 
     /// 只在生成中播放；App 里关了动画或系统开了「减弱动态效果」就不播。
-    private var animating: Bool { model.isRunning && model.searchPrompt == nil && model.settings.polishAnimation && !reduceMotion }
+    /// 帮回等待条走满后的 0.9 秒是绿光闪（helpWaitFlash），闪完再换流光边框和扫光，两样不叠在一起。
+    private var animating: Bool {
+        model.isRunning && model.searchPrompt == nil && model.settings.polishAnimation && !reduceMotion && !model.helpWaitFlashing
+    }
 
     var body: some View {
         let look = look
@@ -1069,6 +1074,7 @@ struct ResultCard: View {
             .overlay {
                 border(look).allowsHitTesting(false)
             }
+            .helpWaitFlash(model: model, shape: shape)
         }
     }
 
@@ -1109,10 +1115,12 @@ struct ResultCard: View {
         .overlay {
             border(look).allowsHitTesting(false)
         }
+        .helpWaitFlash(model: model, shape: shape)
     }
 
     /// 识意框激活：打字进识意框。选风格改成下拉框（KB2）后下半格一直是识意框。
-    private var askActive: Bool { model.target == .instruction }
+    /// 帮回等着的时候不算（HW1 ①）：点一下才停下来进编辑。
+    private var askActive: Bool { model.target == .instruction && !model.helpWaiting }
 
     private var lowerHalf: some View {
         AskField(model: model)
@@ -1129,9 +1137,12 @@ struct ResultCard: View {
             case .running, .fresh, .faded: resultView(faded: { if case .faded = look { return true } else { return false } }())
             case .editing: editView
             case .search(let prompt): searchPromptView(prompt)
+            case .waiting(let wait): HelpWaitCardBody(model: model, wait: wait, leading: textLeading)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // 帮回等待条（HW1–HW3）：绿色笔刷画在这一块（iPhone 上半格、iPad 左边结果区、横屏九宫格右边）后面。
+        .background { HelpWaitBrush(model: model, openEdge: brushOpenEdge) }
         .overlay(alignment: .bottom) {
             if let note = model.replaceNote {
                 Text(note == .partial
@@ -1587,9 +1598,15 @@ struct ResultCard: View {
             shape.strokeBorder(editStroke, lineWidth: 2)
         case .search:
             shape.strokeBorder(Brand.answerBorder, lineWidth: 1.5)
-        case .checklist, .hint:
+        case .checklist, .hint, .waiting:
             shape.strokeBorder(Brand.rewriteRing, lineWidth: 1.5)
         }
+    }
+
+    /// 结果区哪一边和卡片别的部分相接：iPhone 下边接识意框，iPad 右边接识意区，横屏九宫格左边接模式列。
+    private var brushOpenEdge: Edge {
+        if compact { return .leading }
+        return KeyboardMetrics.pad != nil ? .trailing : .bottom
     }
 
     private var resultRing: Color { model.session?.currentIsAnswer == true ? Brand.answerBorder : Brand.rewriteRing }
