@@ -437,6 +437,11 @@ enum SettingsStore {
         return exportPrefix + data.base64EncodedString()
     }
 
+    /// 是不是「复制配置」复制出来的那段（里面有 API Key）：剪贴板记录不存它（T97）。
+    static func isExportString(_ string: String) -> Bool {
+        string.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(exportPrefix)
+    }
+
     /// 导入成功返回 true。
     @discardableResult
     static func importString(_ string: String) -> Bool {
