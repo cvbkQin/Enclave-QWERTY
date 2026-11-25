@@ -262,7 +262,14 @@ struct TourKeyboard: View {
                     guard let target, [TourTarget.sparkle, .askKey, .helpKey, .pinned, .chevron].contains(target) else { return }
                     withAnimation(.easeOut(duration: 0.25)) { reader.scrollTo(target == .chevron ? TourTarget.sparkle : target) }
                 }
-                .onChange(of: model.step) { _ in reader.scrollTo(TourTarget.sparkle, anchor: .leading) }
+                // 换步时：帮回键在的时候（帮回 2、3）停在帮回键，窄屏英文「Reply」不被撤销重做挡住；否则回到最左（compact/说明.md 第六节）。
+                .onChange(of: model.step) { _ in
+                    if model.helpShown {
+                        reader.scrollTo(TourTarget.helpKey, anchor: .trailing)
+                    } else {
+                        reader.scrollTo(TourTarget.sparkle, anchor: .leading)
+                    }
+                }
             }
             .frame(height: 44)
             undoRedo
