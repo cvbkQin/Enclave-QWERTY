@@ -795,7 +795,8 @@ private struct TourAnswerCard: View {
                         .foregroundStyle(HelpStyle.badgeText)
                         .frame(width: 16, height: 16)
                         .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(HelpStyle.badgeFill))
-                    Text(L("AI 帮回", "AI reply", "AI 返信") + " · " + styleName)
+                    // 帮回用自己的语气「正式」，不跟润色键选的风格走（说明.md 第三节帮回 2、3）。
+                    Text(L("AI 帮回 · 正式", "AI reply · Formal", "AI 返信 · 丁寧"))
                         .font(.system(size: 13, weight: .bold)).lineLimit(1)
                         .foregroundStyle(TourColor.purpleText)
                         .fixedSize()
