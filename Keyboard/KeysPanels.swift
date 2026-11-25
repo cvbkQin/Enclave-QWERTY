@@ -295,7 +295,7 @@ struct QuickWordsPanel: View {
                     divider(available: available)
                     Group {
                         if dragSplit == nil, QuickSplit.collapsedSide(split) == .clipboard {
-                            strip(L("剪贴板", "Clipboard", "クリップボード"))
+                            strip(L("剪贴板", "Clipboard", "クリップボード"), dot: model.hasFullAccess && model.clipboardHasNew)
                         } else {
                             clipboardColumn(leading: Self.sideInset + widths.left + Self.dividerWidth, width: widths.right)
                         }
@@ -386,7 +386,8 @@ struct QuickWordsPanel: View {
     }
 
     /// 收起那一栏：34pt 宽竖条，竖排写栏名；点一下两栏恢复各 1/2。
-    private func strip(_ title: String) -> some View {
+    /// 剪贴板一栏收起时不读剪贴板：有新复制的内容（只看 changeCount）右上角一个 7pt 主色圆点，点开恢复后才读（T97）。
+    private func strip(_ title: String, dot: Bool = false) -> some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { model.setQuickSplit(QuickSplit.standard) }
         } label: {
@@ -398,6 +399,12 @@ struct QuickWordsPanel: View {
             .foregroundStyle(Color.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(KeyStyle.charKey.opacity(0.7)))
+            .overlay(alignment: .topTrailing) {
+                if dot {
+                    Circle().fill(ClipboardList.badgeFill).frame(width: 7, height: 7).padding(5)
+                        .accessibilityHidden(true)
+                }
+            }
             .padding(.top, Self.headerHeight)
             .padding(.bottom, 4)
             .contentShape(Rectangle())
@@ -987,8 +994,9 @@ struct AlternatesView: View {
     }
 }
 
-/// 「常用 / 剪贴板」右栏（B1，CB1–CB3，对齐清单第 62 条）。最上面「有新复制的内容，点一下粘贴」（只有新内容时出现，点了才读剪贴板）；
-/// 下面每条一张按键底色卡片，右上角灰色时间，点一下插入、面板不关；长按 0.45 秒弹菜单：粘贴 / 加到常用语 / 复制 / 删除。
+/// 「常用 / 剪贴板」右栏（B1，CB1–CB3，对齐清单第 62 条；T97 CA1）。这一栏露出来时有新复制的文字就存成第一条（不粘贴），
+/// 上次离开面板以后存进来的标「新」。最上面的虚线行只在两种情况出现：像密码或验证码（不存，点了才读、上屏）；记录关着（点了只粘贴）。
+/// 每条一张按键底色卡片，右上角灰色时间，点一下插入、面板不关；长按 0.45 秒弹菜单：粘贴 / 加到常用语 / 复制 / 删除。
 /// 没开完全访问时读不了剪贴板，换成说明卡。
 struct ClipboardList: View {
     @ObservedObject var model: KeyboardModel
@@ -1003,46 +1011,64 @@ struct ClipboardList: View {
         }
     }
 
+    /// 「新」标记、竖条圆点的主色：浅色 #5B4BE8，深色 #8B7CF6。
+    static let badgeFill = Color(UIColor { $0.userInterfaceStyle == .dark
+        ? UIColor(red: 0x8B / 255, green: 0x7C / 255, blue: 0xF6 / 255, alpha: 1)
+        : UIColor(red: 0x5B / 255, green: 0x4B / 255, blue: 0xE8 / 255, alpha: 1) })
+
+    /// 最上面那一行：像密码或验证码时（记录开着），或记录关着时。
+    private var showsPrompt: Bool {
+        model.clipboardHasNew && (model.clipboardSensitive || !ClipboardHistory.isEnabled)
+    }
+
     var body: some View {
-        if !model.hasFullAccess {
-            fullAccessCard
-        } else {
-            VStack(spacing: 0) {
-                if model.clipItems.isEmpty {
-                    VStack(spacing: 6) {
-                        if model.clipboardHasNew { promptRow }
-                        Spacer(minLength: 0)
-                        Text(L("还没有剪贴板记录", "No clipboard history yet", "クリップボードの履歴はまだありません"))
-                            .font(.system(size: 15, weight: .semibold))
-                        Text(L("在别的 App 复制文字后，这里会提示你粘贴", "Copy text in another app and you'll be offered to paste it here.",
-                               "ほかのアプリでテキストをコピーすると、ここに貼り付けの案内が出ます"))
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(Color.secondary)
-                            .multilineTextAlignment(.center)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.top, 2)
-                } else {
-                    list.zIndex(1)
-                }
-                // 两栏后地方小了：只在记录关着时提示一句。
-                if !ClipboardHistory.isEnabled {
-                    Text(footnote)
-                        .font(.system(size: 11))
+        Group {
+            if !model.hasFullAccess {
+                fullAccessCard
+            } else {
+                content
+            }
+        }
+        // 露出来以后才读，不压在面板弹出前。
+        .onAppear { DispatchQueue.main.async { model.clipboardColumnShown() } }
+    }
+
+    private var content: some View {
+        VStack(spacing: 0) {
+            if model.clipItems.isEmpty {
+                VStack(spacing: 6) {
+                    if showsPrompt { promptRow }
+                    Spacer(minLength: 0)
+                    Text(L("还没有剪贴板记录", "No clipboard history yet", "クリップボードの履歴はまだありません"))
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(L("在别的 App 复制文字，再点开这里就会存下来", "Copy text in another app, then open this to keep it",
+                           "ほかのアプリでコピーしてからここを開くと保存されます"))
+                        .font(.system(size: 12.5))
                         .foregroundStyle(Color.secondary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-                        .padding(.vertical, 2)
+                        .multilineTextAlignment(.center)
+                    Spacer(minLength: 0)
                 }
+                .padding(.top, 2)
+            } else {
+                list.zIndex(1)
+            }
+            // 两栏后地方小了：只在记录关着时提示一句。
+            if !ClipboardHistory.isEnabled {
+                Text(footnote)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.secondary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .padding(.vertical, 2)
             }
         }
     }
 
     private var footnote: String {
         ClipboardHistory.isEnabled
-            ? L("只存在本机 · 最多 20 条 · 24 小时后自动删除 · 长按可加到常用语",
-                "Only on this iPhone · up to 20 · deleted after 24 hours · long-press to add to phrases",
-                "この iPhone のみ · 最大 20 件 · 24 時間後に自動削除 · 長押しで定型文に追加")
+            ? L("只存在本机 · 最多 \(ClipboardHistory.maxItems) 条 · 24 小时后自动删除 · 长按可加到常用语",
+                "Only on this iPhone · up to \(ClipboardHistory.maxItems) · deleted after 24 hours · long-press to add to phrases",
+                "この iPhone のみ · 最大 \(ClipboardHistory.maxItems) 件 · 24 時間後に自動削除 · 長押しで定型文に追加")
             : L("剪贴板记录已关闭：粘贴后不保存（App › 键盘 里可以打开）",
                 "Clipboard history is off: pasted text isn't kept (turn it on in the app under Keyboard)",
                 "クリップボード履歴はオフです：貼り付けたテキストは保存しません（アプリの キーボード でオン）")
@@ -1051,9 +1077,9 @@ struct ClipboardList: View {
     private var list: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 6) {
-                if model.clipboardHasNew { promptRow }
-                ForEach(Array(model.clipItems.enumerated()), id: \.element.id) { index, item in
-                    row(item, fresh: index == 0 && Date().timeIntervalSince(item.date) < 60)
+                if showsPrompt { promptRow }
+                ForEach(model.clipItems) { item in
+                    row(item, fresh: ClipboardHistory.isNew(item, since: model.clipNewAfter))
                 }
             }
             .padding(.top, 2)
@@ -1101,17 +1127,31 @@ struct ClipboardList: View {
         return min(max(preferred, top), max(bottom, top))
     }
 
-    /// 44 高、浅紫底、1.5pt 主色虚线框、剪贴板图标 + 主色 15 粗。
-    /// 问答能用时右边一颗绿色「帮回」（T16）：点左边粘贴，点「帮回」直接写回复；两种都会把这条存进记录。
+    /// 浅紫底、1.5pt 主色虚线框、圆角 9。
+    /// 像密码或验证码（CA1 ③）：锁图标 + 两行「点一下粘贴」（14 粗）「密码或验证码，不存记录」（11.5），点了才读、上屏，不存。
+    /// 记录关着：原来的一行「有新复制的内容，点一下粘贴」，点了只粘贴。
     private var promptRow: some View {
-        HStack(spacing: 6) {
-            Button { model.pasteNewClipboard() } label: {
+        let sensitive = model.clipboardSensitive && ClipboardHistory.isEnabled
+        return HStack(spacing: 6) {
+            Button { model.pasteNewClipboard(save: !sensitive) } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
-                    Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
-                        .font(.system(size: 15, weight: .semibold))
+                    Image(systemName: sensitive ? "lock" : "doc.on.clipboard").font(.system(size: 15, weight: .semibold))
+                    if sensitive {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(L("点一下粘贴", "Tap to paste", "タップで貼り付け"))
+                                .font(.system(size: 14, weight: .semibold))
+                            Text(L("密码或验证码，不存记录", "Looks like a password or code, not saved", "パスワードや確認コードは保存しません"))
+                                .font(.system(size: 11.5))
+                                .opacity(0.8)
+                        }
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
+                    } else {
+                        Text(L("有新复制的内容，点一下粘贴", "New copied text. Tap to paste", "新しくコピーした内容があります。タップで貼り付け"))
+                            .font(.system(size: 15, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
                     Spacer(minLength: 0)
                 }
                 .foregroundStyle(Brand.deepPurple)
@@ -1136,10 +1176,26 @@ struct ClipboardList: View {
                 .lineLimit(2)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text(ClipboardHistory.age(item.date))
-                .font(.system(size: 11.5))
-                .foregroundStyle(fresh ? Brand.deepPurple : Color.secondary)
-                .padding(.top, 2)
+            if fresh {
+                // 「新」：16 高、圆角 5、主色底白字 10.5 粗；下面一行时间（11pt 深紫）。
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(L("新", "New", "新着"))
+                        .font(.system(size: 10.5, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .frame(minWidth: 16, minHeight: 16)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Self.badgeFill))
+                    Text(ClipboardHistory.age(item.date))
+                        .font(.system(size: 11))
+                        .foregroundStyle(Brand.deepPurple)
+                }
+                .padding(.top, 1)
+            } else {
+                Text(ClipboardHistory.age(item.date))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(Color.secondary)
+                    .padding(.top, 2)
+            }
         }
         .padding(.horizontal, 11)
         .padding(.vertical, 7)
@@ -1159,9 +1215,9 @@ struct ClipboardList: View {
         VStack(spacing: 8) {
             Text(L("剪贴板要先打开「允许完全访问」", "Clipboard needs Full Access", "クリップボードには「フルアクセスを許可」が必要です"))
                 .font(.system(size: 15, weight: .semibold))
-            Text(L("设置 › 通用 › 键盘 › 键盘 › \(Loc.nameInSettings) › 允许完全访问。打开后只在你点粘贴时才读剪贴板。",
-                   "Settings › General › Keyboard › Keyboards › \(Loc.nameInSettings) › Allow Full Access. The clipboard is read only when you tap paste.",
-                   "設定 › 一般 › キーボード › キーボード › \(Loc.nameInSettings) › フルアクセスを許可。オンにしても、貼り付けをタップしたときだけ読み取ります。"))
+            Text(L("设置 › 通用 › 键盘 › 键盘 › \(Loc.nameInSettings) › 允许完全访问。打开后，默认只在你点开剪贴板时才读剪贴板。",
+                   "Settings › General › Keyboard › Keyboards › \(Loc.nameInSettings) › Allow Full Access. By default, the clipboard is read only when you open it here.",
+                   "設定 › 一般 › キーボード › キーボード › \(Loc.nameInSettings) › フルアクセスを許可。オンにしても、初期設定ではここを開いたときだけ読み取ります。"))
                 .font(.system(size: 12.5))
                 .foregroundStyle(Color.secondary)
                 .multilineTextAlignment(.center)

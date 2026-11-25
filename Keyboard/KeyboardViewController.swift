@@ -698,6 +698,8 @@ final class KeyboardViewController: UIInputViewController {
         PopupLog.noteHide(cleanup: how)
         clipboardPoll?.invalidate()
         clipboardPoll = nil
+        // 收起键盘时「常用 / 剪贴板」还开着：算离开面板，下次打开「新」从这里算（T97）。
+        if model.clipboardPanelShowing { model.noteClipboardPanelLeft() }
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
         releaseEngine()
         model.pressedKeys = []

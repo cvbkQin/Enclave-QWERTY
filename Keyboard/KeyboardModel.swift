@@ -237,17 +237,30 @@ final class KeyboardModel: ObservableObject {
         didSet {
             if (keysPanel == .words) != (oldValue == .words) { heightMayChange?() }
             if keysPanel != oldValue { markScreen() }
+            // 离开「常用 / 剪贴板」：之后再存进来的记录，下次打开标「新」（T97）。
+            if oldValue == .quickWords && keysPanel != .quickWords { noteClipboardPanelLeft() }
         }
     }
     /// iPad 全宽 9 键中间那块现在放什么（PK17、PK18）：#@¥ 的符号、常用语和剪贴板；nil 是平时的联想 / 候选。
     /// 123 照旧是数字页（layer == .digits），见 padMiddleShown。
-    @Published var padMiddle: PadMiddle? { didSet { if padMiddle != oldValue { markScreen() } } }
+    @Published var padMiddle: PadMiddle? {
+        didSet {
+            if padMiddle != oldValue { markScreen() }
+            if oldValue == .quick && padMiddle != .quick { noteClipboardPanelLeft() }
+        }
+    }
     /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
     @Published var wordPanelText = ""
     @Published var wordPanelFading = false
     /// 剪贴板（B1）：有没有新复制的内容（只看 changeCount、hasStrings，不读内容）、记录列表。
     @Published var clipboardHasNew = false
     @Published var clipItems: [ClipItem] = []
+    /// 新复制的像密码或验证码（条目带隐藏标记，或系统判断是纯数字）：不读不存，最上面留一行虚线「点一下粘贴」（T97）。
+    @Published var clipboardSensitive = false
+    /// 上面那一判断是对哪一次复制（changeCount）做的。
+    var clipboardSensitiveCount: Int?
+    /// 这次打开面板时，上次离开面板的时间：比它晚存进来的记录标「新」。
+    var clipNewAfter = Date.distantFuture
     /// 「常用 / 剪贴板」面板（对齐清单第 62 条）：左栏的常用语（打开面板时读一次）、显示方式、左栏占的比例。
     @Published var quickPhrases: [KeyboardPhrase] = []
     @Published var phraseDisplay: PhraseDisplay = .both
