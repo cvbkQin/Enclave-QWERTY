@@ -42,20 +42,22 @@ extension View {
     }
 
     /// 能点的一颗：按下缩 96%、变暗，抬起才算；触点示范按下时轻轻按下。
-    func tourPress(_ id: TourTarget, model: TourModel) -> some View {
-        modifier(TourPress(id: id, model: model))
+    func tourPress(_ id: TourTarget, model: TourModel, anchor: UnitPoint = .center) -> some View {
+        modifier(TourPress(id: id, model: model, anchor: anchor))
     }
 }
 
 private struct TourPress: ViewModifier {
     let id: TourTarget
     @ObservedObject var model: TourModel
+    /// 按下缩放的中心。整行能点、字靠左的（「AI 优化」）用 .leading，缩的时候字不往中间挪。
+    let anchor: UnitPoint
 
     func body(content: Content) -> some View {
         let pressed = model.pressed == id
         let demo = model.demoDown && model.target == id && model.pressed == nil
         content
-            .scaleEffect(pressed ? 0.96 : demo ? 0.97 : 1)
+            .scaleEffect(pressed ? 0.96 : demo ? 0.97 : 1, anchor: anchor)
             .brightness(pressed ? -0.08 : demo ? -0.04 : 0)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
@@ -1302,8 +1304,9 @@ struct TourAppPage: View {
                     Text(L("AI 优化", "Improve with AI", "AI で改善")).font(.system(size: 15, weight: .semibold))
                 }
                 .foregroundStyle(TourColor.purpleText)
-                .frame(height: 32)
-                .tourPress(.improve, model: model)
+                // 整行都能点：原来只有图标和字那么宽（约 80pt），在模拟器上点「优化」两个字有一次没反应，点左半边才行（PR #109）。
+                .frame(maxWidth: .infinity, minHeight: 32, maxHeight: 32, alignment: .leading)
+                .tourPress(.improve, model: model, anchor: .leading)
                 label(L("建议", "Suggestions", "候補"))
                 FlowLayout(spacing: 6) {
                     ForEach(Array(script.tags.enumerated()), id: \.offset) { index, tag in
