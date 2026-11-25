@@ -178,6 +178,7 @@ struct SettingsView: View {
         case .diagnostics: DiagnosticsView()
         case .feedback: FeedbackFormView()
         case .backup: BackupView()
+        case .tour: TourChaptersView()
         }
     }
 
@@ -215,7 +216,7 @@ struct SettingsView: View {
                     TintIcon(systemName: "checklist", color: DashColor.ai)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(L("首次设置", "First-time setup", "初期設定"))
-                        Text(L("输入法、完全访问、润色、问答", "Keyboard, Full Access, Polish, Q&A", "キーボード・フルアクセス・整える・質問"))
+                        Text(L("输入法、完全访问、AI", "Keyboard, Full Access, AI", "キーボード・フルアクセス・AI"))
                             .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
                     Spacer(minLength: 8)
@@ -224,16 +225,11 @@ struct SettingsView: View {
                         .lineLimit(1)
                 }
             }
-            // 再玩一次首次打开时的功能演示（模拟键盘、预设结果，不调用 API）。
-            Button { router.setupGuide = .tourReplay } label: {
-                HStack(spacing: 12) {
-                    DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
-                            value: L("约 4 分钟", "About 4 min", "約 4 分"))
-                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                }
-                .contentShape(Rectangle())
+            // 功能演示（T95，OG2 ③）：章节页，点一章只看这一章，「从头播放」放 16 步（模拟键盘、预设结果，不调用 API）。
+            NavigationLink(value: AppRouter.SettingsPage.tour) {
+                DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
+                        value: L("约 3 分钟", "About 3 min", "約 3 分"))
             }
-            .buttonStyle(.plain)
             NavigationLink(value: AppRouter.SettingsPage.playground) {
                 DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
                         value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
@@ -328,11 +324,8 @@ struct FirstSetupView: View {
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
-        ZStack {
-            GuideBackground(glow: true)
-            WelcomeSetupView(inGuide: true) {
-                if !router.settingsPath.isEmpty { router.settingsPath.removeLast() }
-            }
+        WelcomeSetupView(inGuide: true) {
+            if !router.settingsPath.isEmpty { router.settingsPath.removeLast() }
         }
         .navigationTitle(L("首次设置", "First-time setup", "初期設定"))
         .navigationBarTitleDisplayMode(.inline)
@@ -1328,12 +1321,14 @@ struct ResultKeySettingsView: View {
 
 }
 
-/// 布局选择卡片：上面一张简化的键盘图示，下面名称和勾选圈。
-private struct LayoutCard: View {
+/// 布局选择卡片：上面一张简化的键盘图示，下面名称和勾选圈。功能演示首页也用（T95）。
+struct LayoutCard: View {
     var layout: KeyboardLayout
     var selected: Bool
     /// 名称下面的小字（全键盘：「全拼」或「双拼 · 小鹤」，KS2）。
     var detail: Text? = nil
+    /// 图示高度：演示首页要一屏放下，矮屏收到 50。
+    var illustrationHeight: CGFloat = 76
     var action: () -> Void
 
     var body: some View {
@@ -1341,7 +1336,7 @@ private struct LayoutCard: View {
             VStack(spacing: 10) {
                 illustration
                     .padding(8)
-                    .frame(height: 76)
+                    .frame(height: illustrationHeight)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {

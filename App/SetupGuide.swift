@@ -21,16 +21,15 @@ enum SetupGuide {
 enum GuideTarget { case rewrite, answer }
 
 enum SetupGuidePage: Identifiable, Hashable {
-    /// tour：首次打开的功能演示，走完进欢迎页；tourReplay：从设置里再看一次，走完关掉。
-    /// welcome：欢迎页四步（WL1–WL9）；answerProvider：第 4 步「配一个能联网的」选问答服务商。
-    case tour, tourReplay, welcome, intro, provider, answerProvider, step(Int), done
+    /// tour：首次打开的功能演示，走完进「设置飞地输入法」；tourReplay：从 设置 › 功能演示 再看（nil 从头播放，或只放一章），放完关掉。
+    /// welcome：「设置飞地输入法」三步（T95，OG4）；done：「一切就绪」。
+    case tour, tourReplay(TourChapter?), welcome, intro, provider, step(Int), done
 
     var id: String {
         switch self {
         case .tour: return "tour"
-        case .tourReplay: return "tourReplay"
+        case .tourReplay(let chapter): return "tourReplay-\(chapter.map { String($0.rawValue) } ?? "all")"
         case .welcome: return "welcome"
-        case .answerProvider: return "answerProvider"
         case .intro: return "intro"
         case .provider: return "provider"
         case .step(let n): return "step\(n)"
@@ -70,7 +69,6 @@ struct SetupGuideView: View {
     @Environment(\.openURL) private var openURL
     @State private var page: SetupGuidePage
     @State private var history: [SetupGuidePage] = []
-    @State private var answerProvider: Provider = .qwen
     private var provider: Provider { router.guideProvider }
 
     init(start: SetupGuidePage) {
@@ -79,10 +77,10 @@ struct SetupGuideView: View {
 
     var body: some View {
         ZStack {
-            if page == .tour || page == .tourReplay {
-                FeatureTourView(replay: page == .tourReplay) { tourExit($0) }
+            if page == .tour || replay != nil {
+                FeatureTourView(replay: replay) { tourExit($0) }
             } else {
-                GuideBackground(glow: ([.welcome, .intro, .provider, .answerProvider, .done] as [SetupGuidePage]).contains(page))
+                GuideBackground(glow: false)
                 VStack(spacing: 0) {
                     if page != .intro && page != .done { topBar }
                     content
@@ -94,10 +92,16 @@ struct SetupGuideView: View {
         .animation(.easeInOut(duration: 0.22), value: page)
     }
 
-    /// 功能演示结束：首次打开的，完成页「开始设置」进欢迎页配 API Key 和接口（跳过时没配好接口也进）；
-    /// 从设置、实验室里再看的，演示完（或跳过）直接退出，不进配置（cvbk 11-01）。
+    /// 从设置里看演示：.some(nil) 从头播放，.some(章) 只放这一章；不是从设置里看是 nil。
+    private var replay: TourChapter?? {
+        if case .tourReplay(let chapter) = page { return .some(chapter) }
+        return nil
+    }
+
+    /// 功能演示结束：首次打开的，完成页「开始设置」进「设置飞地输入法」（跳过时没配好接口也进）；
+    /// 从设置里再看的，放完（或跳过）直接退出，回到章节页（cvbk 11-01）。
     private func tourExit(_ exit: FeatureTourView.Exit) {
-        if page == .tourReplay { return router.setupGuide = nil }
+        if replay != nil { return router.setupGuide = nil }
         switch exit {
         case .setup: page = .welcome
         case .skip: if store.settings.isConfigured { finish() } else { page = .welcome }
@@ -132,8 +136,8 @@ struct SetupGuideView: View {
                 .accessibilityLabel(L("关闭", "Close", "閉じる"))
             } else {
                 Button(L("跳过", "Skip", "スキップ")) { finish() }
-                    .font(.system(size: 15))
-                    .foregroundStyle(GuideColor.secondary)
+                    .font(.system(size: 17))
+                    .foregroundStyle(TourUI.accentText)
             }
         }
         .buttonStyle(.plain)
@@ -149,7 +153,6 @@ struct SetupGuideView: View {
         case .welcome: WelcomeSetupView(inGuide: true, openGuidePage: { go($0) }, finish: finish)
         case .intro: intro
         case .provider: providerPage
-        case .answerProvider: answerProviderPage
         case .step(let n):
             GuideStepView(step: n, provider: provider, target: router.guideTarget, backToWelcome: fromWelcome, next: {
                 if n < 4 { go(.step(n + 1)) } else if router.guideTarget != nil { backToWelcomeOrFinish() } else { go(.done) }
@@ -209,55 +212,17 @@ struct SetupGuideView: View {
         }
     }
 
-    // MARK: 欢迎页第 4 步「配一个能联网的」：选问答服务商（千问、Kimi、智谱有教程，腾讯混元去接口页）
-
-    private var answerProviderPage: some View {
-        GuidePage {
-            VStack(alignment: .leading, spacing: 20) {
-                GuideTitle(L("选一个能联网的", "Pick one that can search", "検索できるものを選ぶ"),
-                           subtitle: L("问答用它，查天气、新闻这类最新消息。", "Answers use it to look up the latest weather, news and more.", "回答に使い、天気やニュースなどの最新情報を調べます。"))
-                VStack(spacing: 12) {
-                    ForEach(Provider.answerShown) { item in
-                        GuideProviderCard(provider: item, selected: answerProvider == item) { answerProvider = item }
-                    }
-                }
-            }
-            .padding(.top, 4)
-        } bottom: {
-            GuidePrimaryButton(L("继续", "Continue", "続ける")) { chooseAnswerProvider() }
-        }
-    }
-
-    // MARK: OB7 完成：润色已经连上，试一次润色（WL5–WL7）
+    // MARK: 一切就绪（T95，OG4 ⑨）：润色测通后，或三步都做完
 
     private var done: some View {
-        GuidePage {
-            VStack(spacing: 20) {
-                ZStack(alignment: .bottomTrailing) {
-                    GuideAppMark(size: 64, corner: 32)
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
-                        .background(Circle().fill(Color(hex: 0x30A46C)))
-                        .overlay(Circle().stroke(GuideColor.card, lineWidth: 3))
-                        .offset(x: 4, y: 4)
-                }
-                .padding(.top, 60)
-                VStack(spacing: 8) {
-                    Text(L("润色已经连上", "Polish is connected", "整えるがつながりました"))
-                        .font(.system(size: 30, weight: .bold)).kerning(-0.4)
-                        .foregroundStyle(GuideColor.text)
-                    Text(ProviderName.of(store.settings.baseURL) + " · " + store.settings.model)
-                        .font(.system(size: 16))
-                        .foregroundStyle(GuideColor.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                TryPolishCard(store: store)
-            }
-        } bottom: {
-            GuidePrimaryButton(L("下一步：问答接口", "Next: Answer API", "次へ：回答 API")) { backToWelcomeOrFinish() }
-        }
+        let progress = WelcomeSetup.Progress(store: store)
+        let ready = progress.done[0] && progress.done[1]
+        return GuideReadyPage(store: store, ready: ready, primary: {
+            if ready { finish() } else { history = []; page = .welcome }
+        }, practice: {
+            finish()
+            router.openPlayground()
+        })
     }
 
     // MARK: 跳转
@@ -281,23 +246,6 @@ struct SetupGuideView: View {
         router.guideTarget = nil
         history = []
         page = .welcome
-    }
-
-    /// 问答服务商：有教程的走这一家的 4 步，Key 填进问答页；腾讯混元没有教程，填好预设去 AI › 问答接口详情。
-    private func chooseAnswerProvider() {
-        if GuideTutorial.of(answerProvider) != nil {
-            router.guideProvider = answerProvider
-            router.guideTarget = .answer
-            go(.step(1))
-        } else {
-            if let preset = answerProvider.answerPreset {
-                store.settings.separateAnswer = true
-                store.settings.answerBaseURL = preset.baseURL
-                store.settings.answerModel = preset.model
-            }
-            finish()
-            router.openModel(answer: true, detail: true)
-        }
     }
 
     /// 走完或跳过：记下看过，关掉引导。从接口页打开的教程关掉后回到接口页。
@@ -785,27 +733,12 @@ struct GuidePage<Content: View, Bottom: View>: View {
     }
 }
 
-/// 说明、选服务商、完成页顶部的淡紫光晕；教程页纯底色。
+/// 引导各页的底色：系统分组底色（T95 照 DESIGN.md 去掉顶部光晕，glow 只为老调用方保留）。
 struct GuideBackground: View {
-    let glow: Bool
-    @Environment(\.colorScheme) private var scheme
+    var glow = false
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                GuideColor.page
-                if glow {
-                    let colors: [Color] = scheme == .dark
-                        ? [Color(hex: 0x2A2160), .black]
-                        : [Color(hex: 0xE4DEFF), Color(hex: 0xF1EEFC), Color(hex: 0xF6F5FA)]
-                    EllipticalGradient(colors: colors, center: UnitPoint(x: 0.5, y: -0.08),
-                                       startRadiusFraction: 0, endRadiusFraction: 0.7)
-                        .frame(width: proxy.size.width * 1.3, height: proxy.size.height * 0.55 * 2)
-                        .position(x: proxy.size.width / 2, y: -proxy.size.height * 0.08)
-                }
-            }
-        }
-        .ignoresSafeArea()
+        TourUI.page.ignoresSafeArea()
     }
 }
 
@@ -1054,13 +987,9 @@ struct GuidePrimaryButton: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(
-                    enabled
-                        ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x7B6BFA), Color(hex: 0x5B4BE8), Color(hex: 0x4A3BD6)],
-                                                       startPoint: .topLeading, endPoint: .bottomTrailing))
-                        : AnyShapeStyle(Color(.systemGray3))))
-                .shadow(color: Color(hex: 0x5B4BE8).opacity(enabled ? 0.32 : 0), radius: 12, y: 10)
+                .frame(height: 50)
+                // 实色主按钮（T95，DESIGN.md）：紫 #5B4BE8，深色 #8B80F9；不用渐变和投影。
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(enabled ? TourUI.accent : Color(.systemGray3)))
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -1078,7 +1007,7 @@ struct GuideSecondaryButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 15.5)).foregroundStyle(GuideColor.secondary)
+            Text(title).font(.system(size: 17)).foregroundStyle(TourUI.accentText)
                 .frame(maxWidth: .infinity).frame(height: 44)
         }
         .buttonStyle(.plain)
