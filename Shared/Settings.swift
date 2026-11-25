@@ -147,13 +147,12 @@ struct EnclaveSettings: Codable, Equatable {
     /// 固定到 AI 栏的风格（AK5）：改写风格或问答风格的 id，按固定的先后排，最多 5 个。
     var pinnedStyleIDs: [UUID] = []
     static let maxPinnedStyles = 5
-    /// AI 栏上固定的「帮回」键（帮回并入润色，方案 D）：全键盘和九宫格同一个设置，默认不固定，不占固定风格「N / 5」的名额。
-    /// 0.96_11 以前全键盘、九宫格各一个（helpPinnedQwerty / helpPinnedNine，全键盘默认固定），不再读。
-    var helpPinned = false
-    /// 帮回「自动判断」（帮回开关方案第 2 版）：开着时键盘看剪贴板有没有刚复制、可以帮回的话（只看变更标记和内容类型），
-    /// 有就让润色键变绿、识意框出帮回按钮、出红点。关着时不做这项判断，帮回照样能从润色 ⌄ 最上面一行、钉住的帮回键、
-    /// 剪贴板「帮回这条」点。新装开；0.97 以前没有这个设置（相当于开着），读不到也当开。
+    /// 「复制后弹出帮回键」（T96，design/help-reply/entry-v2）：开着时刚复制别人的话，问答键右边弹出帮回键，用完或 1 分钟收回；
+    /// 关着时只把润色键的图标换成帮回图标，输入框空着时点润色就是帮回。键盘润色 ⌄ 里帮回那一行的图钉就是它。
+    /// 开着关着都判断剪贴板（只看变更标记和内容类型，不读内容）。新装开。
+    /// 存的名字还是 helpAuto（原来的「帮回自动判断」）；原来另有「钉住帮回」（helpPinned），升级时两个有一个开着就算开。
     var helpAuto = true
+
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -214,10 +213,10 @@ struct EnclaveSettings: Codable, Equatable {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
         case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, nineKeySide, padLetterHints, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
-        case pinnedStyleIDs, helpPinned, helpAuto
+        case pinnedStyleIDs, helpAuto
     }
 
-    private enum LegacyKeys: String, CodingKey { case webSearch, doublePinyinHints }
+    private enum LegacyKeys: String, CodingKey { case webSearch, doublePinyinHints, helpPinned }
 
     var isConfigured: Bool {
         !baseURL.trimmingCharacters(in: .whitespaces).isEmpty
@@ -321,8 +320,11 @@ extension EnclaveSettings {
         polishEnabled = try c.decodeIfPresent(Bool.self, forKey: .polishEnabled) ?? polishEnabled
         answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
-        helpPinned = (try? c.decodeIfPresent(Bool.self, forKey: .helpPinned)) ?? helpPinned
         helpAuto = (try? c.decodeIfPresent(Bool.self, forKey: .helpAuto)) ?? helpAuto
+        // 0.97_12 以前帮回钉在 AI 栏上（helpPinned）也算开（T96 升级规则）。新版本不再写这一项。
+        if !helpAuto, (try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .helpPinned)) == true {
+            helpAuto = true
+        }
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         doublePinyin = try? c.decodeIfPresent(DoublePinyin.self, forKey: .doublePinyin)
         if let mode = try? c.decodeIfPresent(DoublePinyinHintMode.self, forKey: .doublePinyinHintMode) {
@@ -513,8 +515,8 @@ extension EnclaveSettings {
 
     /// 帮回能不能用：帮回走润色接口，润色开着、能用才有（关掉润色时钉住的帮回键、「帮回这条」、剪贴板判断都没有，bug #34）。
     var helpReplyUsable: Bool { showsPolishKey }
-    /// 键盘要不要自己判断剪贴板里有没有可以帮回的新复制（润色键变绿、识意框帮回按钮、红点都靠它）。
-    var helpAutoDetects: Bool { helpReplyUsable && helpAuto }
+    /// 键盘要不要判断剪贴板里有没有可以帮回的新复制（T96 起开关关着也判断：关着时要给润色键换图标）。
+    var helpAutoDetects: Bool { helpReplyUsable }
     var showsAnswerKey: Bool { answerEnabled && answerUsable }
 
     static func searchProvider(baseURL: String) -> SearchProvider? {

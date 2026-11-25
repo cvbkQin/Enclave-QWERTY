@@ -552,7 +552,6 @@ extension KeyboardModel {
         if KeyboardDebug.options.contains("send") { returnKey = .send }
         #endif
         if hasText != hostHasText { hostHasText = hasText }
-        if hasText { noteHelpFieldText() }
         // 换了输入框、挪了光标：光标前已经不是刚上屏的那个词，联想就不带过去（不然新框里第一下删除只是收起联想，看着像删不动）。
         if chineseMode, showsPredictions, target == .host, !lastHostCommit.isEmpty,
            // 空框、光标在最前时系统给 nil，当空的算。

@@ -269,10 +269,10 @@ final class KeyboardModel: ObservableObject {
     /// 回答卡里按住回车弹出的「上润色、左问答」十字（第 70 条）。
     @Published var enterCross: EnterCrossPopup?
     /// AI 帮回（帮回并入润色）：有「待回的复制」（剪贴板换了新内容、不是链接或纯数字、复制后 1 分钟内、还没帮回过）。
-    /// 润色键变绿 / 换 logo、识意框右边的帮回按钮、下拉框里帮回那一行的红点都看它。
+    /// 弹出的帮回键、润色键换帮回图标、下拉框里帮回那一行的浅绿底都看它（T96）。
     @Published var helpPending = false
-    /// 这份待回的复制出现后输入框里打过字：润色键不再整颗变绿。
-    @Published var helpTyped = false
+    /// 弹出的帮回键刚放完成功动效的前两秒（绿勾画完、文字回来）：这时复制已经算用过，键先不收（T96）。
+    @Published var helpKeyCelebrating = false
     /// 复制后 1 分钟到了把 helpPending 收掉。
     var helpExpiry: DispatchWorkItem?
     /// 长按「中/英」弹出的拼音布局菜单（P11）。
@@ -1272,6 +1272,13 @@ final class KeyboardModel: ObservableObject {
     func celebrate(replaced: Bool) {
         let at = Date()
         keySuccess = KeySuccess(key: tappedKey, at: at)
+        if tappedKey == .pin(Self.helpPinID) {
+            // 弹出的帮回键：等绿勾画完、文字回来（约 2.3 秒）再收。
+            helpKeyCelebrating = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.3) { [weak self] in
+                if self?.keySuccess?.at == at || self?.keySuccess == nil { self?.helpKeyCelebrating = false }
+            }
+        }
         let text = session?.currentIsAnswer == true ? L("已回答", "Answered", "回答しました")
             : replaced ? L("已替换", "Replaced", "置き換えました") : L("已改写", "Rewritten", "書き換えました")
         UIAccessibility.post(notification: .announcement, argument: text)

@@ -25,22 +25,8 @@ enum HelpStyle {
     /// 回答卡卡头的「回」小标（帮回并入润色 §7）：底 #D1FAE5、字 #047857；深色底 rgba(16,185,129,.18)、字 #6EE7B7。
     static let badgeFill = dynamicAlpha((0xD1FAE5, 1), (0x10B981, 0.18))
     static let badgeText = dynamic(0x047857, 0x6EE7B7)
-    /// 识意框里的帮回按钮：实心 #10B981 白字；输入框有字时浅绿描边版，底 rgba(16,185,129,.12)、1pt #9FDCC4、字 #0E9F6E（深色 #34D399）。
-    static let outlineFill = hex(0x10B981, 0.12)
-    static let outlineStroke = hex(0x9FDCC4)
-    static let outlineText = dynamic(0x0E9F6E, 0x34D399)
-    /// 「回」右上角的红点。
-    static let dot = hex(0xF43F5E)
-    /// 帮回键（K2）：低饱和浅灰绿纯色底 + 深绿字，用在 AI 栏上钉住的帮回键。
-    enum Key {
-        static let fill = dynamic(0xE4EFE9, 0x2E3D36)
-        static let text = dynamic(0x3F6F5A, 0xA9D1BD)
-        /// 润色键整颗变成帮回、下拉框开着：外圈浅灰绿。
-        static let openRing = hex(0xB9D6C7)
-        /// 键上 logo 降饱和：箭头渐变、星星描边。
-        static let logoTop = hex(0x9CCAB2)
-        static let logoBottom = hex(0x6A9E85)
-    }
+    /// 帮回键（T96）：和润色、问答同样的星云底，换成帮回绿 #22C08A → #0E9F6E；执行中键下绿色投影。
+    static let keyShadow = Color(red: 16 / 255, green: 185 / 255, blue: 129 / 255).opacity(0.55)
 
     static func dynamicAlpha(_ light: (UInt32, CGFloat), _ dark: (UInt32, CGFloat)) -> Color {
         func color(_ value: (UInt32, CGFloat)) -> UIColor {
@@ -51,78 +37,90 @@ enum HelpStyle {
     }
 }
 
-/// 帮回 logo（design/help-reply/help-icon.svg）：绿渐变实心回复箭头 + 2pt 白描边，右上两颗白四角星（细绿边）。
-/// running：箭头往左「回拨」1.6pt 再回来 + 1→1.05 呼吸（1.6 秒一轮），大星、小星错开闪（相位 .35 / .7），左下偶尔冒一颗白色小星。
+/// 帮回 logo（T96，design/help-reply/entry-v2/hl.html 第五节）：回复箭头缩到 0.78 放在偏左下（外框 x 2.4–17.5、y 7.6–18.1），
+/// 5 颗四角星绕一圈，照润色 ✨ 的排法（右上大、右中、左上、右下、左下）。
+/// - 彩色版（App、⌄ 里、开关关着时润色键上）：绿渐变 #4BE08A → #07C160 箭头加 2pt 白描边，金星 #FFD54F 描 0.45 #E89A00，和问答图标的小星一样。
+/// - white（键上，绿底）：白箭头、淡金星 #FDE68A，和润色键上的金色 ✦ 一样。
+/// running：箭头 1 → 1.05 呼吸、往左「回拨」1.2pt；5 颗星错开闪（0.6 ↔ 1.4 倍、35% ↔ 100%、白色微光），1.6 秒一轮，照 PolishStars 的小星。
+/// doneAt：成功那一刻起 1.2 秒星星闪金、轻轻放大，照 PolishStars 完成时。bounce：整个 logo 的轻弹（1 → 1.25 → 1.05 → 1）。
 struct HelpIcon: View {
     var size: CGFloat
     var running = false
-    /// 键上（绿底）用：白描边照画，看得出箭头的轮廓。
     var bounce: CGFloat = 1
-    /// 键盘上帮回键（K2）用的降饱和版：渐变 #9CCAB2 → #6A9E85，星星描边 #6A9E85。
-    var soft = false
-    /// 润色键整颗变成帮回（鼠尾草绿底）用的白色 logo，星星描边鼠尾草绿。
     var white = false
+    var doneAt: Date? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    static let arrowGradient = gradient(HelpStyle.hex(0x4BE08A), HelpStyle.hex(0x07C160))
-    private static let softGradient = gradient(HelpStyle.Key.logoTop, HelpStyle.Key.logoBottom)
-    private static func gradient(_ top: Color, _ bottom: Color) -> LinearGradient {
-        LinearGradient(colors: [top, bottom], startPoint: UnitPoint(x: 2 / 24, y: 4 / 24), endPoint: UnitPoint(x: 21 / 24, y: 20 / 24))
-    }
-    private static let whiteGradient = gradient(.white, .white)
-    private var arrowFill: LinearGradient { white ? Self.whiteGradient : soft ? Self.softGradient : Self.arrowGradient }
-    private var starEdge: Color { white ? HelpStyle.hex(0x6E9F87) : soft ? HelpStyle.Key.logoBottom : HelpStyle.hex(0x07C160) }
+    static let arrowGradient = LinearGradient(colors: [HelpStyle.hex(0x4BE08A), HelpStyle.hex(0x07C160)],
+                                              startPoint: UnitPoint(x: 2 / 24, y: 7 / 24), endPoint: UnitPoint(x: 18 / 24, y: 19 / 24))
+    private static let whiteFill = LinearGradient(colors: [.white, .white], startPoint: .top, endPoint: .bottom)
+    /// 圆心、半径（24×24 画布）、执行中的相位。
+    static let stars: [(x: CGFloat, y: CGFloat, r: CGFloat, phase: Double)] = [
+        (19.6, 4.6, 3.1, 0), (22.2, 13.4, 1.55, 0.35), (4.2, 4.0, 1.5, 0.6), (17.4, 21.8, 1.3, 0.2), (2.4, 21.2, 1.1, 0.8),
+    ]
+    private static let lightGold = HelpStyle.hex(0xFDE68A)
+    private static let gold = HelpStyle.hex(0xFFD54F)
+    private static let goldEdge = HelpStyle.hex(0xE89A00)
 
     var body: some View {
-        if running && !reduceMotion {
+        if (running || doneAt != nil) && !reduceMotion {
             TimelineView(.animation) { context in
-                icon(time: context.date.timeIntervalSinceReferenceDate)
+                icon(now: context.date)
             }
         } else {
-            icon(time: nil)
+            icon(now: nil)
         }
     }
 
-    private static func wave(_ time: Double?, _ phase: Double) -> CGFloat {
-        guard let time else { return 0 }
-        return CGFloat((1 - cos(2 * .pi * (time / 1.6 + phase))) / 2)
+    private static func wave(_ time: Double, _ phase: Double) -> CGFloat {
+        CGFloat((1 - cos(2 * .pi * (time / 1.6 + phase))) / 2)
     }
 
-    private func icon(time: Double?) -> some View {
+    /// 成功后闪金的进度（0…1），1.2 秒后为 nil。
+    private func doneProgress(_ now: Date?) -> Double? {
+        guard let now, let doneAt else { return nil }
+        let p = now.timeIntervalSince(doneAt) / 1.2
+        return p >= 0 && p < 1 ? p : nil
+    }
+
+    private func icon(now: Date?) -> some View {
         let k = size / 24
-        let w = Self.wave(time, 0), w2 = Self.wave(time, 0.35), w3 = Self.wave(time, 0.7)
-        let live = time != nil
-        func anchor(_ x: CGFloat, _ y: CGFloat) -> UnitPoint { UnitPoint(x: x / 24, y: y / 24) }
+        let time = running ? now?.timeIntervalSinceReferenceDate : nil
+        let w = time.map { Self.wave($0, 0) } ?? 0
+        let done = doneProgress(now)
+        let gold = done.map { $0 < 0.6 ? 1.0 : 1 - ($0 - 0.6) / 0.4 } ?? 0
+        let fill = white ? Self.whiteFill : Self.arrowGradient
         return ZStack {
             ZStack {
-                Arrow().stroke(Color.white, style: StrokeStyle(lineWidth: 2 * k, lineJoin: .round))
-                Arrow().fill(Color.white)
-                Shaft().fill(arrowFill)
-                Head().fill(arrowFill)
-                Head().stroke(arrowFill, style: StrokeStyle(lineWidth: 0.8 * k, lineJoin: .round))
+                if !white {
+                    Arrow().stroke(Color.white, style: StrokeStyle(lineWidth: 2 * 0.78 * k, lineJoin: .round))
+                    Arrow().fill(Color.white)
+                }
+                Shaft().fill(fill)
+                Head().fill(fill)
+                Head().stroke(fill, style: StrokeStyle(lineWidth: 0.8 * 0.78 * k, lineJoin: .round))
             }
-            .scaleEffect((live ? 1 + 0.05 * w : 1) * bounce, anchor: anchor(12, 11))
-            .offset(x: live ? -1.6 * k * w : 0)
-            star(cx: 19.6, cy: 4.2, r: 3.2, k: k, wave: w2, live: live)
-            star(cx: 14.8, cy: 2.2, r: 1.4, k: k, wave: w3, live: live)
-            if live {
-                Sparkle(cx: 3.2, cy: 20.2, r: 1.3).fill(Color.white)
-                    .scaleEffect(0.4 + 0.8 * w2, anchor: anchor(3.2, 20.2))
-                    .opacity(0.15 + 0.75 * Double(w2 * w3))
+            .scaleEffect(1 + 0.05 * w, anchor: UnitPoint(x: 11 / 24, y: 13 / 24))
+            .offset(x: -1.2 * k * w)
+            ForEach(Array(Self.stars.enumerated()), id: \.offset) { _, star in
+                let ww = time.map { Self.wave($0, star.phase) } ?? 0
+                let live = time != nil
+                let pop: CGFloat = done.map { 1 + 0.3 * CGFloat(sin(.pi * min(1, $0 * 1.2 / 0.7))) } ?? 1
+                ZStack {
+                    Sparkle(cx: star.x, cy: star.y, r: star.r).fill(white ? Self.lightGold : Self.gold)
+                    if !white {
+                        Sparkle(cx: star.x, cy: star.y, r: star.r).stroke(Self.goldEdge, style: StrokeStyle(lineWidth: 0.45 * k, lineJoin: .round))
+                    }
+                }
+                .scaleEffect((live ? 0.6 + 0.8 * ww : 1) * pop, anchor: UnitPoint(x: star.x / 24, y: star.y / 24))
+                .opacity(live ? 0.35 + 0.65 * Double(ww) : 1)
+                .shadow(color: done != nil ? Self.lightGold.opacity(0.9 * gold) : .white.opacity(live ? 0.9 * Double(ww) : 0),
+                        radius: 1.2 + 1.5 * gold)
             }
         }
         .frame(width: size, height: size)
+        .scaleEffect(bounce)
         .accessibilityHidden(true)
-    }
-
-    private func star(cx: CGFloat, cy: CGFloat, r: CGFloat, k: CGFloat, wave: CGFloat, live: Bool) -> some View {
-        ZStack {
-            Sparkle(cx: cx, cy: cy, r: r).fill(Color.white)
-            Sparkle(cx: cx, cy: cy, r: r).stroke(starEdge, style: StrokeStyle(lineWidth: 0.55 * k, lineJoin: .round))
-        }
-        .scaleEffect(live ? 0.6 + 0.6 * wave : 1, anchor: UnitPoint(x: cx / 24, y: cy / 24))
-        .opacity(live ? 0.45 + 0.55 * Double(wave) : 1)
-        .shadow(color: .white.opacity(live ? 0.9 * Double(wave) : 0), radius: 1.2)
     }
 
     /// 按 24×24 画布换算。
@@ -131,11 +129,18 @@ struct HelpIcon: View {
         return { x, y in CGPoint(x: rect.minX + x * k, y: rect.minY + y * k) }
     }
 
-    /// 箭身：前段粗 4.4（y 8.8–13.2），往右下弯到尾巴，尾巴圆头（圆心 20.2, 16.6，半径 1.7）。
+    /// 箭头在画布上的位置：原来占满的箭头缩到 0.78，(2.6, 4.8) 挪到 (2.4, 7.6)，给一圈星星让出地方。
+    fileprivate static let arrowScale: CGFloat = 0.78
+    fileprivate static func arrowPoint(_ rect: CGRect) -> (CGFloat, CGFloat) -> CGPoint {
+        let p = scale(rect)
+        return { x, y in p(2.4 + (x - 2.6) * arrowScale, 7.6 + (y - 4.8) * arrowScale) }
+    }
+
+    /// 箭身（缩放前的画布）：前段粗 4.4（y 8.8–13.2），往右下弯到尾巴，尾巴圆头（圆心 20.2, 16.6，半径 1.7）。
     fileprivate struct Shaft: Shape {
         func path(in rect: CGRect) -> Path {
-            let p = HelpIcon.scale(rect)
-            let k = min(rect.width, rect.height) / 24
+            let p = HelpIcon.arrowPoint(rect)
+            let k = min(rect.width, rect.height) / 24 * HelpIcon.arrowScale
             var path = Path()
             path.move(to: p(8.6, 13.2))
             path.addLine(to: p(12.6, 13.2))
@@ -149,10 +154,10 @@ struct HelpIcon: View {
         }
     }
 
-    /// 箭头三角：(2.6, 11)、(9.6, 4.8)、(9.6, 17.2)。
+    /// 箭头三角（缩放前的画布）：(2.6, 11)、(9.6, 4.8)、(9.6, 17.2)。
     fileprivate struct Head: Shape {
         func path(in rect: CGRect) -> Path {
-            let p = HelpIcon.scale(rect)
+            let p = HelpIcon.arrowPoint(rect)
             var path = Path()
             path.move(to: p(2.6, 11))
             path.addLine(to: p(9.6, 4.8))

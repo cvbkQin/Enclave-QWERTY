@@ -652,9 +652,9 @@ struct BackupRestoreSheet: View {
     /// ⑭ 勾了「设置」时多的一项（02 五审）：设置里只有同步的风格资料（SyncMerge.StyleProfile）那几项会同步出去，
     /// 照它真有的字段列（风格本身归「润色和问答风格」那一项）；声音、外观、键盘布局等不同步，不列。
     private var settingsSyncNote: String {
-        L("润色和问答的开关、帮回自动判断、钉在 AI 栏的风格、联网调用偏好也换成备份里的",
-          "the Polish and Q&A switches, Help Reply Auto Detect, styles pinned to the AI bar and the web search preference are also replaced with the backup's",
-          "整える・質問のオン／オフ、返信アシストの自動判断、AI バーに固定したスタイル、ウェブ検索の傾向もバックアップのものに置き換わります")
+        L("润色和问答的开关、「复制后弹出帮回键」、钉在 AI 栏的风格、联网调用偏好也换成备份里的",
+          "the Polish and Q&A switches, \"Show Help Reply key after copying\", styles pinned to the AI bar and the web search preference are also replaced with the backup's",
+          "整える・質問のオン／オフ、「コピー後に返信アシストキーを表示」、AI バーに固定したスタイル、ウェブ検索の傾向もバックアップのものに置き換わります")
     }
 
     /// ⑭ 正文（02 四审改文案）：只列这次勾了、会同步出去的几项；开着 Key 同步时再说接口方案和 Key。

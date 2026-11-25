@@ -136,34 +136,31 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertTrue(legacy.first?.hasReply ?? false)
     }
 
-    /// AI 栏上的帮回键：默认不钉，全键盘和九宫格同一个设置；以前的两个设置不再读。
-    func testHelpPinDefaultsAndToggle() throws {
-        var settings = EnclaveSettings()
-        XCTAssertFalse(settings.helpPinned)
-        settings.helpPinned.toggle()
-        let back = try JSONDecoder().decode(EnclaveSettings.self, from: JSONEncoder().encode(settings))
-        XCTAssertTrue(back.helpPinned)
-        XCTAssertEqual(back.pinnedStyles.count, settings.pinnedStyles.count)
-        let old = Data(#"{"baseURL":"https://api.deepseek.com/v1","model":"deepseek-flash","helpPinnedQwerty":true,"replyStyles":[]}"#.utf8)
-        XCTAssertFalse(try JSONDecoder().decode(EnclaveSettings.self, from: old).helpPinned)
-    }
+    // MARK: 复制后弹出帮回键（T96：原来的「自动判断」和「钉住帮回」合成一个开关）
 
-    // MARK: 自动判断（帮回开关方案第 2 版）
-
-    /// 新装开；0.97 以前的设置没有这一项，读出来也是开；关掉能存下来。
-    func testHelpAutoDefaultsAndUpgrade() throws {
+    /// 新装开；0.97 以前没有这一项，读出来是开；原来关了自动判断、但钉住了帮回，也算开；两个都关才算关；关掉能存下来。
+    func testHelpPopupDefaultsAndUpgrade() throws {
         var settings = EnclaveSettings()
         XCTAssertTrue(settings.helpAuto, "新装默认开")
-        let old = Data(#"{"baseURL":"https://api.deepseek.com/v1","model":"deepseek-flash","helpPinned":true}"#.utf8)
-        let upgraded = try JSONDecoder().decode(EnclaveSettings.self, from: old)
-        XCTAssertTrue(upgraded.helpAuto, "升级读不到就当开（0.97 相当于开着）")
-        XCTAssertTrue(upgraded.helpPinned)
+        func decode(_ json: String) throws -> EnclaveSettings {
+            try JSONDecoder().decode(EnclaveSettings.self, from: Data(json.utf8))
+        }
+        XCTAssertTrue(try decode(#"{"baseURL":"https://api.deepseek.com/v1","model":"deepseek-flash"}"#).helpAuto, "0.97 以前读不到就当开")
+        XCTAssertTrue(try decode(#"{"helpAuto":false,"helpPinned":true}"#).helpAuto, "钉住了帮回：开")
+        XCTAssertTrue(try decode(#"{"helpAuto":true,"helpPinned":false}"#).helpAuto)
+        XCTAssertFalse(try decode(#"{"helpAuto":false,"helpPinned":false}"#).helpAuto, "两个都关：关")
+        XCTAssertFalse(try decode(#"{"helpAuto":false}"#).helpAuto)
+        XCTAssertFalse(try decode(#"{"helpAuto":false,"helpPinnedQwerty":true}"#).helpAuto, "0.96_11 以前的两个钉子不再读")
+
         settings.helpAuto = false
-        XCTAssertFalse(try JSONDecoder().decode(EnclaveSettings.self, from: JSONEncoder().encode(settings)).helpAuto)
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertFalse(try JSONDecoder().decode(EnclaveSettings.self, from: data).helpAuto)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertNil(object["helpPinned"], "新版本不再写原来的钉子，关掉以后不会被它翻回开")
     }
 
-    /// 润色关了，帮回整个没有（bug #34），也不做自动判断；自动判断关着只停判断，帮回照样能用。
-    func testHelpUsableFollowsPolishSwitchAndAuto() {
+    /// 润色关了，帮回整个没有（bug #34），也不看剪贴板；开关关着照样判断（关着时润色键要换图标），帮回照样能用。
+    func testHelpUsableFollowsPolishSwitch() {
         var settings = EnclaveSettings()
         settings.baseURL = "https://help-auto-test.example/v1"
         settings.model = "help-auto-model"
@@ -171,8 +168,8 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertTrue(settings.helpAutoDetects)
 
         settings.helpAuto = false
-        XCTAssertTrue(settings.helpReplyUsable, "关着自动判断：⌄ 那一行、钉住的键、「帮回这条」照样在")
-        XCTAssertFalse(settings.helpAutoDetects)
+        XCTAssertTrue(settings.helpReplyUsable, "关着：⌄ 那一行、润色键、「帮回这条」照样在")
+        XCTAssertTrue(settings.helpAutoDetects, "关着也判断")
 
         settings.helpAuto = true
         settings.polishEnabled = false

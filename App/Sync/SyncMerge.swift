@@ -279,9 +279,11 @@ extension SyncMerge {
         var selectedAnswerStyleID: UUID?
         var searchTendency: Int?
         var pinnedStyleIDs: [UUID]
+        /// 原来的「钉住帮回」。T96 并进 helpAuto（复制后弹出帮回键）：新版本一直传 false（旧版本解这份记录少不了这一项），
+        /// 收到旧版本传来的 true 时，解的时候就并进 helpAuto（见 init(from:)），所以合并时比的都是并好的值。
         var helpPinned: Bool
-        /// 帮回「自动判断」（帮回开关方案第 5 节）：没有这个开关的版本传上来的记录里没有这一项，解出来是 nil，
-        /// 写回时不改本机的值。参加合并前先用 fillingHelpAuto 补上，见那里。
+        /// 「复制后弹出帮回键」（原来的帮回「自动判断」，帮回开关方案第 5 节）：没有这个开关的版本传上来的记录里没有这一项，
+        /// 解出来是 nil，写回时不改本机的值。参加合并前先用 fillingHelpAuto 补上，见那里。
         var helpAuto: Bool?
 
         init(settings: EnclaveSettings) {
@@ -293,8 +295,29 @@ extension SyncMerge {
             selectedAnswerStyleID = settings.selectedAnswerStyleID
             searchTendency = settings.searchTendency
             pinnedStyleIDs = settings.pinnedStyleIDs
-            helpPinned = settings.helpPinned
+            helpPinned = false
             helpAuto = settings.helpAuto
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case polishEnabled, answerEnabled, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
+            case pinnedStyleIDs, helpPinned, helpAuto
+        }
+
+        /// 旧版本钉住了帮回（helpPinned = true）：按升级规则算开着（T96），并好以后 helpPinned 记 false。
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            polishEnabled = try c.decode(Bool.self, forKey: .polishEnabled)
+            answerEnabled = try c.decode(Bool.self, forKey: .answerEnabled)
+            styles = try c.decode([StylePreset].self, forKey: .styles)
+            selectedStyleID = try c.decodeIfPresent(UUID.self, forKey: .selectedStyleID)
+            answerStyles = try c.decode([StylePreset].self, forKey: .answerStyles)
+            selectedAnswerStyleID = try c.decodeIfPresent(UUID.self, forKey: .selectedAnswerStyleID)
+            searchTendency = try c.decodeIfPresent(Int.self, forKey: .searchTendency)
+            pinnedStyleIDs = try c.decode([UUID].self, forKey: .pinnedStyleIDs)
+            helpAuto = try c.decodeIfPresent(Bool.self, forKey: .helpAuto)
+            if try c.decodeIfPresent(Bool.self, forKey: .helpPinned) == true { helpAuto = true }
+            helpPinned = false
         }
 
         /// 写回设置：只改上面这些，别的不动。
@@ -307,7 +330,6 @@ extension SyncMerge {
             settings.selectedAnswerStyleID = selectedAnswerStyleID
             settings.searchTendency = searchTendency
             settings.pinnedStyleIDs = pinnedStyleIDs
-            settings.helpPinned = helpPinned
             if let helpAuto { settings.helpAuto = helpAuto }
         }
     }
