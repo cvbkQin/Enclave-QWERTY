@@ -19,6 +19,8 @@ enum ClipboardHistory {
     private static let changeCountKey = "clipboard.lastChangeCount"
     private static let limitKey = "clipboard.maxCount"
     private static let leftPanelKey = "clipboard.panelLeftAt"
+    private static let autoSaveKey = "clipboard.autoSave"
+    private static let consentKey = "clipboard.autoSave.consentAt"
     /// App 和键盘都会写这个文件，按顺序来。
     private static let queue = DispatchQueue(label: "enclave.clipboard")
 
@@ -27,9 +29,37 @@ enum ClipboardHistory {
         get { SharedStorage.defaults.object(forKey: enabledKey) as? Bool ?? true }
         set {
             SharedStorage.defaults.set(newValue, forKey: enabledKey)
-            if !newValue { clear() }
+            if !newValue {
+                clear()
+                // 记录关了，自动保存也跟着关；再打开记录，自动保存还是关，要用户自己再开（CA3 ④）。
+                autoSave = false
+            }
         }
     }
+
+    /// 「自动保存复制的内容」（T97 方案 B，CA2、CA3）：键盘显示时一发现新复制的文字就读出来存。默认关，新装、升级都是关。
+    static var autoSave: Bool {
+        get { SharedStorage.defaults.bool(forKey: autoSaveKey) }
+        set { SharedStorage.defaults.set(newValue, forKey: autoSaveKey) }
+    }
+
+    /// 自动保存真的在运行：开关开着，剪贴板记录也开着。
+    static var autoSaveActive: Bool { isEnabled && autoSave }
+
+    /// 第一次打开自动保存时在确认卡上点「开启」的时间（本机），作为同意的记录；有了以后再开不再弹卡。
+    static var autoSaveConsentAt: Date? {
+        get { (SharedStorage.defaults.object(forKey: consentKey) as? Double).map { Date(timeIntervalSince1970: $0) } }
+        set {
+            if let newValue {
+                SharedStorage.defaults.set(newValue.timeIntervalSince1970, forKey: consentKey)
+            } else {
+                SharedStorage.defaults.removeObject(forKey: consentKey)
+            }
+        }
+    }
+
+    /// 打开自动保存要不要先弹确认卡：没同意过才弹。
+    static func needsAutoSaveConsent(consentAt: Date?) -> Bool { consentAt == nil }
 
     /// 最多保存条数：App 设、键盘读同一个值；只在本机，不同步、不备份。存的值不在几档里时按 20。
     static var maxItems: Int {
