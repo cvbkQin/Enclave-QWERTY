@@ -47,13 +47,12 @@ struct PadNineFunctions: View {
                     .padding(.bottom, Self.fade)
                 }
                 .hidingScrollEdgeEffect()
-                // 这一列往下滑过、帮回键在上面看不见时，弹出后滚回去（同 AIKeyStrip 的 reveal）。等它排进来再滚，不然找不到。
-                .onChange(of: helpShown) { shown in
-                    guard shown else { return }
-                    DispatchQueue.main.async {
-                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(HelpPopKey.revealID) }
-                    }
-                }
+                // 帮回键在看不见的地方时滚过去（同 AIKeyStrip 的 reveal）：
+                // - 弹出时：这一列往下滑过，帮回键在上面；
+                // - 回答卡展开、开始等帮回时：按键压矮，这一列只露润色、问答两颗，帮回键在渐隐下面，2 秒里点不到（第 94 条，模拟器 11 寸竖屏）。
+                .onChange(of: helpShown) { if $0 { revealHelpKey(proxy, delay: 0) } }
+                .onChange(of: model.aiExpanded) { if $0 { revealHelpKey(proxy, delay: 0.15) } }
+                .onChange(of: model.helpWaiting) { if $0 { revealHelpKey(proxy, delay: 0.15) } }
             }
             .mask {
                 VStack(spacing: 0) {
@@ -68,6 +67,17 @@ struct PadNineFunctions: View {
         .opacity(model.isComposing ? 0.4 : 1)
         .allowsHitTesting(!model.isComposing)
         .animation(.easeOut(duration: 0.15), value: model.isComposing)
+    }
+
+    /// 把帮回键滚到这一列中间（滚不动就停在头、尾）：上面的问答尽量还露着，帮回键不压在底部渐隐里。
+    /// 等它排进来、按键压矮以后再滚，不然找不到或者算错位置。
+    private func revealHelpKey(_ proxy: ScrollViewProxy, delay: Double) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard model.helpKeyShown else { return }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                proxy.scrollTo(HelpPopKey.revealID, anchor: .center)
+            }
+        }
     }
 }
 
