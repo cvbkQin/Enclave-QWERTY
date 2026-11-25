@@ -5,11 +5,15 @@ import SwiftUI
 /// 功能键一列（PK3 ①）：最上面回答卡开关，下面润色 ⌄、问答 ⌄、钉住的风格（多了上下滑、底部渐隐），最下面 ↶ ↷。
 /// 九键在右时这一列在最左、靠左对齐；九键在左（PK4）时在最右、靠右对齐，回答卡开关左右镜像。
 /// 打字时留在原位、变淡、点不了，键盘不跳；打完一个词恢复（PK3 右 ②）。⌄ 的下拉框往中间弹（KeyboardView）。
+/// 刚复制别人的话：帮回键从问答下面弹出，后面的键往下让，宽和这一列别的键一样（T96，design/ipad/交接.md）。
 struct PadNineFunctions: View {
     @ObservedObject var model: KeyboardModel
     let nineOnLeft: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let fade: CGFloat = 18
+    /// 这一列的键宽：回答卡开关、润色键、帮回键、撤销重做（竖屏 86、横屏 94）。
+    static var keyWidth: CGFloat { KeyboardMetrics.pad?.landscape == true ? 94 : 86 }
 
     var body: some View {
         // 功能关掉或不能用时，它固定的风格键也不显示（和 AI 栏一样，QE）。
@@ -18,22 +22,39 @@ struct PadNineFunctions: View {
         }
         let alignment: HorizontalAlignment = nineOnLeft ? .trailing : .leading
         let edge: Alignment = nineOnLeft ? .trailing : .leading
+        let helpShown = model.helpKeyShown
         VStack(alignment: alignment, spacing: 8) {
             PadCardToggle(model: model, mirrored: nineOnLeft)
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: alignment, spacing: 8) {
-                    if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
-                    if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
-                    if model.helpKeyShown { HelpPopKey(model: model) }
-                    ForEach(pins, id: \.style.id) { pin in
-                        PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
+            // 滚动代理直接包着 ScrollView（AIKeyStrip 的注释：从外面叫 scrollTo 不动）。
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: alignment, spacing: 8) {
+                        if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
+                        if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
+                        // 帮回键：问答下面，从 0 高展开、后面的键往下让；用完或 1 分钟缩回去，后面的往上补位。不占「N / 5」。
+                        if helpShown {
+                            HelpPopKey(model: model, width: Self.keyWidth)
+                                .id(HelpPopKey.revealID)
+                                .transition(HelpKeyPop.transition(reduceMotion: reduceMotion))
+                        }
+                        ForEach(pins, id: \.style.id) { pin in
+                            PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: edge)
+                    .animation(HelpKeyPop.layout(showing: helpShown, reduceMotion: reduceMotion), value: helpShown)
+                    // 最后一颗不压在渐隐里。
+                    .padding(.bottom, Self.fade)
+                }
+                .hidingScrollEdgeEffect()
+                // 这一列往下滑过、帮回键在上面看不见时，弹出后滚回去（同 AIKeyStrip 的 reveal）。等它排进来再滚，不然找不到。
+                .onChange(of: helpShown) { shown in
+                    guard shown else { return }
+                    DispatchQueue.main.async {
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(HelpPopKey.revealID) }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: edge)
-                // 最后一颗不压在渐隐里。
-                .padding(.bottom, Self.fade)
             }
-            .hidingScrollEdgeEffect()
             .mask {
                 VStack(spacing: 0) {
                     Color.black
@@ -41,7 +62,7 @@ struct PadNineFunctions: View {
                         .frame(height: Self.fade)
                 }
             }
-            UndoRedoPair(model: model, fillWidth: KeyboardMetrics.pad?.landscape == true ? 94 : 86)
+            UndoRedoPair(model: model, fillWidth: Self.keyWidth)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: nineOnLeft ? .topTrailing : .topLeading)
         .opacity(model.isComposing ? 0.4 : 1)
