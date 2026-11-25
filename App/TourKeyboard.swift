@@ -122,19 +122,24 @@ struct TourKeyboard: View {
                 }
             }
             .zIndex(2)
-            HStack {
-                Image(systemName: "globe")
-                Spacer()
-                Image(systemName: "mic")
+            // 地球、话筒这一行只有全面屏 iPhone 的系统键盘才有；矮屏（SE 等有 Home 键的）真键盘没有这一行，这里也不画。
+            // 画了的话 SE 上回答卡一展开，整页比屏幕高，顶上返回和「跳过」被顶到状态栏里。
+            if !compact {
+                HStack {
+                    Image(systemName: "globe")
+                    Spacer()
+                    Image(systemName: "mic")
+                }
+                .font(.system(size: 22))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 24)
+                .frame(height: 40)
+                .padding(.bottom, 22)
+                .opacity(model.trackpad ? 0.3 : 1)
             }
-            .font(.system(size: 22))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 24)
-            .frame(height: 40)
-            .padding(.bottom, 22)
-            .opacity(model.trackpad ? 0.3 : 1)
         }
         .padding(.top, 8)
+        .padding(.bottom, compact ? 4 : 0)
         .frame(maxWidth: .infinity)
         .coordinateSpace(name: "tourKeyboard")
         .background(

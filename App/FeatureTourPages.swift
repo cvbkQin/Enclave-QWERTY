@@ -318,13 +318,13 @@ private struct TourStepPage: View {
                     TourAppPage(model: model)
                         .transition(.move(edge: .bottom))
                 } else {
-                    // 对话卡先拿到它要的高，剩下的才留空。不加的话 VStack 把剩下的高对半分给对话卡和 Spacer：
-                    // 对话一长，消息只露出一半，中间却空着一大块（0.97_13 真机）。
+                    // 对话卡占满说明和键盘之间的地方（像聊天窗口：消息贴着输入框往上排）。
+                    // 原来对话卡按消息多高就多高、下面放 Spacer：消息区量不出高，只剩 1pt，卡片下面却空一大块
+                    // （0.97_13 真机、SE 模拟器）。
                     TourChat(model: model, compact: compact)
                         .padding(.horizontal, 16)
                         .padding(.top, compact ? 8 : 14)
-                        .layoutPriority(1)
-                    Spacer(minLength: 8)
+                        .padding(.bottom, 8)
                     TourKeyboard(model: model)
                         .offset(y: keyboardShown || reduceMotion ? 0 : 360)
                         .transition(.move(edge: .bottom))
@@ -420,22 +420,25 @@ private struct TourChat: View {
                 Text(L("演示内容 · 不会发送", "Demo content · Not sent", "デモ内容 · 送信されません"))
                     .font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
             }
-            // 放不下时最早的从顶上出去，留住最新的和输入框；顶边 18pt 渐隐（卡片底色盖一条由实到透明）。
-            // 编辑菜单占着气泡上方自己那一格，在消息区里面。
-            TourMessagesLayout {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(model.messages) { message in
-                        TourBubble(model: model, message: message,
-                                   isLast: message.id == model.messages.last(where: { !$0.mine && !$0.typing })?.id)
-                            .transition(message.mine
-                                ? .scale(scale: 0.94, anchor: .bottomTrailing).combined(with: .opacity)
-                                : .scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
-                    }
+            // 消息贴底，放不下时最早的从顶上出去并裁掉；顶边 18pt 用卡片底色渐隐（放得下时那里是空的，看不出来）。
+            // 消息区本身占满卡片里剩下的高，不量消息多高。编辑菜单占着气泡上方自己那一格，在消息区里面。
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(model.messages) { message in
+                    TourBubble(model: model, message: message,
+                               isLast: message.id == model.messages.last(where: { !$0.mine && !$0.typing })?.id)
+                        .transition(message.mine
+                            ? .scale(scale: 0.94, anchor: .bottomTrailing).combined(with: .opacity)
+                            : .scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
                 }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .clipped()
+            .overlay(alignment: .top) {
                 LinearGradient(colors: [TourUI.group, TourUI.group.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 18)
                     .allowsHitTesting(false)
             }
-            .clipped()
             hostField
         }
         .padding(12)
@@ -470,29 +473,6 @@ private struct TourChat: View {
         .padding(.horizontal, 14).padding(.vertical, 9)
         .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(.systemBackground)))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(.separator), lineWidth: 1))
-    }
-}
-
-/// 对话卡的消息区：放得下时就是消息本来的高；放不下时只占给它的高，消息贴底，最早的从顶上出去。
-/// 第二个子视图是顶边渐隐那一条，只在放不下时给它高度。
-/// 原来用 GeometryReader 量出消息的高存进 @State，再用 frame(maxHeight:) 卡住：SE 模拟器上量的那一步没跟上，
-/// 消息区一直只有 1pt，对话卡里看不到消息（0.97_13 也是这样）。这里排版时直接问消息要多高，不存状态。
-private struct TourMessagesLayout: Layout {
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        guard let messages = subviews.first else { return .zero }
-        let ideal = messages.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
-        return CGSize(width: proposal.width ?? ideal.width, height: min(proposal.height ?? ideal.height, ideal.height))
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard let messages = subviews.first else { return }
-        let ideal = messages.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
-        messages.place(at: CGPoint(x: bounds.minX, y: bounds.maxY), anchor: .bottomLeading,
-                       proposal: ProposedViewSize(width: bounds.width, height: ideal.height))
-        guard subviews.count > 1 else { return }
-        let fade = ideal.height > bounds.height + 0.5 ? min(18, bounds.height) : 0
-        subviews[1].place(at: CGPoint(x: bounds.minX, y: bounds.minY),
-                          proposal: ProposedViewSize(width: bounds.width, height: fade))
     }
 }
 
