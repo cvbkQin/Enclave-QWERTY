@@ -1,7 +1,7 @@
 import SwiftUI
 
 // 功能演示（T95，design/onboard-v2，对齐清单第 90 条）：隐私同意之后、设置三步之前，在 App 里画的模拟键盘上把功能点一遍。
-// 6 章 16 步：润色 2、帮回 3、按要求改 2、问答 3、润色风格 3、打字 3。键盘按首页选的布局画（九宫格 / 全键盘）。
+// 6 章 17 步：润色 2、帮回 3、按要求改 3、问答 3、润色风格 3、打字 3（11-25 按要求改加回第 3 步，对齐清单第 91 条）。键盘按首页选的布局画（九宫格 / 全键盘）。
 // 结果全是预设内容：不调用 API、不联网、不扣次数、不计入统计；演示里加的风格不写进真的风格列表。
 // 触点只做示范；用户自己点对了才往下走，点别处轻晃。每章第一步前有章节过场。
 // 这个文件：章节、步骤文案、剧本（三种语言）、状态机。页面在 FeatureTourPages.swift，模拟键盘在 TourKeyboard.swift。
@@ -16,7 +16,7 @@ enum FeatureTour {
     }
 
     /// 全部步数。
-    static let stepCount = 16
+    static let stepCount = 17
 }
 
 // MARK: - 章节
@@ -71,15 +71,15 @@ enum TourChapter: Int, CaseIterable, Hashable, Identifiable {
         }
     }
 
-    /// 这一章在全部 16 步里的范围。
+    /// 这一章在全部 17 步里的范围。
     var steps: ClosedRange<Int> {
         switch self {
         case .polish: return 1...2
         case .helpReply: return 3...5
-        case .request: return 6...7
-        case .answer: return 8...10
-        case .style: return 11...13
-        case .typing: return 14...16
+        case .request: return 6...8
+        case .answer: return 9...11
+        case .style: return 12...14
+        case .typing: return 15...17
         }
     }
 
@@ -147,28 +147,33 @@ struct TourStepText {
                       "Tap \"Polish\" to rewrite it as asked. \"Replace\" swaps out your text; hold \"Replace\" and slide up to insert instead.",
                       "「整える」で指示どおりに書き換えます。「置換」で元の文と入れ替え、「置換」を長押しして上にスライドすると挿入します。"))
         case 8: return TourStepText(
+            title: L("不满意，换个要求", "Not quite? Change the request", "いまいちなら、指示を変える"),
+            detail: L("把要求改成「再简短一点」，再点「润色」。满意后「替换」发出。",
+                      "Change the request to \"Make it shorter\" and tap \"Polish\" again. Tap \"Replace\" and send when you're happy.",
+                      "指示を「もっと短く」に変えて、もう一度「整える」をタップ。よければ「置換」して送信します。"))
+        case 9: return TourStepText(
             title: L("有问题，直接问", "Got a question? Just ask", "知りたいことは、そのまま質問"),
             detail: L("在框里写下问题，点「问答」即得答案。", "Write your question in the box and tap \"Ask\" for the answer.", "欄に質問を書いて「質問」をタップすると、答えが出ます。"))
-        case 9: return TourStepText(
+        case 10: return TourStepText(
             title: L("联网，答案更新", "Search the web for fresher answers", "ウェブ検索で、最新の答え"),
             detail: L("需要最新信息时，点「使用联网查询」重新作答。", "When you need the latest information, tap \"Search the web\" to answer again.", "最新の情報が必要なときは、「ウェブで調べる」で答え直します。"))
-        case 10: return TourStepText(
+        case 11: return TourStepText(
             title: L("只取你要的词", "Take just the words you need", "必要な言葉だけ使う"),
             detail: L("长按答案，点选需要的词，再点「插入」。", "Touch and hold the answer, tap the words you need, then tap \"Insert\".", "答えを長押しし、必要な言葉を選んで「挿入」をタップします。"))
-        case 11: return TourStepText(
+        case 12: return TourStepText(
             title: L("换一种语气", "Try a different tone", "口調を変える"),
             detail: L("点润色键旁的 ⌄，选「简短」。同一句话，换个说法。",
                       "Tap the ⌄ next to the Polish key and choose \"Concise\". Same message, said another way.",
                       "整えるキーの横の ⌄ から「簡潔に」を選びます。同じ内容を、別の言い方に。"))
-        case 12: return TourStepText(
+        case 13: return TourStepText(
             title: L("定制你的风格", "Make your own style", "自分のスタイルを作る"),
             detail: L("新建一个「英文」风格，AI 帮你把要求写清楚。问答键的 ⌄ 同样可以换风格。",
                       "Create a \"Chinese\" style and let AI write the instructions clearly. The Ask key's ⌄ lets you switch styles too.",
                       "「英語」スタイルを新しく作り、AI に指示をわかりやすく書いてもらいます。質問キーの ⌄ でもスタイルを切り替えられます。"))
-        case 13: return TourStepText(
+        case 14: return TourStepText(
             title: L("钉在手边", "Keep it within reach", "手元に固定"),
             detail: L("点图钉，「英文」出现在 AI 栏，一点即用。", "Tap the pin and \"Chinese\" appears on the AI bar, ready in one tap.", "ピンをタップすると「英語」が AI バーに出て、ワンタップで使えます。"))
-        case 14: return nine
+        case 15: return nine
             ? TourStepText(title: L("滑一下，出标点", "Swipe for punctuation", "スワイプで句読点"),
                            detail: L("按住「，。?!」，上滑句号，右滑问号，下滑叹号，左滑逗号。",
                                      "Hold \"，。?!\" and swipe up for a period, right for a question mark, down for an exclamation mark, left for a comma.",
@@ -177,7 +182,7 @@ struct TourStepText {
                            detail: L("按住「，。」不动，松手是逗号；左右滑动，挑问号、句号等。",
                                      "Hold \"，。\" and let go for a comma, or slide left or right for a question mark, period and more.",
                                      "「，。」を押したまま離すと読点。左右にスライドすると疑問符や句点などを選べます。"))
-        case 15: return nine
+        case 16: return nine
             ? TourStepText(title: L("滑一下，出字母", "Swipe for a letter", "スワイプで文字"),
                            detail: L("按住 DEF，左滑 D，上滑 E，右滑 F。", "Hold DEF and swipe left for D, up for E, right for F.", "DEF を押したまま、左で D、上で E、右で F。"))
             : TourStepText(title: L("长按，带声调", "Hold for accents", "長押しでアクセント"),
@@ -211,10 +216,12 @@ struct TourScript {
     var helpReply: String
     var helpAsk: String
     var helpReply2: String
-    /// 按要求改：对方托的事（输入框预填同一句）、要求、结果。
+    /// 按要求改：对方托的事（输入框预填同一句）、要求、结果；第 3 步换的要求、更短的第 2 版。
     var requestMessage: String
     var requestAsk: String
     var requestResult: String
+    var requestAsk2: String
+    var requestResult2: String
     /// 问答：对方问的、识意框里的问题、未联网的回答、联网的回答、分词面板里的词和虚线框提示的几块。
     var foodMessage: String
     var foodAsk: String
@@ -270,6 +277,8 @@ struct TourScript {
         requestMessage: "帮我跟 Alex 说一声，会议改到下午三点，地点不变。",
         requestAsk: "翻成英文",
         requestResult: "The meeting has been moved to 3 p.m. Same place.",
+        requestAsk2: "再简短一点",
+        requestResult2: "Meeting moved to 3 p.m., same place.",
         foodMessage: "团建在上海，有什么必吃的？",
         foodAsk: "上海有什么必吃的美食",
         foodAnswer: "上海菜偏甜，浓油赤酱。常被推荐的有生煎、蟹粉小笼、葱油拌面、红烧肉。具体去哪家、最近口碑如何，可以联网查一下。",
@@ -302,6 +311,8 @@ struct TourScript {
         requestMessage: "Can you tell Wang Lei the meeting moved to 3 p.m.? Same place.",
         requestAsk: "Translate into Chinese",
         requestResult: "会议改到下午三点，地点不变。",
+        requestAsk2: "Make it shorter",
+        requestResult2: "会议改到三点，地点不变。",
         foodMessage: "The outing is in Shanghai. Any must-try food?",
         foodAsk: "must-try food in Shanghai",
         foodAnswer: "Shanghai food leans sweet and rich. Often recommended: shengjian buns, crab xiaolongbao, scallion oil noodles and red-braised pork. For where to go and recent reviews, try searching the web.",
@@ -334,6 +345,8 @@ struct TourScript {
         requestMessage: "Alex に、会議は午後 3 時に変更、場所は同じと伝えてもらえますか？",
         requestAsk: "英語に翻訳",
         requestResult: "The meeting has been moved to 3 p.m. Same place.",
+        requestAsk2: "もっと短く",
+        requestResult2: "Meeting moved to 3 p.m., same place.",
         foodMessage: "イベントは上海です。絶対食べるべきものは？",
         foodAsk: "上海で絶対食べたいもの",
         foodAnswer: "上海料理は甘めで濃い味付けです。生煎（焼き小籠包）、蟹みそ小籠包、葱油拌麺、紅焼肉がよくすすめられます。どの店がいいかは、ウェブで調べてみてください。",
@@ -428,7 +441,7 @@ final class TourModel: ObservableObject {
     var replay = false
 
     @Published var layout: KeyboardLayout = .qwerty
-    /// 这次放哪几步（全部 16 步，或者某一章）。
+    /// 这次放哪几步（全部 17 步，或者某一章）。
     @Published private(set) var plan: [Int] = Array(1...FeatureTour.stepCount)
     @Published private(set) var position = 0
     @Published var page: Page = .welcome
@@ -519,7 +532,7 @@ final class TourModel: ObservableObject {
 
     // MARK: 开始、进退
 
-    /// 放哪几章：nil 是全部 16 步。
+    /// 放哪几章：nil 是全部 17 步。
     func start(layout: KeyboardLayout, chapter: TourChapter?) {
         self.layout = layout
         plan = chapter.map { Array($0.steps) } ?? Array(1...FeatureTour.stepCount)
@@ -754,20 +767,22 @@ final class TourModel: ObservableObject {
         if n >= 4 { list.append(Message(text: s.helpMessage, copied: n <= 5)) }
         if n >= 6 { list.append(Message(text: s.helpReply2, mine: true)) }
         if n >= 7 { list.append(Message(text: s.requestMessage)) }
-        if n >= 8 { list.append(Message(text: s.requestResult, mine: true)) }
-        if n >= 9 { list.append(Message(text: s.foodMessage)) }
-        if n >= 11 { list.append(Message(text: sentWords ?? s.hintWords, mine: true)) }
-        if n >= 12 { list.append(Message(text: s.styleMessage)) }
-        if n >= 15 { list.append(Message(text: s.typingMessage)) }
+        if n >= 9 { list.append(Message(text: s.requestResult2, mine: true)) }
+        if n >= 10 { list.append(Message(text: s.foodMessage)) }
+        if n >= 12 { list.append(Message(text: sentWords ?? s.hintWords, mine: true)) }
+        if n >= 13 { list.append(Message(text: s.styleMessage)) }
+        if n >= 16 { list.append(Message(text: s.typingMessage)) }
         messages = list
 
         switch n {
         case 1: field = s.original
         case 2: field = s.polished
         case 7: field = s.requestMessage
-        case 12, 13: field = s.styleShort
-        case 15: field = s.typingField + (typedPunct ?? (s.chinesePunct ? "，" : ","))
-        case 16: field = s.typingField + (typedPunct ?? (s.chinesePunct ? "，" : ",")) + (typedLetter ?? (layout == .nineKey ? "E" : "é"))
+        // 按要求改第 2 步替换后先不发，第 3 步从英文那版开始改。
+        case 8: field = s.requestResult
+        case 13, 14: field = s.styleShort
+        case 16: field = s.typingField + (typedPunct ?? (s.chinesePunct ? "，" : ","))
+        case 17: field = s.typingField + (typedPunct ?? (s.chinesePunct ? "，" : ",")) + (typedLetter ?? (layout == .nineKey ? "E" : "é"))
         default: field = ""
         }
         fieldStream = nil
@@ -776,28 +791,29 @@ final class TourModel: ObservableObject {
         sendReady = false
         bubbleMenu = false
 
-        expanded = [5, 7, 8, 9, 10].contains(n)
+        expanded = [5, 7, 8, 9, 10, 11].contains(n)
         switch n {
         case 5: versions = [Version(text: s.helpReply, mode: .help)]
-        case 9: versions = [Version(text: s.foodAnswer, mode: .answer)]
-        case 10: versions = [Version(text: s.foodWeb, mode: .answer)]
+        case 8: versions = [Version(text: s.requestResult, mode: .rewrite)]
+        case 10: versions = [Version(text: s.foodAnswer, mode: .answer)]
+        case 11: versions = [Version(text: s.foodWeb, mode: .answer)]
         default: versions = []
         }
         versionIndex = max(versions.count - 1, 0)
         cardStream = nil
         generating = false
         regenerating = false
-        cardTall = n == 10
+        cardTall = n == 11
         switch n {
-        case 7: ask = s.requestAsk
-        case 9, 10: ask = s.foodAsk
+        case 7, 8: ask = s.requestAsk
+        case 10, 11: ask = s.foodAsk
         default: ask = ""
         }
         askEditing = false
         askDim = false
-        canSearch = n == 9
+        canSearch = n == 10
         searching = false
-        searched = n == 10
+        searched = n == 11
         panel = false
         picked = []
 
@@ -811,10 +827,10 @@ final class TourModel: ObservableObject {
         undoOn = n == 2
         redoOn = false
 
-        promptsOpen = n == 13
-        selectedPrompt = n >= 12 ? 3 : 0
-        customPrompt = n >= 13 ? s.promptName : nil
-        pinnedCustom = n >= 14
+        promptsOpen = n == 14
+        selectedPrompt = n >= 13 ? 3 : 0
+        customPrompt = n >= 14 ? s.promptName : nil
+        pinnedCustom = n >= 15
         pinRunning = false
         pinDone = nil
         appPage = false
@@ -869,7 +885,7 @@ final class TourModel: ObservableObject {
         case 4:
             try await wait(.helpKey)
             helpRunning = true
-            withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.88)) { expanded = true }
+            withAnimation(cardMotion) { expanded = true }
             try await pause(0.3)
             try await generate(Version(text: s.helpReply, mode: .help), perChar: 0.048, delay: 0.5)
             helpRunning = false
@@ -902,7 +918,7 @@ final class TourModel: ObservableObject {
             try await pause(0.3)
             withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.4, dampingFraction: 0.9)) { helpShown = false }
             try await pause(0.3)
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.88)) {
+            withAnimation(cardMotion) {
                 expanded = false
                 versions = []
                 ask = ""
@@ -913,7 +929,7 @@ final class TourModel: ObservableObject {
             try await incoming(s.requestMessage)
             try await type(\.field, s.requestMessage, duration: 0.4)
             try await wait(.drawer)
-            withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.88)) { expanded = true }
+            withAnimation(cardMotion) { expanded = true }
             try await pause(0.3)
             try await wait(.askField)
             withAnimation(.easeOut(duration: 0.2)) { askEditing = true }
@@ -927,11 +943,32 @@ final class TourModel: ObservableObject {
             sparkRunning = false
             sparkDone = Date()
             try await wait(.replace)
+            // 先不发：第 3 步再点润色，改的是输入框里这句英文（真键盘 execute 改的是输入框里的字）。
             try await typeReplace(to: s.requestResult)
+        case 8:
+            // 不满意，换个要求：识意框里「翻成英文」逐字删掉，填「再简短一点」，再点润色出更短的第 2 版（2/2）。
+            try await wait(.askField)
+            withAnimation(.easeOut(duration: 0.2)) { askEditing = true }
+            try await pause(0.2)
+            try await retype(\.ask, to: s.requestAsk2)
+            try await wait(.sparkle)
+            sparkRunning = true
+            withAnimation(.easeOut(duration: 0.2)) { regenerating = true }
+            try await pause(reduceMotion ? 0.6 : 1.2)
+            withAnimation(.easeOut(duration: 0.2)) {
+                regenerating = false
+                askEditing = false
+                askDim = true
+            }
+            try await stream(Version(text: s.requestResult2, mode: .rewrite), perChar: 0.04)
+            sparkRunning = false
+            sparkDone = Date()
+            try await wait(.replace)
+            try await typeReplace(to: versions.indices.contains(versionIndex) ? versions[versionIndex].text : s.requestResult2)
             withAnimation(.easeOut(duration: 0.2)) { sendReady = true }
             try await wait(.send)
             try await send()
-        case 8:
+        case 9:
             try await pause(0.3)
             try await incoming(s.foodMessage)
             try await wait(.askField)
@@ -945,7 +982,7 @@ final class TourModel: ObservableObject {
             askRunning = false
             askDone = Date()
             withAnimation(.easeOut(duration: 0.3)) { canSearch = true }
-        case 9:
+        case 10:
             try await wait(.search)
             askRunning = true
             withAnimation(.easeOut(duration: 0.2)) {
@@ -953,7 +990,7 @@ final class TourModel: ObservableObject {
                 searching = true
             }
             try await pause(1)
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.88)) {
+            withAnimation(cardMotion) {
                 searching = false
                 searched = true
                 cardTall = true
@@ -962,9 +999,9 @@ final class TourModel: ObservableObject {
             try await stream(Version(text: s.foodWeb, mode: .answer), perChar: 0.026)
             askRunning = false
             askDone = Date()
-        case 10:
+        case 11:
             try await wait(.card)
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.88)) {
+            withAnimation(cardMotion) {
                 cardTall = false
                 panel = true
             }
@@ -981,8 +1018,8 @@ final class TourModel: ObservableObject {
             try await wait(.send)
             try await send()
             try await pause(0.3)
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.88)) { expanded = false }
-        case 11:
+            withAnimation(cardMotion) { expanded = false }
+        case 12:
             try await pause(0.3)
             try await incoming(s.styleMessage)
             try await type(\.field, s.styleField, duration: 0.4)
@@ -996,7 +1033,7 @@ final class TourModel: ObservableObject {
             try await pause(0.2)
             try await wait(.sparkle)
             try await polish(to: s.styleShort)
-        case 12:
+        case 13:
             try await wait(.chevron)
             withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) { promptsOpen = true }
             try await wait(.addStyle)
@@ -1016,7 +1053,7 @@ final class TourModel: ObservableObject {
             improving = false
             try await retype(\.sheetContent, to: s.improvedContent)
             try await wait(.done)
-        case 13:
+        case 14:
             // App 页下沉、键盘升回，下拉还开着，末尾多出「英文」。
             withAnimation(.easeOut(duration: 0.35)) { appPage = false }
             try await pause(0.35)
@@ -1035,12 +1072,12 @@ final class TourModel: ObservableObject {
             pinRunning = false
             pinDone = Date()
             try await pause(0.6)
-        case 14:
+        case 15:
             try await pause(0.3)
             try await incoming(s.typingMessage)
             try await type(\.field, s.typingField, duration: 0.3)
             try await wait(.punct)
-        case 15:
+        case 16:
             try await wait(.letter)
         default:
             if layout == .nineKey {
@@ -1060,6 +1097,11 @@ final class TourModel: ObservableObject {
 
     private func pause(_ seconds: Double) async throws {
         try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+    }
+
+    /// 回答卡展开、收起、变高：键盘变高、对话卡底边跟着键盘顶一起动，同一个弹簧（OC2）；减弱动态效果时 0.2 秒。
+    private var cardMotion: Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.5, dampingFraction: 0.88)
     }
 
     /// 等用户点对那一处（抬起才算）。
