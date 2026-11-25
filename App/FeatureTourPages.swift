@@ -236,7 +236,7 @@ private struct TourWelcomePage: View {
                 .padding(.top, compact ? 14 : 22)
                 .tourEntrance(1, shown)
                 VStack(alignment: .leading, spacing: 6) {
-                    TourGroupNote(text: L("6 个章节 · 17 步", "6 chapters · 17 steps", "6 章 · 17 ステップ"))
+                    TourGroupNote(text: L("5 个章节 · 14 步", "5 chapters · 14 steps", "5 章 · 14 ステップ"))
                     TourGroup {
                         ForEach(TourChapter.allCases) { chapter in
                             if chapter != .polish { TourRowDivider() }
@@ -401,7 +401,7 @@ private struct TourStepPage: View {
 
     /// 标题 20 粗、说明 14 灰，隔 3；说明最多两行，矮屏一行（OC1 ②）。
     private var header: some View {
-        let text = TourStepText.of(model.step, layout: model.layout)
+        let text = TourStepText.of(model.step)
         return ZStack(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(text.title)
@@ -424,8 +424,8 @@ private struct TourStepPage: View {
 
 // MARK: - 对话卡
 
-/// 白色圆角 12 的卡片，内边距 10：消息（最上面一行「演示内容 · 不会发送」小字，跟着消息滚出去），
-/// 下面宿主输入框（绿色光标）。没有联系人一行，小林的头像在他每条气泡左下（OC1 ③④）。
+/// 白色圆角 12 的卡片，内边距 10：三人群聊「项目组」的消息（最上面一行「项目组（3 人）· 演示内容，不会发送」小字，跟着消息滚出去），
+/// 下面宿主输入框（绿色光标，占位「发到 项目组」）。没有联系人一行，别人的气泡上面一行小字名字、左下头像（第五节）。
 private struct TourChat: View {
     @ObservedObject var model: TourModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -435,13 +435,12 @@ private struct TourChat: View {
             // 消息贴底，放不下时最早的从顶上出去并裁掉；顶边 18pt 用卡片底色渐隐（放得下时那里是空的，看不出来）。
             // 消息区本身占满卡片里剩下的高，不量消息多高。编辑菜单占着气泡上方自己那一格，在消息区里面。
             VStack(alignment: .leading, spacing: 8) {
-                Text(L("演示内容 · 不会发送", "Demo content · Not sent", "デモ内容 · 送信されません"))
-                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                Text(model.script.group + " · " + L("演示内容，不会发送", "Demo content, not sent", "デモ内容、送信されません"))
+                    .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
                     .frame(maxWidth: .infinity)
                     .padding(.bottom, 4)
                 ForEach(model.messages) { message in
-                    TourBubble(model: model, message: message,
-                               isLast: message.id == model.messages.last(where: { !$0.mine && !$0.typing })?.id)
+                    TourBubble(model: model, message: message)
                         .transition(message.mine
                             ? .scale(scale: 0.94, anchor: .bottomTrailing).combined(with: .opacity)
                             : .scale(scale: 0.92, anchor: .bottomLeading).combined(with: .opacity))
@@ -462,21 +461,19 @@ private struct TourChat: View {
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourUI.group))
     }
 
-    /// 宿主输入框：绿色光标在末尾（全键盘按住空格时跟着挪）；识意框在编辑时宿主没有光标。
+    /// 宿主输入框：绿色光标在末尾；识意框在编辑时宿主没有光标。
     private var hostField: some View {
         let script = model.script
         let caret = !model.askEditing && !model.expanded
         let text = model.field
-        let split = text.index(text.endIndex, offsetBy: -min(model.caretBack, text.count))
         return Group {
             if text.isEmpty {
                 (Text(caret ? "▏" : "").foregroundColor(TourColor.hostCaret) + Text(script.placeholder).foregroundColor(Color(.placeholderText)))
             } else if let stream = model.fieldStream {
                 TourStreamText(text: text, start: stream.start, perChar: stream.perChar, color: .primary)
             } else {
-                (Text(String(text[..<split])).foregroundColor(.primary)
-                 + Text(caret || model.trackpad ? "▏" : "").foregroundColor(TourColor.hostCaret)
-                 + Text(String(text[split...])).foregroundColor(.primary))
+                (Text(text).foregroundColor(.primary)
+                 + Text(caret ? "▏" : "").foregroundColor(TourColor.hostCaret))
             }
         }
         .font(.system(size: 17))
@@ -493,12 +490,15 @@ private struct TourChat: View {
     }
 }
 
-/// 一条消息：我方紫底白字靠右，对方灰底靠左；「正在输入」是三个点。
-/// 对方最新那条：帮回第 1 步长按它出编辑菜单（拷贝 / 翻译 / 更多），拷贝后旁边「已拷贝」。
+/// 一条消息：我方紫底白字靠右，别人灰底靠左（上面一行小字名字、左下头像）；「正在输入」是三个点。
+/// 帮回第 1 步：长按 Alex 那条（copyable）出编辑菜单（拷贝 / 翻译 / 更多），拷贝后旁边「已拷贝」。
 private struct TourBubble: View {
     @ObservedObject var model: TourModel
     let message: TourModel.Message
-    let isLast: Bool
+
+    private var person: TourPerson {
+        message.from == .foreign ? model.script.foreign : model.script.local
+    }
 
     var body: some View {
         if message.mine {
@@ -512,15 +512,19 @@ private struct TourBubble: View {
         } else if message.typing {
             HStack(alignment: .bottom, spacing: 6) {
                 avatar
-                TourTypingDots()
-                    .padding(.horizontal, 14).frame(height: 34)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourColor.bubble))
+                // 名字跟着「正在输入」一起出来，换成气泡时那一行不跳。
+                VStack(alignment: .leading, spacing: 2) {
+                    nameLabel
+                    TourTypingDots()
+                        .padding(.horizontal, 14).frame(height: 34)
+                        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourColor.bubble))
+                }
                 Spacer()
             }
         } else {
             HStack(alignment: .bottom, spacing: 6) {
                 avatar
-                peerBubble
+                peerColumn
                 // 位置一直占着，拷贝前看不见：拷贝后气泡不用重新折行。
                 if message.copyable {
                     Text(L("已拷贝", "Copied", "コピー済み"))
@@ -538,39 +542,55 @@ private struct TourBubble: View {
         }
     }
 
-    /// 小林的头像：24 圆，橙底白字，在气泡左下，和气泡隔 6。
+    /// 头像：24 圆，白字，在气泡左下，和气泡隔 6（小林橙「林」，Alex 玫红「A」）。
     private var avatar: some View {
-        Text(model.script.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+        Text(person.avatar).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
             .frame(width: 24, height: 24)
-            .background(Circle().fill(Color(.systemOrange)))
+            .background(Circle().fill(person.color))
             .accessibilityHidden(true)
+    }
+
+    /// 气泡上面一行：名字 11pt 灰，离气泡 2（第五节）。
+    private var nameLabel: some View {
+        Text(person.name)
+            .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+            .padding(.leading, 4)
     }
 
     /// 编辑菜单高 40，和气泡隔 8。
     private static let menuSpace: CGFloat = 48
 
-    private var peerBubble: some View {
-        let selecting = isLast && model.bubbleMenu
-        let lifted = isLast && model.bubbleLifted
-        let holdable = isLast && model.target == .peerBubble
+    /// 名字（11pt 灰，离气泡 2）加气泡。菜单出来时整列上方让出一格放菜单（OG3 ④），不盖住上面那条。
+    private var peerColumn: some View {
+        let copyTarget = message.copyable
+        let selecting = copyTarget && model.bubbleMenu
+        let lifted = copyTarget && model.bubbleLifted
+        return VStack(alignment: .leading, spacing: 2) {
+            nameLabel
+            peerBubble(selecting: selecting)
+        }
+        .padding(.top, lifted ? Self.menuSpace : 0)
+        .overlay(alignment: .topLeading) {
+            if selecting {
+                TourEditMenu(model: model)
+                    .transition(.scale(scale: 0.85, anchor: .bottomLeading).combined(with: .opacity))
+            }
+        }
+    }
+
+    private func peerBubble(selecting: Bool) -> some View {
+        let copyTarget = message.copyable
+        let holdable = copyTarget && model.target == .peerBubble
         let pressedDemo = holdable && model.demoDown && model.pressed == nil
         // 长按只认气泡本身。菜单不能放进长按那一层里：长按层的 contentShape 只有气泡那么大，
         // 菜单在气泡外面，点上去收不到（0.97_13 真机「拷贝」点不动、按下也不变暗）。
-        // 菜单出来时气泡上方让出一格放菜单（OG3 ④），不盖住上面那条。
         return Text(message.text)
             .font(.system(size: 15)).foregroundStyle(.primary)
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(TourColor.bubble))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(TourUI.accent, lineWidth: selecting ? 2 : 0))
-            .scaleEffect(model.pressed == .peerBubble && isLast ? 0.97 : pressedDemo ? 0.985 : 1)
-            .modifier(TourHoldable(enabled: isLast, target: .peerBubble, model: model))
-            .padding(.top, lifted ? Self.menuSpace : 0)
-            .overlay(alignment: .topLeading) {
-                if selecting {
-                    TourEditMenu(model: model)
-                        .transition(.scale(scale: 0.85, anchor: .bottomLeading).combined(with: .opacity))
-                }
-            }
+            .scaleEffect(model.pressed == .peerBubble && copyTarget ? 0.97 : pressedDemo ? 0.985 : 1)
+            .modifier(TourHoldable(enabled: copyTarget, target: .peerBubble, model: model))
     }
 }
 
@@ -690,7 +710,7 @@ private struct TourTouchLayer: View {
     var body: some View {
         GeometryReader { proxy in
             let rect = model.target.flatMap { anchors[$0] }.map { proxy[$0] }
-            let hidden = rect == nil || model.popup != nil || model.trackpad
+            let hidden = rect == nil
             let center = rect.map { CGPoint(x: $0.midX, y: $0.midY) }
             ZStack {
                 if let rect, !hidden, !reduceMotion, !model.demoDown, model.pressed == nil {
@@ -700,7 +720,7 @@ private struct TourTouchLayer: View {
                     // 缩放、位移先作用在圆点自己身上，再放到弧线上的位置（放过位置后整层是全屏大小，缩放会跑偏）。
                     touch
                         .scaleEffect(entered || reduceMotion ? 1 : 0.7)
-                        .offset(x: slideOffset(rect), y: entered || reduceMotion ? 0 : 26)
+                        .offset(y: entered || reduceMotion ? 0 : 26)
                         .opacity(hidden ? 0 : (model.pressed != nil ? 0.3 : 1))
                         .animation(.easeOut(duration: 0.2), value: hidden)
                         .modifier(TourArcPlace(from: from ?? to, to: to, progress: progress))
@@ -734,15 +754,6 @@ private struct TourTouchLayer: View {
                 .frame(width: Self.size, height: Self.size)
                 .scaleEffect(model.demoDown ? 0.78 : 1)
                 .animation(model.demoDown ? .easeOut(duration: 0.1) : .spring(response: 0.3, dampingFraction: 0.6), value: model.demoDown)
-        }
-    }
-
-    /// 按住再滑的示范：「，。」、e 往右滑一格，空格往左滑一段。
-    private func slideOffset(_ rect: CGRect?) -> CGFloat {
-        guard let target = model.target, target.gesture == .slide, let rect else { return 0 }
-        switch target {
-        case .space: return -60 * model.demoSlide
-        default: return (model.layout == .nineKey ? -rect.width * 0.6 : rect.width) * model.demoSlide
         }
     }
 
@@ -920,7 +931,7 @@ struct TourCheckShape: Shape {
 
 // MARK: - OG2 ③ 设置 › 功能演示
 
-/// 和首次打开同样 6 章：点一章只看这一章，看完回到这页；「从头播放」放全部 17 步。这里不改设置，键盘只显示。
+/// 和首次打开同样 5 章：点一章只看这一章，看完回到这页；「从头播放」放全部 14 步。这里不改设置，键盘只显示。
 struct TourChaptersView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -956,7 +967,7 @@ struct TourChaptersView: View {
                     .buttonStyle(.plain)
                 }
             } header: {
-                Text(L("6 个章节 · 17 步 · 约 3 分钟", "6 chapters · 17 steps · About 3 min", "6 章 · 17 ステップ · 約 3 分"))
+                Text(L("5 个章节 · 14 步 · 约 3 分钟", "5 chapters · 14 steps · About 3 min", "5 章 · 14 ステップ · 約 3 分"))
             }
         }
         .listStyle(.insetGrouped)

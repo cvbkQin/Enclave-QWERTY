@@ -225,7 +225,7 @@ struct SettingsView: View {
                         .lineLimit(1)
                 }
             }
-            // 功能演示（T95，OG2 ③）：章节页，点一章只看这一章，「从头播放」放 17 步（模拟键盘、预设结果，不调用 API）。
+            // 功能演示（T95，OG2 ③）：章节页，点一章只看这一章，「从头播放」放 14 步（模拟键盘、预设结果，不调用 API）。
             NavigationLink(value: AppRouter.SettingsPage.tour) {
                 DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
                         value: L("约 3 分钟", "About 3 min", "約 3 分"))
