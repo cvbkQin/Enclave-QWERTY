@@ -5,11 +5,15 @@ import SwiftUI
 /// 功能键一列（PK3 ①）：最上面回答卡开关，下面润色 ⌄、问答 ⌄、钉住的风格（多了上下滑、底部渐隐），最下面 ↶ ↷。
 /// 九键在右时这一列在最左、靠左对齐；九键在左（PK4）时在最右、靠右对齐，回答卡开关左右镜像。
 /// 打字时留在原位、变淡、点不了，键盘不跳；打完一个词恢复（PK3 右 ②）。⌄ 的下拉框往中间弹（KeyboardView）。
+/// 刚复制别人的话：帮回键从问答下面弹出，后面的键往下让，宽和这一列别的键一样（T96，design/ipad/交接.md）。
 struct PadNineFunctions: View {
     @ObservedObject var model: KeyboardModel
     let nineOnLeft: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let fade: CGFloat = 18
+    /// 这一列的键宽：回答卡开关、润色键、帮回键、撤销重做（竖屏 86、横屏 94）。
+    static var keyWidth: CGFloat { KeyboardMetrics.pad?.landscape == true ? 94 : 86 }
 
     var body: some View {
         // 功能关掉或不能用时，它固定的风格键也不显示（和 AI 栏一样，QE）。
@@ -18,22 +22,38 @@ struct PadNineFunctions: View {
         }
         let alignment: HorizontalAlignment = nineOnLeft ? .trailing : .leading
         let edge: Alignment = nineOnLeft ? .trailing : .leading
+        let helpShown = model.helpKeyShown
         VStack(alignment: alignment, spacing: 8) {
             PadCardToggle(model: model, mirrored: nineOnLeft)
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: alignment, spacing: 8) {
-                    if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
-                    if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
-                    if model.helpKeyShown { HelpPopKey(model: model) }
-                    ForEach(pins, id: \.style.id) { pin in
-                        PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
+            // 滚动代理直接包着 ScrollView（AIKeyStrip 的注释：从外面叫 scrollTo 不动）。
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: alignment, spacing: 8) {
+                        if model.settings.showsPolishKey || model.debugUnblocked { StyleKey(model: model, row: .prompts) }
+                        if model.settings.showsAnswerKey || model.debugUnblocked { StyleKey(model: model, row: .answerStyles) }
+                        // 帮回键：问答下面，从 0 高展开、后面的键往下让；用完或 1 分钟缩回去，后面的往上补位。不占「N / 5」。
+                        if helpShown {
+                            HelpPopKey(model: model, width: Self.keyWidth)
+                                .id(HelpPopKey.revealID)
+                                .transition(HelpKeyPop.transition(reduceMotion: reduceMotion))
+                        }
+                        ForEach(pins, id: \.style.id) { pin in
+                            PinnedStyleKey(model: model, style: pin.style, answer: pin.answer)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: edge)
+                    .animation(HelpKeyPop.layout(showing: helpShown, reduceMotion: reduceMotion), value: helpShown)
+                    // 最后一颗不压在渐隐里。
+                    .padding(.bottom, Self.fade)
                 }
-                .frame(maxWidth: .infinity, alignment: edge)
-                // 最后一颗不压在渐隐里。
-                .padding(.bottom, Self.fade)
+                .hidingScrollEdgeEffect()
+                // 帮回键在看不见的地方时滚过去（同 AIKeyStrip 的 reveal）：
+                // - 弹出时：这一列往下滑过，帮回键在上面；
+                // - 回答卡展开、开始等帮回时：按键压矮，这一列只露润色、问答两颗，帮回键在渐隐下面，2 秒里点不到（第 94 条，模拟器 11 寸竖屏）。
+                .onChange(of: helpShown) { if $0 { revealHelpKey(proxy, delay: 0) } }
+                .onChange(of: model.aiExpanded) { if $0 { revealHelpKey(proxy, delay: 0.15) } }
+                .onChange(of: model.helpWaiting) { if $0 { revealHelpKey(proxy, delay: 0.15) } }
             }
-            .hidingScrollEdgeEffect()
             .mask {
                 VStack(spacing: 0) {
                     Color.black
@@ -41,12 +61,23 @@ struct PadNineFunctions: View {
                         .frame(height: Self.fade)
                 }
             }
-            UndoRedoPair(model: model, fillWidth: KeyboardMetrics.pad?.landscape == true ? 94 : 86)
+            UndoRedoPair(model: model, fillWidth: Self.keyWidth)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: nineOnLeft ? .topTrailing : .topLeading)
         .opacity(model.isComposing ? 0.4 : 1)
         .allowsHitTesting(!model.isComposing)
         .animation(.easeOut(duration: 0.15), value: model.isComposing)
+    }
+
+    /// 把帮回键滚到这一列中间（滚不动就停在头、尾）：上面的问答尽量还露着，帮回键不压在底部渐隐里。
+    /// 等它排进来、按键压矮以后再滚，不然找不到或者算错位置。
+    private func revealHelpKey(_ proxy: ScrollViewProxy, delay: Double) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            guard model.helpKeyShown else { return }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                proxy.scrollTo(HelpPopKey.revealID, anchor: .center)
+            }
+        }
     }
 }
 

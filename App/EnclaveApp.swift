@@ -259,7 +259,7 @@ final class AppRouter: ObservableObject {
 
     /// 设置里的二级页。setup：首次设置（欢迎页四步）；firstScene：使用指引的第一个场景（enclave://playground）。
     enum SettingsPage: String, Hashable {
-        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools, backup
+        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools, backup, tour
     }
 
     /// 在「文件」等处点开的 .enclave 备份文件：备份页读到后弹恢复面板。
@@ -389,7 +389,7 @@ final class AppRouter: ObservableObject {
             switch args[i + 1] {
             case "reset": FeatureTour.seen = false
             case "seen": FeatureTour.seen = true
-            case "open": setupGuide = .tourReplay
+            case "open": setupGuide = .tourReplay(nil)
             default: break
             }
         }
@@ -821,6 +821,11 @@ final class AppStore: ObservableObject {
         var ok = false
         if case .success = result { ok = true }
         SharedStorage.defaults.set(ok, forKey: testKey)
+        // 上手引导第 3 步「连接 AI」（T95）：润色测通就算定了问答，默认和润色用同一个配置；另配过问答 Key 的不动。
+        if ok && !WelcomeSetup.answerDecided {
+            WelcomeSetup.answerDecided = true
+            if answerApiKey.isEmpty { settings.separateAnswer = false }
+        }
         // 测试也算一次请求，润色卡的最近 20 次里有它；先记再改状态，接口卡收到变化时就能读到这一次。
         UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.model, error: failure, test: true)
         testFailure = reason

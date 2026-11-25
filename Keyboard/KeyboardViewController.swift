@@ -624,6 +624,8 @@ final class KeyboardViewController: UIInputViewController {
         let clipboardStart = CACurrentMediaTime()
         // 剪贴板换没换过（只看 changeCount、hasStrings，不读内容）：「常用」键上的紫点。
         model.checkClipboard()
+        // 「自动保存复制的内容」开着：键盘出现时就把新复制的文字存下来（T97 方案 B）。
+        model.autoSaveClipboard()
         startClipboardPoll()
         let wordsStart = CACurrentMediaTime()
         // 常用词要读系统文本替换和通讯录、可能重写词库里的短语表，不影响键盘长什么样，放到弹出以后再做，
@@ -698,6 +700,10 @@ final class KeyboardViewController: UIInputViewController {
         PopupLog.noteHide(cleanup: how)
         clipboardPoll?.invalidate()
         clipboardPoll = nil
+        // 收起键盘时「常用 / 剪贴板」还开着：算离开面板，下次打开「新」从这里算（T97）。
+        if model.clipboardPanelShowing { model.noteClipboardPanelLeft() }
+        // 帮回还在等（HW1）：收起键盘就取消，不回。
+        model.cancelHelpWait()
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
         releaseEngine()
         model.pressedKeys = []
@@ -717,7 +723,7 @@ final class KeyboardViewController: UIInputViewController {
         DailyStats.flush()
     }
 
-    /// 弹出以后才开始，第一次在 1 秒后；没开完全访问时读不了剪贴板，不轮询。
+    /// 弹出以后才开始，第一次在 1 秒后；没开完全访问时读不了剪贴板，不轮询。收起时停掉，自动保存也就不读了。
     private func startClipboardPoll() {
         clipboardPoll?.invalidate()
         clipboardPoll = nil
@@ -735,6 +741,7 @@ final class KeyboardViewController: UIInputViewController {
             guard count != last else { return }
             self.polledChangeCount = count
             self.model.checkClipboard()
+            self.model.autoSaveClipboard()
         }
         timer.tolerance = 0.3
         RunLoop.main.add(timer, forMode: .common)

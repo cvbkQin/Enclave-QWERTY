@@ -162,7 +162,7 @@ extension KeyboardModel {
     /// iPhone AI 栏和 iPad 九宫格那一列都看它；弹出、收回的动画在视图上带（HelpKeyPop）。
     var helpKeyShown: Bool {
         guard helpPopupOn else { return false }
-        if helpShowsPending { return true }
+        if helpShowsPending || helpWait != nil { return true }
         guard lastRunPin == Self.helpPinID else { return false }
         if isRunning || helpKeyCelebrating { return true }
         if quickStatus == .failed { return true }
@@ -206,20 +206,32 @@ extension KeyboardModel {
         startHelpReply(text: item.text)
     }
 
-    /// 帮回一次：读剪贴板（给了 text 就用它），用当前润色风格写一条，接在当前时间线后面。
-    /// 回答卡收着：结果直接放进输入框（有字就替换），和收起时的润色一样能撤销；展开：结果出在卡上，识意框里的字是要求。
-    func startHelpReply(text given: String? = nil, fromPin: Bool = false) {
+    /// 帮回一次：读剪贴板（给了 text 就用它），用当前润色风格写一条，接在当前时间线后面。结果出在回答卡上（收着时先展开），
+    /// 识意框里的字是要求。帮回加要求（对齐清单第 94 条，design/help-reply/again）：
+    /// - 卡上是帮回写的一版、又没有新的待回复制（HR1）：回这一版记下的原话，不读剪贴板，系统横幅不再闪。
+    /// - 开新的一句、识意框空着（HW1）：先等 2 秒，等的时候点识意框就停下，写好要求再点帮回；再点帮回键马上回。
+    /// keepPin：从润色键转过来的（写了要求点润色），执行动效留在被点的那颗键上。
+    func startHelpReply(text given: String? = nil, fromPin: Bool = false, keepPin: Bool = false, style: StylePreset? = nil) {
         endCelebration()
         if isRunning { stop(); return }
-        lastRunPin = fromPin ? Self.helpPinID : nil
+        if !keepPin { lastRunPin = fromPin ? Self.helpPinID : nil }
         if aiRow != nil { aiRow = nil }
-        guard passGate(then: { [weak self] in self?.startHelpReply(text: given, fromPin: fromPin) }) else { return }
+        // 正在等，或停下来等要求：不等了，马上回（HW1 第 6、7 条）。
+        if helpWait != nil {
+            runHelpWait(style: style)
+            return
+        }
+        guard passGate(then: { [weak self] in self?.startHelpReply(text: given, fromPin: fromPin, keepPin: keepPin, style: style) }) else { return }
         reload()
         if target == .card { finishCardEdit() }
         finishComposition()
         var message = given?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var changeCount: Int?
-        if given == nil {
+        var again = false
+        if given == nil, let source = HelpWait.againSource(expanded: aiExpanded, pending: helpShowsPending, current: session?.currentReplySource) {
+            message = source.message
+            again = true
+        } else if given == nil {
             // 这时才读剪贴板（系统「粘贴自…」横幅照常闪），存进剪贴板记录。剪贴板空就只提示。
             let board = UIPasteboard.general
             let count = board.changeCount
@@ -238,6 +250,130 @@ extension KeyboardModel {
         #if DEBUG
         if debugFakeRun { fakeCoachRun(); return }
         #endif
+        if HelpWait.waitsBeforeReply(again: again, request: helpRequest) {
+            beginHelpWait(message: message, changeCount: changeCount, fromPin: fromPin)
+            return
+        }
+        runHelpReply(message: message, changeCount: changeCount, style: style)
+    }
+
+    /// 识意框里的要求（回答卡展开时才算；点「问答」自动填进去的问题不算）。
+    private var helpRequest: String {
+        guard aiExpanded else { return "" }
+        let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let auto = askAutoFill, text == auto { return "" }
+        return text
+    }
+
+    /// 识意框灰字「补充要求，再点「帮回」重写」（HR1 第 1 条）：回答卡展开、卡上是帮回写的一版、不在生成中。
+    var helpAgainHint: Bool {
+        aiExpanded && session?.currentIsReply == true && !isRunning
+    }
+
+    /// 正在等（还没被打断）。识意框这时不算在编辑：不亮紫线、不闪光标，点一下才停下来进编辑。
+    var helpWaiting: Bool { helpWait?.interrupted == false }
+
+    /// 识意框里有还没用过的要求：帮回键外面亮一圈绿（HW1 ③）。停下来等要求时，或卡上是帮回写的一版、框里的要求和这一版用的不一样。
+    var helpKeyRing: Bool {
+        guard aiExpanded, !isRunning else { return false }
+        let request = helpRequest
+        guard !request.isEmpty else { return false }
+        if helpWait?.interrupted == true { return true }
+        guard let source = session?.currentReplySource else { return false }
+        return source.request?.trimmingCharacters(in: .whitespacesAndNewlines) != request
+    }
+
+    // MARK: 开始前的等待（HW1–HW3）
+
+    /// 开始等：回答卡收着就先展开（结果不再直接进输入框，要留出写要求的地方），识意框清空，2 秒后自动回。
+    private func beginHelpWait(message: String, changeCount: Int?, fromPin: Bool) {
+        if !aiExpanded { setAIExpanded(true) }
+        if !instruction.isEmpty { setInstruction("") }
+        if askSelected { askSelected = false }
+        askAutoFill = nil
+        errorMessage = nil
+        clearFailure()
+        helpWaitTimer?.cancel()
+        helpWaitLanded = nil
+        helpWaitFlashing = false
+        helpWait = HelpWait(message: message, changeCount: changeCount, fromPin: fromPin, startedAt: Date())
+        helpWaitBrushOn = true
+        let work = DispatchWorkItem { [weak self] in self?.landHelpWait() }
+        helpWaitTimer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + HelpWait.duration, execute: work)
+        // 第一次读钥匙串慢（06 iPad 核对约 140ms）：趁等的时候在后台先读一次，走满那一刻不卡。
+        DispatchQueue.global(qos: .userInitiated).async { _ = SettingsStore.apiKey }
+        UIAccessibility.post(notification: .announcement,
+                             argument: L("2 秒后自动帮回，点识意框可以先写要求", "Replying in 2 seconds. Tap the box to add a request first.",
+                                         "2 秒後に自動で返信します。欄をタップすると先に指示を書けます"))
+    }
+
+    /// 2 秒走满：笔刷尽头一亮碎成光点，白光刷过、卡边绿光一闪，同一刻开始帮回。
+    private func landHelpWait() {
+        guard let wait = helpWait, !wait.interrupted else { return }
+        let now = Date()
+        helpWaitLanded = now
+        helpWaitFlashing = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            guard let self, self.helpWaitLanded == now else { return }
+            self.helpWaitFlashing = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self, self.helpWaitLanded == now, self.helpWait == nil else { return }
+            self.helpWaitBrushOn = false
+            self.helpWaitLanded = nil
+        }
+        // 先让闪光那一帧画出来，下一帧再发请求（建请求在主线程上，第一次慢时会把闪光压住）。
+        let started = wait.startedAt
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 60) { [weak self] in
+            guard let self, self.helpWait?.startedAt == started else { return }
+            self.runHelpWait(landed: true)
+        }
+    }
+
+    /// 不等了，用等着的那句回（走满、再点帮回键、停下后写好要求点帮回或回车、写了要求点润色）。
+    func runHelpWait(landed: Bool = false, style: StylePreset? = nil) {
+        guard let wait = helpWait else { return }
+        helpWaitTimer?.cancel()
+        helpWaitTimer = nil
+        helpWait = nil
+        if !landed {
+            helpWaitBrushOn = false
+            helpWaitLanded = nil
+            helpWaitFlashing = false
+        }
+        if target == .card { finishCardEdit() }
+        finishComposition()
+        runHelpReply(message: wait.message, changeCount: wait.changeCount, style: style)
+    }
+
+    /// 点识意框、在框里打字：计时停下，笔刷顿住、变灰往回收、淡掉，不再自动回；原话留着，等写要求。
+    func interruptHelpWait() {
+        guard var wait = helpWait, !wait.interrupted else { return }
+        helpWaitTimer?.cancel()
+        helpWaitTimer = nil
+        let now = Date()
+        wait.interruptedAt = now
+        helpWait = wait
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+            guard let self, self.helpWait?.interruptedAt == now else { return }
+            self.helpWaitBrushOn = false
+        }
+    }
+
+    /// 收起回答卡、收起键盘、改点别的：取消，不回，也不算次数。
+    func cancelHelpWait() {
+        guard helpWait != nil else { return }
+        helpWaitTimer?.cancel()
+        helpWaitTimer = nil
+        helpWait = nil
+        helpWaitBrushOn = false
+        helpWaitLanded = nil
+        helpWaitFlashing = false
+    }
+
+    /// 真正发出去：输入框里自己打的字当「我想说的意思」，识意框的字（加上输入框里的「// 要求」）当要求。
+    private func runHelpReply(message: String, changeCount: Int?, style override: StylePreset?) {
         let parsed = CommandParser.parse(readField(remember: true).text)
         dropSession(unlessItBelongsTo: parsed.content)
         // 输入框里自己打的字当「我想说的意思」；是上一版结果（替换进去的回复、润色结果）就不算。
@@ -247,29 +383,21 @@ extension KeyboardModel {
         }) {
             meaning = ""
         }
-        // 要求：回答卡展开时识意框里的字（点「问答」自动填进去的问题不算），加上输入框里的「// 要求」。
-        var request = aiExpanded ? instruction.trimmingCharacters(in: .whitespacesAndNewlines) : ""
-        if let auto = askAutoFill, request == auto { request = "" }
+        var request = helpRequest
         if !parsed.instruction.isEmpty { request = request.isEmpty ? parsed.instruction : parsed.instruction + "\n" + request }
-        let style = settings.selectedStyle
+        let style = override ?? settings.selectedStyle
         let messages = HelpReply.messages(message: message, style: style, meaning: meaning, request: request)
         let reply = ReplyRequest(source: EditSession.ReplySource(message: message, request: request.isEmpty ? nil : request,
                                                                  meaning: meaning.isEmpty ? nil : meaning),
                                  changeCount: changeCount)
         let pending = session ?? EditSession(mode: .polish, original: parsed.content)
         if askSelected { askSelected = false }
-        guard !aiExpanded else {
-            start(from: .polish) { run(messages, pending: pending, reply: reply) }
-            return
-        }
-        beginQuickMode(source: readField().text)
+        // 结果出在回答卡上（HW1 第 1 条：原来收着时结果直接进输入框的做法不用了）。
+        if !aiExpanded { setAIExpanded(true) }
+        let previous = runStyleOverride
+        runStyleOverride = override
         start(from: .polish) { run(messages, pending: pending, reply: reply) }
-        // 没开始（次数用完之类）就展开，把原因显示出来。
-        if !isRunning {
-            quickSource = nil
-            clearQuickStatus()
-            setAIExpanded(true)
-        }
+        runStyleOverride = previous
     }
 }
 

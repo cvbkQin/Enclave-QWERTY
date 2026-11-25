@@ -689,7 +689,8 @@ struct AskField: View {
     }.withRenderingMode(.alwaysTemplate)
 
     var body: some View {
-        let editing = model.target == .instruction
+        // 帮回等着的时候（HW1 ①）识意框不算在编辑：灰字「先说要求？点这里…」，点一下才停下来进编辑。
+        let editing = model.target == .instruction && !model.helpWaiting
         HStack(alignment: boxed ? .top : .center, spacing: 8) {
             Group {
                 if editing {
@@ -758,9 +759,19 @@ struct AskField: View {
     }
 
     private var placeholder: String {
+        // 帮回开始前等着（HW1 ①）、点识意框停下来以后（HW1 ②）。
+        if let wait = model.helpWait {
+            return wait.interrupted
+                ? L("想怎么回？写好点「帮回」", "How should it reply? Tap Reply when ready", "どう返す？書けたら「返信」")
+                : L("先说要求？点这里，不点就自动回", "Add a request first? Tap here, or wait", "指示を書くならタップ。待つと自動で返信。")
+        }
         // 弹出了帮回键、输入框空（T96 图 ③）：框里写的是怎么回。
         if model.helpReplyHint {
             return L("想怎么回？可以留空", "How to reply? Can be left blank", "どう返す？空欄でも OK")
+        }
+        // 帮回出了一版（HR1 第 1 条）：可以补要求再点帮回重写。
+        if model.helpAgainHint {
+            return L("补充要求，再点「帮回」重写", "Add a request, then tap Reply again", "指示を書いて、もう一度「返信」")
         }
         return L("问个问题，或说说这段话想怎么改", "Ask anything, or say how to change it", "質問するか、どう直すかを書いてください")
     }
@@ -774,7 +785,7 @@ struct AskField: View {
             Text(placeholder)
                 .foregroundStyle(caretVisible == nil ? Brand.askFaint : Brand.askPlaceholderActive)
                 .lineLimit(boxed ? 2 : 1)
-                .minimumScaleFactor(model.helpReplyHint ? 0.75 : 1)
+                .minimumScaleFactor(model.helpReplyHint || model.helpWait != nil || model.helpAgainHint ? 0.75 : 1)
                 .overlay(alignment: .leading) {
                     if let caretVisible { caretImage(caretVisible).offset(x: -2) }
                 }
@@ -818,7 +829,7 @@ struct PadAskArea: View {
     private var box: RoundedRectangle { RoundedRectangle(cornerRadius: 9, style: .continuous) }
 
     var body: some View {
-        let active = model.target == .instruction
+        let active = model.target == .instruction && !model.helpWaiting
         let field = AskField(model: model, boxed: true)
             .background(box.fill(KeyStyle.charKey))
             .overlay(box.strokeBorder(active ? Brand.askCaret : Brand.blockHair, lineWidth: active ? 1.5 : 0.5))
