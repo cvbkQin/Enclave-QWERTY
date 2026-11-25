@@ -61,6 +61,18 @@ struct HelpPopKey: View {
                 KeySparkles(running: running, successAt: success, textX: textX, textWidth: Self.textWidth, seed: 7)
             }
         }
+        .overlay {
+            // 识意框里有还没用过的要求（HW1 ③）：外面亮一圈 2pt #34D399 加柔光，提示点它。
+            if model.helpKeyRing {
+                Capsule()
+                    .strokeBorder(HelpStyle.hex(0x34D399), lineWidth: 2)
+                    .padding(-3)
+                    .shadow(color: HelpStyle.hex(0x34D399, 0.6), radius: 4)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: model.helpKeyRing)
         .opacity(model.hasFullAccess ? 1 : 0.45)
         .modifier(EmptyTapShake(trigger: model.keyShakes[key] ?? 0))
         .contentShape(Capsule())

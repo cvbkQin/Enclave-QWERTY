@@ -698,6 +698,8 @@ final class KeyboardViewController: UIInputViewController {
         PopupLog.noteHide(cleanup: how)
         clipboardPoll?.invalidate()
         clipboardPoll = nil
+        // 帮回还在等（HW1）：收起键盘就取消，不回。
+        model.cancelHelpWait()
         // 收起时关掉 Rime 会话，放开共享容器里用户词库的锁，免得挂起时被系统杀（0xDEAD10CC）。下次弹出 selectEngine 会重建。
         releaseEngine()
         model.pressedKeys = []
