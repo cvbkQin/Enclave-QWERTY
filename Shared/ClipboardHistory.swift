@@ -1,8 +1,9 @@
 import Foundation
 
-/// 剪贴板记录（B1，CB1–CB4，对齐清单第 56 条）：九宫格「常用 › 剪贴板」里粘贴过的文字。
-/// 只在用户点「有新复制的内容，点一下粘贴」时才读系统剪贴板；判断有没有新内容只看 changeCount 和 hasStrings，不读内容。
-/// 存在 App Group 的文件里，只在本机：最多 20 条，超过 24 小时自动删除。不备份、不同步、不上传。
+/// 剪贴板记录（B1，CB1–CB4，对齐清单第 56 条；T97 点开就存，design/clipboard-autosave）：键盘「常用 › 剪贴板」里你复制过的文字。
+/// 点开剪贴板一栏时才读系统剪贴板：有新复制的文字就存成第一条，不粘贴；判断有没有新内容只看 changeCount 和 hasStrings，不读内容。
+/// 密码管理器复制的密码（条目带隐藏标记）、纯数字（detectPatterns）不读不存。
+/// 存在 App Group 的文件里，只在本机：最多 N 条（10 / 20 / 50 / 100，默认 20），超过 24 小时自动删除。不备份、不同步、不上传。
 struct ClipItem: Codable, Identifiable, Equatable {
     var id = UUID()
     var text: String
@@ -10,10 +11,14 @@ struct ClipItem: Codable, Identifiable, Equatable {
 }
 
 enum ClipboardHistory {
-    static let maxItems = 20
+    /// 「最多保存条数」能选的几档（cvbk 11-25），默认 20（同以前）。
+    static let limitOptions = [10, 20, 50, 100]
+    static let defaultLimit = 20
     static let lifetime: TimeInterval = 24 * 3600
     private static let enabledKey = "clipboard.history.enabled"
     private static let changeCountKey = "clipboard.lastChangeCount"
+    private static let limitKey = "clipboard.maxCount"
+    private static let leftPanelKey = "clipboard.panelLeftAt"
     /// App 和键盘都会写这个文件，按顺序来。
     private static let queue = DispatchQueue(label: "enclave.clipboard")
 
@@ -26,7 +31,42 @@ enum ClipboardHistory {
         }
     }
 
-    /// 上次看过（粘贴过、或者自己写进剪贴板）时系统剪贴板的 changeCount；没有记录时为 nil。
+    /// 最多保存条数：App 设、键盘读同一个值；只在本机，不同步、不备份。存的值不在几档里时按 20。
+    static var maxItems: Int {
+        let stored = SharedStorage.defaults.integer(forKey: limitKey)
+        return limitOptions.contains(stored) ? stored : defaultLimit
+    }
+
+    /// 改最多保存条数：改小时顺手删掉最早的几条（App 里先确认过）。
+    static func setMaxItems(_ value: Int) {
+        guard limitOptions.contains(value) else { return }
+        SharedStorage.defaults.set(value, forKey: limitKey)
+        queue.sync {
+            let items = read()
+            let kept = trimmed(items, limit: value)
+            if kept.count != items.count { write(kept) }
+        }
+    }
+
+    /// 改成 limit 条会删掉几条（App 的确认框用）。
+    static func removedCount(current: Int, limit: Int) -> Int { max(0, current - limit) }
+
+    /// 上次离开「常用 / 剪贴板」面板的时间：之后存进来的记录在键盘里标「新」。各个 App 里的键盘共用。
+    static var panelLeftAt: Date? {
+        get {
+            let value = SharedStorage.defaults.double(forKey: leftPanelKey)
+            return value > 0 ? Date(timeIntervalSince1970: value) : nil
+        }
+        set {
+            if let newValue {
+                SharedStorage.defaults.set(newValue.timeIntervalSince1970, forKey: leftPanelKey)
+            } else {
+                SharedStorage.defaults.removeObject(forKey: leftPanelKey)
+            }
+        }
+    }
+
+    /// 上次看过（存过、粘贴过、或者自己写进剪贴板）时系统剪贴板的 changeCount；没有记录时为 nil。
     static var lastChangeCount: Int? {
         get { SharedStorage.defaults.object(forKey: changeCountKey) as? Int }
         set { SharedStorage.defaults.set(newValue, forKey: changeCountKey) }
@@ -35,6 +75,23 @@ enum ClipboardHistory {
     /// 有没有新复制的内容：changeCount 变了，而且里面有文字。不读内容，系统不弹提示。
     static func hasNew(changeCount: Int, hasStrings: Bool) -> Bool {
         hasStrings && changeCount != lastChangeCount
+    }
+
+    /// 点开剪贴板时读不读：记录开着、剪贴板一栏露出来（没收起成竖条）、有新复制的文字，三条都满足才读。
+    static func shouldCapture(enabled: Bool, columnVisible: Bool, changeCount: Int, hasStrings: Bool, last: Int?) -> Bool {
+        enabled && columnVisible && hasStrings && changeCount != last
+    }
+
+    /// 密码管理器复制的密码等：条目类型带这些标记时不读不存（只看类型，不读内容，系统不弹提示）。
+    static let concealedTypes = ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType", "com.agilebits.onepassword"]
+
+    static func isConcealed(types: [String]) -> Bool {
+        types.contains { concealedTypes.contains($0) }
+    }
+
+    /// 键盘里标「新」：上次离开面板以后存进来的。
+    static func isNew(_ item: ClipItem, since: Date) -> Bool {
+        item.date > since
     }
 
     static var fileURL: URL? {
@@ -78,8 +135,9 @@ enum ClipboardHistory {
 
     // MARK: - 纯逻辑（单元测试用）
 
-    static func inserting(_ text: String, into items: [ClipItem], now: Date) -> [ClipItem] {
-        var list = pruned(items, now: now)
+    static func inserting(_ text: String, into items: [ClipItem], now: Date, limit: Int? = nil) -> [ClipItem] {
+        let cap = limit ?? maxItems
+        var list = pruned(items, now: now, limit: cap)
         if let index = list.firstIndex(where: { $0.text == text }) {
             var item = list.remove(at: index)
             item.date = now
@@ -87,12 +145,17 @@ enum ClipboardHistory {
         } else {
             list.insert(ClipItem(text: text, date: now), at: 0)
         }
-        return Array(list.prefix(maxItems))
+        return Array(list.prefix(cap))
     }
 
-    static func pruned(_ items: [ClipItem], now: Date) -> [ClipItem] {
+    static func pruned(_ items: [ClipItem], now: Date, limit: Int? = nil) -> [ClipItem] {
         let cutoff = now.addingTimeInterval(-lifetime)
-        return Array(items.filter { $0.date > cutoff }.sorted { $0.date > $1.date }.prefix(maxItems))
+        return trimmed(items.filter { $0.date > cutoff }, limit: limit ?? maxItems)
+    }
+
+    /// 新的在前，只留 limit 条：超过就删掉最早的。
+    static func trimmed(_ items: [ClipItem], limit: Int) -> [ClipItem] {
+        Array(items.sorted { $0.date > $1.date }.prefix(limit))
     }
 
     /// 列表右上角的时间：刚刚 / N 分钟前 / N 小时前。
