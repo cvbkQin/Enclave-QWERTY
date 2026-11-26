@@ -219,9 +219,6 @@ struct SetupGuideView: View {
         let ready = progress.done[0] && progress.done[1]
         return GuideReadyPage(store: store, ready: ready, primary: {
             if ready { finish() } else { history = []; page = .welcome }
-        }, practice: {
-            finish()
-            router.openPlayground()
         })
     }
 

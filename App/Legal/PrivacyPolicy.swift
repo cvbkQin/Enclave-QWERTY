@@ -115,9 +115,9 @@ AI 历史记录仅保存在本机，不会上传。您可以在“历史”页�
 
 **卸载本应用后，上述信息将全部从设备上删除**（购买记录由 App Store 保存，重新安装后可恢复）。[[icloud]]已同步到 iCloud 的数据不会随卸载删除，删除方法见下文“iCloud 同步”。[[/icloud]]
 
-**备份与恢复：** 在“设置 › 数据 › 备份与恢复”中，您可以把数据导出为备份文件，或从备份文件恢复。备份文件存放的位置由您在系统文件选择器中选择，例如本机或 iCloud 云盘，由您自行保管和删除。备份文件默认包含您的设置（包括您保存的接口方案，不含密钥）、常用词、提示词和拼音学习记录；AI 历史记录默认不包含，可以勾选。备份文件**默认不包含 API 密钥**；如您主动勾选，密钥会用您设置的密码加密（PBKDF2 + AES-GCM）后写入备份文件，我们不保存这个密码，也无法帮您找回。剪贴板记录、购买状态和试用信息从不包含在备份文件中：购买可在新设备上通过“恢复购买”找回，试用期不会因恢复备份而重置或延长。导出和恢复都在您的设备上完成，**我们的服务器接触不到您的备份**。[[icloud]]
+**备份与恢复：** 在“设置 › 同步 › 同步与备份”中，您可以把数据导出为备份文件，或从备份文件恢复。备份文件存放的位置由您在系统文件选择器中选择，例如本机或 iCloud 云盘，由您自行保管和删除。备份文件默认包含您的设置（包括您保存的接口方案，不含密钥）、常用词、提示词和拼音学习记录；AI 历史记录默认不包含，可以勾选。备份文件**默认不包含 API 密钥**；如您主动勾选，密钥会用您设置的密码加密（PBKDF2 + AES-GCM）后写入备份文件，我们不保存这个密码，也无法帮您找回。剪贴板记录、购买状态和试用信息从不包含在备份文件中：购买可在新设备上通过“恢复购买”找回，试用期不会因恢复备份而重置或延长。导出和恢复都在您的设备上完成，**我们的服务器接触不到您的备份**。[[icloud]]
 
-**iCloud 同步（默认关闭）：** 在“设置 › 数据 › 备份与恢复”中开启“iCloud 同步”后，App 主程序会把以下数据同步到**您自己的 iCloud 账户**（Apple 的 CloudKit 私有数据库），供您登录同一 Apple 账户的其他设备合并使用：
+**iCloud 同步（默认关闭）：** 在“设置 › 同步 › 同步与备份”中开启“iCloud 同步”后，App 主程序会把以下数据同步到**您自己的 iCloud 账户**（Apple 的 CloudKit 私有数据库），供您登录同一 Apple 账户的其他设备合并使用：
 
 1. 拼音输入学习记录（学到的词）；
 2. 常用词和键盘常用语；
@@ -267,9 +267,9 @@ Either way, the App never reads or monitors the clipboard in the background and 
 
 Deleting the App removes all of this information from your device (your purchase is kept by the App Store and can be restored after reinstalling).[[icloud]] Data already synced to iCloud is not deleted with the App; see "iCloud Sync" below for how to delete it.[[/icloud]]
 
-**Backup and restore.** In Settings › Data › Backup & Restore you can export your data to a backup file or restore from one. You choose where the file is saved in the system file picker, for example on your device or in iCloud Drive, and you keep and delete it yourself. By default the file includes your settings (including saved endpoint configurations, without keys), custom words, prompts and pinyin learning data. AI history is left out by default, and you can choose to include it. The file **leaves out your API keys by default**. If you choose to include them, they are encrypted with a password you set (PBKDF2 + AES-GCM) before being written to the file. We never store this password and cannot recover it for you. Clipboard history, purchase status and trial information are never included: you can get your purchase back on a new device with Restore Purchases, and restoring a backup does not reset or extend the trial. Export and restore happen on your device, and **our server cannot access your backups**.[[icloud]]
+**Backup and restore.** In Settings › Sync › Sync & Backup you can export your data to a backup file or restore from one. You choose where the file is saved in the system file picker, for example on your device or in iCloud Drive, and you keep and delete it yourself. By default the file includes your settings (including saved endpoint configurations, without keys), custom words, prompts and pinyin learning data. AI history is left out by default, and you can choose to include it. The file **leaves out your API keys by default**. If you choose to include them, they are encrypted with a password you set (PBKDF2 + AES-GCM) before being written to the file. We never store this password and cannot recover it for you. Clipboard history, purchase status and trial information are never included: you can get your purchase back on a new device with Restore Purchases, and restoring a backup does not reset or extend the trial. Export and restore happen on your device, and **our server cannot access your backups**.[[icloud]]
 
-**iCloud Sync (off by default).** When you turn on iCloud Sync in Settings › Data › Backup & Restore, the App syncs the following to **your own iCloud account** (Apple's CloudKit private database), so your other devices signed in to the same Apple Account can merge it:
+**iCloud Sync (off by default).** When you turn on iCloud Sync in Settings › Sync › Sync & Backup, the App syncs the following to **your own iCloud account** (Apple's CloudKit private database), so your other devices signed in to the same Apple Account can merge it:
 
 - your pinyin input learning data (learned words);
 - your custom words and keyboard phrases;
@@ -408,9 +408,9 @@ AI の履歴は端末内にのみ保存され、送信されることはあり�
 
 本アプリを削除すると、これらの情報は端末からすべて削除されます（購入履歴は App Store が保持しており、再インストール後に復元できます）。[[icloud]]iCloud に同期済みのデータはアプリを削除しても消えません。削除方法は下記「iCloud 同期」を参照してください。[[/icloud]]
 
-**バックアップと復元：** 「設定 › データ › バックアップと復元」で、データをバックアップファイルに書き出したり、バックアップファイルから復元したりできます。保存先はシステムのファイル選択画面でお客様が選び（端末内や iCloud Drive など）、保管と削除はお客様ご自身で行います。初期設定では設定（保存した API の設定を含み、キーは含みません）、ユーザー辞書、プロンプト、ピンイン学習データが含まれます。AI 履歴は初期設定では含まれず、選択して含めることができます。**API キーは初期設定では含まれません**。含めることを選択した場合、キーはお客様が設定したパスワードで暗号化（PBKDF2 + AES-GCM）されてからファイルに書き込まれます。当方はこのパスワードを保存せず、復元することもできません。クリップボード履歴、購入状況、無料体験の情報は含まれません。購入は新しい端末で「購入を復元」から取り戻せます。バックアップを復元しても無料体験の期間がリセットされたり延長されたりすることはありません。書き出しと復元は端末上で行われ、**当方のサーバーからバックアップにアクセスすることはできません**。[[icloud]]
+**バックアップと復元：** 「設定 › 同期 › 同期とバックアップ」で、データをバックアップファイルに書き出したり、バックアップファイルから復元したりできます。保存先はシステムのファイル選択画面でお客様が選び（端末内や iCloud Drive など）、保管と削除はお客様ご自身で行います。初期設定では設定（保存した API の設定を含み、キーは含みません）、ユーザー辞書、プロンプト、ピンイン学習データが含まれます。AI 履歴は初期設定では含まれず、選択して含めることができます。**API キーは初期設定では含まれません**。含めることを選択した場合、キーはお客様が設定したパスワードで暗号化（PBKDF2 + AES-GCM）されてからファイルに書き込まれます。当方はこのパスワードを保存せず、復元することもできません。クリップボード履歴、購入状況、無料体験の情報は含まれません。購入は新しい端末で「購入を復元」から取り戻せます。バックアップを復元しても無料体験の期間がリセットされたり延長されたりすることはありません。書き出しと復元は端末上で行われ、**当方のサーバーからバックアップにアクセスすることはできません**。[[icloud]]
 
-**iCloud 同期（初期設定はオフ）：** 「設定 › データ › バックアップと復元」で「iCloud 同期」をオンにすると、本アプリは次のデータを**お客様ご自身の iCloud アカウント**（Apple の CloudKit プライベートデータベース）に同期し、同じ Apple アカウントでサインインしているほかの端末で統合できるようにします。
+**iCloud 同期（初期設定はオフ）：** 「設定 › 同期 › 同期とバックアップ」で「iCloud 同期」をオンにすると、本アプリは次のデータを**お客様ご自身の iCloud アカウント**（Apple の CloudKit プライベートデータベース）に同期し、同じ Apple アカウントでサインインしているほかの端末で統合できるようにします。
 
 - ピンイン入力の学習データ（学習した語句）
 - ユーザー辞書とキーボードの定型文

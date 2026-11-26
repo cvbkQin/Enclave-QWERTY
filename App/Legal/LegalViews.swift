@@ -145,9 +145,9 @@ struct PrivacyView: View {
             en = "your other devices"
             ja = "ほかのデバイス"
         }
-        return L("开着 iCloud 同步，学到的词会在所有设备上一起清掉：这台马上清，\(zh)下次同步时清，它们在 iCloud 里的旧副本也跟着换掉。很久不同步的旧设备，去「备份与恢复 › 设备」里删掉它，才会把它的副本也删掉。候选会回到默认顺序。",
-                 "With iCloud Sync on, learned words are cleared on all devices: this device right away, and \(en) the next time they sync, when their old copies in iCloud are replaced too. For an old device that hasn't synced in a long time, delete it under Backup & Restore › Devices to delete its copy. Candidates go back to the default order.",
-                 "iCloud 同期がオンなので、学習した語はすべてのデバイスで消去されます。このデバイスはすぐに、\(ja)は次の同期時に消去され、iCloud 上の古いコピーも置き換わります。長い間同期していない古いデバイスは、「バックアップと復元 › デバイス」で削除するとそのコピーも削除されます。候補は初期の順番に戻ります。")
+        return L("开着 iCloud 同步，学到的词会在所有设备上一起清掉：这台马上清，\(zh)下次同步时清，它们在 iCloud 里的旧副本也跟着换掉。很久不同步的旧设备，去「同步与备份 › 设备」里删掉它，才会把它的副本也删掉。候选会回到默认顺序。",
+                 "With iCloud Sync on, learned words are cleared on all devices: this device right away, and \(en) the next time they sync, when their old copies in iCloud are replaced too. For an old device that hasn't synced in a long time, delete it under Sync & Backup › Devices to delete its copy. Candidates go back to the default order.",
+                 "iCloud 同期がオンなので、学習した語はすべてのデバイスで消去されます。このデバイスはすぐに、\(ja)は次の同期時に消去され、iCloud 上の古いコピーも置き換わります。長い間同期していない古いデバイスは、「同期とバックアップ › デバイス」で削除するとそのコピーも削除されます。候補は初期の順番に戻ります。")
     }
 
     /// 「第 1 版 · 10月26日」。

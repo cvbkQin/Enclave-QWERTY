@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-// 设置 › 数据 › 备份与恢复（B3 第一步，设计 design/backup/v2/BV0、BV2、BV3、BV4，design/backup/BK7）。
+// 设置 › 同步 › 同步与备份（11-26 改名，对齐清单第 96 条；B3 第一步，设计 design/backup/v2/BV0、BV2、BV3、BV4，design/backup/BK7）。
 // 最上面的 iCloud 同步在 App/Sync/ICloudSyncViews.swift（design/icloud-sync/）。
 
 /// 设置主页「数据」分区里的那一行（BK1）。开着 iCloud 同步时小字写「iCloud 同步 · 已开」（IC 说明）。
@@ -12,10 +12,10 @@ struct BackupSettingsRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            TintIcon(systemName: "archivebox", color: BackupView.green)
+            TintIcon(systemName: "arrow.triangle.2.circlepath.icloud", color: BackupView.green)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(L("备份与恢复", "Backup & Restore", "バックアップと復元"))
+                    Text(L("同步与备份", "Sync & Backup", "同期とバックアップ"))
                     NewBadge()
                 }
                 Text(ICloudSync.isSwitchOn
@@ -105,7 +105,7 @@ struct BackupView: View {
             }
             }
         }
-        .navigationTitle(L("备份与恢复", "Backup & Restore", "バックアップと復元"))
+        .navigationTitle(L("同步与备份", "Sync & Backup", "同期とバックアップ"))
         .navigationBarTitleDisplayMode(.inline)
         .task { await refreshLearned() }
         // 没有 iCloud 能力的包不查账户：会碰 CKContainer 闪退（04 复审 B1）。

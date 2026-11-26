@@ -397,13 +397,12 @@ private struct SetupCheckBadge: View {
 // MARK: - 一切就绪（OG4 ⑨）：润色测通后进来
 
 /// 大绿勾、「AI」一组（润色：服务商 · 模型，问答：与润色相同）、不能联网时组下一行脚注、「试试润色」。
-/// 主按钮「开始使用」（前两步没做完时是「返回设置」），文字按钮「去使用指引练习」。
+/// 只有主按钮「开始使用」（前两步没做完时是「返回设置」），贴底；「去使用指引练习」11-26 去掉（对齐清单第 96 条，SO2）。
 struct GuideReadyPage: View {
     @ObservedObject var store: AppStore
     /// 前两步做完了。
     let ready: Bool
     let primary: () -> Void
-    let practice: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = false
     @State private var drawn = false
@@ -465,10 +464,7 @@ struct GuideReadyPage: View {
                 .frame(maxWidth: PadWidth.content)
                 .frame(maxWidth: .infinity)
             }
-            VStack(spacing: 4) {
-                GuidePrimaryButton(ready ? L("开始使用", "Start Using Enclave", "使いはじめる") : L("返回设置", "Back to Setup", "設定に戻る"), action: primary)
-                GuideSecondaryButton(L("去使用指引练习", "Practice in the Guide", "使い方ガイドで練習"), action: practice)
-            }
+            GuidePrimaryButton(ready ? L("开始使用", "Start Using Enclave", "使いはじめる") : L("返回设置", "Back to Setup", "設定に戻る"), action: primary)
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
             .frame(maxWidth: PadWidth.content)

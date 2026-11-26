@@ -11,7 +11,7 @@ scripts/bench/run-bench.sh --no-build # 刚编过就不再编
 
 ## 跑的是什么
 
-App 带 `-keyboardDebug bench -playground` 启动，打开「试一试」弹出键盘。键盘不是全键盘时先切过去（跑完、出错都切回原来的布局），
+App 带 `-keyboardDebug bench -playground` 启动，打开打字板弹出键盘。键盘不是全键盘时先切过去（跑完、出错都切回原来的布局），
 等 Rime 真正启动完（不只是词库文件在）后，
 自己把 10 句常用拼音（和 memtest 同一组）一个字母一个字母地打 3 遍。每个键走和手指按键同一条路：
 `perform(.letter)` → `feedEngine` → 后台引擎 `inputLater` → `applyEngineResults`（上屏、纠错、候选菜单、刷新候选）

@@ -88,7 +88,7 @@ struct EnclaveApp: App {
                         router.openSettings(.backup)
                         return
                     }
-                    // enclave://playground 直接打开「试一试」并弹出键盘，方便在模拟器里截图测试。
+                    // enclave://playground 直接打开打字板并弹出键盘，方便在模拟器里截图测试。
                     guard url.scheme == "enclave" else { return }
                     switch url.host {
                     case "playground": router.openPlayground()
@@ -259,9 +259,9 @@ final class AppRouter: ObservableObject {
     /// 原来的「AI」标签（R0，11-22 改名）：接口和提示词两件事放在一个标签里。
     static var aiTabTitle: String { L("接口和提示词", "API & Prompts", "API とプロンプト") }
 
-    /// 设置里的二级页。setup：首次设置（欢迎页四步）；firstScene：使用指引的第一个场景（enclave://playground）。
+    /// 设置里的二级页。setup：首次设置（欢迎页四步）；scratchPad：打字板（enclave://playground，设置里没有入口）。
     enum SettingsPage: String, Hashable {
-        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools, backup, tour
+        case setup, scratchPad, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools, backup, tour
     }
 
     /// 在「文件」等处点开的 .enclave 备份文件：备份页读到后弹恢复面板。
@@ -357,7 +357,7 @@ final class AppRouter: ObservableObject {
     }
 
     init() {
-        // 截图用：-playground 打开第一个场景；-homePage commonWords / keyboardWords / lab / keyboard 打开首页的二级页；
+        // 截图用：-playground 打开打字板并弹键盘；-homePage commonWords / keyboardWords / keyboard 打开键盘标签的二级页；
         // -appPage model 打开设置里的某一页；-appTab styles 切标签。
         let args = ProcessInfo.processInfo.arguments
         #if DEBUG
@@ -403,11 +403,10 @@ final class AppRouter: ObservableObject {
         if args.contains("-rimeEval") { RimeEval.runWhenDeployed() }
         #endif
         if args.contains("-playground") { openPlayground() }
-        // 旧的 -homePage 参数：键盘那几页现在在键盘标签，使用指引在设置。
+        // 旧的 -homePage 参数：键盘那几页现在在键盘标签。
         if let i = args.firstIndex(of: "-homePage"), args.indices.contains(i + 1) {
             switch args[i + 1] {
             case "keyboard": openKeyboard()
-            case "lab": openSettings(.playground)
             case let name: if let page = KeyboardPage(rawValue: name) { openKeyboard(page) }
             }
         }
@@ -456,9 +455,9 @@ final class AppRouter: ObservableObject {
         }
     }
 
-    /// enclave://playground：打开使用指引的第一个场景，进去自动弹键盘。
+    /// enclave://playground、-playground：打开打字板，进去自动弹键盘（截图、打字基准用）。
     func openPlayground() {
-        settingsPath = [.playground, .firstScene]
+        settingsPath = [.scratchPad]
         tab = .settings
     }
 

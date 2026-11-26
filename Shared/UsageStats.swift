@@ -1,11 +1,10 @@
 import Foundation
 
 /// App 仪表盘要的使用记录：按天的计数一律走 DailyStats（polish.*、word.*），
-/// 不按天的两样（最近 20 次请求、试过的场景）存在这里。都只在手机上，不上传。
+/// 不按天的（最近 20 次请求）存在这里。都只在手机上，不上传。
 enum UsageStats {
     private static let recentKey = "stats.polishRecent"
     private static let answerRecentKey = "stats.answerRecent"
-    private static let labKey = "stats.labTried"
     /// AI 页接口卡和「最近 20 次」页（第 51 条）：润色、问答各留最近 20 次。
     static let recentLimit = 20
 
@@ -149,19 +148,6 @@ enum UsageStats {
     }
 
     static func wordKey(_ text: String) -> String { "word.text.\(text)" }
-
-    // MARK: 使用指引（App 里）
-
-    /// 试过的场景 id。
-    static var labTried: Set<String> {
-        Set(SharedStorage.defaults.stringArray(forKey: labKey) ?? [])
-    }
-
-    static func markLabTried(_ id: String) {
-        var tried = labTried
-        guard tried.insert(id).inserted else { return }
-        SharedStorage.defaults.set(Array(tried).sorted(), forKey: labKey)
-    }
 
     // MARK: 读（App 里）
 
