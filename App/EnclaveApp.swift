@@ -142,7 +142,7 @@ struct RootView: View {
 
     var body: some View {
         tabs
-            // 第一次打开「自动保存复制的内容」的确认卡（CA4）：屏幕中间，盖住整个 App 包括标签栏。
+            // 打开「自动保存复制的内容」的确认卡（CA4，每次从关拨到开都弹）：屏幕中间，盖住整个 App 包括标签栏。
             .overlay { AutoSaveConsentHost() }
             .onAppear { router.setWideLayout(wide) }
             .onChange(of: wide) { router.setWideLayout($0) }

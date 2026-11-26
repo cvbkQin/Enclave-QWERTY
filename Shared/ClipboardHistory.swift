@@ -46,7 +46,7 @@ enum ClipboardHistory {
     /// 自动保存真的在运行：开关开着，剪贴板记录也开着。
     static var autoSaveActive: Bool { isEnabled && autoSave }
 
-    /// 第一次打开自动保存时在确认卡上点「开启」的时间（本机），作为同意的记录；有了以后再开不再弹卡。
+    /// 最近一次在确认卡上点「开启」的时间（本机），作为同意的记录；每次从关拨到开都弹卡，点「开启」就更新成这一次（对齐清单第 97 条）。
     static var autoSaveConsentAt: Date? {
         get { (SharedStorage.defaults.object(forKey: consentKey) as? Double).map { Date(timeIntervalSince1970: $0) } }
         set {
@@ -58,8 +58,8 @@ enum ClipboardHistory {
         }
     }
 
-    /// 打开自动保存要不要先弹确认卡：没同意过才弹。
-    static func needsAutoSaveConsent(consentAt: Date?) -> Bool { consentAt == nil }
+    /// 拨自动保存开关时要不要先弹确认卡（cvbk 11-26 08:26，对齐清单第 97 条）：每次从关拨到开都弹，不看以前同意过没有；从开拨到关不弹。
+    static func needsAutoSaveConsent(wasOn: Bool, turningOn: Bool) -> Bool { turningOn && !wasOn }
 
     /// 最多保存条数：App 设、键盘读同一个值；只在本机，不同步、不备份。存的值不在几档里时按 20。
     static var maxItems: Int {
