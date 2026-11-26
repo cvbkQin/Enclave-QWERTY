@@ -1,6 +1,6 @@
 import SwiftUI
 
-// 第一次打开「自动保存复制的内容」的确认卡（T97 方案 B；11-26 对齐清单第 95 条重做，design/clipboard-autosave CA4）：
+// 打开「自动保存复制的内容」的确认卡（T97 方案 B；11-26 对齐清单第 95 条重做，design/clipboard-autosave CA4；第 97 条起每次从关拨到开都弹）：
 // 屏幕中间的纯色卡片，盖住整个 App（包括底部标签栏），底下压黑。文字靠左，底部「取消」「开启」两个胶囊按钮一直看得到。
 // 不用玻璃、不用半屏弹层；部署目标 iOS 16，所以挂在根视图上一层覆盖（RootView），不用 fullScreenCover。
 

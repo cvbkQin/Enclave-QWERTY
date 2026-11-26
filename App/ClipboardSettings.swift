@@ -9,7 +9,7 @@ struct ClipboardSettingsSection: View {
     @State private var enabled = ClipboardHistory.isEnabled
     @State private var count = ClipboardHistory.count
     @State private var autoSave = ClipboardHistory.autoSave
-    /// 第一次打开自动保存先弹确认卡（CA4，挂在根视图上的居中卡片）：点「开启」才打开，点「取消」开关不动。
+    /// 每次从关拨到开都先弹确认卡（CA4，挂在根视图上的居中卡片；对齐清单第 97 条）：点「开启」才打开，点「取消」开关弹回关。
     @ObservedObject private var consent = AutoSaveConsent.shared
     @State private var limit = ClipboardHistory.maxItems
     /// 改小上限会删记录：先确认（CA3 ⑤），点取消分段退回原来的值。
@@ -77,7 +77,7 @@ struct ClipboardSettingsSection: View {
     /// 「自动保存复制的内容」（05 定的名字），带「新」标签。剪贴板记录关着时 40% 透明、拨不动，说明换一句。
     private var autoSaveRow: some View {
         Toggle(isOn: Binding(get: { enabled && autoSave }, set: { value in
-            if value && ClipboardHistory.needsAutoSaveConsent(consentAt: ClipboardHistory.autoSaveConsentAt) {
+            if ClipboardHistory.needsAutoSaveConsent(wasOn: enabled && autoSave, turningOn: value) {
                 AutoSaveConsent.shared.present {
                     ClipboardHistory.autoSaveConsentAt = Date()
                     ClipboardHistory.autoSave = true

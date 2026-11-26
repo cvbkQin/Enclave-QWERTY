@@ -91,8 +91,11 @@ final class ClipboardHistoryTests: XCTestCase {
         XCTAssertFalse(ClipboardHistory.autoSave)
     }
 
-    func testConsentSheetOnlyFirstTime() {
-        XCTAssertTrue(ClipboardHistory.needsAutoSaveConsent(consentAt: nil))
-        XCTAssertFalse(ClipboardHistory.needsAutoSaveConsent(consentAt: now))
+    /// 对齐清单第 97 条：每次从关拨到开都弹卡（不看以前同意过没有，判断里没有 autoSaveConsentAt）；从开拨到关、本来就开着都不弹。
+    func testConsentCardEveryTimeTurningOn() {
+        XCTAssertTrue(ClipboardHistory.needsAutoSaveConsent(wasOn: false, turningOn: true))
+        XCTAssertFalse(ClipboardHistory.needsAutoSaveConsent(wasOn: true, turningOn: false))
+        XCTAssertFalse(ClipboardHistory.needsAutoSaveConsent(wasOn: true, turningOn: true))
+        XCTAssertFalse(ClipboardHistory.needsAutoSaveConsent(wasOn: false, turningOn: false))
     }
 }
