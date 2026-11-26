@@ -315,12 +315,27 @@ final class AppRouter: ObservableObject {
     @Published var guideProvider: Provider = .deepseek
     /// 从接口页「配置教程」打开时是哪一页（Key 填回那一页）；引导里打开为 nil。
     @Published var guideTarget: GuideTarget?
+    /// 教程看哪一边（中国大陆 / 非中国大陆，T102 NC3）：nil 按 App Store 地区；教程顶上能切换。
+    @Published var guideSide: APISide?
 
-    /// 接口页格子右下角「配置教程」（TA1、TA2）：只走这一家的 4 步，右上是 ×。
-    func openTutorial(_ provider: Provider, answer: Bool) {
+    /// 引导「自己填写」/ Ollama 要接口页弹出新建配置页；接口页处理完清掉。
+    struct NewConfigRequest: Equatable {
+        var template: ConfigTemplate?
+    }
+    @Published var newConfig: NewConfigRequest?
+
+    /// 接口页「配置教程」（TA1、TA2）、常用 API 地址里的「教程」：只走这一家的 4 步，右上是 ×。side：跟配置地址那一边。
+    func openTutorial(_ provider: Provider, answer: Bool, side: APISide? = nil) {
         guideProvider = provider
+        guideSide = side
         guideTarget = answer ? .answer : .rewrite
         setupGuide = .step(1)
+    }
+
+    /// 跳到润色接口页并直接弹出新建配置页（template 预先填好那一家）。
+    func openNewConfig(_ template: ConfigTemplate? = nil) {
+        openModel(detail: true)
+        newConfig = NewConfigRequest(template: template)
     }
 
     /// 隐私说明关掉后：同意了、引导没看过、接口也没配，就接着弹引导。

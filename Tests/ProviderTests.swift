@@ -96,6 +96,53 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(ConfigTemplate.qwenAI.model, "qwen-flash")
     }
 
+    /// 常用 API 地址（T102）：新加的几家按地址认；列表里每个地址都认回自己那一家、那一边。
+    func testCommonURLCatalog() {
+        XCTAssertEqual(ConfigTemplate.detect("https://ark.cn-beijing.volces.com/api/v3"), .doubao)
+        XCTAssertEqual(ConfigTemplate.detect("https://ark.ap-southeast.bytepluses.com/api/v3"), .doubao)
+        XCTAssertEqual(ConfigTemplate.detect("https://qianfan.baidubce.com/v2"), .wenxin)
+        XCTAssertEqual(ConfigTemplate.detect("https://api.minimax.io/v1"), .minimax)
+        XCTAssertEqual(ConfigTemplate.detect("https://api.stepfun.com/v1"), .stepfun)
+        XCTAssertEqual(ConfigTemplate.detect("https://api.siliconflow.cn/v1"), .siliconflow)
+        XCTAssertEqual(ConfigTemplate.detect("http://10.0.0.2:1234/v1"), .lmstudio)
+        XCTAssertEqual(ConfigTemplate.detect("http://10.0.0.2:11434/v1"), .ollama)
+        XCTAssertEqual(ConfigTemplate.detect("http://10.0.0.2:12345/v1"), .custom)
+        for template in ConfigTemplate.allCases where template != .custom {
+            XCTAssertFalse(template.endpoints.isEmpty, template.rawValue)
+            for endpoint in template.endpoints {
+                XCTAssertEqual(ConfigTemplate.detect(endpoint.url), template, endpoint.url)
+                XCTAssertEqual(template.side(of: endpoint.url), endpoint.side, endpoint.url)
+            }
+        }
+        XCTAssertEqual(ConfigTemplate.kimi.side(of: "https://api.moonshot.cn/v1/"), .china)
+        XCTAssertNil(ConfigTemplate.kimi.side(of: "https://example.com/v1"))
+        XCTAssertEqual(Provider.side(of: Provider.qwenGlobal), .global)
+        XCTAssertNil(Provider.side(of: "https://api.deepseek.com/v1"))
+        XCTAssertEqual(Provider.kimi.baseURL(side: .global), Provider.kimiGlobal)
+        XCTAssertEqual(Provider.glm.baseURL(side: .china), Provider.glmChina)
+        XCTAssertEqual(ProviderName.of("https://api.minimax.cn/v1"), "MiniMax")
+        // 新加的几家没有推荐模型、不算能联网。
+        XCTAssertEqual(ConfigTemplate.doubao.model, "")
+        XCTAssertFalse(ConfigTemplate.minimax.provider.canSearch)
+        XCTAssertTrue(ConfigTemplate.kimi.needsKey)
+        XCTAssertFalse(ConfigTemplate.ollama.needsKey)
+        XCTAssertFalse(ConfigTemplate.custom.needsKey)
+    }
+
+    /// 硅基流动是聚合平台，大陆店面不列（05 备案核对）；默认地址跟店面走。
+    func testCatalogByStorefront() {
+        storefront("CHN")
+        XCTAssertFalse(ConfigTemplate.catalog.contains(.siliconflow))
+        XCTAssertEqual(ConfigTemplate.minimax.baseURL, "https://api.minimax.cn/v1")
+        XCTAssertEqual(ConfigTemplate.hunyuan.baseURL, Provider.hunyuanURL)
+        storefront("USA")
+        XCTAssertTrue(ConfigTemplate.catalog.contains(.siliconflow))
+        XCTAssertEqual(ConfigTemplate.minimax.baseURL, "https://api.minimax.io/v1")
+        XCTAssertEqual(ConfigTemplate.deepseek.baseURL, "https://api.deepseek.com/v1")
+        // 只有国内站的照样填国内站。
+        XCTAssertEqual(ConfigTemplate.wenxin.baseURL, "https://qianfan.baidubce.com/v2")
+    }
+
     func testUniqueConfigName() {
         let list = [SavedAPI(name: "DeepSeek", baseURL: "a", model: "m"), SavedAPI(name: "DeepSeek 2", baseURL: "b", model: "m")]
         XCTAssertEqual(SavedAPIStore.uniqueName("DeepSeek", in: list), "DeepSeek 3")
