@@ -27,6 +27,13 @@ struct ModelDropdown: View {
 
     @State private var showsNonChat = false
 
+    /// 认得出的云服务商、Key 还空着：不去拉，直接提示先填 Key（T102 NC2 ⑪）。自定义地址、本机服务照常去拉（很多自建服务不要 Key）。
+    private var keyMissing: ConfigTemplate? {
+        let template = ConfigTemplate.detect(baseURL)
+        guard template.needsKey, apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return template
+    }
+
     private var searchProvider: SearchProvider? { EnclaveSettings.searchProvider(baseURL: baseURL) }
     /// 从问答页进来、服务商是千问或混元：只列能联网的模型（MF3、MF4），不再列非对话模型。
     private var filtersOnline: Bool { answer && ModelList.filtersForWebSearch(searchProvider) }
@@ -76,7 +83,8 @@ struct ModelDropdown: View {
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
         .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.18), radius: 14, y: 6)
         .padding(.bottom, 4)
-        .task(id: loadID) { await load() }
+        // Key 从空到有（或反过来）也重新拉一次。
+        .task(id: [String(loadID), keyMissing == nil ? "key" : "nokey"]) { await load() }
     }
 
     private var header: some View {
@@ -89,7 +97,7 @@ struct ModelDropdown: View {
                     .foregroundStyle(DashColor.ai)
             }
             .buttonStyle(.borderless)
-            .disabled(models == nil && failure == nil)
+            .disabled(keyMissing != nil || (models == nil && failure == nil))
         }
         .padding(.horizontal, 14)
         .frame(height: 34)
@@ -113,7 +121,9 @@ struct ModelDropdown: View {
 
     @ViewBuilder
     private var content: some View {
-        if let failure {
+        if let template = keyMissing {
+            keyHint(template)
+        } else if let failure {
             failureView(failure.message, retry: failure != .unsupported)
         } else if let models {
             if models.isEmpty || (mainModels.isEmpty && nonChatModels.isEmpty) {
@@ -287,9 +297,28 @@ struct ModelDropdown: View {
         .padding(.vertical, 10)
     }
 
+    /// 「先填上 API Key 再拉取」+ 一句说明；有教程的几家指到上面「配置教程」。
+    private func keyHint(_ template: ConfigTemplate) -> some View {
+        let name = template.defaultName
+        let detail = template.hasTutorial
+            ? L("\(name) 要用 Key 才能列出模型。还没有 Key 的话，点上面「配置教程」看怎么申请。",
+                "\(name) needs a key to list its models. No key yet? Tap Setup Guide above.",
+                "\(name) はキーがないとモデルを一覧にできません。キーがなければ上の「設定ガイド」を見てください。")
+            : L("\(name) 要用 Key 才能列出模型。", "\(name) needs a key to list its models.", "\(name) はキーがないとモデルを一覧にできません。")
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(L("先填上 API Key 再拉取", "Enter your API key first", "先に API キーを入力してください")).font(.system(size: 14, weight: .semibold))
+            Text(detail).font(.system(size: 12.5)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
     private func load() async {
         models = nil
         failure = nil
+        // 没 Key 的云服务商不发请求。
+        guard keyMissing == nil else { return }
         do {
             models = try await ModelList.fetch(baseURL: baseURL, apiKey: apiKey)
         } catch let error as ModelList.Failure {

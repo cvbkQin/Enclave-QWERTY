@@ -388,12 +388,13 @@ struct ModelSettingsView: View {
     @State private var sheet: ConfigSheet?
     /// 开着 Key 同步时左滑删方案：先确认（B11），其他设备上的方案和 Key 也会删。
     @State private var deleting: SavedAPI?
-    /// 「添加配置」里点了教程：弹层收起后再打开教程。
+    /// 配置页里点了教程：弹层收起后再打开教程（哪一家、哪一边）。
     @State private var pendingTutorial: Provider?
+    @State private var pendingSide: APISide?
 
-    /// 弹层：添加（先选服务商再进新建页）或编辑某一条。
+    /// 弹层：新建（直接是新建配置页，T102 NC1；引导里选了 Ollama 时预先填好）或编辑某一条。
     enum ConfigSheet: Identifiable {
-        case add
+        case add(ConfigTemplate?)
         case edit(SavedAPI)
         var id: String {
             switch self {
@@ -430,7 +431,7 @@ struct ModelSettingsView: View {
                     if store.savedAPIs.isEmpty {
                         Section {
                         } header: {
-                            EmptyConfigCard(locked: locked) { sheet = .add }.dashFormCard()
+                            EmptyConfigCard(locked: locked) { sheet = .add(nil) }.dashFormCard()
                         } footer: {
                             Text(L("配置只存在这台 iPhone 上，API Key 放在钥匙串里。", "Setups stay on this iPhone; API keys are kept in the keychain.", "設定はこの iPhone にだけ保存され、API キーはキーチェーンに入ります。"))
                         }
@@ -468,40 +469,38 @@ struct ModelSettingsView: View {
         .sheet(item: $sheet, onDismiss: {
             if let provider = pendingTutorial {
                 pendingTutorial = nil
-                router.openTutorial(provider, answer: answer)
+                router.openTutorial(provider, answer: answer, side: pendingSide)
             }
         }) { which in
-            Group {
+            NavigationStack {
                 switch which {
-                case .add:
-                    NavigationStack(path: $addPath) {
-                        AddConfigSheet { template in
-                            addPath = [template]
-                        } onTutorial: { openTutorial($0) }
-                        .navigationDestination(for: ConfigTemplate.self) { template in
-                            ConfigEditor(existing: nil, template: template, answer: answer,
-                                         onTutorial: { openTutorial($0) }, onClose: { sheet = nil })
-                        }
-                    }
+                case .add(let template):
+                    ConfigEditor(existing: nil, template: template, answer: answer,
+                                 onTutorial: { openTutorial($0, side: $1) }, onClose: { sheet = nil })
                 case .edit(let item):
-                    NavigationStack {
-                        ConfigEditor(existing: item, template: ConfigTemplate.of(item), answer: answer,
-                                     onTutorial: { openTutorial($0) }, onClose: { sheet = nil })
-                    }
+                    ConfigEditor(existing: item, answer: answer,
+                                 onTutorial: { openTutorial($0, side: $1) }, onClose: { sheet = nil })
                 }
             }
             .environmentObject(store)
             .environmentObject(router)
-            .onAppear { addPath = [] }
         }
+        .onAppear(perform: takeNewConfigRequest)
+        .onChange(of: router.newConfig) { _ in takeNewConfigRequest() }
     }
 
-    /// 添加弹层里从服务商列表推到新建页。
-    @State private var addPath: [ConfigTemplate] = []
-
-    private func openTutorial(_ template: ConfigTemplate) {
-        pendingTutorial = template.provider
+    private func openTutorial(_ provider: Provider, side: APISide?) {
+        pendingTutorial = provider
+        pendingSide = side
         sheet = nil
+    }
+
+    /// 引导「自己填写」/ 推荐里的 Ollama：回到润色接口页后直接弹出新建配置页（NC3 ⑤）。等引导收起再弹。
+    private func takeNewConfigRequest() {
+        guard !answer, let request = router.newConfig else { return }
+        router.newConfig = nil
+        guard !locked else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { sheet = .add(request.template) }
     }
 
     // MARK: 状态卡
@@ -628,7 +627,7 @@ struct ModelSettingsView: View {
                     }
                 }
             }
-            Button { sheet = .add } label: {
+            Button { sheet = .add(nil) } label: {
                 Label(L("添加配置", "Add setup", "設定を追加"), systemImage: "plus")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(DashColor.ai)
