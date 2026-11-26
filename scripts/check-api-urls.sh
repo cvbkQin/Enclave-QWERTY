@@ -5,7 +5,8 @@
 #   bash scripts/check-api-urls.sh --no-key   # 不用 Key，只看地址通不通（401 / 403 也算通：服务器在、要 Key）
 #
 # Key 只在这次运行的内存里，不写文件、不打印。列表要和 App/Provider.swift 的 ConfigTemplate.endpoints 一致。
-set -u
+# 不用 set -u：中途出错退出的话，后面粘贴的 Key 会落到终端里当命令执行（也会进终端历史）。
+# 变量一律写成 ${x}：Mac 自带的 bash 3.2 会把紧跟的中文标点当成变量名的一部分。
 
 ENDPOINTS=(
   "DeepSeek|通用|https://api.deepseek.com/v1"
@@ -55,12 +56,12 @@ try:
     print(len(items))
 except Exception: print("")' "$body" 2>/dev/null)
   case "$code" in
-    200) result="✓"; note="通了${count:+，$count 个模型}" ;;
+    200) result="✓"; note="通了${count:+，${count} 个模型}" ;;
     401|403)
-      result="?"; note="服务器在，HTTP $code（没填 Key 是正常的；填了 Key 就是 Key 不对或不是这一边的 Key）" ;;
+      result="?"; note="服务器在，HTTP ${code}（没填 Key 是正常的；填了 Key 就是 Key 不对或不是这一边的 Key）" ;;
     404) result="✗"; note="HTTP 404：这个地址没有 /models，App 里拉不到模型（只能手动填模型名）" ;;
     000) result="✗"; note="连不上（超时或域名不通）" ;;
-    *) result="✗"; note="HTTP $code：$(head -c 120 "$body" | tr '\n' ' ')" ;;
+    *) result="✗"; note="HTTP ${code}：$(head -c 120 "$body" | tr '\n' ' ')" ;;
   esac
   printf '%-20s %-10s %-6s %s\n' "$name" "$side" "$result" "$note"
 done
