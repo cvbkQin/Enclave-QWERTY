@@ -59,6 +59,7 @@ except Exception: print("")' "$body" 2>/dev/null)
     200) result="✓"; note="通了${count:+，${count} 个模型}" ;;
     401|403)
       result="?"; note="服务器在，HTTP ${code}（没填 Key 是正常的；填了 Key 就是 Key 不对或不是这一边的 Key）" ;;
+    429) result="?"; note="服务器在，HTTP 429：请求太频繁（不带 Key 时有的服务商直接限流），过一会儿带 Key 再试" ;;
     404) result="✗"; note="HTTP 404：这个地址没有 /models，App 里拉不到模型（只能手动填模型名）" ;;
     000) result="✗"; note="连不上（超时或域名不通）" ;;
     *) result="✗"; note="HTTP ${code}：$(head -c 120 "$body" | tr '\n' ' ')" ;;
