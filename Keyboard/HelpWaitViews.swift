@@ -313,7 +313,7 @@ struct HelpWaitCardBody: View {
                 ReplyBadge().padding(.trailing, 5)
                 Text(style.map { "\(head) · \($0)" } ?? head)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Brand.purpleText)
+                    .foregroundStyle(HelpStyle.title)
                     .lineLimit(1)
                 Spacer(minLength: 6)
                 if !wait.interrupted, reduceMotion || !model.settings.polishAnimation {

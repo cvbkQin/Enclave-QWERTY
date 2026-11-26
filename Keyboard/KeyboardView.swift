@@ -25,7 +25,7 @@ struct KeyboardView: View {
                 // 替换 / 插入键在结果卡左边，和卡片一样高；弹出方式的另一个按钮浮在下面一行上，所以这一块叠在最上层。
                 // 自由编辑时左边的键收起，编辑框占满整行、连识意框那块一起用（FE3）。
                 let freeEdit = model.target == .card
-                // AI 帮回（帮回并入润色）也是这一张回答卡和替换键，卡片照旧是润色紫。
+                // AI 帮回（帮回并入润色）也是这一张回答卡和替换键，颜色跟着功能走：帮回绿、问答天蓝、润色紫（cvbk 11-26）。
                 HStack(spacing: KeyboardMetrics.resultKeyGap) {
                     if !freeEdit {
                         ResultKey(model: model)
@@ -1170,8 +1170,14 @@ struct ResultCard: View {
 
     // MARK: 结果
 
-    /// 自由编辑框描边：当前模式的颜色（问答天蓝，其余紫）。
-    private var editStroke: Color { model.session?.currentIsAnswer == true ? Brand.answerBorder : Brand.tagSelectedText }
+    /// 自由编辑框描边：当前这一版的功能色（问答天蓝，帮回绿，其余紫）。
+    private var editStroke: Color {
+        switch model.cardTint {
+        case .answer: return Brand.answerBorder
+        case .help: return HelpStyle.ring
+        case .polish: return Brand.tagSelectedText
+        }
+    }
 
     /// 正文左边距 14（AK2：左边模式格去掉，正文往左占满）。
     private var textLeading: CGFloat { 14 }
@@ -1360,7 +1366,13 @@ struct ResultCard: View {
         }
     }
 
-    private var runningColor: Color { model.askKind == .answer ? Brand.answerText : Brand.purpleText }
+    private var runningColor: Color {
+        switch model.cardTint {
+        case .answer: return Brand.answerText
+        case .help: return HelpStyle.title
+        case .polish: return Brand.purpleText
+        }
+    }
 
     @ViewBuilder
     private func resultText(faded: Bool) -> some View {
@@ -1570,12 +1582,12 @@ struct ResultCard: View {
         switch look {
         case .running:
             if animating {
-                FlowingBorder(shape: shape, colors: model.askKind == .answer ? Brand.answerRing : Brand.gradient)
+                FlowingBorder(shape: shape, colors: runningRing)
             } else {
-                shape.strokeBorder((model.askKind == .answer ? Brand.answerBorder : Brand.purpleText).opacity(0.5), lineWidth: 1)
+                shape.strokeBorder(runningColor.opacity(0.5), lineWidth: 1)
             }
         case .fresh:
-            // 整块描边跟着结果：问答天蓝，改写（润色也算）紫（MG3、MG4）。
+            // 整块描边跟着结果：问答天蓝，帮回绿，改写（润色也算）紫（MG3、MG4；帮回 cvbk 11-26）。
             shape.strokeBorder(resultRing, lineWidth: 1.5)
         case .faded:
             shape.strokeBorder(resultRing.opacity(0.45), lineWidth: 1.5)
@@ -1591,7 +1603,10 @@ struct ResultCard: View {
             shape.strokeBorder(editStroke, lineWidth: 2)
         case .search:
             shape.strokeBorder(Brand.answerBorder, lineWidth: 1.5)
-        case .checklist, .hint, .waiting:
+        case .waiting:
+            // 帮回开始前等着（HW1）：帮回绿。
+            shape.strokeBorder(HelpStyle.ring, lineWidth: 1.5)
+        case .checklist, .hint:
             shape.strokeBorder(Brand.rewriteRing, lineWidth: 1.5)
         }
     }
@@ -1602,7 +1617,22 @@ struct ResultCard: View {
         return KeyboardMetrics.pad != nil ? .trailing : .bottom
     }
 
-    private var resultRing: Color { model.session?.currentIsAnswer == true ? Brand.answerBorder : Brand.rewriteRing }
+    private var resultRing: Color {
+        switch model.cardTint {
+        case .answer: return Brand.answerBorder
+        case .help: return HelpStyle.ring
+        case .polish: return Brand.rewriteRing
+        }
+    }
+
+    /// 生成中边框的流光：问答天蓝、帮回绿、其余紫。
+    private var runningRing: [Color] {
+        switch model.cardTint {
+        case .answer: return Brand.answerRing
+        case .help: return HelpStyle.flowRing
+        case .polish: return Brand.gradient
+        }
+    }
 
     // MARK: 提示、出错、检查清单
 

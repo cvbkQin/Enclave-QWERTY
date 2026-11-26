@@ -25,6 +25,12 @@ enum HelpStyle {
     /// 回答卡卡头的「回」小标（帮回并入润色 §7）：底 #D1FAE5、字 #047857；深色底 rgba(16,185,129,.18)、字 #6EE7B7。
     static let badgeFill = dynamicAlpha((0xD1FAE5, 1), (0x10B981, 0.18))
     static let badgeText = dynamic(0x047857, 0x6EE7B7)
+    /// 回答卡上是帮回写的一版时（cvbk 11-26：调用的什么功能就用什么颜色）：整块描边 #10B981 / 深色 #34D399。
+    static let ring = dynamic(0x10B981, 0x34D399)
+    /// 帮回生成中卡片边框的流光：绿一圈（照问答的天蓝一圈）。
+    static let flowRing = [hex(0x059669), hex(0x10B981), hex(0xA7F3D0), hex(0x34D399)]
+    /// 卡片左边替换键、「完成修改」：帮回绿 135° #22C08A → #0E9F6E（和帮回键同色）。
+    static let keyColors = [hex(0x22C08A), hex(0x0E9F6E)]
     /// 帮回键（T96）：和润色、问答同样的星云底，换成帮回绿 #22C08A → #0E9F6E；执行中键下绿色投影。
     static let keyShadow = Color(red: 16 / 255, green: 185 / 255, blue: 129 / 255).opacity(0.55)
 
