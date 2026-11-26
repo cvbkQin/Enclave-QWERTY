@@ -151,6 +151,8 @@ final class KeyboardModel: ObservableObject {
     /// 在结果卡片里直接改（target == .card）：改到一半的文字和光标位置（按字符数）。
     @Published private(set) var cardDraft = ""
     @Published private(set) var cardCaret = 0
+    /// 修改时选中的一段（按字符数，不为空）；nil 是没选、只有光标。选中时打字、删除都替换这一段。
+    @Published private(set) var cardSelection: Range<Int>?
     /// 常用词，候选栏里给它们加个小紫点。
     @Published private(set) var commonWordTexts: Set<String> = []
 
@@ -853,6 +855,7 @@ final class KeyboardModel: ObservableObject {
             finishComposition()
         }
         cardCaret = min(max(caret ?? cardDraft.count, 0), cardDraft.count)
+        cardSelection = nil
         target = .card
     }
 
@@ -861,6 +864,7 @@ final class KeyboardModel: ObservableObject {
         guard target == .card else { return }
         finishComposition()
         target = restingTarget
+        cardSelection = nil
         let text = cardDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var session, !text.isEmpty, cardDraft != session.current else { return }
         let from = session.currentIndex
@@ -880,23 +884,87 @@ final class KeyboardModel: ObservableObject {
         syncEngine()
         target = restingTarget
         cardDraft = ""
+        cardSelection = nil
     }
 
     func insertInCard(_ text: String) {
+        if let selection = cardSelection {
+            replaceInCard(selection, with: text)
+            return
+        }
         let index = cardDraft.index(cardDraft.startIndex, offsetBy: cardCaret)
         cardDraft.insert(contentsOf: text, at: index)
         cardCaret += text.count
     }
 
     func deleteInCard() {
+        if let selection = cardSelection {
+            replaceInCard(selection, with: "")
+            return
+        }
         guard cardCaret > 0 else { return }
         let index = cardDraft.index(cardDraft.startIndex, offsetBy: cardCaret - 1)
         cardDraft.remove(at: index)
         cardCaret -= 1
     }
 
+    /// 选中时左右挪光标：和系统一样先收到选区这一头（往左收到开头、往右收到末尾），不再多挪。
     func moveCardCaret(by offset: Int) {
+        if let selection = cardSelection {
+            cardSelection = nil
+            cardCaret = offset < 0 ? selection.lowerBound : selection.upperBound
+            return
+        }
         cardCaret = min(max(cardCaret + offset, 0), cardDraft.count)
+    }
+
+    // MARK: 选中、复制、剪切、粘贴（修改模式）
+
+    /// 选中一段（长按选词、按住拖、拖两头的拖柄）。空的一段就只放光标。正在打拼音的先上屏。
+    func selectInCard(_ range: Range<Int>) {
+        guard target == .card else { return }
+        finishComposition()
+        let lower = min(max(range.lowerBound, 0), cardDraft.count)
+        let upper = min(max(range.upperBound, lower), cardDraft.count)
+        cardSelection = lower < upper ? lower..<upper : nil
+        cardCaret = upper
+    }
+
+    func selectAllInCard() {
+        selectInCard(0..<cardDraft.count)
+    }
+
+    var cardSelectedText: String? {
+        cardSelection.map { CardTextEditing.substring($0, of: cardDraft) }
+    }
+
+    /// 复制选中的字：写进系统剪贴板，记成自己复制的（不弹帮回键、剪贴板不亮小紫点）。复制完选区留着，和系统一样。
+    func copyCardSelection() {
+        guard let text = cardSelectedText, !text.isEmpty else { return }
+        UIPasteboard.general.string = text
+        noteOwnCopy()
+        keyFeedback(for: .space)
+    }
+
+    func cutCardSelection() {
+        guard let selection = cardSelection else { return }
+        copyCardSelection()
+        replaceInCard(selection, with: "")
+    }
+
+    /// 粘贴系统剪贴板里的字：有选区就换掉选区，没有就插在光标处。剪贴板里没有字就不动。
+    func pasteInCard() {
+        guard target == .card, let text = UIPasteboard.general.string, !text.isEmpty else { return }
+        finishComposition()
+        keyFeedback(for: .space)
+        insertInCard(text)
+    }
+
+    private func replaceInCard(_ range: Range<Int>, with text: String) {
+        let result = CardTextEditing.replacing(range, in: cardDraft, with: text)
+        cardSelection = nil
+        cardDraft = result.text
+        cardCaret = result.caret
     }
 
     func dismissGate() {
