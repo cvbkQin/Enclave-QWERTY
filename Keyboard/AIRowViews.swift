@@ -684,9 +684,19 @@ struct AskField: View {
     /// iPad 回答卡右边的识意框（PadAskArea）：字从左上角起、最多两行；「点这里输入」和联网键不放在框里（联网在框右边）。
     var boxed = false
 
-    private static let caret: UIImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 19)).image { _ in
-        UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 2, height: 19), cornerRadius: 1).fill()
-    }.withRenderingMode(.alwaysTemplate)
+    private static func makeCaret(height: CGFloat) -> UIImage {
+        UIGraphicsImageRenderer(size: CGSize(width: 2, height: height)).image { _ in
+            UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 2, height: height), cornerRadius: 1).fill()
+        }.withRenderingMode(.alwaysTemplate)
+    }
+    private static let tallCaret = makeCaret(height: 19)
+    /// 紧凑版（T104）光标 16 高。
+    private static let shortCaret = makeCaret(height: 16)
+
+    /// iPhone 竖屏回答卡下半格（T104，AC3 定稿 A）：识意行 30 高，打的字 13.5、占位灰字 13、右边小字 11.5、
+    /// 「使用联网查询」22 高 12pt。横屏、iPad 照旧。
+    private var compact: Bool { !boxed && KeyboardMetrics.compactCard }
+    private var caret: UIImage { compact ? Self.shortCaret : Self.tallCaret }
 
     var body: some View {
         // 帮回等着的时候（HW1 ①）识意框不算在编辑：灰字「先说要求？点这里…」，点一下才停下来进编辑。
@@ -715,7 +725,7 @@ struct AskField: View {
             // 未激活、空着：右边 12pt「点这里输入」。
             if !boxed, !editing, model.instruction.isEmpty {
                 Text(L("点这里输入", "Tap to type", "タップして入力"))
-                    .font(.system(size: 12))
+                    .font(.system(size: compact ? 11.5 : 12))
                     .foregroundStyle(Brand.askFaint)
                     .lineLimit(1)
                     .fixedSize()
@@ -728,7 +738,7 @@ struct AskField: View {
         .padding(.leading, boxed ? 10 : 12)
         .padding(.trailing, boxed ? 10 : 12)
         .padding(.vertical, boxed ? 7 : 0)
-        .font(.system(size: 15))
+        .font(.system(size: compact ? 13.5 : 15))
         .frame(maxHeight: .infinity, alignment: boxed ? .top : .center)
     }
 
@@ -737,18 +747,18 @@ struct AskField: View {
     private var searchButton: some View {
         if !model.isRunning, model.session?.currentIsAnswer == true, let searchedBy = model.session?.currentSearchedBy {
             Label(L("已联网 · \(searchedBy)", "Searched · \(searchedBy)", "検索済み · \(searchedBy)"), systemImage: "globe")
-                .font(.system(size: 12))
+                .font(.system(size: compact ? 11.5 : 12))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .fixedSize()
         } else if model.canForceSearch {
             Button { model.forceWebSearch() } label: {
                 Label(L("使用联网查询", "Search the web", "ウェブで調べる"), systemImage: "globe")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: compact ? 12 : 13, weight: .semibold))
                     .lineLimit(1)
                     .padding(.leading, 7)
                     .padding(.trailing, 9)
-                    .frame(height: 28)
+                    .frame(height: compact ? 22 : 28)
                     .foregroundStyle(Brand.modeAnswerText)
                     .background(Capsule().fill(Brand.modeAnswerFill))
                     .overlay(Capsule().strokeBorder(Brand.answerBorder.opacity(0.4), lineWidth: 1))
@@ -783,6 +793,7 @@ struct AskField: View {
         let composing = model.target == .instruction ? model.composition : ""
         if text.isEmpty && composing.isEmpty {
             Text(placeholder)
+                .font(compact ? Font.system(size: 13) : nil)
                 .foregroundStyle(caretVisible == nil ? Brand.askFaint : Brand.askPlaceholderActive)
                 .lineLimit(boxed ? 2 : 1)
                 .minimumScaleFactor(model.helpReplyHint || model.helpWait != nil || model.helpAgainHint ? 0.75 : 1)
@@ -803,7 +814,7 @@ struct AskField: View {
             let atEnd = split == text.endIndex
             (Text(text[..<split])
                 + Text(composing).underline(color: Brand.askCaret)
-                + (caretVisible.map { Text(Image(uiImage: Self.caret)).foregroundColor(Brand.askCaret.opacity($0 ? 1 : 0)).baselineOffset(-4) } ?? Text(""))
+                + (caretVisible.map { Text(Image(uiImage: caret)).foregroundColor(Brand.askCaret.opacity($0 ? 1 : 0)).baselineOffset(compact ? -3 : -4) } ?? Text(""))
                 + Text(text[split...]))
                 // 未激活时留着的字变灰。
                 .foregroundStyle(caretVisible == nil ? Brand.askSub : Brand.askText)
@@ -813,7 +824,7 @@ struct AskField: View {
     }
 
     private func caretImage(_ visible: Bool) -> some View {
-        Image(uiImage: Self.caret).foregroundStyle(Brand.askCaret.opacity(visible ? 1 : 0))
+        Image(uiImage: caret).foregroundStyle(Brand.askCaret.opacity(visible ? 1 : 0))
     }
 }
 

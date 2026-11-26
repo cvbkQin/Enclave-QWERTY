@@ -154,12 +154,14 @@ struct HelpPopKey: View {
 // MARK: - 卡头：「回」小标 + 风格 + 对方的话
 
 /// 16×16、圆角 4 的「回」（底 #D1FAE5、字 #047857；深色底 18% 绿、字 #6EE7B7）。
+/// iPhone 竖屏卡头变小（T104）：14×14、字 9.5，和 14 高的卡头一样高。
 struct ReplyBadge: View {
     var body: some View {
+        let size: CGFloat = KeyboardMetrics.compactCard ? 14 : 16
         Text(L("回", "R", "返"))
-            .font(.system(size: 10.5, weight: .bold))
+            .font(.system(size: KeyboardMetrics.compactCard ? 9.5 : 10.5, weight: .bold))
             .foregroundStyle(HelpStyle.badgeText)
-            .frame(width: 16, height: 16)
+            .frame(width: size, height: size)
             .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(HelpStyle.badgeFill))
             .accessibilityHidden(true)
     }
@@ -179,12 +181,12 @@ struct ReplyResultHeader: View {
             HStack(spacing: 0) {
                 ReplyBadge().padding(.trailing, 5)
                 Text(style.map { "\(head) · \($0)" } ?? head)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: KeyboardMetrics.headerFont, weight: .bold))
                     .foregroundStyle(HelpStyle.title)
                     .lineLimit(1)
                     .layoutPriority(1)
                 Text(quote)
-                    .font(.system(size: 13))
+                    .font(.system(size: KeyboardMetrics.headerFont))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -193,9 +195,9 @@ struct ReplyResultHeader: View {
                     .padding(.leading, 6)
                 Spacer(minLength: 0)
             }
-            .frame(height: 18)
+            .frame(height: KeyboardMetrics.headerHeight)
         }
-        .frame(height: 18)
+        .frame(height: KeyboardMetrics.headerHeight)
         .contentShape(Rectangle())
         .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { expanded.toggle() } }
         .overlay(alignment: .topLeading) {
@@ -209,7 +211,7 @@ struct ReplyResultHeader: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(KeyStyle.charKey)
                         .shadow(color: .black.opacity(0.15), radius: 6, y: 3))
-                    .offset(y: 22)
+                    .offset(y: KeyboardMetrics.headerHeight + 4)
                     .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { expanded = false } }
                     .transition(.opacity)
             }
