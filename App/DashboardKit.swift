@@ -290,13 +290,17 @@ struct BuildBadge: View {
 
 extension View {
     /// 标签页的根页面：隐藏导航栏（标题自己画），列表顶部只留和首页一样的 8pt。
+    /// 标题模式一定要 inline：默认是大标题，导航栏虽然藏着，列表下拉松手后系统还会按大标题那一截（约 52pt）
+    /// 回弹，停在半路再一下跳回去（0.97_16 真机录屏，设置页）。
     @ViewBuilder
     func tabRootPage() -> some View {
         if #available(iOS 17.0, *) {
             self.toolbar(.hidden, for: .navigationBar)
+                .navigationBarTitleDisplayMode(.inline)
                 .contentMargins(.top, 8, for: .scrollContent)
         } else {
             self.toolbar(.hidden, for: .navigationBar)
+                .navigationBarTitleDisplayMode(.inline)
         }
     }
 
