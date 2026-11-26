@@ -153,6 +153,10 @@ final class KeyboardModel: ObservableObject {
     @Published private(set) var cardCaret = 0
     /// 修改时选中的一段（按字符数，不为空）；nil 是没选、只有光标。选中时打字、删除都替换这一段。
     @Published private(set) var cardSelection: Range<Int>?
+    /// 修改时弹的编辑菜单（T105，design/edit-select ES1）：没选中时「选择 / 全选 / 粘贴」，选中时「剪切 / 拷贝 / 粘贴 / 全选」。
+    @Published private(set) var cardMenu: CardMenu?
+    /// 菜单箭头对着的点（编辑框里的坐标：选中范围中间、最后一行的下沿；没选中时是光标下沿）。CardEditTextView 排版后写。
+    @Published var cardMenuAnchor: CGPoint?
     /// 常用词，候选栏里给它们加个小紫点。
     @Published private(set) var commonWordTexts: Set<String> = []
 
@@ -856,6 +860,7 @@ final class KeyboardModel: ObservableObject {
         }
         cardCaret = min(max(caret ?? cardDraft.count, 0), cardDraft.count)
         cardSelection = nil
+        cardMenu = nil
         target = .card
     }
 
@@ -865,6 +870,7 @@ final class KeyboardModel: ObservableObject {
         finishComposition()
         target = restingTarget
         cardSelection = nil
+        cardMenu = nil
         let text = cardDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard var session, !text.isEmpty, cardDraft != session.current else { return }
         let from = session.currentIndex
@@ -885,9 +891,11 @@ final class KeyboardModel: ObservableObject {
         target = restingTarget
         cardDraft = ""
         cardSelection = nil
+        cardMenu = nil
     }
 
     func insertInCard(_ text: String) {
+        cardMenu = nil
         if let selection = cardSelection {
             replaceInCard(selection, with: text)
             return
@@ -898,6 +906,7 @@ final class KeyboardModel: ObservableObject {
     }
 
     func deleteInCard() {
+        cardMenu = nil
         if let selection = cardSelection {
             replaceInCard(selection, with: "")
             return
@@ -910,6 +919,7 @@ final class KeyboardModel: ObservableObject {
 
     /// 选中时左右挪光标：和系统一样先收到选区这一头（往左收到开头、往右收到末尾），不再多挪。
     func moveCardCaret(by offset: Int) {
+        cardMenu = nil
         if let selection = cardSelection {
             cardSelection = nil
             cardCaret = offset < 0 ? selection.lowerBound : selection.upperBound
@@ -918,7 +928,67 @@ final class KeyboardModel: ObservableObject {
         cardCaret = min(max(cardCaret + offset, 0), cardDraft.count)
     }
 
-    // MARK: 选中、复制、剪切、粘贴（修改模式）
+    /// 选中时打拼音（第一个字母）：先删掉选中的字，和系统一样（ES1 打字）。syncEngine 出了拼音时调。
+    func dropCardSelectionForComposing() {
+        guard target == .card, let selection = cardSelection else { return }
+        cardMenu = nil
+        replaceInCard(selection, with: "")
+    }
+
+    // MARK: 选中、拷贝、剪切、粘贴（修改模式，T105）
+
+    enum CardMenu: Equatable {
+        /// 点了一下光标：「选择 / 全选 / 粘贴」。
+        case caret
+        /// 有选中：「剪切 / 拷贝 / 粘贴 / 全选」。
+        case selection
+    }
+
+    enum CardMenuItem: CaseIterable {
+        case select, selectAll, cut, copy, paste
+
+        var title: String {
+            switch self {
+            case .select: return L("选择", "Select", "選択")
+            case .selectAll: return L("全选", "Select All", "すべてを選択")
+            case .cut: return L("剪切", "Cut", "カット")
+            case .copy: return L("拷贝", "Copy", "コピー")
+            case .paste: return L("粘贴", "Paste", "ペースト")
+            }
+        }
+    }
+
+    /// 菜单里有哪几项，顺序照系统。剪贴板里没有字时没有「粘贴」；已经全选时没有「全选」（ES1 ④）。
+    /// 只看 hasStrings，不读剪贴板内容，系统不弹「粘贴自…」。
+    var cardMenuItems: [CardMenuItem] {
+        guard let cardMenu else { return [] }
+        let paste = UIPasteboard.general.hasStrings
+        switch cardMenu {
+        case .caret:
+            return (cardDraft.isEmpty ? [] : [.select, .selectAll]) + (paste ? [.paste] : [])
+        case .selection:
+            let all = cardSelection == 0..<cardDraft.count
+            return [.cut, .copy] + (paste ? [.paste] : []) + (all ? [] : [.selectAll])
+        }
+    }
+
+    func performCardMenu(_ item: CardMenuItem) {
+        switch item {
+        case .select: selectWordBeforeCaret()
+        case .selectAll: selectAllInCard()
+        case .cut: cutCardSelection()
+        case .copy: copyCardSelection()
+        case .paste: pasteInCard()
+        }
+    }
+
+    /// 弹出、收起菜单：拖拖柄时收起，松手再弹；点光标、点选区切换。
+    func showCardMenu(_ menu: CardMenu?) {
+        guard target == .card else { return }
+        let menu = menu == .selection && cardSelection == nil ? nil : menu
+        if cardMenu != menu { cardMenu = menu }
+        if menu == nil, cardMenuAnchor != nil { cardMenuAnchor = nil }
+    }
 
     /// 选中一段（长按选词、按住拖、拖两头的拖柄）。空的一段就只放光标。正在打拼音的先上屏。
     func selectInCard(_ range: Range<Int>) {
@@ -926,34 +996,47 @@ final class KeyboardModel: ObservableObject {
         finishComposition()
         let lower = min(max(range.lowerBound, 0), cardDraft.count)
         let upper = min(max(range.upperBound, lower), cardDraft.count)
-        cardSelection = lower < upper ? lower..<upper : nil
-        cardCaret = upper
+        let selection = lower < upper ? lower..<upper : nil
+        if selection != cardSelection { cardSelection = selection }
+        if cardCaret != upper { cardCaret = upper }
     }
 
+    /// 全选：整段选中，菜单换成「剪切 / 拷贝 / 粘贴」（ES1 ④）。
     func selectAllInCard() {
         selectInCard(0..<cardDraft.count)
+        showCardMenu(.selection)
+    }
+
+    /// 「选择」：选中光标前面的那个词（光标在最前面时选后面的），进选中菜单（ES1 ③ → ①）。
+    func selectWordBeforeCaret() {
+        guard let word = CardTextEditing.wordRange(at: max(cardCaret - 1, 0), in: cardDraft) else { return }
+        selectInCard(word)
+        showCardMenu(.selection)
     }
 
     var cardSelectedText: String? {
         cardSelection.map { CardTextEditing.substring($0, of: cardDraft) }
     }
 
-    /// 复制选中的字：写进系统剪贴板，记成自己复制的（不弹帮回键、剪贴板不亮小紫点）。复制完选区留着，和系统一样。
+    /// 拷贝选中的字：写进系统剪贴板，记成自己复制的（不弹帮回键、剪贴板不亮小紫点）。菜单收起、选中留着，和系统一样。
     func copyCardSelection() {
         guard let text = cardSelectedText, !text.isEmpty else { return }
         UIPasteboard.general.string = text
         noteOwnCopy()
         keyFeedback(for: .space)
+        showCardMenu(nil)
     }
 
+    /// 剪切：拷贝后删掉选中的字，光标停在原处。
     func cutCardSelection() {
         guard let selection = cardSelection else { return }
         copyCardSelection()
         replaceInCard(selection, with: "")
     }
 
-    /// 粘贴系统剪贴板里的字：有选区就换掉选区，没有就插在光标处。剪贴板里没有字就不动。
+    /// 粘贴系统剪贴板里的字：有选中就换掉，没有就插在光标处，光标停在粘进来的字后面。剪贴板里没有字就不动。
     func pasteInCard() {
+        showCardMenu(nil)
         guard target == .card, let text = UIPasteboard.general.string, !text.isEmpty else { return }
         finishComposition()
         keyFeedback(for: .space)

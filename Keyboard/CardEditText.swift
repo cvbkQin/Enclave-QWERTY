@@ -1,15 +1,20 @@
 import SwiftUI
 import UIKit
 
-/// 修改模式里的正文：可以放光标、选中、拖动调范围（用户 11-26：修改时要能选中、多选、复制、粘贴）。
-/// 键盘扩展里不能用系统自己的文字编辑：系统不会给键盘里的输入框再弹一个键盘，系统的选择气泡菜单也会被键盘顶边切掉。
-/// 所以这里的 UITextView 只管排版和上下滚动（不可编辑、不可选），光标、选区底色、两头的拖柄都自己画，
-/// 手势自己处理：点 = 放光标；长按 = 选中点到的词，按住不放再拖 = 从这个词拖到手指处；拖两头的拖柄 = 调范围。
-/// 复制、剪切、粘贴、全选的按钮在下面那一行（CardEditHint）。
+/// 修改模式里的正文（T105，design/edit-select ES1，cvbk 11-26 16:53 交付）：手势和普通输入框一样。
+/// - 点一下：光标移过去，不弹菜单；光标已经在那里时再点一下光标：弹「选择 / 全选 / 粘贴」。
+/// - 长按 0.45 秒或双击：选中手指下的词，弹「剪切 / 拷贝 / 粘贴 / 全选」；长按不放再拖，选区跟着手指走。
+/// - 拖两头的拖柄：按字改范围，可以跨行，拖到上下边自动滚；拖的时候菜单藏起来，松手再弹。没有放大镜。
+/// - 点选中范围外：收起菜单和选中，光标放到点的位置；点选中范围里：菜单弹出、收起切换。
+/// 键盘扩展里用不了系统输入框和系统菜单（不会给键盘里的框弹键盘，系统气泡往上弹会被键盘顶边切掉），
+/// 所以 UITextView 只管排版和上下滚动（不可编辑、不可选），光标、选中底色、拖柄自己画，菜单是 CardEditMenu（SwiftUI，盖在卡片下面）。
 struct CardEditText: UIViewRepresentable {
     @ObservedObject var model: KeyboardModel
-    /// 光标、选区、拖柄、拼音下划线的颜色。
-    var tint: Color
+    /// 光标、拼音下划线的颜色（编辑框样子不变，照旧紫）。
+    var caretColor: Color
+    /// 选中的底色、拖柄的颜色：跟卡片的功能色（问答蓝、润色紫、帮回绿）。
+    var selectionFill: Color
+    var handleColor: Color
 
     func makeUIView(context: Context) -> CardEditTextView {
         let view = CardEditTextView()
@@ -19,14 +24,20 @@ struct CardEditText: UIViewRepresentable {
 
     func updateUIView(_ view: CardEditTextView, context: Context) {
         view.model = model
-        view.tint = UIColor(tint)
+        view.colors = .init(caret: UIColor(caretColor), fill: UIColor(selectionFill), handle: UIColor(handleColor))
         view.render()
     }
 }
 
-final class CardEditTextView: UIView {
+final class CardEditTextView: UIView, UITextViewDelegate {
+    struct Colors: Equatable {
+        var caret: UIColor = .systemPurple
+        var fill: UIColor = UIColor.systemBlue.withAlphaComponent(0.28)
+        var handle: UIColor = .systemBlue
+    }
+
     weak var model: KeyboardModel?
-    var tint: UIColor = .systemBlue
+    var colors = Colors()
 
     /// 和结果卡上没在修改时的正文一样：15pt 系统字体。
     static let font = UIFont.systemFont(ofSize: 15)
@@ -37,6 +48,8 @@ final class CardEditTextView: UIView {
     private let caret = UIView()
     private let startHandle = CardSelectionHandle(isStart: true)
     private let endHandle = CardSelectionHandle(isStart: false)
+    private let tapGesture = UITapGestureRecognizer()
+    private let doubleTapGesture = UITapGestureRecognizer()
     private let pressGesture = UILongPressGestureRecognizer()
 
     private struct Shown: Equatable {
@@ -44,9 +57,8 @@ final class CardEditTextView: UIView {
         var composition: String
         /// 显示出来的文字里光标在第几个字后面（有拼音时在拼音后面）。
         var caret: Int
-        /// 显示出来的文字里选中的一段；正在打拼音时不显示选区（拼音替换选区，选区先藏起来）。
         var selection: Range<Int>?
-        var tint: UIColor
+        var colors: Colors
     }
 
     private var shown: Shown?
@@ -55,6 +67,10 @@ final class CardEditTextView: UIView {
     private var pressAnchor: Range<Int>?
     /// 拖拖柄时手指和拖柄所在那一行中点的差，拖的时候按这一行的位置算，手指不挡字。
     private var grabOffset: CGPoint = .zero
+    /// 点在光标上要弹「选择 / 全选 / 粘贴」：等一下看是不是双击，是双击就不弹（双击是选词）。
+    private var pendingCaretMenu: DispatchWorkItem?
+    /// 双击的第二下也会算一次单击：刚双击过就不再按单击处理（不然会把刚弹出的菜单又收起来）。
+    private var lastDoubleTap: CFTimeInterval = 0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -67,6 +83,7 @@ final class CardEditTextView: UIView {
         textView.alwaysBounceVertical = false
         textView.font = Self.font
         textView.isAccessibilityElement = true
+        textView.delegate = self
         addSubview(textView)
 
         caret.isUserInteractionEnabled = false
@@ -81,12 +98,16 @@ final class CardEditTextView: UIView {
             textView.panGestureRecognizer.require(toFail: pan)
         }
 
-        let tap = UITapGestureRecognizer(target: self, action: #selector(tapped(_:)))
-        textView.addGestureRecognizer(tap)
+        // 点一下马上挪光标，不等双击；双击再把点在光标上弹的菜单取消、改成选词。
+        tapGesture.addTarget(self, action: #selector(tapped(_:)))
+        textView.addGestureRecognizer(tapGesture)
+        doubleTapGesture.numberOfTapsRequired = 2
+        doubleTapGesture.addTarget(self, action: #selector(doubleTapped(_:)))
+        textView.addGestureRecognizer(doubleTapGesture)
         pressGesture.addTarget(self, action: #selector(pressed(_:)))
-        pressGesture.minimumPressDuration = 0.35
+        pressGesture.minimumPressDuration = 0.45
         textView.addGestureRecognizer(pressGesture)
-        // 按住不动 0.35 秒才算长按；手指一动就是滚动，长按跟着失败。
+        // 按住不动 0.45 秒才算长按；手指一动就是滚动，长按跟着失败。
         textView.panGestureRecognizer.require(toFail: pressGesture)
     }
 
@@ -100,6 +121,7 @@ final class CardEditTextView: UIView {
             needsScrollToCaret = false
             scrollToCaret()
         }
+        publishMenuAnchor()
     }
 
     // MARK: 显示
@@ -108,39 +130,33 @@ final class CardEditTextView: UIView {
         guard let model else { return }
         let draft = model.cardDraft
         let composition = model.composition
-        var shown: Shown
-        if let selection = model.cardSelection, !composition.isEmpty {
-            // 选中时打拼音：拼音先显示在选区的位置，上屏时换掉选区。
-            let removed = CardTextEditing.replacing(selection, in: draft, with: composition)
-            shown = Shown(display: removed.text, composition: composition, caret: removed.caret, selection: nil, tint: tint)
-        } else {
-            let caret = min(max(model.cardCaret, 0), draft.count)
-            let display = CardTextEditing.replacing(caret..<caret, in: draft, with: composition)
-            shown = Shown(display: display.text, composition: composition, caret: display.caret,
-                          selection: composition.isEmpty ? model.cardSelection : nil, tint: tint)
-        }
-        guard shown != self.shown else { return }
-        let caretMoved = shown.caret != self.shown?.caret || shown.display != self.shown?.display
-        self.shown = shown
+        let caretIndex = min(max(model.cardCaret, 0), draft.count)
+        let display = CardTextEditing.replacing(caretIndex..<caretIndex, in: draft, with: composition)
+        let shown = Shown(display: display.text, composition: composition, caret: display.caret,
+                          selection: composition.isEmpty ? model.cardSelection : nil, colors: colors)
+        if shown != self.shown {
+            let caretMoved = shown.caret != self.shown?.caret || shown.display != self.shown?.display
+            self.shown = shown
 
-        let attributed = NSMutableAttributedString(string: shown.display,
-                                                   attributes: [.font: Self.font, .foregroundColor: UIColor.label])
-        if !shown.composition.isEmpty {
-            let start = shown.caret - shown.composition.count
-            attributed.addAttributes([.underlineStyle: NSUnderlineStyle.single.rawValue, .underlineColor: tint],
-                                     range: nsRange(start..<shown.caret, in: shown.display))
+            let attributed = NSMutableAttributedString(string: shown.display,
+                                                       attributes: [.font: Self.font, .foregroundColor: UIColor.label])
+            if !shown.composition.isEmpty {
+                let start = shown.caret - shown.composition.count
+                attributed.addAttributes([.underlineStyle: NSUnderlineStyle.single.rawValue, .underlineColor: colors.caret],
+                                         range: nsRange(start..<shown.caret, in: shown.display))
+            }
+            if let selection = shown.selection {
+                attributed.addAttribute(.backgroundColor, value: colors.fill, range: nsRange(selection, in: shown.display))
+            }
+            textView.attributedText = attributed
+            textView.accessibilityValue = shown.display
+            placeMarks()
+            // 打字、删除、挪光标时让光标留在看得见的地方；拖选区时由拖动自己滚。
+            if caretMoved, shown.selection == nil {
+                if bounds.height > 0 { scrollToCaret() } else { needsScrollToCaret = true }
+            }
         }
-        if let selection = shown.selection {
-            attributed.addAttribute(.backgroundColor, value: tint.withAlphaComponent(0.25),
-                                    range: nsRange(selection, in: shown.display))
-        }
-        textView.attributedText = attributed
-        textView.accessibilityValue = shown.display
-        placeMarks()
-        // 打字、删除、挪光标时让光标留在看得见的地方；拖选区时由拖动自己滚。
-        if caretMoved, shown.selection == nil {
-            if bounds.height > 0 { scrollToCaret() } else { needsScrollToCaret = true }
-        }
+        publishMenuAnchor()
     }
 
     private func placeMarks() {
@@ -149,8 +165,8 @@ final class CardEditTextView: UIView {
         if let selection = shown.selection {
             caret.isHidden = true
             caret.layer.removeAllAnimations()
-            startHandle.place(line: edgeRect(before: selection.lowerBound, in: shown.display), tint: shown.tint)
-            endHandle.place(line: edgeRect(after: selection.upperBound, in: shown.display), tint: shown.tint)
+            startHandle.place(line: edgeRect(before: selection.lowerBound, in: shown.display), color: shown.colors.handle)
+            endHandle.place(line: edgeRect(after: selection.upperBound, in: shown.display), color: shown.colors.handle)
             startHandle.isHidden = false
             endHandle.isHidden = false
         } else {
@@ -161,9 +177,9 @@ final class CardEditTextView: UIView {
             let frame = CGRect(x: line.minX - 1, y: line.midY - height / 2, width: 2, height: height)
             let moved = caret.frame != frame || caret.isHidden
             caret.frame = frame
-            caret.backgroundColor = shown.tint
+            caret.backgroundColor = shown.colors.caret
             caret.isHidden = false
-            // 打拼音时光标常亮；挪过以后重新从亮开始闪，和原来一样 0.5 秒一换。
+            // 打拼音时光标常亮；挪过以后重新从亮开始闪，0.5 秒一换。
             if !shown.composition.isEmpty {
                 caret.layer.removeAllAnimations()
             } else if moved || caret.layer.animation(forKey: "blink") == nil {
@@ -175,6 +191,31 @@ final class CardEditTextView: UIView {
                 caret.layer.removeAllAnimations()
                 caret.layer.add(blink, forKey: "blink")
             }
+        }
+    }
+
+    /// 菜单箭头对着的点（这个视图的坐标）：选中时是选中范围的中间、最后一行的下沿；没选中时是光标下沿。
+    /// 滚出卡片的部分按卡片上下边算。写回 model 放到下一轮，不在 SwiftUI 更新视图时改状态。
+    private func publishMenuAnchor() {
+        guard let model, model.cardMenu != nil, let shown, bounds.height > 0 else { return }
+        let anchor: CGPoint
+        if let selection = shown.selection {
+            let first = edgeRect(before: selection.lowerBound, in: shown.display)
+            let last = edgeRect(after: selection.upperBound, in: shown.display)
+            // 一行里：两头中间；跨行：最后一行的左边到结尾的中间（箭头对着最后一行选中的字）。
+            let sameLine = abs(first.minY - last.minY) < 1
+            let left = sameLine ? first.minX : Self.inset.left
+            anchor = CGPoint(x: (left + last.minX) / 2, y: last.maxY)
+        } else {
+            let line = caretRect(at: shown.caret, in: shown.display)
+            anchor = CGPoint(x: line.minX, y: line.maxY)
+        }
+        let visible = CGPoint(x: anchor.x - textView.contentOffset.x,
+                              y: min(max(anchor.y - textView.contentOffset.y, 0), bounds.height))
+        guard model.cardMenuAnchor != visible else { return }
+        DispatchQueue.main.async { [weak model] in
+            guard let model, model.cardMenu != nil, model.cardMenuAnchor != visible else { return }
+            model.cardMenuAnchor = visible
         }
     }
 
@@ -253,6 +294,23 @@ final class CardEditTextView: UIView {
         return between ? index : min(index, text.count - 1)
     }
 
+    /// 点的地方是不是压在选中的字上（按选中范围每一行的框算，不只是按第几个字）。
+    private func pointIsInSelection(_ point: CGPoint, _ selection: Range<Int>) -> Bool {
+        guard let shown else { return false }
+        let layout = textView.layoutManager
+        let glyphs = layout.glyphRange(forCharacterRange: nsRange(selection, in: shown.display), actualCharacterRange: nil)
+        var hit = false
+        let local = CGPoint(x: point.x - Self.inset.left, y: point.y - Self.inset.top)
+        layout.enumerateEnclosingRects(forGlyphRange: glyphs, withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
+                                       in: textView.textContainer) { rect, stop in
+            if rect.insetBy(dx: -4, dy: -2).contains(local) {
+                hit = true
+                stop.pointee = true
+            }
+        }
+        return hit
+    }
+
     private func nsRange(_ range: Range<Int>, in text: String) -> NSRange {
         let start = CardTextEditing.utf16Offset(range.lowerBound, in: text)
         let end = CardTextEditing.utf16Offset(range.upperBound, in: text)
@@ -270,9 +328,45 @@ final class CardEditTextView: UIView {
     }
 
     @objc private func tapped(_ gesture: UITapGestureRecognizer) {
-        guard let model else { return }
+        guard let model, CACurrentMediaTime() - lastDoubleTap > 0.15 else { return }
+        pendingCaretMenu?.cancel()
         settleComposition()
-        model.beginCardEdit(caret: characterIndex(at: gesture.location(in: textView), between: true))
+        let point = gesture.location(in: textView)
+        if let selection = model.cardSelection, pointIsInSelection(point, selection) {
+            // 点在选中的字上：菜单弹出、收起切换。
+            let show: KeyboardModel.CardMenu? = model.cardMenu == nil ? .selection : nil
+            model.showCardMenu(show)
+            return
+        }
+        let index = characterIndex(at: point, between: true)
+        if model.cardSelection == nil, index == model.cardCaret {
+            // 光标已经在这里，再点一下：弹「选择 / 全选 / 粘贴」，再点收起。等一下确认不是双击。
+            let show: KeyboardModel.CardMenu? = model.cardMenu == nil ? .caret : nil
+            let work = DispatchWorkItem { [weak model] in model?.showCardMenu(show) }
+            pendingCaretMenu = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.26, execute: work)
+            return
+        }
+        // 点在别处：收起菜单和选中，光标放过去。
+        model.beginCardEdit(caret: index)
+    }
+
+    @objc private func doubleTapped(_ gesture: UITapGestureRecognizer) {
+        lastDoubleTap = CACurrentMediaTime()
+        pendingCaretMenu?.cancel()
+        selectWord(at: gesture.location(in: textView))
+    }
+
+    @discardableResult
+    private func selectWord(at point: CGPoint) -> Range<Int>? {
+        guard let model else { return nil }
+        settleComposition()
+        guard let word = CardTextEditing.wordRange(at: characterIndex(at: point, between: false), in: model.cardDraft)
+        else { return nil }
+        model.selectInCard(word)
+        model.showCardMenu(.selection)
+        model.keyFeedback(for: .space)
+        return word
     }
 
     @objc private func pressed(_ gesture: UILongPressGestureRecognizer) {
@@ -280,24 +374,27 @@ final class CardEditTextView: UIView {
         let point = gesture.location(in: textView)
         switch gesture.state {
         case .began:
-            settleComposition()
-            guard let word = CardTextEditing.wordRange(at: characterIndex(at: point, between: false), in: model.cardDraft)
-            else { return }
-            pressAnchor = word
-            model.selectInCard(word)
-            model.keyFeedback(for: .space)
+            pendingCaretMenu?.cancel()
+            pressAnchor = selectWord(at: point)
         case .changed:
             guard let anchor = pressAnchor else { return }
             let index = characterIndex(at: point, between: true)
+            let range: Range<Int>
             if index < anchor.lowerBound {
-                model.selectInCard(index..<anchor.upperBound)
+                range = index..<anchor.upperBound
             } else if index > anchor.upperBound {
-                model.selectInCard(anchor.lowerBound..<index)
+                range = anchor.lowerBound..<index
             } else {
-                model.selectInCard(anchor)
+                range = anchor
+            }
+            if range != model.cardSelection {
+                // 拖的时候菜单藏起来，松手再弹。
+                model.showCardMenu(nil)
+                model.selectInCard(range)
             }
             autoScroll(near: point)
         default:
+            if pressAnchor != nil { model.showCardMenu(.selection) }
             pressAnchor = nil
         }
     }
@@ -307,7 +404,9 @@ final class CardEditTextView: UIView {
         let point = gesture.location(in: textView)
         switch gesture.state {
         case .began:
+            pendingCaretMenu?.cancel()
             grabOffset = CGPoint(x: handle.lineMid.x - point.x, y: handle.lineMid.y - point.y)
+            model.showCardMenu(nil)
         case .changed:
             guard let selection = model.cardSelection else { return }
             let target = CGPoint(x: point.x + grabOffset.x, y: point.y + grabOffset.y)
@@ -320,7 +419,7 @@ final class CardEditTextView: UIView {
             }
             autoScroll(near: point)
         default:
-            break
+            model.showCardMenu(.selection)
         }
     }
 
@@ -336,18 +435,29 @@ final class CardEditTextView: UIView {
         }
         if offset != textView.contentOffset.y { textView.contentOffset.y = offset }
     }
+
+    // MARK: UIScrollViewDelegate（UITextViewDelegate 继承它）
+
+    /// 手指上下滑卡片：菜单先收起（位置跟不上），和系统一样。
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+        model?.showCardMenu(nil)
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        publishMenuAnchor()
+    }
 }
 
-/// 选区两头的拖柄：一条 2pt 竖线和这一行一样高，开头的圆点在上面、末尾的在下面（和系统一样）。
-/// 看得见的部分很细，能按到的范围是 30 宽、上下各多 6，手指好按。
+/// 选区两头的拖柄：一条 2pt 竖线和这一行一样高，开头的圆点（直径 10）在上面、末尾的在下面（和系统一样）。
+/// 看得见的部分很细，按得到的范围 44×44。
 final class CardSelectionHandle: UIView {
     let isStart: Bool
     /// 拖柄所在那一行的中点（textView 内容坐标），拖的时候按它算位置。
     private(set) var lineMid: CGPoint = .zero
     private let stem = UIView()
     private let knob = UIView()
-    private static let knobSize: CGFloat = 8
-    private static let width: CGFloat = 30
+    private static let knobSize: CGFloat = 10
+    private static let width: CGFloat = 44
 
     init(isStart: Bool) {
         self.isStart = isStart
@@ -362,19 +472,21 @@ final class CardSelectionHandle: UIView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func place(line: CGRect, tint: UIColor) {
+    func place(line: CGRect, color: UIColor) {
         let knobSize = Self.knobSize
         frame = CGRect(x: line.minX - Self.width / 2, y: line.minY - knobSize,
                        width: Self.width, height: line.height + knobSize * 2)
         stem.frame = CGRect(x: Self.width / 2 - 1, y: knobSize, width: 2, height: line.height)
         knob.frame = CGRect(x: (Self.width - knobSize) / 2, y: isStart ? 0 : knobSize + line.height,
                             width: knobSize, height: knobSize)
-        stem.backgroundColor = tint
-        knob.backgroundColor = tint
+        stem.backgroundColor = color
+        knob.backgroundColor = color
         lineMid = CGPoint(x: line.minX, y: line.midY)
     }
 
+    /// 按得到的范围：44 宽，上下补到至少 44 高（圆点那头多补）。
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        bounds.insetBy(dx: 0, dy: -6).contains(point)
+        let extra = max(0, (44 - bounds.height) / 2)
+        return bounds.insetBy(dx: 0, dy: -extra).contains(point)
     }
 }

@@ -326,8 +326,7 @@ struct KeyboardView: View {
 }
 
 /// 在卡片里改结果时 AI 栏换成提示。
-/// 自由编辑中（FE3）：左边「✎ 全选 粘贴」（选中时「✎ 复制 剪切 粘贴」，原来是「✎ 正在修改 AI 结果」），
-/// 右边「取消修改」「✓ 完成修改」，完成在最右。
+/// 自由编辑中（FE3）：左边「✎ 正在修改 AI 结果」，右边「取消修改」「✓ 完成修改」，完成在最右。
 /// 横屏九宫格放在按键中间那块的第一行（LN1），inset 传 0。
 struct CardEditHint: View {
     @ObservedObject var model: KeyboardModel
@@ -335,7 +334,14 @@ struct CardEditHint: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            CardEditActions(model: model)
+            Label(L("正在修改 AI 结果", "Editing AI result", "AI の結果を編集中"), systemImage: "pencil")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Brand.modeRewriteText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(Capsule().fill(Brand.modeRewriteFill))
             Spacer(minLength: 0)
             Button { model.cancelCardEdit() } label: {
                 Text(L("取消修改", "Cancel", "キャンセル"))
@@ -361,47 +367,6 @@ struct CardEditHint: View {
         .padding(.horizontal, inset)
     }
 
-}
-
-/// 修改时的复制、剪切、粘贴、全选（用户 11-26）：没选中时「全选」「粘贴」，选中时「复制」「剪切」「粘贴」。
-/// 先沿用「正在修改 AI 结果」那颗浅紫胶囊的样子，里面一排文字按钮；最终样子等 02 出图再定。
-private struct CardEditActions: View {
-    @ObservedObject var model: KeyboardModel
-
-    var body: some View {
-        HStack(spacing: 0) {
-            Image(systemName: "pencil")
-                .font(.system(size: 13, weight: .semibold))
-                .padding(.leading, 10)
-                .padding(.trailing, 2)
-                .accessibilityLabel(L("正在修改 AI 结果", "Editing AI result", "AI の結果を編集中"))
-            if model.cardSelection == nil {
-                action(L("全选", "Select All", "すべて選択")) { model.selectAllInCard() }
-                    .disabled(model.cardDraft.isEmpty)
-            } else {
-                action(L("复制", "Copy", "コピー")) { model.copyCardSelection() }
-                action(L("剪切", "Cut", "カット")) { model.cutCardSelection() }
-            }
-            action(L("粘贴", "Paste", "ペースト")) { model.pasteInCard() }
-                .padding(.trailing, 3)
-        }
-        .foregroundStyle(Brand.modeRewriteText)
-        .frame(height: 30)
-        .background(Capsule().fill(Brand.modeRewriteFill))
-    }
-
-    private func action(_ title: String, _ perform: @escaping () -> Void) -> some View {
-        Button(action: perform) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .padding(.horizontal, 7)
-                .frame(height: 30)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(KeyPressStyle())
-    }
 }
 
 /// 收起和展开同一排（AK4、AK5）：▭ 抽屉（固定）｜ 中间滑动区：润色键、问答键、1×20 竖线、固定的风格键 ｜ 撤销 / 重做（固定）。
@@ -1466,8 +1431,27 @@ struct ResultCard: View {
 
     /// 卡片里的文字可以直接改：光标、正在拼的拼音（紫色下划线）、选中、拖柄（CardEditText）。
     /// 内边（左右 12、上下 8）在 CardEditText 里面，拖柄的圆点画在内边里不被切掉。
+    /// 选中的底色和拖柄跟卡片功能色（T105 ES1）；编辑菜单（CardEditMenu）弹在选中文字下面，盖在卡片下沿、拼音行和按键上
+    /// （回答卡这一块 zIndex 2，在下面几行之上）。
     private var editView: some View {
-        CardEditText(model: model, tint: Brand.tagSelectedText)
+        let colors = CardEditMenu.selectionColors(model.cardTint)
+        return CardEditText(model: model, caretColor: Brand.tagSelectedText, selectionFill: colors.fill, handleColor: colors.handle)
+            .overlay(alignment: .topLeading) {
+                if model.cardMenu != nil, let anchor = model.cardMenuAnchor {
+                    let items = model.cardMenuItems
+                    if !items.isEmpty {
+                        GeometryReader { geo in
+                            let width = CardEditMenu.width(items)
+                            // 靠边时整个菜单往里挪（卡片离屏幕边约 4，再留 4），箭头还对着字。
+                            let x = min(max(anchor.x - width / 2, 4), max(4, geo.size.width - width - 4))
+                            CardEditMenu(items: items, arrowX: anchor.x - x) { model.performCardMenu($0) }
+                                .offset(x: x, y: anchor.y + 2)
+                        }
+                        .transition(.opacity)
+                    }
+                }
+            }
+            .animation(.easeOut(duration: 0.12), value: model.cardMenu)
     }
 
     /// ✦ 状态、复制、展开：15pt 线性图标，24×18 点击区，上中下对齐。
