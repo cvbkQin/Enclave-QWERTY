@@ -270,6 +270,18 @@ extension KeyboardModel {
         aiExpanded && session?.currentIsReply == true && !isRunning
     }
 
+    /// 回答卡这一刻按哪个功能上色（cvbk 11-26：调用的什么功能就是什么风格的颜色）：
+    /// 帮回写的（或正在帮回）绿，问答天蓝，润色 / 改写紫。卡片描边、卡头、左边替换键、「完成修改」都按它。
+    enum CardTint { case polish, answer, help }
+
+    var cardTint: CardTint {
+        if isRunning { return replyRunning ? .help : (askKind == .answer ? .answer : .polish) }
+        if stoppedAnswer != nil { return .answer }
+        guard let session, session.current != nil else { return .polish }
+        if session.currentIsReply { return .help }
+        return session.currentIsAnswer ? .answer : .polish
+    }
+
     /// 正在等（还没被打断）。识意框这时不算在编辑：不亮紫线、不闪光标，点一下才停下来进编辑。
     var helpWaiting: Bool { helpWait?.interrupted == false }
 

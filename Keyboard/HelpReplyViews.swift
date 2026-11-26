@@ -165,7 +165,7 @@ struct ReplyBadge: View {
     }
 }
 
-/// 帮回写的一版的卡头（帮回并入润色 §4）：「回」+「AI 帮回 · 正式」（润色紫）+ 灰色「对方的话」，
+/// 帮回写的一版的卡头（帮回并入润色 §4）：「回」+「AI 帮回 · 正式」（帮回绿，cvbk 11-26）+ 灰色「对方的话」，
 /// 原话最多占卡头宽度的 55%，超出省略；点卡头在下面浮出整句，再点收起。
 struct ReplyResultHeader: View {
     var style: String?
@@ -180,7 +180,7 @@ struct ReplyResultHeader: View {
                 ReplyBadge().padding(.trailing, 5)
                 Text(style.map { "\(head) · \($0)" } ?? head)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Brand.purpleText)
+                    .foregroundStyle(HelpStyle.title)
                     .lineLimit(1)
                     .layoutPriority(1)
                 Text(quote)

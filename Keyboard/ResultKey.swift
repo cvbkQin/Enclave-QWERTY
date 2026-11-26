@@ -316,11 +316,10 @@ struct ResultKey: View {
         .padding(.horizontal, 3)
     }
 
-    /// 替换紫色、插入青蓝（用过的也一样，只加小绿圈勾）；还没有结果时灰底。
+    /// 替换按功能上色：润色紫、问答天蓝、帮回绿（cvbk 11-26）；插入一直青蓝（用过的也一样，只加小绿圈勾）；还没有结果时灰底。
     private func fill(_ action: ResultKeyAction) -> AnyShapeStyle {
-        // 完成修改：润色渐变。
-        if editing { return AnyShapeStyle(LinearGradient(colors: [Brand.gradient[0], Brand.gradient[1]],
-                                                         startPoint: .topLeading, endPoint: .bottomTrailing)) }
+        // 完成修改：这一版的功能色。
+        if editing { return AnyShapeStyle(LinearGradient(colors: tintColors, startPoint: .topLeading, endPoint: .bottomTrailing)) }
         if empty { return AnyShapeStyle(Brand.disabledFill) }
         return AnyShapeStyle(gradient(action))
     }
@@ -332,8 +331,17 @@ struct ResultKey: View {
     }
 
     private func gradient(_ action: ResultKeyAction) -> LinearGradient {
-        return LinearGradient(colors: action == .replace ? Brand.resultKeyReplaceColors : Brand.resultKeyInsertColors,
+        return LinearGradient(colors: action == .replace ? tintColors : Brand.resultKeyInsertColors,
                               startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    /// 替换、完成修改的颜色：跟着卡上这一版是哪个功能写的。
+    private var tintColors: [Color] {
+        switch model.cardTint {
+        case .answer: return Brand.askAnswerColors
+        case .help: return HelpStyle.keyColors
+        case .polish: return editing ? [Brand.gradient[0], Brand.gradient[1]] : Brand.resultKeyReplaceColors
+        }
     }
 
     private var accessibilityLabel: String {
