@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-// 设置 › 数据 › 备份与恢复 最上面的 iCloud 同步（设计 design/icloud-sync/IC1–IC4，文案见那里的说明.md）。
+// 设置 › 同步 › 同步与备份 最上面的 iCloud 同步（设计 design/icloud-sync/IC1–IC4，文案见那里的说明.md）。
 // 只在带 iCloud 能力的包里出现（ICloudSync.isAvailable，ICLOUD_SYNC = YES）。
 
 enum SyncColor {

@@ -83,7 +83,7 @@ private struct TrialBanner: View {
 }
 
 /// 首页（PB1 + PH1 + IA1）：AI 今天执行了几次和 7 天柱状图，接口卡（润色、问答两行），2×2 的键盘 / 词库 / 常用词 / 键盘常用语。
-/// 小卡点了切到键盘标签对应那一页；使用指引在 设置 › 上手。
+/// 小卡点了切到键盘标签对应那一页。
 private struct Dashboard: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter

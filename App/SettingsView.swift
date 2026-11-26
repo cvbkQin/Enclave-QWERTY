@@ -119,7 +119,7 @@ struct EnclaveAICard: View {
     }
 }
 
-/// 设置（IA5）：AI 卡；上手（首次设置、功能演示、使用指引）；反馈；通用（语言、日间 / 夜间）；隐私、关于；测试工具（内测、公测版）。
+/// 设置（IA5；11-26 对齐清单第 96 条重排，顺序固定）：AI 卡；同步（同步与备份）；通用（语言、日间 / 夜间）；上手（首次设置、功能演示）；反馈；隐私、关于；测试工具（内测、公测版）。
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
@@ -166,8 +166,7 @@ struct SettingsView: View {
     private func destination(_ page: AppRouter.SettingsPage) -> some View {
         switch page {
         case .setup: FirstSetupView()
-        case .playground: LabView()
-        case .firstScene: SceneView(index: 0)
+        case .scratchPad: ScratchPadView()
         case .testTools: TestToolsView()
         case .privacy: PrivacyView()
         case .about: AboutView()
@@ -208,7 +207,29 @@ struct SettingsView: View {
             }
             .dashFormCard()
         }
-        // 上手：首次设置（欢迎页四步）、功能演示、使用指引。
+        // 同步（对齐清单第 96 条，design/settings-order SO1 ②）：紧跟 AI 卡；顺序固定为 AI、同步、通用、上手、反馈、隐私和关于。
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
+        } header: {
+            Text(L("同步", "Sync", "同期"))
+        }
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.language) {
+                DashRow(icon: "globe", color: DashColor.input, title: L("语言", "Language", "言語"),
+                        value: router.language == .system ? L("跟随 \(DeviceName.current)", DeviceName.current, "\(DeviceName.current) に従う") : router.language.nativeName)
+            }
+            Picker(selection: $store.settings.appearance) {
+                ForEach(Appearance.allCases) { Text($0.title).tag($0) }
+            } label: {
+                DashRow(icon: "circle.lefthalf.filled", color: DashColor.input, title: L("日间 / 夜间", "Appearance", "外観"))
+            }
+            .pickerStyle(.menu)
+        } header: {
+            Text(L("通用", "General", "一般"))
+        } footer: {
+            Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
+        }
+        // 上手：首次设置（欢迎页四步）、功能演示（「使用指引」11-26 去掉，对齐清单第 96 条）。
         Section {
             NavigationLink(value: AppRouter.SettingsPage.setup) {
                 let left = setupStepsLeft
@@ -229,10 +250,6 @@ struct SettingsView: View {
             NavigationLink(value: AppRouter.SettingsPage.tour) {
                 DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
                         value: L("约 3 分钟", "About 3 min", "約 3 分"))
-            }
-            NavigationLink(value: AppRouter.SettingsPage.playground) {
-                DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
-                        value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
             }
         } header: {
             Text(L("上手", "Getting started", "はじめに"))
@@ -256,27 +273,6 @@ struct SettingsView: View {
             } footer: {
                 Text(L("在 App 里填好直接提交给开发者，不用打开邮件。", "Fill it in and send it to the developer right here, no email needed.", "App 内で入力してそのまま開発者に送れます。メールは不要です。"))
             }
-        }
-        Section {
-            NavigationLink(value: AppRouter.SettingsPage.language) {
-                DashRow(icon: "globe", color: DashColor.input, title: L("语言", "Language", "言語"),
-                        value: router.language == .system ? L("跟随 \(DeviceName.current)", DeviceName.current, "\(DeviceName.current) に従う") : router.language.nativeName)
-            }
-            Picker(selection: $store.settings.appearance) {
-                ForEach(Appearance.allCases) { Text($0.title).tag($0) }
-            } label: {
-                DashRow(icon: "circle.lefthalf.filled", color: DashColor.input, title: L("日间 / 夜间", "Appearance", "外観"))
-            }
-            .pickerStyle(.menu)
-        } header: {
-            Text(L("通用", "General", "一般"))
-        } footer: {
-            Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
-        }
-        Section {
-            NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
-        } header: {
-            Text(L("数据", "Data", "データ"))
         }
         Section {
             NavigationLink(value: AppRouter.SettingsPage.privacy) {
