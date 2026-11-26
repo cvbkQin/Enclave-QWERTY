@@ -17,7 +17,9 @@ struct PrivacyWelcomeView: View {
                 VStack(spacing: 0) {
                     if updated {
                         // 隐私政策更新后再弹（同意过旧版的人才看到），首次安装不显示。
-                        Text(L("隐私说明有更新：新增剪贴板记录、备份与恢复的说明", "Privacy notice updated: added clipboard history and backup & restore", "プライバシーの説明を更新しました：クリップボード履歴とバックアップと復元の説明を追加"))
+                        Text(ICloudSync.isAvailable
+                             ? L("隐私说明有更新：新增 iCloud 同步的说明", "Privacy notice updated: added iCloud Sync", "プライバシーの説明を更新しました：iCloud 同期の説明を追加")
+                             : L("隐私说明有更新：补充了备份文件存到 iCloud 云盘的说明", "Privacy notice updated: added a note on saving backups to iCloud Drive", "プライバシーの説明を更新しました：バックアップを iCloud Drive に保存する場合の説明を追加"))
                             .font(.system(size: 13))
                             .foregroundStyle(Color(red: 0x4A / 255, green: 0x3B / 255, blue: 0xD6 / 255))
                             .padding(.vertical, 8)
@@ -41,9 +43,13 @@ struct PrivacyWelcomeView: View {
                         .multilineTextAlignment(.center)
                         .padding(.top, 12)
                     VStack(alignment: .leading, spacing: 20) {
-                        point(Image(systemName: "iphone"), color: .blue,
-                              L("打字只在手机上", "Typing stays on your iPhone", "入力は iPhone の中だけ"),
-                              L("打字和候选全部在手机上完成，不联网。", "Typing and candidates are all handled on your iPhone, offline.", "入力も候補もすべて iPhone 上で処理し、通信しません。"))
+                        // iPad 上说「iPad」（PA4 ⑦）。
+                        let pad = UIDevice.current.userInterfaceIdiom == .pad
+                        point(Image(systemName: pad ? "ipad" : "iphone"), color: .blue,
+                              pad ? L("打字只在 iPad 上", "Typing stays on your iPad", "入力は iPad の中だけ")
+                                  : L("打字只在手机上", "Typing stays on your iPhone", "入力は iPhone の中だけ"),
+                              pad ? L("打字和候选全部在 iPad 上完成，不联网。", "Typing and candidates are all handled on your iPad, offline.", "入力も候補もすべて iPad 上で処理し、通信しません。")
+                                  : L("打字和候选全部在手机上完成，不联网。", "Typing and candidates are all handled on your iPhone, offline.", "入力も候補もすべて iPhone 上で処理し、通信しません。"))
                         point(Image(systemName: "link"), color: AppColor.purple,
                               L("AI 只连你自己的接口", "AI only talks to your own API", "AI はあなたの API にだけ接続"),
                               L("只有你主动用 AI 时，选中的文字才会发到你自己填写的模型接口。", "Only when you use AI is the selected text sent, to the model API you set up yourself.", "AI を使ったときだけ、選んだ文章をあなたが設定したモデルの API に送ります。"))

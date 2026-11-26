@@ -136,15 +136,64 @@ final class HelpReplyTests: XCTestCase {
         XCTAssertTrue(legacy.first?.hasReply ?? false)
     }
 
-    /// AI 栏上的帮回键：默认不钉，全键盘和九宫格同一个设置；以前的两个设置不再读。
-    func testHelpPinDefaultsAndToggle() throws {
+    // MARK: 复制后弹出帮回键（T96：原来的「自动判断」和「钉住帮回」合成一个开关）
+
+    /// 新装开；0.97 以前没有这一项，读出来是开；原来关了自动判断、但钉住了帮回，也算开；两个都关才算关；关掉能存下来。
+    func testHelpPopupDefaultsAndUpgrade() throws {
         var settings = EnclaveSettings()
-        XCTAssertFalse(settings.helpPinned)
-        settings.helpPinned.toggle()
-        let back = try JSONDecoder().decode(EnclaveSettings.self, from: JSONEncoder().encode(settings))
-        XCTAssertTrue(back.helpPinned)
-        XCTAssertEqual(back.pinnedStyles.count, settings.pinnedStyles.count)
-        let old = Data(#"{"baseURL":"https://api.deepseek.com/v1","model":"deepseek-flash","helpPinnedQwerty":true,"replyStyles":[]}"#.utf8)
-        XCTAssertFalse(try JSONDecoder().decode(EnclaveSettings.self, from: old).helpPinned)
+        XCTAssertTrue(settings.helpAuto, "新装默认开")
+        func decode(_ json: String) throws -> EnclaveSettings {
+            try JSONDecoder().decode(EnclaveSettings.self, from: Data(json.utf8))
+        }
+        XCTAssertTrue(try decode(#"{"baseURL":"https://api.deepseek.com/v1","model":"deepseek-flash"}"#).helpAuto, "0.97 以前读不到就当开")
+        XCTAssertTrue(try decode(#"{"helpAuto":false,"helpPinned":true}"#).helpAuto, "钉住了帮回：开")
+        XCTAssertTrue(try decode(#"{"helpAuto":true,"helpPinned":false}"#).helpAuto)
+        XCTAssertFalse(try decode(#"{"helpAuto":false,"helpPinned":false}"#).helpAuto, "两个都关：关")
+        XCTAssertFalse(try decode(#"{"helpAuto":false}"#).helpAuto)
+        XCTAssertFalse(try decode(#"{"helpAuto":false,"helpPinnedQwerty":true}"#).helpAuto, "0.96_11 以前的两个钉子不再读")
+
+        settings.helpAuto = false
+        let data = try JSONEncoder().encode(settings)
+        XCTAssertFalse(try JSONDecoder().decode(EnclaveSettings.self, from: data).helpAuto)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertNil(object["helpPinned"], "新版本不再写原来的钉子，关掉以后不会被它翻回开")
+    }
+
+    /// 润色关了，帮回整个没有（bug #34），也不看剪贴板；开关关着照样判断（关着时润色键要换图标），帮回照样能用。
+    func testHelpUsableFollowsPolishSwitch() {
+        var settings = EnclaveSettings()
+        settings.baseURL = "https://help-auto-test.example/v1"
+        settings.model = "help-auto-model"
+        XCTAssertTrue(settings.helpReplyUsable)
+        XCTAssertTrue(settings.helpAutoDetects)
+
+        settings.helpAuto = false
+        XCTAssertTrue(settings.helpReplyUsable, "关着：⌄ 那一行、润色键、「帮回这条」照样在")
+        XCTAssertTrue(settings.helpAutoDetects, "关着也判断")
+
+        settings.helpAuto = true
+        settings.polishEnabled = false
+        XCTAssertTrue(settings.polishUsable, "接口本身还能用")
+        XCTAssertFalse(settings.helpReplyUsable, "润色关了帮回也没有")
+        XCTAssertFalse(settings.helpAutoDetects, "润色关了也不看剪贴板")
+
+        settings.polishEnabled = true
+        settings.model = ""
+        XCTAssertFalse(settings.helpReplyUsable, "润色接口没配好")
+    }
+
+    /// 方案第 9 节依赖的前提：关着自动判断时键盘不写「上次看剪贴板」的时间（noteClipboardLook，KeyboardModel 不在测试目标里，
+    /// 那一处只能在模拟器上看），lookedAt 就停在关掉以前；这时关着那段时间里复制的，再打开后按很久以前算，不会突然变绿。
+    func testReenablingAutoDoesNotFlagOldCopy() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        // 关掉以前最后一次看剪贴板是 10 分钟前；关着时复制了，现在打开、键盘弹出。
+        let before = HelpCopy(count: 5, seen: now.addingTimeInterval(-900), used: true, suits: nil)
+        var copy = HelpCopy.observe(before, count: 6, hasStrings: true, now: now, lookedAt: now.addingTimeInterval(-600))
+        copy.suits = true
+        XCTAssertFalse(copy.pending(now: now))
+        // 打开以后再复制（键盘开着、1 秒前看过）：照常算刚复制。
+        var next = HelpCopy.observe(copy, count: 7, hasStrings: true, now: now.addingTimeInterval(30), lookedAt: now.addingTimeInterval(29))
+        next.suits = true
+        XCTAssertTrue(next.pending(now: now.addingTimeInterval(30)))
     }
 }

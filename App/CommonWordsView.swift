@@ -55,6 +55,20 @@ final class CommonWordsModel: ObservableObject {
         all.filter { source == nil || $0.source == source }.count
     }
 
+    private var syncObserver: NSObjectProtocol?
+
+    init() {
+        // iCloud 同步写进了别的设备改的内容：重新读，不然这里手里的旧列表下次保存时会把它们冲掉，
+        // 冲掉的部分下次同步时会被当成本机删了，删到所有设备上。
+        syncObserver = NotificationCenter.default.addObserver(forName: .enclaveSyncDidApply, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.reload() }
+        }
+    }
+
+    deinit {
+        if let syncObserver { NotificationCenter.default.removeObserver(syncObserver) }
+    }
+
     func reload() {
         words = CommonWordStore.load()
         lexicon = CommonWordStore.lexicon

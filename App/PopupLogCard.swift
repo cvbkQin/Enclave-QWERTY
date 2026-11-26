@@ -8,6 +8,7 @@ struct PopupLogCard: View {
     @State private var kept = PopupLog.loadKept()
     @State private var copied = false
     @State private var showsLegend = false
+    @State private var snapshotOn = PopupLog.snapshotEnabled
 
     var body: some View {
         DashCard {
@@ -28,6 +29,15 @@ struct PopupLogCard: View {
                     section("冷启动和明显慢的（一直保留）", Array(kept.suffix(10).reversed()))
                 }
                 section("最近", Array(recent.suffix(10).reversed()))
+            }
+            // 试验开关（只在开发版、内测、公测的测试工具里）：弹出时先放上次键盘的截图，第一帧马上交出去，真键盘随后换上。
+            Toggle(isOn: Binding(get: { snapshotOn }, set: { snapshotOn = $0; PopupLog.snapshotEnabled = $0 })) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("弹出时先显示截图（试验）").font(.system(size: 14, weight: .semibold))
+                    Text("开着时，键盘样子和上次一样就先放一张上次截的图，真键盘随后换上。看弹出顺不顺、换的时候闪不闪；收起再弹出才生效，第一次弹出先截图。")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             HStack(spacing: 16) {
                 Button(copied ? "已复制" : "复制全部") {
@@ -50,6 +60,8 @@ struct PopupLogCard: View {
             .font(.system(size: 13, weight: .semibold))
         }
         .onAppear { reload() }
+        // 这一页开着时切到别的 App 弹键盘、再切回来：onAppear 不会再走，回到前台时也读一次，不然列表还是旧的。
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in reload() }
     }
 
     private func reload() {

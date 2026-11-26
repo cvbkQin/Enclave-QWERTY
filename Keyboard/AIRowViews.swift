@@ -24,14 +24,15 @@ struct StyleKey: View {
             && model.runOrigin == (answer ? KeyboardModel.RunOrigin.ask : KeyboardModel.RunOrigin.polish)
         let failed = !answer && !running && model.quickStatus == .failed && model.lastRunPin == nil
         let success = model.keySuccess?.key == key ? model.keySuccess?.at : nil
-        // 有待回的复制（帮回并入润色 §3）：输入框空时整颗变成绿色「帮回」，有字时只把 ✨ 换成绿色帮回 logo。
-        let help: HelpLook? = answer ? nil : (model.polishKeyIsHelp ? .whole : (model.polishKeyHelpLogo ? .logo : nil))
-        let title = help == .whole ? L("帮回", "Reply", "返信") : Self.title(model, answer: answer)
+        // 「复制后弹出帮回键」关着、有待回的复制（T96 图 ⑤⑥）：只把 ✨ 换成彩色帮回 logo，底色、字都不变。
+        let helpLogo = !answer && model.polishKeyHelpLogo
+        let title = Self.title(model, answer: answer)
         let layout = Self.layout(title: title)
         ZStack(alignment: .leading) {
             KeySuccessClock(since: running ? nil : success, reduced: !fullMotion) { fx in
                 Self.face(answer: answer, title: title, open: open, running: running, glowing: fullMotion,
-                          fx: fx, failed: failed, faded: !answer && (model.aiBlocked || model.aiQuotaUsed), help: help)
+                          fx: fx, failed: failed, faded: !answer && (model.aiBlocked || model.aiQuotaUsed), helpLogo: helpLogo,
+                          doneAt: success)
             }
             .overlay {
                 // 执行中文字周围闪 7 颗小星（对齐清单第 63 条）；减弱动态效果、关了发光动画时不放。
@@ -41,10 +42,7 @@ struct StyleKey: View {
                 }
             }
             .overlay {
-                // 绿色帮回键开着下拉框：外圈 2pt 间隔 + 浅灰绿圈。
-                if open, help == .whole {
-                    Capsule().inset(by: -4).strokeBorder(HelpStyle.Key.openRing, lineWidth: 2)
-                } else if open {
+                if open {
                     Capsule().strokeBorder(answer ? Self.answerBorder : Self.rewriteBorder, lineWidth: 1.5)
                 }
             }
@@ -59,9 +57,10 @@ struct StyleKey: View {
                 }
                 .accessibilityLabel(running ? (answer ? L("停止问答", "Stop answering", "質問を停止") : L("停止润色", "Stop polishing", "整えるのを停止"))
                                     : failed ? L("润色失败，轻点重试", "Polish failed. Tap to retry", "失敗しました。タップで再試行")
-                                    : help == .whole ? L("帮回刚复制的那句话", "Help Reply to what you copied", "コピーした内容に返信")
                                     : (answer ? L("问答", "Ask", "質問") : L("润色：\(title)", "Polish: \(title)", "整える：\(title)")))
-                .accessibilityHint(help == .logo ? L("刚复制的可以帮回：打开润色风格，点最上面的「帮回」", "You can reply to what you copied: open the polish styles and tap Help Reply at the top", "コピーした内容に返信できます：スタイルを開いて一番上の「返信アシスト」をタップ") : "")
+                .accessibilityHint(!helpLogo ? ""
+                                   : model.polishKeyHelps ? L("输入框是空的，轻点帮回刚复制的那句话", "The text field is empty: tap to Help Reply to what you copied", "入力欄が空なので、タップでコピーした内容に返信")
+                                   : L("刚复制的可以帮回：打开润色风格，点最上面的「帮回」", "You can reply to what you copied: open the polish styles and tap Help Reply at the top", "コピーした内容に返信できます：スタイルを開いて一番上の「返信アシスト」をタップ"))
                 .modifier(CoachKeyTarget(model: model, answer: answer))
                 Button {
                     locked ? model.showFullAccessTip() : model.toggleRow(row)
@@ -112,17 +111,11 @@ struct StyleKey: View {
                       chevronX: dividerX + 1 + chevronZone / 2 - 1, width: dividerX + 1 + chevronZone)
     }
 
-    /// 润色键在有待回的复制时的样子：whole 整颗鼠尾草绿「↩ 帮回 ⌄」，logo 只把 ✨ 换成降饱和的帮回 logo。
-    enum HelpLook { case whole, logo }
-
-    /// 鼠尾草绿 #86B59E → #6E9F87；深色 #567F6D → #46695A（UI1 图注）。
-    static let helpFill = LinearGradient(colors: [HelpStyle.dynamic(0x86B59E, 0x567F6D), HelpStyle.dynamic(0x6E9F87, 0x46695A)],
-                                         startPoint: UnitPoint(x: 0, y: 0.25), endPoint: UnitPoint(x: 1, y: 0.75))
-
     /// 柔和混色底、白字白图标。润色键的图标收起、展开都是金色 ✨（13:20 cvbk），问答键是问答图标（AskIcon，v306）。
     /// 执行中 logo 动、键下同色投影（不再换成白色方块）；fx 是成功动效这一刻的样子；failed：红底「↻ 重试」。
     static func face(answer: Bool, title: String, open: Bool = false, running: Bool = false, glowing: Bool = false,
-                     fx: KeySuccessFrame? = nil, failed: Bool = false, faded: Bool = false, help: HelpLook? = nil) -> some View {
+                     fx: KeySuccessFrame? = nil, failed: Bool = false, faded: Bool = false, helpLogo: Bool = false,
+                     doneAt: Date? = nil) -> some View {
         let h = KeyboardMetrics.chipHeight
         let layout = Self.layout(title: title)
         let animating = running || fx?.logoAnimating == true
@@ -133,12 +126,19 @@ struct StyleKey: View {
                     Image(systemName: "arrow.clockwise").font(.system(size: 13, weight: .bold))
                 } else if answer {
                     AskIcon(size: 17, running: animating, glowing: glowing, bounce: bounce)
-                } else if let help {
-                    HelpIcon(size: 17, running: animating, bounce: bounce, soft: help == .logo, white: help == .whole)
                 } else {
-                    PolishStars(size: 17, running: animating, glowing: glowing, doneAt: nil, tint: Brand.gold)
-                        .frame(width: 17, height: 17)
-                        .scaleEffect(bounce)
+                    // 关着时换图标（T96）：✦ 和帮回 logo 交叉淡化、轻微缩放 0.25 秒（减弱动态效果只淡化）。
+                    ZStack {
+                        PolishStars(size: 17, running: animating && !helpLogo, glowing: glowing, doneAt: nil, tint: Brand.gold)
+                            .frame(width: 17, height: 17)
+                            .scaleEffect(helpLogo && glowing ? 0.6 : 1)
+                            .opacity(helpLogo ? 0 : 1)
+                        HelpIcon(size: 17, running: animating && helpLogo, bounce: 1, doneAt: helpLogo ? doneAt : nil)
+                            .scaleEffect(helpLogo || !glowing ? 1 : 0.6)
+                            .opacity(helpLogo ? 1 : 0)
+                    }
+                    .scaleEffect(bounce)
+                    .animation(glowing ? .easeInOut(duration: 0.25) : .linear(duration: 0.25), value: helpLogo)
                 }
             }
             .position(x: layout.iconX, y: h / 2)
@@ -167,8 +167,6 @@ struct StyleKey: View {
             Group {
                 if failed {
                     Capsule().fill(AIKeyFX.failFill)
-                } else if help == .whole {
-                    Capsule().fill(helpFill).opacity(faded ? 0.35 : 1)
                 } else {
                     NebulaFill(palette: answer ? .answer : .rewrite).clipShape(Capsule()).opacity(faded ? 0.35 : 1)
                 }
@@ -383,7 +381,7 @@ struct UnpinBubble: View {
     let style: StylePreset?
 
     var body: some View {
-        Button { if let style { model.togglePin(style) } else { model.toggleHelpPin() } } label: {
+        Button { if let style { model.togglePin(style) } else { model.toggleHelpPopup() } } label: {
             Label(L("取消固定", "Unpin", "固定を解除"), systemImage: "pin.slash")
                 .font(.system(size: 15))
                 .foregroundStyle(Color.primary)
@@ -403,6 +401,10 @@ struct UnpinBubble: View {
 struct AIKeyStrip<Content: View>: View {
     /// 两头渐隐多宽；nil 是 AI 栏的约 9%。表情面板底栏的分类条用 22（EP1）。
     var fadeWidth: CGFloat? = nil
+    /// 要滚到看得见的那一项（它的 .id）；变了就 0.2 秒滚过去（表情面板分类条跟着选中项，EP1）。
+    /// 滚动代理要在 GeometryReader 里面、直接包着 ScrollView：原来从外面用 ScrollViewReader 叫 scrollTo，
+    /// onChange 每次都到了，分类条却一动不动（11-24 模拟器打日志确认，0.97_7 起就这样）。
+    var reveal: AnyHashable? = nil
     @ViewBuilder var content: Content
     @State private var offset: CGFloat = 0
     @State private var contentWidth: CGFloat = 0
@@ -416,22 +418,28 @@ struct AIKeyStrip<Content: View>: View {
             let fade = fadeWidth ?? max(12, width * 0.09)
             let left = offset > 0.5
             let right = offset + width < contentWidth - 0.5
-            ScrollView(.horizontal, showsIndicators: false) {
-                content
-                    // 小锁、执行中投影伸出键外 4–6pt：两头各留一点，不被裁掉。
-                    .padding(.horizontal, 5)
-                    .frame(height: geo.size.height)
-                    // 直接读内容在滚动区里的位置，不走 preference：ScrollView 里别的子视图会带默认值把它冲掉，渐隐就一直不出（0.95_14 验证）。
-                    .background(GeometryReader { inner in
-                        let frame = inner.frame(in: .named("aiStrip"))
-                        Color.clear
-                            .onAppear { track(frame) }
-                            .onChange(of: frame) { track($0) }
-                    })
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    content
+                        // 小锁、执行中投影伸出键外 4–6pt：两头各留一点，不被裁掉。
+                        .padding(.horizontal, 5)
+                        .frame(height: geo.size.height)
+                        // 直接读内容在滚动区里的位置，不走 preference：ScrollView 里别的子视图会带默认值把它冲掉，渐隐就一直不出（0.95_14 验证）。
+                        .background(GeometryReader { inner in
+                            let frame = inner.frame(in: .named("aiStrip"))
+                            Color.clear
+                                .onAppear { track(frame) }
+                                .onChange(of: frame) { track($0) }
+                        })
+                }
+                // iOS 26 给滚动区边缘加的渐变模糊：这条只有 34 高，会整排糊掉、发暗（真机 0.95_14），关掉，渐隐只用下面的遮罩。
+                .hidingScrollEdgeEffect()
+                .coordinateSpace(name: "aiStrip")
+                .onChange(of: reveal) { target in
+                    guard let target else { return }
+                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(target) }
+                }
             }
-            // iOS 26 给滚动区边缘加的渐变模糊：这条只有 34 高，会整排糊掉、发暗（真机 0.95_14），关掉，渐隐只用下面的遮罩。
-            .hidingScrollEdgeEffect()
-            .coordinateSpace(name: "aiStrip")
             .mask(HStack(spacing: 0) {
                 LinearGradient(colors: [.black.opacity(0), .black], startPoint: .leading, endPoint: .trailing)
                     .frame(width: left ? fade : 0)
@@ -483,6 +491,12 @@ struct StyleDropdown: View {
 
     private var answer: Bool { row == .answerStyles }
 
+    /// 最矮能缩到多高：帮回一行（有的话）、标题、一条风格、「添加」、底下一行。再矮就要被裁了。
+    static func minimumHeight(model: KeyboardModel, row: KeyboardModel.AIRow) -> CGFloat {
+        let helpHeight = row != .answerStyles && model.helpReplyAvailable ? itemHeight + 7 : 0
+        return headerHeight + itemHeight + addHeight + footerHeight + 12 + helpHeight
+    }
+
     var body: some View {
         let styles = answer ? model.settings.answerStyles : model.settings.styles
         let selectedID = answer ? model.settings.selectedAnswerStyle?.id : model.settings.selectedStyle?.id
@@ -531,8 +545,7 @@ struct StyleDropdown: View {
                 .frame(maxWidth: .infinity, minHeight: Self.footerHeight, maxHeight: Self.footerHeight, alignment: .leading)
         }
         .padding(6)
-        .frame(width: Self.width, height: max(Self.headerHeight + Self.itemHeight + Self.addHeight + Self.footerHeight + 12 + helpHeight,
-                                              min(natural, maxHeight)), alignment: .top)
+        .frame(width: Self.width, height: max(Self.minimumHeight(model: model, row: row), min(natural, maxHeight)), alignment: .top)
         .background(shape.fill(DropdownStyle.fill)
             .shadow(color: Color(red: 30 / 255, green: 40 / 255, blue: 80 / 255).opacity(0.22), radius: 12, y: 8))
         // 深色下和按键颜色接近：加一圈细边（和拼音键弹框一样）。
@@ -542,10 +555,10 @@ struct StyleDropdown: View {
     }
 
     /// 最上面一行「↩ 帮回 · 用『正式』 📌」（帮回并入润色 §2 入口①）：点这一行 = 用当前润色风格帮回，框收起；
-    /// 图钉把帮回钉到 AI 栏 / 取消，框不收，不占 N / 5。有待回的复制时行底浅绿、「帮回」后面红点。
+    /// 图钉就是「复制后弹出帮回键」开关（T96，和 App 里的同步），框不收，不占 N / 5。有待回的复制时行底浅绿，不再有红点。
     private var helpRow: some View {
-        let pinned = model.helpPinnedOnBar
-        let pending = model.helpPending
+        let pinned = model.helpPopupOn
+        let pending = model.helpShowsPending
         let styleName = model.settings.selectedStyle?.displayName ?? L("润色", "Polish", "整える")
         return HStack(spacing: 0) {
             Button { model.helpRowTapped() } label: {
@@ -556,17 +569,12 @@ struct StyleDropdown: View {
                         .foregroundStyle(HelpStyle.title)
                         .lineLimit(1)
                         .fixedSize()
-                        .overlay(alignment: .topTrailing) {
-                            if pending {
-                                Circle().fill(HelpStyle.dot).frame(width: 6, height: 6).offset(x: 6, y: -1)
-                            }
-                        }
                     Text(L("用「\(styleName)」", "in \"\(styleName)\"", "「\(styleName)」で"))
                         .font(.system(size: 12.5))
                         .foregroundStyle(DropdownStyle.hint)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .padding(.leading, pending ? 6 : 2)
+                        .padding(.leading, 2)
                     Spacer(minLength: 4)
                 }
                 .padding(.leading, 10)
@@ -577,7 +585,7 @@ struct StyleDropdown: View {
             .accessibilityLabel(L("帮回", "Help Reply", "返信アシスト") + "，" + L("用「\(styleName)」", "in \"\(styleName)\"", "「\(styleName)」で"))
             .accessibilityHint(pending ? L("回复刚复制的那句话", "Reply to what you just copied", "コピーした内容に返信")
                                : L("回复剪贴板里的那句话", "Reply to the text on the clipboard", "クリップボードの内容に返信"))
-            Button { model.toggleHelpPin() } label: {
+            Button { model.toggleHelpPopup() } label: {
                 Image(systemName: pinned ? "pin.fill" : "pin")
                     .font(.system(size: 13, weight: .semibold))
                     .rotationEffect(.degrees(45))
@@ -586,8 +594,8 @@ struct StyleDropdown: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(KeyPressStyle())
-            .accessibilityLabel(pinned ? L("取消固定帮回", "Unpin Help Reply", "返信アシストの固定を解除")
-                                : L("把帮回固定到 AI 栏", "Pin Help Reply to the AI bar", "返信アシストを AI バーに固定"))
+            .accessibilityLabel(L("复制后弹出帮回键", "Show Help Reply key after copying", "コピー後に返信アシストキーを表示"))
+            .accessibilityValue(pinned ? L("开", "On", "オン") : L("关", "Off", "オフ"))
         }
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(pending ? HelpStyle.doneFill : Color.clear))
     }
@@ -596,7 +604,7 @@ struct StyleDropdown: View {
     private var addRow: some View {
         Button {
             model.aiRow = nil
-            model.openContainingApp(answer ? "enclave://prompts-answer" : "enclave://prompts")
+            model.showAppHint(.prompts)
         } label: {
             Label(answer ? L("添加问答风格", "Add answer style", "回答スタイルを追加") : L("添加润色风格", "Add polish style", "整えるスタイルを追加"),
                   systemImage: "plus")
@@ -673,14 +681,27 @@ private enum DropdownStyle {
 /// 抽屉展开时键盘打的字进这里，打拼音时候选栏照常出在 AI 栏；重新展开时整段全选，直接打字覆盖。
 struct AskField: View {
     @ObservedObject var model: KeyboardModel
+    /// iPad 回答卡右边的识意框（PadAskArea）：字从左上角起、最多两行；「点这里输入」和联网键不放在框里（联网在框右边）。
+    var boxed = false
 
-    private static let caret: UIImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 19)).image { _ in
-        UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 2, height: 19), cornerRadius: 1).fill()
-    }.withRenderingMode(.alwaysTemplate)
+    private static func makeCaret(height: CGFloat) -> UIImage {
+        UIGraphicsImageRenderer(size: CGSize(width: 2, height: height)).image { _ in
+            UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: 2, height: height), cornerRadius: 1).fill()
+        }.withRenderingMode(.alwaysTemplate)
+    }
+    private static let tallCaret = makeCaret(height: 19)
+    /// 紧凑版（T104）光标 16 高。
+    private static let shortCaret = makeCaret(height: 16)
+
+    /// iPhone 竖屏回答卡下半格（T104，AC3 定稿 A）：识意行 30 高，打的字 13.5、占位灰字 13、右边小字 11.5、
+    /// 「使用联网查询」22 高 12pt。横屏、iPad 照旧。
+    private var compact: Bool { !boxed && KeyboardMetrics.compactCard }
+    private var caret: UIImage { compact ? Self.shortCaret : Self.tallCaret }
 
     var body: some View {
-        let editing = model.target == .instruction
-        HStack(spacing: 8) {
+        // 帮回等着的时候（HW1 ①）识意框不算在编辑：灰字「先说要求？点这里…」，点一下才停下来进编辑。
+        let editing = model.target == .instruction && !model.helpWaiting
+        HStack(alignment: boxed ? .top : .center, spacing: 8) {
             Group {
                 if editing {
                     TimelineView(.periodic(from: .now, by: 0.5)) { context in
@@ -701,24 +722,24 @@ struct AskField: View {
             .accessibilityHint(editing ? L("正在输入", "Typing here", "入力中") : L("轻点两下在这里输入", "Double-tap to type here", "ダブルタップしてここに入力"))
             .accessibilityAddTraits(editing ? [.isButton, .isSelected] : .isButton)
             .accessibilityAction { model.focusAsk() }
-            // 未激活、空着：右边 12pt「点这里输入」（有帮回按钮时不写）。
-            if !editing, model.instruction.isEmpty, model.helpAskButton == nil {
+            // 未激活、空着：右边 12pt「点这里输入」。
+            if !boxed, !editing, model.instruction.isEmpty {
                 Text(L("点这里输入", "Tap to type", "タップして入力"))
-                    .font(.system(size: 12))
+                    .font(.system(size: compact ? 11.5 : 12))
                     .foregroundStyle(Brand.askFaint)
                     .lineLimit(1)
                     .fixedSize()
                     .onTapGesture { model.focusAsk() }
                     .accessibilityHidden(true)
             }
-            searchButton
-            // 有待回的复制（帮回并入润色 §2 入口②）：最右边一颗「帮回」，离右边 8。
-            if let look = model.helpAskButton { HelpAskButton(model: model, look: look) }
+            // 识意框右边不再放帮回按钮（T96）：开着时 AI 栏上有弹出的帮回键，关着时有润色键。
+            if !boxed { searchButton }
         }
-        .padding(.leading, 12)
-        .padding(.trailing, model.helpAskButton != nil ? 8 : 12)
-        .font(.system(size: 15))
-        .frame(maxHeight: .infinity)
+        .padding(.leading, boxed ? 10 : 12)
+        .padding(.trailing, boxed ? 10 : 12)
+        .padding(.vertical, boxed ? 7 : 0)
+        .font(.system(size: compact ? 13.5 : 15))
+        .frame(maxHeight: .infinity, alignment: boxed ? .top : .center)
     }
 
     /// 「使用联网查询」（MG6）：28 高、圆角 14，问答浅蓝底、1pt 天蓝 40% 内描边；联网过的回答换成灰字「已联网 · Kimi」（MG7）。
@@ -726,30 +747,18 @@ struct AskField: View {
     private var searchButton: some View {
         if !model.isRunning, model.session?.currentIsAnswer == true, let searchedBy = model.session?.currentSearchedBy {
             Label(L("已联网 · \(searchedBy)", "Searched · \(searchedBy)", "検索済み · \(searchedBy)"), systemImage: "globe")
-                .font(.system(size: 12))
+                .font(.system(size: compact ? 11.5 : 12))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .fixedSize()
-        } else if model.canForceSearch, model.helpAskButton != nil {
-            // 和帮回按钮挤在一起：缩成 28×28 的 🌐 圆钮放在帮回左边（UI2 ③）。
-            Button { model.forceWebSearch() } label: {
-                Image(systemName: "globe")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Brand.modeAnswerText)
-                    .frame(width: 28, height: 28)
-                    .background(Circle().fill(Brand.modeAnswerFill))
-                    .overlay(Circle().strokeBorder(Brand.answerBorder.opacity(0.4), lineWidth: 1))
-            }
-            .buttonStyle(KeyPressStyle())
-            .accessibilityLabel(L("使用联网查询", "Search the web", "ウェブで調べる"))
         } else if model.canForceSearch {
             Button { model.forceWebSearch() } label: {
                 Label(L("使用联网查询", "Search the web", "ウェブで調べる"), systemImage: "globe")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: compact ? 12 : 13, weight: .semibold))
                     .lineLimit(1)
                     .padding(.leading, 7)
                     .padding(.trailing, 9)
-                    .frame(height: 28)
+                    .frame(height: compact ? 22 : 28)
                     .foregroundStyle(Brand.modeAnswerText)
                     .background(Capsule().fill(Brand.modeAnswerFill))
                     .overlay(Capsule().strokeBorder(Brand.answerBorder.opacity(0.4), lineWidth: 1))
@@ -760,9 +769,19 @@ struct AskField: View {
     }
 
     private var placeholder: String {
-        // 输入框空、有待回的复制（情况 ③）：框里写的是怎么回。
-        if model.helpAskButton == .solid {
+        // 帮回开始前等着（HW1 ①）、点识意框停下来以后（HW1 ②）。
+        if let wait = model.helpWait {
+            return wait.interrupted
+                ? L("想怎么回？写好点「帮回」", "How should it reply? Tap Reply when ready", "どう返す？書けたら「返信」")
+                : L("先说要求？点这里，不点就自动回", "Add a request first? Tap here, or wait", "指示を書くならタップ。待つと自動で返信。")
+        }
+        // 弹出了帮回键、输入框空（T96 图 ③）：框里写的是怎么回。
+        if model.helpReplyHint {
             return L("想怎么回？可以留空", "How to reply? Can be left blank", "どう返す？空欄でも OK")
+        }
+        // 帮回出了一版（HR1 第 1 条）：可以补要求再点帮回重写。
+        if model.helpAgainHint {
+            return L("补充要求，再点「帮回」重写", "Add a request, then tap Reply again", "指示を書いて、もう一度「返信」")
         }
         return L("问个问题，或说说这段话想怎么改", "Ask anything, or say how to change it", "質問するか、どう直すかを書いてください")
     }
@@ -774,9 +793,10 @@ struct AskField: View {
         let composing = model.target == .instruction ? model.composition : ""
         if text.isEmpty && composing.isEmpty {
             Text(placeholder)
+                .font(compact ? Font.system(size: 13) : nil)
                 .foregroundStyle(caretVisible == nil ? Brand.askFaint : Brand.askPlaceholderActive)
-                .lineLimit(1)
-                .minimumScaleFactor(model.helpAskButton != nil ? 0.75 : 1)
+                .lineLimit(boxed ? 2 : 1)
+                .minimumScaleFactor(model.helpReplyHint || model.helpWait != nil || model.helpAgainHint ? 0.75 : 1)
                 .overlay(alignment: .leading) {
                     if let caretVisible { caretImage(caretVisible).offset(x: -2) }
                 }
@@ -794,20 +814,101 @@ struct AskField: View {
             let atEnd = split == text.endIndex
             (Text(text[..<split])
                 + Text(composing).underline(color: Brand.askCaret)
-                + (caretVisible.map { Text(Image(uiImage: Self.caret)).foregroundColor(Brand.askCaret.opacity($0 ? 1 : 0)).baselineOffset(-4) } ?? Text(""))
+                + (caretVisible.map { Text(Image(uiImage: caret)).foregroundColor(Brand.askCaret.opacity($0 ? 1 : 0)).baselineOffset(compact ? -3 : -4) } ?? Text(""))
                 + Text(text[split...]))
                 // 未激活时留着的字变灰。
                 .foregroundStyle(caretVisible == nil ? Brand.askSub : Brand.askText)
-                .lineLimit(1)
+                .lineLimit(boxed ? 2 : 1)
                 .truncationMode(atEnd ? .head : .tail)
         }
     }
 
     private func caretImage(_ visible: Bool) -> some View {
-        Image(uiImage: Self.caret).foregroundStyle(Brand.askCaret.opacity(visible ? 1 : 0))
+        Image(uiImage: caret).foregroundStyle(Brand.askCaret.opacity(visible ? 1 : 0))
     }
 }
 
+
+/// iPad 回答卡右边的识意区（PK7 ②、PK15，16:01）：约四成宽。识意框两行高、填满卡片，白底圆角，打字时紫框；
+/// 「🌐 联网」「✓ 确认」收起（卡高 80）时上下叠在最右边，展开（120）时并排放在识意框下面，不留空白。
+/// 确认 = 点回车的识意（交给 AI 判断改写还是回答，执行中点了是停止；11-23 cvbk「再改按钮改成确认按钮」，原来写「✨ 再改」）；联网 = 识意框右边那颗「使用联网查询」（MG6），
+/// 不能用时变淡，联网过的回答写「已联网」。
+struct PadAskArea: View {
+    @ObservedObject var model: KeyboardModel
+    let tall: Bool
+
+    private var box: RoundedRectangle { RoundedRectangle(cornerRadius: 9, style: .continuous) }
+
+    var body: some View {
+        let active = model.target == .instruction && !model.helpWaiting
+        let field = AskField(model: model, boxed: true)
+            .background(box.fill(KeyStyle.charKey))
+            .overlay(box.strokeBorder(active ? Brand.askCaret : Brand.blockHair, lineWidth: active ? 1.5 : 0.5))
+        Group {
+            if tall {
+                VStack(spacing: 6) {
+                    field
+                    HStack(spacing: 6) {
+                        searchButton
+                        rerunButton
+                    }
+                    .frame(height: 30)
+                }
+            } else {
+                HStack(spacing: 6) {
+                    field
+                    VStack(spacing: 6) {
+                        searchButton
+                        rerunButton
+                    }
+                    .frame(width: 66)
+                }
+            }
+        }
+        .padding(8)
+    }
+
+    private var searchButton: some View {
+        let searched = model.session?.currentIsAnswer == true && model.session?.currentSearchedBy != nil && !model.isRunning
+        let enabled = model.canForceSearch
+        return Button { model.forceWebSearch() } label: {
+            Label(searched ? L("已联网", "Searched", "検索済み") : L("联网", "Web", "ウェブ"), systemImage: "globe")
+                .font(.system(size: 12.5, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(searched ? Color.secondary : Brand.modeAnswerText)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.modeAnswerFill))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Brand.answerBorder.opacity(0.4), lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+        .disabled(!enabled)
+        .opacity(enabled || searched ? 1 : 0.4)
+        .accessibilityLabel(searched ? L("已联网", "Searched the web", "検索済み") : L("使用联网查询", "Search the web", "ウェブで調べる"))
+    }
+
+    private var rerunButton: some View {
+        let running = model.isRunning
+        return Button { model.enterAskTapped() } label: {
+            HStack(spacing: 3) {
+                Image(systemName: running ? "stop.fill" : "checkmark")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(running ? L("停止", "Stop", "停止") : L("确认", "Confirm", "確定"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(Color.white)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Brand.purple))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(KeyPressStyle())
+        .accessibilityLabel(running ? L("停止", "Stop", "停止") : L("确认：按框里写的改写或回答", "Confirm: rewrite or answer with what you typed", "確定：入力内容で書き直すか回答"))
+    }
+}
 
 // MARK: - 停止图标（PS6）
 
@@ -857,7 +958,7 @@ struct AIStopIcon: View {
     }
 }
 
-private extension View {
+extension View {
     /// 执行中文字淡出（带一点模糊），停止后淡回来，和停止图标交叉淡变。
     func runningFade(_ running: Bool) -> some View {
         opacity(running ? 0 : 1)

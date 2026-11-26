@@ -45,3 +45,47 @@ jobs:
             echo "::endgroup::"
           fi
           exit "${status:-0}"
+      # Date 的 <= 和 >=（还有用到 >= 的 max(a, b)）在 Xcode 27.2 的 SDK 里是回溯部署的新函数，iPadOS 27.2 测试版
+      # 报 27.2 却没有它们，一调就跳到 0 地址闪退（11-23 iPad 真机，iCloud 同步合并时）。比时间用 Shared/DateOrder.swift。
+      # 编出来的 App 和键盘里只要还弱引用着这两个函数就标红（老一点的 Xcode 编出来本来就没有，这一步照样过）。
+      - name: Check back-deployed Date comparisons
+        run: |
+          app=build/Debug-iphonesimulator/Enclave.app
+          [ -d "$app" ] || { echo "::error::没找到 $app"; exit 1; }
+          found=0
+          while IFS= read -r -d '' file; do
+            if nm -m "$file" 2>/dev/null | grep -E 'weak external _\$s10Foundation4DateV2(le|ge)oiySbAC_ACtFZ'; then
+              echo "::error::$file 弱引用了 Foundation 的 Date <= / >=，iPadOS 27.2 测试版上会闪退。改用 Shared/DateOrder.swift 里的 isAfter / isBefore / Date.later。"
+              found=1
+            fi
+          done < <(find "$app" -type f \( -perm -u+x -o -name '*.dylib' \) -print0)
+          exit "$found"
+      # 单元测试（Tests/ 下的 EnclaveTests，不挂 App、不链拼音引擎）：有一个挂了这一步就失败，PR 标红。
+      - name: Unit tests
+        run: |
+          # 挑最新 iOS 运行时里的一台 iPhone 模拟器。
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, re, sys
+          devices = json.load(sys.stdin)["devices"]
+          def version(key):
+              return [int(n) for n in re.findall(r"\d+", key.split("iOS-")[-1])]
+          for key in sorted((k for k in devices if ".iOS-" in k), key=version, reverse=True):
+              for device in devices[key]:
+                  if device["name"].startswith("iPhone"):
+                      print(device["udid"]); sys.exit()
+          ')
+          echo "Simulator: $udid"
+          xcodebuild test \
+            -project Enclave.xcodeproj \
+            -scheme EnclaveTests \
+            -destination "id=$udid" \
+            CODE_SIGNING_ALLOWED=NO \
+            > test.log 2>&1 || status=$?
+          grep -E "Executed [0-9]+ tests|Test Suite 'All tests'|\*\* TEST" test.log | tail -n 5 || true
+          if [ "${status:-0}" -ne 0 ]; then
+            echo "::group::Failing tests"
+            grep -n -E "error:|: failed|Failing tests|with an uncaught|Fatal error|crashed" test.log | head -n 300 || true
+            echo "::endgroup::"
+            tail -n 80 test.log
+          fi
+          exit "${status:-0}"

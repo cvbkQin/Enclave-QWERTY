@@ -8,7 +8,7 @@ struct AccessTestSection: View {
     @State private var trialDays = 3
     @State private var usesLeft = AIAccess.usesLeftToday
 
-    enum Choice: Hashable { case unlocked, real, trial, expired }
+    enum Choice: Hashable { case unlocked, real, notStarted, trial, expired }
 
     static var shows: Bool {
         #if DEBUG
@@ -23,6 +23,8 @@ struct AccessTestSection: View {
             Picker(selection: $choice) {
                 Text(L("已解锁", "Unlocked", "購入済み")).tag(Choice.unlocked)
                 Text(L("跟随真实", "Real status", "実際の状態")).tag(Choice.real)
+                Text(L("没开始试用（每天 \(AIAccess.dailyFreeUses) 次）", "Trial not started (\(AIAccess.dailyFreeUses) a day)",
+                       "お試し前（1 日 \(AIAccess.dailyFreeUses) 回）")).tag(Choice.notStarted)
                 Text(L("试用中", "Trial", "お試し中")).tag(Choice.trial)
                 Text(L("已到期（每天 \(AIAccess.dailyFreeUses) 次）", "Expired (\(AIAccess.dailyFreeUses) a day)",
                        "期限切れ（1 日 \(AIAccess.dailyFreeUses) 回）")).tag(Choice.expired)
@@ -43,7 +45,7 @@ struct AccessTestSection: View {
                     Text(L("试用剩 \(trialDays) 天", "\(trialDays) days left", "残り \(trialDays) 日"))
                 }
             }
-            if choice == .expired {
+            if choice == .expired || choice == .notStarted {
                 HStack {
                     Text(L("今天还剩 \(usesLeft) 次", "\(usesLeft) left today", "今日の残り \(usesLeft) 回"))
                     Spacer()
@@ -69,6 +71,8 @@ struct AccessTestSection: View {
             choice = .unlocked
         } else if value == "expired" {
             choice = .expired
+        } else if value == "notStarted" {
+            choice = .notStarted
         } else if value.hasPrefix("days:") {
             trialDays = min(max(Int(value.dropFirst(5)) ?? 3, 1), AIAccess.trialDays)
             choice = .trial
@@ -84,6 +88,7 @@ struct AccessTestSection: View {
         case .real: AIAccess.setDebug(nil)
         case .trial: AIAccess.setDebug("days:\(trialDays)")
         case .expired: AIAccess.setDebug("expired")
+        case .notStarted: AIAccess.setDebug("notStarted")
         }
         usesLeft = AIAccess.usesLeftToday
         unlock.reloadAccess()

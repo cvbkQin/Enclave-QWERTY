@@ -115,13 +115,28 @@ final class QueuedEngine: InputEngine {
         return takeResults()
     }
 
+    /// 最近几次 prepare：什么时候交给队列、开始做、做完，做了什么。弹出记录用，只在主线程读写。
+    /// 一次弹出可能准备好几次（英文为主时切中英、回前台），留最近 4 次，记录里取这次弹出以后的全部。
+    struct PrepareTiming { var queued: CFTimeInterval; var started: CFTimeInterval; var finished: CFTimeInterval; var work: String }
+    private(set) var recentPrepares: [PrepareTiming] = []
+
     /// 启动 Rime、切方案、预热都在后台做，键盘先弹出来；完成后在主线程回调（能不能用、词库来源）。
     /// 之后交给队列的按键会排在它后面。
     func prepare(schema: String, useShared: Bool, completion: @escaping (Bool, String?) -> Void) {
+        let queued = CACurrentMediaTime()
         queue.async { [inner] in
+            let started = CACurrentMediaTime()
             let ok = inner.prepare(schema: schema, useShared: useShared)
+            let finished = CACurrentMediaTime()
             let source = inner.source
-            DispatchQueue.main.async { completion(ok, source) }
+            let work = inner.lastPrepareWork
+            DispatchQueue.main.async { [weak self] in
+                if let self {
+                    self.recentPrepares.append(PrepareTiming(queued: queued, started: started, finished: finished, work: work))
+                    if self.recentPrepares.count > 4 { self.recentPrepares.removeFirst() }
+                }
+                completion(ok, source)
+            }
         }
     }
 

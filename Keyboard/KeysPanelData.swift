@@ -9,21 +9,39 @@ enum KeysPanel: Equatable {
 }
 
 /// 长按按键弹出的一排备选，手指左右滑动来选，松手上屏。
+/// 默认那格正对按键中心、一弹出就选中，其余往两边排（T92，AlternatesRow）。
 struct AlternatesPopup: Equatable {
     let key: KeySpec
+    /// 从左到右。
     let options: [String]
     let containerWidth: CGFloat
-    var selected = 0
+    /// 一开始是默认那格。
+    var selected: Int
+    /// 整排左边的 x。
+    let minX: CGFloat
 
-    static let cellWidth: CGFloat = 34
-    static let height: CGFloat = 48
+    /// iPad 全宽键盘（PK8 ①）：每格 56×60，跟着 iPad 的键大一号。
+    static var cellWidth: CGFloat { KeyboardMetrics.pad == nil ? 34 : 56 }
+    static var height: CGFloat { KeyboardMetrics.pad == nil ? 48 : 60 }
 
-    /// 从按键正上方往右排，排不下就整体往左挪。
+    init(key: KeySpec, row: AlternatesRow, containerWidth: CGFloat) {
+        let arranged = row.arranged(centerX: key.cap.midX, cellWidth: Self.cellWidth, containerWidth: containerWidth)
+        self.key = key
+        self.options = arranged.options
+        self.containerWidth = containerWidth
+        self.selected = arranged.selected
+        self.minX = arranged.minX
+    }
+
+    /// 按键正上方一排。
+    /// iPad：不出键盘顶（26 键上面有顶栏，9 键上面什么都没有），太靠上时往下压。
     var frame: CGRect {
         let width = Self.cellWidth * CGFloat(options.count)
-        var x = key.cap.midX - Self.cellWidth / 2
-        x = min(max(x, 0), max(containerWidth - width, 0))
-        return CGRect(x: x, y: key.cap.minY - Self.height - 4, width: width, height: Self.height)
+        var y = key.cap.minY - Self.height - 4
+        if KeyboardMetrics.pad != nil {
+            y = max(y, 2 - (KeyboardMetrics.padNine ? 0 : KeyboardMetrics.topRow))
+        }
+        return CGRect(x: minX, y: y, width: width, height: Self.height)
     }
 
     func index(atX x: CGFloat) -> Int {
@@ -57,6 +75,14 @@ struct LayoutMenuPopup: Equatable {
     static var height: CGFloat { padding * 2 + titleHeight * 2 + dividerHeight + rowHeight * CGFloat(options.count) }
 
     var frame: CGRect {
+        // iPad（PK8 ②）：「中/英」在第二排（9 键在最下面一排），上面放不下，菜单挂在按键右边（右边放不下挂左边），
+        // 上下以按键为中心、不出按键区，不盖住手指。
+        if KeyboardMetrics.pad != nil {
+            var x = key.cap.maxX + 8
+            if x + Self.width > containerWidth - 4 { x = key.cap.minX - 8 - Self.width }
+            let y = min(max(key.cap.midY - Self.height / 2, 0), max(KeyboardMetrics.keysHeight - Self.height, 0))
+            return CGRect(x: x, y: y, width: Self.width, height: Self.height)
+        }
         let x = min(max(key.cap.minX, 4), max(containerWidth - Self.width - 4, 0))
         // 两组放不下时往上伸到候选栏 / AI 栏那一排（按键区这时整块盖在最上层）。
         return CGRect(x: x, y: max(key.cap.minY - Self.height - 6, -KeyboardMetrics.topRow), width: Self.width, height: Self.height)
@@ -90,6 +116,7 @@ struct LayoutMenuPopup: Equatable {
 }
 
 /// 九宫格长按弹出的十字，和原生一样：中间是按下的键，四周最多四个选项，手指滑到哪格选哪格，滑回中间松手取消。
+/// 画成一块灰托盘，上面放白色小按钮（第 88 条）。
 struct CrossPopup: Equatable {
     enum Direction: CaseIterable { case left, up, right, down }
 
@@ -100,33 +127,63 @@ struct CrossPopup: Equatable {
     var origin: CGPoint?
     var selected: Direction?
 
-    /// 每格 = 一个键加一条缝。
+    /// 托盘式十字（对齐清单第 88 条，design/popup-style 第 3 节）：五格一样大、比键小一圈，边对不上下面的键，
+    /// 一看就是弹出来的；格子之间缝 4，托盘外围留 4（iPad 5）。上下都放得下，不再压矮哪一格。
+    /// 九宫格：宽 = 键宽 × 0.75、高 = 键高 × 0.86（iPhone 竖屏 56×40 左右，iPad 11 寸竖屏 57×48）。
+    /// 全键盘「，。」键窄，用方块，边长 = 九宫格键高 × 0.86（iPhone 竖屏 40、横屏 28）。
     var cellSize: CGSize {
-        CGSize(width: key.cap.width + KeyboardMetrics.nineColumnGap, height: KeyboardMetrics.nineRowPitch)
+        if case .quickPunct = key.kind {
+            let side = (KeyboardMetrics.nineKeyHeight * 0.86).rounded()
+            return CGSize(width: side, height: side)
+        }
+        return CGSize(width: (key.cap.width * 0.75).rounded(), height: (key.cap.height * 0.86).rounded())
     }
 
-    /// 中间那格：以按下的键为中心；贴边时整个十字往里收，离屏幕边至少 4pt。
-    var center: CGRect {
+    static let gap: CGFloat = 4
+    static var trayPadding: CGFloat { KeyboardMetrics.pad == nil ? 4 : 5 }
+    /// 托盘离键盘（iPad：按键区）边至少留这么多。
+    static let edge: CGFloat = 2
+
+    /// 每条胳膊从中间那格边上往外伸多长：有选项是一格加一条缝，没有是 0。
+    func reach(_ direction: Direction) -> CGFloat {
+        guard options[direction] != nil else { return 0 }
         let size = cellSize
+        return (direction == .left || direction == .right ? size.width : size.height) + Self.gap
+    }
+
+    /// 中间那格：正对按下的键。托盘出了键盘才整块往里挪：
+    /// 左右离屏幕边至少 4；往上 iPhone 可以伸到 AI 栏里、离键盘顶 2，iPad 9 键上面什么都没有，离按键区顶 2
+    /// （只有 iPad 第一排往上会挪，第 87 条）；iPad 往下离按键区底 2。没有选项的那一边不算。
+    var center: CGRect {
+        let size = cellSize, padding = Self.trayPadding
         var x = key.cap.midX - size.width / 2
         // 按键区离屏幕边 sidePadding，换算成离屏幕边 4pt。
         let margin = 4 - KeyboardMetrics.sidePadding
-        x = min(max(x, margin + size.width), containerWidth - margin - size.width * 2)
-        return CGRect(x: x, y: key.cap.midY - size.height / 2, width: size.width, height: size.height)
+        x = min(x, containerWidth - margin - padding - reach(.right) - size.width)
+        x = max(x, margin + padding + reach(.left))
+        var y = key.cap.midY - size.height / 2
+        if KeyboardMetrics.pad != nil {
+            y = min(y, KeyboardMetrics.keysHeight - Self.edge - padding - reach(.down) - size.height)
+        }
+        let top = KeyboardMetrics.pad != nil ? Self.edge : Self.edge - KeyboardMetrics.topRow
+        y = max(y, top + padding + reach(.up))
+        return CGRect(x: x, y: y, width: size.width, height: size.height)
     }
 
     func frame(for direction: Direction) -> CGRect {
         let c = center
         switch direction {
-        case .left: return c.offsetBy(dx: -c.width, dy: 0)
-        case .right: return c.offsetBy(dx: c.width, dy: 0)
-        case .up:
-            // 第一行往上只有 AI 栏那么高，超出键盘顶会被裁平；顶到离键盘顶 2pt 为止，格子矮一点。
-            let up = c.offsetBy(dx: 0, dy: -c.height)
-            let top = max(up.minY, 2 - KeyboardMetrics.topRow)
-            return CGRect(x: up.minX, y: top, width: up.width, height: up.maxY - top)
-        case .down: return c.offsetBy(dx: 0, dy: c.height)
+        case .left: return c.offsetBy(dx: -(c.width + Self.gap), dy: 0)
+        case .right: return c.offsetBy(dx: c.width + Self.gap, dy: 0)
+        case .up: return c.offsetBy(dx: 0, dy: -(c.height + Self.gap))
+        case .down: return c.offsetBy(dx: 0, dy: c.height + Self.gap)
         }
+    }
+
+    /// 托盘外沿：中间那格和有选项的胳膊连成的十字形（CrossTray）。
+    var trayOutline: [CGPoint] {
+        CrossTray.outline(center: center, up: reach(.up), right: reach(.right), down: reach(.down), left: reach(.left),
+                          padding: Self.trayPadding)
     }
 
     /// 手指离按下的位置不到 14pt 算在中间（nil，松手取消）；再远就按偏得更多的那个方向算，
@@ -403,8 +460,7 @@ struct EmojiPanelSection: Identifiable {
     }()
 
     /// 有用过的表情时前面加「最近」。
-    static var all: [EmojiPanelSection] {
-        let recent = RecentEmoji.all
-        return (recent.isEmpty ? [] : [EmojiPanelSection(id: "最近", symbol: "clock", emoji: recent)]) + catalog
+    static func sections(recent: [String]) -> [EmojiPanelSection] {
+        (recent.isEmpty ? [] : [EmojiPanelSection(id: "最近", symbol: "clock", emoji: recent)]) + catalog
     }
 }

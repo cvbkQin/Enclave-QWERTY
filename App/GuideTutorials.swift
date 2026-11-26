@@ -2,7 +2,8 @@ import StoreKit
 import SwiftUI
 
 /// 每个预设服务商的分步教程（OB3–OB6 的写法）：前三步在服务商网站上做，第 4 步回到 App 粘贴 Key 并测试。
-/// 菜单名和链接按各家 2026-10 的开放平台写；大陆店面用国内站，其他地区用国际站（Key 不通用）。
+/// 菜单名和链接按各家 2026-10 的开放平台写；默认大陆店面用中国大陆站，其他地区用非中国大陆站（Key 不通用），
+/// 从配置页打开的跟配置地址那一边，教程顶上能切换（T102 NC3）。
 /// Ollama 没有教程（cvbk：不会的就不会了）。
 struct GuideTutorial {
     struct Step {
@@ -21,8 +22,10 @@ struct GuideTutorial {
     var domain: String
     /// 第 4 步「地址」后面的域名。
     var apiHost: String
-    /// 顶部站点小胶囊：大陆站 / 国际站；只有一个站的不显示。
-    var site: String? = nil
+    /// 这一版是哪一边：中国大陆 / 非中国大陆；只有一个站的是 nil（顶上不显示切换）。
+    var side: APISide? = nil
+    /// 平台名（第 4 步「这把 Key 要在 X 申请」）：只有分两边的几家有。
+    var platform: String? = nil
     /// 示意图里按钮的颜色。
     var accent: Color
     /// 示意图第 1 步登录框的标题。
@@ -35,8 +38,9 @@ struct GuideTutorial {
     var createLabel: String
     var steps: [Step]
 
-    static func of(_ provider: Provider) -> GuideTutorial? {
-        let china = Storefront.isMainlandChina
+    /// side：nil 按 App Store 地区。
+    static func of(_ provider: Provider, side: APISide? = nil) -> GuideTutorial? {
+        let china = (side ?? .storefront) == .china
         switch provider {
         case .deepseek: return deepseek
         case .kimi: return china ? kimiChina : kimiGlobal
@@ -79,7 +83,7 @@ struct GuideTutorial {
     static let kimiChina = GuideTutorial(
         name: L("Kimi 教程", "Kimi guide", "Kimi ガイド"),
         domain: "platform.moonshot.cn",
-        apiHost: "api.moonshot.cn", site: L("大陆站", "China site", "中国本土版"),
+        apiHost: "api.moonshot.cn", side: .china, platform: L("Kimi 开放平台", "Kimi Platform", "Kimi Platform"),
         accent: Color(hex: 0x16191E),
         signIn: L("登录 Kimi 开放平台", "Sign in to Kimi Platform", "Kimi Platform にログイン"),
         sidebar: [L("账户总览", "Overview", "概要"), "API Key", L("充值", "Top up", "チャージ"), L("用量", "Usage", "使用量")],
@@ -105,7 +109,7 @@ struct GuideTutorial {
     static let kimiGlobal = GuideTutorial(
         name: L("Kimi 教程", "Kimi guide", "Kimi ガイド"),
         domain: "platform.moonshot.ai",
-        apiHost: "api.moonshot.ai", site: L("国际站", "International site", "国際版"),
+        apiHost: "api.moonshot.ai", side: .global, platform: L("Moonshot AI 平台", "Moonshot AI Platform", "Moonshot AI Platform"),
         accent: Color(hex: 0x16191E),
         signIn: L("登录 Moonshot AI 平台", "Sign in to Moonshot AI", "Moonshot AI にログイン"),
         sidebar: [L("总览", "Overview", "概要"), "API Keys", L("充值", "Recharge", "チャージ"), L("用量", "Usage", "使用量")],
@@ -133,7 +137,7 @@ struct GuideTutorial {
     static let qwenChina = GuideTutorial(
         name: L("通义千问教程", "Qwen guide", "Qwen ガイド"),
         domain: "bailian.console.aliyun.com",
-        apiHost: "dashscope.aliyuncs.com", site: L("大陆站", "China site", "中国本土版"),
+        apiHost: "dashscope.aliyuncs.com", side: .china, platform: L("阿里云百炼", "Alibaba Cloud Model Studio (China)", "Alibaba Cloud Model Studio（中国本土）"),
         accent: Color(hex: 0x615CED),
         signIn: L("登录阿里云", "Sign in to Alibaba Cloud", "Alibaba Cloud にログイン"),
         sidebar: [L("模型广场", "Models", "モデル"), "API-Key", L("费用", "Billing", "料金"), L("文档", "Docs", "Docs")],
@@ -160,7 +164,7 @@ struct GuideTutorial {
     static let qwenGlobal = GuideTutorial(
         name: L("通义千问教程", "Qwen guide", "Qwen ガイド"),
         domain: "modelstudio.console.alibabacloud.com",
-        apiHost: "dashscope-intl.aliyuncs.com", site: L("国际站", "International site", "国際版"),
+        apiHost: "dashscope-intl.aliyuncs.com", side: .global, platform: "Alibaba Cloud Model Studio",
         accent: Color(hex: 0x615CED),
         signIn: L("登录 Alibaba Cloud", "Sign in to Alibaba Cloud", "Alibaba Cloud にログイン"),
         sidebar: [L("模型", "Models", "モデル"), "API Key", L("费用", "Billing", "料金"), L("文档", "Docs", "Docs")],
@@ -169,7 +173,7 @@ struct GuideTutorial {
         steps: [
             Step(title: L("登录并开通 Model Studio", "Sign in and turn on Model Studio", "ログインして Model Studio を有効化"),
                  items: [L("在 Safari 里打开 Alibaba Cloud Model Studio（新加坡）", "Open Alibaba Cloud Model Studio (Singapore) in Safari", "Safari で Alibaba Cloud Model Studio（シンガポール）を開く"),
-                         L("用 Alibaba Cloud 国际站账号登录，没有就注册一个", "Sign in with an Alibaba Cloud international account, or create one", "Alibaba Cloud 国際版アカウントでログイン。なければ作成"),
+                         L("用 Alibaba Cloud 账号（非中国大陆）登录，没有就注册一个", "Sign in with an Alibaba Cloud international account, or create one", "Alibaba Cloud 国際版アカウントでログイン。なければ作成"),
                          L("第一次进来同意服务协议就开通了", "Accept the service agreement the first time. That turns it on", "初回に利用規約に同意すると有効になります")],
                  link: (L("打开 Model Studio", "Open Model Studio", "Model Studio を開く"), "https://modelstudio.console.alibabacloud.com")),
             Step(title: L("添加付款方式", "Add a payment method", "支払い方法を追加"),
@@ -188,7 +192,7 @@ struct GuideTutorial {
     static let glmChina = GuideTutorial(
         name: L("智谱 GLM 教程", "Zhipu GLM guide", "Zhipu GLM ガイド"),
         domain: "open.bigmodel.cn",
-        apiHost: "open.bigmodel.cn", site: L("大陆站", "China site", "中国本土版"),
+        apiHost: "open.bigmodel.cn", side: .china, platform: L("智谱开放平台", "Zhipu Open Platform", "Zhipu Open Platform"),
         accent: Color(hex: 0x2D55E0),
         signIn: L("登录智谱开放平台", "Sign in to Zhipu Open Platform", "Zhipu Open Platform にログイン"),
         sidebar: [L("个人中心", "Account", "アカウント"), "API Keys", L("财务", "Billing", "料金"), L("文档", "Docs", "Docs")],
@@ -215,7 +219,7 @@ struct GuideTutorial {
     static let glmGlobal = GuideTutorial(
         name: L("智谱 GLM 教程", "Zhipu GLM guide", "Zhipu GLM ガイド"),
         domain: "z.ai",
-        apiHost: "api.z.ai", site: L("国际站", "International site", "国際版"),
+        apiHost: "api.z.ai", side: .global, platform: L("Z.ai 开放平台", "Z.ai Platform", "Z.ai Platform"),
         accent: Color(hex: 0x2D55E0),
         signIn: L("登录 Z.ai", "Sign in to Z.ai", "Z.ai にログイン"),
         sidebar: [L("总览", "Overview", "概要"), "API Keys", L("充值", "Billing", "料金"), L("文档", "Docs", "Docs")],
@@ -223,7 +227,7 @@ struct GuideTutorial {
         createLabel: "Create API Key",
         steps: [
             Step(title: L("注册并登录", "Sign up and sign in", "登録してログイン"),
-                 items: [L("在 Safari 里打开 Z.ai 开放平台（智谱国际站）", "Open the Z.ai platform (Zhipu's international site) in Safari", "Safari で Z.ai（Zhipu の国際版）を開く"),
+                 items: [L("在 Safari 里打开 Z.ai 开放平台（智谱非中国大陆站）", "Open the Z.ai platform (Zhipu outside Mainland China) in Safari", "Safari で Z.ai（中国本土以外の Zhipu）を開く"),
                          L("用 Google 账号或邮箱注册登录", "Sign up with Google or email", "Google かメールで登録・ログイン"),
                          L("登录好了回到这里", "Come back here once you're signed in", "ログインしたらここに戻る")],
                  link: (L("打开 z.ai", "Open z.ai", "z.ai を開く"), "https://z.ai")),

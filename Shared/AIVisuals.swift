@@ -13,9 +13,10 @@ enum AIVisuals {
 
 /// 柔和混色底（0.91 FB，方案 B）：亮一点的 115° 线性底上叠两团大而淡的椭圆光，照稿子的 CSS 换成径向渐变（百分比相对按钮自己的宽高）。
 /// 扁平：没有小白星、顶上水光和外圈光。
-/// ask 是识意自动时 ✨ 的蓝紫（MG2–MG5）；rewrite、answer 是两颗风格键，join 是收着时合成的那一颗（AB1–AB3，和 rewrite 同色）。
+/// ask 是识意自动时 ✨ 的蓝紫（MG2–MG5）；rewrite、answer 是两颗风格键，join 是收着时合成的那一颗（AB1–AB3，和 rewrite 同色）；
+/// help 是弹出的帮回键（T96）：帮回绿 #22C08A → #0E9F6E。
 struct NebulaFill: View {
-    enum Palette { case ask, rewrite, answer, join }
+    enum Palette { case ask, rewrite, answer, join, help }
 
     /// 椭圆光：横竖半径（占宽高的比例）、中心、颜色、透明度。CSS 里写在前面的在上层，这里按 CSS 顺序列，画的时候倒过来。
     private typealias Glow = (rx: CGFloat, ry: CGFloat, x: CGFloat, y: CGFloat, color: UInt32, alpha: Double)
@@ -30,6 +31,8 @@ struct NebulaFill: View {
             return [(0.70, 0.90, 0.18, 0.30, 0xA855F7, 0.7), (0.60, 0.90, 0.86, 0.74, 0x6366F1, 0.55)]
         case .answer:
             return [(0.70, 0.90, 0.18, 0.30, 0x38BDF8, 0.7), (0.60, 0.90, 0.86, 0.74, 0x3B82F6, 0.5)]
+        case .help:
+            return [(0.70, 0.90, 0.18, 0.30, 0x34D399, 0.6), (0.60, 0.90, 0.86, 0.74, 0x059669, 0.45)]
         }
     }
 
@@ -40,6 +43,7 @@ struct NebulaFill: View {
         case .ask: ends = (0x7C3AED, 0x2563EB)
         case .rewrite, .join: ends = (0x7C3AED, 0x6D5BF0)
         case .answer: ends = (0x0284C7, 0x0B8FD8)
+        case .help: ends = (0x22C08A, 0x0E9F6E)
         }
         return LinearGradient(colors: [Self.color(ends.0), Self.color(ends.1)],
                               startPoint: UnitPoint(x: 0, y: 0.25), endPoint: UnitPoint(x: 1, y: 0.75))

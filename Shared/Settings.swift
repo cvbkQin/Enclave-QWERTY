@@ -147,9 +147,12 @@ struct EnclaveSettings: Codable, Equatable {
     /// 固定到 AI 栏的风格（AK5）：改写风格或问答风格的 id，按固定的先后排，最多 5 个。
     var pinnedStyleIDs: [UUID] = []
     static let maxPinnedStyles = 5
-    /// AI 栏上固定的「帮回」键（帮回并入润色，方案 D）：全键盘和九宫格同一个设置，默认不固定，不占固定风格「N / 5」的名额。
-    /// 0.96_11 以前全键盘、九宫格各一个（helpPinnedQwerty / helpPinnedNine，全键盘默认固定），不再读。
-    var helpPinned = false
+    /// 「复制后弹出帮回键」（T96，design/help-reply/entry-v2）：开着时刚复制别人的话，问答键右边弹出帮回键，用完或 1 分钟收回；
+    /// 关着时只把润色键的图标换成帮回图标，输入框空着时点润色就是帮回。键盘润色 ⌄ 里帮回那一行的图钉就是它。
+    /// 开着关着都判断剪贴板（只看变更标记和内容类型，不读内容）。新装开。
+    /// 存的名字还是 helpAuto（原来的「帮回自动判断」）；原来另有「钉住帮回」（helpPinned），升级时两个有一个开着就算开。
+    var helpAuto = true
+
 
     // 键盘
     var inputLanguage: InputLanguage = .chinese
@@ -197,16 +200,23 @@ struct EnclaveSettings: Codable, Equatable {
     var doublePinyinHintMode: DoublePinyinHintMode = .fixed
     /// 双拼时也能打全拼（双拼调研 P3，默认关）。改了要重新部署。
     var doublePinyinMixFull = false
+    /// 全键盘空格旁的「，。」键放在哪边（对齐清单第 80 条），默认右边。只是键盘的排法，不同步、不用重新部署。
+    var quickPunctSide: QuickPunctSide = .right
+    /// iPad 全宽 9 键的九键在左边还是右边（PK3、PK4），默认右边。只是排法，不同步、不用重新部署；iPhone 上不用。
+    var nineKeySide: NineKeySide = .right
+    /// iPad 11 寸 26 键字母上的灰色小字（数字和符号），往下滑打出来，和 iPad 原生一样（PA3、PK1），默认开。
+    /// 只是键盘的显示和手势，不同步、不用重新部署；13 寸有数字行，不画。
+    var padLetterHints = true
     var appearance: Appearance = .system
 
     enum CodingKeys: String, CodingKey {
         case baseURL, model, temperature, maxTokens, styles, selectedStyleID, answerStyles, selectedAnswerStyleID, searchTendency
-        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, appearance
+        case inputLanguage, keyboardLayout, pinyinDisplay, keyboardGlass, traditionalOutput, keyHaptics, keySound, autoCapitalize, polishAnimation, fuzzyPinyin, doublePinyin, doublePinyinHintMode, doublePinyinMixFull, quickPunctSide, nineKeySide, padLetterHints, appearance
         case resultKeyPrimary, resultKeySwipe, resultKeyWheelUp, longText, webSearchMode, separateAnswer, answerBaseURL, answerModel, answerTemperature, answerMaxTokens, polishEnabled, answerEnabled
-        case pinnedStyleIDs, helpPinned
+        case pinnedStyleIDs, helpAuto
     }
 
-    private enum LegacyKeys: String, CodingKey { case webSearch, doublePinyinHints }
+    private enum LegacyKeys: String, CodingKey { case webSearch, doublePinyinHints, helpPinned }
 
     var isConfigured: Bool {
         !baseURL.trimmingCharacters(in: .whitespaces).isEmpty
@@ -246,7 +256,15 @@ struct EnclaveSettings: Codable, Equatable {
         pinnedStyleIDs = pinnedStyles.map(\.style.id)
         guard pinnedStyleIDs.count < Self.maxPinnedStyles else { return false }
         pinnedStyleIDs.append(id)
+        sortPinsByList()
         return true
+    }
+
+    /// 固定在 AI 栏上的顺序跟着提示词列表走（R2b，11-22）：先润色风格、再问答风格，各按列表里的顺序。
+    /// 提示词页不再单独列「固定在 AI 栏」一组，拖动列表就是改 AI 栏上的顺序。
+    mutating func sortPinsByList() {
+        let pinned = Set(pinnedStyleIDs)
+        pinnedStyleIDs = styles.map(\.id).filter(pinned.contains) + answerStyles.map(\.id).filter(pinned.contains)
     }
 }
 
@@ -302,7 +320,11 @@ extension EnclaveSettings {
         polishEnabled = try c.decodeIfPresent(Bool.self, forKey: .polishEnabled) ?? polishEnabled
         answerEnabled = try c.decodeIfPresent(Bool.self, forKey: .answerEnabled) ?? answerEnabled
         pinnedStyleIDs = (try? c.decodeIfPresent([UUID].self, forKey: .pinnedStyleIDs)) ?? pinnedStyleIDs
-        helpPinned = (try? c.decodeIfPresent(Bool.self, forKey: .helpPinned)) ?? helpPinned
+        helpAuto = (try? c.decodeIfPresent(Bool.self, forKey: .helpAuto)) ?? helpAuto
+        // 0.97_12 以前帮回钉在 AI 栏上（helpPinned）也算开（T96 升级规则）。新版本不再写这一项。
+        if !helpAuto, (try? decoder.container(keyedBy: LegacyKeys.self).decodeIfPresent(Bool.self, forKey: .helpPinned)) == true {
+            helpAuto = true
+        }
         fuzzyPinyin = (try? c.decodeIfPresent(Set<FuzzyPinyin>.self, forKey: .fuzzyPinyin)) ?? fuzzyPinyin
         doublePinyin = try? c.decodeIfPresent(DoublePinyin.self, forKey: .doublePinyin)
         if let mode = try? c.decodeIfPresent(DoublePinyinHintMode.self, forKey: .doublePinyinHintMode) {
@@ -311,6 +333,9 @@ extension EnclaveSettings {
             doublePinyinHintMode = hints ? .fixed : .off
         }
         doublePinyinMixFull = (try? c.decodeIfPresent(Bool.self, forKey: .doublePinyinMixFull)) ?? doublePinyinMixFull
+        quickPunctSide = (try? c.decodeIfPresent(QuickPunctSide.self, forKey: .quickPunctSide)) ?? quickPunctSide
+        nineKeySide = (try? c.decodeIfPresent(NineKeySide.self, forKey: .nineKeySide)) ?? nineKeySide
+        padLetterHints = (try? c.decodeIfPresent(Bool.self, forKey: .padLetterHints)) ?? padLetterHints
         appearance = (try? c.decodeIfPresent(Appearance.self, forKey: .appearance)) ?? appearance
     }
 }
@@ -412,6 +437,11 @@ enum SettingsStore {
         return exportPrefix + data.base64EncodedString()
     }
 
+    /// 是不是「复制配置」复制出来的那段（里面有 API Key）：剪贴板记录不存它（T97）。
+    static func isExportString(_ string: String) -> Bool {
+        string.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(exportPrefix)
+    }
+
     /// 导入成功返回 true。
     @discardableResult
     static func importString(_ string: String) -> Bool {
@@ -487,6 +517,11 @@ extension EnclaveSettings {
 
     /// 键盘 AI 栏显示润色键 / 问答键：开关开着、配置能用。关掉或不能用时这颗键不显示，固定键往左补位。
     var showsPolishKey: Bool { polishEnabled && polishUsable }
+
+    /// 帮回能不能用：帮回走润色接口，润色开着、能用才有（关掉润色时钉住的帮回键、「帮回这条」、剪贴板判断都没有，bug #34）。
+    var helpReplyUsable: Bool { showsPolishKey }
+    /// 键盘要不要判断剪贴板里有没有可以帮回的新复制（T96 起开关关着也判断：关着时要给润色键换图标）。
+    var helpAutoDetects: Bool { helpReplyUsable }
     var showsAnswerKey: Bool { answerEnabled && answerUsable }
 
     static func searchProvider(baseURL: String) -> SearchProvider? {
@@ -513,6 +548,26 @@ extension EnclaveSettings {
     }
     /// 识意问答联网用哪一家：问答走的接口能联网就有（三档里选了禁止也有，要联网时提示去开启）。
     var answerSearch: SearchProvider? { forAnswers.searchProvider }
+
+    /// 接口那几项（地址、模型、参数）和另一份一样。iCloud 同步换了接口时，键盘发请求前对一下（Keychain 的「配对」）。
+    func sameEndpoint(as other: EnclaveSettings) -> Bool {
+        baseURL == other.baseURL && model == other.model && temperature == other.temperature && maxTokens == other.maxTokens
+            && separateAnswer == other.separateAnswer && answerBaseURL == other.answerBaseURL && answerModel == other.answerModel
+            && answerTemperature == other.answerTemperature && answerMaxTokens == other.answerMaxTokens
+    }
+
+    /// 换成另一份的接口那几项，别的不动。
+    mutating func adoptEndpoint(from other: EnclaveSettings) {
+        baseURL = other.baseURL
+        model = other.model
+        temperature = other.temperature
+        maxTokens = other.maxTokens
+        separateAnswer = other.separateAnswer
+        answerBaseURL = other.answerBaseURL
+        answerModel = other.answerModel
+        answerTemperature = other.answerTemperature
+        answerMaxTokens = other.answerMaxTokens
+    }
 
     /// 问答真的走另一个接口：开着、地址和模型都填了。
     var usesAnswerEndpoint: Bool {

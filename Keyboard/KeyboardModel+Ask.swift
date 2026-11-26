@@ -65,6 +65,8 @@ extension KeyboardModel {
 
     /// 点识意框：打字回到框里，取消全选；开着的风格一排收回去。
     func focusAsk() {
+        // 帮回等着的时候点识意框：计时停下，等用户写要求（HW2）。
+        if helpWait?.interrupted == false { interruptHelpWait() }
         if target == .card { finishCardEdit() }
         if aiRow != nil { aiRow = nil }
         if askSelected { askSelected = false }
@@ -84,7 +86,8 @@ extension KeyboardModel {
     func askTapped(_ mode: AskMode?, contextOverride: String? = nil) {
         guard !isRunning, canAsk else { return }
         let answerStyle = runAnswerStyleOverride
-        guard passGate(then: { [weak self] in
+        let keys: KeyUse = mode == .rewrite ? .polish : (mode == .answer ? .answer : .either)
+        guard passGate(keys: keys, then: { [weak self] in
             self?.runAnswerStyleOverride = answerStyle
             self?.askTapped(mode, contextOverride: contextOverride)
             self?.runAnswerStyleOverride = nil
@@ -140,7 +143,7 @@ extension KeyboardModel {
         notice = nil
         guard hasFullAccess, settings.isConfigured else {
             errorMessage = hasFullAccess ? LLMError.notConfigured.errorDescription
-                : L("需要在 设置 › 通用 › 键盘 › 键盘 › 飞地输入法 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › Enclave to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › Enclave で「フルアクセスを許可」をオンにしてください。")
+                : L("需要在 设置 › 通用 › 键盘 › 键盘 › \(Loc.nameInSettings) 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › \(Loc.nameInSettings) to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › \(Loc.nameInSettings) で「フルアクセスを許可」をオンにしてください。")
             setAIExpanded(true)
             return false
         }
@@ -177,8 +180,8 @@ extension KeyboardModel {
         endCelebration()
         if isRunning { stop(); return }
         lastRunPin = nil
-        // 有待回的复制、输入框空（情况 ①③）：润色键整颗是「帮回」，点了就帮回。
-        if polishKeyIsHelp {
+        // 「复制后弹出帮回键」关着、有待回的复制、输入框空（T96 图 ⑤）：润色键换成了帮回图标，点了就帮回。
+        if polishKeyHelps {
             startHelpReply()
             return
         }
@@ -193,6 +196,16 @@ extension KeyboardModel {
         if target == .card { finishCardEdit() }
         finishComposition()
         if aiRow != nil { aiRow = nil }
+        var extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 识意框里是点「问答」时自动填进去的那句（问题本身），不是要求：只改写输入框里的话（v308，FT13）。
+        if let auto = askAutoFill, extra == auto { extra = "" }
+        // 帮回加要求（HR1 第 3 条，cvbk 12:41 选「也当帮回重写」）：卡上是帮回写的一版、或帮回停下来等要求，
+        // 识意框又写了要求：点润色也当帮回，回同一句、照要求写，执行动效在被点的这颗润色键上。没写要求照旧只润字。
+        if !extra.isEmpty, helpWait != nil || session?.currentIsReply == true {
+            let style = runStyleOverride
+            startHelpReply(keepPin: true, style: style)
+            return
+        }
         let parsed = CommandParser.parse(readField().text)
         // 卡上是手改过的一版、帮回写的一版（还没放进输入框）：润色它。
         if parsed.content.isEmpty, parsed.instruction.isEmpty, session?.currentIsEdited != true, session?.currentIsReply != true {
@@ -211,9 +224,6 @@ extension KeyboardModel {
         #endif
         coachTapped(.run)
         if askSelected { askSelected = false }
-        var extra = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
-        // 识意框里是点「问答」时自动填进去的那句（问题本身），不是要求：只改写输入框里的话（v308，FT13）。
-        if let auto = askAutoFill, extra == auto { extra = "" }
         start(from: .polish) { execute(extraInstruction: extra) }
     }
 
@@ -329,6 +339,12 @@ extension KeyboardModel {
     func enterAskTapped() {
         endCelebration()
         if isRunning { stop(); return }
+        // 帮回等着、或停下来写好了要求：识意框里的回车就是「帮回」（HW1 ④）。
+        if helpWait != nil {
+            lastRunPin = nil
+            runHelpWait()
+            return
+        }
         guard canAsk else {
             showKeysToast(L("先在框里写下要求或问题", "Type a request or question in the box first.", "先に欄に依頼か質問を書いてください"))
             return
@@ -378,7 +394,7 @@ extension KeyboardModel {
     /// 点「使用联网查询」：同一个问题强制联网重问，结果替换这条回答（MG7）。
     func forceWebSearch() {
         guard canForceSearch, let session, let source = session.currentAskSource, let provider = settings.answerSearch else { return }
-        guard passGate(then: { [weak self] in self?.forceWebSearch() }) else { return }
+        guard passGate(keys: .answer, then: { [weak self] in self?.forceWebSearch() }) else { return }
         reload()
         guard checkCanAsk() else { return }
         guard passAnswerConsent(then: { [weak self] in self?.forceWebSearch() }) else { return }

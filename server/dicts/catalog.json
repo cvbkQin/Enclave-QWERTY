@@ -1,4 +1,15 @@
 {
+ "schema": 2,
+ "updated": "2026-11-26T17:59:15+08:00",
+ "grammar": {
+  "version": "2026-11-18",
+  "size": 390786092,
+  "sha256": "e9ddd501b7d536bc5ea1346f8f900ae49a719a05be349e0a17cb27e717143ca5",
+  "urls": {
+   "cn": "https://enclavekb.cn/grammar/wanxiang-lts-zh-hans.gram",
+   "global": "https://github.com/amzxyz/rime-wanxiang-data/releases/download/LTS/wanxiang-lts-zh-hans.gram"
+  }
+ },
  "dicts": [
   {
    "id": "baike",
@@ -17,7 +28,7 @@
    "size": 5467811,
    "version": "2026-10-31",
    "sha256": "6833bbea59cc9e0c97744eea8fe6117da3ec197183bab4674e9826b73d699bb0",
-   "url": "ext_baike.dict.yaml"
+   "url": "ext_baike.dict.yaml?v=6833bbea"
   },
   {
    "id": "medical",
@@ -31,7 +42,7 @@
    "size": 621167,
    "version": "2026-10-31",
    "sha256": "153c8ba4c5838c437b6709ecda8bab73f06b840c389e254896e3c33f3cde1308",
-   "url": "ext_medical.dict.yaml"
+   "url": "ext_medical.dict.yaml?v=153c8ba4"
   },
   {
    "id": "law",
@@ -45,7 +56,7 @@
    "size": 586974,
    "version": "2026-10-31",
    "sha256": "d2fab8b28a34ad14973878cac4c41a4652c1faf051b9a0698135387af7dcac10",
-   "url": "ext_law.dict.yaml"
+   "url": "ext_law.dict.yaml?v=d2fab8b2"
   },
   {
    "id": "poem",
@@ -59,7 +70,7 @@
    "size": 633781,
    "version": "2026-10-31",
    "sha256": "ec2a77293f093a8e4e9bdc2fec22343bfd7d4ed8373dc94d4b8d32f75a4c9d6e",
-   "url": "ext_poem.dict.yaml"
+   "url": "ext_poem.dict.yaml?v=ec2a7729"
   },
   {
    "id": "lishimingren",
@@ -73,7 +84,89 @@
    "size": 305860,
    "version": "2026-10-31",
    "sha256": "2febbd243969069e02c40bf51b43d98567d8580479ed8810f0ec0e1c89a55d67",
-   "url": "ext_lishimingren.dict.yaml"
+   "url": "ext_lishimingren.dict.yaml?v=2febbd24"
+  }
+ ],
+ "builtinUpdates": [
+  {
+   "id": "lol",
+   "entries": 937,
+   "size": 29046,
+   "version": "2026-10-31",
+   "sha256": "702a2a8004b17446e7e8c6be715753fe117e20618e7378105ef48a6616695e66",
+   "url": "builtin/ext_lol.dict.yaml?v=702a2a80"
+  },
+  {
+   "id": "wzry",
+   "entries": 1058,
+   "size": 31808,
+   "version": "2026-10-31",
+   "sha256": "9ff5101d15fadacc9a860d5bcdc9f98a40cf75e021c3da726f17bb83c45b913e",
+   "url": "builtin/ext_wzry.dict.yaml?v=9ff5101d"
+  },
+  {
+   "id": "genshin",
+   "entries": 5134,
+   "size": 155795,
+   "version": "2026-10-31",
+   "sha256": "5141c1519b0cc8467b8b68988703e810e85009dc6f99671f08ee7a42bedef487",
+   "url": "builtin/ext_genshin.dict.yaml?v=5141c151"
+  },
+  {
+   "id": "dota2",
+   "entries": 508,
+   "size": 14722,
+   "version": "2026-10-31",
+   "sha256": "31959e260d85ef4ff96c3c651e819e07aa32d09ff856eda8ecfe76b94d225736",
+   "url": "builtin/ext_dota2.dict.yaml?v=31959e26"
+  },
+  {
+   "id": "hpjy",
+   "entries": 29,
+   "size": 1000,
+   "version": "2026-10-31",
+   "sha256": "3110c5a084c9e9641d43e1b3224b469f91080684a01ed33d453470776e9183ae",
+   "url": "builtin/ext_hpjy.dict.yaml?v=3110c5a0"
+  },
+  {
+   "id": "meme",
+   "entries": 140,
+   "size": 3677,
+   "version": "2026-10-31",
+   "sha256": "24708877296a2ba122ebd65ae46398b9be7292e212ed99ac34449a9cf6ea67f8",
+   "url": "builtin/ext_meme.dict.yaml?v=24708877"
+  },
+  {
+   "id": "chengyu",
+   "entries": 8519,
+   "size": 276828,
+   "version": "2026-10-31",
+   "sha256": "072be5127e07c3a17408b59f37fe2257edbc1f559313daa079d583fc0417c38a",
+   "url": "builtin/ext_chengyu.dict.yaml?v=072be512"
+  },
+  {
+   "id": "diming",
+   "entries": 44803,
+   "size": 1263123,
+   "version": "2026-10-31",
+   "sha256": "b7fe45139087088d8d62d94e4cee3fa735b0986a6a3b5c513c600e0f4a80c8eb",
+   "url": "builtin/ext_diming.dict.yaml?v=b7fe4513"
+  },
+  {
+   "id": "it",
+   "entries": 12854,
+   "size": 412746,
+   "version": "2026-10-31",
+   "sha256": "c8889eb3a31302517649406a1a2a695e09471aae8cdca71d538b40dc940fa675",
+   "url": "builtin/ext_it.dict.yaml?v=c8889eb3"
+  },
+  {
+   "id": "caijing",
+   "entries": 3828,
+   "size": 98933,
+   "version": "2026-10-31",
+   "sha256": "0bbc75c76893a8a808a955ee832e0e6f0ac8936de3cf1a6b2e7fc10c1daf7bdb",
+   "url": "builtin/ext_caijing.dict.yaml?v=0bbc75c7"
   }
  ]
 }

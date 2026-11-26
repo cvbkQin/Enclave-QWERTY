@@ -5,61 +5,71 @@
    "id": "lol",
    "entries": 937,
    "version": "2026-10-31",
-   "size": 29046
+   "size": 29046,
+   "sha256": "702a2a8004b17446e7e8c6be715753fe117e20618e7378105ef48a6616695e66"
   },
   {
    "id": "wzry",
    "entries": 1058,
    "version": "2026-10-31",
-   "size": 31808
+   "size": 31808,
+   "sha256": "9ff5101d15fadacc9a860d5bcdc9f98a40cf75e021c3da726f17bb83c45b913e"
   },
   {
    "id": "genshin",
    "entries": 5134,
    "version": "2026-10-31",
-   "size": 155795
+   "size": 155795,
+   "sha256": "5141c1519b0cc8467b8b68988703e810e85009dc6f99671f08ee7a42bedef487"
   },
   {
    "id": "dota2",
    "entries": 508,
    "version": "2026-10-31",
-   "size": 14722
+   "size": 14722,
+   "sha256": "31959e260d85ef4ff96c3c651e819e07aa32d09ff856eda8ecfe76b94d225736"
   },
   {
    "id": "hpjy",
    "entries": 29,
    "version": "2026-10-31",
-   "size": 1000
+   "size": 1000,
+   "sha256": "3110c5a084c9e9641d43e1b3224b469f91080684a01ed33d453470776e9183ae"
   },
   {
    "id": "meme",
    "entries": 140,
    "version": "2026-10-31",
-   "size": 3677
+   "size": 3677,
+   "sha256": "24708877296a2ba122ebd65ae46398b9be7292e212ed99ac34449a9cf6ea67f8"
   },
   {
    "id": "chengyu",
    "entries": 8519,
    "version": "2026-10-31",
-   "size": 276828
+   "size": 276828,
+   "sha256": "072be5127e07c3a17408b59f37fe2257edbc1f559313daa079d583fc0417c38a"
   },
   {
    "id": "diming",
    "entries": 44803,
    "version": "2026-10-31",
-   "size": 1263123
+   "size": 1263123,
+   "sha256": "b7fe45139087088d8d62d94e4cee3fa735b0986a6a3b5c513c600e0f4a80c8eb"
   },
   {
    "id": "it",
    "entries": 12854,
    "version": "2026-10-31",
-   "size": 412746
+   "size": 412746,
+   "sha256": "c8889eb3a31302517649406a1a2a695e09471aae8cdca71d538b40dc940fa675"
   },
   {
    "id": "caijing",
    "entries": 3828,
    "version": "2026-10-31",
-   "size": 98933
+   "size": 98933,
+   "sha256": "0bbc75c76893a8a808a955ee832e0e6f0ac8936de3cf1a6b2e7fc10c1daf7bdb"
   }
  ]
 }

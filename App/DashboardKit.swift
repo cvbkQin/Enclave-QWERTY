@@ -18,6 +18,23 @@ enum DashColor {
     static let empty = Color(.systemGray5)
 }
 
+/// DESIGN.md（11-22）的颜色：品牌紫只用在能点的地方和最重要的数字；橙只表示「快到了 / 用完了」。
+enum HIG {
+    /// 实色按钮、小方块的底：#5B4BE8，深色 #8B80F9。
+    static let accentFill = dynamic(light: 0x5B4BE8, dark: 0x8B80F9)
+    /// 紫色文字、图标、细线：#5B4BE8，深色 #B4A9FF。
+    static let accentText = dynamic(light: 0x5B4BE8, dark: 0xB4A9FF)
+    /// 快到了、用完了：#C93400，深色 #FF9F0A。
+    static let warning = dynamic(light: 0xC93400, dark: 0xFF9F0A)
+
+    private static func dynamic(light: UInt32, dark: UInt32) -> Color {
+        func ui(_ hex: UInt32) -> UIColor {
+            UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+        return Color(UIColor { $0.userInterfaceStyle == .dark ? ui(dark) : ui(light) })
+    }
+}
+
 /// 没有数据时的那句话。
 enum DashText {
     static var emptyStats: String {
@@ -273,13 +290,17 @@ struct BuildBadge: View {
 
 extension View {
     /// 标签页的根页面：隐藏导航栏（标题自己画），列表顶部只留和首页一样的 8pt。
+    /// 标题模式一定要 inline：默认是大标题，导航栏虽然藏着，列表下拉松手后系统还会按大标题那一截（约 52pt）
+    /// 回弹，停在半路再一下跳回去（0.97_16 真机录屏，设置页）。
     @ViewBuilder
     func tabRootPage() -> some View {
         if #available(iOS 17.0, *) {
             self.toolbar(.hidden, for: .navigationBar)
+                .navigationBarTitleDisplayMode(.inline)
                 .contentMargins(.top, 8, for: .scrollContent)
         } else {
             self.toolbar(.hidden, for: .navigationBar)
+                .navigationBarTitleDisplayMode(.inline)
         }
     }
 
@@ -287,8 +308,22 @@ extension View {
     /// 底色和分组页一样，内容滚上去时从标题下面穿过。
     func pinnedTabTitle<Extra: View>(caption: String, title: String, showsBuildBadge: Bool = false,
                                      @ViewBuilder extra: () -> Extra) -> some View {
+        pinnedTabTitle(caption: caption, title: title, showsBuildBadge: showsBuildBadge, extra: extra) { EmptyView() }
+    }
+
+    /// trailing：标题右上角的系统按钮（R2b 提示词的「编辑」「＋」、R3 历史的筛选菜单），在导航栏的位置。
+    func pinnedTabTitle<Extra: View, Trailing: View>(caption: String, title: String, showsBuildBadge: Bool = false,
+                                                     @ViewBuilder extra: () -> Extra,
+                                                     @ViewBuilder trailing: () -> Trailing) -> some View {
         let header = VStack(alignment: .leading, spacing: 12) {
-            TabTitle(caption: caption, title: title, showsBuildBadge: showsBuildBadge)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 16) {
+                    Spacer(minLength: 0)
+                    trailing()
+                }
+                .frame(minHeight: 0)
+                TabTitle(caption: caption, title: title, showsBuildBadge: showsBuildBadge)
+            }
             extra()
         }
         return safeAreaInset(edge: .top, spacing: 0) {

@@ -2,219 +2,307 @@ import StoreKit
 import SwiftUI
 import UIKit
 
-/// 设置顶部的 AI 卡（PB3）：试用剩几天和进度格、解锁按钮、一句说明。点整张卡进解锁页。
+/// 设置顶部的 AI 卡（R4，design/app-redesign，11-22 交付）：标题行紫色小方块 +「AI」+ ›，大数字，一条 4pt 细线，一句说明。
+/// 卡里不放按钮和格子，整张卡点进解锁页；最后 3 天、今天用完时数字和细线变橙。
 struct EnclaveAICard: View {
     @ObservedObject private var unlock = UnlockStore.shared
 
     var body: some View {
-        DashCard {
-            // 备案口径是开发者不提供模型服务，卡片标题只写「AI」。
-            DashCardHeader(icon: "sparkles", title: "AI", color: DashColor.ai, note: state)
-            HStack(alignment: .center) {
-                big
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 28, height: 28)
+                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(HIG.accentFill))
+                    .accessibilityHidden(true)
+                // 备案口径是开发者不提供模型服务，卡片标题只写「AI」。
+                Text("AI").font(.headline)
                 Spacer(minLength: 8)
-                if !unlocked {
-                    Text(unlock.unlockTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .frame(height: 32)
-                        .background(Capsule().fill(DashColor.ai))
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(big)
+                    .font(.largeTitle.bold())
+                    .monospacedDigit()
+                    .foregroundStyle(warn ? HIG.warning : Color.primary)
+                if let unit { Text(unit).font(.subheadline).foregroundStyle(.secondary) }
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .padding(.top, 6)
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(.systemGray5))
+                    Capsule().fill(warn ? HIG.warning : HIG.accentFill)
+                        .frame(width: proxy.size.width * progress)
                 }
             }
-            if case .trial(let days, _) = unlock.access {
-                // 14 天试用画成 7 格，一格两天。
-                DashSegments(total: 7, done: Int((Double(days) / 2).rounded(.up)))
-            }
-            Text(detail).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            .frame(height: 4)
+            .padding(.top, 10)
+            .accessibilityHidden(true)
+            Text(detail)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(DashColor.card))
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var usesLeft: Int { AIAccess.usesLeftToday }
+
+    /// 橙色：试用最后 3 天、今天的免费次数用完。
+    private var warn: Bool {
+        switch unlock.access {
+        case .notStarted, .expired: return usesLeft == 0
+        case .trial: return unlock.access.isEndingSoon
+        case .unlocked: return false
         }
     }
 
-    private var unlocked: Bool {
-        if case .unlocked = unlock.access { return true }
-        return false
-    }
-
-    private var state: String {
+    private var big: String {
         switch unlock.access {
-        case .trial: return L("试用中", "Trial", "無料体験中")
-        case .expired: return L("试用已结束", "Trial ended", "無料体験終了")
-        case .unlocked: return L("已解锁", "Unlocked", "購入済み")
+        case .notStarted, .expired: return "\(usesLeft)"
+        case .trial(let days, _): return "\(days)"
+        case .unlocked: return L("不限次数", "Unlimited", "回数無制限")
         }
     }
 
-    @ViewBuilder
-    private var big: some View {
+    private var unit: String? {
         switch unlock.access {
-        case .trial(let days, _): DashBigNumber(value: "\(days)", unit: L("天 · 试用剩余", "days left", "日・残り"))
-        case .expired: DashBigNumber(value: "\(AIAccess.usesLeftToday)", unit: L("次 · 今天还剩", "left today", "回・今日の残り"))
-        case .unlocked: DashBigNumber(value: "∞", unit: L("不限次数", "No limits", "回数無制限"))
+        case .notStarted, .expired: return L("次 · 今天还剩", "left today", "回・今日の残り")
+        case .trial: return L("天 · 试用剩余", "days left in trial", "日・無料体験の残り")
+        case .unlocked: return nil
+        }
+    }
+
+    private var progress: CGFloat {
+        switch unlock.access {
+        case .notStarted, .expired: return CGFloat(usesLeft) / CGFloat(AIAccess.dailyFreeUses)
+        case .trial(let days, _): return CGFloat(days) / CGFloat(AIAccess.trialDays)
+        case .unlocked: return 1
         }
     }
 
     private var detail: String {
         let uses = AIAccess.dailyFreeUses
         switch unlock.access {
+        case .notStarted, .expired:
+            if usesLeft == 0 {
+                return L("今天的 \(uses) 次用完了，明天 0 点恢复。", "Today's \(uses) free uses are gone. They come back at midnight.",
+                         "今日の \(uses) 回を使い切りました。0 時に戻ります。")
+            }
+            if unlock.access == .notStarted {
+                return L("每天免费 \(uses) 次。可以免费试用 \(AIAccess.trialDays) 天，不限次数。",
+                         "\(uses) free uses a day. Try \(AIAccess.trialDays) days unlimited for free.",
+                         "1 日 \(uses) 回まで無料。\(AIAccess.trialDays) 日間、回数無制限で無料体験できます。")
+            }
+            return L("每天免费 \(uses) 次，明天 0 点恢复。一次买断，不限次数。", "\(uses) free uses a day, reset at midnight. Pay once for unlimited.",
+                     "1 日 \(uses) 回まで無料、0 時にリセット。買い切りで回数無制限。")
         case .trial(_, let ends):
-            return L("\(Loc.monthDay(ends))结束，之后每天免费 \(uses) 次。一次买断，不限次数。", "Ends \(Loc.monthDay(ends)), then \(uses) free a day. One-time purchase, no limits.", "\(Loc.monthDay(ends))に終了し、その後は 1 日 \(uses) 回無料。買い切りで回数無制限。")
-        case .expired:
-            return L("每天免费 \(uses) 次，明天 0 点恢复。一次买断，不限次数。", "\(uses) free a day, reset at midnight. One-time purchase, no limits.", "1 日 \(uses) 回無料、0 時にリセット。買い切りで回数無制限。")
+            let day = Loc.monthDay(AIAccess.lastTrialDay(ends: ends))
+            return L("用到 \(day)，之后每天免费 \(uses) 次。", "Until \(day), then \(uses) free uses a day.",
+                     "\(day)まで。その後は 1 日 \(uses) 回まで無料。")
         case .unlocked:
-            return L("一次买断，不限次数。谢谢支持。", "One-time purchase, no limits. Thank you.", "買い切りで回数無制限。ありがとうございます。")
+            return L("已买断。谢谢支持。", "Purchased. Thank you for your support.", "購入済みです。ありがとうございます。")
         }
     }
 }
 
-/// 设置（IA5）：AI 卡；上手（首次设置、功能演示、使用指引）；反馈；通用（语言、日间 / 夜间）；隐私、关于；测试工具（内测、公测版）。
+/// 设置（IA5；11-26 对齐清单第 96 条重排，顺序固定）：AI 卡；同步（同步与备份）；通用（语言、日间 / 夜间）；上手（首次设置、功能演示）；反馈；隐私、关于；测试工具（内测、公测版）。
 struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
-        NavigationStack(path: $router.settingsPath) {
-            List {
-                Section {
-                } header: {
-                    VStack(spacing: 12) {
-                        // 整张卡可点，不要列表行的箭头。
-                        // 内测版没有试用和解锁：换成内置接口今天的用量。
-                        if BuiltinAPI.isInternalBuild {
-                            BuiltinUsageCard()
-                        } else {
-                            Button { router.settingsPath.append(.unlock) } label: { EnclaveAICard() }
-                                .buttonStyle(.plain)
-                        }
-                        // 「App 与键盘共享配置」不再占一行，不可用时才显示横幅。
-                        if SharedStorage.usesClipboardConfig && !SharedStorage.isShared { SharedConfigBanner() }
-                    }
-                    .dashFormCard()
-                }
-                // 上手：首次设置（欢迎页四步）、功能演示、使用指引。
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.setup) {
-                        let left = setupStepsLeft
-                        HStack(spacing: 12) {
-                            TintIcon(systemName: "checklist", color: DashColor.ai)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L("首次设置", "First-time setup", "初期設定"))
-                                Text(L("输入法、完全访问、润色、问答", "Keyboard, Full Access, Polish, Q&A", "キーボード・フルアクセス・整える・質問"))
-                                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            Spacer(minLength: 8)
-                            Text(left == 0 ? L("已完成", "Done", "完了") : L("还差 \(left) 步", "\(left) left", "あと \(left) ステップ"))
-                                .foregroundStyle(left == 0 ? Color.secondary : Color(hex: 0xD97706))
-                                .lineLimit(1)
-                        }
-                    }
-                    // 再玩一次首次打开时的功能演示（模拟键盘、预设结果，不调用 API）。
-                    Button { router.setupGuide = .tourReplay } label: {
-                        HStack(spacing: 12) {
-                            DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
-                                    value: L("约 4 分钟", "About 4 min", "約 4 分"))
-                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    NavigationLink(value: AppRouter.SettingsPage.playground) {
-                        DashRow(icon: "flask", color: DashColor.ai, title: L("使用指引", "Guide", "使い方ガイド"),
-                                value: L("试过 \(LabScene.triedCount)/\(LabScene.all.count)", "Tried \(LabScene.triedCount)/\(LabScene.all.count)", "\(LabScene.triedCount)/\(LabScene.all.count) 試した"))
-                    }
-                } header: {
-                    Text(L("上手", "Getting started", "はじめに"))
-                }
-                // 正式版、公测版（FB1）；内测版换成「诊断与反馈」，两者不同时出现。
-                if CrashLog.isEnabled {
-                    Section {
-                        NavigationLink(value: AppRouter.SettingsPage.diagnostics) { DiagnosticsRow() }
-                    } header: {
-                        Text(L("反馈", "Feedback", "フィードバック"))
-                    } footer: {
-                        Text(L("内测版专有。闪退和异常退出的记录只存在手机上。", "Beta only. Crash and exit records stay on this iPhone.", "ベータ版のみ。クラッシュと異常終了の記録はこの iPhone にだけ保存されます。"))
-                    }
+        if router.wideLayout {
+            // iPad 宽屏（PA3 ⑤）：左边设置列表，右边打开选中的那一页；子页面内容照 iPhone，最宽 640（解锁页 560）。
+            SettingsSplitView {
+                settingsList
+            } destination: { page in
+                destination(page)
+                    .padReadable(maxWidth: page == .unlock ? PadWidth.unlock : PadWidth.content)
+            }
+        } else {
+            NavigationStack(path: $router.settingsPath) {
+                settingsList
+                    .navigationDestination(for: AppRouter.SettingsPage.self) { destination($0) }
+            }
+        }
+    }
+
+    /// iPad 两栏时左边选中的那一行：settingsPath 的第一项（NavigationLink(value:) 点了就换右边）。
+    private var sidebarSelection: Binding<AppRouter.SettingsPage?> {
+        Binding(get: { router.settingsPath.first }, set: { page in
+            router.settingsPath = page.map { [$0] } ?? []
+        })
+    }
+
+    @ViewBuilder
+    private var settingsList: some View {
+        Group {
+            if router.wideLayout {
+                List(selection: sidebarSelection) { sections }
+            } else {
+                List { sections }
+            }
+        }
+        .pinnedTabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
+        .navigationTitle(L("设置", "Settings", "設定"))
+        .tabRootPage()
+    }
+
+    @ViewBuilder
+    private func destination(_ page: AppRouter.SettingsPage) -> some View {
+        switch page {
+        case .setup: FirstSetupView()
+        case .scratchPad: ScratchPadView()
+        case .testTools: TestToolsView()
+        case .privacy: PrivacyView()
+        case .about: AboutView()
+        case .unlock: UnlockView()
+        case .language: LanguageView()
+        case .privacyPolicy: PrivacyPolicyView()
+        case .licenses: LicensesView()
+        case .diagnostics: DiagnosticsView()
+        case .feedback: FeedbackFormView()
+        case .backup: BackupView()
+        case .tour: TourChaptersView()
+        }
+    }
+
+    @ViewBuilder
+    private var sections: some View {
+        Section {
+        } header: {
+            VStack(spacing: 12) {
+                // 整张卡可点，不要列表行的箭头。
+                // 内测版没有试用和解锁：换成内置接口今天的用量。
+                if BuiltinAPI.isInternalBuild {
+                    BuiltinUsageCard()
                 } else {
-                    Section {
-                        NavigationLink(value: AppRouter.SettingsPage.feedback) {
-                            DashRow(icon: "envelope", color: DashColor.ai, title: L("反馈问题", "Send Feedback", "フィードバック"))
-                        }
-                    } header: {
-                        Text(L("反馈", "Feedback", "フィードバック"))
-                    } footer: {
-                        Text(L("在 App 里填好直接提交给开发者，不用打开邮件。", "Fill it in and send it to the developer right here, no email needed.", "App 内で入力してそのまま開発者に送れます。メールは不要です。"))
-                    }
-                }
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.language) {
-                        DashRow(icon: "globe", color: DashColor.input, title: L("语言", "Language", "言語"),
-                                value: router.language == .system ? L("跟随 iPhone", "iPhone", "iPhone に従う") : router.language.nativeName)
-                    }
-                    Picker(selection: $store.settings.appearance) {
-                        ForEach(Appearance.allCases) { Text($0.title).tag($0) }
-                    } label: {
-                        DashRow(icon: "circle.lefthalf.filled", color: DashColor.input, title: L("日间 / 夜间", "Appearance", "外観"))
-                    }
-                    .pickerStyle(.menu)
-                } header: {
-                    Text(L("通用", "General", "一般"))
-                } footer: {
-                    Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
-                }
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
-                } header: {
-                    Text(L("数据", "Data", "データ"))
-                }
-                Section {
-                    NavigationLink(value: AppRouter.SettingsPage.privacy) {
-                        DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
-                                value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
-                    }
-                    NavigationLink(value: AppRouter.SettingsPage.about) {
-                        DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.devLabel ?? AboutView.version)
-                    }
-                }
-                if AccessTestSection.shows {
-                    AccessTestSection()
-                }
-                if BuiltinAPI.showsTesterTools {
-                    Section {
-                        NavigationLink(value: AppRouter.SettingsPage.testTools) {
-                            HStack(spacing: 12) {
-                                TintIcon(systemName: "keyboard", color: DashColor.phrase)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack(spacing: 6) {
-                                        Text(L("测试工具", "Test tools", "テストツール"))
-                                        TestBadge()
-                                    }
-                                    Text(L("打字速度、压力测试", "Typing speed, stress test", "入力の速さ・負荷テスト"))
-                                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Button { router.settingsPath = [.unlock] } label: {
+                        EnclaveAICard()
+                            // iPad 两栏：右边是解锁页时卡片描一圈紫边（PA3 ⑤）。
+                            .overlay {
+                                if router.wideLayout && (router.settingsPath.first ?? .unlock) == .unlock {
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(HIG.accentFill, lineWidth: 2)
                                 }
                             }
-                        }
-                    } footer: {
-                        Text(L("只在内测版、公测版显示。", "Shown only in beta builds.", "ベータ版でのみ表示されます。"))
                     }
+                    .buttonStyle(.plain)
+                }
+                // 「App 与键盘共享配置」不再占一行，不可用时才显示横幅。
+                if SharedStorage.usesClipboardConfig && !SharedStorage.isShared { SharedConfigBanner() }
+            }
+            .dashFormCard()
+        }
+        // 同步（对齐清单第 96 条，design/settings-order SO1 ②）：紧跟 AI 卡；顺序固定为 AI、同步、通用、上手、反馈、隐私和关于。
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.backup) { BackupSettingsRow() }
+        } header: {
+            Text(L("同步", "Sync", "同期"))
+        }
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.language) {
+                DashRow(icon: "globe", color: DashColor.input, title: L("语言", "Language", "言語"),
+                        value: router.language == .system ? L("跟随 \(DeviceName.current)", DeviceName.current, "\(DeviceName.current) に従う") : router.language.nativeName)
+            }
+            Picker(selection: $store.settings.appearance) {
+                ForEach(Appearance.allCases) { Text($0.title).tag($0) }
+            } label: {
+                DashRow(icon: "circle.lefthalf.filled", color: DashColor.input, title: L("日间 / 夜间", "Appearance", "外観"))
+            }
+            .pickerStyle(.menu)
+        } header: {
+            Text(L("通用", "General", "一般"))
+        } footer: {
+            Text(L("只改飞地输入法 App。键盘跟着正在打字的 App 变深浅，和系统键盘一样。", "Applies to the Enclave app. The keyboard matches the app you are typing in, like the system keyboard.", "Enclave App に適用されます。キーボードは入力中の App に合わせて変わります。"))
+        }
+        // 上手：首次设置（欢迎页四步）、功能演示（「使用指引」11-26 去掉，对齐清单第 96 条）。
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.setup) {
+                let left = setupStepsLeft
+                HStack(spacing: 12) {
+                    TintIcon(systemName: "checklist", color: DashColor.ai)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("首次设置", "First-time setup", "初期設定"))
+                        Text(L("输入法、完全访问、AI", "Keyboard, Full Access, AI", "キーボード・フルアクセス・AI"))
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Text(left == 0 ? L("已完成", "Done", "完了") : L("还差 \(left) 步", "\(left) left", "あと \(left) ステップ"))
+                        .foregroundStyle(left == 0 ? Color.secondary : Color(hex: 0xD97706))
+                        .lineLimit(1)
                 }
             }
-            .pinnedTabTitle(caption: "\(L("飞地输入法", "Enclave", "Enclave")) \(AboutView.devLabel ?? AboutView.version)", title: L("设置", "Settings", "設定"))
-            .navigationTitle(L("设置", "Settings", "設定"))
-            .tabRootPage()
-            .navigationDestination(for: AppRouter.SettingsPage.self) { page in
-                switch page {
-                case .setup: FirstSetupView()
-                case .playground: LabView()
-                case .firstScene: SceneView(index: 0)
-                case .testTools: TestToolsView()
-                case .privacy: PrivacyView()
-                case .about: AboutView()
-                case .unlock: UnlockView()
-                case .language: LanguageView()
-                case .privacyPolicy: PrivacyPolicyView()
-                case .licenses: LicensesView()
-                case .diagnostics: DiagnosticsView()
-                case .feedback: FeedbackFormView()
-                case .backup: BackupView()
+            // 功能演示（T95，OG2 ③）：章节页，点一章只看这一章，「从头播放」放 14 步（模拟键盘、预设结果，不调用 API）。
+            NavigationLink(value: AppRouter.SettingsPage.tour) {
+                DashRow(icon: "hand.tap", color: DashColor.ai, title: L("功能演示", "Feature Tour", "機能デモ"),
+                        value: L("约 3 分钟", "About 3 min", "約 3 分"))
+            }
+        } header: {
+            Text(L("上手", "Getting started", "はじめに"))
+        }
+        // 正式版、公测版（FB1）；内测版换成「诊断与反馈」，两者不同时出现。
+        if CrashLog.isEnabled {
+            Section {
+                NavigationLink(value: AppRouter.SettingsPage.diagnostics) { DiagnosticsRow() }
+            } header: {
+                Text(L("反馈", "Feedback", "フィードバック"))
+            } footer: {
+                Text(L("内测版专有。闪退和异常退出的记录只存在手机上。", "Beta only. Crash and exit records stay on this iPhone.", "ベータ版のみ。クラッシュと異常終了の記録はこの iPhone にだけ保存されます。"))
+            }
+        } else {
+            Section {
+                NavigationLink(value: AppRouter.SettingsPage.feedback) {
+                    DashRow(icon: "envelope", color: DashColor.ai, title: L("反馈问题", "Send Feedback", "フィードバック"))
                 }
+            } header: {
+                Text(L("反馈", "Feedback", "フィードバック"))
+            } footer: {
+                Text(L("在 App 里填好直接提交给开发者，不用打开邮件。", "Fill it in and send it to the developer right here, no email needed.", "App 内で入力してそのまま開発者に送れます。メールは不要です。"))
+            }
+        }
+        Section {
+            NavigationLink(value: AppRouter.SettingsPage.privacy) {
+                DashRow(icon: "lock", color: DashColor.system, title: L("隐私", "Privacy", "プライバシー"),
+                        value: router.privacyAgreed ? L("已同意", "Agreed", "同意済み") : L("未同意", "Not agreed", "未同意"))
+            }
+            NavigationLink(value: AppRouter.SettingsPage.about) {
+                DashRow(icon: "info.circle", color: DashColor.system, title: L("关于飞地输入法", "About Enclave", "Enclave について"), value: AboutView.devLabel ?? AboutView.version)
+            }
+        }
+        if AccessTestSection.shows {
+            AccessTestSection()
+        }
+        if BuiltinAPI.showsTesterTools {
+            Section {
+                NavigationLink(value: AppRouter.SettingsPage.testTools) {
+                    HStack(spacing: 12) {
+                        TintIcon(systemName: "keyboard", color: DashColor.phrase)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text(L("测试工具", "Test tools", "テストツール"))
+                                TestBadge()
+                            }
+                            Text(L("打字速度、压力测试", "Typing speed, stress test", "入力の速さ・負荷テスト"))
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                }
+            } footer: {
+                Text(L("只在内测版、公测版显示。", "Shown only in beta builds.", "ベータ版でのみ表示されます。"))
             }
         }
     }
@@ -232,11 +320,8 @@ struct FirstSetupView: View {
     @EnvironmentObject private var router: AppRouter
 
     var body: some View {
-        ZStack {
-            GuideBackground(glow: true)
-            WelcomeSetupView(inGuide: true) {
-                if !router.settingsPath.isEmpty { router.settingsPath.removeLast() }
-            }
+        WelcomeSetupView(inGuide: true) {
+            if !router.settingsPath.isEmpty { router.settingsPath.removeLast() }
         }
         .navigationTitle(L("首次设置", "First-time setup", "初期設定"))
         .navigationBarTitleDisplayMode(.inline)
@@ -301,12 +386,15 @@ struct ModelSettingsView: View {
     @State private var needsPrivacy = false
     @State private var importResult: Bool?
     @State private var sheet: ConfigSheet?
-    /// 「添加配置」里点了教程：弹层收起后再打开教程。
+    /// 开着 Key 同步时左滑删方案：先确认（B11），其他设备上的方案和 Key 也会删。
+    @State private var deleting: SavedAPI?
+    /// 配置页里点了教程：弹层收起后再打开教程（哪一家、哪一边）。
     @State private var pendingTutorial: Provider?
+    @State private var pendingSide: APISide?
 
-    /// 弹层：添加（先选服务商再进新建页）或编辑某一条。
+    /// 弹层：新建（直接是新建配置页，T102 NC1；引导里选了 Ollama 时预先填好）或编辑某一条。
     enum ConfigSheet: Identifiable {
-        case add
+        case add(ConfigTemplate?)
         case edit(SavedAPI)
         var id: String {
             switch self {
@@ -343,7 +431,7 @@ struct ModelSettingsView: View {
                     if store.savedAPIs.isEmpty {
                         Section {
                         } header: {
-                            EmptyConfigCard(locked: locked) { sheet = .add }.dashFormCard()
+                            EmptyConfigCard(locked: locked) { sheet = .add(nil) }.dashFormCard()
                         } footer: {
                             Text(L("配置只存在这台 iPhone 上，API Key 放在钥匙串里。", "Setups stay on this iPhone; API keys are kept in the keychain.", "設定はこの iPhone にだけ保存され、API キーはキーチェーンに入ります。"))
                         }
@@ -371,43 +459,48 @@ struct ModelSettingsView: View {
         } message: {
             Text(L("同意后才能测试接口和使用 AI。拼音输入不受影响。", "Agree first to test the API and use AI. Pinyin input still works.", "同意すると API のテストと AI が使えます。ピンイン入力はそのまま使えます。"))
         }
+        .alert(SyncedDeleteText.title(deleting?.name ?? ""), isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+               presenting: deleting) { item in
+            Button(L("删除", "Delete", "削除"), role: .destructive) { store.deleteSavedAPI(item.id) }
+            Button(L("取消", "Cancel", "キャンセル"), role: .cancel) {}
+        } message: { _ in
+            Text(SyncedDeleteText.message)
+        }
         .sheet(item: $sheet, onDismiss: {
             if let provider = pendingTutorial {
                 pendingTutorial = nil
-                router.openTutorial(provider, answer: answer)
+                router.openTutorial(provider, answer: answer, side: pendingSide)
             }
         }) { which in
-            Group {
+            NavigationStack {
                 switch which {
-                case .add:
-                    NavigationStack(path: $addPath) {
-                        AddConfigSheet { template in
-                            addPath = [template]
-                        } onTutorial: { openTutorial($0) }
-                        .navigationDestination(for: ConfigTemplate.self) { template in
-                            ConfigEditor(existing: nil, template: template, answer: answer,
-                                         onTutorial: { openTutorial($0) }, onClose: { sheet = nil })
-                        }
-                    }
+                case .add(let template):
+                    ConfigEditor(existing: nil, template: template, answer: answer,
+                                 onTutorial: { openTutorial($0, side: $1) }, onClose: { sheet = nil })
                 case .edit(let item):
-                    NavigationStack {
-                        ConfigEditor(existing: item, template: ConfigTemplate.of(item), answer: answer,
-                                     onTutorial: { openTutorial($0) }, onClose: { sheet = nil })
-                    }
+                    ConfigEditor(existing: item, answer: answer,
+                                 onTutorial: { openTutorial($0, side: $1) }, onClose: { sheet = nil })
                 }
             }
             .environmentObject(store)
             .environmentObject(router)
-            .onAppear { addPath = [] }
         }
+        .onAppear(perform: takeNewConfigRequest)
+        .onChange(of: router.newConfig) { _ in takeNewConfigRequest() }
     }
 
-    /// 添加弹层里从服务商列表推到新建页。
-    @State private var addPath: [ConfigTemplate] = []
-
-    private func openTutorial(_ template: ConfigTemplate) {
-        pendingTutorial = template.provider
+    private func openTutorial(_ provider: Provider, side: APISide?) {
+        pendingTutorial = provider
+        pendingSide = side
         sheet = nil
+    }
+
+    /// 引导「自己填写」/ 推荐里的 Ollama：回到润色接口页后直接弹出新建配置页（NC3 ⑤）。等引导收起再弹。
+    private func takeNewConfigRequest() {
+        guard !answer, let request = router.newConfig else { return }
+        router.newConfig = nil
+        guard !locked else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { sheet = .add(request.template) }
     }
 
     // MARK: 状态卡
@@ -526,13 +619,15 @@ struct ModelSettingsView: View {
                 .lockedRow(locked)
                 .swipeActions(edge: .trailing, allowsFullSwipe: !locked) {
                     if !locked {
-                        Button(role: .destructive) { store.deleteSavedAPI(item.id) } label: {
+                        Button(role: .destructive) {
+                            if Keychain.syncsToICloud { deleting = item } else { store.deleteSavedAPI(item.id) }
+                        } label: {
                             Text(L("删除", "Delete", "削除"))
                         }
                     }
                 }
             }
-            Button { sheet = .add } label: {
+            Button { sheet = .add(nil) } label: {
                 Label(L("添加配置", "Add setup", "設定を追加"), systemImage: "plus")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(DashColor.ai)
@@ -580,9 +675,9 @@ struct InternalLockNotice: View {
                 .foregroundStyle(.white)
                 .frame(width: 26, height: 26)
                 .background(Circle().fill(Color(.systemGray)))
-            Text(L("内测版的接口由开发者统一提供，这一页只能查看，灰色带锁的地方都不能改。AI 页的「测试连接」、问答页的「联网调用」和「调用偏好」可以用。内置接口每天可以润色 100 次、问答 50 次。",
-                   "In the beta, the API is provided for you, so this page is view-only. Gray areas with a lock can't be changed. On the AI tab you can still tap Test, and change Web search and Search preference on the Q&A page. The built-in API allows 100 polishes and 50 answers a day.",
-                   "ベータ版では API はあらかじめ用意されているため、このページは表示のみです。鍵の付いたグレーの部分は変更できません。AI タブの「接続テスト」と、質問ページの「ウェブ検索」「検索の頻度」は使えます。内蔵 API は 1 日に整える 100 回・回答 50 回まで使えます。"))
+            Text(L("内测版的接口由开发者统一提供，这一页只能查看，灰色带锁的地方都不能改。「接口和提示词」页的「测试连接」「联网调用」和「调用偏好」可以用。内置接口每天可以润色 100 次、问答 50 次。",
+                   "In the beta, the API is provided for you, so this page is view-only. Gray areas with a lock can't be changed. On the API & Prompts tab you can still tap Test and change Web search and Search preference. The built-in API allows 100 polishes and 50 answers a day.",
+                   "ベータ版では API はあらかじめ用意されているため、このページは表示のみです。鍵の付いたグレーの部分は変更できません。「API とプロンプト」タブの「接続テスト」「ウェブ検索」「検索の頻度」は使えます。内蔵 API は 1 日に整える 100 回・回答 50 回まで使えます。"))
                 .font(.system(size: 13))
                 .foregroundStyle(.primary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -728,25 +823,32 @@ struct KeyboardTab: View {
     var body: some View {
         NavigationStack(path: $router.keyboardPath) {
             KeyboardSettingsView()
+                // 子页面内容照 iPhone，iPad 宽屏时最宽 640 居中。
                 .navigationDestination(for: AppRouter.KeyboardPage.self) { page in
-                    switch page {
-                    case .fuzzy: FuzzyPinyinView()
-                    case .doublePinyin: DoublePinyinView()
-                    case .doublePinyinPractice: DoublePinyinPracticeView()
-                    case .pinyin: PinyinView()
-                    case .commonWords: CommonWordsView()
-                    case .keyboardWords: KeyboardPhrasesView()
-                    case .touch: TouchCalibrationView()
+                    Group {
+                        switch page {
+                        case .fuzzy: FuzzyPinyinView()
+                        case .doublePinyin: DoublePinyinView()
+                        case .doublePinyinPractice: DoublePinyinPracticeView()
+                        case .pinyin: PinyinView()
+                        case .commonWords: CommonWordsView()
+                        case .keyboardWords: KeyboardPhrasesView()
+                        case .touch: TouchCalibrationView()
+                        }
                     }
+                    .padReadable(router.wideLayout)
                 }
                 .navigationDestination(for: AppRouter.ExtDictGroupPage.self) { group in
-                    switch group {
-                    case .hot: HotDictsView()
-                    case .imported: ImportedDictsView()
+                    Group {
+                        switch group {
+                        case .hot: HotDictsView()
+                        case .imported: ImportedDictsView()
+                        }
                     }
+                    .padReadable(router.wideLayout)
                 }
                 .navigationDestination(for: AppRouter.ExtDictPage.self) { page in
-                    ExtDictDetailView(id: page.id)
+                    ExtDictDetailView(id: page.id).padReadable(router.wideLayout)
                 }
         }
     }
@@ -765,7 +867,8 @@ struct KeyboardSettingsView: View {
     @State private var refresh = UUID()
 
     var body: some View {
-        Form {
+        // iPad 宽屏（PA3 ⑥）：两列。左边键盘状态、主要语言、中文布局，右边拼音、英文、按键、词库和常用词；竖屏一列、最宽 640。
+        PadColumns {
             // 读一下 refresh：从系统设置回来时 body 重算，完全访问的横幅跟着出现或消失。
             let _ = refresh
             // B 卡片放在 Section 的 header 里，分组的大圆角裁不到，四角完整（见 dashFormCard）。
@@ -843,13 +946,70 @@ struct KeyboardSettingsView: View {
                                 }
                             }
                         }
+                        // 「，。」键（PU2 ③，对齐清单第 80 条）：放空格左边还是右边，默认右边。只管键盘排法，不用重新部署。
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L("「，。」键", "「，。」 key", "「，。」キー"))
+                                Text(L("点出逗号，上滑出句号", "Tap for a comma, swipe up for a period", "タップで読点、上フリックで句点"))
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 12)
+                            Picker(L("「，。」键", "「，。」 key", "「，。」キー"), selection: $store.settings.quickPunctSide) {
+                                ForEach(QuickPunctSide.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .fixedSize()
+                        }
                     } footer: {
                         VStack(alignment: .leading, spacing: 6) {
                             DictionaryDeployStatus()
                             Text(typingFooter)
+                            Text(L("「，。」键只对全键盘生效；九宫格本来就有「，。?!」键。",
+                                   "The 「，。」 key is QWERTY only; 9-key already has a 「，。?!」 key.",
+                                   "「，。」キーは QWERTY のみです。10キーにはもともと「，。?!」キーがあります。"))
                         }
                     }
                 }
+            }
+            // iPad（PA3 ⑥）：九键靠哪边、11 寸字母上的数字和符号，只在 iPad 上显示。
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                Section {
+                    if store.settings.inputLanguage != .englishOnly {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L("九键位置", "9-key side", "10キーの位置"))
+                                Text(L("九键靠哪边，另一边放 AI 栏、联想和候选", "Styles, suggestions and candidates go on the other side",
+                                       "反対側に AI バー、予測、候補を表示"))
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 12)
+                            Picker(L("九键位置", "9-key side", "10キーの位置"), selection: $store.settings.nineKeySide) {
+                                ForEach(NineKeySide.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            .fixedSize()
+                        }
+                    }
+                    Toggle(isOn: $store.settings.padLetterHints) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("字母上的数字和符号", "Numbers and symbols on letters", "文字キーの数字と記号"))
+                            Text(L("下滑输入，和 iPad 原生一样", "Swipe down to type them, like the iPad keyboard",
+                                   "下にスワイプして入力（iPad 標準と同じ）"))
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text(store.settings.inputLanguage != .englishOnly ? L("9 键（iPad）", "9-key (iPad)", "10キー（iPad）") : "iPad")
+                } footer: {
+                    Text(L("只在 iPad 上显示。字母上的数字和符号只在 11 寸的 26 键上有（13 寸本来就有数字行）；浮动键盘不分左右、不画小字。",
+                           "iPad only. Numbers on letters appear on the 11-inch QWERTY layout (13-inch has a number row); the floating keyboard is unaffected.",
+                           "iPad のみ。文字キーの数字は 11 インチの QWERTY に表示されます（13 インチには数字列があります）。フローティングキーボードには影響しません。"))
+                }
+            }
+        } right: {
+            let _ = refresh
+            if store.settings.inputLanguage != .englishOnly {
                 // 拼音组最上面是拼音显示（F12，KS1 ②）：上方一行（默认，同 iOS 原生）/ 侧边。键盘上长按「中/英」也能切。
                 Section {
                 } header: {
@@ -964,6 +1124,8 @@ struct KeyboardSettingsView: View {
         .navigationTitle(L("键盘", "Keyboard", "キーボード"))
         .tabRootPage()
         .onAppear {
+            // 键盘里改的（iPad 9 键换边、长按中/英换布局）存在共用设置里，进这一页时重读一次（第 86 条）。
+            store.reloadSettings()
             words.reload()
             phrases.reload()
             touchEnabled = TouchCalibration.isEnabled
@@ -1081,7 +1243,7 @@ struct KeyboardAISection: View {
                 }
             }
         } header: {
-            AISectionTitle(text: L("键盘里的 AI", "AI on the keyboard", "キーボードの AI"))
+            Text(L("键盘里的 AI", "AI on the keyboard", "キーボードの AI"))
         } footer: {
             Text(L("没选中文字时，AI 只处理光标前约 100 字，按整句截取；打开「处理长文本」后约 200 字。文字越长越慢、越容易改错，替换前请看一遍结果。替换只换送去处理的那一段，其余不动；要处理整段，先全选再点 ✨。",
                    "With nothing selected, AI handles about 100 characters before the cursor, cut at whole sentences; about 200 with Process long text on. Longer text is slower and easier to get wrong, so check the result first. Replace only changes the part that was sent; to handle a whole passage, select it first, then tap ✨.",
@@ -1154,12 +1316,14 @@ struct ResultKeySettingsView: View {
 
 }
 
-/// 布局选择卡片：上面一张简化的键盘图示，下面名称和勾选圈。
-private struct LayoutCard: View {
+/// 布局选择卡片：上面一张简化的键盘图示，下面名称和勾选圈。功能演示首页也用（T95）。
+struct LayoutCard: View {
     var layout: KeyboardLayout
     var selected: Bool
     /// 名称下面的小字（全键盘：「全拼」或「双拼 · 小鹤」，KS2）。
     var detail: Text? = nil
+    /// 图示高度：演示首页要一屏放下，矮屏收到 50。
+    var illustrationHeight: CGFloat = 76
     var action: () -> Void
 
     var body: some View {
@@ -1167,7 +1331,7 @@ private struct LayoutCard: View {
             VStack(spacing: 10) {
                 illustration
                     .padding(8)
-                    .frame(height: 76)
+                    .frame(height: illustrationHeight)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray5)))
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {
@@ -1742,11 +1906,8 @@ struct PinyinView: View {
     @ObservedObject private var deployer = RimeDeployer.shared
     @State private var size: Int64?
     @ObservedObject private var grammar = GrammarDownloader.shared
+    /// 整句模型卡在 App/GrammarCard.swift（DU1，第 99 条）。
     @State private var confirmDeleteGrammar = false
-    /// 整句模型的下载地址，空着就用默认地址（大陆店面 enclavekb.cn，其他 GitHub）。
-    @State private var grammarURL = GrammarModel.customDownloadURL ?? ""
-    /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
-    @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
 
     /// 上面三张卡照旧；下面是扩展词库的概况两行（第 49 条），点进热门词库、导入的词库。
     var body: some View {
@@ -1754,7 +1915,7 @@ struct PinyinView: View {
             Section {} header: {
                 VStack(spacing: 12) {
                     dictionaryCard
-                    grammarCard
+                    GrammarCard(confirmDelete: $confirmDeleteGrammar)
                     englishCard
                 }
                 .dashFormCard()
@@ -1810,108 +1971,6 @@ struct PinyinView: View {
             parts.append(L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) fuzzy pairs", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組"))
         }
         return parts.isEmpty ? L("万象拼音词库，CC BY 4.0", "Wanxiang Pinyin, CC BY 4.0", "万象ピンイン、CC BY 4.0") : parts.joined(separator: " · ")
-    }
-
-    // MARK: - 整句模型
-
-    /// 下载后整句首选更准。下载中大数字是进度，下完是大小。
-    private var grammarCard: some View {
-        DashCard {
-            DashCardHeader(icon: "sparkles", title: L("整句模型", "Sentence model", "文章モデル"), color: DashColor.input, note: "CC BY 4.0")
-            VStack(alignment: .leading, spacing: 10) {
-                switch grammar.state {
-                case .downloading(let received, let expected):
-                    DashBigNumber(value: "\(Int(Double(received) / Double(max(expected, 1)) * 100))",
-                                    unit: L("% · 正在下载", "% · Downloading", "% · ダウンロード中"))
-                    ProgressView(value: Double(received), total: Double(max(expected, 1)))
-                    Button(L("取消", "Cancel", "キャンセル")) { grammar.cancel() }
-                        .font(.system(size: 15, weight: .semibold))
-                default:
-                    if GrammarModel.isBundled {
-                        // 内测包自带：只能停用，不能删、不用下载。
-                        DashBigNumber(value: GrammarModel.installedSize.map { "\($0 / 1_000_000)" } ?? "380",
-                                        unit: grammar.enabled ? L("MB · 已内置", "MB · Built in", "MB · 内蔵") : L("MB · 已内置 · 已停用", "MB · Built in · Off", "MB · 内蔵 · オフ"))
-                        Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
-                               isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
-                            .tint(AppColor.purple)
-                            .disabled(deployer.state == .deploying)
-                        Text(L("内测版已自带整句模型，不用下载，也不能删除；不想用可以停用。",
-                               "The beta comes with the sentence model built in. It can't be deleted, but you can turn it off.",
-                               "ベータ版には文章モデルが内蔵されています。削除はできませんが、オフにできます。"))
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
-                    } else if grammar.installed {
-                        DashBigNumber(value: GrammarModel.installedSize.map { "\($0 / 1_000_000)" } ?? "–",
-                                        unit: grammar.enabled ? L("MB · 已下载", "MB · Downloaded", "MB · ダウンロード済み") : L("MB · 已下载 · 已关闭", "MB · Downloaded · Off", "MB · ダウンロード済み · オフ"))
-                        // 关掉时模型留着，随时再打开，方便对比。切换后重新部署词库。
-                        Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
-                               isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
-                            .tint(AppColor.purple)
-                            .disabled(deployer.state == .deploying)
-                        Text(L("长句一次打对的更多，键盘内存会多用一些。", "Whole sentences come out right more often; the keyboard uses a little more memory.", "長い文が一度で正しく出やすくなります。キーボードのメモリ使用は少し増えます。"))
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
-                        Button(L("删除模型", "Delete model", "モデルを削除"), role: .destructive) { confirmDeleteGrammar = true }
-                            .font(.system(size: 13, weight: .semibold))
-                            .disabled(deployer.state == .deploying)
-                    } else {
-                        DashBigNumber(value: "380", unit: L("MB · 未下载", "MB · Not downloaded", "MB · 未ダウンロード"))
-                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。\(Storefront.isMainlandChina ? "默认从飞地的国内服务器下载" : "默认从万象的 GitHub 下载")，断了会自动重试、接着下。",
-                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from \(Storefront.isMainlandChina ? "Enclave's server in mainland China" : "Wanxiang's GitHub") by default; if the connection drops it retries and picks up where it left off.",
-                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。デフォルトでは\(Storefront.isMainlandChina ? "Enclave の中国国内サーバー" : "万象の GitHub")からダウンロードし、途切れたら自動で再試行して続きから再開します。"))
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
-                        Button(grammar.canResume ? L("继续下载", "Resume download", "続きから") : L("下载", "Download", "ダウンロード")) { grammar.download() }
-                            .font(.system(size: 15, weight: .semibold))
-                            .disabled(deployer.state == .deploying)
-                        grammarURLField
-                    }
-                }
-                if case .failed(let message) = grammar.state {
-                    Text(message).font(.system(size: 13)).foregroundStyle(.red)
-                }
-            }
-        }
-    }
-
-    /// 下载地址：GitHub 在大陆常常很慢或打不开，可以换成镜像或自己的服务器。改了地址旧进度作废。
-    @ViewBuilder
-    private var grammarURLField: some View {
-        if showsGrammarURL || isGrammarFailed {
-            grammarURLEditor
-        } else {
-            Button(L("下载太慢？换个下载地址", "Slow? Use another download address", "遅いときは別のアドレスへ")) { showsGrammarURL = true }
-                .font(.system(size: 13))
-                .foregroundStyle(AppColor.purple)
-                .buttonStyle(.plain)
-        }
-    }
-
-    private var isGrammarFailed: Bool {
-        if case .failed = grammar.state { return true }
-        return false
-    }
-
-    private var grammarURLEditor: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L("下载地址", "Download address", "ダウンロード元")).font(.system(size: 13, weight: .semibold))
-            TextField(GrammarModel.defaultDownloadURL(mainland: Storefront.isMainlandChina).absoluteString, text: $grammarURL)
-                .font(.system(size: 12, design: .monospaced))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.URL)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.tertiarySystemFill)))
-                .onSubmit { saveGrammarURL() }
-                .onChange(of: grammarURL) { _ in saveGrammarURL() }
-            Text(L("空着就用上面灰字的默认地址。下不动时可以换成镜像地址，文件要是同一个 .gram。",
-                   "Leave empty to use the default address shown in gray. If it's too slow, use a mirror of the same .gram file.",
-                   "空欄なら灰色の既定のアドレスを使います。遅いときは同じ .gram ファイルのミラーを指定できます。"))
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-        }
-    }
-
-    private func saveGrammarURL() {
-        let old = GrammarModel.downloadURL(mainland: Storefront.isMainlandChina)
-        GrammarModel.customDownloadURL = grammarURL
-        if GrammarModel.downloadURL(mainland: Storefront.isMainlandChina) != old { grammar.discardProgress() }
     }
 
     // MARK: - 英文词库

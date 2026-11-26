@@ -216,9 +216,9 @@ struct TypingTestView: View {
                 TypingSmallStat(value: memory.map { String(format: "%.0f MB", $0.median) } ?? "–", label: L("键盘内存", "Keyboard memory", "キーボードメモリ"))
             }
             if stats == nil {
-                Text(L("键盘没有记下按键数据：要在系统设置里给飞地输入法开「允许完全访问」。",
-                       "The keyboard didn't record key data. Turn on Allow Full Access for Enclave in Settings.",
-                       "キーボードの記録がありません。設定で Enclave の「フルアクセスを許可」をオンにしてください。"))
+                Text(L("键盘没有记下按键数据：要在系统设置里给\(Loc.nameInSettings)开「允许完全访问」。",
+                       "The keyboard didn't record key data. Turn on Allow Full Access for \(Loc.nameInSettings) in Settings.",
+                       "キーボードの記録がありません。設定で \(Loc.nameInSettings) の「フルアクセスを許可」をオンにしてください。"))
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }

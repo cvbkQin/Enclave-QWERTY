@@ -13,6 +13,10 @@ enum TypingStats {
     private static let launchReadyKey = "typing.launchReadyMs"
     /// 键盘现在用的词库带不带整句模型，键盘切引擎时设置。
     static var modelInUse = false
+    #if DEBUG
+    /// 打字性能基准用：设了以后每个键的（总耗时，引擎耗时）毫秒交给它。
+    static var benchObserver: ((_ totalMs: Double, _ engineMs: Double) -> Void)?
+    #endif
     /// 只留最近这么多个按键。
     private static let keep = 200
     private static var total: [Double] = []
@@ -20,6 +24,10 @@ enum TypingStats {
 
     /// 键盘里每个按键记一次（秒）：total 从交给引擎到界面更新完，engine 是引擎自己算的时间。攒够一批再写。
     static func record(total seconds: Double, engine engineSeconds: Double) {
+        #if DEBUG
+        // 打字性能基准（KeyboardBench）在跑：每个键的耗时交给它，不记进「拼音词库」页的统计。
+        if let observer = benchObserver { return observer(seconds * 1000, engineSeconds * 1000) }
+        #endif
         total.append(seconds * 1000)
         engine.append(engineSeconds * 1000)
         if total.count >= 20 { flush() }

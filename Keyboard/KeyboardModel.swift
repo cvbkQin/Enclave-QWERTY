@@ -29,8 +29,10 @@ final class KeyboardModel: ObservableObject {
     enum ReplaceNote { case partial, mismatch }
     /// 发给 AI 的那段输入框文字在哪（不是选中时）。替换照它删，不在按替换时重算。
     private var readSpan: FieldSpan?
-    /// 键盘里拉起 App 失败：顶上提示 4 秒，请人自己打开 App。
-    @Published private(set) var openAppFailed = false
+    /// 键盘里要去 App 某一页时（出错卡「去设置」、隐私政策、添加风格、联网「去开启」）：顶上提示 5 秒，写明去 App 的哪一页。
+    /// 键盘扩展不能打开别的 App（审核指南 4.4.1），也不能调私有接口去拉起（2.5.1），见 05 上架风险报告高 1。
+    @Published private(set) var appHint: AppPlace?
+    private var appHintTimer: DispatchWorkItem?
     /// 结果卡片展开到五行。
     @Published var cardExpanded = false { didSet { heightMayChange?() } }
     /// AI 栏上方展开的一行：「润色 ▴」的提示词标签，或「识意 ▾」的输入框（QA2、QA14）。两者互斥。
@@ -48,6 +50,15 @@ final class KeyboardModel: ObservableObject {
     @Published var askRunning = false
     /// 正在帮回（生成中的小字写「AI 正在帮回…」）。
     @Published var replyRunning = false
+    /// 帮回开始前的 1.5 秒等待（对齐清单第 94、98 条，HW1–HW4）：开新的一句、识意框空着时先等，中途点识意框就停下等要求。
+    @Published var helpWait: HelpWait?
+    /// 等待条走满、开始帮回的那一刻：笔刷提亮淡掉、整卡闪光、卡边绿色、生成中扫光晚一点进来都按它算。
+    @Published var helpWaitLanded: Date?
+    /// 走满后 0.45 秒内：整张卡闪一下、卡边绿色淡成底下已经在转的生成中流光（二之三，HW4）。
+    @Published var helpWaitFlashing = false
+    /// 笔刷要不要画（等着、打断后回收淡掉的 0.9 秒、走满后提亮淡掉的 0.5 秒）；画完就关，TimelineView 不再一直走。
+    @Published var helpWaitBrushOn = false
+    var helpWaitTimer: DispatchWorkItem?
     @Published var askKind: AskMode?
     /// 这次识意是回车发起、让 AI 自己判断的（第 70 条）：生成中那一行写「识意 · 判断中 / 判断为改写」。
     @Published var askAuto = false
@@ -89,9 +100,12 @@ final class KeyboardModel: ObservableObject {
         case privacy
         /// 还没填自己的 API Key（OB9）：引导去 App 首页跟着教程设置。
         case noKey
+        /// 开着 Key 的 iCloud 同步、要用的 Key 还在从 iCloud 钥匙串同步过来（别的设备刚换了 Key，02 复审第二轮）：
+        /// 不发没有 Key 的请求，卡片和 noKey 一样，换一句话。
+        case keyPending
         /// previous：上次同意的是另一个地址，确认卡上划掉显示。purpose：谁要发（卡上的标题、说明、按钮跟着换，RG9）。
         case consent(endpoint: String, previous: String?, purpose: GatePurpose)
-        /// 试用已结束，今天的免费次数用完了。
+        /// 按每天次数走时（没开始试用、试用已结束），今天的免费次数用完了。
         case quotaUsed
     }
     /// 同意后接着做的那一步（润色或再润）。
@@ -172,6 +186,8 @@ final class KeyboardModel: ObservableObject {
                     if askSelected { askSelected = false }
                     target = .host
                 }
+                // 帮回等着的时候收起回答卡：取消，不回，也不算次数。
+                if !aiExpanded { cancelHelpWait() }
             }
             heightMayChange?()
         }
@@ -179,7 +195,12 @@ final class KeyboardModel: ObservableObject {
     /// 收起时生成了结果（快速模式替换成功）还没展开看过：展开键变紫、右上角加紫点。
     @Published private(set) var unseenResult = false
     var showsNewResult: Bool { unseenResult && !aiExpanded && hasResult }
-    @Published var composition = ""
+    @Published var composition = "" {
+        didSet {
+            // 帮回等着的时候在识意框里打拼音：算是开始写要求，停下来不自动回（HW2）。
+            if helpWait?.interrupted == false, target == .instruction, !composition.isEmpty { interruptHelpWait() }
+        }
+    }
     /// 上次 syncEngine 时引擎的原始输入（不发布）。拼音栏的选项按它算：选了一个拼音而拼写栏、候选正好没变时，
     /// 靠它变了来重画，不然拼音栏还停在上一个音节（选拼音「没反应」，再点就点到了后面那个音节上）。
     var syncedRawInput = ""
@@ -199,6 +220,8 @@ final class KeyboardModel: ObservableObject {
     /// 拼音词库是否可用（主 App 部署过，并且打开了完全访问）。
     @Published var pinyinReady = false
     var lastShiftTap = Date.distantPast
+    /// ⇧ 是自己按的（不是英文句首自动大写）：iPad 标点键这时才打键帽上的灰色小字（PK2），句首打逗号不会变成「<」。
+    var shiftFromKey = false
     /// 正被按住的键，用来画按下状态和气泡。单独放在 keyPresses 里：按下、松开只重画按键和气泡，不牵动整个键盘。
     let keyPresses = KeyPresses()
     var pressedKeys: Set<String> {
@@ -230,6 +253,16 @@ final class KeyboardModel: ObservableObject {
         didSet {
             if (keysPanel == .words) != (oldValue == .words) { heightMayChange?() }
             if keysPanel != oldValue { markScreen() }
+            // 离开「常用 / 剪贴板」：之后再存进来的记录，下次打开标「新」（T97）。
+            if oldValue == .quickWords && keysPanel != .quickWords { noteClipboardPanelLeft() }
+        }
+    }
+    /// iPad 全宽 9 键中间那块现在放什么（PK17、PK18）：#@¥ 的符号、常用语和剪贴板；nil 是平时的联想 / 候选。
+    /// 123 照旧是数字页（layer == .digits），见 padMiddleShown。
+    @Published var padMiddle: PadMiddle? {
+        didSet {
+            if padMiddle != oldValue { markScreen() }
+            if oldValue == .quick && padMiddle != .quick { noteClipboardPanelLeft() }
         }
     }
     /// 分词面板拆的那段字：打开时取当前版本，之后版本变了也不跟。
@@ -238,6 +271,14 @@ final class KeyboardModel: ObservableObject {
     /// 剪贴板（B1）：有没有新复制的内容（只看 changeCount、hasStrings，不读内容）、记录列表。
     @Published var clipboardHasNew = false
     @Published var clipItems: [ClipItem] = []
+    /// 新复制的像密码或验证码（条目带隐藏标记，或系统判断是纯数字）：不读不存，最上面留一行虚线「点一下粘贴」（T97）。
+    @Published var clipboardSensitive = false
+    /// 上面那一判断是对哪一次复制（changeCount）做的。
+    var clipboardSensitiveCount: Int?
+    /// 这次打开面板时，上次离开面板的时间：比它晚存进来的记录标「新」。
+    var clipNewAfter = Date.distantFuture
+    /// 正在用 detectPatterns 查是不是验证码的那次复制（changeCount），免得轮询和打开面板各查一遍、存两次。
+    var clipboardChecking: Int?
     /// 「常用 / 剪贴板」面板（对齐清单第 62 条）：左栏的常用语（打开面板时读一次）、显示方式、左栏占的比例。
     @Published var quickPhrases: [KeyboardPhrase] = []
     @Published var phraseDisplay: PhraseDisplay = .both
@@ -259,10 +300,10 @@ final class KeyboardModel: ObservableObject {
     /// 回答卡里按住回车弹出的「上润色、左问答」十字（第 70 条）。
     @Published var enterCross: EnterCrossPopup?
     /// AI 帮回（帮回并入润色）：有「待回的复制」（剪贴板换了新内容、不是链接或纯数字、复制后 1 分钟内、还没帮回过）。
-    /// 润色键变绿 / 换 logo、识意框右边的帮回按钮、下拉框里帮回那一行的红点都看它。
+    /// 弹出的帮回键、润色键换帮回图标、下拉框里帮回那一行的浅绿底都看它（T96）。
     @Published var helpPending = false
-    /// 这份待回的复制出现后输入框里打过字：润色键不再整颗变绿。
-    @Published var helpTyped = false
+    /// 弹出的帮回键刚放完成功动效的前两秒（绿勾画完、文字回来）：这时复制已经算用过，键先不收（T96）。
+    @Published var helpKeyCelebrating = false
     /// 复制后 1 分钟到了把 helpPending 收掉。
     var helpExpiry: DispatchWorkItem?
     /// 长按「中/英」弹出的拼音布局菜单（P11）。
@@ -376,14 +417,14 @@ final class KeyboardModel: ObservableObject {
 
     /// 没开完全访问或没配置 API：✨ 置灰，卡片位置显示检查清单。
     var aiBlocked: Bool { !debugUnblocked && (!hasFullAccess || !settings.isConfigured) }
-    /// 试用结束且今天的免费次数用完：润色按钮置灰带锁，点了出提示卡。
+    /// 按每天次数走时今天的免费次数用完：润色按钮置灰带锁，点了出提示卡。
     var aiQuotaUsed: Bool { !debugUnblocked && aiUsesLeft == 0 }
-    /// 试用结束后今天还剩几次（试用中、已解锁时为 nil）。润色按钮每次重画都要看，
+    /// 按每天次数走时（没开始试用、试用结束）今天还剩几次（试用中、已解锁时为 nil）。润色按钮每次重画都要看，
     /// 每次现算要读好几次共享存储、算日历，打字时每个键都会重画几遍，所以弹出时和用掉一次后各算一次存着。
     private(set) var aiUsesLeft: Int?
 
     func refreshAIAccess() {
-        if case .expired = AIAccess.current { aiUsesLeft = AIAccess.usesLeftToday } else { aiUsesLeft = nil }
+        aiUsesLeft = AIAccess.current.usesDailyQuota ? AIAccess.usesLeftToday : nil
     }
     /// 模拟器截图用：没配 API 也显示结果卡片。
     var debugUnblocked = false
@@ -401,9 +442,9 @@ final class KeyboardModel: ObservableObject {
     /// 截图用：直接显示某张提示卡（quotaUsed：次数用完）。
     func debugShowGate(_ gate: AIGate) { self.gate = gate }
 
-    /// 截图用：结果卡上的部分替换提示、顶上的打不开 App 提示，一直显示。
+    /// 截图用：结果卡上的部分替换提示、顶上的去 App 设置提示，一直显示。
     func debugShowNotes(partial: Bool) {
-        if partial { replaceNote = .partial } else { openAppFailed = true }
+        if partial { replaceNote = .partial } else { appHint = .api }
     }
 
     /// 截图用：不经过 App 改结果卡左边那颗键的设置。
@@ -429,14 +470,25 @@ final class KeyboardModel: ObservableObject {
     /// 九宫格的符号页（#@¥）也按这个高度，不显示 AI 栏，切过去键盘不跳。
     var landscapeSplit: Bool { landscape && showsNineKey }
 
-    func setLandscape(_ value: Bool) {
+    /// iPad 全宽键盘的尺寸（PK1、PK2）：控制器按键盘宽和屏幕设；iPhone 和 iPad 浮动键盘为 nil。和 KeyboardMetrics.pad 一样。
+    @Published private(set) var pad: PadMetrics?
+
+    /// pad：iPad 全宽键盘的尺寸。有值时 landscape 一律当 false（iPhone 横屏的扁按键、九宫格分左中右不用在 iPad 上）。
+    /// floating：iPad 浮动键盘（宽约 320，PK13），照 iPhone 竖屏排、矮一点（KeyboardMetrics.floating）。
+    func setLandscape(_ value: Bool, pad newPad: PadMetrics? = nil, floating: Bool = false) {
+        let value = newPad == nil && value
+        let floating = newPad == nil && floating
         // KeyboardMetrics.landscape 是整个键盘进程共用的，model.landscape 是每个页面自己的（新页面从 false 开始）。
         // 以前只比 model.landscape：横屏弹过一次以后，竖屏新页面 setLandscape(false) 直接返回，进程里的尺寸一直是横屏的，
-        // 之后每次竖屏弹出都是扁按键、AI 栏上面空一大块，恢复不了（T82，11-18 真机）。两个都要对上。
-        let metricsChanged = KeyboardMetrics.landscape != value
+        // 之后每次竖屏弹出都是扁按键、AI 栏上面空一大块，恢复不了（T82，11-18 真机）。两个都要对上。pad 同理。
+        let metricsChanged = KeyboardMetrics.landscape != value || KeyboardMetrics.padBase != newPad
+            || KeyboardMetrics.floating != floating
         KeyboardMetrics.landscape = value
-        guard metricsChanged || value != landscape else { return }
+        KeyboardMetrics.padBase = newPad
+        KeyboardMetrics.floating = floating
+        guard metricsChanged || value != landscape || newPad != pad else { return }
         landscape = value
+        pad = newPad
         heightMayChange?()
     }
 
@@ -457,10 +509,30 @@ final class KeyboardModel: ObservableObject {
     var heightMayChange: (() -> Void)?
 
     var keyboardHeight: CGFloat {
-        KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
+        syncPadMetrics()
+        return KeyboardMetrics.height(expanded: aiExpanded, cardExpanded: target == .card ? freeEditTall : cardTall, rowOpen: false, gate: gate,
                                reminder: showsTrialReminder, aiLabel: showsAILabel,
-                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide,
-                               split: landscapeSplit)
+                               freeEdit: target == .card, wordPanel: keysPanel == .words, pinyinRow: !pinyinSide && !padNineEnglish,
+                               split: landscapeSplit, padNine: padNine)
+    }
+
+    /// iPad 全宽 9 键（PK3、PK4）：字母页和 9 键数字页（123）。#@¥、常用剪贴板只换中间那块（PK17），不换页。
+    var padNine: Bool { pad != nil && nineGrid }
+
+    /// iPad 全宽、中文布局选九宫格、切到了英文（PK19）：照旧全宽 26 键（123、#+=、表情这些全宽的页也一样），
+    /// 压矮到和 9 键一样高，不留拼音行。只用英文的人没有 9 键，照 26 键。
+    var padNineEnglish: Bool {
+        pad != nil && settings.keyboardLayout == .nineKey && !chineseMode && settings.inputLanguage != .englishOnly
+    }
+
+    /// 9 键开着回答卡时按键压扁（PK15）。
+    var padNineCompressed: Bool { padNine && aiExpanded }
+
+    /// 把 9 键、压扁这两样同步到 KeyboardMetrics（尺寸都从那里读）。算高度、排按键、画键盘之前各调一次。
+    func syncPadMetrics() {
+        KeyboardMetrics.padNine = padNine
+        KeyboardMetrics.padCompressed = padNineCompressed
+        KeyboardMetrics.padNineEnglish = padNineEnglish
     }
 
     /// 试用最后 3 天 AI 栏上方的轻提示（K3）：每天第一次弹出键盘时出现，✕ 关掉。
@@ -641,8 +713,25 @@ final class KeyboardModel: ObservableObject {
         }
     }
 
+    /// 这一步要用哪一路的 Key（只用来看是不是还在等 iCloud 钥匙串，04 四审可选 1）。
+    /// either：识意让模型自己判断改写还是问答，两路都可能用到。
+    enum KeyUse { case polish, answer, either }
+
+    /// 这一次要用的 Key 是不是还在等 iCloud 钥匙串（只在点 AI 时查；没开 Key 同步时只读一个开关）。
+    /// 问答没单独设接口时用的是润色的 Key。
+    private static func keyPending(_ settings: EnclaveSettings, uses: KeyUse) -> Bool {
+        guard Keychain.syncsToICloud else { return false }
+        let polish = { Keychain.isPending("apiKey") }
+        let answer = { settings.usesAnswerEndpoint ? Keychain.isPending("apiKey.answer") : polish() }
+        switch uses {
+        case .polish: return polish()
+        case .answer: return answer()
+        case .either: return polish() || (settings.usesAnswerEndpoint && Keychain.isPending("apiKey.answer"))
+        }
+    }
+
     /// 能不能现在发给模型；不能时弹出对应的提示卡，返回 false。
-    func passGate(purpose: GatePurpose = .polish, then action: @escaping () -> Void) -> Bool {
+    func passGate(purpose: GatePurpose = .polish, keys: KeyUse = .polish, then action: @escaping () -> Void) -> Bool {
         if !hasFullAccess && !debugUnblocked {
             gate = .fullAccess
             return false
@@ -653,6 +742,10 @@ final class KeyboardModel: ObservableObject {
         }
         if !settings.isConfigured && !debugUnblocked {
             gate = .noKey
+            return false
+        }
+        if !debugUnblocked && Self.keyPending(settings, uses: keys) {
+            gate = .keyPending
             return false
         }
         if !debugUnblocked && !AIAccess.current.allowsAI {
@@ -721,42 +814,16 @@ final class KeyboardModel: ObservableObject {
         gate = .fullAccess
     }
 
-    /// 键盘里打开主 App 的某个页面。扩展不能直接调 open(_:)，沿响应链找到 UIApplication 再调它。
-    /// 找不到、或系统回报没打开时，提示人自己去主屏幕打开 App。
-    func openContainingApp(_ link: String) {
-        guard let url = NSURL(string: link) else { return }
-        // 先沿响应链找，找不到再用 sharedApplication；两种在不同系统版本上各有失灵的时候。
-        var responder: UIResponder? = controller?.view ?? controller
-        var application: NSObject?
-        while let current = responder {
-            if current is UIApplication { application = current; break }
-            responder = current.next
+    /// 请人自己打开飞地输入法 App，去 place 那一页。不再从键盘里拉起 App：以前沿响应链找 UIApplication、
+    /// 再绕过扩展的限制去调 App 的打开链接接口，属于私有用法（05 上架风险报告高 1，已去掉）。
+    func showAppHint(_ place: AppPlace) {
+        appHintTimer?.cancel()
+        withAnimation(.easeOut(duration: 0.15)) { appHint = place }
+        let timer = DispatchWorkItem { [weak self] in
+            withAnimation(.easeIn(duration: 0.2)) { self?.appHint = nil }
         }
-        if application == nil {
-            application = UIApplication.value(forKey: "sharedApplication") as? NSObject
-        }
-        guard let application else { showOpenAppFailed(); return }
-        let modern = NSSelectorFromString("openURL:options:completionHandler:")
-        if application.responds(to: modern) {
-            typealias Open = @convention(c) (NSObject, Selector, NSURL, NSDictionary, AnyObject?) -> Void
-            let open = unsafeBitCast(application.method(for: modern), to: Open.self)
-            let completion: @convention(block) (Bool) -> Void = { [weak self] success in
-                guard !success else { return }
-                DispatchQueue.main.async { self?.showOpenAppFailed() }
-            }
-            open(application, modern, url, NSDictionary(), completion as AnyObject)
-        } else if application.responds(to: NSSelectorFromString("openURL:")) {
-            application.perform(NSSelectorFromString("openURL:"), with: url)
-        } else {
-            showOpenAppFailed()
-        }
-    }
-
-    private func showOpenAppFailed() {
-        withAnimation(.easeOut(duration: 0.15)) { openAppFailed = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
-            withAnimation(.easeIn(duration: 0.2)) { self?.openAppFailed = false }
-        }
+        appHintTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timer)
     }
 
     // MARK: - 在卡片里改结果
@@ -843,7 +910,7 @@ final class KeyboardModel: ObservableObject {
         errorMessage = nil
         notice = nil
         guard hasFullAccess else {
-            errorMessage = L("需要在 设置 › 通用 › 键盘 › 键盘 › 飞地输入法 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › Enclave to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › Enclave で「フルアクセスを許可」をオンにしてください。")
+            errorMessage = L("需要在 设置 › 通用 › 键盘 › 键盘 › \(Loc.nameInSettings) 里打开「允许完全访问」才能联网。", "Turn on Allow Full Access in Settings › General › Keyboard › Keyboards › \(Loc.nameInSettings) to connect.", "通信するには、設定 › 一般 › キーボード › キーボード › \(Loc.nameInSettings) で「フルアクセスを許可」をオンにしてください。")
             return false
         }
         guard settings.isConfigured else {
@@ -885,21 +952,32 @@ final class KeyboardModel: ObservableObject {
     }
 
     func run(_ messages: [ChatMessage], pending: EditSession, ask: AskRequest? = nil, reply: ReplyRequest? = nil) {
+        // 开着 Key 的 iCloud 同步时，别的设备换的接口可能在键盘开着时同步进来了，手上的设置还是旧地址：
+        // 先换成存着的最新地址再取 Key（Key 按最新地址配对，见 Keychain），不拿新 Key 请求旧地址。没开同步时不读。
+        if Keychain.syncsToICloud {
+            let stored = SettingsStore.load()
+            if !settings.sameEndpoint(as: stored) { settings.adoptEndpoint(from: stored) }
+        }
+        // 这一次从头到尾用这一份地址和 Key（04 复审 A 可选 4）：后面联网再问时不再重新读，免得 App 在后台换了接口和配对，
+        // 拿新 Key 请求这一份的旧地址。
+        let runSettings = settings
+        let polishKey = SettingsStore.apiKey
+        let answerKey = SettingsStore.answerKey(for: runSettings)
         // 手动选了问答就直接找问答模型；自动时先用润色的快模型判断，判断是问答再换问答模型重问（answerClient）。
-        let answerClient = settings.usesAnswerEndpoint
-            ? LLMClient(settings: settings.forAnswers, apiKey: SettingsStore.answerKey(for: settings)) : nil
-        var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: settings, apiKey: SettingsStore.apiKey))
-            : LLMClient(settings: settings, apiKey: SettingsStore.apiKey)
+        let answerClient = runSettings.usesAnswerEndpoint
+            ? LLMClient(settings: runSettings.forAnswers, apiKey: answerKey) : nil
+        var client = ask?.forced == .answer ? (answerClient ?? LLMClient(settings: runSettings, apiKey: polishKey))
+            : LLMClient(settings: runSettings, apiKey: polishKey)
         var mayHandOff = answerClient != nil && ask != nil && ask?.forced != .answer
         // 内测版用自带的 Key：润色每天 100 次、问答 50 次，到了就不调。
         let firstKind: BuiltinAPI.Kind = ask?.forced == .answer ? .answer : .polish
-        let firstKey = firstKind == .answer && settings.usesAnswerEndpoint ? SettingsStore.answerApiKey : SettingsStore.apiKey
+        let firstKey = firstKind == .answer ? answerKey : polishKey
         guard BuiltinAPI.take(firstKind, key: firstKey) else {
             errorMessage = BuiltinAPI.limitMessage(firstKind)
             if quickStatus == .running { endQuickMode(.failed) }
             return
         }
-        let handOffKey = SettingsStore.answerKey(for: settings)
+        let handOffKey = answerKey
         isRunning = true
         clearFailure()
         lastRun = (messages, pending, ask, reply, runOrigin ?? .polish)
@@ -1030,14 +1108,14 @@ final class KeyboardModel: ObservableObject {
                     if provider.builtin {
                         // 千问、智谱：打开服务商自带的联网，只带问题原文再问一次。搜索在服务商那边，出字前流光小字写「正在用 … 联网搜索…」。
                         self.askSearching = true
-                        client = LLMClient(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings), webSearch: true)
+                        client = LLMClient(settings: runSettings.forAnswers, apiKey: answerKey, webSearch: true)
                         messages = Prompts.ask(ask.question, context: "", forceAnswer: true, builtinSearch: true,
                                                answerStyle: answerStyle)
                         continue
                     }
                     // Kimi：流光小字写「正在联网搜索…」，键盘拿问题原文去搜。
                     self.askSearching = true
-                    let search = WebSearch(settings: self.settings.forAnswers, apiKey: SettingsStore.answerKey(for: self.settings))
+                    let search = WebSearch(settings: runSettings.forAnswers, apiKey: answerKey)
                     let results: String
                     let searchStarted = Date()
                     do {
@@ -1170,14 +1248,16 @@ final class KeyboardModel: ObservableObject {
         start(from: last.origin) { run(last.messages, pending: last.pending, ask: last.ask, reply: last.reply) }
     }
 
-    /// 出错卡的「去设置」：打开 App 接口页（问答接口出的错打开问答页）。
+    /// 出错卡的「去设置」：提示去 App 的接口页。
     func openAPISettings() {
-        openContainingApp(failureOnAnswerAPI ? "enclave://api-answer" : "enclave://api")
+        showAppHint(.api)
     }
 
     /// 点了「润色」或「再润」：记下是哪个按钮，没开始生成（提示、出错）就清掉。
     func start(from origin: RunOrigin, _ action: () -> Void) {
         endCelebration()
+        // 帮回还在等，又点了别的（问答、润色）：不等了，照新点的做。
+        cancelHelpWait()
         runOrigin = origin
         action()
         if !isRunning { runOrigin = nil }
@@ -1225,6 +1305,13 @@ final class KeyboardModel: ObservableObject {
     func celebrate(replaced: Bool) {
         let at = Date()
         keySuccess = KeySuccess(key: tappedKey, at: at)
+        if tappedKey == .pin(Self.helpPinID) {
+            // 弹出的帮回键：等绿勾画完、文字回来（约 2.3 秒）再收。
+            helpKeyCelebrating = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.3) { [weak self] in
+                if self?.keySuccess?.at == at || self?.keySuccess == nil { self?.helpKeyCelebrating = false }
+            }
+        }
         let text = session?.currentIsAnswer == true ? L("已回答", "Answered", "回答しました")
             : replaced ? L("已替换", "Replaced", "置き換えました") : L("已改写", "Rewritten", "書き換えました")
         UIAccessibility.post(notification: .announcement, argument: text)
@@ -1423,9 +1510,22 @@ final class KeyboardModel: ObservableObject {
         aiRow = nil
     }
 
+    /// 键盘里改一项设置（选风格、钉住、换布局）：从存着的最新一份改起，只改这一项再存回去（04 审查 #75 第 10 条）。
+    /// 键盘开着时 App 或 iCloud 同步可能改了别的（风格、接口），用手上的旧副本整份存回会把它们冲掉，
+    /// 冲掉的部分下次同步会被当成本机改的，盖到所有设备上。只在用户点选时跑，不在按键路径上。
     func updateSettings(_ change: (inout EnclaveSettings) -> Void) {
-        change(&settings)
-        SettingsStore.save(settings)
+        var updated = SettingsStore.load()
+        change(&updated)
+        settings = updated
+        SettingsStore.save(updated)
+    }
+
+    /// iPad 9 键最下面一排的 ⇆（PK17）：九键整块换到另一边，功能键一列和中间那块跟着镜像（0.25 秒）。
+    /// 记住选择，和 App 设置 › 键盘 › 9 键（iPad）›「九键位置」是同一个设置。
+    func swapNineSide() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            updateSettings { $0.nineKeySide = $0.nineKeySide == .left ? .right : .left }
+        }
     }
 
     // MARK: - 要求栏
@@ -1468,6 +1568,8 @@ final class KeyboardModel: ObservableObject {
     }
 
     private func storeInstruction(_ text: String, caret: Int) {
+        // 帮回等着的时候往识意框里写字：停下来，等写好要求再点帮回（HW2）。
+        if helpWait?.interrupted == false, text != instruction { interruptHelpWait() }
         // 字改了，手动选的改写 / 问答就不再跟着。
         if askChoice != nil, text != askChoiceText { askChoice = nil }
         instruction = text

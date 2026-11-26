@@ -3,12 +3,16 @@ import SwiftUI
 
 @main
 struct EnclaveApp: App {
+    /// 只为 iCloud 同步的后台任务注册和静默推送（App/Sync/ICloudSyncScheduler.swift）。
+    @UIApplicationDelegateAdaptor(EnclaveAppDelegate.self) private var appDelegate
     @StateObject private var router = AppRouter.shared
     @StateObject private var store = AppStore()
 
     init() {
         // 内测版：收崩溃、卡死记录，只存本机。
         CrashLog.shared.start(source: "app")
+        // 上次备份 / 恢复做到一半被杀时留下的词库副本，启动时清掉（后台做）。
+        LearnedWords.cleanUpLeftovers()
         #if DEBUG
         // 模拟器截图用：-keyboardDebug "expanded,nine,compose:nihao" 让键盘直接显示某个状态。
         let args = ProcessInfo.processInfo.arguments
@@ -68,7 +72,19 @@ struct EnclaveApp: App {
                     if store.settings.webSearchMode == nil { store.settings.webSearchMode = Storefront.isMainlandChina ? .off : .on }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                    // 键盘里改的设置（iPad 9 键换边、长按中/英换布局）存在共用设置里：回到前台重读一次（第 86 条）。
+                    store.reloadSettings()
                     Task { await UnlockStore.shared.refresh() }
+                    // iCloud 同步（关着时什么都不做）：打开 App、回到前台时同步一次，一分钟内回来多次只算一次。
+                    Task { await ICloudSync.syncNow(minimumInterval: 60) }
+                    // 后台下好的词库、整句模型回到前台再部署；热门词库满 7 天自动查一次更新（第 99 条）。
+                    RimeDeployer.shared.deployIfNeeded()
+                    DictAutoUpdate.shared.checkIfDue()
+                    GrammarDownloader.shared.refresh()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                    ICloudSyncScheduler.schedule()
+                    DictUpdateScheduler.schedule()
                 }
                 .onOpenURL { url in
                     // 点开 .enclave 备份文件：到设置 › 备份与恢复，弹恢复面板。
@@ -77,7 +93,7 @@ struct EnclaveApp: App {
                         router.openSettings(.backup)
                         return
                     }
-                    // enclave://playground 直接打开「试一试」并弹出键盘，方便在模拟器里截图测试。
+                    // enclave://playground 直接打开打字板并弹出键盘，方便在模拟器里截图测试。
                     guard url.scheme == "enclave" else { return }
                     switch url.host {
                     case "playground": router.openPlayground()
@@ -109,6 +125,10 @@ struct EnclaveApp: App {
                     case "history":
                         router.historyPath = NavigationPath()
                         router.tab = .history
+                    // 测试 iCloud 同步用（界面等 02 的稿子，做好后删掉）：enclave://icloud-sync/on、/off、/now、/keys-on、/keys-off。
+                    // 只在 Debug 和开发者版装机里认，TestFlight 和正式版不认：打开同步要经过用户在界面上确认。
+                    case "icloud-sync" where ICloudSyncDebug.isAllowed:
+                        ICloudSyncDebug.handle(url.path)
                     default: break
                     }
                 }
@@ -116,15 +136,23 @@ struct EnclaveApp: App {
     }
 }
 
-/// 底部五个标签：首页、键盘、AI、历史、设置。
+/// 底部五个标签：首页、接口和提示词、历史、键盘、设置。
+/// iPad 宽屏（横向 regular：全屏、半屏）六个标签，接口和提示词分开（PA1 ③）；窄到 iPhone 那么宽时回到五个。
 struct RootView: View {
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var store: AppStore
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    private var wide: Bool { UIDevice.current.userInterfaceIdiom == .pad && sizeClass == .regular }
 
     var body: some View {
         tabs
-            // 首次打开先看隐私说明（CP1），不能下滑关掉。
-            .fullScreenCover(isPresented: $router.showsPrivacyWelcome, onDismiss: {
+            // 打开「自动保存复制的内容」的确认卡（CA4，每次从关拨到开都弹）：屏幕中间，盖住整个 App 包括标签栏。
+            .overlay { AutoSaveConsentHost() }
+            .onAppear { router.setWideLayout(wide) }
+            .onChange(of: wide) { router.setWideLayout($0) }
+            // 首次打开先看隐私说明（CP1），不能下滑关掉。iPad 宽屏时是居中的表单窗口（PA4 ⑦）。
+            .padCover(isPresented: $router.showsPrivacyWelcome, wide: wide, onDismiss: {
                 router.showSetupGuideIfNeeded(configured: store.settings.isConfigured)
             }) {
                 PrivacyWelcomeView()
@@ -132,7 +160,7 @@ struct RootView: View {
                     .environment(\.locale, Loc.locale)
             }
             // 连上 AI 接口的引导（OB1–OB7）。
-            .fullScreenCover(item: $router.setupGuide) { start in
+            .padCover(item: $router.setupGuide, wide: wide) { start in
                 SetupGuideView(start: start)
                     .environmentObject(router)
                     .environmentObject(store)
@@ -161,19 +189,31 @@ struct RootView: View {
             HomeView()
                 .tabItem { Label(L("首页", "Home", "ホーム"), systemImage: "house") }
                 .tag(AppRouter.Tab.home)
-            KeyboardTab()
-                .tabItem { Label(L("键盘", "Keyboard", "キーボード"), systemImage: "keyboard") }
-                .tag(AppRouter.Tab.keyboard)
-            AITab()
-                .tabItem { Label("AI", systemImage: "sparkles") }
-                .tag(AppRouter.Tab.ai)
+            // 顺序（R0，11-22）：首页 / 接口和提示词 / 历史 / 键盘 / 设置，常用的放左边，键盘设置装好后很少再动。
+            if router.wideLayout {
+                // iPad 宽屏：接口、提示词各一个标签（11-22 cvbk「ipad空间足够，接口和提示词可以做成2个页面」）。
+                AITab(segment: .api)
+                    .tabItem { Label(L("接口", "API", "API"), systemImage: "text.bubble") }
+                    .tag(AppRouter.Tab.ai)
+                PromptsSplitView()
+                    .tabItem { Label(L("提示词", "Prompts", "プロンプト"), systemImage: "text.quote") }
+                    .tag(AppRouter.Tab.prompts)
+            } else {
+                AITab()
+                    .tabItem { Label(AppRouter.aiTabTitle, systemImage: "text.bubble") }
+                    .tag(AppRouter.Tab.ai)
+            }
             HistoryTab()
                 .tabItem { Label(L("历史", "History", "履歴"), systemImage: "clock") }
                 .tag(AppRouter.Tab.history)
+            KeyboardTab()
+                .tabItem { Label(L("键盘", "Keyboard", "キーボード"), systemImage: "keyboard") }
+                .tag(AppRouter.Tab.keyboard)
             SettingsView()
                 .tabItem { Label(L("设置", "Settings", "設定"), systemImage: "gearshape") }
                 .tag(AppRouter.Tab.settings)
         }
+        .padTabStyle()
     }
 }
 
@@ -182,11 +222,51 @@ struct RootView: View {
 final class AppRouter: ObservableObject {
     static let shared = AppRouter()
 
-    enum Tab: Hashable { case home, keyboard, ai, history, settings }
+    /// prompts 只在 iPad 宽屏时有（接口、提示词分两个标签）；窄屏时提示词在 ai 标签的「提示词」分段里。
+    enum Tab: Hashable { case home, keyboard, ai, prompts, history, settings }
 
-    /// 设置里的二级页。setup：首次设置（欢迎页四步）；firstScene：使用指引的第一个场景（enclave://playground）。
+    /// iPad 宽屏（横向 regular）：六个标签，提示词、历史、设置左右两栏（PA1–PA4）。RootView 按尺寸类设。
+    @Published private(set) var wideLayout = false
+
+    /// 宽窄切换时标签对上：宽屏「提示词」标签 ↔ 窄屏「接口和提示词」的提示词分段；
+    /// 设置、历史两栏右边打开的那一页，变窄后就是一列里推进去的那一页（路径是同一份）。
+    func setWideLayout(_ wide: Bool) {
+        guard wide != wideLayout else { return }
+        wideLayout = wide
+        if wide, tab == .ai, aiSegment == .prompts {
+            tab = .prompts
+        } else if !wide, tab == .prompts {
+            aiSegment = .prompts
+            tab = .ai
+        }
+        if !wide, let id = historySelection {
+            // 窄屏时详情在一列里往里推一页。
+            var path = NavigationPath()
+            path.append(HistoryPage.detail(id))
+            historyPath = path
+        }
+        historySelection = nil
+    }
+
+    /// 历史两栏（PA2 ④）右边正在看的那条；窄屏时不用（详情推进 historyPath）。
+    @Published var historySelection: String?
+
+    /// 打开一条历史记录：宽屏换右边，窄屏往里推一页。
+    func openHistory(_ id: String) {
+        if wideLayout {
+            historySelection = id
+            historyPath = NavigationPath()
+        } else {
+            historyPath.append(HistoryPage.detail(id))
+        }
+    }
+
+    /// 原来的「AI」标签（R0，11-22 改名）：接口和提示词两件事放在一个标签里。
+    static var aiTabTitle: String { L("接口和提示词", "API & Prompts", "API とプロンプト") }
+
+    /// 设置里的二级页。setup：首次设置（欢迎页四步）；scratchPad：打字板（enclave://playground，设置里没有入口）。
     enum SettingsPage: String, Hashable {
-        case setup, playground, firstScene, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools, backup
+        case setup, scratchPad, privacy, about, unlock, language, privacyPolicy, licenses, diagnostics, feedback, testTools, backup, tour
     }
 
     /// 在「文件」等处点开的 .enclave 备份文件：备份页读到后弹恢复面板。
@@ -235,12 +315,27 @@ final class AppRouter: ObservableObject {
     @Published var guideProvider: Provider = .deepseek
     /// 从接口页「配置教程」打开时是哪一页（Key 填回那一页）；引导里打开为 nil。
     @Published var guideTarget: GuideTarget?
+    /// 教程看哪一边（中国大陆 / 非中国大陆，T102 NC3）：nil 按 App Store 地区；教程顶上能切换。
+    @Published var guideSide: APISide?
 
-    /// 接口页格子右下角「配置教程」（TA1、TA2）：只走这一家的 4 步，右上是 ×。
-    func openTutorial(_ provider: Provider, answer: Bool) {
+    /// 引导「自己填写」/ Ollama 要接口页弹出新建配置页；接口页处理完清掉。
+    struct NewConfigRequest: Equatable {
+        var template: ConfigTemplate?
+    }
+    @Published var newConfig: NewConfigRequest?
+
+    /// 接口页「配置教程」（TA1、TA2）、常用 API 地址里的「教程」：只走这一家的 4 步，右上是 ×。side：跟配置地址那一边。
+    func openTutorial(_ provider: Provider, answer: Bool, side: APISide? = nil) {
         guideProvider = provider
+        guideSide = side
         guideTarget = answer ? .answer : .rewrite
         setupGuide = .step(1)
+    }
+
+    /// 跳到润色接口页并直接弹出新建配置页（template 预先填好那一家）。
+    func openNewConfig(_ template: ConfigTemplate? = nil) {
+        openModel(detail: true)
+        newConfig = NewConfigRequest(template: template)
     }
 
     /// 隐私说明关掉后：同意了、引导没看过、接口也没配，就接着弹引导。
@@ -257,7 +352,7 @@ final class AppRouter: ObservableObject {
     /// 内测版诊断记录用的「当时界面」：哪个标签、设置里哪一页。
     func markScreen(_ detail: String? = nil) {
         guard CrashLog.isEnabled else { return }
-        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "AI", .history: "历史", .settings: "设置"]
+        let names: [Tab: String] = [.home: "首页", .keyboard: "键盘", .ai: "接口和提示词", .prompts: "提示词", .history: "历史", .settings: "设置"]
         var parts = [names[tab] ?? ""]
         if tab == .settings, let page = settingsPath.last { parts.append(page.rawValue) }
         if let detail { parts.append(detail) }
@@ -282,7 +377,7 @@ final class AppRouter: ObservableObject {
     }
 
     init() {
-        // 截图用：-playground 打开第一个场景；-homePage commonWords / keyboardWords / lab / keyboard 打开首页的二级页；
+        // 截图用：-playground 打开打字板并弹键盘；-homePage commonWords / keyboardWords / keyboard 打开键盘标签的二级页；
         // -appPage model 打开设置里的某一页；-appTab styles 切标签。
         let args = ProcessInfo.processInfo.arguments
         #if DEBUG
@@ -316,7 +411,7 @@ final class AppRouter: ObservableObject {
             switch args[i + 1] {
             case "reset": FeatureTour.seen = false
             case "seen": FeatureTour.seen = true
-            case "open": setupGuide = .tourReplay
+            case "open": setupGuide = .tourReplay(nil)
             default: break
             }
         }
@@ -328,16 +423,17 @@ final class AppRouter: ObservableObject {
         if args.contains("-rimeEval") { RimeEval.runWhenDeployed() }
         #endif
         if args.contains("-playground") { openPlayground() }
-        // 旧的 -homePage 参数：键盘那几页现在在键盘标签，使用指引在设置。
+        // 旧的 -homePage 参数：键盘那几页现在在键盘标签。
         if let i = args.firstIndex(of: "-homePage"), args.indices.contains(i + 1) {
             switch args[i + 1] {
             case "keyboard": openKeyboard()
-            case "lab": openSettings(.playground)
             case let name: if let page = KeyboardPage(rawValue: name) { openKeyboard(page) }
             }
         }
         if let i = args.firstIndex(of: "-appTab"), args.indices.contains(i + 1) {
-            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "model": .ai, "history": .history, "settings": .settings][args[i + 1]] ?? .home
+            tab = ["keyboard": .keyboard, "ai": .ai, "styles": .ai, "prompts": .ai, "model": .ai, "history": .history, "settings": .settings][args[i + 1]] ?? .home
+            // 提示词：窄屏是「接口和提示词」的提示词分段，iPad 宽屏换成「提示词」标签（setWideLayout）。
+            if ["styles", "prompts"].contains(args[i + 1]) { aiSegment = .prompts }
         }
         // -appPage keyboard / pinyin / api / api-answer / testTools / privacy/privacyPolicy：直接打开某一页。
         if let i = args.firstIndex(of: "-appPage"), args.indices.contains(i + 1) {
@@ -379,9 +475,9 @@ final class AppRouter: ObservableObject {
         }
     }
 
-    /// enclave://playground：打开使用指引的第一个场景，进去自动弹键盘。
+    /// enclave://playground、-playground：打开打字板，进去自动弹键盘（截图、打字基准用）。
     func openPlayground() {
-        settingsPath = [.playground, .firstScene]
+        settingsPath = [.scratchPad]
         tab = .settings
     }
 
@@ -399,7 +495,7 @@ final class AppRouter: ObservableObject {
         if prompts { promptKind = answerStyles ? .answer : .polish }
         aiPath = NavigationPath()
         if detail { aiPath.append(AIPage.api(answer: answer && !sharedAnswer)) }
-        tab = .ai
+        tab = prompts && wideLayout ? .prompts : .ai
     }
 
     /// 从首页接口卡、欢迎页、解锁页跳到 AI 标签（填 Key 的进润色接口详情）。
@@ -420,7 +516,10 @@ final class AppStore: ObservableObject {
     @Published var settings = SettingsStore.load() {
         didSet {
             guard settings != oldValue else { return }
-            SettingsStore.save(settings)
+            if !loading {
+                SettingsStore.save(settings)
+                if Self.syncedPartsDiffer(settings, oldValue) { scheduleSync() }
+            }
             if settings.answerBaseURL != oldValue.answerBaseURL || settings.answerModel != oldValue.answerModel {
                 answerTest = .idle
                 answerMissingModel = nil
@@ -431,10 +530,19 @@ final class AppStore: ObservableObject {
             }
         }
     }
+    /// 润色页、问答页各自第几次点接口方案（等同步的那条同步完时，这一页期间又点过别的就不用它）。
+    /// 分开记：改一条两页都在用的方案时连着换两页，不会把前一页的丢掉（04 四审可选 5）。
+    private var applyRequests: [Bool: Int] = [:]
+    /// 从存着的地方重新读（reload）时为 true：只更新界面，不写回（04 复审 A1：开着 Key 同步时 Key 可能在等同步，
+    /// 读到的是空，写回去会把 iCloud 钥匙串里的删掉，所有设备一起没了）。
+    private var loading = false
     @Published var apiKey = SettingsStore.apiKey ?? "" {
         didSet {
             guard apiKey != oldValue else { return }
-            SettingsStore.apiKey = apiKey
+            if !loading {
+                SettingsStore.apiKey = apiKey
+                scheduleSync()
+            }
             test = .idle
             missingModel = nil
         }
@@ -443,10 +551,33 @@ final class AppStore: ObservableObject {
     @Published var answerApiKey = SettingsStore.answerApiKey ?? "" {
         didSet {
             guard answerApiKey != oldValue else { return }
-            SettingsStore.answerApiKey = answerApiKey
+            if !loading {
+                SettingsStore.answerApiKey = answerApiKey
+                scheduleSync()
+            }
             answerTest = .idle
             answerMissingModel = nil
         }
+    }
+
+    private var syncTask: Task<Void, Never>?
+
+    /// 改了会同步的东西（风格、接口、Key、接口方案）：开着 iCloud 同步时等 3 秒同步一次，别的设备不用等这台下次打开 App
+    /// （04 复审 A2）。连着改（打字、拖滑块）只算最后一次。同步本身另起一个任务，后面再改不会把正在跑的同步取消掉。
+    private func scheduleSync() {
+        guard ICloudSync.isEnabled else { return }
+        syncTask?.cancel()
+        syncTask = Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            Task { await ICloudSync.syncNow() }
+        }
+    }
+
+    /// 同步的那部分设置（风格；开着 Key 同步时还有接口）变了没有。
+    private static func syncedPartsDiffer(_ a: EnclaveSettings, _ b: EnclaveSettings) -> Bool {
+        SyncMerge.StyleProfile(settings: a) != SyncMerge.StyleProfile(settings: b)
+            || SyncMerge.EndpointProfile(settings: a, keys: [:]) != SyncMerge.EndpointProfile(settings: b, keys: [:])
     }
     @Published private(set) var test: TestState = .idle
     /// 测试成功后顺便取一次模型列表，当前模型不在里面时记下它的名字（ML5「可能已下线」）。取列表失败不算。
@@ -463,6 +594,21 @@ final class AppStore: ObservableObject {
 
     /// 已存方案（接口页「保存」）。
     @Published private(set) var savedAPIs = SavedAPIStore.all
+
+    private var syncObserver: NSObjectProtocol?
+
+    init() {
+        // iCloud 同步写进了别的设备改的接口和风格：重新读，不然这里手里的旧设置下次保存时会把它们冲掉。
+        syncObserver = NotificationCenter.default.addObserver(forName: .enclaveSyncDidApply, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            self.reload()
+            self.savedAPIs = SavedAPIStore.all
+        }
+    }
+
+    deinit {
+        if let syncObserver { NotificationCenter.default.removeObserver(syncObserver) }
+    }
 
     /// 把这一页现在填的地址、模型、Key 存成预设。answer：问答页。三样都和已有某条一样时不新增（.duplicate）。
     @discardableResult
@@ -483,6 +629,19 @@ final class AppStore: ObservableObject {
 
     /// 点预设：只换这一页的地址、模型和 Key（问答页顺便关掉「和改写用同一个接口」），然后状态卡重新测一次。
     func applySavedAPI(_ saved: SavedAPI, answer: Bool) {
+        let request = (applyRequests[answer] ?? 0) + 1
+        applyRequests[answer] = request
+        // 开着 Key 同步、这条的 Key 在等同步（别的设备刚改过它）：读到的是空，照用会把这一页的 Key 清掉、删到所有设备上
+        // （04 复审 A1）。先同步一次，新的 Key 和配置到了再用；还没到就不动。同步期间又点了别的就不用这条（04 三审可选 7）。
+        if saved.keyPending {
+            Task {
+                await ICloudSync.syncNow()
+                guard request == applyRequests[answer],
+                      let fresh = SavedAPIStore.all.first(where: { $0.id == saved.id }), !fresh.keyPending else { return }
+                applySavedAPI(fresh, answer: answer)
+            }
+            return
+        }
         let key = saved.apiKey ?? ""
         if answer {
             settings.separateAnswer = true
@@ -524,6 +683,7 @@ final class AppStore: ObservableObject {
             || (answer ? settings.usesAnswerEndpoint : settings.isConfigured)
         let saved = SavedAPIStore.add(item, apiKey: key)
         savedAPIs = SavedAPIStore.all
+        scheduleSync()
         if !hadCurrent { applySavedAPI(saved, answer: answer) }
         return saved
     }
@@ -534,6 +694,7 @@ final class AppStore: ObservableObject {
         let answerUses = settings.separateAnswer && currentSavedAPI(answer: true)?.id == item.id
         SavedAPIStore.update(item, apiKey: key)
         savedAPIs = SavedAPIStore.all
+        scheduleSync()
         guard let saved = savedAPIs.first(where: { $0.id == item.id }) else { return }
         if polishUses { applySavedAPI(saved, answer: false) }
         if answerUses { applySavedAPI(saved, answer: true) }
@@ -542,19 +703,41 @@ final class AppStore: ObservableObject {
     func renameSavedAPI(_ id: UUID, to name: String) {
         SavedAPIStore.rename(id, to: name)
         savedAPIs = SavedAPIStore.all
+        scheduleSync()
     }
 
     func deleteSavedAPI(_ id: UUID) {
         SavedAPIStore.delete(id)
         savedAPIs = SavedAPIStore.all
+        scheduleSync()
     }
 
-    /// 从剪贴板导入后重新读一遍。
+    /// 从剪贴板导入、同步写进了别的设备的改动之后重新读一遍：只更新界面，不写回、不再触发同步。
     func reload() {
+        loading = true
+        defer { loading = false }
         settings = SettingsStore.load()
         apiKey = SettingsStore.apiKey ?? ""
         answerApiKey = SettingsStore.answerApiKey ?? ""
         test = .idle
+    }
+
+    /// 键盘自己存进共用设置的改动（iPad 9 键换边 swapNineSide、长按中/英换布局）：App 回到前台、键盘设置页出现时重读（第 86 条）。
+    /// 只读设置、只更新界面、不写回；不动 Key 和接口测试的状态（和 reload 不同，回前台时不该清掉）。
+    func reloadSettings() {
+        let latest = SettingsStore.load()
+        guard latest != settings else { return }
+        loading = true
+        defer { loading = false }
+        settings = latest
+    }
+
+    /// 恢复备份后重新读 Key（同 reload，不写回）。
+    func reloadKeys() {
+        loading = true
+        defer { loading = false }
+        apiKey = SettingsStore.apiKey ?? ""
+        answerApiKey = SettingsStore.answerApiKey ?? ""
     }
 
     /// 上次测试这个地址和模型的结果，首页「接口」卡片显示连接状态用。
@@ -659,6 +842,11 @@ final class AppStore: ObservableObject {
         var ok = false
         if case .success = result { ok = true }
         SharedStorage.defaults.set(ok, forKey: testKey)
+        // 上手引导第 3 步「连接 AI」（T95）：润色测通就算定了问答，默认和润色用同一个配置；另配过问答 Key 的不动。
+        if ok && !WelcomeSetup.answerDecided {
+            WelcomeSetup.answerDecided = true
+            if answerApiKey.isEmpty { settings.separateAnswer = false }
+        }
         // 测试也算一次请求，润色卡的最近 20 次里有它；先记再改状态，接口卡收到变化时就能读到这一次。
         UsageStats.recordRequest(ms: Int(Date().timeIntervalSince(start) * 1000), ok: ok, model: settings.model, error: failure, test: true)
         testFailure = reason

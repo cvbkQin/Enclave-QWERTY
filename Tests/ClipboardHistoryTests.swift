@@ -28,4 +28,74 @@ final class ClipboardHistoryTests: XCTestCase {
         // 插入时也顺手删掉过期的。
         XCTAssertEqual(ClipboardHistory.inserting("再来", into: items, now: now).map(\.text), ["再来", "新"])
     }
+
+    // MARK: T97 点开就存、最多保存条数（design/clipboard-autosave）
+
+    func testLimitKeepsNewestAndDropsOldest() {
+        var items: [ClipItem] = []
+        for i in 0..<12 { items = ClipboardHistory.inserting("第 \(i) 条", into: items, now: now.addingTimeInterval(Double(i)), limit: 10) }
+        XCTAssertEqual(items.count, 10)
+        XCTAssertEqual(items.first?.text, "第 11 条")
+        XCTAssertEqual(items.last?.text, "第 2 条")
+    }
+
+    func testShrinkingLimitDeletesOldestAndGrowingKeepsAll() {
+        let items = (0..<12).map { ClipItem(text: "第 \($0) 条", date: now.addingTimeInterval(Double($0))) }
+        let shrunk = ClipboardHistory.trimmed(items, limit: 10)
+        XCTAssertEqual(shrunk.count, 10)
+        XCTAssertFalse(shrunk.contains { $0.text == "第 0 条" || $0.text == "第 1 条" })
+        XCTAssertEqual(ClipboardHistory.trimmed(items, limit: 50).count, 12)
+        XCTAssertEqual(ClipboardHistory.removedCount(current: 12, limit: 10), 2)
+        XCTAssertEqual(ClipboardHistory.removedCount(current: 12, limit: 20), 0)
+    }
+
+    func testNewMarkOnlyAfterLeavingPanel() {
+        let left = now.addingTimeInterval(-60)
+        XCTAssertTrue(ClipboardHistory.isNew(ClipItem(text: "刚存", date: now), since: left))
+        XCTAssertFalse(ClipboardHistory.isNew(ClipItem(text: "以前", date: left.addingTimeInterval(-1)), since: left))
+    }
+
+    func testConcealedPasswordsAreNotRead() {
+        XCTAssertTrue(ClipboardHistory.isConcealed(types: ["public.utf8-plain-text", "org.nspasteboard.ConcealedType"]))
+        XCTAssertFalse(ClipboardHistory.isConcealed(types: ["public.utf8-plain-text"]))
+    }
+
+    func testDoesNotCaptureWhenCollapsedOffOrUnchanged() {
+        XCTAssertTrue(ClipboardHistory.shouldCapture(enabled: true, columnVisible: true, changeCount: 5, hasStrings: true, last: 4))
+        // 剪贴板一栏收起：不读。
+        XCTAssertFalse(ClipboardHistory.shouldCapture(enabled: true, columnVisible: false, changeCount: 5, hasStrings: true, last: 4))
+        // 记录关着、没换过、不是文字：都不读。
+        XCTAssertFalse(ClipboardHistory.shouldCapture(enabled: false, columnVisible: true, changeCount: 5, hasStrings: true, last: 4))
+        XCTAssertFalse(ClipboardHistory.shouldCapture(enabled: true, columnVisible: true, changeCount: 5, hasStrings: true, last: 5))
+        XCTAssertFalse(ClipboardHistory.shouldCapture(enabled: true, columnVisible: true, changeCount: 5, hasStrings: false, last: 4))
+    }
+
+    func testConfigExportWithApiKeyIsNotKept() {
+        XCTAssertTrue(SettingsStore.isExportString("  enclave-config:eyJ9"))
+        XCTAssertFalse(SettingsStore.isExportString("普通的一段话 enclave-config:"))
+    }
+
+    // MARK: T97 方案 B「自动保存复制的内容」
+
+    func testTurningHistoryOffAlsoTurnsAutoSaveOff() {
+        let wasEnabled = ClipboardHistory.isEnabled, wasAuto = ClipboardHistory.autoSave
+        defer { ClipboardHistory.isEnabled = wasEnabled; ClipboardHistory.autoSave = wasAuto }
+        ClipboardHistory.isEnabled = true
+        ClipboardHistory.autoSave = true
+        XCTAssertTrue(ClipboardHistory.autoSaveActive)
+        ClipboardHistory.isEnabled = false
+        XCTAssertFalse(ClipboardHistory.autoSave)
+        XCTAssertFalse(ClipboardHistory.autoSaveActive)
+        // 再打开记录，自动保存还是关，要用户自己再开。
+        ClipboardHistory.isEnabled = true
+        XCTAssertFalse(ClipboardHistory.autoSave)
+    }
+
+    /// 对齐清单第 97 条：每次从关拨到开都弹卡（不看以前同意过没有，判断里没有 autoSaveConsentAt）；从开拨到关、本来就开着都不弹。
+    func testConsentCardEveryTimeTurningOn() {
+        XCTAssertTrue(ClipboardHistory.needsAutoSaveConsent(wasOn: false, turningOn: true))
+        XCTAssertFalse(ClipboardHistory.needsAutoSaveConsent(wasOn: true, turningOn: false))
+        XCTAssertFalse(ClipboardHistory.needsAutoSaveConsent(wasOn: true, turningOn: true))
+        XCTAssertFalse(ClipboardHistory.needsAutoSaveConsent(wasOn: false, turningOn: false))
+    }
 }
