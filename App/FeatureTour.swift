@@ -19,8 +19,8 @@ enum FeatureTour {
     /// 全部步数。
     static let stepCount = 14
 
-    /// 帮回等待条走满要多久（14:22 cvbk 定 2 秒）。
-    static let helpWait: Double = 2
+    /// 帮回等待条走满要多久（11-26 08:26 cvbk 改 1.5 秒，对齐清单第 98 条；原来 2 秒）。
+    static let helpWait: Double = 1.5
 }
 
 // MARK: - 章节
@@ -477,7 +477,7 @@ final class TourModel: ObservableObject {
     @Published var helpShown = false
     @Published var helpRunning = false
     @Published var helpDone: Date?
-    /// 帮回第 2 步：点帮回后回答卡升起，上半格绿色笔刷 2 秒扫满再自动回（等待条，OM2、help-reply/again 二之二）。nil 是没在等。
+    /// 帮回第 2 步：点帮回后回答卡升起，上半格绿色笔刷 1.5 秒扫满再自动回（等待条，OM2、help-reply/again 二之二）。nil 是没在等。
     @Published var helpWaitStart: Date?
     /// 等待条走满的那一刻：尽头一亮碎成光点、白光刷过、卡边绿光一闪，同时开始帮回。
     @Published var helpArrived: Date?
@@ -758,15 +758,15 @@ final class TourModel: ObservableObject {
             try await pause(0.6)
         case 4:
             try await wait(.helpKey)
-            // 回答卡升起：卡头「回 AI 帮回 · 正式」，正文是 Alex 那句原话；上半格绿色笔刷 2 秒扫满（等待条，OM2），
-            // 碰到右边的那一刻尽头一亮、白光刷过、卡边绿光一闪，同时开始帮回（卡头「AI 正在帮回…」，原话虚掉，键上星星闪）。
+            // 回答卡升起：卡头「回 AI 帮回 · 正式」，正文是 Alex 那句原话；上半格绿色笔刷 1.5 秒扫满（等待条，OM2），
+            // 碰到右边的那一刻整张卡闪一下、卡边绿了再淡掉，同时开始帮回（卡头「AI 正在帮回…」，原话虚掉，键上星星闪）；约 0.4 秒后出字。
             withAnimation(cardMotion) { expanded = true }
             try await pause(0.35)
             helpWaitStart = Date()
             try await pause(FeatureTour.helpWait)
             helpArrived = Date()
             helpRunning = true
-            try await pause(reduceMotion ? 0.4 : 0.6)
+            try await pause(0.4)
             // 第 1 版：AI 不知道时间地点，先把回答写好，时间、地点留空（第 3 步用关键词补上）。
             try await stream(Version(text: s.helpReply, mode: .help), perChar: 0.048)
             helpRunning = false

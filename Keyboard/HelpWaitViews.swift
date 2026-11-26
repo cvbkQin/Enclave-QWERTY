@@ -1,11 +1,12 @@
 import SwiftUI
 
 // 帮回开始前的等待条（对齐清单第 94 条，design/help-reply/again 逻辑稿二之二，HW1–HW3）。
-// - HelpWaitBrush：上半格（iPad 是左边结果区）的绿色干笔刷、前面的墨晕、走满时尽头的亮光和光点、打断时变灰回收。
+// 11-26 对齐清单第 98 条（逻辑稿二之三，HW4）：等 1.5 秒；到位不再碎成光点、尽头不亮、不另刷白光，改成整张卡闪一下，0.4 秒内接上生成中。
+// - HelpWaitBrush：上半格（iPad 是左边结果区）的绿色干笔刷、前面的墨晕；到位时提亮一下再淡掉；打断时变灰回收。
 //   自己填满给它的 frame，宽度按自己的大小算；iPhone 叠在回答卡上半格，iPad 叠在左边结果区。
-// - helpWaitFlash(model:shape:)：走满那一刻白光刷过整张卡、卡边紫 → 绿 → 紫，外面一圈绿色柔光。
-// 状态都在 model：helpWait（开始时间、打断时间）、helpWaitLanded（走满的那一刻）、helpWaitFlashing、helpWaitBrushOn。
-// 减弱动态效果、App 里关了动画：都不画，卡头写「2 秒后自动回」（见 HelpWaitCardBody），走满时卡边绿光 0.2 秒淡入淡出。
+// - helpWaitFlash(model:shape:)：到位那一刻整张卡（含识意框，iPad 含右边识意区）闪一下，卡边变绿再淡成生成中的流光。
+// 状态都在 model：helpWait（开始时间、打断时间）、helpWaitLanded（到位的那一刻）、helpWaitFlashing、helpWaitBrushOn。
+// 减弱动态效果、App 里关了动画：都不画，卡头写「1.5 秒后自动回」（见 HelpWaitCardBody），到位时卡边绿色 0.2 秒淡入淡出。
 
 /// 等待条的颜色（逻辑稿二之二第 2 条）。
 enum HelpWaitInk {
@@ -14,7 +15,6 @@ enum HelpWaitInk {
     /// 打断时褪成的中性灰 #8E8E93（只按亮度去饱和还偏青，在 18–24% 的透明度下看不出变灰）。
     static let gray = (r: 142.0, g: 142.0, b: 147.0)
     static let glow = HelpStyle.hex(0x34D399)
-    static let purple = HelpStyle.hex(0x8B7CF6)
 
     /// 笔刷：左边 18% 到右边 24%（深色 24% → 32%），前沿后面 250pt 再浓 16%（深色 20%）。
     static func brush(dark: Bool) -> (left: Double, right: Double, front: Double) {
@@ -34,7 +34,7 @@ enum HelpWaitInk {
 }
 
 /// 绿色干笔刷（14:11 参考影之刃零加点）：一行行横向笔触长短不齐，前沿没有线；前面跑着一层更淡更糊的墨晕。
-/// 节奏照 HelpWait.progress：2 秒，接近右边放慢，碰到右边的那一刻开始帮回。
+/// 节奏照 HelpWait.progress：1.5 秒，接近右边放慢，碰到右边的那一刻开始帮回。
 /// openEdge：哪一边和卡片别的部分相接、不圆角（iPhone 上半格是下边，iPad 左边结果区是右边）。
 struct HelpWaitBrush: View {
     @ObservedObject var model: KeyboardModel
@@ -42,8 +42,6 @@ struct HelpWaitBrush: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
-    /// 光点往右上飘，画布往外多留一圈，不在卡边被切掉。
-    private static let spill: CGFloat = 40
     private static let corner: CGFloat = 12
 
     var body: some View {
@@ -53,20 +51,17 @@ struct HelpWaitBrush: View {
             let dark = colorScheme == .dark
             TimelineView(.animation) { context in
                 Canvas { gc, size in
-                    let area = CGRect(x: Self.spill, y: Self.spill,
-                                      width: max(0, size.width - 2 * Self.spill), height: max(0, size.height - 2 * Self.spill))
-                    HelpWaitPainter(area: area, dark: dark, openEdge: openEdge, corner: Self.corner)
+                    HelpWaitPainter(area: CGRect(origin: .zero, size: size), dark: dark, openEdge: openEdge, corner: Self.corner)
                         .paint(&gc, wait: wait, landed: landed, now: context.date)
                 }
             }
-            .padding(-Self.spill)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
     }
 }
 
-/// 一帧怎么画：按状态算出笔刷前沿、透明度、灰度，再画墨晕、笔刷、尽头亮光、光点。
+/// 一帧怎么画：按状态算出笔刷前沿、透明度、灰度，再画墨晕和笔刷。
 struct HelpWaitPainter {
     var area: CGRect
     var dark: Bool
@@ -80,13 +75,12 @@ struct HelpWaitPainter {
         guard area.width > 0, area.height > 0 else { return }
         let width = Double(area.width)
         if let landed {
-            // 走满：笔刷满格，到位 0.26 秒后 0.56 秒淡掉；尽头亮光 0.46 秒；28 个光点。
+            // 到位（二之三）：笔刷满格，亮度 1 → 1.45 → 1（0.26 秒），到位后 0.04 秒起 0.38 秒淡掉。不碎成光点，尽头不亮。
             let d = now.timeIntervalSince(landed)
-            guard d < 1.2 else { return }
-            let alpha = 1 - clamp((d - 0.26) / 0.56)
-            if alpha > 0 { drawBrush(&gc, front: width + 60, alpha: alpha, desaturate: 0, haze: 0) }
-            drawFlare(&gc, elapsed: d)
-            drawSparks(&gc, elapsed: d)
+            let fade = 1 - clamp((d - 0.04) / 0.38)
+            guard fade > 0 else { return }
+            let lift = d < 0.26 ? 1 + 0.45 * sin(.pi * max(d, 0) / 0.26) : 1
+            drawBrush(&gc, front: width + 60, alpha: fade, desaturate: 0, haze: 0, lift: lift)
             return
         }
         guard let wait else { return }
@@ -122,7 +116,8 @@ struct HelpWaitPainter {
     }
 
     /// front：前沿离左边多远（pt）。每一行笔触各自落后一截（长短不齐），落后多少随前沿走而变，所以笔触一直在变。
-    private func drawBrush(_ gc: inout GraphicsContext, front: Double, alpha: Double, desaturate: Double, haze: Double) {
+    /// lift：到位时提亮，笔刷每一丝的浓度乘上它。
+    private func drawBrush(_ gc: inout GraphicsContext, front: Double, alpha: Double, desaturate: Double, haze: Double, lift: Double = 1) {
         guard front > 0 else { return }
         let width = Double(area.width)
         let rows = Int((area.height / Self.rowHeight).rounded(.up))
@@ -163,7 +158,7 @@ struct HelpWaitPainter {
                     func a(_ x: Double) -> Double {
                         let base = ink.left + (ink.right - ink.left) * min(max(x / width, 0), 1)
                         let near = ink.front * clamp(1 - (end - x) / 250)
-                        return (base + near) * depth
+                        return min((base + near) * depth * lift, 1)
                     }
                     let feather = min(22, end / 2)
                     let shade = Color(red: color.r / 255, green: color.g / 255, blue: color.b / 255)
@@ -192,55 +187,11 @@ struct HelpWaitPainter {
         return fixed + 28 * wobble
     }
 
-    // MARK: 走满：尽头亮光、光点
-
-    /// 右边一团白到绿的光晕：0.46 秒亮起又散掉。
-    private func drawFlare(_ gc: inout GraphicsContext, elapsed d: Double) {
-        guard d < 0.46 else { return }
-        let k = sin(.pi * d / 0.46)
-        let center = CGPoint(x: area.maxX, y: area.midY)
-        let radius = max(area.height, 60) * (0.7 + 0.5 * d / 0.46)
-        let g = HelpWaitInk.green
-        let green = Color(red: g.r / 255, green: g.g / 255, blue: g.b / 255)
-        gc.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
-                with: .radialGradient(Gradient(stops: [.init(color: .white.opacity(0.9 * k), location: 0),
-                                                       .init(color: green.opacity(0.55 * k), location: 0.35),
-                                                       .init(color: green.opacity(0), location: 1)]),
-                                      center: center, startRadius: 0, endRadius: radius))
-    }
-
-    /// 28 个绿色光点（直径 1.6–4.2，白芯绿光晕），从笔刷后半段往右上飘 18–88pt，先放大再缩小消失，0.52–0.94 秒，起点错开 0.2 秒。
-    private func drawSparks(_ gc: inout GraphicsContext, elapsed d: Double) {
-        let g = HelpWaitInk.green
-        let green = Color(red: g.r / 255, green: g.g / 255, blue: g.b / 255)
-        for i in 0..<28 {
-            let delay = 0.2 * hash(i, 101)
-            let duration = 0.52 + 0.42 * hash(i, 103)
-            let u = (d - delay) / duration
-            guard u > 0, u < 1 else { continue }
-            let start = CGPoint(x: area.minX + area.width * (0.5 + 0.5 * hash(i, 107)),
-                                y: area.minY + area.height * hash(i, 109))
-            let distance = 18 + 70 * hash(i, 113)
-            let angle = (20 + 55 * hash(i, 127)) * .pi / 180
-            let travel = 1 - pow(1 - u, 2)
-            let point = CGPoint(x: start.x + distance * cos(angle) * travel, y: start.y - distance * sin(angle) * travel)
-            let size = (1.6 + 2.6 * hash(i, 131)) * (u < 0.35 ? 0.6 + 0.6 * u / 0.35 : 1.2 * (1 - (u - 0.35) / 0.65))
-            let fade = u < 0.2 ? u / 0.2 : 1 - max(0, u - 0.6) / 0.4
-            let halo = size * 1.9
-            gc.fill(Path(ellipseIn: CGRect(x: point.x - halo, y: point.y - halo, width: halo * 2, height: halo * 2)),
-                    with: .radialGradient(Gradient(colors: [green.opacity(0.7 * fade), green.opacity(0)]),
-                                          center: point, startRadius: 0, endRadius: halo))
-            let core = size / 2
-            gc.fill(Path(ellipseIn: CGRect(x: point.x - core, y: point.y - core, width: core * 2, height: core * 2)),
-                    with: .color(.white.opacity(0.95 * fade)))
-        }
-    }
-
     // MARK: 工具
 
     private func clamp(_ x: Double) -> Double { min(max(x, 0), 1) }
 
-    /// 0…1 之间的固定伪随机数：同一行、同一个光点每帧一样。
+    /// 0…1 之间的固定伪随机数：同一行每帧一样。
     private func hash(_ n: Int, _ salt: Int) -> Double {
         var x = UInt64(bitPattern: Int64(n &* 374_761_393 &+ salt &* 668_265_263))
         x = (x ^ (x >> 13)) &* 1_274_126_177
@@ -249,11 +200,12 @@ struct HelpWaitPainter {
     }
 }
 
-// MARK: - 走满：白光刷过整张卡、卡边绿光
+// MARK: - 到位：整张卡闪一下、卡边绿色淡成流光
 
 extension View {
-    /// 回答卡走满那一刻（HW3）：白色斜光带从左往右刷过整张卡，卡边紫 → 绿 → 紫，外面一圈 22pt 绿色柔光，0.9 秒。
-    /// phoneBody、padBody 都加。
+    /// 回答卡到位那一刻（二之三，HW4）：一层亮光盖住整张卡（含识意框、iPad 右边识意区），左淡右亮，0.07 秒到顶、0.42 秒退完；
+    /// 卡边 0.11 秒变绿，外面一圈 3pt 绿 30% 加 18pt 绿色柔光 34%，到位后 0.08 秒起绿边 0.32 秒、柔光 0.26 秒淡掉，
+    /// 露出底下已经在转的生成中流光（FlowingBorder）。phoneBody、padBody 都加，按整张卡的大小画。
     func helpWaitFlash(model: KeyboardModel, shape: RoundedRectangle) -> some View {
         modifier(HelpWaitFlash(model: model, shape: shape))
     }
@@ -265,14 +217,17 @@ struct HelpWaitFlash: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
+    /// 闪光、绿边都在这么长里走完（model 里 helpWaitFlashing 留 0.45 秒）。
+    static let length = 0.45
+
     func body(content: Content) -> some View {
         let reduced = reduceMotion || !model.settings.polishAnimation
         content
             .background {
                 if model.helpWaitFlashing, !reduced, let landed = model.helpWaitLanded {
                     TimelineView(.animation) { context in
-                        let k = Self.pulse(context.date.timeIntervalSince(landed))
-                        shape.stroke(HelpWaitInk.glow.opacity(0.5 * k), lineWidth: 22).blur(radius: 11)
+                        let k = Self.halo(context.date.timeIntervalSince(landed))
+                        shape.stroke(HelpWaitInk.glow.opacity(0.34 * k), lineWidth: 18).blur(radius: 9)
                     }
                     .allowsHitTesting(false)
                 }
@@ -282,7 +237,7 @@ struct HelpWaitFlash: ViewModifier {
                     TimelineView(.animation) { context in
                         let d = context.date.timeIntervalSince(landed)
                         ZStack {
-                            if !reduced { band(d) }
+                            if !reduced { sheen(d) }
                             border(d, reduced: reduced)
                         }
                     }
@@ -292,13 +247,26 @@ struct HelpWaitFlash: ViewModifier {
             }
     }
 
-    /// 紫 → 绿 → 紫：0.9 秒里先变绿再变回。
-    static func pulse(_ d: Double) -> Double {
-        guard d > 0, d < 0.9 else { return 0 }
-        return sin(.pi * d / 0.9)
+    /// 整卡闪光的亮度：0.07 秒到顶，再按 cubic-bezier(.2,.7,.3,1) 退，0.42 秒退完。
+    static func flash(_ d: Double) -> Double {
+        if d <= 0 || d >= 0.42 { return 0 }
+        if d < 0.07 { return d / 0.07 }
+        return 1 - CubicBezier.flashOut.value(at: (d - 0.07) / 0.35)
     }
 
-    /// 减弱动态效果：卡边绿光 0.2 秒淡入、0.2 秒淡出。
+    /// 卡边的绿：0.11 秒变绿，到位后 0.08 秒起 0.32 秒淡掉。
+    static func edge(_ d: Double) -> Double {
+        guard d > 0 else { return 0 }
+        return max(0, min(d / 0.11, 1, 1 - (d - 0.08) / 0.32))
+    }
+
+    /// 外面的绿色柔光：和绿边一起亮，到位后 0.08 秒起 0.26 秒收掉，换成流光自己的紫色呼吸光。
+    static func halo(_ d: Double) -> Double {
+        guard d > 0 else { return 0 }
+        return max(0, min(d / 0.11, 1, 1 - (d - 0.08) / 0.26))
+    }
+
+    /// 减弱动态效果：卡边绿色 0.2 秒淡入、0.2 秒淡出。
     static func reducedPulse(_ d: Double) -> Double {
         if d < 0 { return 0 }
         if d < 0.2 { return d / 0.2 }
@@ -307,35 +275,30 @@ struct HelpWaitFlash: ViewModifier {
     }
 
     private func border(_ d: Double, reduced: Bool) -> some View {
-        let k = reduced ? Self.reducedPulse(d) : Self.pulse(d)
+        let k = reduced ? Self.reducedPulse(d) : Self.edge(d)
         return ZStack {
-            shape.strokeBorder(HelpWaitInk.purple.opacity(1 - k), lineWidth: 1.5)
+            if !reduced { shape.inset(by: -1.5).stroke(HelpWaitInk.glow.opacity(0.3 * k), lineWidth: 3) }
             shape.strokeBorder(HelpWaitInk.glow.opacity(k), lineWidth: 1.5)
         }
     }
 
-    /// 宽 96、斜 16° 的白光带，中间白 78%（深色 26%），0.76 秒，cubic-bezier(.45,0,.25,1)。
-    private func band(_ d: Double) -> some View {
-        GeometryReader { geo in
-            if d < 0.76 {
-                let width: CGFloat = 96
-                let p = CubicBezier.sweep.value(at: d / 0.76)
-                let peak = colorScheme == .dark ? 0.26 : 0.78
-                LinearGradient(colors: [.white.opacity(0), .white.opacity(peak), .white.opacity(0)],
-                               startPoint: .leading, endPoint: .trailing)
-                    .frame(width: width, height: geo.size.height * 2)
-                    .rotationEffect(.degrees(16))
-                    .offset(x: -width + (geo.size.width + width * 2) * p, y: -geo.size.height / 2)
-            }
-        }
-        .clipShape(shape)
+    /// 盖住整张卡的亮光，左淡右亮（笔刷碰到的那边最亮）：浅色白 30% → 55% → 右边 #ECFDF5 85%；深色 #D1FAE5 10% → 22% → 38%。
+    private func sheen(_ d: Double) -> some View {
+        let k = Self.flash(d)
+        let dark = colorScheme == .dark
+        let mint = HelpStyle.hex(0xD1FAE5)
+        let colors: [Color] = dark
+            ? [mint.opacity(0.10), mint.opacity(0.22), mint.opacity(0.38)]
+            : [.white.opacity(0.30), .white.opacity(0.55), HelpStyle.hex(0xECFDF5).opacity(0.85)]
+        return shape.fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing))
+            .opacity(k)
     }
 }
 
 // MARK: - 等的时候卡里写什么
 
 /// 等待时回答卡上半格（HW1 ①）：卡头「回 AI 帮回 · 正式」，正文是要回的那句原话，灰字、左边 2pt 绿竖线，最多两行。
-/// 减弱动态效果（或 App 里关了动画）时不画笔刷，卡头右边写「2 秒后自动回」；停下来以后不写。
+/// 减弱动态效果（或 App 里关了动画）时不画笔刷，卡头右边写「1.5 秒后自动回」；停下来以后不写。
 struct HelpWaitCardBody: View {
     @ObservedObject var model: KeyboardModel
     var wait: HelpWait
@@ -354,7 +317,7 @@ struct HelpWaitCardBody: View {
                     .lineLimit(1)
                 Spacer(minLength: 6)
                 if !wait.interrupted, reduceMotion || !model.settings.polishAnimation {
-                    Text(L("2 秒后自动回", "Replying in 2 s", "2 秒後に自動で返信"))
+                    Text(L("1.5 秒后自动回", "Replies in 1.5 s", "1.5 秒後に自動で返信"))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

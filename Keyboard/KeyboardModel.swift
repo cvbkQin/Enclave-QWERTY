@@ -50,13 +50,13 @@ final class KeyboardModel: ObservableObject {
     @Published var askRunning = false
     /// 正在帮回（生成中的小字写「AI 正在帮回…」）。
     @Published var replyRunning = false
-    /// 帮回开始前的 2 秒等待（对齐清单第 94 条，HW1–HW3）：开新的一句、识意框空着时先等，中途点识意框就停下等要求。
+    /// 帮回开始前的 1.5 秒等待（对齐清单第 94、98 条，HW1–HW4）：开新的一句、识意框空着时先等，中途点识意框就停下等要求。
     @Published var helpWait: HelpWait?
-    /// 等待条走满、开始帮回的那一刻：尽头闪光、光点按它算（HelpWaitBrush）。
+    /// 等待条走满、开始帮回的那一刻：笔刷提亮淡掉、整卡闪光、卡边绿色、生成中扫光晚一点进来都按它算。
     @Published var helpWaitLanded: Date?
-    /// 走满后 0.9 秒内：白光刷过整张卡、卡边绿光一闪；这段时间生成中的流光边框和扫光先不画，两样不叠在一起。
+    /// 走满后 0.45 秒内：整张卡闪一下、卡边绿色淡成底下已经在转的生成中流光（二之三，HW4）。
     @Published var helpWaitFlashing = false
-    /// 笔刷要不要画（等着、打断后回收淡掉的 0.9 秒、走满后闪光的 1.2 秒）；画完就关，TimelineView 不再一直走。
+    /// 笔刷要不要画（等着、打断后回收淡掉的 0.9 秒、走满后提亮淡掉的 0.5 秒）；画完就关，TimelineView 不再一直走。
     @Published var helpWaitBrushOn = false
     var helpWaitTimer: DispatchWorkItem?
     @Published var askKind: AskMode?
