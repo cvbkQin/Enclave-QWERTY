@@ -678,7 +678,7 @@ private struct TourAnswerCard: View {
             VStack(spacing: 0) {
                 top
                     .frame(height: model.cardTall ? 120 : 82)
-                    // 帮回等待条：上半格（识意框以上）的绿色笔刷，在字的下面。减弱动态效果时不画，卡头右边写「2 秒后自动回」。
+                    // 帮回等待条：上半格（识意框以上）的绿色笔刷，在字的下面。减弱动态效果时不画，卡头右边写「1.5 秒后自动回」。
                     .background {
                         if let start = model.helpWaitStart, !reduceMotion {
                             TourHelpBrush(start: start, arrived: model.helpArrived)
@@ -690,12 +690,12 @@ private struct TourAnswerCard: View {
             }
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(TourColor.cardFill))
             .overlay {
-                if let arrived = model.helpArrived, !reduceMotion { TourCardSheen(start: arrived) }
+                if let arrived = model.helpArrived, !reduceMotion { TourCardFlash(start: arrived) }
             }
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(ring, lineWidth: 1.5))
             .overlay {
-                if let arrived = model.helpArrived, !reduceMotion { TourCardGlow(start: arrived) }
+                if let arrived = model.helpArrived { TourCardGlow(start: arrived, reduced: reduceMotion) }
             }
             .animation(.easeInOut(duration: 0.25), value: mode)
         }
@@ -815,7 +815,7 @@ private struct TourAnswerCard: View {
                             .padding(.leading, 4)
                     } else if helpWaiting && reduceMotion {
                         Spacer(minLength: 4)
-                        Text(L("2 秒后自动回", "Replies in 2 s", "2 秒後に自動で返信"))
+                        Text(L("1.5 秒后自动回", "Replies in 1.5 s", "1.5 秒後に自動で返信"))
                             .font(.system(size: 12)).lineLimit(1)
                             .foregroundStyle(.secondary)
                     }
@@ -962,8 +962,8 @@ private func tourNoise(_ i: Int, _ salt: Double) -> Double {
 }
 
 /// 上半格的绿色像干笔刷一样从左往右扫开（14:11 参考影之刃零加点）：一行行横向笔触长短不齐，前沿没有清楚的边，
-/// 前面跑着一层更淡更糊的深色墨晕。2 秒碰到右边（cubic-bezier(.3,.45,.6,.92)，接近右边才放慢），碰到就触发。
-/// 到位后：尽头一亮（0.46 秒），碎成 28 个绿色光点往右上散开（0.52–0.94 秒，起点错开 0.2 秒）；绿色 0.26 秒后 0.56 秒淡掉。
+/// 前面跑着一层更淡更糊的深色墨晕。1.5 秒碰到右边（cubic-bezier(.3,.45,.6,.92)，接近右边才放慢），碰到就触发。
+/// 到位后（11-26 对齐清单第 98 条，HW4）：不碎成光点、尽头不亮；笔刷亮度 1 → 1.45 → 1（0.26 秒），到位后 0.04 秒起 0.38 秒淡掉。
 private struct TourHelpBrush: View {
     let start: Date
     let arrived: Date?
@@ -993,12 +993,13 @@ private func drawHelpBrush(_ context: inout GraphicsContext, size: CGSize, now: 
     guard width > 0, height > 0 else { return }
     let elapsed = now.timeIntervalSince(start)
     let front = width * CGFloat(helpBrushCurve(elapsed / FeatureTour.helpWait))
-    // 起步时整层 0.16 秒淡入；到位 0.26 秒后 0.56 秒淡掉。
+    // 起步时整层 0.16 秒淡入；到位后提亮一下（0.26 秒），0.04 秒起 0.38 秒淡掉。
     var layer = min(max(elapsed / 0.16, 0), 1)
-    var after = -1.0
+    var lift = 1.0
     if let arrived {
-        after = now.timeIntervalSince(arrived)
-        if after > 0.26 { layer *= max(0, 1 - (after - 0.26) / 0.56) }
+        let after = now.timeIntervalSince(arrived)
+        layer *= max(0, 1 - (after - 0.04) / 0.38)
+        if after > 0, after < 0.26 { lift = 1 + 0.45 * sin(.pi * after / 0.26) }
     }
 
     if layer > 0 {
@@ -1026,7 +1027,7 @@ private func drawHelpBrush(_ context: inout GraphicsContext, size: CGSize, now: 
             let end = max(0, front + CGFloat(jitter))
             guard end > 2 else { continue }
             let y = CGFloat(row) * helpBrushRow
-            let strength = 0.66 + 0.26 * tourNoise(row, 3)
+            let strength = (0.66 + 0.26 * tourNoise(row, 3)) * lift
             let base = (left + (right - left) * Double(min(end / width, 1))) * strength
             let start250 = max(0, (end - 250) / end)
             let start30 = max(start250, (end - 30) / end)
@@ -1039,77 +1040,56 @@ private func drawHelpBrush(_ context: inout GraphicsContext, size: CGSize, now: 
                        with: .linearGradient(Gradient(stops: stops), startPoint: CGPoint(x: 0, y: y), endPoint: CGPoint(x: end, y: y)))
         }
     }
-
-    guard after >= 0 else { return }
-    // 尽头一亮：右边一团白到绿的光晕，0.46 秒亮起又散掉。
-    if after < 0.46 {
-        let p = after / 0.46
-        let glow = p < 0.25 ? p / 0.25 : 1 - (p - 0.25) / 0.75
-        let radius = CGFloat(36 + 30 * p)
-        let center = CGPoint(x: width - 6, y: height / 2)
-        var flash = context
-        flash.opacity = glow
-        flash.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
-                   with: .radialGradient(Gradient(colors: [.white.opacity(0.95), green.opacity(0.5), green.opacity(0)]),
-                                         center: center, startRadius: 0, endRadius: radius))
-    }
-    // 碎成光点：白芯绿光晕，从笔刷后半段往右上飘 18–88pt，先放大再缩小消失。
-    for i in 0..<28 {
-        let delay = 0.2 * tourNoise(i, 11)
-        let duration = 0.52 + 0.42 * tourNoise(i, 12)
-        let u = (after - delay) / duration
-        guard u > 0, u < 1 else { continue }
-        let eased = 1 - (1 - u) * (1 - u)
-        let distance = 18 + 70 * tourNoise(i, 13)
-        let angle = (18 + 54 * tourNoise(i, 14)) * Double.pi / 180
-        let x = width * CGFloat(0.5 + 0.5 * tourNoise(i, 15)) + CGFloat(cos(angle) * distance * eased)
-        let y = height * CGFloat(tourNoise(i, 16)) - CGFloat(sin(angle) * distance * eased)
-        let grow = u < 0.35 ? 1 + 0.6 * u / 0.35 : 1.6 * (1 - (u - 0.35) / 0.65)
-        let dot = CGFloat((1.6 + 2.6 * tourNoise(i, 17)) * grow)
-        let fade = 1 - u * u
-        context.fill(Path(ellipseIn: CGRect(x: x - dot * 1.4, y: y - dot * 1.4, width: dot * 2.8, height: dot * 2.8)),
-                     with: .color(green.opacity(0.4 * fade)))
-        context.fill(Path(ellipseIn: CGRect(x: x - dot / 2, y: y - dot / 2, width: dot, height: dot)),
-                     with: .color(.white.opacity(0.95 * fade)))
-    }
 }
 
-/// 到位时一道白色斜光带从左往右刷过整张卡：宽 96、斜 16°，中间白 78%（深色 26%），0.76 秒 cubic-bezier(.45,0,.25,1)。
-private struct TourCardSheen: View {
+/// 到位时整张卡闪一下（11-26 对齐清单第 98 条，HW4）：一层亮光盖住整张卡，左淡右亮；
+/// 浅色白 30% → 55% → 右边 #ECFDF5 85%，深色 #D1FAE5 10% → 22% → 38%；0.07 秒到顶，cubic-bezier(.2,.7,.3,1) 退，0.42 秒退完。
+private struct TourCardFlash: View {
     let start: Date
     @Environment(\.colorScheme) private var scheme
 
-    private static let curve = TourBezier(x1: 0.45, y1: 0, x2: 0.25, y2: 1)
+    private static let curve = TourBezier(x1: 0.2, y1: 0.7, x2: 0.3, y2: 1)
 
     var body: some View {
-        GeometryReader { proxy in
-            TimelineView(.animation) { timeline in
-                let t = timeline.date.timeIntervalSince(start) / 0.76
-                let p = CGFloat(Self.curve(t))
-                LinearGradient(colors: [.white.opacity(0), .white.opacity(scheme == .dark ? 0.26 : 0.78), .white.opacity(0)],
-                               startPoint: .leading, endPoint: .trailing)
-                    .frame(width: 96, height: proxy.size.height * 1.6)
-                    .rotationEffect(.degrees(16))
-                    .position(x: -96 + (proxy.size.width + 192) * p, y: proxy.size.height / 2)
-                    .opacity(t >= 1 ? 0 : 1)
-            }
+        let dark = scheme == .dark
+        let mint = Color(hex: 0xD1FAE5)
+        let colors: [Color] = dark
+            ? [mint.opacity(0.10), mint.opacity(0.22), mint.opacity(0.38)]
+            : [.white.opacity(0.30), .white.opacity(0.55), Color(hex: 0xECFDF5).opacity(0.85)]
+        return TimelineView(.animation) { timeline in
+            let d = timeline.date.timeIntervalSince(start)
+            let k = d <= 0 || d >= 0.42 ? 0 : (d < 0.07 ? d / 0.07 : 1 - Self.curve((d - 0.07) / 0.35))
+            LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+                .opacity(k)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 }
 
-/// 到位时卡边从紫变绿 #34D399 再变回，外面一圈 22pt 绿色柔光，0.9 秒。
+/// 到位时卡边 0.11 秒变绿 #34D399，外面一圈 3pt 绿 30% 加 18pt 绿色柔光 34%；到位后 0.08 秒起绿边 0.32 秒、柔光 0.26 秒淡掉，露出原来的卡边。
+/// 减弱动态效果：卡边绿色 0.2 秒淡入、0.2 秒淡出。
 private struct TourCardGlow: View {
     let start: Date
+    var reduced = false
 
     var body: some View {
         TimelineView(.animation) { timeline in
-            let t = min(max(timeline.date.timeIntervalSince(start) / 0.9, 0), 1)
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color(hex: 0x34D399), lineWidth: 1.5)
-                .shadow(color: Color(hex: 0x34D399).opacity(0.8), radius: 11)
-                .opacity(t >= 1 ? 0 : sin(t * .pi))
+            let d = timeline.date.timeIntervalSince(start)
+            let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+            let green = Color(hex: 0x34D399)
+            if reduced {
+                let k = d < 0 ? 0 : (d < 0.2 ? d / 0.2 : max(0, 1 - (d - 0.2) / 0.2))
+                shape.strokeBorder(green.opacity(k), lineWidth: 1.5)
+            } else {
+                let edge = d <= 0 ? 0 : max(0, min(d / 0.11, 1, 1 - (d - 0.08) / 0.32))
+                let halo = d <= 0 ? 0 : max(0, min(d / 0.11, 1, 1 - (d - 0.08) / 0.26))
+                ZStack {
+                    shape.stroke(green.opacity(0.34 * halo), lineWidth: 18).blur(radius: 9)
+                    shape.inset(by: -1.5).stroke(green.opacity(0.3 * edge), lineWidth: 3)
+                    shape.strokeBorder(green.opacity(edge), lineWidth: 1.5)
+                }
+            }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

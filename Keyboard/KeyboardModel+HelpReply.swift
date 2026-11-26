@@ -209,7 +209,7 @@ extension KeyboardModel {
     /// 帮回一次：读剪贴板（给了 text 就用它），用当前润色风格写一条，接在当前时间线后面。结果出在回答卡上（收着时先展开），
     /// 识意框里的字是要求。帮回加要求（对齐清单第 94 条，design/help-reply/again）：
     /// - 卡上是帮回写的一版、又没有新的待回复制（HR1）：回这一版记下的原话，不读剪贴板，系统横幅不再闪。
-    /// - 开新的一句、识意框空着（HW1）：先等 2 秒，等的时候点识意框就停下，写好要求再点帮回；再点帮回键马上回。
+    /// - 开新的一句、识意框空着（HW1）：先等 1.5 秒，等的时候点识意框就停下，写好要求再点帮回；再点帮回键马上回。
     /// keepPin：从润色键转过来的（写了要求点润色），执行动效留在被点的那颗键上。
     func startHelpReply(text given: String? = nil, fromPin: Bool = false, keepPin: Bool = false, style: StylePreset? = nil) {
         endCelebration()
@@ -285,7 +285,7 @@ extension KeyboardModel {
 
     // MARK: 开始前的等待（HW1–HW3）
 
-    /// 开始等：回答卡收着就先展开（结果不再直接进输入框，要留出写要求的地方），识意框清空，2 秒后自动回。
+    /// 开始等：回答卡收着就先展开（结果不再直接进输入框，要留出写要求的地方），识意框清空，1.5 秒后自动回。
     private func beginHelpWait(message: String, changeCount: Int?, fromPin: Bool) {
         if !aiExpanded { setAIExpanded(true) }
         if !instruction.isEmpty { setInstruction("") }
@@ -304,21 +304,21 @@ extension KeyboardModel {
         // 第一次读钥匙串慢（06 iPad 核对约 140ms）：趁等的时候在后台先读一次，走满那一刻不卡。
         DispatchQueue.global(qos: .userInitiated).async { _ = SettingsStore.apiKey }
         UIAccessibility.post(notification: .announcement,
-                             argument: L("2 秒后自动帮回，点识意框可以先写要求", "Replying in 2 seconds. Tap the box to add a request first.",
-                                         "2 秒後に自動で返信します。欄をタップすると先に指示を書けます"))
+                             argument: L("1.5 秒后自动帮回，点识意框可以先写要求", "Replying in 1.5 seconds. Tap the box to add a request first.",
+                                         "1.5 秒後に自動で返信します。欄をタップすると先に指示を書けます"))
     }
 
-    /// 2 秒走满：笔刷尽头一亮碎成光点，白光刷过、卡边绿光一闪，同一刻开始帮回。
+    /// 1.5 秒走满（二之三）：整张卡闪一下、笔刷提亮后淡掉，卡边绿色淡成生成中的流光，同一刻开始帮回；约 0.4 秒就是完整的生成中。
     private func landHelpWait() {
         guard let wait = helpWait, !wait.interrupted else { return }
         let now = Date()
         helpWaitLanded = now
         helpWaitFlashing = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + HelpWaitFlash.length) { [weak self] in
             guard let self, self.helpWaitLanded == now else { return }
             self.helpWaitFlashing = false
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self, self.helpWaitLanded == now, self.helpWait == nil else { return }
             self.helpWaitBrushOn = false
             self.helpWaitLanded = nil

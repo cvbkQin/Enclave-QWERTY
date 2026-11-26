@@ -1,6 +1,6 @@
 import XCTest
 
-/// 帮回加要求（对齐清单第 94 条，design/help-reply/again）：再点帮回用这一版的原话、开新的一句先等 2 秒、等待条的节奏。
+/// 帮回加要求（对齐清单第 94 条，design/help-reply/again）：再点帮回用这一版的原话、开新的一句先等 1.5 秒、等待条的节奏。
 final class HelpWaitTests: XCTestCase {
     private let source = EditSession.ReplySource(message: "这份方案明天能交吗？", request: nil, meaning: nil)
 
@@ -22,16 +22,16 @@ final class HelpWaitTests: XCTestCase {
         XCTAssertFalse(HelpWait.waitsBeforeReply(again: true, request: ""))
     }
 
-    /// 二之二第 2 条：2 秒，一半时间走到 68%，3/4 时间 90%，2 秒刚好碰到右边，之后不再走。
-    func testBrushSlowsNearTheEndAndLandsAtTwoSeconds() {
-        XCTAssertEqual(HelpWait.duration, 2)
+    /// 二之三第 1 条：1.5 秒，0.75 秒走到 68%，1.125 秒 90%，1.5 秒刚好碰到右边，之后不再走。
+    func testBrushSlowsNearTheEndAndLandsAtOneAndAHalfSeconds() {
+        XCTAssertEqual(HelpWait.duration, 1.5)
         XCTAssertEqual(HelpWait.progress(elapsed: 0), 0)
-        XCTAssertEqual(HelpWait.progress(elapsed: 1), 0.68, accuracy: 0.01)
-        XCTAssertEqual(HelpWait.progress(elapsed: 1.5), 0.90, accuracy: 0.01)
-        XCTAssertEqual(HelpWait.progress(elapsed: 2), 1)
+        XCTAssertEqual(HelpWait.progress(elapsed: 0.75), 0.68, accuracy: 0.01)
+        XCTAssertEqual(HelpWait.progress(elapsed: 1.125), 0.90, accuracy: 0.01)
+        XCTAssertEqual(HelpWait.progress(elapsed: 1.5), 1)
         XCTAssertEqual(HelpWait.progress(elapsed: 3), 1)
         // 前快后慢：最后 1/4 时间只走 10% 左右。
-        let early = HelpWait.progress(elapsed: 0.5), late = 1 - HelpWait.progress(elapsed: 1.5)
+        let early = HelpWait.progress(elapsed: 0.375), late = 1 - HelpWait.progress(elapsed: 1.125)
         XCTAssertGreaterThan(early, late * 3)
     }
 
@@ -41,13 +41,13 @@ final class HelpWaitTests: XCTestCase {
         var wait = HelpWait(message: "Hey, when and where are we meeting on Friday?", changeCount: 5, fromPin: true, startedAt: start)
         XCTAssertFalse(wait.interrupted)
         XCTAssertNil(wait.interruptProgress)
-        wait.interruptedAt = start.addingTimeInterval(1)
+        wait.interruptedAt = start.addingTimeInterval(0.75)
         XCTAssertTrue(wait.interrupted)
         XCTAssertEqual(wait.interruptProgress ?? 0, 0.68, accuracy: 0.01)
     }
 
     func testCubicBezierEndsAndMonotonic() {
-        for curve in [CubicBezier.brush, CubicBezier.retract, CubicBezier.sweep] {
+        for curve in [CubicBezier.brush, CubicBezier.retract, CubicBezier.flashOut] {
             XCTAssertEqual(curve.value(at: 0), 0)
             XCTAssertEqual(curve.value(at: 1), 1)
             var last = 0.0

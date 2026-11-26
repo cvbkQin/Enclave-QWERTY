@@ -1,6 +1,6 @@
 import Foundation
 
-/// 帮回开始前的等待（对齐清单第 94 条，design/help-reply/again 逻辑稿二之二）：开新的一句、识意框空着时先等 2 秒，
+/// 帮回开始前的等待（对齐清单第 94 条，design/help-reply/again 逻辑稿二之二；第 98 条改 1.5 秒，二之三）：开新的一句、识意框空着时先等 1.5 秒，
 /// 上半格的绿色像干笔刷一样从左往右扫开，碰到右边的那一刻开始帮回；中途点识意框就停下，等用户写要求。
 /// 这里只放时间和曲线（有单测），画法在键盘的 HelpWaitViews.swift。
 struct HelpWait: Equatable {
@@ -13,8 +13,8 @@ struct HelpWait: Equatable {
     /// 点了识意框（或在框里打字）：计时停下，不再自动回。
     var interruptedAt: Date?
 
-    /// 2 秒走满（cvbk 11-25 14:22，原来 1.5 秒）。
-    static let duration: TimeInterval = 2
+    /// 1.5 秒走满（cvbk 11-26 08:26「3 秒等待有点太久了，还是改成 1.5 秒吧」；11-25 14:22 曾改成 2 秒）。
+    static let duration: TimeInterval = 1.5
 
     var interrupted: Bool { interruptedAt != nil }
 
@@ -30,13 +30,13 @@ struct HelpWait: Equatable {
         return current
     }
 
-    /// 要不要先等 2 秒（HW1 第 1 条）：开新的一句、识意框空着才等；再点帮回重写、识意框已经有要求都马上回。
+    /// 要不要先等（HW1 第 1 条）：开新的一句、识意框空着才等；再点帮回重写、识意框已经有要求都马上回。
     static func waitsBeforeReply(again: Bool, request: String) -> Bool {
         !again && request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// 笔刷前沿走到哪儿（0…1）：一路稳稳往前扫，接近右边放慢，2 秒时刚好碰到右边。
-    /// cubic-bezier(.3,.45,.6,.92)：一半时间 68%，3/4 时间 90%。
+    /// 笔刷前沿走到哪儿（0…1）：一路稳稳往前扫，接近右边放慢，1.5 秒时刚好碰到右边。
+    /// cubic-bezier(.3,.45,.6,.92)：一半时间（0.75 秒）68%，3/4 时间（1.1 秒）90%。
     static func progress(elapsed: TimeInterval) -> Double {
         let x = min(max(elapsed / duration, 0), 1)
         return CubicBezier.brush.value(at: x)
@@ -51,8 +51,8 @@ struct CubicBezier {
     static let brush = CubicBezier(x1: 0.3, y1: 0.45, x2: 0.6, y2: 0.92)
     /// 打断后往回收 70pt。
     static let retract = CubicBezier(x1: 0.3, y1: 0, x2: 0.2, y2: 1)
-    /// 到位后白光扫过整张卡（参考润色成功的扫光）。
-    static let sweep = CubicBezier(x1: 0.45, y1: 0, x2: 0.25, y2: 1)
+    /// 到位时整卡闪光退下去（二之三第 3 条）。
+    static let flashOut = CubicBezier(x1: 0.2, y1: 0.7, x2: 0.3, y2: 1)
 
     func value(at x: Double) -> Double {
         let x = min(max(x, 0), 1)

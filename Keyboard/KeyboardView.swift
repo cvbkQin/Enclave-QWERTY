@@ -1018,9 +1018,9 @@ struct ResultCard: View {
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 12, style: .continuous) }
 
     /// 只在生成中播放；App 里关了动画或系统开了「减弱动态效果」就不播。
-    /// 帮回等待条走满后的 0.9 秒是绿光闪（helpWaitFlash），闪完再换流光边框和扫光，两样不叠在一起。
+    /// 帮回等待条走满（二之三，HW4）：流光边框马上在底下转，卡边的绿（helpWaitFlash）淡掉就露出来；卡里扫光晚 0.16 秒淡入。
     private var animating: Bool {
-        model.isRunning && model.searchPrompt == nil && model.settings.polishAnimation && !reduceMotion && !model.helpWaitFlashing
+        model.isRunning && model.searchPrompt == nil && model.settings.polishAnimation && !reduceMotion
     }
 
     var body: some View {
@@ -1060,7 +1060,7 @@ struct ResultCard: View {
                 if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
             }
             .overlay {
-                if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
+                if animating { SweepBand(since: model.helpWaitLanded).clipShape(shape).allowsHitTesting(false) }
             }
             .overlay {
                 border(look).allowsHitTesting(false)
@@ -1101,7 +1101,7 @@ struct ResultCard: View {
             if case .error = look, model.failure == nil { shape.fill(Color.red.opacity(0.07)) }
         }
         .overlay {
-            if animating { SweepBand().clipShape(shape).allowsHitTesting(false) }
+            if animating { SweepBand(since: model.helpWaitLanded).clipShape(shape).allowsHitTesting(false) }
         }
         .overlay {
             border(look).allowsHitTesting(false)
@@ -1131,6 +1131,8 @@ struct ResultCard: View {
             case .waiting(let wait): HelpWaitCardBody(model: model, wait: wait, leading: textLeading)
             }
         }
+        // 帮回等待条到位（二之三第 4 条）：卡头 0.2 秒换成「AI 正在帮回…」，原话虚掉，不是一下跳过去。
+        .animation(.easeOut(duration: 0.2), value: model.helpWait == nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // 帮回等待条（HW1–HW3）：绿色笔刷画在这一块（iPhone 上半格、iPad 左边结果区、横屏九宫格右边）后面。
         .background { HelpWaitBrush(model: model, openEdge: brushOpenEdge) }
@@ -1845,13 +1847,17 @@ struct FlowingBorder: View {
 }
 
 /// 卡片里的扫光：约 300pt 宽的斜向光带从左往右匀速扫过，中间最深（#7C3AED 16%），一趟 1.6 秒，和边框同步。
+/// since：帮回等待条走满的那一刻（二之三第 4 条）：晚 0.16 秒再 0.2 秒淡入，不和整卡闪光挤在一起；平时是 nil，直接画。
 struct SweepBand: View {
+    var since: Date? = nil
+
     var body: some View {
         GeometryReader { geo in
             TimelineView(.animation) { context in
                 let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
                 let band: CGFloat = 300
-                LinearGradient(colors: [Brand.violet.opacity(0), Brand.violet.opacity(0.16), Brand.violet.opacity(0)],
+                let fade = since.map { min(max((context.date.timeIntervalSince($0) - 0.16) / 0.2, 0), 1) } ?? 1
+                LinearGradient(colors: [Brand.violet.opacity(0), Brand.violet.opacity(0.16 * fade), Brand.violet.opacity(0)],
                                startPoint: .leading, endPoint: .trailing)
                     .frame(width: band, height: geo.size.height * 2)
                     .rotationEffect(.degrees(18))
