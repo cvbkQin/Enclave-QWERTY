@@ -25,7 +25,7 @@ struct KeyboardView: View {
                 // 替换 / 插入键在结果卡左边，和卡片一样高；弹出方式的另一个按钮浮在下面一行上，所以这一块叠在最上层。
                 // 自由编辑时左边的键收起，编辑框占满整行、连识意框那块一起用（FE3）。
                 let freeEdit = model.target == .card
-                // AI 帮回（帮回并入润色）也是这一张回答卡和替换键，卡片照旧是润色紫。
+                // AI 帮回（帮回并入润色）也是这一张回答卡和替换键，颜色跟着功能走：帮回绿、问答天蓝、润色紫（cvbk 11-26）。
                 HStack(spacing: KeyboardMetrics.resultKeyGap) {
                     if !freeEdit {
                         ResultKey(model: model)
@@ -1205,8 +1205,14 @@ struct ResultCard: View {
 
     // MARK: 结果
 
-    /// 自由编辑框描边：当前模式的颜色（问答天蓝，其余紫）。
-    private var editStroke: Color { model.session?.currentIsAnswer == true ? Brand.answerBorder : Brand.tagSelectedText }
+    /// 自由编辑框描边：当前这一版的功能色（问答天蓝，帮回绿，其余紫）。
+    private var editStroke: Color {
+        switch model.cardTint {
+        case .answer: return Brand.answerBorder
+        case .help: return HelpStyle.ring
+        case .polish: return Brand.tagSelectedText
+        }
+    }
 
     /// 正文左边距 14（AK2：左边模式格去掉，正文往左占满）。
     private var textLeading: CGFloat { 14 }
@@ -1219,14 +1225,14 @@ struct ResultCard: View {
                 // 问答中途停了（PS6）：「AI 回答 · 已停止」。
                 ResultHeader(answer: true, style: nil, searched: false, stopped: true)
                     .padding(.leading, textLeading)
-                    .padding(.top, 8)
+                    .padding(.top, KeyboardMetrics.headerTop)
             } else if !model.isRunning, let session = model.session, session.current != nil {
                 ResultHeader(answer: session.currentIsAnswer,
                              style: session.versionInfo?[String(session.currentIndex)]?.style,
                              searched: session.currentSearchedBy != nil,
                              reply: session.currentReplySource?.message)
                     .padding(.leading, textLeading)
-                    .padding(.top, 8)
+                    .padding(.top, KeyboardMetrics.headerTop)
                     .opacity(faded ? 0.6 : 1)
             }
             // 生成中第一行是流光小字「AI 正在改写… / 正在回答…」（QA10），出结果后这行字消失，
@@ -1238,7 +1244,7 @@ struct ResultCard: View {
                     // 8 秒还没出第一个字（ER4）：后面加灰字「模型响应较慢」，右边小「取消」。
                     if model.responseSlow {
                         Text(L("模型响应较慢", "Slow to respond", "応答が遅れています"))
-                            .font(.system(size: 13))
+                            .font(.system(size: KeyboardMetrics.headerFont))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                         Spacer(minLength: 4)
@@ -1247,19 +1253,21 @@ struct ResultCard: View {
                                 .font(.system(size: 12.5, weight: .semibold))
                                 .foregroundStyle(Color.primary)
                                 .padding(.horizontal, 10)
-                                .frame(height: 22)
+                                .frame(height: KeyboardMetrics.compactCard ? 18 : 22)
                                 .background(Capsule().fill(Brand.searchDeclineFill))
                         }
                         .buttonStyle(KeyPressStyle())
                     }
                 }
+                .frame(height: KeyboardMetrics.headerHeight)
                 .padding(.leading, textLeading)
-                .padding(.top, 8)
+                .padding(.top, KeyboardMetrics.headerTop)
             }
+            // 紧凑版（T104）：正文贴到卡片底边，最下面 7pt 渐隐成卡片底色（resultText 里），不露半截字。
             resultText(faded: faded)
                 .padding(.leading, textLeading)
-                .padding(.top, model.isRunning || model.session?.current != nil ? 4 : 8)
-                .padding(.bottom, 8)
+                .padding(.top, model.isRunning || model.session?.current != nil ? KeyboardMetrics.headerGap : 8)
+                .padding(.bottom, KeyboardMetrics.compactCard ? 0 : 8)
                 .contentShape(Rectangle())
                 // 文字区上下滑留给滚动（展开、收起都一样），翻版本在右边的 ▲▼ 上滑；只有收起时生成中整块滑动翻版本。长按复制。
                 // 滑动放在主手势、长按放在同时识别，onLongPressGesture 会把拖动吞掉。
@@ -1270,7 +1278,7 @@ struct ResultCard: View {
                 .simultaneousGesture(SpatialTapGesture(count: 3).onEnded { value in
                     guard model.hasResult, let text = model.session?.current else { return }
                     // 减掉文字区的内边距；展开卡片滚动过时按未滚动估算，进入后可以再点一次调整。
-                    let point = CGPoint(x: value.location.x - textLeading, y: value.location.y - 4)
+                    let point = CGPoint(x: value.location.x - textLeading, y: value.location.y - KeyboardMetrics.headerGap)
                     model.beginFreeEdit(caret: CardTextHit.index(at: point, in: text, width: textWidth))
                 })
                 // VoiceOver 用不了滑动、长按、连点三下：上下轻扫（可调整）翻版本，「操作」里有分词和修改。
@@ -1395,7 +1403,13 @@ struct ResultCard: View {
         }
     }
 
-    private var runningColor: Color { model.askKind == .answer ? Brand.answerText : Brand.purpleText }
+    private var runningColor: Color {
+        switch model.cardTint {
+        case .answer: return Brand.answerText
+        case .help: return HelpStyle.title
+        case .polish: return Brand.purpleText
+        }
+    }
 
     @ViewBuilder
     private func resultText(faded: Bool) -> some View {
@@ -1415,13 +1429,16 @@ struct ResultCard: View {
                 .padding(.top, 6)
             } else if model.cardTall || !model.isRunning {
                 // 展开的四行和收起的两行都能上下滚着看全文（收起时翻版本靠右边的 ▲▼）。
+                // 紧凑版（T104）多留 7pt 空白在最下面，滚到底时最后一行不被渐隐盖住。
                 ScrollView {
                     text.frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.bottom, KeyboardMetrics.compactCard ? Self.bottomFade : 0)
                 }
                 .hidingScrollEdgeEffect()
+                .mask(fadeMask)
             } else {
-                // 两行高、生成中：第一行是「AI 正在…」，正文只露最新的一行。
-                text.lineLimit(1).truncationMode(.head)
+                // 两行高、生成中：第一行是「AI 正在…」，正文只露最新的一行；紧凑版（T104）露最新的两行。
+                text.lineLimit(KeyboardMetrics.compactCard ? 2 : 1).truncationMode(.head)
             }
         }
         .font(.system(size: 15))
@@ -1431,6 +1448,18 @@ struct ResultCard: View {
             Color.clear.onAppear { textWidth = proxy.size.width }
                 .onChange(of: proxy.size.width) { textWidth = $0 }
         })
+    }
+
+    /// 紧凑版（T104）正文最下面渐隐成卡片底色的高度。
+    private static let bottomFade: CGFloat = 7
+
+    /// 紧凑版正文底下 7pt 渐隐；横屏、iPad 不渐隐（底下本来就留 8 的边）。
+    private var fadeMask: some View {
+        VStack(spacing: 0) {
+            Color.black
+            LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+                .frame(height: KeyboardMetrics.compactCard ? Self.bottomFade : 0)
+        }
     }
 
     // MARK: 修改中
@@ -1563,12 +1592,12 @@ struct ResultCard: View {
         switch look {
         case .running:
             if animating {
-                FlowingBorder(shape: shape, colors: model.askKind == .answer ? Brand.answerRing : Brand.gradient)
+                FlowingBorder(shape: shape, colors: runningRing)
             } else {
-                shape.strokeBorder((model.askKind == .answer ? Brand.answerBorder : Brand.purpleText).opacity(0.5), lineWidth: 1)
+                shape.strokeBorder(runningColor.opacity(0.5), lineWidth: 1)
             }
         case .fresh:
-            // 整块描边跟着结果：问答天蓝，改写（润色也算）紫（MG3、MG4）。
+            // 整块描边跟着结果：问答天蓝，帮回绿，改写（润色也算）紫（MG3、MG4；帮回 cvbk 11-26）。
             shape.strokeBorder(resultRing, lineWidth: 1.5)
         case .faded:
             shape.strokeBorder(resultRing.opacity(0.45), lineWidth: 1.5)
@@ -1584,7 +1613,10 @@ struct ResultCard: View {
             shape.strokeBorder(editStroke, lineWidth: 2)
         case .search:
             shape.strokeBorder(Brand.answerBorder, lineWidth: 1.5)
-        case .checklist, .hint, .waiting:
+        case .waiting:
+            // 帮回开始前等着（HW1）：帮回绿。
+            shape.strokeBorder(HelpStyle.ring, lineWidth: 1.5)
+        case .checklist, .hint:
             shape.strokeBorder(Brand.rewriteRing, lineWidth: 1.5)
         }
     }
@@ -1595,7 +1627,22 @@ struct ResultCard: View {
         return KeyboardMetrics.pad != nil ? .trailing : .bottom
     }
 
-    private var resultRing: Color { model.session?.currentIsAnswer == true ? Brand.answerBorder : Brand.rewriteRing }
+    private var resultRing: Color {
+        switch model.cardTint {
+        case .answer: return Brand.answerBorder
+        case .help: return HelpStyle.ring
+        case .polish: return Brand.rewriteRing
+        }
+    }
+
+    /// 生成中边框的流光：问答天蓝、帮回绿、其余紫。
+    private var runningRing: [Color] {
+        switch model.cardTint {
+        case .answer: return Brand.answerRing
+        case .help: return HelpStyle.flowRing
+        case .polish: return Brand.gradient
+        }
+    }
 
     // MARK: 提示、出错、检查清单
 
@@ -1927,7 +1974,7 @@ struct FreeEditToast: View {
     }
 }
 
-/// 回答卡正文上面一行标题（AK2，取代左边的模式格）：13pt 粗体。
+/// 回答卡正文上面一行标题（AK2，取代左边的模式格）：13pt 粗体；iPhone 竖屏 12pt（T104，尺寸见 KeyboardMetrics.header*）。
 /// 改写「✨ AI 改写 · 正式」主色；问答「[问答图标] AI 回答 · 直击要害」蓝色，后面跟联网标签（只是状态，不能点）。
 /// 手改的那版没有风格名，只写「AI 改写」。
 struct ResultHeader: View {
@@ -1953,23 +2000,24 @@ struct ResultHeader: View {
         HStack(spacing: 0) {
             Group {
                 if answer {
-                    AskIcon(size: 15)
+                    AskIcon(size: KeyboardMetrics.headerIcon)
                 } else {
-                    PolishStars(size: 15, running: false, glowing: false, doneAt: nil, tint: color)
-                        .frame(width: 15, height: 15)
+                    PolishStars(size: KeyboardMetrics.headerIcon, running: false, glowing: false, doneAt: nil, tint: color)
+                        .frame(width: KeyboardMetrics.headerIcon, height: KeyboardMetrics.headerIcon)
                 }
             }
             .padding(.trailing, 4)
             Text((style.map { "\(head) · \($0)" } ?? head) + (stopped ? L(" · 已停止", " · Stopped", "・停止") : ""))
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: KeyboardMetrics.headerFont, weight: .bold))
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if answer, !stopped {
+            // 紧凑版（T104）去掉联网标签：联网过的回答识意行右边已经有「🌐 已联网 · Kimi」。
+            if answer, !stopped, !KeyboardMetrics.compactCard {
                 WebTag(on: searched).padding(.leading, 6).fixedSize()
             }
         }
         .foregroundStyle(color)
-        .frame(height: 18)
+        .frame(height: KeyboardMetrics.headerHeight)
         .accessibilityElement(children: .combine)
     }
 }
@@ -2014,11 +2062,11 @@ struct RunningLabel: View {
 
     var body: some View {
         let label = HStack(spacing: 5) {
-            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
-            Text(text).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            Image(systemName: icon).font(.system(size: KeyboardMetrics.compactCard ? 10 : 11, weight: .semibold))
+            Text(text).font(.system(size: KeyboardMetrics.headerFont, weight: .semibold)).lineLimit(1)
         }
         .foregroundStyle(color)
-        .frame(height: 18)
+        .frame(height: KeyboardMetrics.headerHeight)
         if animating {
             label.overlay {
                 GeometryReader { geo in

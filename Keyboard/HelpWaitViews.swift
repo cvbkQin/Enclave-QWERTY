@@ -308,12 +308,12 @@ struct HelpWaitCardBody: View {
     var body: some View {
         let head = L("AI 帮回", "AI reply", "AI 返信")
         let style = model.settings.selectedStyle?.displayName
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: KeyboardMetrics.compactCard ? 4 : 6) {
             HStack(spacing: 0) {
                 ReplyBadge().padding(.trailing, 5)
                 Text(style.map { "\(head) · \($0)" } ?? head)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Brand.purpleText)
+                    .font(.system(size: KeyboardMetrics.headerFont, weight: .bold))
+                    .foregroundStyle(HelpStyle.title)
                     .lineLimit(1)
                 Spacer(minLength: 6)
                 if !wait.interrupted, reduceMotion || !model.settings.polishAnimation {
@@ -324,7 +324,7 @@ struct HelpWaitCardBody: View {
                         .fixedSize()
                 }
             }
-            .frame(height: 18)
+            .frame(height: KeyboardMetrics.headerHeight)
             HStack(alignment: .top, spacing: 8) {
                 RoundedRectangle(cornerRadius: 1).fill(HelpStyle.green).frame(width: 2)
                 Text(wait.message)
@@ -337,7 +337,7 @@ struct HelpWaitCardBody: View {
         }
         .padding(.leading, leading)
         .padding(.trailing, 12)
-        .padding(.top, 8)
+        .padding(.top, KeyboardMetrics.headerTop)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(head + L("，回复：", ", replying to: ", "、返信先：") + wait.message)

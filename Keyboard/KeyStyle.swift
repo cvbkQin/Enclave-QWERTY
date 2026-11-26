@@ -160,9 +160,20 @@ enum KeyboardMetrics {
     /// AI 栏的键上下各剩多少（滑动区会裁掉伸出去的投影）。
     static var chipRoom: CGFloat { (topRow - chipHeight) / 2 }
     static let polishButtonWidth: CGFloat = 58
-    /// 结果卡片：默认两行，展开到四行，再多就在卡片里滚动。
-    static let cardHeight: CGFloat = 60
-    static let expandedCardHeight: CGFloat = 100
+    /// 回答卡紧凑版（T104，design/answer-card AC3 定稿 A，cvbk 11-26 13:02）：只在 iPhone 竖屏。
+    /// 识意行 40 → 30，省下的 10 给上半格（60 → 70），回答卡总高、键盘总高不变；卡头变小，正文完整 2 行。
+    /// 横屏、iPad（含浮动键盘）照旧。
+    static var compactCard: Bool { pad == nil && !landscape && !floating }
+    /// 结果卡片：默认两行，展开到四行，再多就在卡片里滚动。紧凑版各加 10（识意行让出来的）。
+    static var cardHeight: CGFloat { compactCard ? 70 : 60 }
+    static var expandedCardHeight: CGFloat { compactCard ? 110 : 100 }
+    /// 卡头（ResultHeader、ReplyResultHeader、生成中流光小字）：紧凑版上边距 6、高 14、字 12、图标 13，和正文隔 2；
+    /// 横屏、iPad 照旧 8、18、13、15、4。
+    static var headerTop: CGFloat { compactCard ? 6 : 8 }
+    static var headerHeight: CGFloat { compactCard ? 14 : 18 }
+    static var headerFont: CGFloat { compactCard ? 12 : 13 }
+    static var headerIcon: CGFloat { compactCard ? 13 : 15 }
+    static var headerGap: CGFloat { compactCard ? 2 : 4 }
     /// 「AI 生成」标签（CP8）占的高度：标签已经放进正文第一行开头，不再单独占一行。
     static let aiLabelHeight: CGFloat = 0
 
@@ -207,10 +218,10 @@ enum KeyboardMetrics {
     /// 键盘总高度：AI 栏 + 按键，展开时上面加回答卡和识意框一整块（替换 / 插入键在左边，不占高度）；
     /// 收着时点风格键再加浮起的一行，展开时风格一排换掉识意框，不加高。
     /// 提示卡出现时只留它一块，不和结果卡片、展开的一行叠在一起。
-    /// 识意框：回答卡下半格 40 高（MG3）。
-    static let askBoxHeight: CGFloat = 40
+    /// 识意框：回答卡下半格 40 高（MG3）；紧凑版（iPhone 竖屏，T104）30 高。
+    static var askBoxHeight: CGFloat { compactCard ? 30 : 40 }
     /// 自由编辑（FE3）：整块（含识意框）变成编辑框，高 = 整块高（2 行时 100），键盘总高不跳。
-    static let freeEditExtra: CGFloat = askBoxHeight
+    static var freeEditExtra: CGFloat { askBoxHeight }
     /// 分词面板打开时比按键区高 40（BB 修订：266→306），结果卡同时固定 2 行。
     static let wordPanelExtra: CGFloat = 40
 
