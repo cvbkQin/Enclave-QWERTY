@@ -1367,6 +1367,8 @@ struct AnswerStyleEditor: View {
             }
         }
         .navigationTitle(L("编辑问答风格", "Edit answer style", "回答スタイルを編集"))
+        // 原来没写模式，跟着提示词根页面是大标题；根页面改 inline（bug #44）后写明，样子不变。
+        .navigationBarTitleDisplayMode(.large)
         .doneEditingButton(editingPrompt)
         .onDisappear { optimizer.cancel() }
     }
