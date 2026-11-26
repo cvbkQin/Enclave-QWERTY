@@ -1323,6 +1323,8 @@ extension KeyboardModel {
         let newComposition = engine.composition
         let compositionChanged = newComposition != composition
         if compositionChanged { composition = newComposition }
+        // 修改 AI 结果时选中了一段又打拼音：第一个字母就先删掉选中的字（T105）。
+        if compositionChanged, !newComposition.isEmpty, target == .card, cardSelection != nil { dropCardSelectionForComposing() }
         // 123 页上接着 v 打数字（快捷输入的大写金额）时，拼写栏也留着显示 v123.45。
         let row = !composition.isEmpty && (layer == .letters || (engine as? QueuedEngine)?.acceptsNumberKey("0") == true)
         if row != pinyinRowShown {

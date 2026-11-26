@@ -1429,52 +1429,29 @@ struct ResultCard: View {
 
     // MARK: 修改中
 
-    /// 卡片里的文字可以直接改：光标前、正在拼的拼音（紫色下划线）、闪烁的光标、光标后。
+    /// 卡片里的文字可以直接改：光标、正在拼的拼音（紫色下划线）、选中、拖柄（CardEditText）。
+    /// 内边（左右 12、上下 8）在 CardEditText 里面，拖柄的圆点画在内边里不被切掉。
+    /// 选中的底色和拖柄跟卡片功能色（T105 ES1）；编辑菜单（CardEditMenu）弹在选中文字下面，盖在卡片下沿、拼音行和按键上
+    /// （回答卡这一块 zIndex 2，在下面几行之上）。
     private var editView: some View {
-        HStack(alignment: .top, spacing: 2) {
-            ScrollViewReader { reader in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        editText
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(GeometryReader { proxy in
-                                Color.clear.onAppear { textWidth = proxy.size.width }
-                            })
-                            .contentShape(Rectangle())
-                            .simultaneousGesture(SpatialTapGesture().onEnded { value in
-                                model.beginCardEdit(caret: CardTextHit.index(at: value.location, in: model.cardDraft,
-                                                                             width: textWidth))
-                            })
-                        Color.clear.frame(height: 1).id("end")
+        let colors = CardEditMenu.selectionColors(model.cardTint)
+        return CardEditText(model: model, caretColor: Brand.tagSelectedText, selectionFill: colors.fill, handleColor: colors.handle)
+            .overlay(alignment: .topLeading) {
+                if model.cardMenu != nil, let anchor = model.cardMenuAnchor {
+                    let items = model.cardMenuItems
+                    if !items.isEmpty {
+                        GeometryReader { geo in
+                            let width = CardEditMenu.width(items)
+                            // 靠边时整个菜单往里挪（卡片离屏幕边约 4，再留 4），箭头还对着字。
+                            let x = min(max(anchor.x - width / 2, 4), max(4, geo.size.width - width - 4))
+                            CardEditMenu(items: items, arrowX: anchor.x - x) { model.performCardMenu($0) }
+                                .offset(x: x, y: anchor.y + 2)
+                        }
+                        .transition(.opacity)
                     }
                 }
-                .hidingScrollEdgeEffect()
-                .onChange(of: model.cardDraft) { _ in
-                    // 在末尾打字时跟着滚到最下面。
-                    if model.cardCaret >= model.cardDraft.count - 1 { reader.scrollTo("end", anchor: .bottom) }
-                }
-                .onAppear {
-                    if model.cardCaret >= model.cardDraft.count { reader.scrollTo("end", anchor: .bottom) }
-                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-        }
-    }
-
-    private var editText: some View {
-        let draft = model.cardDraft
-        let split = draft.index(draft.startIndex, offsetBy: min(model.cardCaret, draft.count))
-        return TimelineView(.periodic(from: .now, by: 0.5)) { context in
-            let visible = Int(context.date.timeIntervalSinceReferenceDate * 2) % 2 == 0 || model.isComposing
-            (Text(draft[..<split])
-                + Text(model.composition).underline(color: Brand.tagSelectedText)
-                + Text(Image(uiImage: CardTextHit.caret)).foregroundColor(visible ? Brand.tagSelectedText : .clear)
-                    .baselineOffset(-3)
-                + Text(draft[split...]))
-                .font(.system(size: 15))
-                .foregroundStyle(Color.primary)
-        }
+            .animation(.easeOut(duration: 0.12), value: model.cardMenu)
     }
 
     /// ✦ 状态、复制、展开：15pt 线性图标，24×18 点击区，上中下对齐。
