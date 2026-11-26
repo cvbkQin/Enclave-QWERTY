@@ -78,7 +78,7 @@ targets:
         outputFiles:
           - $(SRCROOT)/Generated/$(TARGET_NAME)/BuiltinSecrets.swift
         basedOnDependencyAnalysis: false
-    # iCloud 同步的后台模式：ICLOUD_SYNC=YES 时才写进编好的 Info.plist。输入写 Info.plist，Xcode 就会等它处理完再跑，签名在最后。
+    # 后台模式：词库自动更新每个包都有，iCloud 同步的 ICLOUD_SYNC=YES 时才写进编好的 Info.plist。输入写 Info.plist，Xcode 就会等它处理完再跑，签名在最后。
     postBuildScripts:
       - name: iCloud background modes
         script: python3 "$SRCROOT/scripts/icloud-background-modes.py"
@@ -126,7 +126,8 @@ targets:
         # iCloud 同步（App/Sync）：这个包有没有 iCloud 能力、用哪个 CloudKit 容器。没有能力时代码不碰 CKContainer。
         EnclaveICloudSync: $(ICLOUD_SYNC)
         EnclaveCloudContainer: iCloud.$(BUNDLE_ID_PREFIX).enclave
-        # 后台同步的后台模式和后台任务编号不写在这里：只在 ICLOUD_SYNC=YES 的包里由 scripts/icloud-background-modes.py 加上（见下面 postBuildScripts）。
+        # 后台模式和后台任务编号不写在这里：由 scripts/icloud-background-modes.py 加上（见上面 postBuildScripts）。
+        # 后台刷新和词库自动更新的编号每个包都有；iCloud 同步的只在 ICLOUD_SYNC=YES 的包里有。
         CFBundleURLTypes:
           - CFBundleURLName: enclave
             CFBundleURLSchemes: [enclave]

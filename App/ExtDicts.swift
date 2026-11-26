@@ -44,6 +44,8 @@ enum ExtDict {
         /// 导入时的原文件名。
         var fileName: String?
         var addedAt: Date
+        /// 下载时清单里的 sha256（第 99 条起记，判断有没有更新看它变没变；更早下的没有，按 version 比）。
+        var sha256: String?
     }
 
     /// 随 App 带的词库。词条数和版本读 builtin.json（scripts/build-ext-dicts.py 生成）。
@@ -57,7 +59,7 @@ enum ExtDict {
 
     static var builtins: [Builtin] {
         let game = L("游戏", "Game", "ゲーム")
-        let gameBlurb = L("英雄、角色、装备、技能名。随 App 更新，不用单独下载。", "Heroes, characters, items and skills. Updated with the app; no separate download.", "ヒーロー、キャラクター、装備、スキル名。アプリと一緒に更新され、別途ダウンロードは不要です。")
+        let gameBlurb = L("英雄、角色、装备、技能名。随 App 带着，也会跟着服务器更新，不用单独下载。", "Heroes, characters, items and skills. Comes with the app and also updates from the server; no separate download.", "ヒーロー、キャラクター、装備、スキル名。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。")
         return [
             Builtin(id: "lol", name: L("英雄联盟", "League of Legends", "リーグ・オブ・レジェンド"), category: game, blurb: gameBlurb, license: .own),
             Builtin(id: "wzry", name: L("王者荣耀", "Honor of Kings", "王者栄耀"), category: game, blurb: gameBlurb, license: .own),
@@ -65,15 +67,15 @@ enum ExtDict {
             Builtin(id: "dota2", name: "Dota 2", category: game, blurb: gameBlurb, license: .own),
             Builtin(id: "hpjy", name: L("和平精英", "Peacekeeper Elite", "和平精英"), category: game, blurb: gameBlurb, license: .own),
             Builtin(id: "meme", name: L("网络流行语", "Internet slang", "ネット流行語"), category: "",
-                    blurb: L("近年的网络流行语。随 App 更新，不用单独下载。", "Recent internet slang. Updated with the app; no separate download.", "最近のネット流行語。アプリと一緒に更新され、別途ダウンロードは不要です。"), license: .own),
+                    blurb: L("近年的网络流行语。随 App 带着，也会跟着服务器更新，不用单独下载。", "Recent internet slang. Comes with the app and also updates from the server; no separate download.", "最近のネット流行語。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .own),
             Builtin(id: "chengyu", name: L("成语", "Idioms", "成語"), category: "THUOCL",
-                    blurb: L("常用成语。随 App 更新，不用单独下载。", "Common four-character idioms. Updated with the app; no separate download.", "よく使う成語。アプリと一緒に更新され、別途ダウンロードは不要です。"), license: .thuocl),
+                    blurb: L("常用成语。随 App 带着，也会跟着服务器更新，不用单独下载。", "Common four-character idioms. Comes with the app and also updates from the server; no separate download.", "よく使う成語。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .thuocl),
             Builtin(id: "diming", name: L("地名", "Place names", "地名"), category: "THUOCL",
-                    blurb: L("省市区县、乡镇、景点。随 App 更新，不用单独下载。", "Provinces, cities, counties, towns and sights. Updated with the app; no separate download.", "省・市・県、町村、観光地。アプリと一緒に更新され、別途ダウンロードは不要です。"), license: .thuocl),
+                    blurb: L("省市区县、乡镇、景点。随 App 带着，也会跟着服务器更新，不用单独下载。", "Provinces, cities, counties, towns and sights. Comes with the app and also updates from the server; no separate download.", "省・市・県、町村、観光地。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .thuocl),
             Builtin(id: "it", name: "IT", category: "THUOCL",
-                    blurb: L("互联网、软件、硬件术语。随 App 更新，不用单独下载。", "Internet, software and hardware terms. Updated with the app; no separate download.", "インターネット、ソフトウェア、ハードウェアの用語。アプリと一緒に更新され、別途ダウンロードは不要です。"), license: .thuocl),
+                    blurb: L("互联网、软件、硬件术语。随 App 带着，也会跟着服务器更新，不用单独下载。", "Internet, software and hardware terms. Comes with the app and also updates from the server; no separate download.", "インターネット、ソフトウェア、ハードウェアの用語。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .thuocl),
             Builtin(id: "caijing", name: L("财经", "Finance", "財経"), category: "THUOCL",
-                    blurb: L("金融、经济、公司术语。随 App 更新，不用单独下载。", "Finance, economics and business terms. Updated with the app; no separate download.", "金融、経済、企業の用語。アプリと一緒に更新され、別途ダウンロードは不要です。"), license: .thuocl),
+                    blurb: L("金融、经济、公司术语。随 App 带着，也会跟着服务器更新，不用单独下载。", "Finance, economics and business terms. Comes with the app and also updates from the server; no separate download.", "金融、経済、企業の用語。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .thuocl),
         ]
     }
 
@@ -83,6 +85,8 @@ enum ExtDict {
             let entries: Int
             let version: String
             let size: Int64
+            /// 第 99 条起 build-ext-dicts.py 写进来；和服务器 builtinUpdates 里的比，看服务器那份是不是新的。
+            let sha256: String?
         }
         let dicts: [Item]
     }
@@ -96,6 +100,26 @@ enum ExtDict {
         return Dictionary(manifest.dicts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
     }()
 
+    /// 内置词库现在用的那一份：服务器下的（builtinUpdates）比 App 自带的新就用服务器的，不然用自带的（用户 11-26 定内置也跟着服务器更新）。
+    struct BuiltinCopy {
+        var entries: Int
+        var version: String
+        var sha256: String?
+        var url: URL
+        var fromServer: Bool
+    }
+
+    static func builtinCopy(_ id: String) -> BuiltinCopy? {
+        let bundled = builtinManifest[id]
+        if let server = builtinServer[id], let url = builtinServerURL(id: id),
+           DictUpdatePolicy.usesServerCopy(serverVersion: server.version, bundledVersion: bundled?.version),
+           FileManager.default.fileExists(atPath: url.path) {
+            return BuiltinCopy(entries: server.entries, version: server.version, sha256: server.sha256, url: url, fromServer: true)
+        }
+        guard let bundled, let url = fileURL(id: id, kind: .builtin) else { return nil }
+        return BuiltinCopy(entries: bundled.entries, version: bundled.version, sha256: bundled.sha256, url: url, fromServer: false)
+    }
+
     /// 有文件的内置词库（builtin.json 里有的才算）。
     static var availableBuiltins: [Builtin] {
         builtins.filter { builtinManifest[$0.id] != nil }
@@ -106,6 +130,7 @@ enum ExtDict {
     private static let installedKey = "extDicts.installed"
     private static let offKey = "extDicts.off"
     private static let removedKey = "extDicts.removedBuiltins"
+    private static let builtinServerKey = "extDicts.builtinServer"
 
     static var installed: [Installed] {
         get {
@@ -123,6 +148,19 @@ enum ExtDict {
     static var removedBuiltins: Set<String> {
         get { Set(SharedStorage.defaults.stringArray(forKey: removedKey) ?? []) }
         set { SharedStorage.defaults.set(newValue.sorted(), forKey: removedKey) }
+    }
+
+    /// 从服务器下的内置词库新版（id → 记录，kind 是 builtin）。文件在 ext_dicts/builtin/。
+    static var builtinServer: [String: Installed] {
+        get {
+            guard let data = SharedStorage.defaults.data(forKey: builtinServerKey) else { return [:] }
+            return (try? JSONDecoder().decode([String: Installed].self, from: data)) ?? [:]
+        }
+        set { SharedStorage.defaults.set(try? JSONEncoder().encode(newValue), forKey: builtinServerKey) }
+    }
+
+    static func builtinServerURL(id: String) -> URL? {
+        folder?.appendingPathComponent("builtin", isDirectory: true).appendingPathComponent("ext_\(id).dict.yaml")
     }
 
     /// 下载、导入的词库文件夹：Rime/ext_dicts/（共享副本每次部署整份替换，所以不放 shared 里）。
@@ -146,8 +184,8 @@ enum ExtDict {
             }
         }
         for builtin in availableBuiltins where !off.contains(builtin.id) && !removed.contains(builtin.id) {
-            if let url = fileURL(id: builtin.id, kind: .builtin), let manifest = builtinManifest[builtin.id] {
-                list.append((builtin.id, manifest.version, url))
+            if let copy = builtinCopy(builtin.id) {
+                list.append((builtin.id, copy.version, copy.url))
             }
         }
         return list
@@ -170,7 +208,9 @@ enum ExtDict {
 // MARK: - 在线词库清单
 
 /// enclavekb.cn/dicts/catalog.json：名称、内容、词条数、大小、许可、版本、sha256、下载地址。
-/// 只在打开词库页时拉一次，不后台联网；拉不到用上次的，第一次用 App 里带的这份。
+/// 打开热门词库页时拉一次；「自动更新词库」开着时约 7 天自动拉一次（DictAutoUpdate）。拉不到用上次的，第一次用 App 里带的这份。
+/// schema 2（第 99 条）加了 updated、grammar（整句模型的版本和两条线路的地址）、builtinUpdates（内置词库的新版）；
+/// builtinUpdates 不能放进 dicts，不然老版本 App 会把内置词库当成「可以下载」的显示。
 struct ExtDictCatalog: Codable, Equatable {
     struct Text: Codable, Equatable {
         var zh: String
@@ -198,7 +238,30 @@ struct ExtDictCatalog: Codable, Equatable {
         }
     }
 
+    /// 内置词库的服务器新版：只有文件信息，名字、许可用 App 里的。
+    struct BuiltinUpdate: Codable, Equatable, Identifiable {
+        var id: String
+        var entries: Int
+        var size: Int64
+        var version: String
+        var sha256: String?
+        var url: String?
+    }
+
+    /// 整句模型：版本、大小、sha256，两条线路的地址（键是 GrammarLine.catalogKey）。
+    struct Grammar: Codable, Equatable {
+        var version: String
+        var size: Int64?
+        var sha256: String?
+        var urls: [String: String]?
+    }
+
     var dicts: [Item]
+    var schema: Int? = nil
+    /// 生成清单的时间（ISO 8601），publish-dicts.sh 发完拿它核对。
+    var updated: String? = nil
+    var grammar: Grammar? = nil
+    var builtinUpdates: [BuiltinUpdate]? = nil
 
     static var baseURL: URL {
         #if DEBUG
@@ -224,6 +287,7 @@ struct ExtDictCatalog: Codable, Equatable {
     ])
 
     private static let cacheKey = "extDicts.catalog"
+    private static let etagKey = "extDicts.catalogETag"
 
     static var cached: ExtDictCatalog {
         guard let data = UserDefaults.standard.data(forKey: cacheKey),
@@ -231,20 +295,32 @@ struct ExtDictCatalog: Codable, Equatable {
         return catalog
     }
 
+    /// 拉清单。带上次的 ETag（If-None-Match），没变时服务器只回 304，用缓存的那份。拉不到返回 nil。
+    /// 请求里只有地址和 URLSession 默认的头，不带设备、用户编号（05 合规条件 4）。
     static func fetch() async -> ExtDictCatalog? {
         var request = URLRequest(url: baseURL.appendingPathComponent("catalog.json"))
         request.timeoutInterval = 10
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        let defaults = UserDefaults.standard
+        if let etag = defaults.string(forKey: etagKey), defaults.data(forKey: cacheKey) != nil {
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let catalog = try? JSONDecoder().decode(ExtDictCatalog.self, from: data) else { return nil }
-        UserDefaults.standard.set(data, forKey: cacheKey)
+              let http = response as? HTTPURLResponse else { return nil }
+        if http.statusCode == 304 { return cached }
+        guard http.statusCode == 200, let catalog = try? JSONDecoder().decode(ExtDictCatalog.self, from: data) else { return nil }
+        defaults.set(data, forKey: cacheKey)
+        defaults.set(http.value(forHTTPHeaderField: "ETag"), forKey: etagKey)
         return catalog
     }
 
     /// 相对地址按清单所在目录解析。
     static func downloadURL(_ item: Item) -> URL? {
-        guard let url = item.url, !url.isEmpty else { return nil }
+        resolve(item.url)
+    }
+
+    static func resolve(_ url: String?) -> URL? {
+        guard let url, !url.isEmpty else { return nil }
         return URL(string: url, relativeTo: baseURL)?.absoluteURL
     }
 }
@@ -269,6 +345,8 @@ final class ExtDictStore: NSObject, ObservableObject {
     @Published private(set) var installed = ExtDict.installed
     @Published private(set) var off = ExtDict.off
     @Published private(set) var removedBuiltins = ExtDict.removedBuiltins
+    /// 内置词库现在用的那一份（服务器下的或 App 自带的），换了服务器版本后刷新。
+    @Published private(set) var builtinCopies = ExtDictStore.loadBuiltinCopies()
     @Published private(set) var catalog = ExtDictCatalog.cached
     /// 正在下载的：id → (已下, 总共) 字节。
     @Published private(set) var downloads: [String: (received: Int64, expected: Int64)] = [:]
@@ -312,12 +390,13 @@ final class ExtDictStore: NSObject, ObservableObject {
             return Row(id: item.id, kind: item.kind, name: displayName(item), subtitle: detail, entries: item.entries,
                        enabled: !off.contains(item.id), hasUpdate: update(for: item) != nil)
         }
+        // 内置的副本跟着服务器更新（第 99 条）：副标题写现在用的那份的版本日期，不再写「随 App 更新」。
         let builtin = ExtDict.availableBuiltins.filter { !removedBuiltins.contains($0.id) }.map { pack -> Row in
-            let entries = ExtDict.builtinManifest[pack.id]?.entries ?? 0
-            var parts = [pack.category, Self.entryText(entries)].filter { !$0.isEmpty }
-            if pack.id == "meme" { parts.append(L("随 App 更新", "Updated with the app", "アプリと一緒に更新")) }
+            let copy = builtinCopies[pack.id]
+            let entries = copy?.entries ?? 0
+            let parts = [pack.category, Self.entryText(entries), copy.map { Self.versionText($0.version) } ?? ""].filter { !$0.isEmpty }
             return Row(id: pack.id, kind: .builtin, name: pack.name, subtitle: parts.joined(separator: " · "), entries: entries,
-                       enabled: !off.contains(pack.id), hasUpdate: false)
+                       enabled: !off.contains(pack.id), hasUpdate: builtinUpdate(for: pack.id) != nil)
         }
         return added + builtin
     }
@@ -343,11 +422,40 @@ final class ExtDictStore: NSObject, ObservableObject {
 
     func isDownloaded(_ id: String) -> Bool { installed.contains { $0.id == id } }
 
-    /// 服务器上有新版：返回清单里的那一项。
+    /// 服务器上有新版：返回清单里的那一项。看 sha256 变没变（老记录没有 sha256 的按版本比），
+    /// 修掉以前每次生成都写当天日期、内容没变也报「有更新」的问题（第 99 条）。
     func update(for item: ExtDict.Installed) -> ExtDictCatalog.Item? {
         guard item.kind == .downloaded, let entry = catalog.dicts.first(where: { $0.id == item.id }),
-              ExtDictCatalog.downloadURL(entry) != nil, entry.version > item.version else { return nil }
+              ExtDictCatalog.downloadURL(entry) != nil,
+              DictUpdatePolicy.isNewer(remoteSHA: entry.sha256, remoteVersion: entry.version,
+                                       localSHA: item.sha256, localVersion: item.version) else { return nil }
         return entry
+    }
+
+    /// 内置词库在服务器上有比现在用的那份新的：只有比 App 自带的也新时才算（App 升级后自带的更新了就不用下）。删掉的内置不管。
+    func builtinUpdate(for id: String) -> ExtDictCatalog.BuiltinUpdate? {
+        guard !removedBuiltins.contains(id), let entry = catalog.builtinUpdates?.first(where: { $0.id == id }),
+              ExtDictCatalog.resolve(entry.url) != nil,
+              DictUpdatePolicy.usesServerCopy(serverVersion: entry.version, bundledVersion: ExtDict.builtinManifest[id]?.version),
+              let current = builtinCopies[id],
+              DictUpdatePolicy.isNewer(remoteSHA: entry.sha256, remoteVersion: entry.version,
+                                       localSHA: current.sha256, localVersion: current.version) else { return nil }
+        return entry
+    }
+
+    /// 要自动更新的：下载过的（关着的也更新文件，保持关着）和内置的。导入的没有服务器版本。
+    var pendingUpdates: (dicts: [ExtDictCatalog.Item], builtins: [ExtDictCatalog.BuiltinUpdate]) {
+        (installed.compactMap(update(for:)), ExtDict.availableBuiltins.compactMap { builtinUpdate(for: $0.id) })
+    }
+
+    var updateCount: Int {
+        let pending = pendingUpdates
+        return pending.dicts.count + pending.builtins.count
+    }
+
+    nonisolated private static func loadBuiltinCopies() -> [String: ExtDict.BuiltinCopy] {
+        Dictionary(ExtDict.availableBuiltins.compactMap { pack in ExtDict.builtinCopy(pack.id).map { (pack.id, $0) } },
+                   uniquingKeysWith: { a, _ in a })
     }
 
     // MARK: 改动（每次改完都排一次部署）
@@ -405,8 +513,17 @@ final class ExtDictStore: NSObject, ObservableObject {
         }
     }
 
-    func refreshCatalog() async {
-        if let fresh = await ExtDictCatalog.fetch() { catalog = fresh }
+    /// 拉一次清单。拉到了返回 true（304 也算）。
+    @discardableResult
+    func refreshCatalog() async -> Bool {
+        guard let fresh = await ExtDictCatalog.fetch() else { return false }
+        if fresh != catalog { catalog = fresh }
+        return true
+    }
+
+    /// 清单换成新的（自动检查拉到的）。
+    func setCatalog(_ fresh: ExtDictCatalog) {
+        if fresh != catalog { catalog = fresh }
     }
 
     // MARK: 导入
@@ -483,34 +600,73 @@ final class ExtDictStore: NSObject, ObservableObject {
     }
 
     private func finishDownload(id: String, location: URL) {
-        guard let item = catalog.dicts.first(where: { $0.id == id }), let folder = ExtDict.folder else { return }
+        guard let item = catalog.dicts.first(where: { $0.id == id }) else { return }
         do {
             let data = try Data(contentsOf: location)
-            if let expected = item.sha256, !expected.isEmpty {
-                let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-                guard actual == expected.lowercased() else { throw DownloadError.corrupt }
-            }
-            guard let text = String(data: data, encoding: .utf8), text.contains("name: ext_\(id)") else { throw DownloadError.corrupt }
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let target = folder.appendingPathComponent("ext_\(id).dict.yaml")
-            if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
-            try data.write(to: target, options: .atomic)
-            Self.excludeFromBackup(target)
-            let entry = ExtDict.Installed(id: id, kind: .downloaded, name: item.name.zh, entries: ExtDictFormat.entryCount(text),
-                                          size: Int64(data.count), version: item.version, license: item.license, fileName: nil,
-                                          addedAt: installed.first(where: { $0.id == id })?.addedAt ?? Date())
-            installed.removeAll { $0.id == id }
-            installed.append(entry)
-            ExtDict.installed = installed
-            off.remove(id)
-            ExtDict.off = off
+            try install(item, data: data, keepOff: false)
             scheduleDeploy(.hot)
         } catch {
             downloadError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 
-    private enum DownloadError: LocalizedError {
+    /// 校验 sha256 和词库名，写进 ext_dicts/，更新本地记录。返回装之前和之后的词条数（自动更新的提示写「+N 词」）。
+    /// keepOff：自动更新时用户关着的词库保持关着；手动下载的打开。
+    @discardableResult
+    func install(_ item: ExtDictCatalog.Item, data: Data, keepOff: Bool) throws -> (old: Int?, new: Int) {
+        guard let folder = ExtDict.folder else { throw ImportError.noAppGroup }
+        let text = try Self.verified(data, id: item.id, sha256: item.sha256)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let target = folder.appendingPathComponent("ext_\(item.id).dict.yaml")
+        try data.write(to: target, options: .atomic)
+        Self.excludeFromBackup(target)
+        let old = installed.first(where: { $0.id == item.id })
+        let entry = ExtDict.Installed(id: item.id, kind: .downloaded, name: item.name.zh, entries: ExtDictFormat.entryCount(text),
+                                      size: Int64(data.count), version: item.version, license: item.license, fileName: nil,
+                                      addedAt: old?.addedAt ?? Date(), sha256: item.sha256?.lowercased())
+        installed.removeAll { $0.id == item.id }
+        installed.append(entry)
+        ExtDict.installed = installed
+        if !keepOff {
+            off.remove(item.id)
+            ExtDict.off = off
+        }
+        return (old?.entries, entry.entries)
+    }
+
+    /// 内置词库的服务器新版：放进 ext_dicts/builtin/，以后部署用这份（比 App 自带的新时）。返回装之前和之后的词条数。
+    @discardableResult
+    func installBuiltin(_ update: ExtDictCatalog.BuiltinUpdate, data: Data) throws -> (old: Int?, new: Int) {
+        guard let target = ExtDict.builtinServerURL(id: update.id) else { throw ImportError.noAppGroup }
+        let text = try Self.verified(data, id: update.id, sha256: update.sha256)
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: target, options: .atomic)
+        Self.excludeFromBackup(target)
+        let old = builtinCopies[update.id]?.entries
+        let name = ExtDict.builtins.first { $0.id == update.id }?.name ?? update.id
+        var server = ExtDict.builtinServer
+        server[update.id] = ExtDict.Installed(id: update.id, kind: .builtin, name: name, entries: ExtDictFormat.entryCount(text),
+                                              size: Int64(data.count), version: update.version, license: nil, fileName: nil,
+                                              addedAt: Date(), sha256: update.sha256?.lowercased())
+        ExtDict.builtinServer = server
+        builtinCopies = Self.loadBuiltinCopies()
+        return (old, server[update.id]?.entries ?? 0)
+    }
+
+    /// 清单里有 sha256 就校验；文件里的词库名要对得上。
+    nonisolated static func verified(_ data: Data, id: String, sha256 expected: String?) throws -> String {
+        if let expected, !expected.isEmpty {
+            let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+            guard actual == expected.lowercased() else { throw DownloadError.corrupt }
+        }
+        guard let text = String(data: data, encoding: .utf8), text.contains("name: ext_\(id)") else { throw DownloadError.corrupt }
+        return text
+    }
+
+    /// 合并成一次部署（自动更新在前台下完时调）。
+    func deploySoon() { scheduleDeploy(.hot) }
+
+    enum DownloadError: LocalizedError {
         case corrupt
         var errorDescription: String? {
             L("下载的文件不完整，请再试一次。", "The downloaded file is incomplete. Please try again.", "ダウンロードしたファイルが不完全です。もう一度お試しください。")

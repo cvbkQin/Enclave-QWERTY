@@ -28,7 +28,7 @@ enum PrivacyPolicy {
 
 ## 一、核心原则
 
-1. **本应用不设账号体系。您的 AI 请求由设备直接发送给您选择的服务商，无第三方中转；我们不收集、不上传您的输入内容。我们的服务器仅用于接收您主动提交的反馈（见第二条第（七）项）和提供可选的词库文件下载。**
+1. **本应用不设账号体系。您的 AI 请求由设备直接发送给您选择的服务商，无第三方中转；我们不收集、不上传您的输入内容。我们的服务器仅用于接收您主动提交的反馈（见第二条第（七）项）和提供词库文件的下载与更新。**
 2. 打字、候选词计算和输入习惯学习全部在您的设备本地完成。[[icloud]]如您开启 iCloud 同步，学到的词等数据会以端到端加密的方式存入您自己的 iCloud 账户，我们和 Apple 都无法读取（见第三条“iCloud 同步”）。[[/icloud]]
 3. 只有在您主动使用 AI 功能时，相关文字才会发送到**您自己填写**的模型服务接口，且不经过我们。
 
@@ -38,7 +38,12 @@ enum PrivacyPolicy {
 
 拼音输入、候选词计算、联想预测和输入习惯学习均在您的设备本地完成，不通过网络传输任何内容。[[icloud]]键盘本身不连接 iCloud。[[/icloud]]
 
-如您主动下载词库文件，本应用会从文件服务器下载：在“键盘 › 词库 › 热门词库”中下载的在线词库（如游戏、网络流行语、百科词库），来自我们的服务器 enclavekb.cn；拼音设置中的“整句模型”，中国大陆店面来自 enclavekb.cn，其他地区来自 GitHub。下载请求不包含您的输入内容；我们的服务器会依法记录访问日志（IP 地址、时间、请求地址、设备标识），保存 6 个月后删除。
+本应用会从文件服务器获取以下文件，请求中不包含您的输入内容：
+
+1. **热门词库：** 在“键盘 › 词库 › 热门词库”中下载的在线词库（如百科、医学词库）来自我们的服务器 enclavekb.cn。您打开热门词库页时，本应用会从 enclavekb.cn 获取词库清单，用于显示可下载的词库和更新。“**自动更新词库**”**默认开启**：开启时，本应用约每 7 天（在您打开 App 时，或在系统允许的后台刷新时）从 enclavekb.cn 获取一次词库清单；如您已下载的词库或 App 自带的词库（如游戏、网络流行语、成语）有新版本，会自动下载并替换，低数据模式下不自动下载。您可以在热门词库页关闭“自动更新词库”，关闭后只在您打开热门词库页或点击“检查更新”时获取清单，更新需要您手动点击。
+2. **整句模型：** 拼音设置中的“整句模型”只在您点击“下载”或“更新”时下载。下载线路可以选择“非中国大陆”（GitHub）或“中国大陆”（我们的服务器 enclavekb.cn），默认按 App Store 地区选择；从 GitHub 下载时适用 GitHub 的隐私政策。整句模型有新版本时只提示，不会自动下载。
+
+我们的服务器会依法记录访问日志（IP 地址、时间、请求地址、设备标识），保存 6 个月后删除。
 
 您从文件导入的词库（细胞词库 .scel、Rime 词库 .dict.yaml）在您的设备本地读取和转换，不会上传。
 
@@ -191,7 +196,7 @@ Enclave (the "App") is provided by {developer} ("we", "us"). This Privacy Policy
 
 ## 1. Information We Collect
 
-The App has no user accounts. Your AI requests go straight from your device to the provider you chose, with no third-party relay, and we never collect or upload what you type. Our own server is used only to receive feedback you choose to send (see "Feedback" below) and to offer optional dictionary downloads.[[icloud]] If you turn on iCloud Sync, data such as your learned words is stored, end-to-end encrypted, in your own iCloud account. Neither we nor Apple can read it (see "iCloud Sync" in section 3).[[/icloud]]
+The App has no user accounts. Your AI requests go straight from your device to the provider you chose, with no third-party relay, and we never collect or upload what you type. Our own server is used only to receive feedback you choose to send (see "Feedback" below) and to offer dictionary downloads and updates.[[icloud]] If you turn on iCloud Sync, data such as your learned words is stored, end-to-end encrypted, in your own iCloud account. Neither we nor Apple can read it (see "iCloud Sync" in section 3).[[/icloud]]
 
 ## 2. How Each Feature Handles Information
 
@@ -199,7 +204,12 @@ The App has no user accounts. Your AI requests go straight from your device to t
 
 Pinyin input, candidate generation and input learning are performed entirely on your device. No content is transmitted over the network.[[icloud]] The keyboard itself never connects to iCloud.[[/icloud]]
 
-If you choose to download a dictionary file, the App downloads it from a file server. Online dictionaries you download under Keyboard › Dictionaries › Popular dictionaries (such as games, internet slang or the encyclopedia dictionary) come from our server enclavekb.cn. The sentence model in the Pinyin settings comes from enclavekb.cn for the mainland China storefront and from GitHub elsewhere. The download request contains nothing you type; our server keeps access logs (IP address, time, requested address, device identifier) for 6 months as required by law, then deletes them.
+The App fetches the following files from file servers. The requests contain nothing you type.
+
+1. **Popular dictionaries.** Online dictionaries you download under Keyboard › Dictionaries › Popular dictionaries (such as the encyclopedia or medical dictionary) come from our server enclavekb.cn. When you open the Popular dictionaries page, the App fetches the dictionary list from enclavekb.cn to show what can be downloaded or updated. "**Auto-Update Dictionaries**" is **on by default**: while it is on, about every 7 days (when you open the App, or during background refresh when the system allows it) the App fetches the dictionary list from enclavekb.cn, and if a dictionary you downloaded or one built into the App (such as games, internet slang or idioms) has a new version, it downloads and replaces it automatically. It does not download automatically in Low Data Mode. You can turn off "Auto-Update Dictionaries" on the Popular dictionaries page; the App then fetches the list only when you open that page or tap "Check Now", and you update by hand.
+2. **Sentence model.** The sentence model in the Pinyin settings is downloaded only when you tap Download or Update. You can choose the download source "Outside Mainland China" (GitHub) or "Mainland China" (our server enclavekb.cn); the default follows your App Store region. Downloads from GitHub are subject to GitHub's privacy policy. When a new version of the sentence model is available, the App only tells you and does not download it automatically.
+
+Our server keeps access logs (IP address, time, requested address, device identifier) for 6 months as required by law, then deletes them.
 
 Dictionaries you import from a file (.scel cell dictionaries or Rime .dict.yaml files) are read and converted on your device and never uploaded.
 
@@ -332,7 +342,7 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 ## 1. 収集する情報
 
-本アプリにはアカウント機能がありません。AI へのリクエストは端末から選択したサービスへ直接送信され、第三者の中継はありません。入力内容を当方が収集・送信することはありません。当方のサーバーは、お客様が送信したフィードバックの受け取り（下記「フィードバック」）と任意の辞書ファイルの配布にのみ使います。[[icloud]]iCloud 同期をオンにした場合、学習した語句などのデータはエンドツーエンドで暗号化され、お客様ご自身の iCloud アカウントに保存されます。当方も Apple も読み取ることはできません（第 3 節「iCloud 同期」を参照）。[[/icloud]]
+本アプリにはアカウント機能がありません。AI へのリクエストは端末から選択したサービスへ直接送信され、第三者の中継はありません。入力内容を当方が収集・送信することはありません。当方のサーバーは、お客様が送信したフィードバックの受け取り（下記「フィードバック」）と辞書ファイルの配布・更新にのみ使います。[[icloud]]iCloud 同期をオンにした場合、学習した語句などのデータはエンドツーエンドで暗号化され、お客様ご自身の iCloud アカウントに保存されます。当方も Apple も読み取ることはできません（第 3 節「iCloud 同期」を参照）。[[/icloud]]
 
 ## 2. 機能ごとの情報の取り扱い
 
@@ -340,7 +350,12 @@ Enclave（以下「本アプリ」）は {developer}（以下「当方」）が�
 
 ピンイン入力、候補の生成、入力の学習はすべてお客様の端末上で行われ、内容がネットワークで送信されることはありません。[[icloud]]キーボード自体が iCloud に接続することはありません。[[/icloud]]
 
-辞書ファイルをダウンロードすることを選んだ場合、本アプリはファイルサーバーからダウンロードします。「キーボード › 辞書 › 人気の辞書」でダウンロードするオンライン辞書（ゲーム、ネット流行語、百科辞書など）は当方のサーバー enclavekb.cn から、ピンイン設定の整句モデルは中国本土のストアでは enclavekb.cn、その他の地域では GitHub からダウンロードします。リクエストに入力内容は含まれません。当方のサーバーは法令に基づきアクセスログ（IP アドレス、日時、リクエスト先、端末識別情報）を 6 か月保存した後に削除します。
+本アプリは次のファイルをファイルサーバーから取得します。リクエストに入力内容は含まれません。
+
+1. **人気の辞書：** 「キーボード › 辞書 › 人気の辞書」でダウンロードするオンライン辞書（百科辞書、医学辞書など）は当方のサーバー enclavekb.cn から取得します。人気の辞書のページを開いたとき、ダウンロードできる辞書や更新を表示するため、enclavekb.cn から辞書の一覧を取得します。「**辞書を自動更新**」は**初期設定でオン**です。オンの間は約 7 日ごとに（アプリを開いたとき、またはシステムが許可するバックグラウンド更新のときに）enclavekb.cn から辞書の一覧を取得し、ダウンロード済みの辞書やアプリに内蔵の辞書（ゲーム、ネット流行語、成語など）に新しい版があれば、自動でダウンロードして置き換えます。低データモードでは自動ダウンロードしません。「辞書を自動更新」は人気の辞書のページでオフにでき、オフにすると、一覧を取得するのはそのページを開いたときか「今すぐ確認」をタップしたときだけになり、更新は手動になります。
+2. **整句モデル：** ピンイン設定の「整句モデル」は、「ダウンロード」または「更新」をタップしたときだけダウンロードします。ダウンロード元は「中国本土以外」（GitHub）と「中国本土」（当方のサーバー enclavekb.cn）から選べ、初期設定は App Store の地域に従います。GitHub からダウンロードする場合は GitHub のプライバシーポリシーが適用されます。新しい版がある場合はお知らせするだけで、自動ではダウンロードしません。
+
+当方のサーバーは法令に基づきアクセスログ（IP アドレス、日時、リクエスト先、端末識別情報）を 6 か月保存した後に削除します。
 
 ファイルから読み込んだ辞書（セル辞書 .scel、Rime 辞書 .dict.yaml）は端末内で読み込み・変換され、アップロードされることはありません。
 

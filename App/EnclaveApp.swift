@@ -77,9 +77,14 @@ struct EnclaveApp: App {
                     Task { await UnlockStore.shared.refresh() }
                     // iCloud 同步（关着时什么都不做）：打开 App、回到前台时同步一次，一分钟内回来多次只算一次。
                     Task { await ICloudSync.syncNow(minimumInterval: 60) }
+                    // 后台下好的词库、整句模型回到前台再部署；热门词库满 7 天自动查一次更新（第 99 条）。
+                    RimeDeployer.shared.deployIfNeeded()
+                    DictAutoUpdate.shared.checkIfDue()
+                    GrammarDownloader.shared.refresh()
                 }
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
                     ICloudSyncScheduler.schedule()
+                    DictUpdateScheduler.schedule()
                 }
                 .onOpenURL { url in
                     // 点开 .enclave 备份文件：到设置 › 备份与恢复，弹恢复面板。
