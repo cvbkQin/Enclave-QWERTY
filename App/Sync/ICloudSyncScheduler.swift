@@ -106,11 +106,13 @@ enum ICloudSyncScheduler {
     }
 }
 
-/// 只为后台任务注册和静默推送加的 App 代理；别的都还在 SwiftUI 的 EnclaveApp 里。
+/// 只为后台任务注册、静默推送和后台下载加的 App 代理；别的都还在 SwiftUI 的 EnclaveApp 里。
 final class EnclaveAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         ICloudSyncScheduler.register()
+        // 热门词库自动更新的后台刷新（第 99 条）：每个包都有，不看 iCloud。
+        DictUpdateScheduler.register()
         // 从 8118b83 升级上来、开着 Key 同步却没有配对表的测试机：配上现在的 Key（04 复审 A 可选 7）。
         if ICloudSync.isAvailable { Keychain.migrateBindingsIfNeeded(accounts: BackupService.keyAccounts()) }
         if ICloudSync.isEnabled {
@@ -125,5 +127,17 @@ final class EnclaveAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any],
                      fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
         ICloudSyncScheduler.handleRemoteNotification(userInfo, completion: completionHandler)
+    }
+
+    /// 整句模型在后台下完（App 被系统收回过也算）：系统叫醒 App，找回下载会话收尾，处理完再调 completionHandler（第 99 条）。
+    func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        guard identifier == GrammarDownloader.sessionID else {
+            completionHandler()
+            return
+        }
+        MainActor.assumeIsolated {
+            GrammarDownloader.shared.backgroundCompletion = completionHandler
+        }
     }
 }

@@ -1907,11 +1907,8 @@ struct PinyinView: View {
     @ObservedObject private var deployer = RimeDeployer.shared
     @State private var size: Int64?
     @ObservedObject private var grammar = GrammarDownloader.shared
+    /// 整句模型卡在 App/GrammarCard.swift（DU1，第 99 条）。
     @State private var confirmDeleteGrammar = false
-    /// 整句模型的下载地址，空着就用默认地址（大陆店面 enclavekb.cn，其他 GitHub）。
-    @State private var grammarURL = GrammarModel.customDownloadURL ?? ""
-    /// 下载地址框平时收起；填过自定义地址或下载失败过就直接展开。
-    @State private var showsGrammarURL = GrammarModel.customDownloadURL != nil
 
     /// 上面三张卡照旧；下面是扩展词库的概况两行（第 49 条），点进热门词库、导入的词库。
     var body: some View {
@@ -1919,7 +1916,7 @@ struct PinyinView: View {
             Section {} header: {
                 VStack(spacing: 12) {
                     dictionaryCard
-                    grammarCard
+                    GrammarCard(confirmDelete: $confirmDeleteGrammar)
                     englishCard
                 }
                 .dashFormCard()
@@ -1975,108 +1972,6 @@ struct PinyinView: View {
             parts.append(L("模糊拼音 \(store.settings.fuzzyPinyin.count) 组", "\(store.settings.fuzzyPinyin.count) fuzzy pairs", "あいまい入力 \(store.settings.fuzzyPinyin.count) 組"))
         }
         return parts.isEmpty ? L("万象拼音词库，CC BY 4.0", "Wanxiang Pinyin, CC BY 4.0", "万象ピンイン、CC BY 4.0") : parts.joined(separator: " · ")
-    }
-
-    // MARK: - 整句模型
-
-    /// 下载后整句首选更准。下载中大数字是进度，下完是大小。
-    private var grammarCard: some View {
-        DashCard {
-            DashCardHeader(icon: "sparkles", title: L("整句模型", "Sentence model", "文章モデル"), color: DashColor.input, note: "CC BY 4.0")
-            VStack(alignment: .leading, spacing: 10) {
-                switch grammar.state {
-                case .downloading(let received, let expected):
-                    DashBigNumber(value: "\(Int(Double(received) / Double(max(expected, 1)) * 100))",
-                                    unit: L("% · 正在下载", "% · Downloading", "% · ダウンロード中"))
-                    ProgressView(value: Double(received), total: Double(max(expected, 1)))
-                    Button(L("取消", "Cancel", "キャンセル")) { grammar.cancel() }
-                        .font(.system(size: 15, weight: .semibold))
-                default:
-                    if GrammarModel.isBundled {
-                        // 内测包自带：只能停用，不能删、不用下载。
-                        DashBigNumber(value: GrammarModel.installedSize.map { "\($0 / 1_000_000)" } ?? "380",
-                                        unit: grammar.enabled ? L("MB · 已内置", "MB · Built in", "MB · 内蔵") : L("MB · 已内置 · 已停用", "MB · Built in · Off", "MB · 内蔵 · オフ"))
-                        Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
-                               isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
-                            .tint(AppColor.purple)
-                            .disabled(deployer.state == .deploying)
-                        Text(L("内测版已自带整句模型，不用下载，也不能删除；不想用可以停用。",
-                               "The beta comes with the sentence model built in. It can't be deleted, but you can turn it off.",
-                               "ベータ版には文章モデルが内蔵されています。削除はできませんが、オフにできます。"))
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
-                    } else if grammar.installed {
-                        DashBigNumber(value: GrammarModel.installedSize.map { "\($0 / 1_000_000)" } ?? "–",
-                                        unit: grammar.enabled ? L("MB · 已下载", "MB · Downloaded", "MB · ダウンロード済み") : L("MB · 已下载 · 已关闭", "MB · Downloaded · Off", "MB · ダウンロード済み · オフ"))
-                        // 关掉时模型留着，随时再打开，方便对比。切换后重新部署词库。
-                        Toggle(L("使用整句模型", "Use sentence model", "文章モデルを使う"),
-                               isOn: Binding(get: { grammar.enabled }, set: { grammar.setEnabled($0) }))
-                            .tint(AppColor.purple)
-                            .disabled(deployer.state == .deploying)
-                        Text(L("长句一次打对的更多，键盘内存会多用一些。", "Whole sentences come out right more often; the keyboard uses a little more memory.", "長い文が一度で正しく出やすくなります。キーボードのメモリ使用は少し増えます。"))
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
-                        Button(L("删除模型", "Delete model", "モデルを削除"), role: .destructive) { confirmDeleteGrammar = true }
-                            .font(.system(size: 13, weight: .semibold))
-                            .disabled(deployer.state == .deploying)
-                    } else {
-                        DashBigNumber(value: "380", unit: L("MB · 未下载", "MB · Not downloaded", "MB · 未ダウンロード"))
-                        Text(L("按词和词常在一起出现的统计挑出最通顺的整句，整句打完首选更准。完全在本机运行，不联网。\(Storefront.isMainlandChina ? "默认从飞地的国内服务器下载" : "默认从万象的 GitHub 下载")，断了会自动重试、接着下。",
-                               "Picks the most natural sentence from statistics of which words go together, so whole sentences come out right more often. Runs fully on this iPhone, offline. Downloaded from \(Storefront.isMainlandChina ? "Enclave's server in mainland China" : "Wanxiang's GitHub") by default; if the connection drops it retries and picks up where it left off.",
-                               "語と語のつながりの統計から自然な文を選ぶので、文をまとめて入力したときの第一候補が正確になります。すべて端末内で動作し、通信しません。デフォルトでは\(Storefront.isMainlandChina ? "Enclave の中国国内サーバー" : "万象の GitHub")からダウンロードし、途切れたら自動で再試行して続きから再開します。"))
-                            .font(.system(size: 13)).foregroundStyle(.secondary)
-                        Button(grammar.canResume ? L("继续下载", "Resume download", "続きから") : L("下载", "Download", "ダウンロード")) { grammar.download() }
-                            .font(.system(size: 15, weight: .semibold))
-                            .disabled(deployer.state == .deploying)
-                        grammarURLField
-                    }
-                }
-                if case .failed(let message) = grammar.state {
-                    Text(message).font(.system(size: 13)).foregroundStyle(.red)
-                }
-            }
-        }
-    }
-
-    /// 下载地址：GitHub 在大陆常常很慢或打不开，可以换成镜像或自己的服务器。改了地址旧进度作废。
-    @ViewBuilder
-    private var grammarURLField: some View {
-        if showsGrammarURL || isGrammarFailed {
-            grammarURLEditor
-        } else {
-            Button(L("下载太慢？换个下载地址", "Slow? Use another download address", "遅いときは別のアドレスへ")) { showsGrammarURL = true }
-                .font(.system(size: 13))
-                .foregroundStyle(AppColor.purple)
-                .buttonStyle(.plain)
-        }
-    }
-
-    private var isGrammarFailed: Bool {
-        if case .failed = grammar.state { return true }
-        return false
-    }
-
-    private var grammarURLEditor: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L("下载地址", "Download address", "ダウンロード元")).font(.system(size: 13, weight: .semibold))
-            TextField(GrammarModel.defaultDownloadURL(mainland: Storefront.isMainlandChina).absoluteString, text: $grammarURL)
-                .font(.system(size: 12, design: .monospaced))
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.URL)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.tertiarySystemFill)))
-                .onSubmit { saveGrammarURL() }
-                .onChange(of: grammarURL) { _ in saveGrammarURL() }
-            Text(L("空着就用上面灰字的默认地址。下不动时可以换成镜像地址，文件要是同一个 .gram。",
-                   "Leave empty to use the default address shown in gray. If it's too slow, use a mirror of the same .gram file.",
-                   "空欄なら灰色の既定のアドレスを使います。遅いときは同じ .gram ファイルのミラーを指定できます。"))
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-        }
-    }
-
-    private func saveGrammarURL() {
-        let old = GrammarModel.downloadURL(mainland: Storefront.isMainlandChina)
-        GrammarModel.customDownloadURL = grammarURL
-        if GrammarModel.downloadURL(mainland: Storefront.isMainlandChina) != old { grammar.discardProgress() }
     }
 
     // MARK: - 英文词库

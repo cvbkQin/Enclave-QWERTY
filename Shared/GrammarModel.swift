@@ -5,35 +5,29 @@ import Foundation
 /// 引擎（librime-octagram）用 mmap 只读映射，只读用到的部分。键盘要开完全访问才读得到。
 enum GrammarModel {
     static let language = "wanxiang-lts-zh-hans"
-    /// 默认地址：中国大陆店面从自己的服务器 enclavekb.cn 下载（GitHub 在大陆常常很慢或打不开），
-    /// 其他地区从万象的 GitHub 下载。App 里还可以换成别的地址（镜像、自建服务器）。
-    static let githubDownloadURL = URL(string: "https://github.com/amzxyz/rime-wanxiang-data/releases/download/LTS/wanxiang-lts-zh-hans.gram")!
-    static let mainlandDownloadURL = URL(string: "https://enclavekb.cn/grammar/wanxiang-lts-zh-hans.gram")!
+    /// 下载线路见 GrammarLine（Shared/DictUpdatePolicy.swift）：非中国大陆从万象的 GitHub 下，中国大陆从飞地服务器 enclavekb.cn 下。
+    /// 11-26 起不能再手填地址（对齐清单第 99 条）；以前填过的，升级后清掉（GrammarDownloader 启动时）。
+    static let legacyDownloadURLKey = "grammar.downloadURL"
 
-    /// mainland：App Store 店面是不是中国大陆（Storefront.isMainlandChina，只有 App 里读得到）。
-    static func defaultDownloadURL(mainland: Bool) -> URL {
-        mainland ? mainlandDownloadURL : githubDownloadURL
-    }
-    private static let downloadURLKey = "grammar.downloadURL"
+    /// 下载前显示的大概大小：GitHub 上 LTS 那份 11-18 版 390,786,092 字节；服务器清单里有大小时用清单的。
+    static let approximateSize: Int64 = 390_786_092
 
-    /// 自己填的下载地址，没填或不是 http(s) 地址时为 nil。
-    static var customDownloadURL: String? {
-        get { SharedStorage.defaults.string(forKey: downloadURLKey) }
-        set {
-            let text = newValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if text.isEmpty { SharedStorage.defaults.removeObject(forKey: downloadURLKey) }
-            else { SharedStorage.defaults.set(text, forKey: downloadURLKey) }
-        }
+    /// 下载记录（已下载卡片的小字「非中国大陆线路 · 11 月 26 日下载」，有没有新版本）。
+    static var downloadedLine: GrammarLine? {
+        get { SharedStorage.defaults.string(forKey: "grammar.downloadedLine").flatMap(GrammarLine.init(rawValue:)) }
+        set { SharedStorage.defaults.set(newValue?.rawValue, forKey: "grammar.downloadedLine") }
     }
 
-    static func downloadURL(mainland: Bool) -> URL {
-        if let text = customDownloadURL, let url = URL(string: text), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
-            return url
-        }
-        return defaultDownloadURL(mainland: mainland)
+    static var downloadedAt: Date? {
+        get { SharedStorage.defaults.object(forKey: "grammar.downloadedAt") as? Date }
+        set { SharedStorage.defaults.set(newValue, forKey: "grammar.downloadedAt") }
     }
-    /// 下载前显示的大概大小。
-    static let approximateSize: Int64 = 380 * 1_000_000
+
+    /// 下载时服务器清单里的模型版本（「2026-11-18」）；清单拉不到、更早下的没有。
+    static var downloadedVersion: String? {
+        get { SharedStorage.defaults.string(forKey: "grammar.downloadedVersion") }
+        set { SharedStorage.defaults.set(newValue, forKey: "grammar.downloadedVersion") }
+    }
 
     static var fileURL: URL? {
         RimeStore.paths?.user.appendingPathComponent(language + ".gram")

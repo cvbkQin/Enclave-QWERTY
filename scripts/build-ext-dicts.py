@@ -4,8 +4,16 @@
 用法：
   python3 scripts/build-ext-dicts.py <万象 dicts 目录> <THUOCL data 目录> [--online server/dicts] [--blocklist <敏感词表>]
                                     [--baike <zhwiki-*.dict.yaml> [--baike-blocklist <百科补充屏蔽表>]]
+                                    [--grammar <wanxiang-lts-zh-hans.gram>]
+  python3 scripts/build-ext-dicts.py --catalog-only --online server/dicts [--grammar <…gram>]
+      只按目录里现有的词库文件重写 catalog.json（不重新生成词库）。
 
-在线词库和清单 catalog.json 写到 --online 目录，原样放到 enclavekb.cn/dicts/（见 server/README.md）。
+在线词库和清单 catalog.json 写到 --online 目录，用 server/publish-dicts.sh 发到 enclavekb.cn/dicts/（见 server/README.md）。
+
+版本号（第 99 条）：词库内容没变就沿用文件里原来的 version，文件一字不改（sha256 不变，App 不会误报「有更新」）；
+变了才写当天日期，同一天第二次改写成「2026-11-26.2」。App 按 sha256 判断有没有更新，version 只用来显示「X 月 X 日版」。
+清单 schema 2：url 带「?v=sha256 前 8 位」（缓存不会拿旧文件配新清单）；加 updated、grammar（整句模型）、
+builtinUpdates（内置词库的服务器版，放在 builtin/ 下；不能放进 dicts，老版本 App 会把它当成可以下载的词库）。
 
 拼音：整词在万象词库里有就用万象的读音（多音字词读得对），没有就逐字取单字表里最常用的读音。
 有字查不到读音（英文、数字、生僻字）的词跳过。
@@ -19,7 +27,7 @@ import re
 import shutil
 import sys
 import unicodedata
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -59,6 +67,17 @@ BAIKE = {
     "id": "baike", "name": {"zh": "百科词库", "en": "Wikipedia", "ja": "ウィキペディア辞書"},
     "summary": {"zh": "人名、地名、作品、游戏角色", "en": "People, places, works and game characters", "ja": "人名、地名、作品、ゲームキャラクター"},
     "license": "wiki", "entries": 200000, "size": 5470000, "version": "", "sha256": None, "url": None,
+}
+
+# 整句模型（万象 LTS 11-18 版）：两条线路的地址、大小、sha256。给 --grammar 时按那个文件重算大小和 sha256。
+GRAMMAR = {
+    "version": "2026-11-18",
+    "size": 390786092,
+    "sha256": "e9ddd501b7d536bc5ea1346f8f900ae49a719a05be349e0a17cb27e717143ca5",
+    "urls": {
+        "cn": "https://enclavekb.cn/grammar/wanxiang-lts-zh-hans.gram",
+        "global": "https://github.com/amzxyz/rime-wanxiang-data/releases/download/LTS/wanxiang-lts-zh-hans.gram",
+    },
 }
 
 TONES = str.maketrans({"ü": "v", "ǖ": "v", "ǘ": "v", "ǚ": "v", "ǜ": "v"})
@@ -163,15 +182,11 @@ def build(pack, kind, path, words, chars, blocklist, out):
         kept.append((word, code, weight(freq, top)))
     source = "THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2018 THUNLP" \
         if kind == "thuocl" else "飞地输入法整理"
-    version = date.today().isoformat()
     target = out / f"ext_{pack}.dict.yaml"
-    with target.open("w", encoding="utf-8") as f:
-        f.write(f"# 飞地输入法扩展词库 · 来源：{source}\n# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。\n")
-        f.write(f"---\nname: ext_{pack}\nversion: \"{version}\"\nsort: by_weight\n...\n")
-        for word, code, w in kept:
-            f.write(f"{word}\t{code}\t{w}\n")
-    print(f"  {pack}: {len(kept)} 条（查不到读音 {skipped}，过滤 {len(blocked)}{'：' + '、'.join(blocked) if blocked else ''}）")
-    return {"id": pack, "entries": len(kept), "version": version, "size": target.stat().st_size}
+    header = f"# 飞地输入法扩展词库 · 来源：{source}\n# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。\n"
+    version = write_dict(target, header, f"ext_{pack}", "".join(f"{word}\t{code}\t{w}\n" for word, code, w in kept))
+    print(f"  {pack}: {len(kept)} 条，版本 {version}（查不到读音 {skipped}，过滤 {len(blocked)}{'：' + '、'.join(blocked) if blocked else ''}）")
+    return {"id": pack, "entries": len(kept), "version": version, "size": target.stat().st_size, "sha256": sha256_file(target)}
 
 
 # 标题里有这些字（代词、语气词），多半是歌名、书名一类的短句，不收。
@@ -218,6 +233,53 @@ https://creativecommons.org/licenses/by-sa/4.0/
 
 本词库按同一许可分发：可以自由使用、修改和再分发，但需要署名，修改后的版本也要用 CC BY-SA 4.0 发布。
 """
+
+
+def next_version(old, today):
+    """同一天第二次改：2026-11-26 → 2026-11-26.2 → 2026-11-26.3；别的日子写当天。"""
+    if old and old.split(".")[0] == today:
+        parts = old.split(".", 1)
+        n = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1
+        return f"{today}.{n + 1}"
+    return today
+
+
+def render_dict(header, name, version, body):
+    return f"{header}---\nname: {name}\nversion: \"{version}\"\nsort: by_weight\n...\n{body}"
+
+
+def write_dict(target, header, name, body):
+    """写词库文件，返回版本号。内容（版本号以外）和原来的一样就沿用原版本号，不改文件。"""
+    today = date.today().isoformat()
+    old_version = None
+    if target.exists():
+        old = target.read_text(encoding="utf-8")
+        m = re.search(r'^version: "([^"]*)"$', old, re.M)
+        if m:
+            old_version = m.group(1)
+            if old == render_dict(header, name, old_version, body):
+                return old_version
+    version = next_version(old_version, today)
+    target.write_text(render_dict(header, name, version, body), encoding="utf-8")
+    return version
+
+
+def sha256_file(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def versioned_url(name, sha):
+    """「ext_medical.dict.yaml?v=153c8ba4」：nginx 忽略问号后面，缓存把它当新地址。"""
+    return f"{name}?v={sha[:8]}"
+
+
+def dict_version(path):
+    m = re.search(r'^version: "([^"]*)"$', path.read_text(encoding="utf-8"), re.M)
+    return m.group(1) if m else ""
+
+
+def count_entries(path):
+    return sum(1 for _ in rime_entries(path))
 
 
 def read_blocklist(path):
@@ -279,33 +341,81 @@ def build_baike(path, words, chars, char_freq, blocklist, extra_block, out):
         rows.append((score, text, reading))
     rows.sort(key=lambda r: -r[0])
     kept = rows[:BAIKE_LIMIT]
-    version = date.today().isoformat()
     target = out / "ext_baike.dict.yaml"
-    with target.open("w", encoding="utf-8") as f:
-        f.write("# 飞地输入法扩展词库 · 来源：中文维基百科条目标题（zh.wikipedia.org），CC BY-SA 4.0；"
-                f"标题表取自 fcitx5-pinyin-zhwiki（github.com/felixonmars/fcitx5-pinyin-zhwiki，{path.name}）\n"
-                "# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注，按 CC BY-SA 4.0 分发。\n")
-        f.write(f"---\nname: ext_baike\nversion: \"{version}\"\nsort: by_weight\n...\n")
-        n = len(kept)
-        for i, (_, text, reading) in enumerate(kept):
-            f.write(f"{text}\t{reading}\t{max(1, 5 - (5 * i) // max(n, 1))}\n")
+    header = ("# 飞地输入法扩展词库 · 来源：中文维基百科条目标题（zh.wikipedia.org），CC BY-SA 4.0；"
+              f"标题表取自 fcitx5-pinyin-zhwiki（github.com/felixonmars/fcitx5-pinyin-zhwiki，{path.name}）\n"
+              "# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注，按 CC BY-SA 4.0 分发。\n")
+    n = len(kept)
+    body = "".join(f"{text}\t{reading}\t{max(1, 5 - (5 * i) // max(n, 1))}\n" for i, (_, text, reading) in enumerate(kept))
+    version = write_dict(target, header, "ext_baike", body)
     (out / "LICENSE-baike.txt").write_text(BAIKE_LICENSE.format(source=path.name), encoding="utf-8")
-    print(f"  baike: {len(kept)} 条（候选 {len(rows)}，生僻字或查不到读音 {skipped}，"
+    print(f"  baike: {len(kept)} 条，版本 {version}（候选 {len(rows)}，生僻字或查不到读音 {skipped}，"
           f"过滤 {len(blocked)}{'：' + '、'.join(blocked[:30]) + ('…' if len(blocked) > 30 else '') if blocked else ''}）")
+    sha = sha256_file(target)
     return {**BAIKE, "entries": len(kept), "size": target.stat().st_size, "version": version,
-            "sha256": hashlib.sha256(target.read_bytes()).hexdigest(), "url": target.name}
+            "sha256": sha, "url": versioned_url(target.name, sha)}
 
 
 def previous_baike(out):
-    """没给 --baike：清单里上次生成的百科条目还对得上文件就沿用。"""
+    """没给 --baike：目录里上次生成的百科词库还在就沿用（大小、sha256 按文件重算）。"""
+    target = out / "ext_baike.dict.yaml"
+    if not target.exists():
+        return BAIKE
+    sha = sha256_file(target)
+    return {**BAIKE, "entries": count_entries(target), "size": target.stat().st_size, "version": dict_version(target),
+            "sha256": sha, "url": versioned_url(target.name, sha)}
+
+
+def online_entry(out, pack, kind):
+    path = out / f"ext_{pack}.dict.yaml"
+    sha = sha256_file(path)
+    return {"id": pack, "name": ONLINE_NAMES[pack], "license": kind, "entries": count_entries(path),
+            "size": path.stat().st_size, "version": dict_version(path), "sha256": sha, "url": versioned_url(path.name, sha)}
+
+
+def grammar_entry(out, gram_path):
+    """整句模型：给了 --grammar 就按文件重算大小和 sha256（内容变了版本写当天）；没给沿用上次清单里的，再没有用 GRAMMAR。"""
+    previous = GRAMMAR
     try:
-        old = json.loads((out / "catalog.json").read_text(encoding="utf-8"))
-        entry = next(d for d in old["dicts"] if d["id"] == "baike")
-        if entry.get("url") and (out / entry["url"]).exists():
-            return {**BAIKE, **{k: entry[k] for k in ("entries", "size", "version", "sha256", "url")}}
-    except (OSError, ValueError, KeyError, StopIteration):
+        previous = json.loads((out / "catalog.json").read_text(encoding="utf-8")).get("grammar") or GRAMMAR
+    except (OSError, ValueError):
         pass
-    return BAIKE
+    if not gram_path:
+        return previous
+    path = Path(gram_path)
+    sha = sha256_file(path)
+    version = previous["version"] if sha == previous.get("sha256") else date.today().isoformat()
+    return {**previous, "version": version, "size": path.stat().st_size, "sha256": sha}
+
+
+def builtin_updates(out):
+    """内置词库的服务器版：把 Configs/ExtDicts 里的拷到 builtin/，App 里自带的比它旧时下载这份。"""
+    folder = out / "builtin"
+    folder.mkdir(parents=True, exist_ok=True)
+    updates = []
+    for pack, _, _ in BUILTIN:
+        src = OUT / f"ext_{pack}.dict.yaml"
+        if not src.exists():
+            continue
+        dst = folder / src.name
+        if not dst.exists() or dst.read_bytes() != src.read_bytes():
+            shutil.copyfile(src, dst)
+        sha = sha256_file(dst)
+        updates.append({"id": pack, "entries": count_entries(dst), "size": dst.stat().st_size, "version": dict_version(dst),
+                        "sha256": sha, "url": versioned_url(f"builtin/{dst.name}", sha)})
+    return updates
+
+
+def write_catalog(out, dicts, gram_path):
+    catalog = {
+        "schema": 2,
+        "updated": datetime.now(timezone(timedelta(hours=8))).isoformat(timespec="seconds"),
+        "grammar": grammar_entry(out, gram_path),
+        "dicts": dicts,
+        "builtinUpdates": builtin_updates(out),
+    }
+    (out / "catalog.json").write_text(json.dumps(catalog, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"清单：{out / 'catalog.json'}（{catalog['updated']}）")
 
 
 def main():
@@ -320,6 +430,15 @@ def main():
     online_dir = option("--online")
     block_path = option("--blocklist")
     baike_path = option("--baike")
+    gram_path = option("--grammar")
+    if "--catalog-only" in args:
+        if not online_dir:
+            sys.exit("--catalog-only 要和 --online 一起用")
+        out = Path(online_dir)
+        dicts = [previous_baike(out)] + [online_entry(out, pack, kind) for pack, kind, _ in ONLINE
+                                         if (out / f"ext_{pack}.dict.yaml").exists()]
+        write_catalog(out, dicts, gram_path)
+        return
     wanxiang, thuocl = Path(args[0]), Path(args[1])
     baike_block_path = option("--baike-blocklist")
     # 整词精确匹配：词和表里一模一样才删，不做包含匹配（见 05 的敏感词表说明）。
@@ -341,14 +460,11 @@ def main():
         print("在线词库：")
         catalog = [build_baike(Path(baike_path), words, chars, char_freq, blocklist, baike_block, out) if baike_path else previous_baike(out)]
         for pack, kind, name in ONLINE:
-            info = build(pack, kind, thuocl / name, words, chars, blocklist, out)
-            path = out / f"ext_{pack}.dict.yaml"
-            catalog.append({"id": pack, "name": ONLINE_NAMES[pack], "license": kind, "entries": info["entries"],
-                            "size": info["size"], "version": info["version"],
-                            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "url": path.name})
+            build(pack, kind, thuocl / name, words, chars, blocklist, out)
+            catalog.append(online_entry(out, pack, kind))
         # THUOCL 的 MIT 许可原文跟在线词包放在一起分发。
         shutil.copyfile(OUT / "LICENSE-THUOCL.txt", out / "LICENSE-THUOCL.txt")
-        (out / "catalog.json").write_text(json.dumps({"dicts": catalog}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        write_catalog(out, catalog, gram_path)
 
 
 if __name__ == "__main__":

@@ -65,22 +65,69 @@ struct ExtDictOverviewSection: View {
 
 // MARK: - 热门词库（EX10、EX11）
 
-/// 上面「已装」：内置 + 已下载；下面「可以下载」：删掉的内置（恢复）+ 在线词库。一页滚动。
+/// 最上面「自动更新了…」提示（有时）、「自动更新」一组（DU2，第 99 条）；
+/// 「已装」：内置 + 已下载；下面「可以下载」：删掉的内置（恢复）+ 在线词库。一页滚动。
 struct HotDictsView: View {
     @EnvironmentObject private var router: AppRouter
     @ObservedObject private var store = ExtDictStore.shared
     @ObservedObject private var deployer = RimeDeployer.shared
+    @ObservedObject private var auto = DictAutoUpdate.shared
+    /// 进这页时导航栈多深：离开时浅了才算真离开（进详情页不算），去掉提示、「刚更新」和「新」。
+    @State private var depth: Int?
 
     private var deploying: Bool { deployer.state == .deploying }
 
     var body: some View {
         List {
+            if let recent = auto.recent {
+                Section { RecentUpdateBanner(recent: recent) }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            }
+            autoUpdateSection
             installedSection
             downloadSection
         }
         .navigationTitle(L("热门词库", "Popular dictionaries", "人気の辞書"))
         .navigationBarTitleDisplayMode(.inline)
+        // 打开这页照旧拉一次清单（开关关着也拉，用户自己打开的页面），显示「有更新」「新」。
         .task { await store.refreshCatalog() }
+        .onAppear { if depth == nil { depth = router.keyboardPath.count } }
+        .onDisappear {
+            guard let depth, router.keyboardPath.count < depth else { return }
+            auto.pageLeft(catalog: store.catalog.dicts.map(\.id))
+        }
+    }
+
+    // MARK: 自动更新（DU2 ③⑤）
+
+    private var autoUpdateSection: some View {
+        Section {
+            Toggle(isOn: $auto.enabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("自动更新词库", "Auto-Update Dictionaries", "辞書を自動更新")).font(.system(size: 17))
+                    if auto.isConstrained && auto.enabled {
+                        Text(L("低数据模式开着，先不自动下载", "Low Data Mode is on, so nothing downloads automatically", "省データモードのため自動ダウンロードしません"))
+                            .font(.system(size: 13)).foregroundStyle(ExtDictBadge.orange)
+                    } else {
+                        Text(L("每 7 天检查一次，有新版就自动下载", "Checks every 7 days and downloads new versions", "7 日ごとに確認し、新しい版を自動でダウンロード"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .tint(.green)
+            LastCheckRow()
+        } header: {
+            Text(L("自动更新", "Auto-Update", "自動更新"))
+        } footer: {
+            Text(auto.enabled
+                 ? L("只更新你装着的词库，内置的也算；新词库不会自动装。更新完下次打开 App 自动装进键盘。低数据模式下不自动下载。",
+                     "Only dictionaries you have are updated, built-in ones included; new dictionaries are never installed automatically. Updates go into the keyboard the next time you open the app. Nothing downloads automatically in Low Data Mode.",
+                     "入っている辞書だけを更新します（内蔵も含む）。新しい辞書は自動では入りません。更新は次にアプリを開いたときにキーボードへ反映されます。省データモードでは自動ダウンロードしません。")
+                 : L("关掉后不自动检查。有新版时那一行标「有更新」，点进去手动更新；也可以点「检查更新」。",
+                     "Nothing is checked automatically. Dictionaries with a new version show Update; open one to update it, or tap Check Now.",
+                     "自動では確認しません。新しい版がある辞書には「更新あり」が付くので、開いて手動で更新するか「今すぐ確認」をタップしてください。"))
+        }
     }
 
     private var installedSection: some View {
@@ -89,7 +136,7 @@ struct HotDictsView: View {
         return Section {
             if deploying { ExtDictDeployBanner() }
             ForEach(rows) { row in
-                ExtDictRow(row: row, disabled: deploying) {
+                ExtDictRow(row: row, disabled: deploying, justUpdated: auto.recentIDs.contains(row.id)) {
                     router.keyboardPath.append(AppRouter.ExtDictPage(id: row.id))
                 } toggle: { store.setEnabled(row.id, $0) }
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -103,9 +150,9 @@ struct HotDictsView: View {
         } footer: {
             Text(deploying
                  ? L("部署中开关先变灰，部署完才能再改。", "Switches are grayed out while installing and come back when it's done.", "インストール中はスイッチを変更できません。終わると戻ります。")
-                 : L("「内置」随 App 带着，「已下载」是从下面下的。都能开关和删除；关掉的不出候选。",
-                     "Built-in ones come with the app; Downloaded ones are from the list below. You can turn any of them off or delete them; words from ones that are off don't appear.",
-                     "「内蔵」はアプリに付属、「ダウンロード済み」は下の一覧からです。どれもオン・オフや削除ができ、オフの辞書の語は候補に出ません。"))
+                 : L("「内置」随 App 带着，也会跟着服务器更新；「已下载」是从下面下的。都能开关和删除；关掉的不出候选。",
+                     "Built-in ones come with the app and also update from the server; Downloaded ones are from the list below. You can turn any of them off or delete them; words from ones that are off don't appear.",
+                     "「内蔵」はアプリに付属し、サーバーからも更新されます。「ダウンロード済み」は下の一覧からです。どれもオン・オフや削除ができ、オフの辞書の語は候補に出ません。"))
         }
     }
 
@@ -113,13 +160,15 @@ struct HotDictsView: View {
         Section {
             ForEach(store.removedBuiltinPacks) { pack in
                 OnlineRow(title: pack.name,
-                          detail: [pack.category, ExtDictStore.entryText(ExtDict.builtinManifest[pack.id]?.entries ?? 0)].filter { !$0.isEmpty }.joined(separator: " · "),
+                          detail: [pack.category, ExtDictStore.entryText(store.builtinCopies[pack.id]?.entries ?? 0)].filter { !$0.isEmpty }.joined(separator: " · "),
                           license: L("内置词库 · 删掉后可以恢复", "Built in · can be restored", "内蔵辞書 · 削除後も戻せます")) {
                     CapsuleButton(title: L("恢复", "Restore", "戻す"), active: !deploying) { store.restore(pack.id) }
                 }
             }
+            let fresh = DictUpdatePolicy.newIDs(catalog: store.catalog.dicts.map(\.id), seen: auto.seenIDs)
             ForEach(store.catalog.dicts) { item in
-                OnlineRow(title: item.displayName, detail: onlineDetail(item), license: onlineLicense(item)) {
+                OnlineRow(title: item.displayName, isNew: fresh.contains(item.id) && !store.isDownloaded(item.id),
+                          detail: onlineDetail(item), license: onlineLicense(item)) {
                     if let progress = store.downloads[item.id] {
                         DownloadRing(fraction: Double(progress.received) / Double(max(progress.expected, 1))) { store.cancelDownload(item.id) }
                     } else if store.isDownloaded(item.id) {
@@ -142,9 +191,9 @@ struct HotDictsView: View {
                            "Downloading \(megabytes(progress.received)) / \(megabytes(progress.expected)) MB. You can leave this page; tap the square in the circle to cancel.",
                            "ダウンロード中 \(megabytes(progress.received)) / \(megabytes(progress.expected)) MB。このページを離れても大丈夫です。円の中の四角でキャンセルします。"))
                 } else {
-                    Text(L("只在你点「下载」时从开发者服务器下载，不上传任何内容。列表里没有的，可以回到上一页「导入的词库」里从文件导入。",
-                           "Downloaded from the developer's server only when you tap Download. Nothing is uploaded. For anything not listed, go back and import a file under Imported dictionaries.",
-                           "「ダウンロード」をタップしたときだけ開発者のサーバーからダウンロードし、何もアップロードしません。一覧にないものは、前のページの「読み込んだ辞書」でファイルから読み込めます。"))
+                    Text(L("新词库只在你点「下载」时下载；装着的词库按上面的设置自动更新。不上传任何内容。列表里没有的，可以回到上一页「导入的词库」里从文件导入。",
+                           "New dictionaries download only when you tap Download; the ones you have update automatically per the setting above. Nothing is uploaded. For anything not listed, go back and import a file under Imported dictionaries.",
+                           "新しい辞書は「ダウンロード」をタップしたときだけダウンロードします。入っている辞書は上の設定に従って自動更新します。何もアップロードしません。一覧にないものは、前のページの「読み込んだ辞書」でファイルから読み込めます。"))
                 }
                 if let error = store.downloadError {
                     Text(error).foregroundStyle(.red)
@@ -173,6 +222,137 @@ struct HotDictsView: View {
                 : "Wikipedia contributors · fcitx5-pinyin-zhwiki · CC BY-SA 4.0"
         case .own: return L("飞地输入法整理", "Compiled by Enclave", "Enclave 編集")
         }
+    }
+}
+
+// MARK: - 自动更新的提示和「上次检查」（DU2）
+
+/// 页面最上面一条浅绿提示：「11月26日自动更新了 医学、法律、网络流行语」，点开看每个词库多了多少词。
+private struct RecentUpdateBanner: View {
+    let recent: DictAutoUpdate.Recent
+    @ObservedObject private var deployer = RimeDeployer.shared
+    @State private var expanded = false
+
+    private var installing: Bool { deployer.state == .deploying || deployer.needsDeploy }
+
+    private var names: String {
+        recent.items.map(\.name).joined(separator: L("、", ", ", "、"))
+    }
+
+    var body: some View {
+        Button { withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() } } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(ExtDictBadge.greenText)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(L("\(Loc.monthDay(recent.date))自动更新了 \(names)", "Updated automatically on \(Loc.monthDay(recent.date)): \(names)", "\(Loc.monthDay(recent.date))に自動更新：\(names)"))
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                    if expanded {
+                        ForEach(recent.items) { item in
+                            HStack {
+                                Text(item.name + (item.builtin ? L("（内置）", " (built in)", "（内蔵）") : "") + " · " + ExtDictStore.versionText(item.version))
+                                    .font(.system(size: 14)).foregroundStyle(.primary)
+                                Spacer(minLength: 8)
+                                if item.added != 0 {
+                                    Text((item.added > 0 ? "+" : "−") + L("\(abs(item.added).formatted()) 词", "\(abs(item.added).formatted()) words", "\(abs(item.added).formatted()) 語"))
+                                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(ExtDictBadge.greenText)
+                                }
+                            }
+                        }
+                        Text(installing
+                             ? L("正在装进键盘…离开这页后不再显示。", "Installing into the keyboard… This goes away when you leave the page.", "キーボードに追加中…このページを離れると消えます。")
+                             : L("已经装进键盘。离开这页后不再显示。", "Already in the keyboard. This goes away when you leave the page.", "キーボードに追加済みです。このページを離れると消えます。"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                    } else {
+                        Text(installing
+                             ? L("正在装进键盘…", "Installing into the keyboard…", "キーボードに追加中…")
+                             : L("已经装进键盘 · 点开看多了哪些词", "Already in the keyboard · tap to see what's new", "キーボードに追加済み · タップで追加された語を表示"))
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+                    .padding(.top, 3)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(ExtDictBadge.green.opacity(0.1)))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(ExtDictBadge.green.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(expanded ? L("收起", "Collapse", "閉じる") : L("展开看每个词库多了多少词", "Shows how many words each one gained", "辞書ごとの追加語数を表示"))
+    }
+}
+
+/// 「上次检查」一行：平时「3 天前」+「检查更新」；检查中转圈；没有新版绿勾 3 秒；有新版写几个和进度圈；失败橙字两行 +「重试」。
+private struct LastCheckRow: View {
+    @ObservedObject private var auto = DictAutoUpdate.shared
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(L("上次检查", "Last checked", "前回の確認")).font(.system(size: 17))
+            Spacer(minLength: 8)
+            switch auto.status {
+            case .idle:
+                Text(auto.lastCheck.map(Self.ago) ?? L("还没查过", "Never", "未確認"))
+                    .font(.system(size: 15)).foregroundStyle(.secondary)
+                checkButton(L("检查更新", "Check Now", "今すぐ確認"))
+            case .checking:
+                ProgressView().controlSize(.small)
+                Text(L("正在检查…", "Checking…", "確認中…")).font(.system(size: 15)).foregroundStyle(.secondary)
+            case .upToDate:
+                Label(L("刚刚 · 已是最新", "Just now · Up to date", "たった今 · 最新です"), systemImage: "checkmark")
+                    .font(.system(size: 15)).foregroundStyle(ExtDictBadge.greenText)
+            case .downloading(let count, let done):
+                Text(L("发现 \(count) 个更新，正在下载", "Downloading \(count) updates", "\(count) 件の更新をダウンロード中"))
+                    .font(.system(size: 15)).foregroundStyle(AppColor.purple)
+                ZStack {
+                    Circle().stroke(AppColor.softFill, lineWidth: 2.5)
+                    Circle().trim(from: 0, to: max(0.08, Double(done) / Double(max(count, 1))))
+                        .stroke(AppColor.purple, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                .frame(width: 18, height: 18)
+            case .failed:
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(L("没连上服务器", "Couldn't reach the server", "サーバーに接続できません"))
+                    Text(L("明天再自动试", "Will try again tomorrow", "明日もう一度試します"))
+                }
+                .font(.system(size: 13)).foregroundStyle(ExtDictBadge.orange)
+                checkButton(L("重试", "Retry", "再試行"))
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func checkButton(_ title: String) -> some View {
+        Button(title) { auto.checkNow() }
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(AppColor.purple)
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+            .background(Capsule().fill(AppColor.softFill))
+            .buttonStyle(.borderless)
+            .fixedSize()
+    }
+
+    /// 「刚刚」「5 分钟前」「3 小时前」「3 天前」。
+    static func ago(_ date: Date) -> String {
+        let seconds = max(0, Date().timeIntervalSince(date))
+        if seconds < 60 { return L("刚刚", "Just now", "たった今") }
+        if seconds < 3600 {
+            let m = Int(seconds / 60)
+            return L("\(m) 分钟前", "\(m) min ago", "\(m) 分前")
+        }
+        if seconds < 86400 {
+            let h = Int(seconds / 3600)
+            return L("\(h) 小时前", "\(h) h ago", "\(h) 時間前")
+        }
+        let d = Int(seconds / 86400)
+        return L("\(d) 天前", d == 1 ? "1 day ago" : "\(d) days ago", "\(d) 日前")
     }
 }
 
@@ -344,6 +524,8 @@ extension View {
 private struct ExtDictRow: View {
     let row: ExtDictStore.Row
     let disabled: Bool
+    /// 自动更新刚换过（绿色「刚更新」，离开热门词库页后去掉）。
+    var justUpdated = false
     let open: () -> Void
     let toggle: (Bool) -> Void
 
@@ -353,7 +535,11 @@ private struct ExtDictRow: View {
                 HStack(spacing: 6) {
                     Text(row.name).font(.system(size: 17)).lineLimit(1)
                     ExtDictBadge(kind: row.kind)
-                    if row.hasUpdate { ExtDictBadge(text: L("有更新", "Update", "更新あり"), fill: AppColor.softFill, color: AppColor.purple) }
+                    if justUpdated {
+                        ExtDictBadge(text: L("刚更新", "Updated", "更新済み"), fill: ExtDictBadge.green.opacity(0.15), color: ExtDictBadge.greenText)
+                    } else if row.hasUpdate {
+                        ExtDictBadge(text: L("有更新", "Update", "更新あり"), fill: AppColor.softFill, color: AppColor.purple)
+                    }
                 }
                 Text(row.subtitle).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
             }
@@ -374,6 +560,9 @@ private struct ExtDictRow: View {
 struct ExtDictBadge: View {
     /// 导入的橙色：标签字、词库页「导入的词库」图标。
     static let orange = Color(light: 0xB86200, dark: 0xFFB340)
+    /// 「刚更新」、自动更新提示：#34C759 底，字 #248A3D（深色 #30D158）。
+    static let green = Color(hex: 0x34C759)
+    static let greenText = Color(light: 0x248A3D, dark: 0x30D158)
 
     var text: String
     var fill: Color
@@ -410,6 +599,8 @@ struct ExtDictBadge: View {
 /// 「在线词库」一行：名称；词条数 · 大小 · 内容；许可。右边按钮。
 private struct OnlineRow<Trailing: View>: View {
     let title: String
+    /// 服务器上新加的、这页还没看过（DU2 ④）。
+    var isNew = false
     let detail: String
     let license: String
     @ViewBuilder let trailing: Trailing
@@ -417,7 +608,10 @@ private struct OnlineRow<Trailing: View>: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.system(size: 17))
+                HStack(spacing: 6) {
+                    Text(title).font(.system(size: 17))
+                    if isNew { NewBadge() }
+                }
                 Text(detail).font(.system(size: 13)).foregroundStyle(.secondary)
                 Text(license).font(.system(size: 12)).foregroundStyle(.secondary)
             }
@@ -564,6 +758,7 @@ struct ExtDictDetailView: View {
     let id: String
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var store = ExtDictStore.shared
+    @ObservedObject private var auto = DictAutoUpdate.shared
     @ObservedObject private var deployer = RimeDeployer.shared
 
     private var installed: ExtDict.Installed? { store.installed.first { $0.id == id } }
@@ -646,9 +841,19 @@ struct ExtDictDetailView: View {
                         .font(.system(size: 14)).foregroundStyle(.secondary)
                 }
             } else if let builtin {
-                DashBigNumber(value: ExtDictStore.countText(ExtDict.builtinManifest[builtin.id]?.entries ?? 0),
+                let copy = store.builtinCopies[builtin.id]
+                DashBigNumber(value: ExtDictStore.countText(copy?.entries ?? 0),
                               unit: L("词 · 内置", "words · Built in", "語 · 内蔵"))
-                Text(builtin.blurb).font(.system(size: 14)).foregroundStyle(.secondary)
+                Text(builtin.blurb + (copy.map { " " + ExtDictStore.versionText($0.version) + L("。", ".", "。") } ?? ""))
+                    .font(.system(size: 14)).foregroundStyle(.secondary)
+                // 自动更新关着时，内置词库有新版在这里手动更新（DU2 ③）。
+                if let update = store.builtinUpdate(for: builtin.id) {
+                    Button(L("更新到 \(ExtDictStore.versionText(update.version))", "Update to \(ExtDictStore.versionText(update.version))", "\(ExtDictStore.versionText(update.version))に更新")) {
+                        DictAutoUpdate.shared.checkNow()
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .disabled(deploying || auto.status != .idle)
+                }
             }
         }
     }
