@@ -9,8 +9,8 @@ struct ClipboardSettingsSection: View {
     @State private var enabled = ClipboardHistory.isEnabled
     @State private var count = ClipboardHistory.count
     @State private var autoSave = ClipboardHistory.autoSave
-    /// 第一次打开自动保存先弹确认卡（CA3 ②）：点「开启」才打开，点「取消」或下滑关掉，开关退回关。
-    @State private var asksAutoSave = false
+    /// 第一次打开自动保存先弹确认卡（CA4，挂在根视图上的居中卡片）：点「开启」才打开，点「取消」开关不动。
+    @ObservedObject private var consent = AutoSaveConsent.shared
     @State private var limit = ClipboardHistory.maxItems
     /// 改小上限会删记录：先确认（CA3 ⑤），点取消分段退回原来的值。
     @State private var pendingLimit: Int?
@@ -49,15 +49,9 @@ struct ClipboardSettingsSection: View {
         }
         .onAppear(perform: reload)
         .onChange(of: refresh) { _ in reload() }
-        .sheet(isPresented: $asksAutoSave) {
-            AutoSaveConsentSheet {
-                ClipboardHistory.autoSaveConsentAt = Date()
-                ClipboardHistory.autoSave = true
-                autoSave = true
-                asksAutoSave = false
-            } cancel: {
-                asksAutoSave = false
-            }
+        // 确认卡收起（开启或取消）：照存着的值重画开关和脚注。
+        .onChange(of: consent.presented) { showing in
+            if !showing { autoSave = ClipboardHistory.autoSave }
         }
         .alert(shrinkTitle, isPresented: Binding(get: { pendingLimit != nil }, set: { if !$0 { pendingLimit = nil } })) {
             Button(L("取消", "Cancel", "キャンセル"), role: .cancel) { pendingLimit = nil }
@@ -84,7 +78,10 @@ struct ClipboardSettingsSection: View {
     private var autoSaveRow: some View {
         Toggle(isOn: Binding(get: { enabled && autoSave }, set: { value in
             if value && ClipboardHistory.needsAutoSaveConsent(consentAt: ClipboardHistory.autoSaveConsentAt) {
-                asksAutoSave = true
+                AutoSaveConsent.shared.present {
+                    ClipboardHistory.autoSaveConsentAt = Date()
+                    ClipboardHistory.autoSave = true
+                }
                 return
             }
             ClipboardHistory.autoSave = value
@@ -188,85 +185,5 @@ struct ClipboardSettingsSection: View {
         count = ClipboardHistory.count
         limit = ClipboardHistory.maxItems
         autoSave = ClipboardHistory.autoSave
-    }
-}
-
-/// 第一次打开自动保存的确认卡（CA3 ②，05 要求写明的都在上面）：图标、标题、副标题、五行说明、紫色「开启」、文字「取消」。
-/// 系统底部弹层、中等高度；下滑关掉等于取消。
-struct AutoSaveConsentSheet: View {
-    var turnOn: () -> Void
-    var cancel: () -> Void
-
-    private static let purple = Color(hex: 0x5B4BE8)
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                Image(systemName: "doc.on.clipboard")
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(Self.purple)
-                    .frame(width: 58, height: 58)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Self.purple.opacity(0.12)))
-                    .padding(.bottom, 12)
-                Text(L("打开自动保存？", "Turn on Auto-Save?", "自動保存をオンにしますか？"))
-                    .font(.system(size: 21, weight: .bold))
-                    .multilineTextAlignment(.center)
-                Text(L("打开后，键盘会这样做：", "When it's on, the keyboard will:", "オンにすると、キーボードは次のように動きます："))
-                    .font(.system(size: 13.5)).foregroundStyle(.secondary)
-                    .padding(.top, 4)
-                VStack(alignment: .leading, spacing: 14) {
-                    line("doc.on.clipboard", L("键盘显示时，自动读取你新复制的文字，存进剪贴板记录",
-                                               "Read newly copied text while it's showing and save it to clipboard history",
-                                               "表示中に新しくコピーしたテキストを読み取り、クリップボード履歴に保存します"))
-                    line("bell", L("每次读取，系统都会在顶部提示「飞地输入法粘贴自…」", "Each time, iOS shows \"Enclave pasted from…\" at the top",
-                                   "読み取るたびに、iOS が上部に「Enclave が…からペースト」と表示します"))
-                    line("lock", L("密码管理器复制的密码、纯数字（如验证码）不保存",
-                                   "Passwords from password managers and digit-only text (like codes) aren't saved",
-                                   "パスワード管理アプリのパスワードや数字だけのテキスト（確認コードなど）は保存しません"))
-                    line(DeviceName.current == "iPad" ? "ipad" : "iphone",
-                         L("只存在这台 \(DeviceName.current) 上，24 小时后删除，不上传", "Kept only on this \(DeviceName.current), deleted after 24 hours, never uploaded",
-                           "この \(DeviceName.current) にだけ保存し、24 時間後に削除します。アップロードはしません"))
-                    line("switch.2", L("随时可以在这里关掉", "You can turn it off here at any time", "ここでいつでもオフにできます"))
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 18)
-                .padding(.bottom, 20)
-                Button(action: turnOn) {
-                    Text(L("开启", "Turn On", "オンにする"))
-                        .font(.system(size: 16.5, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Capsule().fill(Self.purple))
-                }
-                .buttonStyle(.plain)
-                Button(action: cancel) {
-                    Text(L("取消", "Cancel", "キャンセル"))
-                        .font(.system(size: 16))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                }
-                .padding(.top, 4)
-            }
-            .padding(.horizontal, 22)
-            .padding(.top, 24)
-            .padding(.bottom, 18)
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-
-    private func line(_ icon: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Self.purple)
-                .frame(width: 30, height: 30)
-                .background(Circle().fill(Self.purple.opacity(0.12)))
-            Text(text)
-                .font(.system(size: 15))
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
-        }
     }
 }

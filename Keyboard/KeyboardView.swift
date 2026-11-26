@@ -78,15 +78,6 @@ struct KeyboardView: View {
                     }
                 }
                 .frame(height: KeyboardMetrics.topRow)
-                // 自动保存存下一条（T97 CA2 ①）：盖在 AI 栏左边（润色、问答上面），不盖帮回键；点按照常穿透。
-                .overlay(alignment: .leading) {
-                    if model.clipSavedToast {
-                        ClipSavedToast()
-                            .padding(.leading, inset + KeyboardMetrics.topRow)
-                            .transition(.opacity)
-                            .allowsHitTesting(false)
-                    }
-                }
                 // 长按候选的小气泡朝下，盖在按键上（键盘画不到候选栏上面）。
                 .overlay(alignment: .topLeading) {
                     if let menu = model.candidateMenu {
@@ -1934,22 +1925,6 @@ struct FreeEditToast: View {
             .frame(height: 32)
             .background(Capsule().fill(Brand.candidateMenuFill))
             .shadow(color: .black.opacity(0.22), radius: 9, y: 6)
-    }
-}
-
-/// 「✓ 已存进剪贴板记录」：34 高的胶囊，浅色模式深底、深色模式浅底（和其他小提示同一套颜色）。
-struct ClipSavedToast: View {
-    var body: some View {
-        Label(L("已存进剪贴板记录", "Saved to clipboard history", "クリップボード履歴に保存しました"), systemImage: "checkmark")
-            .font(.system(size: 13.5, weight: .semibold))
-            .foregroundStyle(Brand.candidateMenuText)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-            .padding(.leading, 11)
-            .padding(.trailing, 14)
-            .frame(height: 34)
-            .background(Capsule().fill(Brand.candidateMenuFill))
-            .shadow(color: .black.opacity(0.18), radius: 7, y: 4)
     }
 }
 

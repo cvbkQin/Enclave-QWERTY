@@ -290,9 +290,6 @@ final class KeyboardModel: ObservableObject {
     /// 按键区顶上的深色小提示（「★ 已加到常用语…」「只能粘贴文字」），1.8 秒后淡掉。
     @Published var keysToast: String?
     var keysToastTimer: DispatchWorkItem?
-    /// 自动保存存下一条时 AI 栏左边的「已存进剪贴板记录」（T97 CA2 ①）。
-    @Published var clipSavedToast = false
-    var clipSavedToastTimer: DispatchWorkItem?
     /// 刚进自由编辑时的小胶囊。
     @Published var freeEditToast = false
     var freeEditToastTimer: DispatchWorkItem?
