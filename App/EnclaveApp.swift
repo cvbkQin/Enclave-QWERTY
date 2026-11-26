@@ -142,6 +142,8 @@ struct RootView: View {
 
     var body: some View {
         tabs
+            // 第一次打开「自动保存复制的内容」的确认卡（CA4）：屏幕中间，盖住整个 App 包括标签栏。
+            .overlay { AutoSaveConsentHost() }
             .onAppear { router.setWideLayout(wide) }
             .onChange(of: wide) { router.setWideLayout($0) }
             // 首次打开先看隐私说明（CP1），不能下滑关掉。iPad 宽屏时是居中的表单窗口（PA4 ⑦）。

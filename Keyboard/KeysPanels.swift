@@ -295,7 +295,7 @@ struct QuickWordsPanel: View {
                     divider(available: available)
                     Group {
                         if dragSplit == nil, QuickSplit.collapsedSide(split) == .clipboard {
-                            strip(L("剪贴板", "Clipboard", "クリップボード"), dot: model.hasFullAccess && model.clipboardHasNew)
+                            strip(L("剪贴板", "Clipboard", "クリップボード"), dot: model.clipboardDotShown)
                         } else {
                             clipboardColumn(leading: Self.sideInset + widths.left + Self.dividerWidth, width: widths.right)
                         }
