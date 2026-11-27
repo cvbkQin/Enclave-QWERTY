@@ -456,6 +456,11 @@ struct LicensesView: View {
                 }
                 .padding(.vertical, 4)
                 VStack(alignment: .leading, spacing: 8) {
+                    // 05：只写这一句，不提任何榜单或点评网站。
+                    Text(L("网红打卡：飞地输入法整理", "Trending spots: compiled by Enclave", "話題のスポット：Enclave が編集")).font(.subheadline)
+                }
+                .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
                     Text("OpenStreetMap").font(.headline)
                     Text(ExtDictAttribution.osm).font(.subheadline)
                     Text(L("在线的海外餐厅词库和英文补全里的海外餐厅名。", "The online restaurants abroad dictionary and restaurant names in English suggestions.", "オンラインの海外のレストラン辞書と、英語の候補に出るレストラン名。"))

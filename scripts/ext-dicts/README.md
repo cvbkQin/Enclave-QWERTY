@@ -40,3 +40,9 @@ python3 scripts/build-ext-dicts.py --only lvyou,renwu --wikidata ~/Enclave-QWERT
 `scripts/fetch-osm-names.py`（update-wikidata-dicts.sh 会顺带跑）从 OpenStreetMap 取新加坡、马来西亚、日本、韩国、泰国、越南、香港、澳门的餐厅、咖啡馆名称，只取名称不取坐标。
 中文名写 `osm.tsv`，生成在线词库 `ext_osm`（`--only osm`）；英文名写 `en-osm.tsv`，`build-english-names.py` 生成 `Keyboard/English/en_osm.tsv`。
 ODbL 要求相同方式共享，所以这两份都单独成文件、按 ODbL 1.0 发布，署名「© OpenStreetMap contributors」，在线目录附 `LICENSE-osm.txt`，许可页单列一条（05 第四节）。
+
+## 网红打卡（自己整理，T106）
+
+`daka.txt`（中文名）和 `daka-en.txt`（英文名）是自己整理的网红餐厅、打卡地短表，凭常识和多方公开报道列，不照搬任何榜单，只收名称；05 审过（项目文件 `compliance/词库-网红打卡/05审核意见.md`）。
+中文名生成在线词库 `daka`（「网红打卡」，许可页写「网红打卡：飞地输入法整理」）；英文名由 `build-english-names.py` 放进 `Keyboard/English/en_names.tsv`。
+以后一次新增超过 50 条再交 05 审；台湾条目不收带「国立」「中华民国」「总统府」的名称；品牌名不加 ®。

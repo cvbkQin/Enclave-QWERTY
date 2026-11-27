@@ -2,6 +2,7 @@
 """英文补全里的专有名词：景点、机场、地标、餐厅的英文名（T106，用户 11-27：「这些都需要中英文的」）。
 
 用法：python3 scripts/build-english-names.py <Wikidata 输出目录> [--people]
+  只更新网红打卡的英文名时，目录给一个空目录就行。
   <Wikidata 输出目录> 是 scripts/update-wikidata-dicts.sh 写出的目录，读里面的 en-lvyou.tsv（和 --people 时的 en-renwu.tsv）。
   人名（--people）等 05 看完人物待审文件再加。
 
@@ -24,8 +25,10 @@ TOKEN = re.compile(r"[A-Za-z][A-Za-z']*")
 PER_SITELINK = 8
 MAX_WEIGHT = 3000
 LIMIT = 40_000
+DAKA = Path(__file__).resolve().parent / "ext-dicts" / "daka-en.txt"
+DAKA_POPULARITY = 100
 OSM_HEADER = "# 来源：OpenStreetMap，© OpenStreetMap contributors，ODbL 1.0（本文件也按 ODbL 1.0 发布）；由 scripts/build-english-names.py 生成，不要手改。\n"
-HEADER = "# 来源：Wikidata（wikidata.org）英文标签和别名，CC0 1.0；由 scripts/build-english-names.py 生成，不要手改。\n"
+HEADER = "# 来源：Wikidata（wikidata.org）英文标签和别名，CC0 1.0；网红打卡的英文名由飞地输入法整理（scripts/ext-dicts/daka-en.txt）；由 scripts/build-english-names.py 生成，不要手改。\n"
 
 
 def read(path):
@@ -75,9 +78,12 @@ def main():
         sys.exit(__doc__)
     source = Path(args[0])
     known = {line.split("\t", 1)[0] for line in (OUT / "en_words.tsv").read_text(encoding="utf-8").splitlines()}
+    # 网红打卡短表的英文名（自己整理、05 审过）也放进 en_names，热度按 DAKA_POPULARITY 算。
+    daka = [(line, DAKA_POPULARITY) for line in DAKA.read_text(encoding="utf-8").splitlines() if line and not line.startswith("#")]
+    names = daka
     if (source / "en-lvyou.tsv").exists():
-        names = read(source / "en-lvyou.tsv") + (read(source / "en-renwu.tsv") if people else [])
-        known |= write(names, known, "en_names", HEADER)
+        names += read(source / "en-lvyou.tsv") + (read(source / "en-renwu.tsv") if people else [])
+    known |= write(names, known, "en_names", HEADER)
     if (source / "en-osm.tsv").exists():
         # OSM 来的单独一个文件，按 ODbL 发布（05 第四节）；热度是同名店的家数，折算方式一样。
         write(read(source / "en-osm.tsv"), known, "en_osm", OSM_HEADER)

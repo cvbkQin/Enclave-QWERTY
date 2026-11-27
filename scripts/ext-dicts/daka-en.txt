@@ -1,0 +1,130 @@
+# 网红打卡的英文名 · 飞地输入法整理（和 daka.txt 同一份短表，05 审过），给 scripts/build-english-names.py。
+Haidilao
+Xibei
+Jiumaojiu
+Xiabu Xiabu
+Din Tai Fung
+Tim Ho Wan
+Ichiran
+Ippudo
+Sushiro
+Kura Sushi
+Torikizoku
+Saizeriya
+Bianyifang
+Donglaishun
+Guangzhou Restaurant
+Lin Heung
+Lan Fong Yuen
+Australia Dairy Company
+Kau Kee
+Yung Kee
+Tsim Chai Kee
+Tai Cheong Bakery
+Lord Stow's Bakery
+Hawker Chan
+Jumbo Seafood
+Song Fa Bak Kut Teh
+Lau Pa Sat
+Maxwell Food Centre
+HeyTea
+Nayuki
+Chagee
+Mixue
+Luckin Coffee
+Cotti Coffee
+Blue Bottle Coffee
+Hongyadong
+Liziba Station
+Ciqikou
+Jiefangbei
+Yangtze River Cableway
+Taikoo Li
+Kuanzhai Alley
+Jinli
+Chengdu Research Base of Giant Panda Breeding
+Yongxingfang
+Muslim Quarter
+Orange Isle
+Wukang Road
+Anfu Road
+The Bund
+Wukang Mansion
+Shanghai Astronomy Museum
+Xintiandi
+Universal Beijing Resort
+798 Art District
+Sanlitun
+Nanluoguxiang
+Shichahai
+Shougang Park
+Tianjin Eye
+Five Great Avenues
+Gulangyu
+Zengcuoan
+Badaguan
+Central Street
+Harbin Ice and Snow World
+Canton Tower
+Yongqingfang
+Shamian Island
+Erhai Lake
+Shuanglang
+Old Town of Lijiang
+Daocheng Yading
+Chaka Salt Lake
+Wugong Mountain
+Wuyuan
+Taoxichuan
+Laojun Mountain
+Yingtian Gate
+Aranya
+Jewel Changi Airport
+Gardens by the Bay
+Marina Bay Sands
+Merlion Park
+Sentosa
+Chinatown
+Star Ferry
+Victoria Peak
+Yick Cheong Building
+West Kowloon Cultural District
+Ruins of St. Paul's
+Rua do Cunha
+Shilin Night Market
+Ningxia Night Market
+Jiufen Old Street
+Sun Moon Lake
+Tokyo Skytree
+Shibuya Crossing
+Shibuya Sky
+Senso-ji
+Fushimi Inari Taisha
+Kiyomizu-dera
+Arashiyama Bamboo Grove
+Nara Park
+Kamakura-Kokomae Station
+Dotonbori
+Kuromon Market
+Tsukiji Outer Market
+Gyeongbokgung
+Myeongdong
+Hongdae
+Bukchon Hanok Village
+N Seoul Tower
+Grand Palace
+Khao San Road
+Chatuchak Weekend Market
+Petronas Twin Towers
+Jalan Alor
+Hoan Kiem Lake
+Burj Khalifa
+Eiffel Tower
+Sagrada Familia
+London Eye
+Times Square
+Central Park
+Golden Gate Bridge
+Antelope Canyon
+Sydney Opera House
+Blue Lagoon

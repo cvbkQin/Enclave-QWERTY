@@ -64,6 +64,8 @@ ONLINE = [
     ("lishimingren", "thuocl", "THUOCL_lishimingren.txt"),
     ("renwu", "wikidata", "renwu.tsv"),
     ("osm", "osm", "osm.tsv"),
+    # 网红餐厅和打卡地：自己整理的短表（scripts/ext-dicts/daka.txt），05 审过；变得快，放在线词库随时补。
+    ("daka", "self", "daka.txt"),
 ]
 # 这两类的源文件是 tsv（词、拼音、热度），拼音已经标好；在 --wikidata 指的目录里（不进仓库）。
 TSV_KINDS = ("wikidata", "osm")
@@ -74,6 +76,7 @@ ONLINE_NAMES = {
     "lishimingren": {"zh": "历史名人", "en": "Historical figures", "ja": "歴史上の人物"},
     "renwu": {"zh": "名人", "en": "Famous people", "ja": "著名人"},
     "osm": {"zh": "海外餐厅", "en": "Restaurants abroad", "ja": "海外のレストラン"},
+    "daka": {"zh": "网红打卡", "en": "Trending spots", "ja": "話題のスポット"},
 }
 # 05（compliance/词库-Wikidata/许可和审核要求.md）定的来源写法：词库文件头、许可页、服务器 README 一致。
 OSM_SOURCE = "OpenStreetMap（openstreetmap.org），© OpenStreetMap contributors，按 ODbL 1.0 使用（本文件也按 ODbL 1.0 发布）；只取名称；拼音标注、筛选和整理由飞地输入法完成"
