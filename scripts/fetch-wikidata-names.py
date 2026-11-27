@@ -7,6 +7,8 @@
   python3 scripts/fetch-wikidata-names.py parse <原始数据目录> <万象 dicts 目录> <输出目录>
 
 两步分开：下载的原始 JSON 留在原始数据目录，整理规则改了不用重新下载；fetch 跑到一半断了再跑一次，下好的不重下。
+每类先只查编号和热度，名字、地名前缀再按 500 个编号一批查（一次查全部，结果太大会被查询服务截断），
+每批存在原始数据目录的 parts/ 里，断了从断的那一批接着下。
 
 许可和审核（05：项目文件 compliance/词库-Wikidata/许可和审核要求.md）：
 - Wikidata 的结构化数据是 CC0 1.0。只取中文标签（label）和别名（alias），不取维基百科正文、摘要、描述。
@@ -19,6 +21,7 @@
 
 输出目录（不进仓库：待审文件里是要人工看的敏感人名，仓库是公开的）：
   lvyou.tsv、renwu.tsv   词\\t拼音\\t热度（sitelinks），给 build-ext-dicts.py --wikidata <输出目录> 生成词库
+  en-lvyou.tsv、en-renwu.tsv  英文名\\t热度，给 scripts/build-english-names.py 生成英文补全的专有名词
   review-politicians.tsv 待审：大陆、台湾、香港、澳门籍政治人物（交 05）
   review-convicted.tsv   待审：有判罪记录的人（交 05）
   excluded.tsv           按规则排除掉的（色情演员、法轮功和名单里的组织、政治写法的地名），05 备查
@@ -37,6 +40,8 @@ ROOT = Path(__file__).resolve().parent.parent
 ENDPOINT = "https://query.wikidata.org/sparql"
 UA = "EnclaveDictBuilder/1.0 (https://github.com/cvbkQin/Enclave-QWERTY)"
 ZH = '"zh-hans", "zh-cn"'
+# 英文名（用户 11-27：「这些都需要中英文的」）：进英文补全（Keyboard/English/en_names.tsv）。
+LANGS = ZH + ', "en"'
 
 # 景点、地标：直接属于这些类型（P31，不追子类，查询才不超时）的条目。值是 sitelinks 下限：越常见的类型下限越高，只留有名的。
 PLACE_CLASSES = {
@@ -102,7 +107,10 @@ PLACE_DENY_CONTAINS = ("台湾国", "东突厥斯坦", "东突")
 LIMITS = {"lvyou": 60_000, "renwu": 120_000}
 
 
-def sparql(query, retries=3):
+BATCH = 500
+
+
+def sparql(query, retries=4):
     data = urllib.parse.urlencode({"query": query}).encode()
     request = urllib.request.Request(ENDPOINT, data=data, headers={
         "User-Agent": UA, "Accept": "application/sparql-results+json",
@@ -110,7 +118,8 @@ def sparql(query, retries=3):
     for attempt in range(retries):
         try:
             with urllib.request.urlopen(request, timeout=90) as response:
-                return json.load(response)["results"]["bindings"]
+                # 查询服务 60 秒超时时会把已经出来的一半结果发过来，JSON 不完整，下面按出错重试。
+                return json.loads(response.read().decode("utf-8"))["results"]["bindings"]
         except urllib.error.HTTPError as error:
             # 429：按 Retry-After 等；500/502/504 多半是查询超时，交给调用的地方拆小。
             if error.code == 429:
@@ -119,7 +128,7 @@ def sparql(query, retries=3):
             if error.code in (500, 502, 503, 504) and attempt == retries - 1:
                 raise TimeoutError(f"HTTP {error.code}") from error
             time.sleep(5 * (attempt + 1))
-        except (TimeoutError, urllib.error.URLError, json.JSONDecodeError) as error:
+        except (TimeoutError, urllib.error.URLError, ConnectionError, json.JSONDecodeError, UnicodeDecodeError) as error:
             if attempt == retries - 1:
                 raise TimeoutError(str(error)) from error
             time.sleep(5 * (attempt + 1))
@@ -135,7 +144,7 @@ def save(raw, name, rows):
 
 
 def fetch_once(raw, name, query):
-    """下好了就不重下。"""
+    """只有编号的小查询（排除、待审名单）：下好了就不重下。"""
     path = raw / name
     if path.exists():
         return
@@ -147,22 +156,69 @@ def fetch_once(raw, name, query):
 
 # MARK: - 查询
 
-def labels_query(where):
-    return f"""SELECT ?item ?sl ?label ?alias WHERE {{
-  {where}
-  ?item wikibase:sitelinks ?sl .
-  ?item rdfs:label ?label . FILTER(LANG(?label) IN ({ZH}))
-  OPTIONAL {{ ?item skos:altLabel ?alias . FILTER(LANG(?alias) IN ({ZH})) }}
+def values(qids):
+    return "VALUES ?item { " + " ".join(f"wd:{q}" for q in qids) + " }"
+
+
+def labels_query(qids):
+    """中文（简体）和英文的标签、别名，一行一个（label 或 alias 二选一，不做交叉，结果小）。"""
+    return f"""SELECT ?item ?label ?alias WHERE {{
+  {values(qids)}
+  {{ ?item rdfs:label ?label . FILTER(LANG(?label) IN ({LANGS})) }}
+  UNION
+  {{ ?item skos:altLabel ?alias . FILTER(LANG(?alias) IN ({LANGS})) }}
 }}"""
 
 
-def prefixes_query(where):
+def prefixes_query(qids):
     """地名前面常带的城市、所在地、国家名（「新加坡樟宜机场」的「新加坡」），整理时去掉它得到简称「樟宜机场」。"""
     return f"""SELECT ?item ?prefix WHERE {{
-  {where}
+  {values(qids)}
   ?item wdt:P931|wdt:P131|wdt:P17 ?place .
   ?place rdfs:label ?prefix . FILTER(LANG(?prefix) IN ({ZH}))
 }}"""
+
+
+def batched(raw, stem, kind, qids, make_query):
+    """按 BATCH 个编号一批查，每批存 parts/，下好的批不重下。"""
+    parts = raw / "parts"
+    parts.mkdir(exist_ok=True)
+    rows = []
+    total = (len(qids) + BATCH - 1) // BATCH
+    for index in range(total):
+        path = parts / f"{stem}_{kind}_{index:04d}.json"
+        if not path.exists():
+            print(f"    {stem} {kind} {index + 1}/{total}", flush=True)
+            save(parts, path.name, sparql(make_query(qids[index * BATCH:(index + 1) * BATCH])))
+            time.sleep(0.5)
+        rows += json.loads(path.read_text(encoding="utf-8"))
+    return rows
+
+
+def fetch_set(raw, stem, where, prefixes=True):
+    """一类条目：先查编号和热度（sitelinks），再分批查中文名、别名和地名前缀。
+    写出 <stem>.json（item、sl、label、alias，和 parse 读的格式一样）和 <stem>_prefix.json。"""
+    done = (raw / f"{stem}.json").exists() and (not prefixes or (raw / f"{stem}_prefix.json").exists())
+    if done:
+        return
+    print(f"  {stem} …", flush=True)
+    ids_path = raw / "parts" / f"{stem}_ids.json"
+    (raw / "parts").mkdir(exist_ok=True)
+    if not ids_path.exists():
+        # 编号查询超时多半是一次查太多，少试几次，交给人物那边按年份拆小。
+        rows = sparql(f"SELECT DISTINCT ?item ?sl WHERE {{\n  {where}\n  ?item wikibase:sitelinks ?sl .\n}}", retries=2)
+        save(raw / "parts", ids_path.name, rows)
+    sitelinks = {}
+    for row in json.loads(ids_path.read_text(encoding="utf-8")):
+        sitelinks[qid(row)] = max(sitelinks.get(qid(row), 0), int(row["sl"]["value"]))
+    qids = sorted(sitelinks)
+    if not (raw / f"{stem}.json").exists():
+        rows = batched(raw, stem, "labels", qids, labels_query)
+        for row in rows:
+            row["sl"] = {"value": str(sitelinks[qid(row)])}
+        save(raw, f"{stem}.json", rows)
+    if prefixes and not (raw / f"{stem}_prefix.json").exists():
+        save(raw, f"{stem}_prefix.json", batched(raw, stem, "prefix", qids, prefixes_query))
 
 
 def xsd_year(year):
@@ -171,8 +227,8 @@ def xsd_year(year):
 
 
 def fetch_people(raw, y0, y1):
-    name = f"people_{y0}_{y1}.json"
-    if (raw / name).exists():
+    stem = f"people_{y0}_{y1}"
+    if (raw / f"{stem}.json").exists():
         return
     # rangeSafe：告诉查询服务年份、sitelinks 的类型一致，可以按范围走索引，不然要扫全部一千多万人、必定超时。
     where = f"""?item wdt:P569 ?born . hint:Prior hint:rangeSafe true .
@@ -180,14 +236,22 @@ def fetch_people(raw, y0, y1):
   ?item wdt:P31 wd:Q5 .
   FILTER(?n >= {PEOPLE_MIN_SITELINKS})
   FILTER(?born >= "{xsd_year(y0)}-01-01T00:00:00Z"^^xsd:dateTime && ?born < "{xsd_year(y1)}-01-01T00:00:00Z"^^xsd:dateTime)"""
+    split = raw / "parts" / f"{stem}.split"
     try:
-        fetch_once(raw, name, labels_query(where))
+        if split.exists():
+            raise TimeoutError("上次已经拆开")
+        fetch_set(raw, stem, where, prefixes=False)
     except TimeoutError:
+        if (raw / "parts" / f"{stem}_ids.json").exists():
+            raise  # 编号查到了、分批查名字还失败，是网络问题，不拆；再跑一次接着下
         if y1 - y0 <= 1:
-            print(f"  {name} 一直超时，跳过", flush=True)
+            print(f"  {stem} 一直超时，跳过", flush=True)
             return
         mid = (y0 + y1) // 2
-        print(f"  {name} 超时，拆成 {y0}–{mid}、{mid}–{y1}", flush=True)
+        if not split.exists():
+            print(f"  {stem} 超时，拆成 {y0}–{mid}、{mid}–{y1}", flush=True)
+            split.parent.mkdir(exist_ok=True)
+            split.write_text("", encoding="utf-8")
         fetch_people(raw, y0, mid)
         fetch_people(raw, mid, y1)
 
@@ -195,44 +259,42 @@ def fetch_people(raw, y0, y1):
 def fetch(raw):
     raw.mkdir(parents=True, exist_ok=True)
     print("机场（有 IATA 代码的）：")
-    airport = "?item wdt:P238 ?iata ."
-    fetch_once(raw, "airport.json", labels_query(airport))
-    fetch_once(raw, "airport_prefix.json", prefixes_query(airport))
+    fetch_set(raw, "airport", "?item wdt:P238 ?iata .")
     print("景点、地标：")
     for cls, (title, minimum) in PLACE_CLASSES.items():
         where = f"?item wdt:P31 wd:{cls} ; wikibase:sitelinks ?n . FILTER(?n >= {minimum})"
-        fetch_once(raw, f"place_{cls}.json", labels_query(where))
-        fetch_once(raw, f"place_{cls}_prefix.json", prefixes_query(where))
+        fetch_set(raw, f"place_{cls}", where)
     print("餐厅：")
     restaurant = f"?item wdt:P31/wdt:P279* wd:{RESTAURANT} ; wikibase:sitelinks ?n . FILTER(?n >= {RESTAURANT_MIN_SITELINKS})"
-    fetch_once(raw, "place_restaurant.json", labels_query(restaurant))
-    fetch_once(raw, "place_restaurant_prefix.json", prefixes_query(restaurant))
-    awarded = f"?item wdt:P31/wdt:P279* wd:{RESTAURANT} ; wdt:P166 ?award ."
-    fetch_once(raw, "place_restaurant_award.json", labels_query(awarded))
-    fetch_once(raw, "place_restaurant_award_prefix.json", prefixes_query(awarded))
+    fetch_set(raw, "place_restaurant", restaurant)
+    fetch_set(raw, "place_restaurant_award", f"?item wdt:P31/wdt:P279* wd:{RESTAURANT} ; wdt:P166 ?award .")
     heritage = f"?item wdt:P1435 wd:{WORLD_HERITAGE} ."
-    fetch_once(raw, "place_heritage.json", labels_query(heritage))
-    fetch_once(raw, "place_heritage_prefix.json", prefixes_query(heritage))
+    fetch_set(raw, "place_heritage", heritage)
     print("人物：")
     for y0, y1 in PEOPLE_RANGES:
         fetch_people(raw, y0, y1)
     print("人物排除名单、待审名单：")
+    # 只查热度够进人物词库的人（和上面同一个 sitelinks 下限），结果小，不会被截断。
+    famous = f"?item wikibase:sitelinks ?n . FILTER(?n >= {PEOPLE_MIN_SITELINKS})"
     for occupation in EXCLUDE_OCCUPATIONS:
         fetch_once(raw, f"exclude_occupation_{occupation}.json",
-                   f"SELECT DISTINCT ?item WHERE {{ ?item wdt:P106/wdt:P279* wd:{occupation} . }}")
+                   f"SELECT DISTINCT ?item WHERE {{ ?item wdt:P106/wdt:P279* wd:{occupation} . {famous} }}")
     for org in EXCLUDE_ORGS:
         fetch_once(raw, f"exclude_org_{org}.json",
-                   f"SELECT DISTINCT ?item WHERE {{ ?item wdt:P140|wdt:P463|wdt:P102 wd:{org} . }}")
+                   f"SELECT DISTINCT ?item WHERE {{ ?item wdt:P140|wdt:P463|wdt:P102 wd:{org} . {famous} }}")
     citizenship = " ".join(f"wd:{c}" for c in REVIEW_CITIZENSHIP)
     fetch_once(raw, "review_politician.json", f"""SELECT DISTINCT ?item WHERE {{
   VALUES ?country {{ {citizenship} }}
   ?item wdt:P27 ?country ; wdt:P106/wdt:P279* wd:Q82955 .
+  {famous}
 }}""")
     fetch_once(raw, "review_position.json", f"""SELECT DISTINCT ?item WHERE {{
   VALUES ?country {{ {citizenship} }}
   ?item wdt:P27 ?country ; wdt:P39 ?position ; wdt:P31 wd:Q5 .
+  {famous}
 }}""")
-    fetch_once(raw, "review_convicted.json", "SELECT DISTINCT ?item WHERE { ?item wdt:P1399 ?crime ; wdt:P31 wd:Q5 . }")
+    fetch_once(raw, "review_convicted.json",
+               f"SELECT DISTINCT ?item WHERE {{ ?item wdt:P1399 ?crime ; wdt:P31 wd:Q5 . {famous} }}")
     print(f"下好了：{raw}")
 
 
@@ -249,19 +311,20 @@ def clean(text):
 
 
 def load_items(raw, pattern):
-    """{qid: (sitelinks, {label}, {alias})}"""
+    """{qid: (sitelinks, {中文名和别名}, {英文名和别名})}"""
     items = {}
     for path in sorted(raw.glob(pattern)):
         if path.name.endswith("_prefix.json"):
             continue
         for row in json.loads(path.read_text(encoding="utf-8")):
             q = qid(row)
-            sl, labels, aliases = items.get(q, (0, set(), set()))
+            sl, zh, en = items.get(q, (0, set(), set()))
             sl = max(sl, int(row["sl"]["value"]))
-            labels.add(row["label"]["value"])
-            if "alias" in row:
-                aliases.add(row["alias"]["value"])
-            items[q] = (sl, labels, aliases)
+            for key in ("label", "alias"):
+                if key in row:
+                    lang = row[key].get("xml:lang", "zh-hans")
+                    (en if lang == "en" else zh).add(row[key]["value"])
+            items[q] = (sl, zh, en)
     return items
 
 
@@ -308,6 +371,24 @@ def place_denied(name):
     return name.startswith(PLACE_DENY_PREFIX) or any(word in name for word in PLACE_DENY_CONTAINS)
 
 
+EN_NAME = re.compile(r"[A-Za-z][A-Za-z0-9 .'&-]{1,39}")
+EN_DENY = ("republic of china", "east turkestan", "taiwan country")
+
+
+def english(name):
+    """英文名：去掉括号里的说明、多余空格；只留拉丁字母写的（不带变音符号，英文键盘打得出来）。"""
+    name = re.sub(r"\s+", " ", re.sub(r"[（(][^）)]*[）)]", "", name)).strip()
+    if not EN_NAME.fullmatch(name) or any(word in name.lower() for word in EN_DENY):
+        return None
+    return name
+
+
+def write_english(out, pack, scored):
+    rows = sorted(scored.items(), key=lambda kv: (-kv[1], kv[0]))[:LIMITS[pack]]
+    write_tsv(out / f"en-{pack}.tsv", rows)
+    print(f"  {pack} 英文名：{len(rows)} 条")
+
+
 def readings_module():
     spec = importlib.util.spec_from_file_location("build_ext_dicts", ROOT / "scripts" / "build-ext-dicts.py")
     module = importlib.util.module_from_spec(spec)
@@ -343,24 +424,27 @@ def parse(raw, wanxiang, out):
     print("景点、机场、地标：")
     prefixes = load_prefixes(raw)
     places = {**load_items(raw, "place_*.json"), **load_items(raw, "airport*.json")}
-    scored = {}
-    for q, (sl, labels, aliases) in places.items():
-        for name in map(clean, labels | aliases):
+    scored, scored_en = {}, {}
+    for q, (sl, zh, en) in places.items():
+        for name in map(clean, zh):
             if place_denied(name):
                 excluded.append(("地名写法", q, name))
                 continue
             for form in place_forms(name, prefixes.get(q, set())):
                 scored[form] = max(scored.get(form, 0), sl)
+        for name in filter(None, map(english, en)):
+            scored_en[name] = max(scored_en.get(name, 0), sl)
     finish("lvyou", scored)
+    write_english(out, "lvyou", scored_en)
 
     print("人物：")
     people = load_items(raw, "people_*.json")
     blocked = load_ids(raw, "exclude_*.json")
     politicians = load_ids(raw, "review_politician.json") | load_ids(raw, "review_position.json")
     convicted = load_ids(raw, "review_convicted.json")
-    scored, review_politicians, review_convicted = {}, [], []
-    for q, (sl, labels, aliases) in people.items():
-        names = sorted(map(clean, labels | aliases))
+    scored, scored_en, review_politicians, review_convicted = {}, {}, [], []
+    for q, (sl, zh, en) in people.items():
+        names = sorted(map(clean, zh)) + sorted(filter(None, map(english, en)))
         if q in blocked:
             excluded += [("职业或组织", q, name) for name in names]
             continue
@@ -368,10 +452,13 @@ def parse(raw, wanxiang, out):
             target = review_politicians if q in politicians else review_convicted
             target += [(q, name, sl) for name in names]
             continue
-        for name in names:
+        for name in map(clean, zh):
             for form in person_forms(name):
                 scored[form] = max(scored.get(form, 0), sl)
+        for name in filter(None, map(english, en)):
+            scored_en[name] = max(scored_en.get(name, 0), sl)
     finish("renwu", scored)
+    write_english(out, "renwu", scored_en)
     header = [("# 待审（05）：Wikidata 编号\t名字\t热度（sitelinks）。看完标出保留的，保留的由 01 加回词库。",)]
     write_tsv(out / "review-politicians.tsv", header + sorted(review_politicians, key=lambda r: -r[2]))
     write_tsv(out / "review-convicted.tsv", header + sorted(review_convicted, key=lambda r: -r[2]))

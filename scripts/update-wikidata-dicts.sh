@@ -8,7 +8,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-$HOME/Enclave-QWERTY/wikidata}"
-RAW="$OUT/raw"
+# raw-v2：11-27 起分批下载、带英文名，和第一次的 raw/ 格式不同。
+RAW="$OUT/raw-v2"
 # 和 scripts/fetch-rime.sh 用同一版万象（拼音按它标）。
 WANXIANG_COMMIT="$(sed -n 's/^WANXIANG_COMMIT="\(.*\)"$/\1/p' "$ROOT/scripts/fetch-rime.sh")"
 WANXIANG="$OUT/wanxiang-$WANXIANG_COMMIT"
