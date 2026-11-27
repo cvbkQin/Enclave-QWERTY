@@ -7,6 +7,14 @@
                                     [--grammar <wanxiang-lts-zh-hans.gram>]
   python3 scripts/build-ext-dicts.py --catalog-only --online server/dicts [--grammar <…gram>]
       只按目录里现有的词库文件重写 catalog.json（不重新生成词库）。
+  python3 scripts/build-ext-dicts.py --only lvyou,renwu,osm --wikidata <目录> --online server/dicts --blocklist <敏感词表>
+      只重新生成列出的词库，别的词库文件不动（builtin.json、catalog.json 里它们的条目按现有文件重算）。
+      只有 Wikidata 词库时不用给万象、THUOCL 目录（拼音已经在 tsv 里）。
+
+景点机场地标（lvyou，内置）、人物（renwu，在线）来自 Wikidata（CC0，T106）：scripts/fetch-wikidata-names.py
+在 Mac 上拉数据、标好拼音，写出 lvyou.tsv、renwu.tsv（词、拼音、热度），--wikidata 指到那个目录。
+海外餐厅（osm，在线）来自 OpenStreetMap（ODbL，单独成一个词库）：scripts/fetch-osm-names.py 写出 osm.tsv，放在同一个目录。
+这些 tsv 不进仓库（同目录还有交 05 的人名待审文件）；没给 --wikidata 就沿用现有的词库文件。
 
 在线词库和清单 catalog.json 写到 --online 目录，用 server/publish-dicts.sh 发到 enclavekb.cn/dicts/（见 server/README.md）。
 
@@ -46,6 +54,7 @@ BUILTIN = [
     ("diming", "thuocl", "THUOCL_diming.txt"),
     ("it", "thuocl", "THUOCL_IT.txt"),
     ("caijing", "thuocl", "THUOCL_caijing.txt"),
+    ("lvyou", "wikidata", "lvyou.tsv"),
 ]
 # 在线：放 enclavekb.cn/dicts/，在 App 里点「下载」才下。
 ONLINE = [
@@ -53,13 +62,27 @@ ONLINE = [
     ("law", "thuocl", "THUOCL_law.txt"),
     ("poem", "thuocl", "THUOCL_poem.txt"),
     ("lishimingren", "thuocl", "THUOCL_lishimingren.txt"),
+    ("renwu", "wikidata", "renwu.tsv"),
+    ("osm", "osm", "osm.tsv"),
+    # 网红餐厅和打卡地：自己整理的短表（scripts/ext-dicts/daka.txt），05 审过；变得快，放在线词库随时补。
+    ("daka", "self", "daka.txt"),
 ]
+# 这两类的源文件是 tsv（词、拼音、热度），拼音已经标好；在 --wikidata 指的目录里（不进仓库）。
+TSV_KINDS = ("wikidata", "osm")
+# 过敏感词表用包含匹配的（别的都是整词精确匹配）。
+CONTAINS_KINDS = ("osm",)
 ONLINE_NAMES = {
     "medical": {"zh": "医学", "en": "Medicine", "ja": "医学"},
     "law": {"zh": "法律", "en": "Law", "ja": "法律"},
     "poem": {"zh": "诗词", "en": "Poetry", "ja": "詩詞"},
     "lishimingren": {"zh": "历史名人", "en": "Historical figures", "ja": "歴史上の人物"},
+    "renwu": {"zh": "名人", "en": "Famous people", "ja": "著名人"},
+    "osm": {"zh": "海外餐厅", "en": "Restaurants abroad", "ja": "海外のレストラン"},
+    "daka": {"zh": "网红打卡", "en": "Trending spots", "ja": "話題のスポット"},
 }
+# 05（compliance/词库-Wikidata/许可和审核要求.md）定的来源写法：词库文件头、许可页、服务器 README 一致。
+OSM_SOURCE = "OpenStreetMap（openstreetmap.org），© OpenStreetMap contributors，按 ODbL 1.0 使用（本文件也按 ODbL 1.0 发布）；只取名称；拼音标注、筛选和整理由飞地输入法完成"
+WIKIDATA_SOURCE = "Wikidata（wikidata.org），词条名称按 CC0 1.0 公有领域贡献使用；拼音标注、筛选和整理由飞地输入法完成"
 # 百科词库：中文维基百科条目标题（fcitx5-pinyin-zhwiki 的 release，已转成简体），过敏感词表、精简到 20 万条。
 # 没给 --baike 时沿用 --online 目录里上次生成的；一次都没生成过，清单里 url 写 null，App 显示「准备中」。
 BAIKE_LIMIT = 200_000
@@ -142,8 +165,11 @@ def pinyin(word, words, chars):
 
 
 def read_words(kind, path):
-    """(词, 词频)。自整理的没有词频，按在表里的先后给。"""
+    """(词, 词频)。自整理的没有词频，按在表里的先后给。Wikidata 的 tsv 是（词, 热度），拼音另外读（read_readings）。"""
     text = path.read_text(encoding="utf-8")
+    if kind in TSV_KINDS:
+        return [(fields[0], int(fields[2])) for fields in (line.split("\t") for line in text.splitlines())
+                if len(fields) >= 3 and not fields[0].startswith("#")]
     rows = []
     for line in text.splitlines():
         line = line.strip()
@@ -157,6 +183,12 @@ def read_words(kind, path):
     return rows
 
 
+def read_readings(path):
+    """Wikidata 的 tsv 里 fetch-wikidata-names.py 按万象标好的拼音。"""
+    return {fields[0]: fields[1] for fields in (line.split("\t") for line in path.read_text(encoding="utf-8").splitlines())
+            if len(fields) >= 3 and not fields[0].startswith("#")}
+
+
 def weight(freq, top):
     """压到 1–9：按对数词频，最高的 9。"""
     if top <= 1:
@@ -166,27 +198,41 @@ def weight(freq, top):
 
 def build(pack, kind, path, words, chars, blocklist, out):
     rows = read_words(kind, path)
+    given = read_readings(path) if kind in TSV_KINDS else {}
     top = max((f for _, f in rows), default=1)
     seen, kept, skipped, blocked = set(), [], 0, []
+    # OSM 的店名是长名字（香港可能有带政治口号的店名），整词匹配拦不住，改用包含匹配（05 核对 PR #127 第 2 条）。
+    contains = sorted(blocklist, key=len) if kind in CONTAINS_KINDS else None
     for word, freq in rows:
         if word in seen:
             continue
         seen.add(word)
-        if word in blocklist:
+        if word in blocklist or (contains and any(bad in word for bad in contains)):
             blocked.append(word)
             continue
-        code = pinyin(word, words, chars)
+        code = given.get(word) or (pinyin(word, words, chars) if words else None)
         if not code or not re.fullmatch(r"[a-z]+( [a-z]+)*", code):
             skipped += 1
             continue
         kept.append((word, code, weight(freq, top)))
-    source = "THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2018 THUNLP" \
-        if kind == "thuocl" else "飞地输入法整理"
+    source = {"thuocl": "THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2018 THUNLP",
+              "wikidata": WIKIDATA_SOURCE, "osm": OSM_SOURCE}.get(kind, "飞地输入法整理")
     target = out / f"ext_{pack}.dict.yaml"
     header = f"# 飞地输入法扩展词库 · 来源：{source}\n# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。\n"
     version = write_dict(target, header, f"ext_{pack}", "".join(f"{word}\t{code}\t{w}\n" for word, code, w in kept))
-    print(f"  {pack}: {len(kept)} 条，版本 {version}（查不到读音 {skipped}，过滤 {len(blocked)}{'：' + '、'.join(blocked) if blocked else ''}）")
-    return {"id": pack, "entries": len(kept), "version": version, "size": target.stat().st_size, "sha256": sha256_file(target)}
+    # Wikidata 的过滤结果可能很长、有敏感人名，只写文件不打印。
+    shown = '：' + '、'.join(blocked) if blocked and kind not in TSV_KINDS else ''
+    print(f"  {pack}: {len(kept)} 条，版本 {version}（查不到读音 {skipped}，过滤 {len(blocked)}{shown}）")
+    if kind in TSV_KINDS:
+        # 过表删掉的词交 05 看（05 第三节），和待审文件放一起，不进仓库。
+        (path.parent / f"{pack}-blocked.txt").write_text("".join(w + "\n" for w in blocked), encoding="utf-8")
+    return manifest_entry(pack, target)
+
+
+def manifest_entry(pack, target):
+    """builtin.json 里的一条：按词库文件算。"""
+    return {"id": pack, "entries": count_entries(target), "version": dict_version(target), "size": target.stat().st_size,
+            "sha256": sha256_file(target)}
 
 
 # 标题里有这些字（代词、语气词），多半是歌名、书名一类的短句，不收。
@@ -219,6 +265,26 @@ TRANSLIT = set("阿埃艾安奥巴拜班邦贝本比彼波伯博布查达丹德�
 def starts_with_word(rest, words):
     """rest 开头两到四个字是万象里的词。"""
     return any(rest[:k] in words for k in (2, 3, 4) if len(rest) >= k)
+
+
+WIKIDATA_LICENSE = """景点、机场、地标、餐厅和名人词库（ext_lvyou.dict.yaml、ext_renwu.dict.yaml）来源说明
+
+景点、机场、地标、餐厅和名人词库：词条名称来自 Wikidata（wikidata.org），按 CC0 1.0 公有领域贡献使用。拼音标注、筛选和整理由飞地输入法完成。
+Places, airports, landmarks, restaurants and people dictionaries: entry names from Wikidata (wikidata.org), used under CC0 1.0. Pinyin, filtering and curation by Enclave.
+観光地・空港・ランドマーク・レストラン・人名辞書：項目名は Wikidata（wikidata.org）から CC0 1.0 のもとで使用しています。ピンインの付与、選別、整理は Enclave が行っています。
+
+CC0 1.0：https://creativecommons.org/publicdomain/zero/1.0/
+只用了 Wikidata 的中文标签和别名，没有用维基百科的条目正文、摘要或描述。
+"""
+
+
+OSM_LICENSE = """海外餐厅词库（ext_osm.dict.yaml）许可说明
+
+海外餐厅词库：词条名称来自 OpenStreetMap，© OpenStreetMap contributors，按开放数据库许可（ODbL 1.0）使用。
+本词库也按 ODbL 1.0 发布：https://opendatacommons.org/licenses/odbl/1-0/
+只取了餐厅、咖啡馆的名称（name:zh-Hans、name:zh），没有坐标、地址和其他信息。拼音标注、筛选和整理由飞地输入法完成。
+OpenStreetMap 版权和许可：https://www.openstreetmap.org/copyright
+"""
 
 
 BAIKE_LICENSE = """百科词库（ext_baike.dict.yaml）许可说明
@@ -439,31 +505,69 @@ def main():
                                          if (out / f"ext_{pack}.dict.yaml").exists()]
         write_catalog(out, dicts, gram_path)
         return
-    wanxiang, thuocl = Path(args[0]), Path(args[1])
+    only = set(filter(None, (option("--only") or "").split(",")))
+    wikidata_dir = option("--wikidata")
+    wikidata = Path(wikidata_dir) if wikidata_dir else None
+    known = {pack for pack, _, _ in BUILTIN + ONLINE}
+    if only - known:
+        sys.exit(f"--only 里有不认识的词库：{', '.join(sorted(only - known))}")
+    # 只重新生成 Wikidata 词库时拼音已经在 tsv 里，不用万象、THUOCL。
+    needs_sources = not only or any(kind not in TSV_KINDS for pack, kind, _ in BUILTIN + ONLINE if pack in only)
+    if needs_sources and len(args) < 2:
+        sys.exit(__doc__)
+    wanxiang, thuocl = (Path(args[0]), Path(args[1])) if len(args) >= 2 else (None, None)
     baike_block_path = option("--baike-blocklist")
     # 整词精确匹配：词和表里一模一样才删，不做包含匹配（见 05 的敏感词表说明）。
     blocklist = read_blocklist(block_path) if block_path else set()
     baike_block = read_blocklist(baike_block_path) if baike_block_path else set()
     if not block_path:
         print("提醒：没给 --blocklist，没过敏感词过滤，只能用于开发测试。")
-    words, chars, char_freq = load_readings(wanxiang)
+    words, chars, char_freq = load_readings(wanxiang) if wanxiang else ({}, {}, {})
+
+    def source(kind, name):
+        """这个词库的源文件；None = 这次不重新生成（沿用现有文件）。"""
+        if kind in TSV_KINDS:
+            path = wikidata / name if wikidata else None
+            return path if path and path.exists() else None
+        return (SRC if kind == "self" else thuocl) / name
+
+    def rebuild(pack, kind, name):
+        return (not only or pack in only) and source(kind, name) is not None
+
     OUT.mkdir(parents=True, exist_ok=True)
     print("内置词库：")
     manifest = []
     for pack, kind, name in BUILTIN:
-        path = (SRC if kind == "self" else thuocl) / name
-        manifest.append(build(pack, kind, path, words, chars, blocklist, OUT))
-    (OUT / "builtin.json").write_text(json.dumps({"filtered": bool(block_path), "dicts": manifest}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        if rebuild(pack, kind, name):
+            manifest.append(build(pack, kind, source(kind, name), words, chars, blocklist, OUT))
+        elif (OUT / f"ext_{pack}.dict.yaml").exists():
+            manifest.append(manifest_entry(pack, OUT / f"ext_{pack}.dict.yaml"))
+            print(f"  {pack}: 沿用现有文件")
+    previous_filtered = True
+    try:
+        previous_filtered = json.loads((OUT / "builtin.json").read_text(encoding="utf-8")).get("filtered", True)
+    except (OSError, ValueError):
+        pass
+    filtered = bool(block_path) and (not only or previous_filtered)
+    (OUT / "builtin.json").write_text(json.dumps({"filtered": filtered, "dicts": manifest}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     if online_dir:
         out = Path(online_dir)
         out.mkdir(parents=True, exist_ok=True)
         print("在线词库：")
-        catalog = [build_baike(Path(baike_path), words, chars, char_freq, blocklist, baike_block, out) if baike_path else previous_baike(out)]
+        rebuild_baike = baike_path and (not only or "baike" in only)
+        catalog = [build_baike(Path(baike_path), words, chars, char_freq, blocklist, baike_block, out) if rebuild_baike else previous_baike(out)]
         for pack, kind, name in ONLINE:
-            build(pack, kind, thuocl / name, words, chars, blocklist, out)
+            if rebuild(pack, kind, name):
+                build(pack, kind, source(kind, name), words, chars, blocklist, out)
+            elif (out / f"ext_{pack}.dict.yaml").exists():
+                print(f"  {pack}: 沿用现有文件")
+            else:
+                continue
             catalog.append(online_entry(out, pack, kind))
-        # THUOCL 的 MIT 许可原文跟在线词包放在一起分发。
+        # THUOCL 的 MIT 许可原文跟在线词包放在一起分发；Wikidata 词库的来源说明也放一份。
         shutil.copyfile(OUT / "LICENSE-THUOCL.txt", out / "LICENSE-THUOCL.txt")
+        (out / "LICENSE-wikidata.txt").write_text(WIKIDATA_LICENSE, encoding="utf-8")
+        (out / "LICENSE-osm.txt").write_text(OSM_LICENSE, encoding="utf-8")
         write_catalog(out, catalog, gram_path)
 
 

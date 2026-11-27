@@ -16,3 +16,34 @@ python3 scripts/build-ext-dicts.py <万象 dicts 目录> <THUOCL data 目录> --
 `server/dicts/` 里是在线词库和清单 `catalog.json`，拷到服务器 `/var/www/enclavekb/dicts/`。百科词库加 `--baike <zhwiki-*.dict.yaml>`（github.com/felixonmars/fcitx5-pinyin-zhwiki 的 release）：跳过万象里已有的词和有生僻字的，按派生条目数和字频打分取前 20 万条，同时写出 `LICENSE-baike.txt`；`--baike-blocklist <表>` 是 05 审核加的百科补充屏蔽表（整词匹配，表不进仓库）。不给 `--baike` 就沿用上次生成的。
 
 许可：THUOCL 是 MIT（Copyright (c) 2018 THUNLP），分发时附上 `Configs/ExtDicts/LICENSE-THUOCL.txt`。
+
+## 景点、机场、地标、餐厅和名人（Wikidata，T106）
+
+内置词库 `lvyou`（景点、机场、地标、城市）和在线词库 `renwu`（名人）的词条名称来自 Wikidata 的中文标签和别名，CC0 1.0。许可写法和人物筛选规则是 05 定的（项目文件 `compliance/词库-Wikidata/许可和审核要求.md`）。
+
+1. 在 Mac 上（要能上外网）：`bash scripts/update-wikidata-dicts.sh`，结果写到仓库外的 `~/Enclave-QWERTY/wikidata/`：`lvyou.tsv`、`renwu.tsv`（词、拼音、热度），待审的 `review-politicians.tsv`、`review-convicted.tsv`，和按规则排除掉的 `excluded.tsv`。这些文件不进仓库。
+2. 生成词库（不用万象、THUOCL 目录，拼音已经在 tsv 里）：
+
+```sh
+python3 scripts/build-ext-dicts.py --only lvyou,renwu --wikidata ~/Enclave-QWERTY/wikidata --online server/dicts --blocklist <敏感词表>
+```
+
+`--only` 只重新生成列出的词库，别的词库文件不动。过敏感词表删掉的词写到 `--wikidata` 目录的 `lvyou-blocked.txt`、`renwu-blocked.txt`，和待审文件一起交 05。在线目录里同时写出 `LICENSE-wikidata.txt`。
+
+英文名（用户 11-27：「这些都需要中英文的」）：同一次抓取还写出 `en-lvyou.tsv`、`en-renwu.tsv`（英文名、热度）。
+`python3 scripts/build-english-names.py ~/Enclave-QWERTY/wikidata --blocklist-en <英文屏蔽词表>` 把景点、机场、地标、餐厅英文名里英文词表没有的词
+写进 `Keyboard/English/en_names.tsv`、`en_names_next.tsv`，随键盘打包，英文补全里能打出 Changi、下一个词联想出 Airport。
+人名等 05 看完待审文件再加（`--people`）。
+
+## 海外餐厅（OpenStreetMap，ODbL，T106）
+
+`scripts/fetch-osm-names.py`（update-wikidata-dicts.sh 会顺带跑）从 OpenStreetMap 取新加坡、马来西亚、日本、韩国、泰国、越南、香港、澳门的餐厅、咖啡馆名称，只取名称不取坐标。
+中文名写 `osm.tsv`，生成在线词库 `ext_osm`（`--only osm`）；英文名写 `en-osm.tsv`，`build-english-names.py` 生成 `Keyboard/English/en_osm.tsv`。
+OSM 中文店名过敏感词表用包含匹配（店名长，整词匹配拦不住）；英文名过英文屏蔽词表（项目文件 `compliance/blocklist/英文屏蔽词表.txt`，整词匹配，命中整条不收）。香港、澳门来源的中文名另写 `review-osm-hkmo.tsv` 交 05。
+ODbL 要求相同方式共享，所以这两份都单独成文件、按 ODbL 1.0 发布，署名「© OpenStreetMap contributors」，在线目录附 `LICENSE-osm.txt`，许可页单列一条（05 第四节）。
+
+## 网红打卡（自己整理，T106）
+
+`daka.txt`（中文名）和 `daka-en.txt`（英文名）是自己整理的网红餐厅、打卡地短表，凭常识和多方公开报道列，不照搬任何榜单，只收名称；05 审过（项目文件 `compliance/词库-网红打卡/05审核意见.md`）。
+中文名生成在线词库 `daka`（「网红打卡」，许可页写「网红打卡：飞地输入法整理」）；英文名由 `build-english-names.py` 放进 `Keyboard/English/en_names.tsv`。
+以后一次新增超过 50 条再交 05 审；台湾条目不收带「国立」「中华民国」「总统府」的名称；品牌名不加 ®。

@@ -427,7 +427,7 @@ struct LicensesView: View {
                 }
                 .padding(.vertical, 4)
             }
-            // 扩展词库（B6）的署名：THUOCL（MIT）、百科词库（CC BY-SA 4.0）。
+            // 扩展词库（B6）的署名：THUOCL（MIT）、百科词库（CC BY-SA 4.0）、Wikidata（CC0，T106）。
             Section(L("扩展词库", "Extra dictionaries", "拡張辞書")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L("THUOCL 清华大学开放中文词库", "THUOCL (Tsinghua Open Chinese Lexicon)", "THUOCL 清華大学オープン中国語辞書")).font(.headline)
@@ -445,6 +445,28 @@ struct LicensesView: View {
                            "原著作物は現状のまま提供され、いかなる保証もありません。変更は Enclave によるもので、原作者とは関係ありません。"))
                         .font(.footnote).foregroundStyle(.secondary)
                     Link("creativecommons.org/licenses/by-sa/4.0", destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!).font(.footnote)
+                }
+                .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Wikidata").font(.headline)
+                    Text(ExtDictAttribution.wikidata).font(.subheadline)
+                    Text(L("内置的景点、机场、地标、餐厅词库和英文补全里的地名，在线的名人词库。", "The built-in places dictionary, place names in English suggestions, and the online people dictionary.", "内蔵の観光地辞書、英語の候補に出る地名、オンラインの人名辞書。"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Link("creativecommons.org/publicdomain/zero/1.0", destination: URL(string: "https://creativecommons.org/publicdomain/zero/1.0/")!).font(.footnote)
+                }
+                .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    // 05：只写这一句，不提任何榜单或点评网站。
+                    Text(L("网红打卡：飞地输入法整理", "Trending spots: compiled by Enclave", "話題のスポット：Enclave が編集")).font(.subheadline)
+                }
+                .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("OpenStreetMap").font(.headline)
+                    Text(ExtDictAttribution.osm).font(.subheadline)
+                    Text(L("在线的海外餐厅词库和英文补全里的海外餐厅名。", "The online restaurants abroad dictionary and restaurant names in English suggestions.", "オンラインの海外のレストラン辞書と、英語の候補に出るレストラン名。"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Link("openstreetmap.org/copyright", destination: URL(string: "https://www.openstreetmap.org/copyright")!).font(.footnote)
+                    Link("opendatacommons.org/licenses/odbl/1-0", destination: URL(string: "https://opendatacommons.org/licenses/odbl/1-0/")!).font(.footnote)
                 }
                 .padding(.vertical, 4)
             }
