@@ -69,6 +69,8 @@ ONLINE = [
 ]
 # 这两类的源文件是 tsv（词、拼音、热度），拼音已经标好；在 --wikidata 指的目录里（不进仓库）。
 TSV_KINDS = ("wikidata", "osm")
+# 过敏感词表用包含匹配的（别的都是整词精确匹配）。
+CONTAINS_KINDS = ("osm",)
 ONLINE_NAMES = {
     "medical": {"zh": "医学", "en": "Medicine", "ja": "医学"},
     "law": {"zh": "法律", "en": "Law", "ja": "法律"},
@@ -199,11 +201,13 @@ def build(pack, kind, path, words, chars, blocklist, out):
     given = read_readings(path) if kind in TSV_KINDS else {}
     top = max((f for _, f in rows), default=1)
     seen, kept, skipped, blocked = set(), [], 0, []
+    # OSM 的店名是长名字（香港可能有带政治口号的店名），整词匹配拦不住，改用包含匹配（05 核对 PR #127 第 2 条）。
+    contains = sorted(blocklist, key=len) if kind in CONTAINS_KINDS else None
     for word, freq in rows:
         if word in seen:
             continue
         seen.add(word)
-        if word in blocklist:
+        if word in blocklist or (contains and any(bad in word for bad in contains)):
             blocked.append(word)
             continue
         code = given.get(word) or (pinyin(word, words, chars) if words else None)

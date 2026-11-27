@@ -76,3 +76,5 @@ docs/            支持页和隐私政策（GitHub Pages）
 ## 开源组件
 
 拼音引擎 [librime](https://github.com/rime/librime)（BSD-3-Clause），词库来自 [万象拼音](https://github.com/amzxyz/rime_wanxiang)（CC BY 4.0，去掉了声调并按词频删减），以及 OpenCC、Boost、glog、LevelDB、marisa-trie、yaml-cpp、librime-lua、Lua。完整列表和许可证见 App 里的「关于 › 开源许可」。
+
+景点、机场、地标、餐厅和名人的名称来自 [Wikidata](https://www.wikidata.org)（CC0 1.0）。海外餐厅的名称来自 [OpenStreetMap](https://www.openstreetmap.org/copyright)，© OpenStreetMap contributors：`Keyboard/English/en_osm.tsv`、`Keyboard/English/en_osm_next.tsv` 和在线词库 `ext_osm.dict.yaml` 按[开放数据库许可 ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) 发布，不适用本仓库的许可。

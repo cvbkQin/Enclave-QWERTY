@@ -16,6 +16,7 @@
 输出目录：
   osm.tsv      词\\t拼音\\t热度，给 build-ext-dicts.py --wikidata <输出目录> 生成在线词库 ext_osm
   en-osm.tsv   英文名\\t热度，给 build-english-names.py 生成 Keyboard/English/en_osm.tsv
+  review-osm-hkmo.tsv  香港、澳门来源的中文名，全部交 05 看
 热度：同名的店有几家（连锁多的靠前），有 wikidata、brand:wikidata 标签的另加分。
 """
 import collections
@@ -100,6 +101,7 @@ def parse(raw, wanxiang, out):
     spec.loader.exec_module(build)
     words, chars, _ = build.load_readings(wanxiang)
     zh_count, en_count = collections.Counter(), collections.Counter()
+    hkmo = set()
     for code, _ in REGIONS:
         path = raw / f"osm_{code}.json"
         if not path.exists():
@@ -113,6 +115,8 @@ def parse(raw, wanxiang, out):
                     name = clean(part)
                     if HAN.fullmatch(name):
                         zh_count[name] += 1 + bonus
+                        if code in ("HK", "MO"):
+                            hkmo.add((code, name, zh))
             name = english(tags)
             if name:
                 en_count[name] += 1 + bonus
@@ -130,7 +134,10 @@ def parse(raw, wanxiang, out):
     (out / "osm.tsv").write_text("".join("\t".join(map(str, r)) + "\n" for r in rows), encoding="utf-8")
     en_rows = sorted(en_count.items(), key=lambda kv: (-kv[1], kv[0]))[:LIMITS["osm"]]
     (out / "en-osm.tsv").write_text("".join(f"{n}\t{c}\n" for n, c in en_rows), encoding="utf-8")
-    print(f"  osm: {len(rows)} 条（标不出拼音 {skipped}），英文名 {len(en_rows)} 条")
+    # 香港、澳门来源的中文名全部交 05 看（05 核对 PR #127 第 3 条）。
+    (out / "review-osm-hkmo.tsv").write_text("# 待审（05）：地区\t词条\tOSM 原名\n" + "".join(f"{c}\t{n}\t{o}\n" for c, n, o in sorted(hkmo)),
+                                             encoding="utf-8")
+    print(f"  osm: {len(rows)} 条（标不出拼音 {skipped}），英文名 {len(en_rows)} 条；香港、澳门来源 {len(hkmo)} 条写进 review-osm-hkmo.tsv")
 
 
 def main():

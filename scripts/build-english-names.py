@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """英文补全里的专有名词：景点、机场、地标、餐厅的英文名（T106，用户 11-27：「这些都需要中英文的」）。
 
-用法：python3 scripts/build-english-names.py <Wikidata 输出目录> [--people]
+用法：python3 scripts/build-english-names.py <Wikidata 输出目录> --blocklist-en <英文屏蔽词表> [--people]
   只更新网红打卡的英文名时，目录给一个空目录就行。
+  英文屏蔽词表在项目文件 compliance/blocklist/英文屏蔽词表.txt（不进仓库），整词匹配，命中的整条名字不收，
+  删掉的写进输出目录的 en-names-blocked.txt、en-osm-blocked.txt 交 05。
   <Wikidata 输出目录> 是 scripts/update-wikidata-dicts.sh 写出的目录，读里面的 en-lvyou.tsv（和 --people 时的 en-renwu.tsv）。
   人名（--people）等 05 看完人物待审文件再加。
 
@@ -40,12 +42,17 @@ def read(path):
     return rows
 
 
-def write(names, known, stem, header):
-    """names：[(英文名, 热度)] → Keyboard/English/<stem>.tsv 和 <stem>_next.tsv。"""
+def write(names, known, stem, header, blocklist, blocked_path):
+    """names：[(英文名, 热度)] → Keyboard/English/<stem>.tsv 和 <stem>_next.tsv。
+    名字里有一个词在英文屏蔽词表里（整词，不分大小写），整条不收，写进 blocked_path 交 05。"""
     weights, spellings = {}, {}
     pairs = collections.defaultdict(collections.Counter)
+    blocked = []
     for name, popularity in names:
         tokens = TOKEN.findall(name)
+        if any(token.lower() in blocklist or token.lower().replace("'", "") in blocklist for token in tokens):
+            blocked.append(name)
+            continue
         for index, token in enumerate(tokens):
             key = token.lower().replace("'", "")
             if len(key) < 3 or key in known:
@@ -66,7 +73,8 @@ def write(names, known, stem, header):
         f.write(header)
         for key in sorted(k for k in pairs if k in kept):
             f.write(f"{key}\t{' '.join(word for word, _ in pairs[key].most_common(6))}\n")
-    print(f"{stem}.tsv：{len(keep)} 个词；{stem}_next.tsv：{sum(1 for k in pairs if k in kept)} 条")
+    blocked_path.write_text("".join(name + "\n" for name in sorted(set(blocked))), encoding="utf-8")
+    print(f"{stem}.tsv：{len(keep)} 个词；{stem}_next.tsv：{sum(1 for k in pairs if k in kept)} 条；屏蔽 {len(set(blocked))} 个名字（{blocked_path.name}）")
     return kept
 
 
@@ -74,6 +82,14 @@ def main():
     args = sys.argv[1:]
     people = "--people" in args
     args = [a for a in args if a != "--people"]
+    blocklist = set()
+    if "--blocklist-en" in args:
+        i = args.index("--blocklist-en")
+        blocklist = {line.strip().lower() for line in Path(args[i + 1]).read_text(encoding="utf-8").splitlines()
+                     if line.strip() and not line.startswith("#")}
+        del args[i:i + 2]
+    else:
+        print("提醒：没给 --blocklist-en，英文名没过屏蔽词表，只能用于开发测试。")
     if len(args) != 1:
         sys.exit(__doc__)
     source = Path(args[0])
@@ -83,10 +99,10 @@ def main():
     names = daka
     if (source / "en-lvyou.tsv").exists():
         names += read(source / "en-lvyou.tsv") + (read(source / "en-renwu.tsv") if people else [])
-    known |= write(names, known, "en_names", HEADER)
+    known |= write(names, known, "en_names", HEADER, blocklist, source / "en-names-blocked.txt")
     if (source / "en-osm.tsv").exists():
         # OSM 来的单独一个文件，按 ODbL 发布（05 第四节）；热度是同名店的家数，折算方式一样。
-        write(read(source / "en-osm.tsv"), known, "en_osm", OSM_HEADER)
+        write(read(source / "en-osm.tsv"), known, "en_osm", OSM_HEADER, blocklist, source / "en-osm-blocked.txt")
 
 
 if __name__ == "__main__":

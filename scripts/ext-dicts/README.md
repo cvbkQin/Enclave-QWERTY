@@ -31,7 +31,7 @@ python3 scripts/build-ext-dicts.py --only lvyou,renwu --wikidata ~/Enclave-QWERT
 `--only` 只重新生成列出的词库，别的词库文件不动。过敏感词表删掉的词写到 `--wikidata` 目录的 `lvyou-blocked.txt`、`renwu-blocked.txt`，和待审文件一起交 05。在线目录里同时写出 `LICENSE-wikidata.txt`。
 
 英文名（用户 11-27：「这些都需要中英文的」）：同一次抓取还写出 `en-lvyou.tsv`、`en-renwu.tsv`（英文名、热度）。
-`python3 scripts/build-english-names.py ~/Enclave-QWERTY/wikidata` 把景点、机场、地标、餐厅英文名里英文词表没有的词
+`python3 scripts/build-english-names.py ~/Enclave-QWERTY/wikidata --blocklist-en <英文屏蔽词表>` 把景点、机场、地标、餐厅英文名里英文词表没有的词
 写进 `Keyboard/English/en_names.tsv`、`en_names_next.tsv`，随键盘打包，英文补全里能打出 Changi、下一个词联想出 Airport。
 人名等 05 看完待审文件再加（`--people`）。
 
@@ -39,6 +39,7 @@ python3 scripts/build-ext-dicts.py --only lvyou,renwu --wikidata ~/Enclave-QWERT
 
 `scripts/fetch-osm-names.py`（update-wikidata-dicts.sh 会顺带跑）从 OpenStreetMap 取新加坡、马来西亚、日本、韩国、泰国、越南、香港、澳门的餐厅、咖啡馆名称，只取名称不取坐标。
 中文名写 `osm.tsv`，生成在线词库 `ext_osm`（`--only osm`）；英文名写 `en-osm.tsv`，`build-english-names.py` 生成 `Keyboard/English/en_osm.tsv`。
+OSM 中文店名过敏感词表用包含匹配（店名长，整词匹配拦不住）；英文名过英文屏蔽词表（项目文件 `compliance/blocklist/英文屏蔽词表.txt`，整词匹配，命中整条不收）。香港、澳门来源的中文名另写 `review-osm-hkmo.tsv` 交 05。
 ODbL 要求相同方式共享，所以这两份都单独成文件、按 ODbL 1.0 发布，署名「© OpenStreetMap contributors」，在线目录附 `LICENSE-osm.txt`，许可页单列一条（05 第四节）。
 
 ## 网红打卡（自己整理，T106）
