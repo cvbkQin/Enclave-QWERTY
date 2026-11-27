@@ -80,7 +80,7 @@ enum ExtDict {
                     blurb: L("金融、经济、公司术语。随 App 带着，也会跟着服务器更新，不用单独下载。", "Finance, economics and business terms. Comes with the app and also updates from the server; no separate download.", "金融、経済、企業の用語。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .thuocl),
             // T106：生成词库文件（scripts/fetch-wikidata-names.py → build-ext-dicts.py）之前 builtin.json 里没有它，不显示。
             Builtin(id: "lvyou", name: L("景点、机场、地标", "Places & airports", "観光地・空港・ランドマーク"), category: "Wikidata",
-                    blurb: L("世界各地的热门景点、机场、地标、城市，比如樟宜机场、圣家堂。随 App 带着，也会跟着服务器更新，不用单独下载。", "Popular sights, airports, landmarks and cities around the world, such as Changi Airport. Comes with the app and also updates from the server; no separate download.", "世界の人気観光地、空港、ランドマーク、都市（チャンギ空港など）。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .wikidata),
+                    blurb: L("世界各地的热门景点、机场、地标、购物中心和有名的餐厅，比如樟宜机场、圣家堂。随 App 带着，也会跟着服务器更新，不用单独下载。", "Popular sights, airports, landmarks, malls and well-known restaurants around the world, such as Changi Airport. Comes with the app and also updates from the server; no separate download.", "世界の人気観光地、空港、ランドマーク、ショッピングモール、有名レストラン（チャンギ空港など）。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .wikidata),
         ]
     }
 

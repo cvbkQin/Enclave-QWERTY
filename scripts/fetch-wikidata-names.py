@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""从 Wikidata 整理景点、机场、地标（内置词库 lvyou）和人物（在线词库 renwu）的中文名（T106，用户 11-27：
+"""从 Wikidata 整理景点、机场、地标、有名的餐厅（内置词库 lvyou）和人物（在线词库 renwu）的中文名（T106，用户 11-27：
 「词库还需要增加各地热门景点，机场，地标，名人」，例子是新加坡樟宜机场打不出来）。
 
 用法（要能上外网。云端连不上 wikidata.org，在 Mac 上跑；一步跑完用 scripts/update-wikidata-dicts.sh）：
@@ -70,7 +70,13 @@ PLACE_CLASSES = {
     "Q39594": ("岛", 20),
     "Q1497375": ("建筑群", 6),
     "Q839954": ("考古遗址", 10),
+    "Q11315": ("购物中心", 4),
+    "Q2416723": ("主题公园", 3),
 }
+# 餐厅（用户 11-27 补：有名的餐厅、米其林这类榜单上的）：只用 Wikidata 自己的数据（CC0），不抓米其林、大众点评等榜单网站。
+# 餐厅及其子类（快餐店、咖啡馆连锁等）按 sitelinks 下限取；拿过奖（P166，米其林星级在 Wikidata 里记在这里）的不论 sitelinks 都收。
+RESTAURANT = "Q11707"
+RESTAURANT_MIN_SITELINKS = 3
 # 世界遗产（P1435 = Q9259）不论类型都收。
 WORLD_HERITAGE = "Q9259"
 
@@ -197,6 +203,13 @@ def fetch(raw):
         where = f"?item wdt:P31 wd:{cls} ; wikibase:sitelinks ?n . FILTER(?n >= {minimum})"
         fetch_once(raw, f"place_{cls}.json", labels_query(where))
         fetch_once(raw, f"place_{cls}_prefix.json", prefixes_query(where))
+    print("餐厅：")
+    restaurant = f"?item wdt:P31/wdt:P279* wd:{RESTAURANT} ; wikibase:sitelinks ?n . FILTER(?n >= {RESTAURANT_MIN_SITELINKS})"
+    fetch_once(raw, "place_restaurant.json", labels_query(restaurant))
+    fetch_once(raw, "place_restaurant_prefix.json", prefixes_query(restaurant))
+    awarded = f"?item wdt:P31/wdt:P279* wd:{RESTAURANT} ; wdt:P166 ?award ."
+    fetch_once(raw, "place_restaurant_award.json", labels_query(awarded))
+    fetch_once(raw, "place_restaurant_award_prefix.json", prefixes_query(awarded))
     heritage = f"?item wdt:P1435 wd:{WORLD_HERITAGE} ."
     fetch_once(raw, "place_heritage.json", labels_query(heritage))
     fetch_once(raw, "place_heritage_prefix.json", prefixes_query(heritage))
