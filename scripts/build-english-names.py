@@ -42,6 +42,12 @@ def read(path):
     return rows
 
 
+def blocked_token(token, blocklist):
+    """转小写后，去掉撇号的整词（Fuckin' → fuckin）和按撇号拆开的每一段（O'Shit → shit）都查一遍。"""
+    lower = token.lower()
+    return lower.replace("'", "") in blocklist or any(part in blocklist for part in lower.split("'") if part)
+
+
 def write(names, known, stem, header, blocklist, blocked_path):
     """names：[(英文名, 热度)] → Keyboard/English/<stem>.tsv 和 <stem>_next.tsv。
     名字里有一个词在英文屏蔽词表里（整词，不分大小写），整条不收，写进 blocked_path 交 05。"""
@@ -50,7 +56,7 @@ def write(names, known, stem, header, blocklist, blocked_path):
     blocked = []
     for name, popularity in names:
         tokens = TOKEN.findall(name)
-        if any(token.lower() in blocklist or token.lower().replace("'", "") in blocklist for token in tokens):
+        if any(blocked_token(token, blocklist) for token in tokens):
             blocked.append(name)
             continue
         for index, token in enumerate(tokens):
