@@ -450,6 +450,8 @@ struct LicensesView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Wikidata").font(.headline)
                     Text(ExtDictAttribution.wikidata).font(.subheadline)
+                    Text(L("内置的景点、机场、地标、餐厅词库和英文补全里的地名，在线的名人词库。", "The built-in places dictionary, place names in English suggestions, and the online people dictionary.", "内蔵の観光地辞書、英語の候補に出る地名、オンラインの人名辞書。"))
+                        .font(.footnote).foregroundStyle(.secondary)
                     Link("creativecommons.org/publicdomain/zero/1.0", destination: URL(string: "https://creativecommons.org/publicdomain/zero/1.0/")!).font(.footnote)
                 }
                 .padding(.vertical, 4)

@@ -912,9 +912,9 @@ struct ExtDictDetailView: View {
 enum ExtDictAttribution {
     /// T106，05 定的写法（compliance/词库-Wikidata/许可和审核要求.md）。
     static var wikidata: String {
-        L("景点、机场、地标和名人词库：词条名称来自 Wikidata（wikidata.org），按 CC0 1.0 公有领域贡献使用。拼音标注、筛选和整理由飞地输入法完成。",
-          "Places, airports, landmarks and people dictionaries: entry names from Wikidata (wikidata.org), used under CC0 1.0. Pinyin, filtering and curation by Enclave.",
-          "観光地・空港・ランドマーク・人名辞書：項目名は Wikidata（wikidata.org）から CC0 1.0 のもとで使用しています。ピンインの付与、選別、整理は Enclave が行っています。")
+        L("景点、机场、地标、餐厅和名人词库：词条名称来自 Wikidata（wikidata.org），按 CC0 1.0 公有领域贡献使用。拼音标注、筛选和整理由飞地输入法完成。",
+          "Places, airports, landmarks, restaurants and people dictionaries: entry names from Wikidata (wikidata.org), used under CC0 1.0. Pinyin, filtering and curation by Enclave.",
+          "観光地・空港・ランドマーク・レストラン・人名辞書：項目名は Wikidata（wikidata.org）から CC0 1.0 のもとで使用しています。ピンインの付与、選別、整理は Enclave が行っています。")
     }
 
     static var thuocl: String {

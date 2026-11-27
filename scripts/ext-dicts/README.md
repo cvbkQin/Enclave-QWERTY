@@ -17,7 +17,7 @@ python3 scripts/build-ext-dicts.py <万象 dicts 目录> <THUOCL data 目录> --
 
 许可：THUOCL 是 MIT（Copyright (c) 2018 THUNLP），分发时附上 `Configs/ExtDicts/LICENSE-THUOCL.txt`。
 
-## 景点、机场、地标和名人（Wikidata，T106）
+## 景点、机场、地标、餐厅和名人（Wikidata，T106）
 
 内置词库 `lvyou`（景点、机场、地标、城市）和在线词库 `renwu`（名人）的词条名称来自 Wikidata 的中文标签和别名，CC0 1.0。许可写法和人物筛选规则是 05 定的（项目文件 `compliance/词库-Wikidata/许可和审核要求.md`）。
 
@@ -29,3 +29,8 @@ python3 scripts/build-ext-dicts.py --only lvyou,renwu --wikidata ~/Enclave-QWERT
 ```
 
 `--only` 只重新生成列出的词库，别的词库文件不动。过敏感词表删掉的词写到 `--wikidata` 目录的 `lvyou-blocked.txt`、`renwu-blocked.txt`，和待审文件一起交 05。在线目录里同时写出 `LICENSE-wikidata.txt`。
+
+英文名（用户 11-27：「这些都需要中英文的」）：同一次抓取还写出 `en-lvyou.tsv`、`en-renwu.tsv`（英文名、热度）。
+`python3 scripts/build-english-names.py ~/Enclave-QWERTY/wikidata` 把景点、机场、地标、餐厅英文名里英文词表没有的词
+写进 `Keyboard/English/en_names.tsv`、`en_names_next.tsv`，随键盘打包，英文补全里能打出 Changi、下一个词联想出 Airport。
+人名等 05 看完待审文件再加（`--people`）。

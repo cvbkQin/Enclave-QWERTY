@@ -254,11 +254,11 @@ def starts_with_word(rest, words):
     return any(rest[:k] in words for k in (2, 3, 4) if len(rest) >= k)
 
 
-WIKIDATA_LICENSE = """景点、机场、地标和名人词库（ext_lvyou.dict.yaml、ext_renwu.dict.yaml）来源说明
+WIKIDATA_LICENSE = """景点、机场、地标、餐厅和名人词库（ext_lvyou.dict.yaml、ext_renwu.dict.yaml）来源说明
 
-景点、机场、地标和名人词库：词条名称来自 Wikidata（wikidata.org），按 CC0 1.0 公有领域贡献使用。拼音标注、筛选和整理由飞地输入法完成。
-Places, airports, landmarks and people dictionaries: entry names from Wikidata (wikidata.org), used under CC0 1.0. Pinyin, filtering and curation by Enclave.
-観光地・空港・ランドマーク・人名辞書：項目名は Wikidata（wikidata.org）から CC0 1.0 のもとで使用しています。ピンインの付与、選別、整理は Enclave が行っています。
+景点、机场、地标、餐厅和名人词库：词条名称来自 Wikidata（wikidata.org），按 CC0 1.0 公有领域贡献使用。拼音标注、筛选和整理由飞地输入法完成。
+Places, airports, landmarks, restaurants and people dictionaries: entry names from Wikidata (wikidata.org), used under CC0 1.0. Pinyin, filtering and curation by Enclave.
+観光地・空港・ランドマーク・レストラン・人名辞書：項目名は Wikidata（wikidata.org）から CC0 1.0 のもとで使用しています。ピンインの付与、選別、整理は Enclave が行っています。
 
 CC0 1.0：https://creativecommons.org/publicdomain/zero/1.0/
 只用了 Wikidata 的中文标签和别名，没有用维基百科的条目正文、摘要或描述。

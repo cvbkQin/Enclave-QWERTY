@@ -4,6 +4,8 @@ import Foundation
 /// （scripts/build-english.py 从万象英文词库和 Tatoeba 例句生成）：
 /// - en_words.tsv：「去掉撇号的小写拼写 \t 写法 \t 词频」，按拼写排序，按前缀二分查找；
 /// - en_next.tsv：「词 \t 后面常跟的几个词」。
+/// - en_names.tsv、en_names_next.tsv：景点、机场、地标、餐厅的英文名里 en_words 没有的词（Changi → Airport），
+///   格式和上面两个一样，读的时候合进去（scripts/build-english-names.py 从 Wikidata 生成，T106；没有这两个文件时照常）。
 /// 用户自己选过、打过的词记在本机，下次排得更前；词表里没有的词（人名、网络用语）打过两次也会出现。
 enum EnglishPredictor {
     private struct Entry {
@@ -30,8 +32,11 @@ enum EnglishPredictor {
         lock.unlock()
         guard !done else { return }
         queue.async {
-            let words = load("en_words").map(parseWords) ?? []
-            let table = load("en_next").map { Predictor.parseTable($0, capacity: 15000) } ?? [:]
+            let words = merged(load("en_words").map(parseWords) ?? [], load("en_names").map(parseWords) ?? [])
+            var table = load("en_next").map { Predictor.parseTable($0, capacity: 15000) } ?? [:]
+            if let names = load("en_names_next").map({ Predictor.parseTable($0, capacity: 20000) }) {
+                table.merge(names) { base, extra in Array((base + extra.filter { !base.contains($0) }).prefix(6)) }
+            }
             let saved = SharedStorage.defaults.dictionary(forKey: learnedKey) as? [String: Int] ?? [:]
             lock.lock()
             entries = words
@@ -142,6 +147,22 @@ enum EnglishPredictor {
         guard let first = prefix.first, first.isUppercase else { return word }
         if prefix.count >= 2, prefix.allSatisfy({ !$0.isLetter || $0.isUppercase }) { return word.uppercased() }
         return word.prefix(1).uppercased() + word.dropFirst()
+    }
+
+    /// 两份都按 key 排好序，合成一份仍按 key 排序（二分查找要求）；key 一样时常用词表的在前。
+    private static func merged(_ a: [Entry], _ b: [Entry]) -> [Entry] {
+        guard !b.isEmpty else { return a }
+        var result: [Entry] = []
+        result.reserveCapacity(a.count + b.count)
+        var i = 0, j = 0
+        while i < a.count || j < b.count {
+            if j == b.count || (i < a.count && a[i].key <= b[j].key) {
+                result.append(a[i]); i += 1
+            } else {
+                result.append(b[j]); j += 1
+            }
+        }
+        return result
     }
 
     private static func load(_ name: String) -> Data? {
