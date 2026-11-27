@@ -455,6 +455,15 @@ struct LicensesView: View {
                     Link("creativecommons.org/publicdomain/zero/1.0", destination: URL(string: "https://creativecommons.org/publicdomain/zero/1.0/")!).font(.footnote)
                 }
                 .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("OpenStreetMap").font(.headline)
+                    Text(ExtDictAttribution.osm).font(.subheadline)
+                    Text(L("在线的海外餐厅词库和英文补全里的海外餐厅名。", "The online restaurants abroad dictionary and restaurant names in English suggestions.", "オンラインの海外のレストラン辞書と、英語の候補に出るレストラン名。"))
+                        .font(.footnote).foregroundStyle(.secondary)
+                    Link("openstreetmap.org/copyright", destination: URL(string: "https://www.openstreetmap.org/copyright")!).font(.footnote)
+                    Link("opendatacommons.org/licenses/odbl/1-0", destination: URL(string: "https://opendatacommons.org/licenses/odbl/1-0/")!).font(.footnote)
+                }
+                .padding(.vertical, 4)
             }
             Section(L("软件组件", "Software", "ソフトウェア")) {
                 ForEach(OpenSource.components) { component in

@@ -7,13 +7,14 @@
                                     [--grammar <wanxiang-lts-zh-hans.gram>]
   python3 scripts/build-ext-dicts.py --catalog-only --online server/dicts [--grammar <…gram>]
       只按目录里现有的词库文件重写 catalog.json（不重新生成词库）。
-  python3 scripts/build-ext-dicts.py --only lvyou,renwu --wikidata <目录> --online server/dicts --blocklist <敏感词表>
+  python3 scripts/build-ext-dicts.py --only lvyou,renwu,osm --wikidata <目录> --online server/dicts --blocklist <敏感词表>
       只重新生成列出的词库，别的词库文件不动（builtin.json、catalog.json 里它们的条目按现有文件重算）。
       只有 Wikidata 词库时不用给万象、THUOCL 目录（拼音已经在 tsv 里）。
 
 景点机场地标（lvyou，内置）、人物（renwu，在线）来自 Wikidata（CC0，T106）：scripts/fetch-wikidata-names.py
 在 Mac 上拉数据、标好拼音，写出 lvyou.tsv、renwu.tsv（词、拼音、热度），--wikidata 指到那个目录。
-这两份 tsv 不进仓库（同目录还有交 05 的人名待审文件）；没给 --wikidata 就沿用现有的词库文件。
+海外餐厅（osm，在线）来自 OpenStreetMap（ODbL，单独成一个词库）：scripts/fetch-osm-names.py 写出 osm.tsv，放在同一个目录。
+这些 tsv 不进仓库（同目录还有交 05 的人名待审文件）；没给 --wikidata 就沿用现有的词库文件。
 
 在线词库和清单 catalog.json 写到 --online 目录，用 server/publish-dicts.sh 发到 enclavekb.cn/dicts/（见 server/README.md）。
 
@@ -62,15 +63,20 @@ ONLINE = [
     ("poem", "thuocl", "THUOCL_poem.txt"),
     ("lishimingren", "thuocl", "THUOCL_lishimingren.txt"),
     ("renwu", "wikidata", "renwu.tsv"),
+    ("osm", "osm", "osm.tsv"),
 ]
+# 这两类的源文件是 tsv（词、拼音、热度），拼音已经标好；在 --wikidata 指的目录里（不进仓库）。
+TSV_KINDS = ("wikidata", "osm")
 ONLINE_NAMES = {
     "medical": {"zh": "医学", "en": "Medicine", "ja": "医学"},
     "law": {"zh": "法律", "en": "Law", "ja": "法律"},
     "poem": {"zh": "诗词", "en": "Poetry", "ja": "詩詞"},
     "lishimingren": {"zh": "历史名人", "en": "Historical figures", "ja": "歴史上の人物"},
     "renwu": {"zh": "名人", "en": "Famous people", "ja": "著名人"},
+    "osm": {"zh": "海外餐厅", "en": "Restaurants abroad", "ja": "海外のレストラン"},
 }
 # 05（compliance/词库-Wikidata/许可和审核要求.md）定的来源写法：词库文件头、许可页、服务器 README 一致。
+OSM_SOURCE = "OpenStreetMap（openstreetmap.org），© OpenStreetMap contributors，按 ODbL 1.0 使用（本文件也按 ODbL 1.0 发布）；只取名称；拼音标注、筛选和整理由飞地输入法完成"
 WIKIDATA_SOURCE = "Wikidata（wikidata.org），词条名称按 CC0 1.0 公有领域贡献使用；拼音标注、筛选和整理由飞地输入法完成"
 # 百科词库：中文维基百科条目标题（fcitx5-pinyin-zhwiki 的 release，已转成简体），过敏感词表、精简到 20 万条。
 # 没给 --baike 时沿用 --online 目录里上次生成的；一次都没生成过，清单里 url 写 null，App 显示「准备中」。
@@ -156,7 +162,7 @@ def pinyin(word, words, chars):
 def read_words(kind, path):
     """(词, 词频)。自整理的没有词频，按在表里的先后给。Wikidata 的 tsv 是（词, 热度），拼音另外读（read_readings）。"""
     text = path.read_text(encoding="utf-8")
-    if kind == "wikidata":
+    if kind in TSV_KINDS:
         return [(fields[0], int(fields[2])) for fields in (line.split("\t") for line in text.splitlines())
                 if len(fields) >= 3 and not fields[0].startswith("#")]
     rows = []
@@ -187,7 +193,7 @@ def weight(freq, top):
 
 def build(pack, kind, path, words, chars, blocklist, out):
     rows = read_words(kind, path)
-    given = read_readings(path) if kind == "wikidata" else {}
+    given = read_readings(path) if kind in TSV_KINDS else {}
     top = max((f for _, f in rows), default=1)
     seen, kept, skipped, blocked = set(), [], 0, []
     for word, freq in rows:
@@ -203,14 +209,14 @@ def build(pack, kind, path, words, chars, blocklist, out):
             continue
         kept.append((word, code, weight(freq, top)))
     source = {"thuocl": "THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），MIT 许可，Copyright (c) 2018 THUNLP",
-              "wikidata": WIKIDATA_SOURCE}.get(kind, "飞地输入法整理")
+              "wikidata": WIKIDATA_SOURCE, "osm": OSM_SOURCE}.get(kind, "飞地输入法整理")
     target = out / f"ext_{pack}.dict.yaml"
     header = f"# 飞地输入法扩展词库 · 来源：{source}\n# 由 scripts/build-ext-dicts.py 生成，拼音按万象拼音词库标注。\n"
     version = write_dict(target, header, f"ext_{pack}", "".join(f"{word}\t{code}\t{w}\n" for word, code, w in kept))
     # Wikidata 的过滤结果可能很长、有敏感人名，只写文件不打印。
-    shown = '：' + '、'.join(blocked) if blocked and kind != "wikidata" else ''
+    shown = '：' + '、'.join(blocked) if blocked and kind not in TSV_KINDS else ''
     print(f"  {pack}: {len(kept)} 条，版本 {version}（查不到读音 {skipped}，过滤 {len(blocked)}{shown}）")
-    if kind == "wikidata":
+    if kind in TSV_KINDS:
         # 过表删掉的词交 05 看（05 第三节），和待审文件放一起，不进仓库。
         (path.parent / f"{pack}-blocked.txt").write_text("".join(w + "\n" for w in blocked), encoding="utf-8")
     return manifest_entry(pack, target)
@@ -262,6 +268,15 @@ Places, airports, landmarks, restaurants and people dictionaries: entry names fr
 
 CC0 1.0：https://creativecommons.org/publicdomain/zero/1.0/
 只用了 Wikidata 的中文标签和别名，没有用维基百科的条目正文、摘要或描述。
+"""
+
+
+OSM_LICENSE = """海外餐厅词库（ext_osm.dict.yaml）许可说明
+
+海外餐厅词库：词条名称来自 OpenStreetMap，© OpenStreetMap contributors，按开放数据库许可（ODbL 1.0）使用。
+本词库也按 ODbL 1.0 发布：https://opendatacommons.org/licenses/odbl/1-0/
+只取了餐厅、咖啡馆的名称（name:zh-Hans、name:zh），没有坐标、地址和其他信息。拼音标注、筛选和整理由飞地输入法完成。
+OpenStreetMap 版权和许可：https://www.openstreetmap.org/copyright
 """
 
 
@@ -490,7 +505,7 @@ def main():
     if only - known:
         sys.exit(f"--only 里有不认识的词库：{', '.join(sorted(only - known))}")
     # 只重新生成 Wikidata 词库时拼音已经在 tsv 里，不用万象、THUOCL。
-    needs_sources = not only or any(kind != "wikidata" for pack, kind, _ in BUILTIN + ONLINE if pack in only)
+    needs_sources = not only or any(kind not in TSV_KINDS for pack, kind, _ in BUILTIN + ONLINE if pack in only)
     if needs_sources and len(args) < 2:
         sys.exit(__doc__)
     wanxiang, thuocl = (Path(args[0]), Path(args[1])) if len(args) >= 2 else (None, None)
@@ -504,7 +519,7 @@ def main():
 
     def source(kind, name):
         """这个词库的源文件；None = 这次不重新生成（沿用现有文件）。"""
-        if kind == "wikidata":
+        if kind in TSV_KINDS:
             path = wikidata / name if wikidata else None
             return path if path and path.exists() else None
         return (SRC if kind == "self" else thuocl) / name
@@ -545,6 +560,7 @@ def main():
         # THUOCL 的 MIT 许可原文跟在线词包放在一起分发；Wikidata 词库的来源说明也放一份。
         shutil.copyfile(OUT / "LICENSE-THUOCL.txt", out / "LICENSE-THUOCL.txt")
         (out / "LICENSE-wikidata.txt").write_text(WIKIDATA_LICENSE, encoding="utf-8")
+        (out / "LICENSE-osm.txt").write_text(OSM_LICENSE, encoding="utf-8")
         write_catalog(out, catalog, gram_path)
 
 

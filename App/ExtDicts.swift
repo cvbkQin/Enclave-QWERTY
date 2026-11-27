@@ -31,6 +31,8 @@ enum ExtDict {
         case wiki
         /// Wikidata 的中文标签和别名，CC0 1.0（T106：景点机场地标、名人）。
         case wikidata
+        /// OpenStreetMap 的名称，ODbL 1.0（T106：海外餐厅；按 05 单独一个词库、单列署名）。
+        case osm
     }
 
     /// 下载和导入的词库记在这里；内置的只记关掉和删掉了哪些（升级 App 后保持原状，新加的内置默认打开）。

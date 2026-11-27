@@ -1,5 +1,5 @@
 #!/bin/bash
-# T106：在 Mac 上一条命令拉 Wikidata 的景点、机场、地标、人物中文名，标好拼音，写到仓库外面的目录。
+# T106：在 Mac 上一条命令拉 Wikidata 的景点、机场、地标、餐厅、人物中英文名和 OpenStreetMap 的海外餐厅名，标好拼音，写到仓库外面的目录。
 #   bash scripts/update-wikidata-dicts.sh [输出目录，默认 ~/Enclave-QWERTY/wikidata]
 # 要能上外网（wikidata.org、github.com）；云端会话连不上 wikidata.org，所以在 Mac 上跑。
 # 跑完把输出目录里的 lvyou.tsv、renwu.tsv、review-*.tsv、excluded.tsv 交给 01 生成词库（build-ext-dicts.py --wikidata），
@@ -27,6 +27,13 @@ echo "从 Wikidata 下载（几分钟到半小时）…"
 python3 "$ROOT/scripts/fetch-wikidata-names.py" fetch "$RAW"
 echo "整理、标拼音…"
 python3 "$ROOT/scripts/fetch-wikidata-names.py" parse "$RAW" "$WANXIANG/dicts" "$OUT"
+echo "从 OpenStreetMap 下载海外餐厅（ODbL，单独成一个词库）…"
+# OSM 的服务器忙时可能失败，不影响上面 Wikidata 的结果；再跑一次这个脚本会接着下。
+if python3 "$ROOT/scripts/fetch-osm-names.py" fetch "$RAW"; then
+  python3 "$ROOT/scripts/fetch-osm-names.py" parse "$RAW" "$WANXIANG/dicts" "$OUT"
+else
+  echo "OpenStreetMap 这次没下完，过一会儿再跑一次这个脚本。"
+fi
 echo
 echo "好了，结果在 $OUT："
 ls -lh "$OUT"/*.tsv
