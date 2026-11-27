@@ -26,6 +26,7 @@
   review-convicted.tsv   待审：有判罪记录的人（交 05）
   excluded.tsv           按规则排除掉的（色情演员、法轮功和名单里的组织、政治写法的地名），05 备查
 """
+import http.client
 import json
 import re
 import sys
@@ -110,7 +111,7 @@ LIMITS = {"lvyou": 60_000, "renwu": 120_000}
 BATCH = 500
 
 
-def sparql(query, retries=4):
+def sparql(query, retries=6):
     data = urllib.parse.urlencode({"query": query}).encode()
     request = urllib.request.Request(ENDPOINT, data=data, headers={
         "User-Agent": UA, "Accept": "application/sparql-results+json",
@@ -128,7 +129,8 @@ def sparql(query, retries=4):
             if error.code in (500, 502, 503, 504) and attempt == retries - 1:
                 raise TimeoutError(f"HTTP {error.code}") from error
             time.sleep(5 * (attempt + 1))
-        except (TimeoutError, urllib.error.URLError, ConnectionError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        # 网络断了（IncompleteRead、连接被重置、读超时）都重试：OSError 包括 URLError、ConnectionError、socket.timeout。
+        except (OSError, http.client.HTTPException, json.JSONDecodeError, UnicodeDecodeError) as error:
             if attempt == retries - 1:
                 raise TimeoutError(str(error)) from error
             time.sleep(5 * (attempt + 1))
@@ -189,7 +191,7 @@ def batched(raw, stem, kind, qids, make_query):
         path = parts / f"{stem}_{kind}_{index:04d}.json"
         if not path.exists():
             print(f"    {stem} {kind} {index + 1}/{total}", flush=True)
-            save(parts, path.name, sparql(make_query(qids[index * BATCH:(index + 1) * BATCH])))
+            save(parts, path.name, sparql(make_query(qids[index * BATCH:(index + 1) * BATCH]), retries=8))
             time.sleep(0.5)
         rows += json.loads(path.read_text(encoding="utf-8"))
     return rows

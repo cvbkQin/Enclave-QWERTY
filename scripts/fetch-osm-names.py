@@ -20,6 +20,7 @@
 热度：同名的店有几家（连锁多的靠前），有 wikidata、brand:wikidata 标签的另加分。
 """
 import collections
+import http.client
 import json
 import re
 import sys
@@ -58,7 +59,7 @@ def overpass(query, retries=4):
         except urllib.error.HTTPError as error:
             # 429、504：服务器忙，等一会儿换一台再试。
             print(f"    {url} HTTP {error.code}，{30 * (attempt + 1)} 秒后再试", flush=True)
-        except (TimeoutError, urllib.error.URLError, ConnectionError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        except (OSError, http.client.HTTPException, json.JSONDecodeError, UnicodeDecodeError) as error:
             print(f"    {url} {error}，{30 * (attempt + 1)} 秒后再试", flush=True)
         time.sleep(30 * (attempt + 1))
     raise TimeoutError("重试次数用完")
