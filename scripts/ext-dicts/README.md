@@ -16,3 +16,16 @@ python3 scripts/build-ext-dicts.py <万象 dicts 目录> <THUOCL data 目录> --
 `server/dicts/` 里是在线词库和清单 `catalog.json`，拷到服务器 `/var/www/enclavekb/dicts/`。百科词库加 `--baike <zhwiki-*.dict.yaml>`（github.com/felixonmars/fcitx5-pinyin-zhwiki 的 release）：跳过万象里已有的词和有生僻字的，按派生条目数和字频打分取前 20 万条，同时写出 `LICENSE-baike.txt`；`--baike-blocklist <表>` 是 05 审核加的百科补充屏蔽表（整词匹配，表不进仓库）。不给 `--baike` 就沿用上次生成的。
 
 许可：THUOCL 是 MIT（Copyright (c) 2018 THUNLP），分发时附上 `Configs/ExtDicts/LICENSE-THUOCL.txt`。
+
+## 景点、机场、地标和名人（Wikidata，T106）
+
+内置词库 `lvyou`（景点、机场、地标、城市）和在线词库 `renwu`（名人）的词条名称来自 Wikidata 的中文标签和别名，CC0 1.0。许可写法和人物筛选规则是 05 定的（项目文件 `compliance/词库-Wikidata/许可和审核要求.md`）。
+
+1. 在 Mac 上（要能上外网）：`bash scripts/update-wikidata-dicts.sh`，结果写到仓库外的 `~/Enclave-QWERTY/wikidata/`：`lvyou.tsv`、`renwu.tsv`（词、拼音、热度），待审的 `review-politicians.tsv`、`review-convicted.tsv`，和按规则排除掉的 `excluded.tsv`。这些文件不进仓库。
+2. 生成词库（不用万象、THUOCL 目录，拼音已经在 tsv 里）：
+
+```sh
+python3 scripts/build-ext-dicts.py --only lvyou,renwu --wikidata ~/Enclave-QWERTY/wikidata --online server/dicts --blocklist <敏感词表>
+```
+
+`--only` 只重新生成列出的词库，别的词库文件不动。过敏感词表删掉的词写到 `--wikidata` 目录的 `lvyou-blocked.txt`、`renwu-blocked.txt`，和待审文件一起交 05。在线目录里同时写出 `LICENSE-wikidata.txt`。

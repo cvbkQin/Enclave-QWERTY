@@ -209,6 +209,7 @@ struct HotDictsView: View {
     private func onlineDetail(_ item: ExtDictCatalog.Item) -> String {
         var parts = [ExtDictStore.entryText(item.entries), ExtDictStore.sizeText(item.size)]
         if item.license == .thuocl { parts.insert("THUOCL", at: 0) }
+        if item.license == .wikidata { parts.insert("Wikidata", at: 0) }
         if let summary = item.summary { parts.append(summary.value) }
         return parts.joined(separator: " · ")
     }
@@ -220,6 +221,7 @@ struct HotDictsView: View {
             return Storefront.isMainlandChina
                 ? L("来自百科词条整理 · CC BY-SA 4.0 · 详情见许可", "From encyclopedia entries · CC BY-SA 4.0 · see license", "百科事典の項目から · CC BY-SA 4.0 · ライセンス参照")
                 : "Wikipedia contributors · fcitx5-pinyin-zhwiki · CC BY-SA 4.0"
+        case .wikidata: return L("名称来自 Wikidata · CC0 1.0", "Names from Wikidata · CC0 1.0", "名称は Wikidata から · CC0 1.0")
         case .own: return L("飞地输入法整理", "Compiled by Enclave", "Enclave 編集")
         }
     }
@@ -877,6 +879,7 @@ struct ExtDictDetailView: View {
         switch license {
         case .thuocl: return ExtDictAttribution.thuocl
         case .wiki: return ExtDictAttribution.wiki
+        case .wikidata: return ExtDictAttribution.wikidata
         default:
             return L("飞地输入法整理，只收录名称文字，不含游戏 logo 或图片。", "Compiled by Enclave. Names only; no game logos or images.", "Enclave が編集。名前の文字だけで、ゲームのロゴや画像は含みません。")
         }
@@ -887,6 +890,7 @@ struct ExtDictDetailView: View {
         switch license {
         case .thuocl: return URL(string: "https://github.com/thunlp/THUOCL/blob/master/LICENSE")
         case .wiki: return URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")
+        case .wikidata: return URL(string: "https://creativecommons.org/publicdomain/zero/1.0/")
         default: return nil
         }
     }
@@ -906,6 +910,13 @@ struct ExtDictDetailView: View {
 
 /// 署名文字：详情页和「关于 › 开源许可」共用（05 许可结论）。
 enum ExtDictAttribution {
+    /// T106，05 定的写法（compliance/词库-Wikidata/许可和审核要求.md）。
+    static var wikidata: String {
+        L("景点、机场、地标和名人词库：词条名称来自 Wikidata（wikidata.org），按 CC0 1.0 公有领域贡献使用。拼音标注、筛选和整理由飞地输入法完成。",
+          "Places, airports, landmarks and people dictionaries: entry names from Wikidata (wikidata.org), used under CC0 1.0. Pinyin, filtering and curation by Enclave.",
+          "観光地・空港・ランドマーク・人名辞書：項目名は Wikidata（wikidata.org）から CC0 1.0 のもとで使用しています。ピンインの付与、選別、整理は Enclave が行っています。")
+    }
+
     static var thuocl: String {
         L("来自 THUOCL 清华大学开放中文词库（github.com/thunlp/THUOCL），飞地输入法转换为 Rime 格式。\n\nCopyright (c) 2018 THUNLP。以 MIT 许可发布。",
           "From THUOCL, the Tsinghua Open Chinese Lexicon (github.com/thunlp/THUOCL), converted to Rime format by Enclave.\n\nCopyright (c) 2018 THUNLP. Released under the MIT License.",

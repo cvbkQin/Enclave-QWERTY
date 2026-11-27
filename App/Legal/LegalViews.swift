@@ -427,7 +427,7 @@ struct LicensesView: View {
                 }
                 .padding(.vertical, 4)
             }
-            // 扩展词库（B6）的署名：THUOCL（MIT）、百科词库（CC BY-SA 4.0）。
+            // 扩展词库（B6）的署名：THUOCL（MIT）、百科词库（CC BY-SA 4.0）、Wikidata（CC0，T106）。
             Section(L("扩展词库", "Extra dictionaries", "拡張辞書")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L("THUOCL 清华大学开放中文词库", "THUOCL (Tsinghua Open Chinese Lexicon)", "THUOCL 清華大学オープン中国語辞書")).font(.headline)
@@ -445,6 +445,12 @@ struct LicensesView: View {
                            "原著作物は現状のまま提供され、いかなる保証もありません。変更は Enclave によるもので、原作者とは関係ありません。"))
                         .font(.footnote).foregroundStyle(.secondary)
                     Link("creativecommons.org/licenses/by-sa/4.0", destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!).font(.footnote)
+                }
+                .padding(.vertical, 4)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Wikidata").font(.headline)
+                    Text(ExtDictAttribution.wikidata).font(.subheadline)
+                    Link("creativecommons.org/publicdomain/zero/1.0", destination: URL(string: "https://creativecommons.org/publicdomain/zero/1.0/")!).font(.footnote)
                 }
                 .padding(.vertical, 4)
             }

@@ -29,6 +29,8 @@ enum ExtDict {
         case thuocl
         /// 维基百科词条整理（fcitx5-pinyin-zhwiki），CC BY-SA 4.0。
         case wiki
+        /// Wikidata 的中文标签和别名，CC0 1.0（T106：景点机场地标、名人）。
+        case wikidata
     }
 
     /// 下载和导入的词库记在这里；内置的只记关掉和删掉了哪些（升级 App 后保持原状，新加的内置默认打开）。
@@ -76,6 +78,9 @@ enum ExtDict {
                     blurb: L("互联网、软件、硬件术语。随 App 带着，也会跟着服务器更新，不用单独下载。", "Internet, software and hardware terms. Comes with the app and also updates from the server; no separate download.", "インターネット、ソフトウェア、ハードウェアの用語。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .thuocl),
             Builtin(id: "caijing", name: L("财经", "Finance", "財経"), category: "THUOCL",
                     blurb: L("金融、经济、公司术语。随 App 带着，也会跟着服务器更新，不用单独下载。", "Finance, economics and business terms. Comes with the app and also updates from the server; no separate download.", "金融、経済、企業の用語。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .thuocl),
+            // T106：生成词库文件（scripts/fetch-wikidata-names.py → build-ext-dicts.py）之前 builtin.json 里没有它，不显示。
+            Builtin(id: "lvyou", name: L("景点、机场、地标", "Places & airports", "観光地・空港・ランドマーク"), category: "Wikidata",
+                    blurb: L("世界各地的热门景点、机场、地标、城市，比如樟宜机场、圣家堂。随 App 带着，也会跟着服务器更新，不用单独下载。", "Popular sights, airports, landmarks and cities around the world, such as Changi Airport. Comes with the app and also updates from the server; no separate download.", "世界の人気観光地、空港、ランドマーク、都市（チャンギ空港など）。アプリに付属し、サーバーからも更新されます。別途ダウンロードは不要です。"), license: .wikidata),
         ]
     }
 
@@ -322,6 +327,23 @@ struct ExtDictCatalog: Codable, Equatable {
     static func resolve(_ url: String?) -> URL? {
         guard let url, !url.isEmpty else { return nil }
         return URL(string: url, relativeTo: baseURL)?.absoluteURL
+    }
+}
+
+extension ExtDictCatalog {
+    /// 清单里有这版 App 不认识的条目（比如以后加的新许可）时只跳过那一条，别的词库照常显示（T106 起）。
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        dicts = try container.decode([Lossy<Item>].self, forKey: .dicts).compactMap(\.value)
+        schema = try container.decodeIfPresent(Int.self, forKey: .schema)
+        updated = try container.decodeIfPresent(String.self, forKey: .updated)
+        grammar = try? container.decodeIfPresent(Grammar.self, forKey: .grammar)
+        builtinUpdates = try container.decodeIfPresent([Lossy<BuiltinUpdate>].self, forKey: .builtinUpdates)?.compactMap(\.value)
+    }
+
+    private struct Lossy<Value: Decodable>: Decodable {
+        let value: Value?
+        init(from decoder: Decoder) throws { value = try? Value(from: decoder) }
     }
 }
 
